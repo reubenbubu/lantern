@@ -55,7 +55,7 @@ final class MailLinker {
     if (host == null) {
       return;
     }
-    String written = LinkIndex.text(host, "written");
+    String written = Claims.written(host);
     List<Answer> answers =
         addresses.answers(
             unit,
@@ -116,7 +116,7 @@ final class MailLinker {
     for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
       if (DataLinker.relaxed(k).equals(wanted)) {
         Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
-        if (f != null && !LinkIndex.flag(f, "masked") && !f.object().value().isBlank()) {
+        if (f != null && !Claims.masked(f) && !f.object().value().isBlank()) {
           return f;
         }
       }

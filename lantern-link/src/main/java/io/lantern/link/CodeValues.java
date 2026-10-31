@@ -2,6 +2,7 @@ package io.lantern.link;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.extract.attributes.ConfigValueAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.Resolution;
 import java.util.ArrayList;
@@ -75,17 +76,19 @@ public final class CodeValues {
     this.known = ConfigExtractor.normalizedKeys(secretKeys);
     Map<EntityId, Map<String, Map<String, Entry>>> views = new HashMap<>();
     for (Fact f : facts) {
-      if (!f.predicate().equals(ConfigExtractor.CONFIG_VALUE)
-          || f.attributes().has(ConfigExtractor.SOURCE)
-          || !f.attributes().has("key")) {
+      if (!f.predicate().equals(ConfigExtractor.CONFIG_VALUE)) {
+        continue;
+      }
+      ConfigValueAttributes config = Claims.of(f, ConfigValueAttributes.class);
+      if (config.source() != null || config.key() == null) {
         // A config repository's files and code's defaults are not the module's own config.
         continue;
       }
-      String profile = text(f, "profile");
-      String key = f.attributes().get("key").stringValue();
+      String profile = config.profile();
+      String key = config.key();
       // A value masked whole is a secret; one that only lost credentials in a URL is not.
       boolean masked = f.object().value().equals(ConfigExtractor.MASK);
-      String written = text(f, "written");
+      String written = config.written();
       Entry entry = new Entry(written != null ? written : f.object().value(), masked, f);
       views
           .computeIfAbsent(f.subject(), m -> new HashMap<>())
@@ -257,8 +260,4 @@ public final class CodeValues {
 
   private static final java.util.regex.Pattern LIST_INDEX =
       java.util.regex.Pattern.compile("\\[\\d+]");
-
-  private static String text(Fact f, String attribute) {
-    return f.attributes().has(attribute) ? f.attributes().get(attribute).stringValue() : null;
-  }
 }

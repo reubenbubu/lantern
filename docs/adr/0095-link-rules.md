@@ -1,6 +1,6 @@
 # 0095: Link rules, their order and re-running on change
 
-Status: accepted (#573, a slice of #521), amended for #575
+Status: accepted (#573, a slice of #521), amended for #575 and #580
 
 ## Context
 
@@ -98,3 +98,24 @@ until #576.
   only a database named `redis` could be given twice.
 - `CrossRepoLinks` keeps the vocabulary and constants, and its `derive(facts, snapshot)` runs the
   seven rules together for tests.
+
+## Amendment (#580): the matchers read typed facts
+
+The matchers, the helpers they share (`LinkIndex`, `Addresses`, `Deployments`, `CodeValues`) and the
+values rule read a fact's attributes only through the query layer, `Claims`:
+
+- `Claims.of(fact, Record.class)` reads a fact as its type's generated record, and fails for a fact
+  of another type, so a wrong record cannot silently give nulls.
+- A few attributes many types share are read whatever the type, by name in `Claims` alone:
+  `profile`, `written`, `masked`, `unresolved`, `key` and `source`. The views and code sites group
+  facts of several types by them.
+- Where a matcher reads facts of several types alike, a small record of its own reads each type's
+  record: `Endpoints` (HTTP and WebSocket endpoints), `MessageLinker.Message` (sends, listeners,
+  bindings, declarations), `DataLinker.Store` (datasources, data stores), `FrontendLinker.Web`
+  (calls, proxies).
+- A record read fails on a declared attribute of the wrong JSON type, where a read by name gave
+  null. Stored facts are checked against their schema; a matcher's link drafts must match it too.
+- The README claim checks (moving to derivation in 1D) and the LLM resolver's prompt and tools still
+  read by name, through `UntypedReads`, until #576.
+
+The linker's facts on project-0 to project-4 are unchanged.

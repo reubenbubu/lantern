@@ -81,10 +81,10 @@ final class LinkText {
       Fact value = lookup.apply(key);
       if (value != null) {
         used.add(value);
-        if (LinkIndex.flag(value, "masked")) {
+        if (Claims.masked(value)) {
           masked[0] = true;
         }
-        unresolved.addAll(LinkIndex.texts(value, "unresolved"));
+        unresolved.addAll(Claims.unresolved(value));
         out.append(value.object().value());
       } else if (colon >= 0) {
         out.append(

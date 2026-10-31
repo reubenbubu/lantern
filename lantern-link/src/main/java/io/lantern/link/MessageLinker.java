@@ -4,6 +4,10 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import io.lantern.extract.attributes.MessageBindingAttributes;
+import io.lantern.extract.attributes.MessageDestinationAttributes;
+import io.lantern.extract.attributes.MessageListenerAttributes;
+import io.lantern.extract.attributes.MessageSendAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.link.FoundLinks.Found;
@@ -83,20 +87,20 @@ final class MessageLinker {
       if (units.isEmpty()) {
         continue;
       }
-      String broker = LinkIndex.text(fact, "broker");
-      String kind = LinkIndex.text(fact, "destinationKind");
+      String broker = Message.of(fact).broker();
+      String kind = Message.of(fact).destinationKind();
       if (!perUnit) {
-        if (!LinkIndex.flag(fact, "masked")) {
+        if (!Claims.masked(fact)) {
           uses.add(new Use(fact, null, broker, kind, fact.object().value(), List.of()));
         }
         continue;
       }
-      String written = LinkIndex.text(fact, "written");
+      String written = Claims.written(fact);
       for (Unit unit : units) {
         String destination = fact.object().value();
         List<Fact> used = List.of();
-        boolean masked = LinkIndex.flag(fact, "masked");
-        Set<String> unresolved = new LinkedHashSet<>(LinkIndex.texts(fact, "unresolved"));
+        boolean masked = Claims.masked(fact);
+        Set<String> unresolved = new LinkedHashSet<>(Claims.unresolved(fact));
         if (written != null
             && !unit.modules().isEmpty()
             && !index.modulesOf(fact.subject()).contains(unit.modules().getFirst())) {
@@ -152,7 +156,7 @@ final class MessageLinker {
   /** A binding: the exchange routes to the queue. */
   private void routes(Use binding, String view) {
     Fact fact = binding.fact();
-    String exchange = LinkIndex.text(fact, "exchange");
+    String exchange = Message.of(fact).exchange();
     if (exchange == null || !MessagingExtractor.RABBITMQ.equals(binding.broker())) {
       return;
     }
@@ -160,11 +164,11 @@ final class MessageLinker {
     EntityId to =
         new EntityId(CrossRepoLinks.QUEUE, binding.broker() + ":" + binding.destination());
     ObjectNode attributes = FactJson.newObject();
-    String key = LinkIndex.text(fact, "routingKey");
+    String key = Message.of(fact).routingKey();
     if (key != null) {
       attributes.put("bindingKey", key);
     }
-    String type = LinkIndex.text(fact, "exchangeType");
+    String type = Message.of(fact).exchangeType();
     if (type != null) {
       attributes.put("exchangeType", type);
     }
@@ -185,7 +189,7 @@ final class MessageLinker {
 
   /** What a send publishes to, and a link to each unit listening where it arrives. */
   private void publish(Use send, String view, List<Use> received, List<Use> bound) {
-    if (LinkIndex.texts(send.fact(), "unknown").contains("exchange")) {
+    if (Message.of(send.fact()).unknown().contains("exchange")) {
       // The code does not fix the exchange: any unit listening on a bound queue may receive it.
       List<Unit> candidates = new ArrayList<>();
       for (Use binding : bound) {
@@ -206,8 +210,8 @@ final class MessageLinker {
       return;
     }
     Fact fact = send.fact();
-    String routingKey = LinkIndex.text(fact, "routingKey");
-    boolean keyUnknown = LinkIndex.texts(fact, "unknown").contains("routingKey");
+    String routingKey = Message.of(fact).routingKey();
+    boolean keyUnknown = Message.of(fact).unknown().contains("routingKey");
     ObjectNode attributes = FactJson.newObject();
     attributes.put("protocol", protocol(send.broker()));
     if (routingKey != null && !keyUnknown) {
@@ -236,11 +240,11 @@ final class MessageLinker {
       List<Use> undecided = new ArrayList<>();
       for (Use binding : bound) {
         if (!MessagingExtractor.RABBITMQ.equals(binding.broker())
-            || !send.destination().equals(LinkIndex.text(binding.fact(), "exchange"))) {
+            || !send.destination().equals(Message.of(binding.fact()).exchange())) {
           continue;
         }
-        String type = LinkIndex.text(binding.fact(), "exchangeType");
-        String pattern = LinkIndex.text(binding.fact(), "routingKey");
+        String type = Message.of(binding.fact()).exchangeType();
+        String pattern = Message.of(binding.fact()).routingKey();
         if (keyUnknown && !"fanout".equals(type)) {
           undecided.add(binding);
           continue;
@@ -322,14 +326,14 @@ final class MessageLinker {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("protocol", protocol(send.broker()));
     attributes.put("destination", destination.toString());
-    String routingKey = LinkIndex.text(s, "routingKey");
+    String routingKey = Message.of(s).routingKey();
     if (routingKey != null) {
       attributes.put("routingKey", routingKey);
     }
     EntityId queue = destination(listener);
     if (binding != null) {
       attributes.put("queue", queue.toString());
-      String pattern = LinkIndex.text(binding.fact(), "routingKey");
+      String pattern = Message.of(binding.fact()).routingKey();
       if (pattern != null) {
         attributes.put("bindingKey", pattern);
       }
@@ -397,7 +401,7 @@ final class MessageLinker {
     for (EntityId topic : topics) {
       ObjectNode attributes = FactJson.newObject();
       attributes.put("protocol", protocol(listener.broker()));
-      String group = LinkIndex.text(fact, "group");
+      String group = Message.of(fact).group();
       if (group != null) {
         attributes.put("group", group);
       }
@@ -453,9 +457,7 @@ final class MessageLinker {
                 + "|"
                 + fact.predicate()
                 + "|"
-                + (LinkIndex.text(fact, "written") != null
-                    ? LinkIndex.text(fact, "written")
-                    : fact.object().value()),
+                + (Claims.written(fact) != null ? Claims.written(fact) : fact.object().value()),
             use.unit().id(),
             CrossRepoLinks.UNRESOLVED_LINK,
             FactObject.string(use.destination()),
@@ -474,5 +476,45 @@ final class MessageLinker {
       b.used().forEach(u -> ids.add(u.id()));
     }
     return ids;
+  }
+
+  /** What the matching reads of a messaging fact, whatever its kind; null where it has none. */
+  private record Message(
+      String broker,
+      String destinationKind,
+      String exchange,
+      String routingKey,
+      String exchangeType,
+      List<String> unknown,
+      String group) {
+
+    static Message of(Fact f) {
+      return switch (f.predicate()) {
+        case MessagingExtractor.SEND -> {
+          MessageSendAttributes a = Claims.of(f, MessageSendAttributes.class);
+          yield new Message(
+              a.broker(), a.destinationKind(), null, a.routingKey(), null, a.unknown(), null);
+        }
+        case MessagingExtractor.LISTENER -> {
+          MessageListenerAttributes a = Claims.of(f, MessageListenerAttributes.class);
+          yield new Message(a.broker(), a.destinationKind(), null, null, null, null, a.group());
+        }
+        case MessagingExtractor.BINDING -> {
+          MessageBindingAttributes a = Claims.of(f, MessageBindingAttributes.class);
+          yield new Message(
+              a.broker(), null, a.exchange(), a.routingKey(), a.exchangeType(), null, null);
+        }
+        case MessagingExtractor.DESTINATION -> {
+          MessageDestinationAttributes a = Claims.of(f, MessageDestinationAttributes.class);
+          yield new Message(
+              a.broker(), a.destinationKind(), null, null, a.exchangeType(), null, null);
+        }
+        default -> new Message(null, null, null, null, null, null, null);
+      };
+    }
+
+    Message {
+      unknown = unknown == null ? List.of() : unknown;
+    }
   }
 }

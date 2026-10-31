@@ -2,17 +2,12 @@ package io.lantern.link;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The facts a link rule may read, those of the predicates it declares, queried as the generated
@@ -34,10 +29,6 @@ public final class ClaimQuery {
       return fact.subject();
     }
   }
-
-  private record RecordType(String type, MethodHandle from) {}
-
-  private static final Map<Class<?>, RecordType> TYPES = new ConcurrentHashMap<>();
 
   private final RuleInfo rule;
   private final Set<String> reads;
@@ -80,10 +71,9 @@ public final class ClaimQuery {
 
   /** The facts of a record's type, each with its attributes read as the record. */
   public <R extends Record> List<Claim<R>> all(Class<R> record) {
-    RecordType type = type(record);
     List<Claim<R>> claims = new ArrayList<>();
-    for (Fact f : all(type.type())) {
-      claims.add(new Claim<>(f, read(record, type, f)));
+    for (Fact f : all(type(record))) {
+      claims.add(new Claim<>(f, Claims.read(record, f.attributes())));
     }
     return List.copyOf(claims);
   }
@@ -103,29 +93,7 @@ public final class ClaimQuery {
     }
   }
 
-  private static RecordType type(Class<?> record) {
-    return TYPES.computeIfAbsent(
-        record,
-        r -> {
-          try {
-            String type = (String) r.getField("TYPE").get(null);
-            MethodHandle from =
-                MethodHandles.publicLookup()
-                    .findStatic(r, "from", MethodType.methodType(r, ObjectNode.class));
-            return new RecordType(type, from);
-          } catch (ReflectiveOperationException e) {
-            throw new IllegalArgumentException(r.getName() + " is not an attribute record", e);
-          }
-        });
-  }
-
-  private static <R extends Record> R read(Class<R> record, RecordType type, Fact fact) {
-    try {
-      return record.cast(type.from().invoke(fact.attributes()));
-    } catch (RuntimeException | Error e) {
-      throw e;
-    } catch (Throwable e) {
-      throw new IllegalStateException("Cannot read " + fact.id() + " as " + record.getName(), e);
-    }
+  private static String type(Class<? extends Record> record) {
+    return Claims.typeOf(record);
   }
 }

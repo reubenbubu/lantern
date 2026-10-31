@@ -6,6 +6,9 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.extract.attributes.FrontendAppAttributes;
+import io.lantern.extract.attributes.FrontendCallAttributes;
+import io.lantern.extract.attributes.FrontendProxyAttributes;
 import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.Addresses.Answer;
@@ -73,8 +76,7 @@ final class FrontendLinker {
       // nginx serves the built app, so its proxies are the ones a deployed page goes through;
       // the longest matching prefix wins, as nginx chooses.
       served.sort(
-          Comparator.comparing(
-                  (Fact p) -> !FrontendExtractor.NGINX.equals(LinkIndex.text(p, "source")))
+          Comparator.comparing((Fact p) -> !FrontendExtractor.NGINX.equals(Claims.source(p)))
               .thenComparing(p -> -p.object().value().length())
               .thenComparing(LinkIndex.BY_ID));
       for (String view : index.views()) {
@@ -92,16 +94,15 @@ final class FrontendLinker {
           emit(frontend, call, reached, view);
         }
         boolean nginx =
-            served.stream()
-                .anyMatch(p -> FrontendExtractor.NGINX.equals(LinkIndex.text(p, "source")));
+            served.stream().anyMatch(p -> FrontendExtractor.NGINX.equals(Claims.source(p)));
         for (Fact proxy : served) {
           // A development server's proxy says where the deployed page goes only when no nginx
           // serves it.
           if (used.contains(proxy.id())
-              || (nginx && !FrontendExtractor.NGINX.equals(LinkIndex.text(proxy, "source")))) {
+              || (nginx && !FrontendExtractor.NGINX.equals(Claims.source(proxy)))) {
             continue;
           }
-          Reached reached = target(LinkIndex.text(proxy, "target"), view, proxy);
+          Reached reached = target(Web.of(proxy).target(), view, proxy);
           if (reached != null && !reachedTargets.contains(reached.target().to())) {
             reachedTargets.add(reached.target().to());
             emit(frontend, proxy, reached, view);
@@ -118,13 +119,13 @@ final class FrontendLinker {
    */
   private void deployed(Origin origin, Validity validity) {
     for (Fact app : index.of(FrontendExtractor.APP)) {
-      String directory = LinkIndex.text(app, "directory");
+      String directory = Claims.of(app, FrontendAppAttributes.class).directory();
       Set<String> names = new TreeSet<>();
       List<Container> building = new ArrayList<>();
       for (Container c : deployments.all()) {
-        String build = LinkIndex.text(c.fact(), "build");
+        String build = Deployments.container(c.fact()).build();
         if (build != null
-            && "compose".equals(LinkIndex.text(c.fact(), "platform"))
+            && "compose".equals(Deployments.container(c.fact()).platform())
             && c.fact().evidence().repo().equals(app.evidence().repo())
             && (directory == null ? "" : directory)
                 .equals(folder(c.fact().evidence().path(), build))) {
@@ -193,8 +194,8 @@ final class FrontendLinker {
   /** Where a call goes in a view: its URL in the default build, else in another environment. */
   private Reached reach(Fact call, List<Fact> proxies, String view) {
     List<String> urls = new ArrayList<>();
-    urls.add(LinkIndex.text(call, "url"));
-    urls.addAll(LinkIndex.texts(call, "alternates"));
+    urls.add(Web.of(call).url());
+    urls.addAll(Web.of(call).alternates());
     for (String url : urls) {
       if (url == null) {
         continue;
@@ -211,7 +212,7 @@ final class FrontendLinker {
       }
       if (reached != null) {
         String protocol =
-            FrontendExtractor.WEBSOCKET.equals(LinkIndex.text(call, "protocol"))
+            FrontendExtractor.WEBSOCKET.equals(Web.of(call).protocol())
                 ? FrontendExtractor.WEBSOCKET
                 : reached.protocol();
         return new Reached(
@@ -242,11 +243,11 @@ final class FrontendLinker {
    * passes it whole.
    */
   static String through(String path, Fact proxy) {
-    String target = LinkIndex.text(proxy, "target");
+    String target = Web.of(proxy).target();
     Url url = LinkText.parse(target);
     String base = target;
     String rest = path;
-    if (FrontendExtractor.NGINX.equals(LinkIndex.text(proxy, "source"))
+    if (FrontendExtractor.NGINX.equals(Claims.source(proxy))
         && url.path() != null
         && !url.path().isEmpty()) {
       base = target.substring(0, target.length() - url.path().length());
@@ -289,7 +290,7 @@ final class FrontendLinker {
   private void emit(EntityId frontend, Fact from, Reached reached, String view) {
     Target target = reached.target();
     ObjectNode attributes = FactJson.newObject();
-    String method = LinkIndex.text(from, "httpMethod");
+    String method = Web.of(from).httpMethod();
     if (method != null) {
       attributes.put("httpMethod", method);
     }
@@ -299,7 +300,7 @@ final class FrontendLinker {
         attributes.put("path", reached.path());
       }
     } else {
-      attributes.put("url", LinkIndex.text(from, "target"));
+      attributes.put("url", Web.of(from).target());
     }
     attributes.put(
         "protocol",
@@ -309,7 +310,7 @@ final class FrontendLinker {
                 ? FrontendExtractor.WEBSOCKET
                 : "JSON/" + reached.protocol());
     attributes.put("matchedBy", target.matchedBy());
-    if (LinkIndex.flag(from, "navigation")) {
+    if (Web.of(from).navigation()) {
       attributes.put("navigation", true);
     }
     if (reached.proxy() != null) {
@@ -335,7 +336,7 @@ final class FrontendLinker {
         attributes.put("reachesUnit", entry.unit().id().toString());
         attributes.put(
             "reachesEndpoint",
-            socket ? LinkIndex.text(entry.endpoint(), "path") : entry.endpoint().object().value());
+            socket ? Endpoints.of(entry.endpoint()).path() : entry.endpoint().object().value());
         facts.add(entry.endpoint().id());
         if (entry.route() != null) {
           attributes.put("throughRoute", entry.route().object().value());
@@ -401,7 +402,7 @@ final class FrontendLinker {
     Fact best = null;
     int score = -1;
     for (Fact endpoint : index.of(WebSocketExtractor.ENDPOINT)) {
-      String template = LinkIndex.text(endpoint, "path");
+      String template = Endpoints.of(endpoint).path();
       if (template == null
           || !index.unitsOf(endpoint.subject()).contains(unit)
           || !index.active(endpoint.subject(), view)) {
@@ -421,10 +422,10 @@ final class FrontendLinker {
    * 127.0.0.1:8080:80}; a container port alone is published on a random host port, so on none.
    */
   static boolean publishes(Fact container, String port) {
-    if (!"compose".equals(LinkIndex.text(container, "platform"))) {
+    if (!"compose".equals(Deployments.container(container).platform())) {
       return false;
     }
-    for (String written : LinkIndex.texts(container, "ports")) {
+    for (String written : Claims.list(Deployments.container(container).ports())) {
       String[] parts = written.replaceAll("/(tcp|udp)$", "").split(":");
       if (parts.length == 1) {
         continue;
@@ -435,5 +436,35 @@ final class FrontendLinker {
       }
     }
     return false;
+  }
+
+  /** What the linking reads of a frontend's call or proxy; null where it has none. */
+  private record Web(
+      String httpMethod,
+      String target,
+      boolean navigation,
+      String url,
+      String protocol,
+      List<String> alternates) {
+
+    static Web of(Fact f) {
+      return switch (f.predicate()) {
+        case FrontendExtractor.CALL -> {
+          FrontendCallAttributes a = Claims.of(f, FrontendCallAttributes.class);
+          yield new Web(
+              a.httpMethod(),
+              null,
+              Boolean.TRUE.equals(a.navigation()),
+              a.url(),
+              a.protocol(),
+              Claims.list(a.alternates()));
+        }
+        case FrontendExtractor.PROXY -> {
+          FrontendProxyAttributes a = Claims.of(f, FrontendProxyAttributes.class);
+          yield new Web(null, a.target(), false, null, null, List.of());
+        }
+        default -> new Web(null, null, false, null, null, List.of());
+      };
+    }
   }
 }

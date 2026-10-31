@@ -7,6 +7,8 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.attributes.IdentityAdminClientAttributes;
+import io.lantern.extract.attributes.JwtSecretKeyAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.extract.identity.IdentityExtractor;
@@ -240,10 +242,12 @@ final class IdentityLinker {
         continue;
       }
       List<Fact> used = new ArrayList<>(resolved.used());
-      String written = used.isEmpty() ? null : LinkIndex.text(used.getFirst(), "written");
+      String written = used.isEmpty() ? null : Claims.written(used.getFirst());
       Use use =
           new Use(
-              MANAGES_USERS, LinkIndex.text(client, "product") + " Admin REST", List.of(client));
+              MANAGES_USERS,
+              Claims.of(client, IdentityAdminClientAttributes.class).product() + " Admin REST",
+              List.of(client));
       Reached reached = reach(unit, view, resolved.text(), written);
       if (reached != null) {
         Set<String> facts = new TreeSet<>();
@@ -258,7 +262,7 @@ final class IdentityLinker {
     List<Fact> values = new ArrayList<>();
     for (String key : keys) {
       Fact value = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
-      if (value != null && !LinkIndex.flag(value, "masked")) {
+      if (value != null && !Claims.masked(value)) {
         values.add(value);
       }
     }
@@ -269,7 +273,7 @@ final class IdentityLinker {
     for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
       if (relaxed(k).equals(relaxed(key))) {
         Fact value = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
-        if (value != null && !LinkIndex.flag(value, "masked")) {
+        if (value != null && !Claims.masked(value)) {
           return value.object().value().strip();
         }
       }
@@ -280,7 +284,7 @@ final class IdentityLinker {
   /** Links a unit to the provider the first of its values that reaches one names. */
   private void link(Unit unit, String view, Use use) {
     for (Fact value : use.values()) {
-      Reached reached = reach(unit, view, value.object().value(), LinkIndex.text(value, "written"));
+      Reached reached = reach(unit, view, value.object().value(), Claims.written(value));
       if (reached != null) {
         add(unit, view, use, reached, value, value.object().value(), null, null);
         return;
@@ -351,7 +355,7 @@ final class IdentityLinker {
       }
     } else if (reached == null && answer.kind() != Kind.AMBIGUOUS) {
       for (Container c : deployments.all()) {
-        if ("identity".equals(LinkIndex.text(c.fact(), "role"))
+        if ("identity".equals(Deployments.container(c.fact()).role())
             && c.product() != null
             && c.answers(host)
             && (from == null || sameEnvironment(c, from))) {
@@ -374,10 +378,10 @@ final class IdentityLinker {
   private Reached byPublishedPort(String port) {
     List<Container> found = new ArrayList<>();
     for (Container c : deployments.all()) {
-      if (!"identity".equals(LinkIndex.text(c.fact(), "role")) || c.product() == null) {
+      if (!"identity".equals(Deployments.container(c.fact()).role()) || c.product() == null) {
         continue;
       }
-      for (String published : LinkIndex.texts(c.fact(), "ports")) {
+      for (String published : Claims.list(Deployments.container(c.fact()).ports())) {
         String p =
             published.contains("/") ? published.substring(0, published.indexOf('/')) : published;
         String[] parts = p.split(":");
@@ -412,11 +416,11 @@ final class IdentityLinker {
       String prefix = index.servletPrefix(to, view);
       int best = -1;
       for (Fact e : index.of(SpringExtractor.ENDPOINT)) {
-        String controller = LinkIndex.text(e, "controller");
+        String controller = Endpoints.of(e).controller();
         EntityId code =
             controller == null ? e.subject() : new EntityId(BuiltInTypes.TYPE, controller);
-        String template = LinkIndex.text(e, "path");
-        String method = LinkIndex.text(e, "httpMethod");
+        String template = Endpoints.of(e).path();
+        String method = Endpoints.of(e).httpMethod();
         if (template == null
             || (method != null
                 && !method.equalsIgnoreCase("GET")
@@ -455,7 +459,7 @@ final class IdentityLinker {
         "protocol",
         use.protocol() + " over " + ("https".equals(parsed.scheme()) ? "HTTPS" : "HTTP"));
     attributes.put("url", url);
-    String key = LinkIndex.text(evidence, "key");
+    String key = Claims.key(evidence);
     if (key != null) {
       attributes.put("key", key);
     }
@@ -524,10 +528,10 @@ final class IdentityLinker {
         attributes.put("algorithm", "HMAC");
         attributes.put("basis", s.basis());
         attributes.put("source", s.fact().subject().toString());
-        attributes.put("library", LinkIndex.text(s.fact(), "library"));
+        attributes.put("library", Claims.of(s.fact(), JwtSecretKeyAttributes.class).library());
         ArrayNode with = attributes.putArray("with");
         units.stream().filter(u -> !u.equals(s.unit().id())).forEach(u -> with.add(u.toString()));
-        List<String> uses = LinkIndex.texts(s.fact(), "uses");
+        List<String> uses = Claims.list(Claims.of(s.fact(), JwtSecretKeyAttributes.class).uses());
         if (!uses.isEmpty()) {
           ArrayNode array = attributes.putArray("uses");
           uses.forEach(array::add);
@@ -545,7 +549,10 @@ final class IdentityLinker {
                 SHARED_SECRET + "|" + s.unit().id() + "|" + s.fact().subject(),
                 s.unit().id(),
                 SHARED_SECRET,
-                FactObject.string(String.join(", ", LinkIndex.texts(s.fact(), "keys"))),
+                FactObject.string(
+                    String.join(
+                        ", ",
+                        Claims.list(Claims.of(s.fact(), JwtSecretKeyAttributes.class).keys()))),
                 attributes,
                 s.fact().evidence(),
                 CrossRepoLinks.round(
@@ -563,7 +570,7 @@ final class IdentityLinker {
    * is masked or no config sets it, the key itself. The value never leaves this method.
    */
   private Secret secret(Unit unit, Fact fact, String view) {
-    List<String> keys = LinkIndex.texts(fact, "keys");
+    List<String> keys = Claims.list(Claims.of(fact, JwtSecretKeyAttributes.class).keys());
     Set<String> placeholders = new TreeSet<>();
     List<String> values = new ArrayList<>();
     List<Fact> used = new ArrayList<>();
@@ -575,10 +582,10 @@ final class IdentityLinker {
         continue;
       }
       used.add(value);
-      List<String> unresolved = LinkIndex.texts(value, "unresolved");
+      List<String> unresolved = Claims.unresolved(value);
       if (!unresolved.isEmpty()) {
         unresolved.forEach(u -> placeholders.add(environmental(u)));
-      } else if (LinkIndex.flag(value, "masked")) {
+      } else if (Claims.masked(value)) {
         known = false;
       } else {
         values.add(value.object().value());

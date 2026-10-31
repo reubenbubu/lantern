@@ -134,7 +134,7 @@ final class ResolvePrompt {
       Fact unresolved, List<Fact> about, Map<EntityId, List<Fact>> candidates) {
     Map<String, Fact> refs = new LinkedHashMap<>();
     StringBuilder user = new StringBuilder();
-    String kind = LinkIndex.text(unresolved, "kind");
+    String kind = UntypedReads.text(unresolved, "kind");
     boolean route = "route".equals(kind);
     boolean http = route || "http".equals(kind);
     user.append("The ")
@@ -143,17 +143,17 @@ final class ResolvePrompt {
         .append(oneLine(unresolved.object().value()))
         .append('\n');
     user.append("Made by the unit ").append(unresolved.subject());
-    String source = LinkIndex.text(unresolved, "source");
+    String source = Claims.source(unresolved);
     if (source != null) {
       user.append(", in ").append(source);
     }
-    String profile = LinkIndex.text(unresolved, "profile");
+    String profile = Claims.profile(unresolved);
     if (profile != null) {
       user.append(", with the Spring profile ").append(profile).append(" active");
     }
     user.append(".\n");
-    user.append("Left open because ").append(reason(LinkIndex.text(unresolved, "reason")));
-    List<String> keys = LinkIndex.texts(unresolved, "unresolved");
+    user.append("Left open because ").append(reason(UntypedReads.text(unresolved, "reason")));
+    List<String> keys = Claims.unresolved(unresolved);
     if (!keys.isEmpty()) {
       user.append("; placeholders no config resolves: ").append(String.join(", ", keys));
     }

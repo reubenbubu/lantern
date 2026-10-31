@@ -305,7 +305,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       entry.put("subject", f.subject().toString());
       entry.put("predicate", f.predicate());
       entry.put("object", f.object().value());
-      String profile = LinkIndex.text(f, "profile");
+      String profile = Claims.profile(f);
       if (profile != null) {
         entry.put("profile", profile);
       }
@@ -351,7 +351,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     }
     List<Fact> calls = new ArrayList<>(index.from(CrossRepoLinks.CALLS_HTTP, units));
     for (Fact f : index.from(CrossRepoLinks.UNRESOLVED_LINK, units)) {
-      if ("http".equals(LinkIndex.text(f, "kind"))) {
+      if ("http".equals(UntypedReads.text(f, "kind"))) {
         calls.add(f);
       }
     }
@@ -387,8 +387,8 @@ public final class ClaimChecks implements LinkRule.OverFacts {
         index.from(CrossRepoLinks.ACCESSES_DATA_OF, units).stream()
             .filter(
                 f ->
-                    (anyRead && !LinkIndex.texts(f, "reads").isEmpty())
-                        || (anyWrite && !LinkIndex.texts(f, "writes").isEmpty()))
+                    (anyRead && !UntypedReads.texts(f, "reads").isEmpty())
+                        || (anyWrite && !UntypedReads.texts(f, "writes").isEmpty()))
             .toList();
     if (!access.isEmpty()) {
       out.add(new Contradiction(OTHER_SERVICES_DATA, null, Set.of(), sorted(access)));
@@ -435,7 +435,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     List<Fact> uses = index.from(CrossRepoLinks.USES_DATABASE, units);
     Set<String> found = new TreeSet<>();
     for (Fact f : uses) {
-      String technology = LinkIndex.text(f, "technology");
+      String technology = UntypedReads.text(f, "technology");
       if (technology == null || technology.equalsIgnoreCase(stated)) {
         return;
       }
@@ -463,8 +463,8 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       for (Fact f : index.from(predicate, units)) {
         String kind =
             predicate.equals(CrossRepoLinks.USES_BROKER)
-                ? LinkIndex.text(f, "technology")
-                : LinkIndex.text(f, "protocol");
+                ? UntypedReads.text(f, "technology")
+                : UntypedReads.text(f, "protocol");
         if (kind == null || accepted.contains(kind.toLowerCase(Locale.ROOT))) {
           return;
         }
@@ -529,7 +529,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     List<Fact> contradicting = new ArrayList<>();
     Set<String> found = new TreeSet<>();
     for (Fact f : technologies) {
-      String value = LinkIndex.text(f, attribute);
+      String value = UntypedReads.text(f, attribute);
       if (value == null) {
         continue;
       }
@@ -656,7 +656,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
 
   /** The links that hold in the default view: those without a profile. */
   private static List<Fact> defaultView(List<Fact> links) {
-    return links.stream().filter(f -> LinkIndex.text(f, "profile") == null).toList();
+    return links.stream().filter(f -> Claims.profile(f) == null).toList();
   }
 
   /** Whether a sentence says the units make no synchronous calls to other services. */

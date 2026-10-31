@@ -5,6 +5,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.attributes.HttpCallAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.spring.SpringExtractor;
@@ -93,7 +94,7 @@ final class HttpLinker {
     this.out = out;
     this.addresses = addresses;
     for (Fact f : index.of(SpringExtractor.ENDPOINT)) {
-      String controller = LinkIndex.text(f, "controller");
+      String controller = Endpoints.of(f).controller();
       EntityId code =
           controller == null ? f.subject() : new EntityId(BuiltInTypes.TYPE, controller);
       for (Unit unit : index.unitsOf(code)) {
@@ -163,10 +164,10 @@ final class HttpLinker {
    */
   private List<Unit> callers(Fact call) {
     List<Unit> units = index.unitsOf(call.subject());
-    if (!HttpClientExtractor.FEIGN.equals(LinkIndex.text(call, "client"))) {
+    if (!HttpClientExtractor.FEIGN.equals(Claims.of(call, HttpCallAttributes.class).client())) {
       return units;
     }
-    String clientType = LinkIndex.text(call, "clientType");
+    String clientType = Claims.of(call, HttpCallAttributes.class).clientType();
     EntityId client =
         clientType == null
             ? LinkIndex.typeOf(call.subject())
@@ -185,12 +186,12 @@ final class HttpLinker {
    */
   private Call call(List<Fact> site, Unit caller, String view) {
     Fact fact = LinkIndex.inView(Map.of("", site), view).get("");
-    if (fact == null || !index.active(fact.subject(), view) || LinkIndex.flag(fact, "masked")) {
+    if (fact == null || !index.active(fact.subject(), view) || Claims.masked(fact)) {
       return null;
     }
-    String httpMethod = LinkIndex.text(fact, "httpMethod");
-    String service = LinkIndex.text(fact, "service");
-    String written = LinkIndex.text(fact, "written");
+    String httpMethod = Claims.of(fact, HttpCallAttributes.class).httpMethod();
+    String service = Claims.of(fact, HttpCallAttributes.class).service();
+    String written = Claims.written(fact);
     if (written != null
         && !caller.modules().isEmpty()
         && !index.modulesOf(fact.subject()).contains(caller.modules().getFirst())) {
@@ -212,9 +213,11 @@ final class HttpLinker {
           resolved.used(),
           null);
     }
-    String url = LinkIndex.text(fact, "url");
+    String url = Claims.of(fact, HttpCallAttributes.class).url();
     Url parsed =
-        url != null ? LinkText.parse(url) : new Url(null, null, null, LinkIndex.text(fact, "path"));
+        url != null
+            ? LinkText.parse(url)
+            : new Url(null, null, null, Claims.of(fact, HttpCallAttributes.class).path());
     String object = fact.object().value();
     String address =
         url != null
@@ -227,7 +230,7 @@ final class HttpLinker {
         httpMethod,
         service,
         parsed,
-        new LinkedHashSet<>(LinkIndex.texts(fact, "unresolved")),
+        new LinkedHashSet<>(Claims.unresolved(fact)),
         object,
         address,
         written,
@@ -349,7 +352,7 @@ final class HttpLinker {
       attributes.put("endpoint", e.object().value());
       attributes.put("target", e.subject().toString());
       confidence = Math.min(confidence, e.confidence() * target.factor());
-      String controller = LinkIndex.text(e, "controller");
+      String controller = Endpoints.of(e).controller();
       if (controller != null
           && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
         protocol = "JSON/" + protocol;
@@ -439,7 +442,7 @@ final class HttpLinker {
   private static ObjectNode common(Call call) {
     ObjectNode attributes = FactJson.newObject();
     Fact fact = call.fact();
-    String client = LinkIndex.text(fact, "client");
+    String client = Claims.of(fact, HttpCallAttributes.class).client();
     if (client != null) {
       attributes.put("client", client);
     }
@@ -493,11 +496,11 @@ final class HttpLinker {
       if (!endpoint.unit().equals(unit) || !index.active(endpoint.fact().subject(), view)) {
         continue;
       }
-      String method = LinkIndex.text(endpoint.fact(), "httpMethod");
+      String method = Endpoints.of(endpoint.fact()).httpMethod();
       if (method != null && httpMethod != null && !method.equals(httpMethod)) {
         continue;
       }
-      String template = LinkIndex.text(endpoint.fact(), "path");
+      String template = Endpoints.of(endpoint.fact()).path();
       if (template == null) {
         continue;
       }

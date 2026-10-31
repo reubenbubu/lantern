@@ -4,10 +4,13 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.extract.attributes.ProfileGateAttributes;
+import io.lantern.extract.attributes.StereotypeAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.link.attributes.BundlesAttributes;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -21,7 +24,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import org.springframework.core.env.Profiles;
-import tools.jackson.databind.JsonNode;
 
 /**
  * The facts of a snapshot that the cross-repo linker reads, indexed: the deployable units with
@@ -90,7 +92,7 @@ final class LinkIndex {
     sorted.sort(BY_ID);
     for (Fact f : sorted) {
       byPredicate.computeIfAbsent(f.predicate(), p -> new ArrayList<>()).add(f);
-      String profile = text(f, "profile");
+      String profile = Claims.profile(f);
       if (profile != null) {
         profileNames.add(profile);
       }
@@ -113,22 +115,21 @@ final class LinkIndex {
             config.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
         case SpringExtractor.PROFILE_GATE -> {
           gates.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
-          JsonNode named = f.attributes().get("profiles");
-          if (named != null && named.isArray()) {
+          List<String> named = Claims.of(f, ProfileGateAttributes.class).profiles();
+          if (named != null) {
             // As written, so "!local" or "a & b": the profiles are the names in the expression.
-            named.forEach(
-                p -> {
-                  for (String name : p.asString().split("[!&|()\\s]+")) {
-                    if (!name.isEmpty()) {
-                      profileNames.add(name);
-                    }
-                  }
-                });
+            for (String p : named) {
+              for (String name : p.split("[!&|()\\s]+")) {
+                if (!name.isEmpty()) {
+                  profileNames.add(name);
+                }
+              }
+            }
           }
         }
         case SpringExtractor.STEREOTYPE -> {
           if ("controller".equals(f.object().value())
-              && f.attributes().path("rest").asBoolean(false)) {
+              && Boolean.TRUE.equals(Claims.of(f, StereotypeAttributes.class).rest())) {
             restControllers.add(f.subject());
           }
         }
@@ -160,7 +161,11 @@ final class LinkIndex {
       // Nearest first: those the unit's own module depends on, then by their declarations.
       List<Fact> bundled = new ArrayList<>(bundles.getOrDefault(unit.subject(), List.of()));
       bundled.sort(
-          Comparator.comparingInt((Fact b) -> b.attributes().path("via").size())
+          Comparator.comparingInt(
+                  (Fact b) -> {
+                    List<String> via = Claims.of(b, BundlesAttributes.class).via();
+                    return via == null ? 0 : via.size();
+                  })
               .thenComparingInt(
                   b ->
                       b.evidence().lines() == null
@@ -357,11 +362,11 @@ final class LinkIndex {
         Fact fallback = null;
         for (Fact f : config.getOrDefault(provider, List.of())) {
           if (!f.predicate().equals(predicate)
-              || !key.equals(text(f, "key"))
+              || !key.equals(Claims.key(f))
               || !family.equals(DeployableUnits.configFamily(f))) {
             continue;
           }
-          String profile = text(f, "profile");
+          String profile = Claims.profile(f);
           if (view != null && view.equals(profile)) {
             return f;
           }
@@ -385,7 +390,7 @@ final class LinkIndex {
     String prefix = "";
     for (String key : List.of("server.servlet.context-path", "spring.mvc.servlet.path")) {
       Fact value = config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
-      if (value != null && !flag(value, "masked")) {
+      if (value != null && !Claims.masked(value)) {
         prefix = LinkText.join(prefix, value.object().value());
       }
     }
@@ -398,7 +403,7 @@ final class LinkIndex {
     for (String family : FAMILIES) {
       for (EntityId provider : providers(unit, family)) {
         for (Fact f : config.getOrDefault(provider, List.of())) {
-          String key = text(f, "key");
+          String key = Claims.key(f);
           if (f.predicate().equals(predicate)
               && key != null
               && family.equals(DeployableUnits.configFamily(f))) {
@@ -477,7 +482,7 @@ final class LinkIndex {
       Fact own = null;
       Fact fallback = null;
       for (Fact f : site.getValue()) {
-        String profile = text(f, "profile");
+        String profile = Claims.profile(f);
         if (view != null && view.equals(profile) && own == null) {
           own = f;
         } else if (profile == null && fallback == null) {
@@ -500,7 +505,7 @@ final class LinkIndex {
   static Map<String, List<Fact>> codeSites(List<Fact> facts) {
     Map<String, List<Fact>> sites = new TreeMap<>();
     for (Fact f : facts) {
-      String written = text(f, "written");
+      String written = Claims.written(f);
       String key =
           f.subject()
               + "|"
@@ -514,24 +519,5 @@ final class LinkIndex {
       sites.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
     }
     return sites;
-  }
-
-  static String text(Fact fact, String attribute) {
-    JsonNode value = fact.attributes().get(attribute);
-    return value == null || !value.isString() ? null : value.stringValue();
-  }
-
-  static boolean flag(Fact fact, String attribute) {
-    return fact.attributes().path(attribute).asBoolean(false);
-  }
-
-  /** The strings of an array attribute, or none. */
-  static List<String> texts(Fact fact, String attribute) {
-    JsonNode value = fact.attributes().get(attribute);
-    List<String> result = new ArrayList<>();
-    if (value != null && value.isArray()) {
-      value.forEach(v -> result.add(v.asString()));
-    }
-    return result;
   }
 }

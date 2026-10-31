@@ -899,16 +899,18 @@ public final class DeployableUnits implements LinkRule {
    * library adds in code, or null.
    */
   static String configFamily(Fact fact) {
-    // The cross-repo linker's index reads its config facts as facts until #575.
-    return configFamily(fact, ConfigValueAttributes.from(fact.attributes()));
+    return configFamily(fact.evidence().path(), Claims.source(fact));
   }
 
-  /** {@link #configFamily(Fact)} of a fact whose attributes are read. */
+  /** {@link #configFamily(Fact)} of a config value whose attributes are read. */
   static String configFamily(Fact fact, ConfigValueAttributes config) {
-    if (ConfigExtractor.ENVIRONMENT_POST_PROCESSOR.equals(config.source())) {
+    return configFamily(fact.evidence().path(), config.source());
+  }
+
+  private static String configFamily(String path, String source) {
+    if (ConfigExtractor.ENVIRONMENT_POST_PROCESSOR.equals(source)) {
       return DEFAULTS;
     }
-    String path = fact.evidence().path();
     if (path == null) {
       return null;
     }

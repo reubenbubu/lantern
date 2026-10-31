@@ -825,8 +825,8 @@ class CrossRepoLinksTest {
             l -> {
               assertThat(l.subject().toString()).isEqualTo("service:g:fulfilment");
               assertThat(l.object().value()).isEqualTo("service:g:storefront-app");
-              assertThat(LinkIndex.text(l, "matchedBy")).isEqualTo("container-host");
-              assertThat(LinkIndex.text(l, "endpoint")).isEqualTo("GET /api/orders/{id}");
+              assertThat(UntypedReads.text(l, "matchedBy")).isEqualTo("container-host");
+              assertThat(UntypedReads.text(l, "endpoint")).isEqualTo("GET /api/orders/{id}");
               // The container whose environment filled it in is among the link's facts.
               String fulfilmentContainer =
                   facts.stream()
@@ -835,7 +835,7 @@ class CrossRepoLinksTest {
                       .findFirst()
                       .orElseThrow()
                       .id();
-              assertThat(LinkIndex.texts(l, "facts")).contains(fulfilmentContainer);
+              assertThat(UntypedReads.texts(l, "facts")).contains(fulfilmentContainer);
             });
   }
 

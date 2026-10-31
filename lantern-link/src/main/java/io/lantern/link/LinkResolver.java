@@ -223,8 +223,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
     facts.forEach(f -> byId.putIfAbsent(f.id(), f));
     List<Question> questions = new ArrayList<>();
     for (Fact unresolved : index.of(CrossRepoLinks.UNRESOLVED_LINK)) {
-      String kind = LinkIndex.text(unresolved, "kind");
-      if (LinkIndex.texts(unresolved, "candidates").isEmpty()
+      String kind = UntypedReads.text(unresolved, "kind");
+      if (UntypedReads.texts(unresolved, "candidates").isEmpty()
           || !("http".equals(kind) || "message".equals(kind) || "route".equals(kind))) {
         // Nothing to pick from: the link stays open, for the questions queue.
         continue;
@@ -312,16 +312,16 @@ public final class LinkResolver implements LinkRule.OverFacts {
       HttpLinker http,
       RouteLinker routes,
       Map<String, Fact> byId) {
-    String view = LinkIndex.text(unresolved, "profile");
+    String view = Claims.profile(unresolved);
     List<Fact> about = new ArrayList<>();
     unitFacts(index, unresolved.subject(), view, about);
-    for (String id : LinkIndex.texts(unresolved, "facts")) {
+    for (String id : UntypedReads.texts(unresolved, "facts")) {
       Fact fact = byId.get(id);
       if (fact != null && !about.contains(fact)) {
         about.add(fact);
       }
     }
-    boolean isHttp = "http".equals(LinkIndex.text(unresolved, "kind"));
+    boolean isHttp = "http".equals(UntypedReads.text(unresolved, "kind"));
     Fact route =
         about.stream()
             .filter(f -> f.predicate().equals(GatewayExtractor.ROUTE))
@@ -337,7 +337,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
             .findFirst()
             .orElse(null);
     Map<EntityId, List<Fact>> candidates = new LinkedHashMap<>();
-    for (String text : LinkIndex.texts(unresolved, "candidates")) {
+    for (String text : UntypedReads.texts(unresolved, "candidates")) {
       EntityId id = EntityId.parse(text);
       List<Fact> shown = new ArrayList<>();
       unitFacts(index, id, view, shown);
@@ -375,19 +375,19 @@ public final class LinkResolver implements LinkRule.OverFacts {
    */
   private static List<Fact> receiving(
       LinkIndex index, Unit unit, Fact send, String destination, String view) {
-    String broker = send == null ? null : LinkIndex.text(send, "broker");
+    String broker = send == null ? null : UntypedReads.text(send, "broker");
     List<Fact> listeners = new ArrayList<>();
     for (Fact listener : index.of(MessagingExtractor.LISTENER)) {
       if (index.unitsOf(listener.subject()).contains(unit)
           && index.active(listener.subject(), view)
-          && (broker == null || broker.equals(LinkIndex.text(listener, "broker")))) {
+          && (broker == null || broker.equals(UntypedReads.text(listener, "broker")))) {
         listeners.add(listener);
       }
     }
     List<Fact> bindings = new ArrayList<>();
     List<Fact> bound = new ArrayList<>();
     for (Fact binding : index.of(MessagingExtractor.BINDING)) {
-      if (!destination.equals(LinkIndex.text(binding, "exchange"))) {
+      if (!destination.equals(UntypedReads.text(binding, "exchange"))) {
         continue;
       }
       for (Fact listener : listeners) {
@@ -437,14 +437,12 @@ public final class LinkResolver implements LinkRule.OverFacts {
     Fact unresolved = question.unresolved();
     String purpose =
         "resolve "
-            + LinkIndex.text(unresolved, "kind")
+            + UntypedReads.text(unresolved, "kind")
             + " link "
             + unresolved.object().value().replace('\n', ' ')
             + " of "
             + unresolved.subject()
-            + (LinkIndex.text(unresolved, "profile") == null
-                ? ""
-                : " under " + LinkIndex.text(unresolved, "profile"));
+            + (Claims.profile(unresolved) == null ? "" : " under " + Claims.profile(unresolved));
     GraphTools tools = graph == null ? null : graph.tools();
     Conversation conversation =
         client.converse(
@@ -575,7 +573,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
   // The link
 
   private static String linkOf(Fact unresolved) {
-    String link = LinkIndex.text(unresolved, "link");
+    String link = UntypedReads.text(unresolved, "link");
     return link == null ? unresolved.id() : link;
   }
 
@@ -592,8 +590,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
       long snapshot,
       String system) {
     Fact unresolved = question.unresolved();
-    boolean isRoute = "route".equals(LinkIndex.text(unresolved, "kind"));
-    boolean isHttp = isRoute || "http".equals(LinkIndex.text(unresolved, "kind"));
+    boolean isRoute = "route".equals(UntypedReads.text(unresolved, "kind"));
+    boolean isHttp = isRoute || "http".equals(UntypedReads.text(unresolved, "kind"));
     String predicate = isHttp ? CrossRepoLinks.CALLS_HTTP : CrossRepoLinks.SENDS_MESSAGES_TO;
     Candidate candidate = question.candidate(resolution.target().toString());
     List<Fact> cited = new ArrayList<>();
@@ -618,7 +616,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
       code = ends.getFirst();
     }
     Fact origin = null;
-    for (String id : LinkIndex.texts(unresolved, "facts")) {
+    for (String id : UntypedReads.texts(unresolved, "facts")) {
       Fact fact = byId.get(id);
       if (fact != null
           && (fact.predicate().equals(MessagingExtractor.SEND)
@@ -630,7 +628,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     }
 
     ObjectNode attributes = FactJson.newObject();
-    String source = LinkIndex.text(unresolved, "source");
+    String source = Claims.source(unresolved);
     if (source != null) {
       attributes.put("source", source);
     }
@@ -642,14 +640,14 @@ public final class LinkResolver implements LinkRule.OverFacts {
       if (origin != null) {
         attributes.put("route", origin.object().value());
         for (String key : List.of("paths", "methods")) {
-          List<String> values = LinkIndex.texts(origin, key);
+          List<String> values = UntypedReads.texts(origin, key);
           if (!values.isEmpty()) {
             ArrayNode array = attributes.putArray(key);
             values.forEach(array::add);
           }
         }
       }
-      String uri = origin == null ? unresolved.object().value() : LinkIndex.text(origin, "uri");
+      String uri = origin == null ? unresolved.object().value() : UntypedReads.text(origin, "uri");
       if (uri != null) {
         attributes.put("url", uri);
       }
@@ -661,7 +659,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
               : "https".equals(scheme) ? "HTTPS" : "HTTP";
       if (code != null) {
         attributes.put("endpoint", code.object().value());
-        String controller = LinkIndex.text(code, "controller");
+        String controller = UntypedReads.text(code, "controller");
         if (!protocol.equals("WebSocket")
             && controller != null
             && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
@@ -671,15 +669,15 @@ public final class LinkResolver implements LinkRule.OverFacts {
       attributes.put("protocol", protocol);
       attributes.put("matchedBy", "llm");
     } else if (isHttp) {
-      String client = origin == null ? null : LinkIndex.text(origin, "client");
+      String client = origin == null ? null : UntypedReads.text(origin, "client");
       if (client != null) {
         attributes.put("client", client);
       }
-      String httpMethod = origin == null ? null : LinkIndex.text(origin, "httpMethod");
+      String httpMethod = origin == null ? null : UntypedReads.text(origin, "httpMethod");
       if (httpMethod != null) {
         attributes.put("httpMethod", httpMethod);
       }
-      String path = origin == null ? null : LinkIndex.text(origin, "path");
+      String path = origin == null ? null : UntypedReads.text(origin, "path");
       if (path != null) {
         attributes.put("path", path);
       }
@@ -689,7 +687,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
               : "HTTP";
       if (code != null) {
         attributes.put("endpoint", code.object().value());
-        String controller = LinkIndex.text(code, "controller");
+        String controller = UntypedReads.text(code, "controller");
         if (controller != null
             && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
           protocol = "JSON/" + protocol;
@@ -698,10 +696,10 @@ public final class LinkResolver implements LinkRule.OverFacts {
       attributes.put("protocol", protocol);
       attributes.put("matchedBy", "llm");
     } else {
-      String broker = origin == null ? null : LinkIndex.text(origin, "broker");
+      String broker = origin == null ? null : UntypedReads.text(origin, "broker");
       attributes.put("protocol", protocol(broker));
     }
-    String profile = LinkIndex.text(unresolved, "profile");
+    String profile = Claims.profile(unresolved);
     if (profile != null) {
       attributes.put("profile", profile);
     }
@@ -718,7 +716,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
             predicate + "|resolves=" + linkOf(unresolved) + "|" + resolution.target(), null));
     Set<String> ids = new TreeSet<>();
     ids.add(unresolved.id());
-    ids.addAll(LinkIndex.texts(unresolved, "facts"));
+    ids.addAll(UntypedReads.texts(unresolved, "facts"));
     cited.forEach(f -> ids.add(f.id()));
     ArrayNode array = attributes.putArray("facts");
     ids.forEach(array::add);
