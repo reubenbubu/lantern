@@ -45,6 +45,17 @@ class LinkRuleTest {
   }
 
   @Test
+  void aRuleReadingTheLinkedGraphRunsAfterTheLinkRulesAndAfterTheOnesWhoseFactsItNames() {
+    Rule units = new Rule("units", Set.of(LinkRule.EXTRACTED), Set.of("unit"));
+    Rule links = new Rule("links", Set.of("unit"), Set.of("link"));
+    Rule components = new Rule("components", Set.of(LinkRule.LINKED), Set.of("component"));
+    Rule lines = new Rule("lines", Set.of(LinkRule.LINKED, "component"), Set.of("component-line"));
+
+    assertThat(names(RuleOrder.of(List.of(lines, components, links, units))))
+        .containsExactly("units", "links", "components", "lines");
+  }
+
+  @Test
   void aRuleDoesNotWaitForItself() {
     Rule tech = new Rule("tech", Set.of("technology"), Set.of("technology"));
 

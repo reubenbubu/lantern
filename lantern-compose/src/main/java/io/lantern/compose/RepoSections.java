@@ -18,6 +18,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.Knowledge;
 import io.lantern.summarize.Summary;
 import java.math.BigDecimal;
 import java.time.LocalDate;

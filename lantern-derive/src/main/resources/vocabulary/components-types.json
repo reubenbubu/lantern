@@ -1,0 +1,30 @@
+[
+  {
+    "name": "PART_OF",
+    "kind": "relationship",
+    "keyAttributes": ["role", "technology"],
+    "description": "The subject element of the architecture model is part of the object: a component of the deployable unit it runs in (#523).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["entry-point", "aspect", "shared", "config-routes"], "description": "For a component, what it is built around: an entry point (controller, listener, job, gateway filter, STOMP handler, WebSocket registration), an aspect that advises one, a bean several entry points share or that reaches outside the unit, or the routes a gateway's config defines." },
+        "technology": { "type": "string", "description": "For a component, what it is, as the component diagram labels it, such as Spring MVC REST controller or Spring Data JPA repository." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts that give the component's anchor its role, the first giving its evidence." }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "ANCHORED_ON",
+    "kind": "relationship",
+    "description": "The subject component is built around the object: the class of its entry point, aspect or shared bean, or the module whose config defines a gateway's routes (#523).",
+    "attributeSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+  },
+  {
+    "name": "HAS_MEMBER",
+    "kind": "relationship",
+    "parent": "CONTAINS",
+    "description": "The subject component holds the object class: its anchor, or a bean only its anchor reaches (#523). A kind of CONTAINS, a type of its own so derivation does not write what the extractors write.",
+    "attributeSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+  }
+]

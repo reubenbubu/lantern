@@ -11,8 +11,9 @@ import java.util.stream.Collectors;
 
 /**
  * The order the linker runs its rules in (ADR 0095): each rule after every other rule that writes a
- * predicate it reads, and otherwise in the order given. A rule does not read its own facts, so a
- * predicate a rule both reads and writes is read from the other rules that write it.
+ * predicate it reads, a rule that reads {@link LinkRule#LINKED} after every rule that does not, and
+ * otherwise in the order given. A rule does not read its own facts, so a predicate a rule both
+ * reads and writes is read from the other rules that write it.
  */
 final class RuleOrder {
 
@@ -65,6 +66,9 @@ final class RuleOrder {
 
   /** Whether one rule reads a predicate another writes. */
   static boolean reads(LinkRule reader, LinkRule writer) {
+    if (reader.reads().contains(LinkRule.LINKED) && !writer.reads().contains(LinkRule.LINKED)) {
+      return true;
+    }
     for (String predicate : writer.writes()) {
       if (reader.reads().contains(predicate)) {
         return true;

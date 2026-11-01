@@ -19,6 +19,7 @@ import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.repo.SystemTitle;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.derive.Derivation;
 import io.lantern.extract.ExtractionCache;
 import io.lantern.extract.Extractors;
 import io.lantern.extract.RepoBuild;
@@ -734,7 +735,9 @@ public final class AnalysisRun {
           // the static steps leave open, with cached answers reused (ADR 0045).
           LinkResolver resolver = new LinkResolver(client, resolutions, files);
           // A rule whose input and version are those of its last run is not run again (ADR 0095).
-          Linker linker = Linker.standard(facts, resolver, ruleRuns);
+          // The derive rules follow the link rules whose facts they read, as rules of the same
+          // linker, so the architecture model is stored with the links (#523).
+          Linker linker = Linker.standard(facts, resolver, ruleRuns, Derivation.rules());
           // Each origin kind is recorded on its own, so a static analysis closes only the facts of
           // its kind; the docs extractor's facts are of kind readme (ADR 0033).
           Map<Origin.Kind, List<Fact>> byKind = new LinkedHashMap<>();

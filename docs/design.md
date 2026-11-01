@@ -468,6 +468,13 @@ Change-history measures (activity level, hotspots of complex code that changes o
 
 **Readable diagrams.** The bar sets no element cap. A view is split at the same level, or detail folded away, when a readability signal passes its threshold: the number of elements, the number of lines, and line crossings after layout, each threshold configurable. Until #366 measures the defaults on the test sets, the views split above 15 elements.
 
+## Derivation
+
+After linking, derive rules compute the architecture model once per snapshot and store it as facts with lineage, so the LLM roles describe it and documents select from it instead of computing it (`docs/epics/001-knowledge-build.md`, section 9; keys and lineage from `docs/research/architecture-model.md`). They have the link rules' shape and run in the linker after the rules whose facts they read, so each runs again only when what it reads changed; lineage is one level, the facts the rule read (ADR 0097).
+
+- **Components** (#523): each unit's components, `component:<unit>/<anchor>`, one per entry point or aspect that advises one, with the beans only it reaches, a shared bean or one that reaches outside the unit as one of its own, and a gateway's config routes; `PART_OF` the unit with role and technology, `ANCHORED_ON` the anchor, `HAS_MEMBER` (a kind of `CONTAINS`) each member.
+- Component interactions and deployment instances (#617), flows and their steps (#618) and findings (#619) follow.
+
 ## Composition, layout stability and prose stability
 
 Composition decides what a document says and shows; rendering only formats it. Composition takes the previous rendition as an input, so a rerun on the same or slightly changed knowledge produces the same or a slightly changed document.

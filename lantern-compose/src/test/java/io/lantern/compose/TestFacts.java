@@ -89,8 +89,14 @@ final class TestFacts {
     return this;
   }
 
-  List<Fact> list() {
+  /** The facts as added, without the architecture model. */
+  List<Fact> raw() {
     return List.copyOf(facts);
+  }
+
+  /** The facts with the architecture model derivation gives for them, as the linker stores it. */
+  List<Fact> list() {
+    return List.copyOf(io.lantern.derive.Derivation.withModel(facts, 1));
   }
 
   /** The first fact with the subject and predicate. */

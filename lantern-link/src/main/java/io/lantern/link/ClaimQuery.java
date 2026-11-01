@@ -87,6 +87,7 @@ public final class ClaimQuery {
   private void check(String predicate) {
     Objects.requireNonNull(predicate, "predicate");
     if (!reads.contains(predicate)
+        && !reads.contains(LinkRule.LINKED)
         && !(reads.contains(LinkRule.EXTRACTED) && !derived.contains(predicate))) {
       throw new IllegalStateException(
           "Rule " + rule.name() + " reads " + predicate + ", which it does not declare");

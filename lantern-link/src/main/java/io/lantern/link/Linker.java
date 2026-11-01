@@ -116,8 +116,18 @@ public final class Linker {
 
   /** The linker with the LLM resolver, remembering its rules' runs in {@code runs}. */
   public static Linker standard(FactRepository store, LinkResolver resolver, RuleRuns runs) {
+    return standard(store, resolver, runs, List.of());
+  }
+
+  /**
+   * The linker with the LLM resolver and then the rules of a later stage that read its facts, such
+   * as derivation's (#523), run and stored as its own rules are.
+   */
+  public static Linker standard(
+      FactRepository store, LinkResolver resolver, RuleRuns runs, List<? extends LinkRule> after) {
     List<LinkRule> rules = new ArrayList<>(Rules.standard());
     rules.add(resolver);
+    rules.addAll(after);
     return new Linker(store, rules, runs);
   }
 
@@ -235,8 +245,8 @@ public final class Linker {
 
   /**
    * The facts a rule reads: the extracted ones if it reads them all, else those of the predicates
-   * it reads; then those of the predicates it reads that the rules before it gave, rule by rule in
-   * the order they ran, each rule's in ID order.
+   * it reads; then those of the predicates it reads that the rules before it gave (all of theirs if
+   * it reads {@link LinkRule#LINKED}), rule by rule in the order they ran, each rule's in ID order.
    */
   private List<Fact> input(LinkRule rule, List<Fact> extracted, Map<String, List<Fact>> derivedBy) {
     Set<String> reads = rule.reads();
@@ -252,8 +262,9 @@ public final class Linker {
       if (facts == null) {
         continue;
       }
+      boolean linked = reads.contains(LinkRule.LINKED) && !before.reads().contains(LinkRule.LINKED);
       for (Fact f : facts) {
-        if (reads.contains(f.predicate())) {
+        if (linked || reads.contains(f.predicate())) {
           input.add(f);
         }
       }

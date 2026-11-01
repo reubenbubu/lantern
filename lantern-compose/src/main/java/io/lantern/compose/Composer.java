@@ -7,6 +7,7 @@ import io.lantern.core.document.Section;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.Knowledge;
 import io.lantern.summarize.Summary;
 import java.time.LocalDate;
 import java.time.ZoneOffset;

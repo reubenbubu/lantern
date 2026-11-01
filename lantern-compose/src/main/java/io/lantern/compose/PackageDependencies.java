@@ -3,6 +3,7 @@ package io.lantern.compose;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.Knowledge;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -70,14 +71,6 @@ final class PackageDependencies {
    * names.
    */
   static EntityId ownerType(Knowledge knowledge, EntityId entity) {
-    if (entity.type().equals(METHOD) || entity.type().equals(FIELD)) {
-      SortedSet<EntityId> owners = knowledge.wholes(entity, BuiltInTypes.TYPE);
-      if (!owners.isEmpty()) {
-        return owners.first();
-      }
-      int hash = entity.key().indexOf('#');
-      return hash > 0 ? new EntityId(BuiltInTypes.TYPE, entity.key().substring(0, hash)) : entity;
-    }
-    return entity;
+    return io.lantern.derive.Components.ownerType(knowledge, entity);
   }
 }

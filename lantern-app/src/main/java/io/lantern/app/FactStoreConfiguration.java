@@ -3,6 +3,7 @@ package io.lantern.app;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyRegistry;
+import io.lantern.derive.Derivation;
 import io.lantern.extract.Extractors;
 import io.lantern.link.LinkVocabularies;
 import org.springframework.context.annotation.Bean;
@@ -29,13 +30,14 @@ class FactStoreConfiguration {
   }
 
   /**
-   * Applies the built-in types, then those of the extractors and the linker. Unchanged ones add no
-   * revision.
+   * Applies the built-in types, then those of the extractors, the linker and derivation. Unchanged
+   * ones add no revision.
    */
   static void loadVocabulary(VocabularyRegistry registry) {
     registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
     Extractors.vocabularies().forEach(registry::apply);
     LinkVocabularies.bySource().forEach(registry::apply);
+    Derivation.vocabularies().forEach(registry::apply);
   }
 
   @Bean

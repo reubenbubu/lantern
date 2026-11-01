@@ -10,6 +10,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.Knowledge;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -179,11 +180,7 @@ final class ExplorerSections {
 
   /** The kind of a scheduled entry point: a JobRunr or Quartz job, else a scheduled job. */
   static String jobKind(Fact fact) {
-    return switch (RepoSections.attribute(fact, "framework", "")) {
-      case "jobrunr" -> "JobRunr job";
-      case "quartz" -> "Quartz job";
-      default -> "Scheduled job";
-    };
+    return io.lantern.derive.Components.jobKind(fact);
   }
 
   /** What starts an entry point, in words: the endpoint, the destination or the schedule. */
