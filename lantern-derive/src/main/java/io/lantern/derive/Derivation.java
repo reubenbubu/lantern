@@ -40,6 +40,7 @@ public final class Derivation {
 
   /** The vocabulary source of the findings' types. */
   public static final String FINDINGS_SOURCE = "derive-findings";
+
   /** The vocabulary source of the groups' types. */
   public static final String GROUPS_SOURCE = "derive-groups";
 
