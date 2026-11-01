@@ -1,6 +1,6 @@
 # 0069: Code in the Describer's unit prompt
 
-Status: accepted (#208), amends ADRs 0050, 0065, 0066 and 0068
+Status: accepted (#208), amends ADRs 0050, 0065, 0066 and 0068, its prompt superseded by ADR 0103 (#528)
 
 ## Context
 

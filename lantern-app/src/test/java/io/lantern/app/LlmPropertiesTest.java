@@ -134,6 +134,26 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void theBulkTierUsesTheHighVolumeModelUnlessSet() {
+    model("fast", "fake", "fast-model");
+    model("strong", "fake", "strong-model");
+    model("cheap", "fake", "cheap-model");
+    tiers("fast", "strong");
+
+    assertThat(bind().modelSettings().forRole(Role.SCREEN).model()).isEqualTo("fast-model");
+
+    values.put("lantern.llm.tiers.bulk", "cheap");
+    ModelSettings settings = bind().modelSettings();
+    assertThat(settings.forRole(Role.SCREEN).model()).isEqualTo("cheap-model");
+    assertThat(settings.forRole(Role.DESCRIBE_ELEMENTS).model()).isEqualTo("fast-model");
+    assertThat(settings.forRole(Role.INFER_INTENT).model()).isEqualTo("strong-model");
+
+    values.put("lantern.llm.tiers.bulk", "missing");
+    assertThatThrownBy(() -> bind().modelSettings())
+        .hasMessageContaining("lantern.llm.tiers.bulk refers to model 'missing'");
+  }
+
+  @Test
   void incompleteOrWrongSettingsStopStartup() {
     model("fast", "fake", "fast-model");
     values.put("lantern.llm.tiers.high-volume", "fast");

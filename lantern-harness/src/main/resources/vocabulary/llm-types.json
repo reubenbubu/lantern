@@ -1,0 +1,36 @@
+[
+  {
+    "name": "responsibility",
+    "kind": "attribute",
+    "description": "What the subject element is responsible for, in one plain sentence the LLM worded from the facts its request showed (knowledge-build epic, section 11.4): a deployable unit, component, data store, destination, external system or person. The value is the document kind it is worded for, c4. Of origin llm, the role that wrote it; a reworded sentence is a new observation of the same claim.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string", "description": "The sentence, without citations." },
+        "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites." },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "evidenced when it cites what people wrote: a README or document claim, Javadoc in a cited excerpt, or an evidenced summary; else inferred." },
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+      },
+      "required": ["text", "basis"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "intent",
+    "kind": "attribute",
+    "description": "What the subject does with the other end of one of its interactions and why, in a phrase of at most 8 words starting with a verb, worded by the LLM (knowledge-build epic, section 11.4). The value is the claim ID of the interaction: a link between containers, a line between components, or a person's use of a unit. Of origin llm.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string", "description": "The phrase, without citations." },
+        "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites." },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "As for a responsibility." },
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+      },
+      "required": ["text", "basis"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

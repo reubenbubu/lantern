@@ -1,6 +1,6 @@
 # 0100: The LLM harness
 
-Status: accepted (#525), amended for #42 (run budget, estimates), #357 (cache warm-up) and #349 (per-turn caching, compaction)
+Status: accepted (#525), amended for #42 (run budget, estimates), #357 (cache warm-up) and #349 (per-turn caching, compaction), amended by ADR 0103 (#528: field-level repair)
 
 ## Context
 

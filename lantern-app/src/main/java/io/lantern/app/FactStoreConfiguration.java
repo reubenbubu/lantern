@@ -30,14 +30,15 @@ class FactStoreConfiguration {
   }
 
   /**
-   * Applies the built-in types, then those of the extractors, the linker and derivation. Unchanged
-   * ones add no revision.
+   * Applies the built-in types, then those of the extractors, the linker, derivation and the LLM
+   * roles. Unchanged ones add no revision.
    */
   static void loadVocabulary(VocabularyRegistry registry) {
     registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
     Extractors.vocabularies().forEach(registry::apply);
     LinkVocabularies.bySource().forEach(registry::apply);
     Derivation.vocabularies().forEach(registry::apply);
+    registry.apply(io.lantern.harness.LlmFacts.SOURCE, io.lantern.harness.LlmFacts.vocabulary());
   }
 
   @Bean

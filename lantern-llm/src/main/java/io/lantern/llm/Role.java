@@ -5,14 +5,19 @@ public enum Role {
   SUMMARIZE(Tier.HIGH_VOLUME),
   RESOLVE(Tier.REASONING),
   INFER_INTENT(Tier.REASONING),
+  /**
+   * Describing data stores, destinations, external systems and people (knowledge-build epic,
+   * section 11.4): high-volume, where describing units infers intent on the reasoning tier.
+   */
+  DESCRIBE_ELEMENTS(Tier.HIGH_VOLUME),
   NAME_GROUPS(Tier.HIGH_VOLUME),
   PROPOSE_RULES(Tier.REASONING),
   COMPOSE(Tier.HIGH_VOLUME),
   TRANSLATE(Tier.HIGH_VOLUME),
   /** The support judge (ADR 0101): of another tier than the reasoning-tier texts it checks. */
   JUDGE(Tier.HIGH_VOLUME),
-  /** The injection screen (ADR 0101): the bulk tier once it exists, high-volume until then. */
-  SCREEN(Tier.HIGH_VOLUME);
+  /** The injection screen (ADR 0101): the bulk tier. */
+  SCREEN(Tier.BULK);
 
   private final Tier tier;
 

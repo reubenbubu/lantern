@@ -417,7 +417,16 @@ public final class AnalysisRun {
                           .map(Repo::path))
               .withSecretKeys(secretKeys);
       Describer.Result described =
-          new Describer(harness, allSources).describe(systemFacts, extracted);
+          new Describer(harness, allSources)
+              .describe(systemFacts, extracted, summarized.summaries());
+      // What Describe wrote is stored as claims of origin llm before anything is composed
+      // (knowledge-build epic, section 6, Derived and LLM facts).
+      recordLlmFacts(snapshot, described.facts(snapshot.number()));
+      if (!described.unknown().isEmpty()) {
+        LOG.info(
+            "Describe left {} elements, components and interactions unknown",
+            described.unknown().size());
+      }
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
       List<Fact> screened = screen(harness, snapshot);
@@ -512,6 +521,20 @@ public final class AnalysisRun {
           documents,
           runRecord);
     }
+  }
+
+  /**
+   * Records the facts the LLM roles wrote, each role's by its origin, so that afterwards exactly
+   * these hold in the snapshot: a text the role did not write this time, such as one not asked
+   * under a budget, stops holding and is unknown.
+   */
+  private void recordLlmFacts(Snapshot snapshot, Map<Origin, List<Fact>> byOrigin) {
+    transaction.executeWithoutResult(
+        status ->
+            byOrigin.forEach(
+                (origin, found) ->
+                    facts.recordDerived(
+                        snapshot.number(), origin, snapshot.commits().keySet(), found)));
   }
 
   /** The records, after warning of a role whose items did not each land in one count (#654). */

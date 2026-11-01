@@ -17,6 +17,45 @@ public final class JsonSchema {
 
   private JsonSchema() {}
 
+  /**
+   * The per-item schema of a role's answer schema, as the epic writes it (section 11): the schema
+   * of each entry of {@code items}, with every {@code $ref} to the root's {@code $defs} replaced by
+   * what it refers to.
+   */
+  public static JsonNode itemSchema(JsonNode answerSchema) {
+    JsonNode item = answerSchema.path("properties").path("items").path("additionalProperties");
+    if (!item.isObject()) {
+      throw new IllegalArgumentException("Not an answer schema with items: " + answerSchema);
+    }
+    return resolved(item, answerSchema.path("$defs"));
+  }
+
+  private static JsonNode resolved(JsonNode node, JsonNode defs) {
+    if (node.isObject()) {
+      JsonNode ref = node.get("$ref");
+      if (ref != null && ref.isString() && ref.asString().startsWith("#/$defs/")) {
+        JsonNode target = defs.get(ref.asString().substring("#/$defs/".length()));
+        if (target == null) {
+          throw new IllegalArgumentException("Unknown reference " + ref.asString());
+        }
+        return resolved(target, defs);
+      }
+      tools.jackson.databind.node.ObjectNode copy =
+          tools.jackson.databind.json.JsonMapper.builder().build().createObjectNode();
+      for (var field : node.properties()) {
+        copy.set(field.getKey(), resolved(field.getValue(), defs));
+      }
+      return copy;
+    }
+    if (node.isArray()) {
+      tools.jackson.databind.node.ArrayNode copy =
+          tools.jackson.databind.json.JsonMapper.builder().build().createArrayNode();
+      node.forEach(element -> copy.add(resolved(element, defs)));
+      return copy;
+    }
+    return node;
+  }
+
   /** What in the value breaks the schema, each with its path; empty if it matches. */
   public static List<String> violations(JsonNode schema, JsonNode value) {
     List<String> found = new ArrayList<>();

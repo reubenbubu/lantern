@@ -16,13 +16,26 @@ public final class ModelSettings {
     this.models = models;
   }
 
-  /** Every role uses the model of its tier. */
+  /** Every role uses the model of its tier; the bulk tier uses the high-volume model. */
   public static ModelSettings byTier(ModelConfig highVolume, ModelConfig reasoning) {
+    return byTier(highVolume, highVolume, reasoning);
+  }
+
+  /** Every role uses the model of its tier. */
+  public static ModelSettings byTier(
+      ModelConfig bulk, ModelConfig highVolume, ModelConfig reasoning) {
+    Objects.requireNonNull(bulk, "bulk");
     Objects.requireNonNull(highVolume, "highVolume");
     Objects.requireNonNull(reasoning, "reasoning");
     Map<Role, ModelConfig> models = new EnumMap<>(Role.class);
     for (Role role : Role.values()) {
-      models.put(role, role.tier() == Tier.HIGH_VOLUME ? highVolume : reasoning);
+      models.put(
+          role,
+          switch (role.tier()) {
+            case BULK -> bulk;
+            case HIGH_VOLUME -> highVolume;
+            case REASONING -> reasoning;
+          });
     }
     return new ModelSettings(models);
   }
