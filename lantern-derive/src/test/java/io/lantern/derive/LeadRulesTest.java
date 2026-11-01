@@ -90,6 +90,22 @@ class LeadRulesTest {
   }
 
   @Test
+  void aReadOnlyMethodInATransactionalClassStartsNoSearch() {
+    shop();
+    model.add(SERVICE, "transactional", FactObject.string("REQUIRED"), kind("transaction"));
+    ObjectNode readOnly = kind("transaction");
+    readOnly.put("readOnly", true);
+    model.add(PLACE, "transactional", FactObject.string("REQUIRED"), readOnly);
+    model.add(PLACE, BuiltInTypes.CALLS, PUBLISH);
+    model.add(PUBLISH, "message-send", FactObject.string("orders"));
+
+    // publish() itself runs in the class's transaction and sends, so it is the only lead's start.
+    assertThat(leads("send-before-commit")).hasSize(1);
+    assertThat(strings(leads("send-before-commit").getFirst(), "code"))
+        .containsExactly(PUBLISH.toString());
+  }
+
+  @Test
   void aCallMatchingNoEndpointOfItsUnitIsAMismatch() {
     shop();
     billing();
@@ -173,6 +189,11 @@ class LeadRulesTest {
     ObjectNode placeholder = FactJson.newObject();
     placeholder.put("key", "spring.mail.password");
     model.add(MODULE, "config-value", FactObject.string("${MAIL_PASSWORD}"), placeholder);
+    ObjectNode cipher = FactJson.newObject();
+    cipher.put("key", "spring.rabbitmq.password");
+    cipher.put("masked", true);
+    cipher.put("written", "{cipher}AQB");
+    model.add(MODULE, "config-value", FactObject.string("x"), cipher);
 
     assertThat(keys(leads("plaintext-secret")))
         .containsExactly("plaintext-secret/module:com.acme:shop/spring.datasource.password");

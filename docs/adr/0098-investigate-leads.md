@@ -17,7 +17,8 @@ leaves it open. The agent decided these points under the owner's standing go-ahe
 
 - **One derive rule per kind**, `lead-<kind>`, each reading the extracted and linked facts (and,
   for single instances, the stored deployment instances, #617), so each kind reruns on its own
-  inputs and has its own version. The catalog is data, `lantern-derive/src/main/resources/leads.json`:
+  inputs and has its own version. The catalog is data, `lantern-derive/src/main/resources/leads.json` (beside the vocabulary
+  files, not among them, since it is no vocabulary):
   each kind's trigger and what the model judges, for the Investigate prompt (#269); a test keeps it
   and the rules in step.
 - **A lead** is the entity `lead:<kind>/<key>` with a `lead-trigger` fact whose value is the kind:
@@ -34,7 +35,10 @@ leaves it open. The agent decided these points under the owner's standing go-ahe
     match after an optional `x`.
   - `send-before-commit`: per unit and sending method. The call graph is followed from every method
     of a read-write transaction (an interface's method reaches its implementations), stopping at a
-    `@TransactionalEventListener`, an `afterCommit` method or a class whose name says outbox.
+    `@TransactionalEventListener`, an `afterCommit` method or a class whose name says outbox. A
+    method's own `@Transactional` overrides its class's; read-only ones and the propagations
+    NOT_SUPPORTED, NEVER and SUPPORTS start no search. The methods that can reach a send are found
+    once, backwards, so only those are searched from.
   - `contract-mismatch`: per caller and call. A call between units that carries a path and matched
     neither an endpoint nor a route, to a unit with endpoints that is not a gateway; and a
     frontend's call to a gateway that matches an endpoint no route reaches (`unrouted-endpoint`), or
@@ -49,7 +53,8 @@ leaves it open. The agent decided these points under the owner's standing go-ahe
   - `single-instance`: per entity the stored deployment instances run, when every container behind
     them has replicas 1 or unset and two or more units link to it; and per unit with a STOMP simple
     broker and no relay.
-  - `plaintext-secret`: per masked config value, per shared signing secret, and per Kubernetes
+  - `plaintext-secret`: per masked config value written as a literal (not one masked for a
+    placeholder's secret, nor a `{cipher}` value, both of which keep `written`), per shared signing secret, and per Kubernetes
     Secret with `stringData`.
   - `environment-baked`: per frontend and value, for a value from its default build's environment
     file or its code.
@@ -66,5 +71,7 @@ leaves it open. The agent decided these points under the owner's standing go-ahe
   (`Project0EndToEndIT`).
 - Gaps: a library's events passed through Spring Cloud Stream functions carry no `payload-type`
   (ADR 0096), so project-8's shared-library skew raises no lead; Compose credentials are not marked
-  as secrets by the deployment facts, so they raise none; a parameter mismatch (the right path,
+  as secrets by the deployment facts, so they raise none; the rules ignore profiles, so a call that
+  holds only under one profile can raise a contract mismatch; a call whose path still holds a
+  placeholder raises none; a parameter mismatch (the right path,
   another query parameter) is not a contract mismatch here.

@@ -93,6 +93,9 @@ public final class LeadRules {
     private static final Set<String> SENDS =
         Set.of("message-send", "http-call", "mail-send", "stomp-send");
 
+    /** Propagations that run the method outside a transaction, or join one only if it exists. */
+    private static final Set<String> NO_TRANSACTION = Set.of("NOT_SUPPORTED", "NEVER", "SUPPORTS");
+
     SendBeforeCommit() {
       super("send-before-commit", "1");
     }
@@ -111,24 +114,35 @@ public final class LeadRules {
         return;
       }
       Set<EntityId> barriers = new HashSet<>();
-      Map<EntityId, Fact> transactions = new TreeMap<>(Knowledge.BY_ID);
+      // Whether each method runs in a read-write transaction: a class's annotation first, then the
+      // method's own, which overrides it, as Spring reads them.
+      Map<EntityId, Fact> declared = new TreeMap<>(Knowledge.BY_ID);
+      List<Fact> onMethods = new ArrayList<>();
       for (Fact fact : knowledge.withPredicate("transactional")) {
-        boolean listener = "event-listener".equals(attribute(fact, "kind"));
-        boolean readOnly = "true".equals(attribute(fact, "readOnly"));
-        Set<EntityId> methods =
-            fact.subject().type().equals(METHOD)
-                ? Set.of(fact.subject())
-                : knowledge.parts(fact.subject(), METHOD);
-        for (EntityId method : methods) {
-          if (listener) {
-            barriers.add(method);
-          } else if (!readOnly && !method.key().contains("#<init>")) {
-            transactions.putIfAbsent(method, fact);
-          }
+        if ("event-listener".equals(attribute(fact, "kind"))) {
+          barriers.add(fact.subject());
+        } else if (fact.subject().type().equals(METHOD)) {
+          onMethods.add(fact);
+        } else {
+          knowledge.parts(fact.subject(), METHOD).forEach(m -> declared.put(m, fact));
         }
       }
+      onMethods.forEach(f -> declared.put(f.subject(), f));
+      Map<EntityId, Fact> transactions = new TreeMap<>(Knowledge.BY_ID);
+      declared.forEach(
+          (method, fact) -> {
+            if (!"true".equals(attribute(fact, "readOnly"))
+                && !NO_TRANSACTION.contains(fact.object().value().toString())
+                && !method.key().contains("#<init>")) {
+              transactions.put(method, fact);
+            }
+          });
       Map<EntityId, Set<EntityId>> calls = callGraph(knowledge);
+      Set<EntityId> reaching = reachingSends(calls, sends.keySet(), barriers);
       for (Map.Entry<EntityId, Fact> start : transactions.entrySet()) {
+        if (!reaching.contains(start.getKey())) {
+          continue;
+        }
         Set<EntityId> seen = new HashSet<>(Set.of(start.getKey()));
         Deque<EntityId> todo = new ArrayDeque<>(List.of(start.getKey()));
         while (!todo.isEmpty()) {
@@ -149,7 +163,8 @@ public final class LeadRules {
             }
           }
           for (EntityId next : calls.getOrDefault(method, Set.of())) {
-            if (!barriers.contains(next)
+            if (reaching.contains(next)
+                && !barriers.contains(next)
                 && !next.key().toLowerCase(Locale.ROOT).contains("aftercommit")
                 && !isOutbox(next)
                 && seen.add(next)) {
@@ -158,6 +173,29 @@ public final class LeadRules {
           }
         }
       }
+    }
+
+    /** The methods from which a send can be reached without passing a barrier, sends included. */
+    private static Set<EntityId> reachingSends(
+        Map<EntityId, Set<EntityId>> calls, Set<EntityId> sends, Set<EntityId> barriers) {
+      Map<EntityId, Set<EntityId>> callers = new HashMap<>();
+      calls.forEach(
+          (caller, callees) ->
+              callees.forEach(c -> callers.computeIfAbsent(c, k -> new HashSet<>()).add(caller)));
+      Set<EntityId> reaching = new HashSet<>(sends);
+      Deque<EntityId> todo = new ArrayDeque<>(sends);
+      while (!todo.isEmpty()) {
+        EntityId method = todo.removeFirst();
+        if (barriers.contains(method)) {
+          continue;
+        }
+        for (EntityId caller : callers.getOrDefault(method, Set.of())) {
+          if (reaching.add(caller)) {
+            todo.add(caller);
+          }
+        }
+      }
+      return reaching;
     }
 
     private static boolean isOutbox(EntityId method) {
@@ -238,6 +276,10 @@ public final class LeadRules {
             || !Knowledge.isEntity(link)
             || attribute(link, "route") != null
             || attribute(link, "target") != null) {
+          continue;
+        }
+        if (path.contains("${")) {
+          // A path still holding a placeholder matches nothing yet; that is not a mismatch.
           continue;
         }
         EntityId to = Knowledge.object(link);
@@ -558,7 +600,7 @@ public final class LeadRules {
             continue;
           }
           String replicas = attribute(container, "replicas");
-          boolean single = replicas == null || replicas.equals("1") || replicas.equals("0");
+          boolean single = replicas == null || replicas.equals("1");
           for (Fact run : knowledge.relations(instance.subject(), DeploymentInstances.RUNS)) {
             EntityId entity = Knowledge.object(run);
             once.merge(entity, single, Boolean::logicalAnd);
@@ -608,7 +650,8 @@ public final class LeadRules {
           if ("simple-broker".equals(attribute(prefix, "kind"))) {
             stomp.computeIfAbsent(unit, u -> new ArrayList<>()).add(prefix);
           }
-          if (attribute(prefix, "relayHost") != null || "relay".equals(attribute(prefix, "kind"))) {
+          if (attribute(prefix, "relayHost") != null
+              || "broker-relay".equals(attribute(prefix, "kind"))) {
             relayed.add(unit);
           }
         }
@@ -644,7 +687,9 @@ public final class LeadRules {
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
       for (Fact value : knowledge.withPredicate("config-value")) {
-        if ("true".equals(attribute(value, "masked"))) {
+        // Masked and written as a literal: a value masked only for a placeholder's secret, or
+        // encrypted ({cipher}), keeps what was written in written.
+        if ("true".equals(attribute(value, "masked")) && attribute(value, "written") == null) {
           String key = attribute(value, "key");
           String profile = attribute(value, "profile");
           leads
