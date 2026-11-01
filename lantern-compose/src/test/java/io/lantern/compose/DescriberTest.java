@@ -32,6 +32,7 @@ import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelSettings;
+import io.lantern.llm.Role;
 import io.lantern.summarize.SourceFiles;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -43,6 +44,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -317,6 +320,58 @@ class DescriberTest {
         document.entities().stream().filter(e -> e.id().equals(DATABASE)).findFirst().orElseThrow();
     assertThat(text(database.description()))
         .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
+  }
+
+  @Test
+  void aSentenceTheJudgeChecksAndFindsUnsupportedReachesTheDocumentWithItsNote() {
+    // Describe writes its sentences; the judge, told to check the shop app's, finds no cited
+    // input supports it.
+    Pattern item = Pattern.compile("<item id=\"(I[0-9]+)\">\\n(.*?)\\n</item>", Pattern.DOTALL);
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  if (request.role() != Role.JUDGE) {
+                    return answer(request);
+                  }
+                  Matcher items = item.matcher(request.messages().getFirst().text());
+                  List<String> entries = new ArrayList<>();
+                  while (items.find()) {
+                    String verdict =
+                        items.group(2).contains("Takes and lists the shop's orders.")
+                            ? "unsupported"
+                            : "supported";
+                    entries.add(
+                        "\"%s\": {\"claims\": [{\"claim\": \"It takes orders.\", \"verdict\": \"%s\"}]}"
+                            .formatted(items.group(1), verdict));
+                  }
+                  return "{\"items\": {" + String.join(", ", entries) + "}}";
+                });
+
+    Describer.Result result =
+        new Describer(harness(client(fake))).alsoJudging(Set.of(APP)).describe(facts.list());
+    Document document = system(result.wordings());
+
+    LlmRequest judged =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.role() == Role.JUDGE)
+            .findFirst()
+            .orElseThrow();
+    assertThat(judged.messages().getFirst().text())
+        .contains("<text>Takes and lists the shop's orders.</text>")
+        .contains("[F1] service:com.example:app application-name \"shop-app\"");
+    assertThat(result.wordings().unsupported()).containsExactly(APP);
+    DocumentEntity app =
+        document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
+    assertThat(app.description().getFirst())
+        .isEqualTo(new TextRun(Assembler.UNSUPPORTED, TextRun.Style.EMPHASIS));
+    assertThat(text(app.description()))
+        .isEqualTo(
+            Assembler.UNSUPPORTED
+                + " "
+                + Assembler.INFERRED_SENTENCE
+                + " Takes and lists the shop's orders.");
   }
 
   @Test

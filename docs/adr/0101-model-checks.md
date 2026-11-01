@@ -29,7 +29,9 @@ go-ahead for milestone 1E.
     their sources.
   - It checks a deterministic 10%: the texts whose judge item's fingerprint, read as a number, is
     divisible by 10. A caller can name texts to check regardless, as the epic asks for every
-    investigated risk, which comes with Investigate (#269).
+    investigated risk, which comes with Investigate (#269). `Describer.alsoJudging` names the
+    elements whose sentences it checks regardless; `DescriberTest` uses it to follow a sentence
+    from Describe through the judge to the document's note (#654).
   - Each item shows the text and each fact it cites, as the Describe prompt showed it. Its
     fingerprint rests on the text and those lines, so a text judged once is not judged again.
   - Intent phrases, flow narratives and summaries are not judged yet. Phrases are diagram labels
