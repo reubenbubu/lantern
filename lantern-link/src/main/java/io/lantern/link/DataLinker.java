@@ -97,7 +97,7 @@ final class DataLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
-  private final Deployments deployments;
+  private final AddressAnswers addresses;
 
   /** The schemas each module holds. */
   private final Map<EntityId, List<EntityId>> schemas = new HashMap<>();
@@ -105,10 +105,14 @@ final class DataLinker {
   /** The tables the schemas declare, by name. */
   private final Map<String, List<Owned>> owned = new TreeMap<>();
 
-  DataLinker(LinkIndex index, FoundLinks out, Deployments deployments) {
+  /**
+   * @param addresses where a datasource whose server or database is a placeholder leads in each
+   *     deployment: address resolution's claims (#596)
+   */
+  DataLinker(LinkIndex index, FoundLinks out, AddressAnswers addresses) {
     this.index = index;
     this.out = out;
-    this.deployments = deployments;
+    this.addresses = addresses;
     for (Fact f : index.of(BuiltInTypes.CONTAINS)) {
       if (f.object().kind() != FactObject.Kind.ENTITY) {
         continue;
@@ -327,12 +331,14 @@ final class DataLinker {
       words.add(application.object().value());
     }
     words.add(unit.artifactId());
-    return deployments.place(
+    return addresses.placed(
         unit,
-        Store.of(datasource).server(),
-        Store.of(datasource).database(),
-        Store.of(datasource).technology(),
-        words);
+        datasource,
+        new Deployments.Place(
+            Store.of(datasource).server(),
+            Store.of(datasource).database(),
+            Store.of(datasource).technology(),
+            List.copyOf(words)));
   }
 
   /**

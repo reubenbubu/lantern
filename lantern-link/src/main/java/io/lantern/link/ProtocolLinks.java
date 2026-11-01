@@ -123,8 +123,9 @@ final class ProtocolLinks implements LinkRule {
             DataLinker.DISPLAY_NAME,
             Deployments.DEPLOYED_IN,
             DeployableUnits.TECHNOLOGY),
+        // Datasources read where the deployments put them from address resolution's claims (#596).
         (index, found, origin, validity) ->
-            new DataLinker(index, found, new Deployments(index)).link(origin, validity));
+            new DataLinker(index, found, new AddressClaims(index)).link(origin, validity));
   }
 
   /** Mail sent through mail servers. */

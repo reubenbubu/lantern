@@ -26,6 +26,7 @@ final class AddressClaims implements AddressAnswers {
   private final LinkIndex index;
   private final Map<List<String>, List<Fact>> answers = new HashMap<>();
   private final Map<List<String>, List<Fact>> names = new HashMap<>();
+  private final Map<List<String>, List<Fact>> datasources = new HashMap<>();
   private final Map<String, Container> containers = new HashMap<>();
 
   AddressClaims(LinkIndex index) {
@@ -37,6 +38,8 @@ final class AddressClaims implements AddressAnswers {
       ResolvesToAttributes a = Claims.of(f, ResolvesToAttributes.class);
       if (AddressResolution.BY_NAME.equals(a.by())) {
         names.computeIfAbsent(nameKey(a.address(), a.profile()), k -> new ArrayList<>()).add(f);
+      } else if (AddressResolution.BY_DATASOURCE.equals(a.by())) {
+        datasources.computeIfAbsent(nameKey(a.from(), a.address()), k -> new ArrayList<>()).add(f);
       } else {
         answers
             .computeIfAbsent(
@@ -84,6 +87,37 @@ final class AddressClaims implements AddressAnswers {
     // In the units' order, as the lookup gives them.
     targets.sort(Comparator.comparing(t -> t.unit().id(), LinkIndex.BY_TEXT));
     return targets;
+  }
+
+  @Override
+  public List<Deployments.Placed> placed(Unit unit, Fact store, Deployments.Place place) {
+    List<Fact> claims = datasources.get(nameKey(unit.id().toString(), store.object().value()));
+    if (claims == null) {
+      throw new IllegalStateException(
+          "Address resolution did not place " + store.object().value() + " for " + unit);
+    }
+    return claims.stream()
+        .filter(f -> Claims.of(f, ResolvesToAttributes.class).filledBy() != null) // none placing it
+        .sorted(Comparator.comparing(f -> Claims.of(f, ResolvesToAttributes.class).order()))
+        .map(
+            f -> {
+              ResolvesToAttributes a = Claims.of(f, ResolvesToAttributes.class);
+              return new Deployments.Placed(
+                  container(a.filledBy()),
+                  a.fact() == null ? null : container(a.fact()),
+                  a.matched(),
+                  a.database(),
+                  Boolean.TRUE.equals(a.guessed()));
+            })
+        .toList();
+  }
+
+  private Container container(String id) {
+    Container c = containers.get(id);
+    if (c == null) {
+      throw new IllegalStateException("Address resolution names a container not read: " + id);
+    }
+    return c;
   }
 
   private Answer answer(Fact f) {

@@ -129,7 +129,7 @@
       "from",
       "profile"
     ],
-    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address resolution (#589) also writes it for each address a matcher asks about, with from naming the unit that uses it: to the unit it leads to, the external system, or outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each deployment that fills the address in; and with by: name, to each unit a service name names, or outcome:unknown when none does.",
+    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address resolution (#589) also writes it for each address a matcher asks about, with from naming the unit that uses it: to the unit it leads to, the external system, or outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each deployment that fills the address in; and with by: name, to each unit a service name names, or outcome:unknown when none does; and with by: datasource, where a datasource or data store whose server or database is a placeholder leads in each deployment that runs its unit (#596): to the address entity of the server's address as the deployment gives it, or outcome:unknown when it gives none, one fact per such deployment, or one to outcome:unknown when no deployment places it.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -181,9 +181,10 @@
         "by": {
           "type": "string",
           "enum": [
-            "name"
+            "name",
+            "datasource"
           ],
-          "description": "Address resolution: name for a service name looked up among the units' spring.application.name; absent for an address."
+          "description": "Address resolution: name for a service name looked up among the units' spring.application.name; datasource for a datasource or data store placed in the deployments, whose address is its URL or value as config resolved it; absent for an address."
         },
         "matched": {
           "type": "string",
@@ -199,11 +200,19 @@
         },
         "fact": {
           "type": "string",
-          "description": "Address resolution: the ID of the fact the unit was found by, absent for a default port."
+          "description": "Address resolution: the ID of the fact the unit was found by, absent for a default port; for a datasource placed, of the server's deployment-container fact."
         },
         "filledBy": {
           "type": "string",
           "description": "Address resolution: the ID of the deployment-container fact whose environment filled the address in."
+        },
+        "database": {
+          "type": "string",
+          "description": "Address resolution, for a datasource placed: the database's name as the deployment's environment, the server's image variable or its init scripts give it."
+        },
+        "guessed": {
+          "type": "boolean",
+          "description": "Address resolution, for a datasource placed: true when the database was chosen among the server's several by the words it shares with the unit's names."
         },
         "order": {
           "type": "integer",

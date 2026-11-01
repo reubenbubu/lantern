@@ -104,12 +104,19 @@ final class ArchitectureRules {
    * name; the data store matchers join with their slice (#596).
    */
   static final List<String> MATCHERS_READING_ADDRESS_CLAIMS =
-      List.of("HttpLinker", "RouteLinker", "FrontendLinker", "IdentityLinker", "MailLinker");
+      List.of(
+          "HttpLinker",
+          "RouteLinker",
+          "FrontendLinker",
+          "IdentityLinker",
+          "MailLinker",
+          "DataLinker",
+          "RedisLinker");
 
   /**
-   * Those matchers call no address helper: where an address leads is address resolution's to
-   * decide, and theirs to read (knowledge-build epic, section 8, rule 3; ADR 0042, amendment for
-   * #589).
+   * Those matchers call no address helper: where an address leads, or where a deployment puts a
+   * datasource ({@code Deployments.place}, #596), is address resolution's to decide, and theirs to
+   * read (knowledge-build epic, section 8, rule 3; ADR 0042, amendment for #589).
    */
   static final ArchRule MATCHERS_READ_ADDRESS_CLAIMS =
       noClasses()
@@ -126,13 +133,12 @@ final class ArchitectureRules {
           .should()
           .accessTargetWhere(
               DescribedPredicate.describe(
-                  "Addresses",
+                  "Addresses or Deployments.place",
                   (com.tngtech.archunit.core.domain.JavaAccess<?> access) ->
-                      access.getTargetOwner().getSimpleName().equals("Addresses")
-                          && access
-                              .getTargetOwner()
-                              .getPackageName()
-                              .startsWith("io.lantern.link")))
+                      access.getTargetOwner().getPackageName().startsWith("io.lantern.link")
+                          && (access.getTargetOwner().getSimpleName().equals("Addresses")
+                              || (access.getTargetOwner().getSimpleName().equals("Deployments")
+                                  && access.getName().equals("place")))))
           .because("address resolution decides where addresses lead; matchers read its claims");
 
   /** One stage and the classes in it. */

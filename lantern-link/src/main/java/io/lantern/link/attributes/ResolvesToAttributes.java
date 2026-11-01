@@ -19,14 +19,20 @@ import tools.jackson.databind.node.ObjectNode;
  * with from naming the unit that uses it: to the unit it leads to, the external system, or
  * outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each
  * deployment that fills the address in; and with by: name, to each unit a service name names, or
- * outcome:unknown when none does.
+ * outcome:unknown when none does; and with by: datasource, where a datasource or data store whose
+ * server or database is a placeholder leads in each deployment that runs its unit (#596): to the
+ * address entity of the server's address as the deployment gives it, or outcome:unknown when it
+ * gives none, one fact per such deployment, or one to outcome:unknown when no deployment places it.
  *
  * @param address Key. Address resolution: the address asked about, as the unit's config resolved
  *     it, or the service name asked about.
  * @param by Key. Address resolution: name for a service name looked up among the units'
- *     spring.application.name; absent for an address.
+ *     spring.application.name; datasource for a datasource or data store placed in the deployments,
+ *     whose address is its URL or value as config resolved it; absent for an address.
  * @param candidates Descriptive. Address resolution, for outcome:ambiguous: each unit it may lead
  *     to, with unit, fact (when one), matchedBy and factor.
+ * @param database Descriptive. Address resolution, for a datasource placed: the database's name as
+ *     the deployment's environment, the server's image variable or its init scripts give it.
  * @param deployment Key. The deployment whose environment gives this literal:
  *     &lt;repository&gt;|&lt;platform&gt;|&lt;environment&gt;[|&lt;compose
  *     file&gt;]|&lt;container&gt;; absent for the default view and a profile's.
@@ -35,7 +41,7 @@ import tools.jackson.databind.node.ObjectNode;
  * @param exceptProfiles Descriptive. On the default view's fact, the profiles whose config gives
  *     another literal or none.
  * @param fact Descriptive. Address resolution: the ID of the fact the unit was found by, absent for
- *     a default port.
+ *     a default port; for a datasource placed, of the server's deployment-container fact.
  * @param factor Descriptive. Address resolution: the confidence factor of the way the unit was
  *     found.
  * @param facts Descriptive. The IDs of the config-value facts the expression was resolved with and,
@@ -43,6 +49,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param filledBy Descriptive. Address resolution: the ID of the deployment-container fact whose
  *     environment filled the address in.
  * @param from Key. Address resolution: the unit that uses the address, absent for a frontend.
+ * @param guessed Descriptive. Address resolution, for a datasource placed: true when the database
+ *     was chosen among the server's several by the words it shares with the unit's names.
  * @param matched Descriptive. Address resolution: the address as it was matched, filled in where a
  *     deployment's environment filled it.
  * @param matchedBy Descriptive. Address resolution: how the unit was found (host, container-host,
@@ -58,6 +66,7 @@ public record ResolvesToAttributes(
     String address,
     String by,
     List<ObjectNode> candidates,
+    String database,
     String deployment,
     List<String> exceptDeployments,
     List<String> exceptProfiles,
@@ -66,6 +75,7 @@ public record ResolvesToAttributes(
     List<String> facts,
     String filledBy,
     String from,
+    Boolean guessed,
     String matched,
     String matchedBy,
     Long order,
@@ -85,6 +95,7 @@ public record ResolvesToAttributes(
         AttributeValues.string(attributes, "address"),
         AttributeValues.string(attributes, "by"),
         AttributeValues.objects(attributes, "candidates"),
+        AttributeValues.string(attributes, "database"),
         AttributeValues.string(attributes, "deployment"),
         AttributeValues.strings(attributes, "exceptDeployments"),
         AttributeValues.strings(attributes, "exceptProfiles"),
@@ -93,6 +104,7 @@ public record ResolvesToAttributes(
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "filledBy"),
         AttributeValues.string(attributes, "from"),
+        AttributeValues.bool(attributes, "guessed"),
         AttributeValues.string(attributes, "matched"),
         AttributeValues.string(attributes, "matchedBy"),
         AttributeValues.integer(attributes, "order"),
@@ -107,6 +119,7 @@ public record ResolvesToAttributes(
     AttributeValues.put(attributes, "address", address);
     AttributeValues.put(attributes, "by", by);
     AttributeValues.put(attributes, "candidates", candidates);
+    AttributeValues.put(attributes, "database", database);
     AttributeValues.put(attributes, "deployment", deployment);
     AttributeValues.put(attributes, "exceptDeployments", exceptDeployments);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
@@ -115,6 +128,7 @@ public record ResolvesToAttributes(
     AttributeValues.put(attributes, "facts", facts);
     AttributeValues.put(attributes, "filledBy", filledBy);
     AttributeValues.put(attributes, "from", from);
+    AttributeValues.put(attributes, "guessed", guessed);
     AttributeValues.put(attributes, "matched", matched);
     AttributeValues.put(attributes, "matchedBy", matchedBy);
     AttributeValues.put(attributes, "order", order);

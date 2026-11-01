@@ -297,9 +297,9 @@ class CrossRepoLinksTest {
   }
 
   /**
-   * Address resolution's claims give the HTTP, gateway and frontend matchers the very answers
-   * {@link Addresses} gives (#589, #594), for every question of every test here: deployments
-   * filling addresses in, ambiguous, external and unknown hosts, default ports and service names.
+   * Address resolution's claims give the matchers the very answers {@link Addresses} gives (#589,
+   * #594, #595, #596), for every question of every test here: deployments filling addresses in,
+   * ambiguous, external and unknown hosts, default ports, service names and datasources placed.
    */
   private void sameAnswersAsAddresses() {
     AddressResolution rule = new AddressResolution();
@@ -336,6 +336,13 @@ class CrossRepoLinksTest {
                     .isEqualTo(
                         addresses.byApplicationName(
                             q.name(), q.view(), "service-name", Addresses.BY_SERVICE_NAME)));
+    questions.datasources.forEach(
+        (q, placing) -> {
+          Fact store = placing.asked().source();
+          assertThat(claims.placed(q.from(), store, placing.place()))
+              .as(q.toString())
+              .isEqualTo(addresses.placed(q.from(), store, placing.place()));
+        });
   }
 
   /** One line per fact, without its {@code facts} and {@code link} attributes and its evidence. */
