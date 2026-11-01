@@ -161,6 +161,67 @@ final class ArchitectureRules {
                           .matches("Message(Send|Listener|Binding|Destination)Attributes")))
           .because("the messaging matcher joins on value resolution's relations (#597)");
 
+  /**
+   * The code that may resolve placeholders: value resolution (knowledge-build epic, section 7; ADR
+   * 0094) with its helpers, the config extractor reading its own files, and the SQL extractor,
+   * which still reads config to find its migrations (ADR 0094, amendment for #569).
+   */
+  static final DescribedPredicate<JavaClass> VALUE_RESOLUTION =
+      DescribedPredicate.describe(
+          "value resolution (ValueResolution, CodeValues, Literals, EnvironmentValues), the config"
+              + " extractor or the SQL extractor",
+          c -> {
+            String name = c.getName().replaceAll("\\$.*", "");
+            return c.getPackageName().startsWith("io.lantern.extract.config")
+                || List.of(
+                        "io.lantern.link.ValueResolution",
+                        "io.lantern.link.CodeValues",
+                        "io.lantern.link.Literals",
+                        "io.lantern.link.EnvironmentValues",
+                        "io.lantern.extract.sql.SqlExtractor")
+                    .contains(name);
+          });
+
+  /** The calls that resolve placeholders against config, or read config to resolve with. */
+  private static final List<String> RESOLVING_CALLS =
+      List.of(
+          "io.lantern.extract.config.Placeholders.resolve",
+          "io.lantern.extract.config.ConfigExtractor.resolve",
+          "io.lantern.extract.config.ConfigExtractor.resolveWithoutConfig",
+          "io.lantern.extract.config.ConfigExtractor.read",
+          "io.lantern.extract.config.ModuleConfig.resolve",
+          "io.lantern.extract.config.CodeConfig.forModule",
+          "io.lantern.extract.config.CodeConfig$View.resolve");
+
+  /**
+   * Placeholders are resolved only by value resolution (#591; #522): no other code calls what
+   * resolves them against config, nor gives the extractors' resolving functions a config of its own
+   * ({@code ValueLookup}, {@code GatewayExtractor.Resolver}), so an extractor keeps values as
+   * written and a change to one config file re-runs only value resolution and what reads it.
+   */
+  static final ArchRule PLACEHOLDERS_RESOLVED_BY_VALUE_RESOLUTION =
+      com.tngtech.archunit.lang.CompositeArchRule.of(
+              noClasses()
+                  .that(DescribedPredicate.not(VALUE_RESOLUTION))
+                  .should()
+                  .accessTargetWhere(
+                      DescribedPredicate.describe(
+                          "a call that resolves placeholders " + RESOLVING_CALLS,
+                          (com.tngtech.archunit.core.domain.JavaAccess<?> access) ->
+                              RESOLVING_CALLS.contains(
+                                  access.getTargetOwner().getName() + "." + access.getName())))
+                  .because("only value resolution resolves placeholders (ADR 0094)"))
+          .and(
+              noClasses()
+                  .that(DescribedPredicate.not(VALUE_RESOLUTION))
+                  .should()
+                  .implement("io.lantern.extract.config.ValueLookup")
+                  .orShould()
+                  .implement("io.lantern.extract.gateway.GatewayExtractor$Resolver")
+                  .because(
+                      "only value resolution gives the extractors' resolving functions a config"
+                          + " (ADR 0094)"));
+
   /** One stage and the classes in it. */
   record Stage(String name, DescribedPredicate<JavaClass> classes) {
 

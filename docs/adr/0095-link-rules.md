@@ -180,3 +180,29 @@ the knowledge-build epic (section 8, Rules and Views).
 On project-0 to project-4 and project-8 every link and every other derived fact is the same once
 the names are mapped; only the IDs that README claim checks cite change with the links they cite
 (#590's PR).
+
+## Amendment (#591): placeholders resolved in one place; a narrow re-run
+
+Decided by the agent under the owner's delegation of 2026-11-01, finishing #522.
+
+- **Architecture rule.** `PLACEHOLDERS_RESOLVED_BY_VALUE_RESOLUTION` (`lantern-archtest`) fails any
+  class but value resolution's (`ValueResolution`, `CodeValues`, `Literals`, `EnvironmentValues`),
+  the config extractor's package and the SQL extractor that calls what resolves placeholders
+  against config or reads config to resolve with (`Placeholders.resolve`,
+  `ConfigExtractor.resolve`, `resolveWithoutConfig` and `read`, `ModuleConfig.resolve`,
+  `CodeConfig.forModule`, `CodeConfig.View.resolve`), or that implements `ValueLookup` or
+  `GatewayExtractor.Resolver`, the config the extractors' resolving functions are given. Those
+  functions stay in the extractors, next to the code they read, but only value resolution can give
+  them a config. A fixture that resolves a placeholder and one with a config of its own are
+  rejected.
+- **What stays.** The config extractor still resolves a setting's placeholders from the same
+  module's config when it records the setting (`config-value`'s object, with `written` as
+  written), as the epic's section 7 keeps it ("as now"); the SQL extractor still reads config to
+  find its migrations (ADR 0094, amendment for #569). Neither resolves a value written in code.
+- **A narrow re-run.** A rule may say what of a fact it reads its facts depend on
+  (`LinkRule.inputOf`); the linker digests that part instead of the whole fact when deciding
+  whether to run the rule again. The units depend on a `config-value` only for
+  `spring.application.name` and for which module has config of which family, so a change to any
+  other setting runs value resolution and the rules that read config or what value resolution
+  writes again, and neither the units nor the people (`LinkRulesIT`). A rule's facts must cite only
+  facts whose whole it depends on; the units cite only the name settings.

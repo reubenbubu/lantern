@@ -72,6 +72,17 @@ public interface LinkRule {
   }
 
   /**
+   * What of a fact the rule reads its facts depend on, for deciding whether to run it again (#591):
+   * null for the whole fact (its ID, claim and confidence), else a text that changes whenever what
+   * the rule reads of it changes. A rule that reads a fact only in part, the units the name of a
+   * unit in its config but not its other settings, then does not run again when only the rest
+   * changed. Its facts must cite only facts whose whole it depends on.
+   */
+  default String inputOf(Fact fact) {
+    return null;
+  }
+
+  /**
    * Whether the rule's facts depend only on what it reads and its version, so it need not run again
    * when neither changed. The LLM resolver also consults its answers and model, and so runs every
    * time (it asks the LLM only about what it has no answer for).

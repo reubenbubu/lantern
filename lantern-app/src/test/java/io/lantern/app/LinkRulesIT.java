@@ -13,12 +13,16 @@ import io.lantern.core.fact.Validity;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.maven.MavenExtractor;
+import io.lantern.link.AddressResolution;
 import io.lantern.link.ClaimQuery;
 import io.lantern.link.ClaimSink;
+import io.lantern.link.DeployableUnits;
 import io.lantern.link.JdbcRuleRuns;
 import io.lantern.link.LinkRule;
 import io.lantern.link.Linker;
+import io.lantern.link.People;
 import io.lantern.link.RuleInfo;
+import io.lantern.link.ValueResolution;
 import io.lantern.link.View;
 import java.util.List;
 import java.util.Set;
@@ -280,5 +284,56 @@ class LinkRulesIT {
 
     assertThat(link(linker, 3, lib(3, "name", 10)).ran()).containsExactly("implements");
     assertThat(derivedAt(3)).contains("implements: IMPLEMENTS type:g.App");
+  }
+
+  /** A setting of the library's {@code application.yml}. */
+  private static Fact setting(String key, String value, int line, long at) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("key", key);
+    return Fact.create(
+        EntityId.parse("module:g:lib"),
+        ConfigExtractor.CONFIG_VALUE,
+        FactObject.string(value),
+        attributes,
+        new Origin(Origin.Kind.STATIC, ConfigExtractor.NAME, "1"),
+        Evidence.of(
+            "lib", "src/main/resources/application.yml", new Evidence.LineRange(line, line), null),
+        1.0,
+        Validity.from(at));
+  }
+
+  private static List<Fact> configured(long at, String name, String ordersUrl) {
+    return List.of(
+        lib(at, "unused", 10).getFirst(),
+        setting("spring.application.name", name, 1, at),
+        setting("orders.url", ordersUrl, 2, at));
+  }
+
+  /**
+   * #591: a change to one setting of an {@code application.yml} runs value resolution and the rules
+   * that read config or its facts again, and not the units (which read only the application's name
+   * and which modules have config) or the people (who read no config).
+   */
+  @Test
+  void aChangeToOneConfigSettingRunsOnlyValueResolutionAndWhatReadsIt() {
+    Linker linker = Linker.standard(facts, new JdbcRuleRuns(jdbc));
+    List<String> all = linker.order();
+
+    assertThat(link(linker, 1, configured(1, "shop", "http://orders:8080")).ran())
+        .containsExactlyElementsOf(all);
+    assertThat(link(linker, 2, configured(2, "shop", "http://orders:8080")).ran()).isEmpty();
+
+    List<String> downstream =
+        all.stream()
+            .filter(r -> !r.equals(DeployableUnits.NAME) && !r.equals(People.NAME))
+            .toList();
+    assertThat(downstream).contains(ValueResolution.NAME, AddressResolution.NAME, "http-links");
+    assertThat(link(linker, 3, configured(3, "shop", "http://orders:9090")).ran())
+        .containsExactlyElementsOf(downstream);
+
+    // The application's name is what the units read: they run again.
+    assertThat(link(linker, 4, configured(4, "store", "http://orders:9090")).ran())
+        .contains(DeployableUnits.NAME)
+        .doesNotContain(People.NAME);
   }
 }
