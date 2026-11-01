@@ -192,3 +192,17 @@ inherited from its parent (Spring Boot's plugin, the packaging), so the whole fi
 evidence, and the coverage report counts such a match as weak, since Maven cites lines in POMs
 elsewhere (ADR 0089, amendment for #411). The `deployable-by` and inherited `packaging` facts
 keep citing the file without lines. Extractor `maven` version 6.
+
+## Amendment (#639): a service whose group comes from a framework parent
+
+A POM that declares no `<groupId>` takes its parent's. When that parent is not among the analyzed
+POMs, it is a framework's, such as `org.springframework.boot:spring-boot-starter-parent`, and its
+group says nothing about the service: project-4's main-service came out as
+`service:org.springframework.boot:main-service`, and anything keyed on the unit's group (Maven-group
+domains, ADR 0099) read it as part of Spring Boot. Such a service is now keyed on its artifactId
+alone, `service:main-service`. The module keeps Maven's coordinates, `module:org.springframework.boot:main-service`,
+because other POMs depend on it by them and dependencies resolve against module IDs. Libraries keep
+`groupId:artifactId` too: links from a library to its module, and from a unit found by a library's
+application class to that library (`DeployableUnits`), go by the shared key, and no test set has a
+library in this case. A unit keyed this way has no Maven group, so it joins no Maven-group domain.
+Extractor `maven` version 7.

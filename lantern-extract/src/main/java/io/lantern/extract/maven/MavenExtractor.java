@@ -71,7 +71,7 @@ public final class MavenExtractor implements Extractor {
   public static final String NAME = "maven";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "6";
+  public static final String VERSION = "7";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
@@ -625,7 +625,8 @@ public final class MavenExtractor implements Extractor {
       List<Dep> dependencies,
       Map<String, String> properties,
       List<XmlElement> plugins,
-      double confidence) {
+      double confidence,
+      boolean foreignGroup) {
 
     String key() {
       return groupId + ":" + artifactId;
@@ -644,7 +645,12 @@ public final class MavenExtractor implements Extractor {
       if (packaging.equals("pom")) {
         return null;
       }
-      return new EntityId(deployable() ? BuiltInTypes.SERVICE : BuiltInTypes.LIBRARY, key());
+      if (deployable()) {
+        // A service whose groupId only comes from a parent outside the analyzed repositories (such
+        // as spring-boot-starter-parent) is not of that group: it is named by its artifactId.
+        return new EntityId(BuiltInTypes.SERVICE, foreignGroup ? artifactId : key());
+      }
+      return new EntityId(BuiltInTypes.LIBRARY, key());
     }
 
     /** Evidence pointing at the module's POM, at the element's lines if one is given. */
@@ -678,13 +684,27 @@ public final class MavenExtractor implements Extractor {
   private static Module resolve(
       Written w, Map<String, Pom> effective, Map<String, Written> byCoordinates) {
     Pom pom = effective.get(w.key());
+    boolean foreignGroup = foreignGroup(w.pom(), byCoordinates);
     if (pom != null) {
-      return fromEffective(w, pom);
+      return fromEffective(w, pom, foreignGroup);
     }
-    return fromWritten(w, byCoordinates);
+    return fromWritten(w, byCoordinates, foreignGroup);
   }
 
-  private static Module fromEffective(Written w, Pom pom) {
+  /**
+   * Whether a POM declares no groupId and inherits it from a parent that is not among the analyzed
+   * POMs: a framework's parent, such as {@code
+   * org.springframework.boot:spring-boot-starter-parent}, whose group the module does not belong
+   * to.
+   */
+  private static boolean foreignGroup(Pom pom, Map<String, Written> byCoordinates) {
+    Pom.Coordinates p = pom.parent();
+    return pom.groupId() == null
+        && p != null
+        && !byCoordinates.containsKey(p.groupId() + ":" + p.artifactId() + ":" + p.version());
+  }
+
+  private static Module fromEffective(Written w, Pom pom, boolean foreignGroup) {
     Map<String, String> properties = new HashMap<>(pom.properties());
     projectProperties(properties, pom);
     List<Dep> deps = new ArrayList<>();
@@ -709,7 +729,8 @@ public final class MavenExtractor implements Extractor {
         deps,
         writtenProperties(w, properties),
         pom.plugins(),
-        EFFECTIVE_CONFIDENCE);
+        EFFECTIVE_CONFIDENCE,
+        foreignGroup);
   }
 
   /**
@@ -717,7 +738,8 @@ public final class MavenExtractor implements Extractor {
    * one there has exactly the coordinates the {@code <parent>} element names; a parent from
    * elsewhere is not read, so what it adds (properties, managed versions, plugins) is missing.
    */
-  private static Module fromWritten(Written w, Map<String, Written> byCoordinates) {
+  private static Module fromWritten(
+      Written w, Map<String, Written> byCoordinates, boolean foreignGroup) {
     List<Pom> lineage = new ArrayList<>();
     lineage.add(w.pom());
     Set<Written> seen = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -793,7 +815,8 @@ public final class MavenExtractor implements Extractor {
         deps,
         properties,
         withPlugins.plugins(),
-        WRITTEN_CONFIDENCE);
+        WRITTEN_CONFIDENCE,
+        foreignGroup);
   }
 
   /**
