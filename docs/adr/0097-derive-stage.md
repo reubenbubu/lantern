@@ -92,12 +92,15 @@ entry points share is its own component).
   their services and every repository became a box of its own.
 - **Mappers and settings are left out.** A class MapStruct generates (its `generated` fact) and a
   class bound to config by `@ConfigurationProperties` (a new Spring extractor fact,
-  `configuration-properties`, with its prefix; extractor version 8) are never components, shared
-  or not.
+  `configuration-properties`, with its prefix, read as Spring reads it: from the meta-annotation's
+  declaration when the class carries one; extractor version 8) are never components, shared or
+  not. Hand-written mappers are known only by name, so they stay when shared.
 - **Only code that reaches another container is drawn when nothing reaches it.** An HTTP client
   or a class that makes HTTP calls or sends stays a component when no entry point reaches it, so a
-  line to another container still starts at its code; a repository no entry point reaches is not
-  drawn. One an entry point reaches is a member of that entry point's component, whose data access
+  line to another container still starts at its code; code with only data access (a repository,
+  or a bean whose code reads or writes tables) that no entry point reaches is not drawn, unless no
+  drawn component would then reach the unit's databases, since the framework may call it (a
+  `UserDetailsService`, a data seeder) or calls to it went unseen. One an entry point reaches is a member of that entry point's component, whose data access
   it gives.
 - **Intent phrases are Describe's.** Lines between components keep their static label (ADR 0050)
   until Describe words every interaction in the stored model (#528); the issue's intent criterion

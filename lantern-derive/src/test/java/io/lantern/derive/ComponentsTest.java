@@ -87,7 +87,7 @@ class ComponentsTest {
         ORDERS,
         BuiltInTypes.CONTAINS,
         EntityId.parse(
-            "method:com.example.OrdersController#<init>(com.example.Pricing,java.util.List<java.lang.String>)"));
+            "method:com.example.OrdersController#<init>(com.example.Pricing,java.util.List,java.lang.String[])"));
 
     List<Fact> derived = derived();
 
@@ -116,6 +116,8 @@ class ComponentsTest {
       add(controller, "INJECTS", settings);
     }
     add(unused, "REPOSITORY_FOR", EntityId.parse("type:com.example.Archive"));
+    // Pricing, inside OrdersController's component, already reaches the database.
+    add(PRICING, "WRITES_TABLE", EntityId.parse("table:shop:prices"));
     add(client, "http-client", FactObject.string("feign"));
 
     List<EntityId> components = components(derived());
@@ -125,6 +127,17 @@ class ComponentsTest {
             Components.id(UNIT, mapper), Components.id(UNIT, settings), Components.id(UNIT, unused))
         // An HTTP client nothing reaches still shows where calls to another container start.
         .contains(Components.id(UNIT, client));
+  }
+
+  @Test
+  void aRepositoryNothingReachesStaysWhenNoOtherComponentReachesTheDatabase() {
+    unitWithTwoControllers();
+    EntityId users = EntityId.parse("type:com.example.UserRepository");
+    add(MODULE, BuiltInTypes.CONTAINS, users);
+    // Spring Security calls the service that uses it, not an entry point.
+    add(users, "REPOSITORY_FOR", EntityId.parse("type:com.example.User"));
+
+    assertThat(components(derived())).contains(Components.id(UNIT, users));
   }
 
   private void unitWithTwoControllers() {

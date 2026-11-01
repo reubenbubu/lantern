@@ -84,6 +84,8 @@ public final class Components implements LinkRule.OverFacts {
   private static final String MESSAGE_SEND = "message-send";
   private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
   private static final String GENERATED = "generated";
+  private static final String READS_TABLE = "READS_TABLE";
+  private static final String WRITES_TABLE = "WRITES_TABLE";
   private static final String CONFIGURATION_PROPERTIES = "configuration-properties";
   private static final String INJECTS = "INJECTS";
   private static final String ASPECT = "aspect";
@@ -267,10 +269,28 @@ public final class Components implements LinkRule.OverFacts {
                   entry, ENTRY_POINT, String.join(" · ", kinds.names()), types, kinds.basis()));
         }
       }
+      // Code with only data access that no entry point reaches is not drawn (#271), unless no
+      // drawn component would then reach the unit's databases: the framework may call it (a
+      // UserDetailsService, a data seeder), or the calls to it were not seen.
+      boolean dataAccessShown = false;
+      for (Found found : components) {
+        dataAccessShown |= found.members().stream().anyMatch(this::accessesData);
+      }
+      List<EntityId> unreachedData = new ArrayList<>();
       for (EntityId bean : beans) {
         SortedSet<EntityId> from = reachedBy.get(bean);
+        if (from == null && !reachesOutside(bean) && accessesData(bean)) {
+          unreachedData.add(bean);
+          continue;
+        }
         boolean own = from == null ? reachesOutside(bean) : from.size() > 1;
         if (own) {
+          components.add(new Found(bean, SHARED, beanKind(bean), only(bean), beanBasis(bean)));
+          dataAccessShown |= accessesData(bean);
+        }
+      }
+      if (!dataAccessShown) {
+        for (EntityId bean : unreachedData) {
           components.add(new Found(bean, SHARED, beanKind(bean), only(bean), beanBasis(bean)));
         }
       }
@@ -464,6 +484,20 @@ public final class Components implements LinkRule.OverFacts {
         }
       }
       return types;
+    }
+
+    /** Whether a type is a repository or its code reads or writes tables. */
+    private boolean accessesData(EntityId type) {
+      if (!knowledge.relations(type, REPOSITORY_FOR).isEmpty()) {
+        return true;
+      }
+      for (EntityId member : withMethods(type)) {
+        if (!knowledge.relations(member, READS_TABLE).isEmpty()
+            || !knowledge.relations(member, WRITES_TABLE).isEmpty()) {
+          return true;
+        }
+      }
+      return false;
     }
 
     private List<EntityId> withMethods(EntityId type) {
