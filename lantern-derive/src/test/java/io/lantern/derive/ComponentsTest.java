@@ -66,12 +66,28 @@ class ComponentsTest {
     }
     add(AUDIT, "INJECTS", policy);
     add(policy, "INJECTS", log);
+    // A formatter Audit uses but the admin controller also uses directly, and a clock both the
+    // formatter and Audit use: each is reached by a path around Audit, so each is its own.
+    EntityId formatter = EntityId.parse("type:com.example.AuditFormatter");
+    EntityId clock = EntityId.parse("type:com.example.Clock");
+    for (EntityId bean : List.of(formatter, clock)) {
+      add(MODULE, BuiltInTypes.CONTAINS, bean);
+      add(bean, "stereotype", FactObject.string("component"));
+    }
+    add(AUDIT, "INJECTS", formatter);
+    add(ADMIN, "INJECTS", formatter);
+    add(AUDIT, "INJECTS", clock);
+    add(formatter, "INJECTS", clock);
 
     List<Fact> derived = derived();
 
     EntityId audit = Components.id(UNIT, AUDIT);
     assertThat(objects(derived, audit, Components.HAS_MEMBER)).containsExactly(AUDIT, log, policy);
     assertThat(components(derived)).doesNotContain(Components.id(UNIT, policy));
+    assertThat(objects(derived, Components.id(UNIT, formatter), Components.HAS_MEMBER))
+        .containsExactly(formatter);
+    assertThat(objects(derived, Components.id(UNIT, clock), Components.HAS_MEMBER))
+        .containsExactly(clock);
   }
 
   @Test

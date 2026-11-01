@@ -238,7 +238,7 @@ public final class Components implements LinkRule.OverFacts {
           }
         }
       }
-      // Which component each bean an entry point reaches belongs to (#271, review of 1D): the
+      // Which component each bean an entry point reaches belongs to (#637): the
       // entry point, when it alone reaches it; else the bean shared by several entry points that
       // every path to it goes through (its nearest such dominator), as a shared class holds the
       // classes only it reaches; else the bean itself, a shared component of its own.

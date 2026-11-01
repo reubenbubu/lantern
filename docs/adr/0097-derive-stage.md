@@ -184,4 +184,3 @@ the beans it owns; a bean reached by one entry point belongs to it, as before. O
 removes 3 components on project-2, 20 on project-4 and 15 on project-8, none of them in a
 reference; billing-service's 26 now match its reference by name, and workorder-service's 46 match
 45 of the reference's 48.
-
