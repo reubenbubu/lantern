@@ -97,7 +97,9 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
 
 - A warm rerun of an unchanged snapshot makes no call, and a one-file change re-asks only the items
   whose inputs hold that file's blob or a claim observed in it, plus their parents whose child
-  answer changed (`Project0EndToEndIT`).
+  answer changed (`Project0EndToEndIT`). A change that alters an extracted fact, such as a renamed
+  endpoint path, also re-asks the items that show the facts derived from it, such as a link the
+  rename leaves open and the flows it changes; the test lists exactly those (#654).
 - The first run after V22 re-asks every item once, since the old caches are dropped.
 - A new answer under a new fingerprint is a new row of `llm_answers`; one under a stored
   fingerprint replaces it and becomes the newest. The newest row per role and subject is what a

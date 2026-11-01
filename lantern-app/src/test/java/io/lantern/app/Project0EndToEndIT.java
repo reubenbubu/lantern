@@ -458,6 +458,135 @@ class Project0EndToEndIT {
   }
 
   /**
+   * A change that alters an extracted fact (#654): the payments controller's path is renamed from
+   * {@code /api/payments} to {@code /api/charges}, in that one file. Its endpoint fact changes, so
+   * the storefront's call to {@code /api/payments} no longer meets it and the link between them is
+   * left open. Exactly the items that show the file, the changed facts or an answer that changed
+   * are asked again, each listed with the inputs that changed in {@code target/project-0/
+   * fact-change.txt}; a warm rerun makes no call.
+   */
+  @Test
+  @Order(3)
+  void aChangedFactReAsksOnlyTheItemsThatShowIt(@TempDir Path clones) throws IOException {
+    Map<String, Path> repos = new TreeMap<>(project0());
+    String repo = "payments";
+    String path = "src/main/java/com/acme/shop/payments/PaymentController.java";
+    Path clone = clones.resolve(repo);
+    Git.run(clones, "clone", "--quiet", repos.get(repo).toString(), clone.toString());
+    String code = Files.readString(clone.resolve(path));
+    String renamed =
+        code.replace("@RequestMapping(\"/api/payments\")", "@RequestMapping(\"/api/charges\")");
+    assertThat(renamed).isNotEqualTo(code);
+    Files.writeString(clone.resolve(path), renamed);
+    Git.run(
+        clone,
+        "-c",
+        "user.name=Lantern test",
+        "-c",
+        "user.email=test@lantern.invalid",
+        "commit",
+        "--quiet",
+        "-am",
+        "Rename the payments path");
+    repos.put(repo, clone);
+    long before =
+        jdbc.sql("SELECT coalesce(max(seq), 0) FROM llm_answers").query(Long.class).single();
+    int sent = fake.sent().size();
+
+    AnalysisRun.Result changed = run.run("project-0", null, repos);
+    assertEveryPlannedItemCountedOnce(changed);
+
+    List<Map<String, Object>> asked =
+        jdbc.sql(
+                "SELECT role, subject, inputs::text AS inputs FROM llm_answers WHERE seq > :before"
+                    + " ORDER BY role, subject")
+            .param("before", before)
+            .query()
+            .listOfRows();
+    // Each item asked, with the inputs that differ from its first answer, at the pins.
+    List<String> why = new ArrayList<>();
+    java.util.Set<String> items = new java.util.TreeSet<>();
+    for (Map<String, Object> row : asked) {
+      String item = row.get("role") + " " + row.get("subject");
+      items.add(item);
+      java.util.Optional<String> first =
+          jdbc.sql(
+                  "SELECT inputs::text FROM llm_answers WHERE role = :role AND subject = :subject"
+                      + " AND seq <= :before ORDER BY seq LIMIT 1")
+              .param("role", row.get("role"))
+              .param("subject", row.get("subject"))
+              .param("before", before)
+              .query(String.class)
+              .optional();
+      if (first.isEmpty()) {
+        why.add(item + " (new: not asked at the pins)");
+        continue;
+      }
+      java.util.Set<String> was = inputs(first.get());
+      java.util.Set<String> now = inputs((String) row.get("inputs"));
+      List<String> differ = new ArrayList<>();
+      now.stream().filter(i -> !was.contains(i)).forEach(i -> differ.add("+ " + i));
+      was.stream().filter(i -> !now.contains(i)).forEach(i -> differ.add("- " + i));
+      why.add(item);
+      differ.forEach(line -> why.add("    " + line));
+    }
+    Files.createDirectories(OUT);
+    Files.write(OUT.resolve("fact-change.txt"), why);
+    // The screen reads the changed file's text again; the rest is exactly these items.
+    String screened = "injection-screen payments:" + path + ":";
+    assertThat(items).anySatisfy(item -> assertThat(item).startsWith(screened));
+    assertThat(items.stream().filter(item -> !item.startsWith(screened)))
+        .as(String.join("\n", why))
+        .containsExactlyInAnyOrder(FACT_CHANGE_REASKS.toArray(String[]::new));
+    long calls = fake.sent().size() - sent;
+    assertThat(changed.llm().calls()).isEqualTo(calls);
+    AnalysisRun.Result warm = run.run("project-0", null, repos);
+    assertEveryPlannedItemCountedOnce(warm);
+    assertThat(warm.llm().calls()).isZero();
+  }
+
+  /**
+   * What renaming the payments path asks again, besides the screen of the changed file: the
+   * controller's types, whose file changed; the payments module, repository and unit, which show
+   * the endpoint fact; the storefront's modules, repository and unit, whose call to {@code
+   * /api/payments} no longer meets an endpoint; the order flow, which loses its payment steps; and
+   * the charge endpoint, which nothing calls now, as a flow of its own.
+   */
+  private static final List<String> FACT_CHANGE_REASKS =
+      List.of(
+          "summarize type:com.acme.shop.payments.PaymentController",
+          "summarize type:com.acme.shop.payments.PaymentController$Charge",
+          "summarize type:com.acme.shop.payments.PaymentController$Receipt",
+          "summarize module:com.acme.shop:payments",
+          "summarize repo:payments",
+          "describe-unit service:com.acme.shop:payments",
+          "summarize module:com.acme.shop:storefront-app",
+          "summarize module:com.acme.shop:storefront-parent",
+          "summarize repo:storefront",
+          "describe-unit service:com.acme.shop:storefront-app",
+          "flow-narrative method:com.acme.shop.storefront.web.OrderController#place("
+              + "com.acme.shop.storefront.web.OrderController$NewOrder)",
+          "flow-narrative method:com.acme.shop.payments.PaymentController#charge("
+              + "com.acme.shop.payments.PaymentController$Charge)");
+
+  /** An answer's fingerprint inputs, each as its kind, file and ID. */
+  private static java.util.Set<String> inputs(String json) {
+    java.util.Set<String> inputs = new java.util.TreeSet<>();
+    JSON.readTree(json)
+        .forEach(
+            input ->
+                inputs.add(
+                    input.get("kind").asString()
+                        + " "
+                        + input.path("repo").asString("")
+                        + ":"
+                        + input.path("path").asString("")
+                        + " "
+                        + input.get("id").asString()));
+    return inputs;
+  }
+
+  /**
    * Analyzes all of project-4's repositories at their pins, with the {@code analyze} command, into
    * the database that holds project-0, as another named system, and checks that the repositories
    * without a {@code pom.xml} are analyzed without a build and not in degraded mode, and their
@@ -469,7 +598,7 @@ class Project0EndToEndIT {
    * document and report to {@code target/project-4}, to look at.
    */
   @Test
-  @Order(3)
+  @Order(4)
   void analyzingProject4AfterProject0ShowsNothingOfProject0() throws IOException {
     String folder = System.getProperty("lantern.test.project4");
     assumeTrue(folder != null && !folder.isBlank(), "lantern.test.project4 is not set");
