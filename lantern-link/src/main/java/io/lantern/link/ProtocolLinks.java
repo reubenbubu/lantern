@@ -92,6 +92,7 @@ final class ProtocolLinks implements LinkRule {
       boolean open) {
     this.origin = new Origin(Origin.Kind.STATIC, name, version);
     this.open = open;
+    this.leavesOpen = open || name.equals("http-links") || name.equals("messaging-links");
     this.writes = Set.copyOf(writes);
     this.matchers = Objects.requireNonNull(matchers, "matchers");
     this.merged = Objects.requireNonNull(merged, "merged");
@@ -114,11 +115,14 @@ final class ProtocolLinks implements LinkRule {
           // HTTP calls, routes and frontends read where their addresses lead from address
           // resolution's claims (#589, #594).
           AddressClaims addresses = new AddressClaims(index);
-          HttpLinker http = new HttpLinker(index, found, addresses);
-          http.link();
-          RouteLinker routes = new RouteLinker(index, found, addresses);
-          routes.link();
-          new FrontendLinker(index, found, addresses, new Deployments(index), http, routes)
+          Http matched = Http.link(index, found, addresses);
+          new FrontendLinker(
+                  index,
+                  found,
+                  addresses,
+                  new Deployments(index),
+                  matched.calls(),
+                  matched.routes())
               .link(origin, validity);
         },
         // A call that reaches other units in other views names them (#590: once views merge).
@@ -138,7 +142,7 @@ final class ProtocolLinks implements LinkRule {
             CrossRepoLinks.USES_BROKER,
             DataLinker.DISPLAY_NAME,
             DeployableUnits.TECHNOLOGY),
-        (index, found, origin, validity) -> new MessageLinker(index, found).link());
+        (index, found, origin, validity) -> messages(index, found));
   }
 
   /** The deployment containers that run units and data stores. */
@@ -225,14 +229,37 @@ final class ProtocolLinks implements LinkRule {
         "1",
         Set.of(CrossRepoLinks.UNRESOLVED_LINK),
         (index, found, origin, validity) -> {
-          AddressClaims addresses = new AddressClaims(index);
-          new HttpLinker(index, found, addresses).link();
-          new RouteLinker(index, found, addresses).link();
-          new MessageLinker(index, found).link();
+          // As the HTTP and messaging rules match (#583).
+          Http.link(index, found, new AddressClaims(index));
+          messages(index, found);
         },
         facts -> facts.stream().map(Merged::fact).toList(),
         true);
   }
+
+  /** HTTP calls and gateway routes matched, which the frontends' matching reads. */
+  private record Http(HttpLinker calls, RouteLinker routes) {
+
+    /** Matches the calls, then the routes, as the HTTP and open-links rules both do. */
+    static Http link(LinkIndex index, FoundLinks found, AddressClaims addresses) {
+      HttpLinker http = new HttpLinker(index, found, addresses);
+      http.link();
+      RouteLinker routes = new RouteLinker(index, found, addresses);
+      routes.link();
+      return new Http(http, routes);
+    }
+  }
+
+  /** Matches the sends, listeners and bindings, as the messaging and open-links rules both do. */
+  private static void messages(LinkIndex index, FoundLinks found) {
+    new MessageLinker(index, found).link();
+  }
+
+  /**
+   * Whether the open-links rule runs a rule's matchers: only theirs may leave links open; another
+   * rule's open links would be lost, so finding one fails (#583).
+   */
+  private final boolean leavesOpen;
 
   /** The open-links rule's name. */
   static final String OPEN_LINKS = "open-links";
@@ -279,6 +306,10 @@ final class ProtocolLinks implements LinkRule {
     Validity validity = Validity.from(in.snapshot());
     FoundLinks found = new FoundLinks();
     matchers.link(index.in(view), found, origin, validity);
+    if (!leavesOpen && found.has(CrossRepoLinks.UNRESOLVED_LINK)) {
+      throw new IllegalStateException(
+          "Rule " + origin.name() + " left a link open, which the open-links rule does not see");
+    }
     // The protocol rules give what they place; the open-links rule what they leave open (#583).
     found.to(
         out,

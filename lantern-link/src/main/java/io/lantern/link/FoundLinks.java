@@ -97,6 +97,13 @@ final class FoundLinks {
     return result;
   }
 
+  /** Whether a link of the predicate was found, in any view. */
+  boolean has(String predicate) {
+    return found.values().stream()
+        .flatMap(views -> views.values().stream())
+        .anyMatch(f -> f.predicate().equals(predicate));
+  }
+
   /** Adds a fact that holds whatever the view. */
   void add(Fact fact) {
     plain.putIfAbsent(fact.id(), fact);

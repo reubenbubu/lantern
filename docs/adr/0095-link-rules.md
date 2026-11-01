@@ -77,8 +77,8 @@ The cross-repo links step is split into seven rules (`ProtocolLinks`), each with
 the HTTP links found before them and frontend calls reuse the HTTP and route matching),
 `messaging-links`, `deployment-links` (the containers units run in), `data-links`, `mail-links`,
 `identity-links` and `redis-links`. Each builds its own index of what it reads and finds its links
-in every view as the step did. A link left open stays the `unresolved-link` of the rule that left it
-until #576.
+in every view as the step did. A link left open stayed the `unresolved-link` of the rule that left
+it until #583 gave open links a rule of their own (amendment for #583).
 
 - **Reads.** Until views are explicit (#522), each rule reads what the step read, every extracted
   fact and the values' and units' facts, because the profiles a rule links in are those every fact
@@ -222,7 +222,9 @@ Decided by the agent under the owner's delegation of 2026-11-01.
   gives, the destinations a send might reach. Repeating that logic in a second place would let the
   two drift, so the rule runs the HTTP, route and messaging matchers in each view, as their own
   rules do, and keeps only what they leave open (`FoundLinks.to` with the predicates a rule keeps),
-  the way address resolution runs them to learn their questions (#589). The issue's wish that the
+  the way address resolution runs them to learn their questions (#589). The matchers still build
+  their open links while matching; no rule but `open-links` gives them, and a protocol rule whose
+  matchers the open-links rule does not run fails if it finds one, so none is lost. The issue's wish that the
   rule read the matchers' output instead is set aside for that reason; the cost is matching those
   three protocols twice per view.
 - **The predicate stays `unresolved-link`.** The epic calls the claim `open-link`; renaming it
