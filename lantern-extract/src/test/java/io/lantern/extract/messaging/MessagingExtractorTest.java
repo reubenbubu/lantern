@@ -411,6 +411,32 @@ class MessagingExtractorTest {
         public interface MessagePostProcessor {}
         """);
     files.put(
+        "src/main/java/org/springframework/messaging/core/AbstractMessageSendingTemplate.java",
+        """
+        package org.springframework.messaging.core;
+
+        public abstract class AbstractMessageSendingTemplate<D> {
+          public void convertAndSend(D destination, Object payload) {}
+          public void convertAndSend(Object payload, MessagePostProcessor processor) {}
+        }
+        """);
+    files.put(
+        "src/main/java/org/springframework/messaging/core/MessagePostProcessor.java",
+        """
+        package org.springframework.messaging.core;
+
+        public interface MessagePostProcessor {}
+        """);
+    files.put(
+        "src/main/java/org/springframework/jms/core/JmsMessagingTemplate.java",
+        """
+        package org.springframework.jms.core;
+
+        public class JmsMessagingTemplate
+            extends org.springframework.messaging.core.AbstractMessageSendingTemplate<
+                jakarta.jms.Destination> {}
+        """);
+    files.put(
         "src/main/java/jakarta/jms/Destination.java",
         """
         package jakarta.jms;
@@ -430,6 +456,7 @@ class MessagingExtractorTest {
         package com.example;
 
         import jakarta.jms.Destination;
+        import org.springframework.jms.core.JmsMessagingTemplate;
         import org.springframework.jms.core.JmsTemplate;
         import org.springframework.jms.core.MessagePostProcessor;
 
@@ -437,6 +464,8 @@ class MessagingExtractorTest {
           private JmsTemplate jms;
           private MessagePostProcessor stamp;
           private Destination audit;
+          private JmsMessagingTemplate messaging;
+          private org.springframework.messaging.core.MessagePostProcessor tag;
 
           public void byDefault(OrderPlaced event) {
             jms.convertAndSend(event, stamp);
@@ -448,6 +477,14 @@ class MessagingExtractorTest {
 
           public void toDestination(OrderPlaced event) {
             jms.convertAndSend(audit, event);
+          }
+
+          public void messagingToDestination(OrderPlaced event) {
+            messaging.convertAndSend(audit, event);
+          }
+
+          public void messagingByDefault(OrderPlaced event) {
+            messaging.convertAndSend(event, tag);
           }
         }
         """);
@@ -469,6 +506,11 @@ class MessagingExtractorTest {
             "method:com.example.Sender#named(com.example.OrderPlaced) payload-type"
                 + " com.example.OrderPlaced",
             "method:com.example.Sender#toDestination(com.example.OrderPlaced) payload-type"
+                + " com.example.OrderPlaced",
+            // JmsMessagingTemplate's generic destination erases to Object (#612).
+            "method:com.example.Sender#messagingToDestination(com.example.OrderPlaced)"
+                + " payload-type com.example.OrderPlaced",
+            "method:com.example.Sender#messagingByDefault(com.example.OrderPlaced) payload-type"
                 + " com.example.OrderPlaced");
   }
 

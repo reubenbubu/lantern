@@ -238,6 +238,7 @@ final class JavaParserAnalyzer {
       structure.invocations.addAll(one.invocations);
       structure.assignments.addAll(one.assignments);
       structure.ownCalls.addAll(one.ownCalls);
+      structure.throwing.addAll(one.throwing);
     }
     return structure;
   }
@@ -272,6 +273,13 @@ final class JavaParserAnalyzer {
       for (MethodCallExpr call : unit.findAll(MethodCallExpr.class)) {
         Position name = call.getName().getBegin().orElse(null);
         call(call, () -> call.resolve(), name, call.getArguments(), call.getScope().orElse(null));
+      }
+      for (com.github.javaparser.ast.stmt.ThrowStmt thrown :
+          unit.findAll(com.github.javaparser.ast.stmt.ThrowStmt.class)) {
+        EntityId thrower = owner(thrown);
+        if (thrower != null && thrower.type().equals(ModuleStructure.METHOD)) {
+          structure.throwing.add(thrower);
+        }
       }
       for (ObjectCreationExpr creation : unit.findAll(ObjectCreationExpr.class)) {
         // An anonymous class is not an entity; calls in its body count for the enclosing code.

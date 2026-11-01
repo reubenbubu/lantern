@@ -787,7 +787,7 @@ public class PermissionAspect {
   @Before("@annotation(requires)")
   public void check(RequiresPermission requires) {
     String granted = request.getHeader(Headers.PERMISSIONS);
-    if (granted == null) throw new ForbiddenException();
+    if (granted == null) throw new ForbiddenException(requires.resource());
   }
 
   @After("@annotation(com.example.Logged)")
@@ -799,7 +799,9 @@ public class PermissionAspect {
 """
 package com.example;
 
-public class ForbiddenException extends RuntimeException {}
+public class ForbiddenException extends RuntimeException {
+  public ForbiddenException(String what) {}
+}
 """);
     // Aspects that read their annotation but are not access checks (#612): one whose name has
     // "auth" only inside a word, one named for a policy that logs and refuses nothing.
@@ -845,6 +847,80 @@ public class PolicyLogging {
 package com.example;
 
 public @interface Audited {}
+""");
+    // An aspect that hands the decision to a permission checker is a check; one that reads the
+    // same access annotation only to log it is not (#612).
+    files.put(
+        "src/main/java/com/example/AdminController.java",
+"""
+package com.example;
+
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class AdminController {
+  @DeleteMapping("/cache")
+  @RequiresRole("ADMIN")
+  public void purge() {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/RequiresRole.java",
+"""
+package com.example;
+
+public @interface RequiresRole {
+  String value();
+}
+""");
+    files.put(
+        "src/main/java/com/example/PermissionChecker.java",
+"""
+package com.example;
+
+public class PermissionChecker {
+  public void verify(String role) {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/RoleGuard.java",
+"""
+package com.example;
+
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class RoleGuard {
+  private PermissionChecker checker;
+
+  @Before("@annotation(role)")
+  public void check(RequiresRole role) {
+    String wanted = role.value();
+    checker.verify(wanted);
+  }
+}
+""");
+    files.put(
+        "src/main/java/com/example/RoleTrail.java",
+"""
+package com.example;
+
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class RoleTrail {
+  @Before("@annotation(role)")
+  public void log(RequiresRole role) {
+    String wanted = role.value();
+  }
+}
 """);
     files.put(
         "src/main/java/com/example/Traced.java",
@@ -967,6 +1043,10 @@ public class Web {
     // names none) and a configuration, a @Value kept.
     assertThat(facts)
         .containsExactly(
+            "method:com.example.AdminController#purge() custom-access-check ADMIN {\"advice\":\""
+                + "method:com.example.RoleGuard#check(com.example.RequiresRole)\",\"annotation\":"
+                + "\"com.example.RequiresRole\",\"aspect\":\"com.example.RoleGuard\",\"via\":"
+                + "\"aspect\"} @shop:src/main/java/com/example/AdminController.java#9-9 0.7",
             "method:com.example.OrgController#create(java.lang.String,java.util.Map"
                 + ",java.lang.String,java.lang.String) custom-access-check resource=ORGANIZATION"
                 + ", action=CREATE {\"advice\":\"method:com.example.PermissionAspect#check(c"

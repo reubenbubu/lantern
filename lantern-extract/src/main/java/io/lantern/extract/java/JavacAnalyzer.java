@@ -19,6 +19,7 @@ import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.ReturnTree;
+import com.sun.source.tree.ThrowTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
@@ -744,6 +745,15 @@ final class JavacAnalyzer {
           call(start, end(unit, node), node.getArguments());
         }
         return super.visitMethodInvocation(node, unused);
+      }
+
+      @Override
+      public Void visitThrow(ThrowTree node, Void unused) {
+        EntityId thrower = owner(getCurrentPath());
+        if (thrower != null && thrower.type().equals(ModuleStructure.METHOD)) {
+          structure.throwing.add(thrower);
+        }
+        return super.visitThrow(node, unused);
       }
 
       @Override

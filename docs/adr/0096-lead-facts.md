@@ -89,16 +89,27 @@ than asked.
 
 ## Amendment (#612)
 
-- **A custom access check needs more than a name.** The advice must also be able to refuse the call:
-  its code, or that of the aspect's own methods it calls, makes an exception or error to throw
-  (a constructor of a type named `...Exception` or `...Error`), as a check does when it denies
-  access. The name is matched on the whole words of its camel-case form, so `AuthorAuditAspect` no
-  longer counts for "auth", and `PolicyLogging`, whose name is about a policy but which refuses
-  nothing, no longer counts either. Every access-check aspect of the development sets throws its
-  own exception in the advice.
-- **A JMS send's payload is chosen by the overload.** `JmsTemplate.convertAndSend` takes a
-  destination first when its first parameter is a `String` or a `Destination`; otherwise the first
-  argument is the message, so `convertAndSend(message, postProcessor)` records the message, not the
-  post-processor. Without the overload (degraded mode), two arguments whose second is typed as a
-  `MessagePostProcessor` read the same way.
+- **A custom access check needs more than a name.** The advice must also be able to refuse the
+  call: its code, or that of the aspect's own methods it calls (its supertypes' included, two calls
+  deep), has a `throw` statement or makes an exception or error (a constructor of a type named
+  `...Exception` or `...Error`), or hands the decision to code about access (a call to a method, or
+  on a type, whose name is about access, such as `permissions.check(...)` or
+  `SecurityContextHolder.getContext()`; reading the annotation itself does not count). The code
+  model records which methods contain a `throw` statement (`ModuleStructure.throwing`) on both
+  paths, since the parser drops a call it cannot resolve, such as `new AccessDeniedException(...)`
+  from a library or with an annotation's value as its argument, when there is no build.
+- **Names are matched on whole words.** A word of the camel-case name must begin like permission,
+  permit, role, access, auth (authentication, authorization, authority, but not author), security,
+  privilege, grant, policy, guard or entitlement, or be RBAC, ABAC or ACL. So `AuthorAuditAspect`
+  no longer counts for "auth", and a `PolicyLogging` aspect that refuses nothing no longer counts
+  either. Every access-check aspect of the development sets throws in its advice.
+- **Known limits.** An around advice that refuses by returning without calling `proceed()` (a 403
+  response, say) and throws nothing is not seen as a check; nor is one that delegates to a bean
+  whose names say nothing of access.
+- **A JMS send's payload is chosen by the overload.** A JMS template call takes a destination first
+  when the overload's first parameter is a `String` or a `Destination`, or, for
+  `JmsMessagingTemplate`'s generic destination (which erases to `Object`), when the next parameter
+  is not a `MessagePostProcessor` or a header `Map`. So `convertAndSend(message, postProcessor)`
+  records the message, not the post-processor. Without the overload (degraded mode), two arguments
+  whose second is typed as a post-processor or a map read the same way.
 - The Spring and messaging extractors' versions rise to 9.

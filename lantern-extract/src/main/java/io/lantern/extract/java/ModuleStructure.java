@@ -6,9 +6,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * What an analyzer found in the sources of one module, before it becomes facts: the named types
@@ -375,10 +377,22 @@ public final class ModuleStructure {
   final List<OwnCall> ownCalls = new ArrayList<>();
 
   /**
+   * The methods and constructors whose own code has a {@code throw} statement (#612), code in local
+   * and anonymous classes counting for the member enclosing them. Read without resolving anything,
+   * so the same with and without a build.
+   */
+  final Set<EntityId> throwing = new LinkedHashSet<>();
+
+  /**
    * The annotations on annotation types read from the classpath (meta-annotations), by the
    * annotation type's binary name. Only the compiler path can read them.
    */
   final Map<String, List<Annotation>> annotationTypes = new LinkedHashMap<>();
+
+  /** The methods and constructors whose own code throws (#612). */
+  public Set<EntityId> throwing() {
+    return Collections.unmodifiableSet(throwing);
+  }
 
   /** The named types, in the order read. */
   public List<TypeDecl> types() {

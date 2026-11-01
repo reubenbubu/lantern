@@ -291,7 +291,9 @@ public final class MessagingExtractor implements Extractor {
   private static final String STRING = "java.lang.String";
 
   private static final Set<String> JMS_POST_PROCESSORS =
-      Set.of("org.springframework.jms.core.MessagePostProcessor");
+      Set.of(
+          "org.springframework.jms.core.MessagePostProcessor",
+          "org.springframework.messaging.core.MessagePostProcessor");
 
   private static final Pattern SPEL_LITERAL = Pattern.compile("'([^']*)'");
 
@@ -813,24 +815,37 @@ public final class MessagingExtractor implements Extractor {
     }
 
     /**
-     * Whether a JmsTemplate call names its destination first: its first parameter, as the overload
-     * declares it, is a String or a Destination; without the overload, it has three arguments, or
-     * two of which the second is not a MessagePostProcessor as the compiler typed it (#612).
+     * Whether a JMS template call names its destination first (#612). With the overload: its first
+     * parameter is a String or a Destination; or, for JmsMessagingTemplate's generic destination,
+     * which erases to Object, a first parameter of Object followed by another that is not a
+     * post-processor or a header map ({@code convertAndSend(payload, postProcessor)} sends its
+     * first argument). Without the overload: three arguments or more, or two of which the second is
+     * not typed as a post-processor or a map.
      */
     private static boolean jmsAddressed(List<String> parameters, Invocation i, int arguments) {
       if (!parameters.isEmpty()) {
         // A String, or jakarta.jms.Destination (javax.jms.Destination before Jakarta EE).
         String first = parameters.getFirst();
-        return first.equals(STRING)
+        if (first.equals(STRING)
             || first.endsWith(".Destination")
-            || first.endsWith("$Destination");
+            || first.endsWith("$Destination")) {
+          return true;
+        }
+        return first.equals("java.lang.Object")
+            && parameters.size() >= 2
+            && !payloadCompanion(parameters.get(1));
       }
       if (arguments != 2) {
         return arguments > 2;
       }
       List<ModuleStructure.TypeUse> types = i.argumentTypes(0);
       ModuleStructure.TypeUse second = types.size() == 2 ? types.get(1) : null;
-      return second == null || !JMS_POST_PROCESSORS.contains(second.type());
+      return second == null || !payloadCompanion(second.type());
+    }
+
+    /** Whether a parameter that follows a payload is a post-processor or a header map. */
+    private static boolean payloadCompanion(String type) {
+      return JMS_POST_PROCESSORS.contains(type) || type.equals("java.util.Map");
     }
 
     /**
