@@ -88,17 +88,18 @@ final class IdentityLinker {
 
   private final LinkIndex index;
   private final FoundLinks out;
-  private final Addresses addresses;
+  private final AddressAnswers addresses;
   private final Deployments deployments;
 
   /** The identity provider containers each external system found from them is deployed in. */
   private final Map<EntityId, Map<String, Container>> deployed = new TreeMap<>(LinkIndex.BY_TEXT);
 
-  IdentityLinker(LinkIndex index, FoundLinks out, Addresses addresses) {
+  IdentityLinker(
+      LinkIndex index, FoundLinks out, AddressAnswers addresses, Deployments deployments) {
     this.index = index;
     this.out = out;
     this.addresses = addresses;
-    this.deployments = addresses.deployments();
+    this.deployments = deployments;
   }
 
   void link(Origin origin, Validity validity) {
@@ -248,7 +249,7 @@ final class IdentityLinker {
               MANAGES_USERS,
               Claims.of(client, IdentityAdminClientAttributes.class).product() + " Admin REST",
               List.of(client));
-      Reached reached = reach(unit, view, resolved.text(), written);
+      Reached reached = reach(client, unit, view, resolved.text(), written);
       if (reached != null) {
         Set<String> facts = new TreeSet<>();
         used.forEach(u -> facts.add(u.id()));
@@ -284,7 +285,7 @@ final class IdentityLinker {
   /** Links a unit to the provider the first of its values that reaches one names. */
   private void link(Unit unit, String view, Use use) {
     for (Fact value : use.values()) {
-      Reached reached = reach(unit, view, value.object().value(), Claims.written(value));
+      Reached reached = reach(value, unit, view, value.object().value(), Claims.written(value));
       if (reached != null) {
         add(unit, view, use, reached, value, value.object().value(), null, null);
         return;
@@ -305,19 +306,20 @@ final class IdentityLinker {
   }
 
   /**
-   * What a provider's URL reaches in a view, as {@link Addresses} resolves it (filled in by the
+   * What a provider's URL reaches in a view, as address resolution answers it (filled in by the
    * environment of a container that runs the unit where config leaves the host to it): a unit of
    * the system; else an identity provider container a deployment runs, by its host or, for this
    * machine, the port it publishes; else an external system. Null when it names nothing known.
    *
+   * @param asking the config value or admin client whose URL it is
    * @param value the URL as config resolved it, placeholders nothing resolved kept as written
    * @param written the URL as written, when config changed it
    */
-  private Reached reach(Unit unit, String view, String value, String written) {
+  private Reached reach(Fact asking, Unit unit, String view, String value, String written) {
     // What a deployment that runs the unit fills in comes before the config's own value, as in
     // Spring Boot; each is tried until one reaches something, since only this linker knows
     // identity provider containers.
-    List<Answer> answers = new ArrayList<>(addresses.answers(unit, view, value, written));
+    List<Answer> answers = new ArrayList<>(addresses.answers(asking, unit, view, value, written));
     answers.sort(Comparator.comparing((Answer a) -> a.filledBy() == null));
     for (Answer answer : answers) {
       Reached reached = reach(unit, view, answer);

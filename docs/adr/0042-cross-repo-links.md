@@ -319,3 +319,17 @@ have no `from` and are keyed `address:frontend:<address>` where the host is not 
 link test checks the answers read back equal `Addresses`' for these questions too; on project-0 to
 project-4 and project-8 every link is unchanged (#594's PR).
 
+## Amendment (#595): identity providers and mail hosts read address resolution's claims
+
+`IdentityLinker` and `MailLinker` now read where their addresses lead from address resolution's
+claims, and the architecture rule covers them. They ask for every answer an address has, the
+config's and each deployment's that fills it in (`AddressAnswers.answers`), since both decide
+among those answers themselves: the identity matcher tries the deployments' first and keeps the
+first that reaches a unit, an identity provider container or a system outside; the mail matcher
+needs every deployment to name the same system outside. As with routes and frontends, address
+resolution runs both against `Addresses` through its recorder, which notes each question with the
+fact asking it (the config value or admin client holding the provider's URL, or the
+`spring.mail.host` value), and drops the links. The identity matcher takes `Deployments` from its
+caller, as the frontend matcher does, for the identity provider containers only it knows. On
+project-0 to project-4 and project-8 every link is unchanged; only the new address claims are
+added (#595's PR).

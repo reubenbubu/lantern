@@ -83,12 +83,12 @@ class ArchitectureRulesTest {
         new ClassFileImporter()
             .importClasses(
                 io.lantern.link.archfixture.matchers.HttpLinker.class,
-                io.lantern.link.archfixture.matchers.MailLinker.class,
+                io.lantern.link.archfixture.matchers.UnlistedLinker.class,
                 io.lantern.link.archfixture.matchers.Addresses.class);
 
     assertThatThrownBy(() -> ArchitectureRules.MATCHERS_READ_ADDRESS_CLAIMS.check(classes))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("HttpLinker.link(java.lang.String)")
-        .hasMessageNotContaining("MailLinker");
+        .hasMessageNotContaining("UnlistedLinker");
   }
 }
