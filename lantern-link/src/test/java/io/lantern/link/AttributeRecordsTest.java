@@ -6,7 +6,7 @@ import io.lantern.core.vocabulary.AttributeRecords;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
-import io.lantern.extract.ExtractorVocabularies;
+import io.lantern.extract.Extractors;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +25,7 @@ class AttributeRecordsTest {
   void recordsAreGeneratedFromTheLinkersTypes() {
     List<VocabularyType> types = new ArrayList<>(BuiltInTypes.definitions());
     List<String> names = new ArrayList<>();
-    ExtractorVocabularies.bySource().values().forEach(types::addAll);
+    Extractors.vocabularies().values().forEach(types::addAll);
     LinkVocabularies.bySource()
         .values()
         .forEach(

@@ -22,9 +22,6 @@ import io.lantern.extract.docs.DecisionRecord.Value;
 import io.lantern.extract.docs.Markdown.Block;
 import io.lantern.extract.docs.Markdown.Kind;
 import io.lantern.extract.identity.IdentityExtractor;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
@@ -41,7 +38,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -166,19 +162,7 @@ public final class DocsExtractor implements Extractor {
 
   /** The vocabulary types this extractor's facts use besides the built-in ones. */
   public static List<VocabularyType> vocabulary() {
-    try (InputStream in = DocsExtractor.class.getResourceAsStream(RESOURCE)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + RESOURCE);
-      }
-      JsonNode array = FactJson.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-      List<VocabularyType> types = new ArrayList<>();
-      for (JsonNode node : array) {
-        types.add(VocabularyType.fromJson(node));
-      }
-      return List.copyOf(types);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + RESOURCE, e);
-    }
+    return ExtractorInfo.load(RESOURCE);
   }
 
   /**
@@ -582,9 +566,12 @@ public final class DocsExtractor implements Extractor {
     }
   }
 
+  private static final ExtractorInfo INFO =
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of());
+
   @Override
   public ExtractorInfo info() {
-    return new ExtractorInfo(NAME, VERSION);
+    return INFO;
   }
 
   /** It masks the values of config keys the identity extractor finds holding a JWT secret. */

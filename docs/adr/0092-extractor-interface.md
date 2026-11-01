@@ -78,10 +78,9 @@ extractor declares.
 - **Carried-forward repositories** are extracted as before: snapshot-unit extractors see them, and
   only the named repositories' facts are recorded.
 
-- **Not built here:** the epic's `ExtractorInfo` also names each extractor's vocabulary resource
-  and key attributes, and its `ClaimSink` builds and validates each fact against the vocabulary.
-  Here the vocabulary stays with `ExtractorVocabularies` and the sink checks only the origin; #551
-  takes the rest.
+- **Not built here:** the epic's `ExtractorInfo` also names each extractor's vocabulary, and its
+  `ClaimSink` validates each fact against it. Here the sink checked only the origin; #551 built the
+  rest (amendment for #551 below).
 
 ## Consequences
 
@@ -120,3 +119,38 @@ The owner chose the narrower step on #547:
   a POM or Spring config file re-extracts every repository's units that read it.
 - **Java and WebSocket stay snapshot units.** Moving the joins into linking, as the epic intends,
   comes with value resolution (#283).
+
+## Amendment for #551: each extractor declares its vocabulary, and the sink validates
+
+The epic's contract (`docs/epics/001-knowledge-build.md`, section 7, Contract) has `ExtractorInfo`
+name the extractor's vocabulary and its key attributes, and a sink that validates each fact
+against them. The agent decided the points below under the owner's standing go-ahead for 1B.
+
+- **`ExtractorInfo` carries the vocabulary.** Besides name and version, it holds the source the
+  types are registered under (`maven-extractor`), the types themselves, read from the extractor's
+  resource in `vocabulary/`, each with its key attributes (ADR 0090), and the types it
+  **borrows**: those another extractor's vocabulary defines that it also emits. Config and
+  Deployment borrow Spring's `cors-policy`, the HTTP client extractor messaging's `payload-type`
+  (ADR 0096), WebSocket messaging's `SENDS_TO`, and SQL Java's `kind`. A type stays defined once,
+  by one source, so the registry's ownership and the additive-change rule are unchanged.
+- **`ExtractorVocabularies` is gone.** `Extractors.vocabularies()` gives the sources of the
+  extractors `ServiceLoader` finds, ordered so that each type's parent is built in or comes from
+  an earlier source; the app, the migration that needs the vocabulary (V19) and the tests use it.
+- **The runner's sink validates every fact** an extractor emits, before it is cached: its
+  predicate must be built in, or a type the extractor's vocabulary defines or borrows, and the fact
+  must pass the vocabulary's check over the built-in types and every extractor's (entity types
+  known, the object of the right kind, the attributes as the type's schema declares them, every
+  required one present). A refused fact fails the extraction with the extractor's name, as an
+  origin mismatch already did. A borrowed type no vocabulary defines fails when the runner is built.
+- **"A missing key attribute" means a required one.** An optional key attribute that is absent is
+  part of the claim as written (absent is a value: the default view, no profile), so only the
+  schema's required attributes are enforced. Making every key attribute required would change most
+  vocabularies, which the additive-change rule refuses on existing databases.
+- **The sink still takes finished facts.** The epic's sink builds each fact from its parts and fills
+  in its origin. The extractors already build facts through their own helpers, with the origin from
+  their `info()`, which the sink checks; rewriting eighteen extractors' helpers to hand over parts
+  would change no fact, so it waits until an extractor is rewritten for another reason (out-of-process
+  extractors and learned rules, epic section 7, will need it).
+- **Consequences.** No extractor's output changes, so no version rises and the scores stay the
+  same. A new extractor fact type that its vocabulary does not define now fails the tests that run
+  extractors through the runner, rather than the first database write.

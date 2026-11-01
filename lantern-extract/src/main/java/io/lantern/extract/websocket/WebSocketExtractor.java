@@ -27,10 +27,6 @@ import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
 import io.lantern.extract.messaging.MessagingExtractor;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -38,10 +34,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -148,19 +144,7 @@ public final class WebSocketExtractor implements Extractor {
 
   /** The vocabulary types this extractor's facts use. */
   public static List<VocabularyType> vocabulary() {
-    try (InputStream in = WebSocketExtractor.class.getResourceAsStream(RESOURCE)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + RESOURCE);
-      }
-      JsonNode array = FactJson.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-      List<VocabularyType> types = new ArrayList<>();
-      for (JsonNode node : array) {
-        types.add(VocabularyType.fromJson(node));
-      }
-      return List.copyOf(types);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + RESOURCE, e);
-    }
+    return ExtractorInfo.load(RESOURCE);
   }
 
   /**
@@ -968,9 +952,13 @@ public final class WebSocketExtractor implements Extractor {
     return sends;
   }
 
+  private static final ExtractorInfo INFO =
+      ExtractorInfo.of(
+          NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(MessagingExtractor.SENDS_TO));
+
   @Override
   public ExtractorInfo info() {
-    return new ExtractorInfo(NAME, VERSION);
+    return INFO;
   }
 
   @Override

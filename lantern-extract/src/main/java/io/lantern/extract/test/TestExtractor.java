@@ -17,8 +17,6 @@ import io.lantern.extract.ExtractorInfo;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.maven.MavenExtractor;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -38,7 +36,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -89,19 +86,7 @@ public final class TestExtractor implements Extractor {
 
   /** The vocabulary types this extractor's facts use besides the built-in ones. */
   public static List<VocabularyType> vocabulary() {
-    try (InputStream in = TestExtractor.class.getResourceAsStream(RESOURCE)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + RESOURCE);
-      }
-      JsonNode array = FactJson.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-      List<VocabularyType> types = new ArrayList<>();
-      for (JsonNode node : array) {
-        types.add(VocabularyType.fromJson(node));
-      }
-      return List.copyOf(types);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + RESOURCE, e);
-    }
+    return ExtractorInfo.load(RESOURCE);
   }
 
   /**
@@ -375,9 +360,12 @@ public final class TestExtractor implements Extractor {
     }
   }
 
+  private static final ExtractorInfo INFO =
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of());
+
   @Override
   public ExtractorInfo info() {
-    return new ExtractorInfo(NAME, VERSION);
+    return INFO;
   }
 
   @Override

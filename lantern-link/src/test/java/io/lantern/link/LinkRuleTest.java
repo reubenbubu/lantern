@@ -55,7 +55,7 @@ class LinkRuleTest {
   void noRuleIsNamedAsAnExtractor() {
     // The linker tells its facts from the extractors' by origin name.
     Set<String> extractors =
-        new java.util.HashSet<>(io.lantern.extract.ExtractorVocabularies.bySource().keySet());
+        new java.util.HashSet<>(io.lantern.extract.Extractors.vocabularies().keySet());
     extractors.add(io.lantern.extract.people.PeopleExtractor.NAME);
     List<String> rules = new java.util.ArrayList<>(names(Rules.standard()));
     rules.add(LinkResolver.NAME);

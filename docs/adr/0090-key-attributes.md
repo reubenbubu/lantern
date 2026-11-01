@@ -71,7 +71,7 @@ key-attribute rules are fixed by the epic; this record says how they are built a
   when they differ from what the generator gives; run it with `-Dlantern.records.write=true` to
   rewrite them. Committing them, rather than generating them in the build, needs no new Maven
   plugin. Consumers move to them in 1B, 1C and 1G.
-- **One list of sources.** `ExtractorVocabularies` and `LinkVocabularies` list each source's types
+- **One list of sources.** `ExtractorVocabularies` (since #551, `Extractors.vocabularies()`, ADR 0092) and `LinkVocabularies` list each source's types
   in the order they are applied; the app's startup, the record tests and the claim tests use them.
 - **Identity on real facts.** `ClaimIdentityCheck` checks the facts of a snapshot: a fact seen again
   (another commit, lines and file, origin version and confidence, descriptive attributes dropped)

@@ -21,8 +21,6 @@ import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ModuleConfig;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.sql.SchemaModel.Where;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +43,6 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -137,19 +134,7 @@ public final class SqlExtractor implements Extractor {
 
   /** The vocabulary types this extractor's facts use besides the built-in and Java ones. */
   public static List<VocabularyType> vocabulary() {
-    try (InputStream in = SqlExtractor.class.getResourceAsStream(RESOURCE)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + RESOURCE);
-      }
-      JsonNode array = FactJson.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-      List<VocabularyType> types = new ArrayList<>();
-      for (JsonNode node : array) {
-        types.add(VocabularyType.fromJson(node));
-      }
-      return List.copyOf(types);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + RESOURCE, e);
-    }
+    return ExtractorInfo.load(RESOURCE);
   }
 
   /**
@@ -590,9 +575,12 @@ public final class SqlExtractor implements Extractor {
     }
   }
 
+  private static final ExtractorInfo INFO =
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(KIND));
+
   @Override
   public ExtractorInfo info() {
-    return new ExtractorInfo(NAME, VERSION);
+    return INFO;
   }
 
   @Override

@@ -24,7 +24,7 @@ class AttributeRecordsTest {
   void recordsAreGeneratedFromTheExtractorsTypes() {
     List<VocabularyType> types = new ArrayList<>(BuiltInTypes.definitions());
     List<String> names = new ArrayList<>();
-    ExtractorVocabularies.bySource()
+    Extractors.vocabularies()
         .values()
         .forEach(
             list -> {

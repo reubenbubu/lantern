@@ -2,13 +2,18 @@ package io.lantern.extract;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.Vocabulary;
+import io.lantern.core.vocabulary.VocabularyType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SequencedMap;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.TreeMap;
@@ -42,8 +47,14 @@ public final class Extractors {
           .thenComparing(f -> f.attributes().toString())
           .thenComparing(Fact::id);
 
+  private static final Set<String> BUILT_IN =
+      BuiltInTypes.definitions().stream()
+          .map(VocabularyType::name)
+          .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
   private final List<Extractor> extractors;
   private final ExtractionCache cache;
+  private final Vocabulary vocabulary;
 
   /**
    * @param extractors the extractors, in any order
@@ -54,6 +65,82 @@ public final class Extractors {
   public Extractors(Collection<? extends Extractor> extractors, ExtractionCache cache) {
     this.extractors = order(extractors);
     this.cache = Objects.requireNonNull(cache, "cache");
+    // The given extractors' vocabularies, and those of the others found, whose types theirs may
+    // borrow; a given extractor replaces a found one of its name.
+    List<Extractor> every = new ArrayList<>(this.extractors);
+    Set<String> names = new HashSet<>();
+    every.forEach(e -> names.add(e.info().name()));
+    load().stream().filter(e -> !names.contains(e.info().name())).forEach(every::add);
+    List<VocabularyType> types = new ArrayList<>(BuiltInTypes.definitions());
+    vocabularies(every).values().forEach(types::addAll);
+    this.vocabulary = new Vocabulary(1, types);
+    for (Extractor extractor : this.extractors) {
+      for (String borrowed : extractor.info().borrowed()) {
+        if (vocabulary.find(borrowed).isEmpty()) {
+          throw new IllegalArgumentException(
+              extractor.info().name()
+                  + " borrows the type '"
+                  + borrowed
+                  + "', which no vocabulary"
+                  + " defines");
+        }
+      }
+    }
+  }
+
+  /**
+   * The vocabularies of the extractors found through {@link ServiceLoader}, by source, in an order
+   * the registry can apply them in: each type's parent is built in or comes from a source before
+   * it, or from its own.
+   */
+  public static SequencedMap<String, List<VocabularyType>> vocabularies() {
+    return vocabularies(load());
+  }
+
+  /**
+   * The extractors' vocabularies by source, each type's parent built in or from a source before.
+   *
+   * @throws IllegalArgumentException if two extractors share a source, or a parent is defined by no
+   *     source
+   */
+  static SequencedMap<String, List<VocabularyType>> vocabularies(List<Extractor> extractors) {
+    Map<String, List<VocabularyType>> pending = new LinkedHashMap<>();
+    for (Extractor extractor : extractors) {
+      ExtractorInfo info = extractor.info();
+      if (info.vocabularySource() != null
+          && pending.put(info.vocabularySource(), info.vocabulary()) != null) {
+        throw new IllegalArgumentException(
+            "Two extractors share the source " + info.vocabularySource());
+      }
+    }
+    Set<String> defined = new HashSet<>();
+    BuiltInTypes.definitions().forEach(t -> defined.add(t.name()));
+    SequencedMap<String, List<VocabularyType>> sorted = new LinkedHashMap<>();
+    while (!pending.isEmpty()) {
+      String next = null;
+      for (Map.Entry<String, List<VocabularyType>> source : pending.entrySet()) {
+        Set<String> own = new HashSet<>();
+        source.getValue().forEach(t -> own.add(t.name()));
+        if (source.getValue().stream()
+            .allMatch(
+                t ->
+                    t.parent() == null
+                        || defined.contains(t.parent())
+                        || own.contains(t.parent()))) {
+          next = source.getKey();
+          break;
+        }
+      }
+      if (next == null) {
+        throw new IllegalArgumentException(
+            "The types of these vocabularies have parents no source defines first: "
+                + pending.keySet());
+      }
+      List<VocabularyType> types = pending.remove(next);
+      types.forEach(t -> defined.add(t.name()));
+      sorted.put(next, types);
+    }
+    return sorted;
   }
 
   /** The extractors found through {@link ServiceLoader}, in the order of their requirements. */
@@ -200,7 +287,30 @@ public final class Extractors {
     };
   }
 
-  private static Fact checked(Extractor extractor, Fact fact) {
+  /**
+   * Checks a fact an extractor emits (ADR 0092, amendment for #551): of its origin, of a predicate
+   * its vocabulary defines or borrows or a built-in one, and valid against the vocabulary: entity
+   * types known, the object of the predicate's kind, and the attributes as the predicate's schema
+   * declares them, every required one present.
+   *
+   * @throws IllegalArgumentException if it is not
+   */
+  Fact checked(Extractor extractor, Fact fact) {
+    String predicate = fact.predicate();
+    if (!extractor.info().declares(predicate) && !BUILT_IN.contains(predicate)) {
+      throw new IllegalArgumentException(
+          extractor.info().name()
+              + " emitted a fact of type '"
+              + predicate
+              + "', which its vocabulary neither defines nor borrows");
+    }
+    try {
+      vocabulary.validate(fact);
+    } catch (IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          extractor.info().name() + " emitted an invalid fact " + fact.id() + ": " + e.getMessage(),
+          e);
+    }
     if (!fact.origin().name().equals(extractor.info().name())
         || !fact.origin().version().equals(extractor.info().version())) {
       throw new IllegalArgumentException(
