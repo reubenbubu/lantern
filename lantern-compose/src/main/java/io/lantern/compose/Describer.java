@@ -306,7 +306,14 @@ public final class Describer {
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
     units.addAll(C4Views.units(knowledge));
     units.addAll(C4Views.frontends(knowledge));
-    units.forEach(unit -> unitItems.addAll(describeItems.unit(unit)));
+    List<EntityId> nothingToWord = new ArrayList<>();
+    for (EntityId unit : units) {
+      List<DescribeRole.Described> items = describeItems.unit(unit);
+      if (items.isEmpty()) {
+        nothingToWord.add(unit);
+      }
+      unitItems.addAll(items);
+    }
     List<Question> flowQuestions = flows(repoFacts, knowledge, assembler, c4);
     // Under a budget, the system's purpose has first claim on its group's share, ahead of the flows
     // (#659): one cheap call that writes the report's first paragraph. It is asked last, on the
@@ -321,6 +328,8 @@ public final class Describer {
                 Tokens.estimate(item(q).rendering()),
                 Tokens.estimate(q.system())));
     Tally tally = new Tally();
+    // A unit whose facts show nothing to word from is not asked about, and is unknown.
+    nothingToWord.forEach(unit -> tally.unknown.add(unit.toString()));
     Map<String, DescribeRole.Described> bySubject = new java.util.concurrent.ConcurrentHashMap<>();
     unitItems.forEach(d -> bySubject.put(d.item().subject(), d));
     RoleSession unitSession = harness.session(DescribeRole.UNITS);

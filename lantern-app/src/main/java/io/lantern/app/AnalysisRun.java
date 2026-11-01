@@ -421,12 +421,20 @@ public final class AnalysisRun {
               .describe(systemFacts, extracted, summarized.summaries());
       // What Describe wrote is stored as claims of origin llm before anything is composed
       // (knowledge-build epic, section 6, Derived and LLM facts).
-      recordLlmFacts(snapshot, described.facts(snapshot.number()));
-      if (!described.unknown().isEmpty()) {
-        LOG.info(
-            "Describe left {} elements, components and interactions unknown",
-            described.unknown().size());
-      }
+      Map<Origin, List<Fact>> llmFacts = described.facts(snapshot.number());
+      recordLlmFacts(snapshot, llmFacts);
+      Map<String, Long> storedTexts =
+          llmFacts.values().stream()
+              .flatMap(List::stream)
+              .collect(
+                  java.util.stream.Collectors.groupingBy(
+                      Fact::predicate,
+                      java.util.TreeMap::new,
+                      java.util.stream.Collectors.counting()));
+      LOG.info(
+          "Describe stored {}; left {} elements, components and interactions unknown",
+          storedTexts,
+          described.unknown().size());
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
       List<Fact> screened = screen(harness, snapshot);

@@ -1156,6 +1156,7 @@ class DescriberTest {
     assertThat(fake.sent()).isEmpty();
     assertThat(result.asked()).isZero();
     assertThat(new ArrayList<>(result.wordings().responsibilities().keySet())).isEmpty();
+    assertThat(result.unknown()).containsExactly("service:g:lonely");
   }
 
   @Test
