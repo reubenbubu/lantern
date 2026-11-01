@@ -1,0 +1,41 @@
+[
+  {
+    "name": "deployment-instance",
+    "kind": "entity",
+    "description": "A container a deployment descriptor runs in one environment, keyed on the name the environment gives it (#617). Its key is the platform, ':', the environment, '/' and the name, such as compose:local/postgres; a descriptor naming no environment stands for its own, '@' and its repository and path, such as compose:@shop%2Fdocker-compose.yml/postgres. Each part is percent-encoded where it holds whitespace, '%' or (in the platform and environment) ':', '/' or '@'.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "deployed-as",
+    "kind": "attribute",
+    "keyAttributes": ["build", "environment", "image", "platform", "ports", "product", "version"],
+    "description": "The subject deployment instance is the container named by the value, as its descriptor states it (#617).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string", "description": "compose, kubernetes or helm." },
+        "environment": { "type": "string", "description": "The environment, such as local or prod, if the descriptor names one." },
+        "image": { "type": "string", "description": "The image it runs." },
+        "build": { "type": "string", "description": "The folder it is built from, when it has no image." },
+        "product": { "type": "string", "description": "The product the image is, such as PostgreSQL." },
+        "version": { "type": "string", "description": "The product's version." },
+        "ports": { "type": "array", "items": { "type": "string" }, "description": "The ports it publishes, as written." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The deployment-container facts it rests on." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "RUNS",
+    "kind": "relationship",
+    "description": "The subject deployment instance runs the object: a deployable unit or a data store the linker placed in its container (#617).",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The deployed-in facts it rests on." }
+      },
+      "additionalProperties": false
+    }
+  }
+]

@@ -1,0 +1,33 @@
+[
+  {
+    "name": "COMPONENT_LINK",
+    "kind": "relationship",
+    "keyAttributes": ["at", "detail", "kind", "relationship", "target"],
+    "description": "A line of a unit's component diagram (#617): from the subject component to another component of the unit, or, for a link between containers whose code end is in the component, to the link's other end. It rests on the calls, routes, advice or links it gathers.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["applies", "calls", "advises", "code-end"], "description": "A route applying a filter of the other component; a call into its code; an aspect advising its entry point; or the code end of a link between containers." },
+        "relationship": { "type": "string", "description": "The line's relationship: CALLS or ADVISES between components, else the link's predicate, such as CALLS_HTTP." },
+        "at": { "type": "string", "description": "The entity ID of the code it rests on: the calling method, the route's member, the aspect, or the link's code end." },
+        "target": { "type": "string", "description": "What it reaches: the filter's class and the route, the method called and the class that runs it, the method advised, or, for a code end, the link's side (source or target) and its other end." },
+        "detail": { "type": "string", "description": "What the line names: the route, the method's name or the annotations an aspect selects by; absent for a code end." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it rests on." }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "data-access",
+    "kind": "attribute",
+    "description": "How the subject component reaches its unit's databases (#617): Reads and writes (it holds a Spring Data repository, or both reads and writes tables), Reads or Writes.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The repository or table-access facts it rests on." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

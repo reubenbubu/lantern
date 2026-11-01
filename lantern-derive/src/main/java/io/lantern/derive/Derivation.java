@@ -28,17 +28,25 @@ public final class Derivation {
   /** The vocabulary source of the components' types. */
   public static final String COMPONENTS_SOURCE = "derive-components";
 
+  /** The vocabulary source of the component interactions' types. */
+  public static final String INTERACTIONS_SOURCE = "derive-component-interactions";
+
+  /** The vocabulary source of the deployment instances' types. */
+  public static final String DEPLOYMENT_SOURCE = "derive-deployment-instances";
+
   private Derivation() {}
 
   /** The derive rules of this version of Lantern. */
   public static List<LinkRule> rules() {
-    return List.of(new Components());
+    return List.of(new Components(), new ComponentInteractions(), new DeploymentInstances());
   }
 
   /** The derive rules' vocabularies by source, applied after the linker's. */
   public static SequencedMap<String, List<VocabularyType>> vocabularies() {
     SequencedMap<String, List<VocabularyType>> sources = new LinkedHashMap<>();
     sources.put(COMPONENTS_SOURCE, Components.vocabulary());
+    sources.put(INTERACTIONS_SOURCE, ComponentInteractions.vocabulary());
+    sources.put(DEPLOYMENT_SOURCE, DeploymentInstances.vocabulary());
     return sources;
   }
 
@@ -66,6 +74,48 @@ public final class Derivation {
       }
     }
     return all;
+  }
+
+  /**
+   * Facts that make one claim merged into one, each fact listed in {@code facts} once: two
+   * descriptors of one container, or one container two units are placed in twice.
+   */
+  static List<Fact> merged(List<Fact> facts) {
+    Map<String, Fact> byClaim = new LinkedHashMap<>();
+    for (Fact fact : facts) {
+      tools.jackson.databind.node.ObjectNode key = fact.attributes().deepCopy();
+      key.remove("facts");
+      String claim = fact.subject() + " " + fact.predicate() + " " + fact.object() + " " + key;
+      Fact before = byClaim.get(claim);
+      if (before == null) {
+        byClaim.put(claim, fact);
+        continue;
+      }
+      tools.jackson.databind.node.ObjectNode attributes = before.attributes().deepCopy();
+      tools.jackson.databind.node.ArrayNode cites =
+          (tools.jackson.databind.node.ArrayNode) attributes.get("facts");
+      for (JsonNode id : fact.attributes().get("facts")) {
+        boolean known = false;
+        for (JsonNode seen : cites) {
+          known |= seen.asString().equals(id.asString());
+        }
+        if (!known) {
+          cites.add(id.asString());
+        }
+      }
+      byClaim.put(
+          claim,
+          Fact.create(
+              before.subject(),
+              before.predicate(),
+              before.object(),
+              attributes,
+              before.origin(),
+              before.evidence(),
+              before.confidence(),
+              before.validity()));
+    }
+    return List.copyOf(byClaim.values());
   }
 
   /** The types of a vocabulary resource of {@code lantern-derive}, in the order written. */
