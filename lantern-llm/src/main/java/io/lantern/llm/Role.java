@@ -8,7 +8,11 @@ public enum Role {
   NAME_GROUPS(Tier.HIGH_VOLUME),
   PROPOSE_RULES(Tier.REASONING),
   COMPOSE(Tier.HIGH_VOLUME),
-  TRANSLATE(Tier.HIGH_VOLUME);
+  TRANSLATE(Tier.HIGH_VOLUME),
+  /** The support judge (ADR 0101): of another tier than the reasoning-tier texts it checks. */
+  JUDGE(Tier.HIGH_VOLUME),
+  /** The injection screen (ADR 0101): the bulk tier once it exists, high-volume until then. */
+  SCREEN(Tier.HIGH_VOLUME);
 
   private final Tier tier;
 

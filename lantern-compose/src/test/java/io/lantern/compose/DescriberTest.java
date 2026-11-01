@@ -295,6 +295,31 @@ class DescriberTest {
   }
 
   @Test
+  void aSentenceTheSupportJudgeFoundUnsupportedIsMarkedAndKept() {
+    Wordings wordings =
+        describe(new FakeLlmProvider().answering(DescriberTest::answer))
+            .wordings()
+            .withUnsupported(Set.of(APP));
+
+    Document document = system(wordings);
+
+    DocumentEntity app =
+        document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
+    assertThat(app.description().getFirst())
+        .isEqualTo(new TextRun(Assembler.UNSUPPORTED, TextRun.Style.EMPHASIS));
+    assertThat(text(app.description()))
+        .isEqualTo(
+            Assembler.UNSUPPORTED
+                + " "
+                + Assembler.INFERRED_SENTENCE
+                + " Takes and lists the shop's orders.");
+    DocumentEntity database =
+        document.entities().stream().filter(e -> e.id().equals(DATABASE)).findFirst().orElseThrow();
+    assertThat(text(database.description()))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
+  }
+
+  @Test
   void documentsUseTheSentencesAsDescriptionsAndThePhrasesAsLabels() {
     Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
 

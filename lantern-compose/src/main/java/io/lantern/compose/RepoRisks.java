@@ -62,6 +62,7 @@ final class RepoRisks {
     for (EntityId container : containers) {
       cycles(section, container, risks);
     }
+    injections(section, risks);
     // Stable: risks of the same severity keep the order of the checks.
     risks.sort(
         Comparator.comparing(Callout::severity, Comparator.nullsLast(Comparator.naturalOrder())));
@@ -81,6 +82,36 @@ final class RepoRisks {
               List.of()));
     }
     return List.copyOf(risks);
+  }
+
+  // Text addressed to an AI, which the injection screen found (ADR 0101).
+
+  private void injections(String section, List<Callout> risks) {
+    List<Fact> findings =
+        Findings.of(knowledge, Findings.INJECTION_SUSPECTED).stream()
+            .filter(f -> repo.equals(Findings.attribute(f, "repo")))
+            .sorted(Comparator.comparing(f -> f.subject().toString()))
+            .toList();
+    for (Fact finding : findings) {
+      List<Inline> content = new ArrayList<>();
+      content.add(new TextRun(finding.evidence().path(), TextRun.Style.CODE));
+      content.add(
+          TextRun.of(
+              ", lines "
+                  + Findings.attribute(finding, "lines")
+                  + ", holds text that reads as addressed to an AI model: \u201c"
+                  + Findings.attribute(finding, "quote")
+                  + "\u201d"));
+      risks.add(
+          risk(
+              assembler.id(section, "injection-" + finding.evidence().path()),
+              Callout.Severity.MEDIUM,
+              "Text addressed to an AI",
+              content,
+              List.of(finding),
+              "A model that reads this file could be steered by it; Lantern treats repository text"
+                  + " as data, but a person should check what it asks for and why it is there."));
+    }
   }
 
   // Dependencies on unreleased versions, and the same dependency at different versions.

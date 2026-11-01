@@ -9,7 +9,7 @@
     "name": "finding-raised",
     "kind": "attribute",
     "keyAttributes": ["about", "module", "packages", "product", "repo", "rule", "target", "version", "versions", "via"],
-    "description": "A fixed check raised the subject finding, of the kind the value names (#619): snapshot-dependency, dependency-drift, package-cycle, end-of-life, version-skew, shared-jwt-secret, unrouted-endpoint or readme-contradiction. Its key attributes are what the kind is about, so a skew between other versions is another claim; its lineage is the facts behind it. Whether it is new or gone follows from its validity.",
+    "description": "A fixed check raised the subject finding, of the kind the value names (#619): snapshot-dependency, dependency-drift, package-cycle, end-of-life, version-skew, shared-jwt-secret, unrouted-endpoint or readme-contradiction; or, raised by the injection screen with origin llm after derivation (ADR 0101), injection-suspected. Its key attributes are what the kind is about, so a skew between other versions is another claim; its lineage is the facts behind it. Whether it is new or gone follows from its validity.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -26,6 +26,8 @@
         "support": { "type": "string", "enum": ["until", "older", "ended-by"], "description": "For an end of life, what the bundled table says: free support until a date, a line older than any it lists, or ended by a date at the latest." },
         "line": { "type": "string", "description": "For an end of life, the version's line in the table." },
         "ends": { "type": "string", "description": "For an end of life with a date, the date (ISO 8601). Whether support has ended is judged as of a document's date." },
+        "lines": { "type": "string", "description": "For an injection-suspected finding, the flagged lines of the file, from-to." },
+        "quote": { "type": "string", "description": "For an injection-suspected finding, the words the screen quoted from those lines." },
         "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it rests on." }
       },
       "required": ["about", "rule"],

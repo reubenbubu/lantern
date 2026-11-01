@@ -19,6 +19,7 @@ import io.lantern.core.repo.SystemTitle;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.derive.Derivation;
+import io.lantern.derive.Findings;
 import io.lantern.extract.ExtractionCache;
 import io.lantern.extract.Extractors;
 import io.lantern.extract.RepoBuild;
@@ -28,6 +29,7 @@ import io.lantern.harness.AnswerStore;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;
 import io.lantern.harness.RunBudget;
+import io.lantern.harness.checks.InjectionScreen;
 import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
@@ -401,6 +403,11 @@ public final class AnalysisRun {
               .withSecretKeys(secretKeys);
       Describer.Result described =
           new Describer(harness, allSources).describe(systemFacts, extracted);
+      // The injection screen reads every file the run's prompts showed, each blob once; what it
+      // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
+      List<Fact> screened = screen(harness, snapshot);
+      List<Fact> composed = new ArrayList<>(extracted);
+      composed.addAll(screened);
 
       String systemTitle =
           systems
@@ -420,7 +427,7 @@ public final class AnalysisRun {
               composer.compose(
                   view,
                   snapshot,
-                  extracted,
+                  composed,
                   summarized.summaries(),
                   described.wordings(),
                   systemTitle);
@@ -490,6 +497,85 @@ public final class AnalysisRun {
           documents,
           runRecord);
     }
+  }
+
+  /**
+   * Screens the files the run's prompts showed and records what it flags as findings of the
+   * snapshot, replacing those of the last screen only when every chunk was answered (ADR 0101).
+   *
+   * @return the findings that hold in the snapshot
+   */
+  private List<Fact> screen(Harness harness, Snapshot snapshot) {
+    InjectionScreen.Result result =
+        new InjectionScreen(harness).screen(InjectionScreen.chunks(harness.shown()));
+    List<Fact> found = new ArrayList<>();
+    for (InjectionScreen.Suspected suspected : result.suspected()) {
+      found.add(
+          Findings.injectionSuspected(
+              suspected.chunk().repo(),
+              suspected.chunk().path(),
+              suspected.chunk().blob(),
+              suspected.from(),
+              suspected.to(),
+              suspected.quote(),
+              snapshot.number()));
+    }
+    // One finding per file: the first flagged chunk.
+    Map<String, Fact> byFile = new LinkedHashMap<>();
+    found.forEach(f -> byFile.putIfAbsent(f.subject().toString(), f));
+    // A screen speaks only for the files it read this run: an earlier finding on a file no prompt
+    // showed this time, such as one only a cached Resolve answer read, still holds.
+    Set<String> screenedFiles = new java.util.HashSet<>();
+    harness.shown().forEach(f -> screenedFiles.add(f.repo() + "\u0000" + f.path()));
+    stillHolding(
+            facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+            screenedFiles,
+            snapshot.number())
+        .forEach(f -> byFile.putIfAbsent(f.subject().toString(), f));
+    if (!result.suspected().isEmpty()) {
+      LOG.warn("Injection screen: text addressed to an AI in {} files", byFile.size());
+    }
+    if (!result.complete()) {
+      LOG.warn("Injection screen: not every chunk was answered; earlier findings are kept");
+      return List.copyOf(byFile.values());
+    }
+    transaction.executeWithoutResult(
+        status ->
+            facts.recordDerived(
+                snapshot.number(),
+                Findings.SCREEN_ORIGIN,
+                snapshot.commits().keySet(),
+                byFile.values()));
+    return List.copyOf(byFile.values());
+  }
+
+  /**
+   * The injection screen's earlier findings on files the run's screen did not read, as findings of
+   * the snapshot: a screen speaks only for the files it read (ADR 0101).
+   *
+   * @param earlier facts that hold in the snapshot
+   * @param screened the files screened this run, as repository and path joined by a NUL
+   */
+  static List<Fact> stillHolding(Collection<Fact> earlier, Set<String> screened, long snapshot) {
+    List<Fact> kept = new ArrayList<>();
+    for (Fact fact : earlier) {
+      if (fact.origin().kind() != Findings.SCREEN_ORIGIN.kind()
+          || !fact.origin().name().equals(Findings.SCREEN_ORIGIN.name())
+          || screened.contains(fact.evidence().repo() + "\u0000" + fact.evidence().path())) {
+        continue;
+      }
+      String[] lines = Findings.attribute(fact, "lines").split("-");
+      kept.add(
+          Findings.injectionSuspected(
+              fact.evidence().repo(),
+              fact.evidence().path(),
+              fact.evidence().blob(),
+              Integer.parseInt(lines[0]),
+              Integer.parseInt(lines[1]),
+              Findings.attribute(fact, "quote"),
+              snapshot));
+    }
+    return kept;
   }
 
   /**
