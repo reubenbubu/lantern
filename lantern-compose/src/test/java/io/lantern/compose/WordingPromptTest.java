@@ -102,7 +102,7 @@ class WordingPromptTest {
             Integer.toString(WordingPrompt.WALKTHROUGH_WORDS),
             Integer.toString(WordingPrompt.CONDITION_WORDS),
             Integer.toString(Describer.MAX_FLOW_OUTPUT_TOKENS),
-            Integer.toString(SequenceFlows.MAX_MESSAGES));
+            Integer.toString(io.lantern.derive.Flows.MAX_MESSAGES));
     String fingerprint =
         HexFormat.of()
             .formatHex(

@@ -1,0 +1,99 @@
+[
+  {
+    "name": "flow",
+    "kind": "entity",
+    "description": "A flow of the architecture model (#618): what happens, container by container, after an entry point is triggered, traced through the code and the links between units. Its key is the entry point's unit (a library's entry point runs in each unit that bundles it), '/' and the claim ID of the fact that makes its method an entry point (an endpoint, a listener, a schedule), such as service:com.acme:shop/3f2a…, so its steps can change without renaming it.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "flow-step",
+    "kind": "entity",
+    "description": "One step of a flow (#618): a message between two participants, a note or a frame. Its key is its flow's key, '/', the claim ID of the fact it follows (its link, for a message that follows one) or none, '/' and how many steps of the flow followed that fact before it, so inserting a step renames no other.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "TRIGGERED_BY",
+    "kind": "relationship",
+    "keyAttributes": ["frontend", "gateway", "start", "through", "unit"],
+    "description": "The subject flow starts when the object method's entry point is triggered (#618): in a browser, at a gateway that routes a request to it, or at the entry point itself.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "unit": { "type": "string", "description": "The deployable unit whose entry point it is." },
+        "trigger": { "type": "string", "description": "The fact that makes the method an entry point: an endpoint, a message listener, a STOMP mapping, a WebSocket endpoint, a schedule or a background job." },
+        "start": { "type": "string", "enum": ["browser", "gateway"], "description": "How it starts before the entry point: a frontend's call in a browser, or a gateway routing a client's request; absent when it starts at the entry point." },
+        "person": { "type": "string", "description": "For a browser start, the person who uses the frontend: the one with the most screens on it, if any. Descriptive: a document draws the person its own scope gives." },
+        "frontend": { "type": "string", "description": "For a browser start, the frontend that calls." },
+        "link": { "type": "string", "description": "For a browser start, the frontend's call (its CALLS_HTTP fact)." },
+        "through": { "type": "string", "description": "For a browser start, the gateway the call goes through, if any." },
+        "gateway": { "type": "string", "description": "For a gateway start, the gateway." },
+        "routed": { "type": "string", "description": "For a gateway start, its routed-endpoint fact." },
+        "route": { "type": "string", "description": "The gateway's route link to the unit, if the gateway has one." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The trigger fact, then the start's facts." }
+      },
+      "required": ["trigger", "unit"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "flow-shape",
+    "kind": "attribute",
+    "keyAttributes": ["content", "truncated"],
+    "description": "The subject flow's shape (#618): sha256: and a hash, in base64url, of how it starts and the ordered sender, receiver, kind and followed link of its messages. Flows of one shape draw the same picture.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "content": { "type": "string", "description": "sha256: and a hash, in base64url, of its steps and the claims they follow, and whether it was truncated: a judgement of the flow is stale when this differs." },
+        "truncated": { "type": "boolean", "description": "Whether the trace stopped at its bound (40 messages or 80 steps)." },
+        "containers": { "type": "array", "items": { "type": "string" }, "description": "The participants, in the order the flow reaches them." },
+        "asyncDestinations": { "type": "array", "items": { "type": "string" }, "description": "The topics, queues and exchanges it hands work on through." },
+        "asyncJobs": { "type": "array", "items": { "type": "string" }, "description": "The facts of the background jobs it hands work on to." },
+        "reaches": { "type": "array", "items": { "type": "string" }, "description": "The entry points of other flows it reaches, each a unit and a method ID separated by a space." },
+        "unresolved": { "type": "array", "items": { "type": "string" }, "description": "What it calls that Lantern could not link, in order." },
+        "pushes": { "type": "integer", "description": "How many pushes to STOMP subscribers it makes." },
+        "messages": { "type": "integer", "description": "How many messages it has." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The trigger fact." }
+      },
+      "required": ["content", "truncated"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "SAME_SHAPE_AS",
+    "kind": "relationship",
+    "description": "The subject flow has the shape of the object flow, the one of that shape whose key sorts first (#618): documents show the representative only.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The two flows' trigger facts." }
+      },
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "STEP_OF",
+    "kind": "relationship",
+    "keyAttributes": ["action", "condition", "detail", "fragment", "from", "kind", "operand", "over", "parts", "to"],
+    "description": "The subject step is one of the object flow's steps (#618). Its first fact is what it follows: the link of a message that follows one.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "order": { "type": "integer", "description": "Its place in the flow, counting from 0, a frame's steps after the frame." },
+        "action": { "type": "string", "enum": ["uses-screens", "frontend-call", "route", "gateway-route", "http-call", "mail", "send", "no-listener", "hand-off", "deliver", "schedule", "job-later", "job-runs", "interceptor", "alternatives", "too-many-alternatives", "stomp-push", "unresolved", "data", "unknown-database", "truncated"], "description": "What the step is." },
+        "kind": { "type": "string", "enum": ["sync", "async", "note", "frame"], "description": "A synchronous or asynchronous message, a note or a frame of alternatives." },
+        "from": { "type": "string", "description": "Where a message starts." },
+        "to": { "type": "string", "description": "Where a message ends." },
+        "condition": { "type": "array", "items": { "type": "string" }, "description": "The Spring profiles under which alone it happens." },
+        "over": { "type": "array", "items": { "type": "string" }, "description": "The participants a note stands over." },
+        "detail": { "type": "array", "items": { "type": "string" }, "description": "What the action names beyond its facts: a frame's implementations, an interceptor's method, the databases data access could be in, the unit of a call not linked, the bound a trace stopped at." },
+        "parts": { "type": "array", "items": { "type": "object" }, "description": "For data access, each access of the run in order: its verb (Reads, Writes or Calls) and what it reads, writes or calls." },
+        "fragment": { "type": "string", "description": "The frame step it sits in, if any." },
+        "operand": { "type": "integer", "description": "In a frame, which operand, counting from 0." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it rests on, what it follows first." }
+      },
+      "required": ["action", "kind", "order"],
+      "additionalProperties": false
+    }
+  }
+]

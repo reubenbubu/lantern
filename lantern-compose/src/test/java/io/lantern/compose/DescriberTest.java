@@ -461,38 +461,27 @@ class DescriberTest {
   }
 
   @Test
-  void aRepositorysFlowsAreTracedFromTheFactsItsDocumentsAreComposedFrom() {
-    // The repository's documents leave out the worker's listener, so its flows end at the topic.
+  void aRepositoryDrawsAStoredFlowWholeOrNotAtAll() {
+    // The repository's documents leave out the worker's listener, which the stored flow rests on
+    // (#618): they cannot cite it, so they do not draw the flow, and no prompt asks about a flow
+    // traced from their facts alone.
     List<Fact> repoFacts =
         facts.list().stream().filter(f -> !f.predicate().equals("SENDS_MESSAGES_TO")).toList();
-    Function<Wordings, Section> repoFlow =
-        wordings ->
-            flowSection(
-                new Composer("1")
-                    .compose(
-                        ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
-                        SNAPSHOT,
-                        repoFacts,
-                        Map.of(),
-                        wordings),
-                LIST_FLOW);
-
-    Wordings systemOnly =
-        new Describer(client(new FakeLlmProvider().answering(DescriberTest::answer)), store)
-            .describe(facts.list())
-            .wordings();
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
     Wordings both = new Describer(client(fake), store).describe(facts.list(), repoFacts).wordings();
 
-    assertThat(text(((Paragraph) repoFlow.apply(systemOnly).blocks().getFirst()).content()))
-        .startsWith("Starts when shop-app receives GET /orders");
+    Document repo =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                repoFacts,
+                Map.of(),
+                both);
+    assertThat(all(repo.sections())).noneMatch(s -> s.title().endsWith(" (" + LIST_FLOW + ")"));
     assertThat(fake.sent())
         .extracting(s -> s.request().messages().getFirst().text())
-        .anyMatch(p -> p.startsWith("The flow") && p.contains("No listener for it was found"));
-    Section flow = repoFlow.apply(both);
-    assertThat(text(((Paragraph) flow.blocks().getFirst()).content()))
-        .isEqualTo("Lists the orders and announces them for background work.");
-    assertThat(text(overview(flow).cells().get(2))).isEqualTo("The orders are announced.");
+        .noneMatch(p -> p.contains("No listener for it was found"));
   }
 
   @Test
@@ -959,7 +948,9 @@ class DescriberTest {
                         f.validity()))
             .toList();
 
-    Describer.Result second = new Describer(client(fake), store).describe(moved);
+    Describer.Result second =
+        new Describer(client(fake), store)
+            .describe(io.lantern.derive.Derivation.withModel(moved, 1));
 
     assertThat(fake.sent()).hasSize(calls);
     assertThat(second.reused()).isEqualTo(8);
