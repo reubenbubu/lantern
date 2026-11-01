@@ -122,6 +122,44 @@ class ResolvedLinksTest {
   }
 
   @Test
+  void theNotLinkedBoxListsItsItemsByWhatIsCalledWhateverTheFactIds() {
+    // Two more open links of app, whose IDs sort either way round: the box lists them by the call
+    // as written, the same on every run (#605).
+    java.util.Set<Boolean> seen = new java.util.HashSet<>();
+    for (int version = 1; seen.size() < 2; version++) {
+      Fact alpha = open("GET http://alpha/a", 1);
+      Fact zeta = open("GET http://zeta/z", version);
+      if (!seen.add(zeta.id().compareTo(alpha.id()) < 0)) {
+        continue;
+      }
+      List<Fact> facts = open();
+      facts.add(zeta);
+      facts.add(alpha);
+      String text =
+          notLinked(c4(facts)).getFirst().content().stream()
+              .map(i -> ((io.lantern.core.document.TextRun) i).text())
+              .reduce("", String::concat);
+      assertThat(text.indexOf("http://alpha/a"))
+          .as(text)
+          .isNotNegative()
+          .isLessThan(text.indexOf("http://zeta/z"));
+    }
+  }
+
+  private static Fact open(String call, int version) {
+    return Fact.create(
+        EntityId.parse(APP),
+        "unresolved-link",
+        FactObject.string(call),
+        (tools.jackson.databind.node.ObjectNode)
+            FactJson.parse("{\"kind\": \"http\", \"reason\": \"unknown-host\"}"),
+        new Origin(Origin.Kind.STATIC, "linker", Integer.toString(version)),
+        Evidence.of("shop", "Code.java", null, null),
+        1.0,
+        Validity.from(1));
+  }
+
+  @Test
   void aResolvedLinkIsNotListedAsNotLinked() {
     assertThat(notLinked(c4(open()))).hasSize(1);
     assertThat(notLinked(c4(resolved()))).isEmpty();

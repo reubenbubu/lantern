@@ -22,9 +22,11 @@ import io.lantern.core.snapshot.Snapshot;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
@@ -456,6 +458,82 @@ class SequenceFlowsTest {
     assertThat(flows(system(facts)).sections())
         .extracting(SequenceFlowsTest::trigger)
         .contains("STOMP message to /parcels/track on ship");
+  }
+
+  @Test
+  void aMethodWithTwoTriggersIsNamedByTheRequestWhateverTheFactIds() {
+    // ship's status endpoint also takes STOMP messages: one flow, named by the GET request, the
+    // stated rule, whether the STOMP mapping's fact ID sorts before or after the endpoint's (#545).
+    attribute("ship", STATUS, "stomp-send", "/topic/status", "{\"method\": \"convertAndSend\"}", 4);
+    String endpoint =
+        facts.stream()
+            .filter(f -> f.predicate().equals("endpoint") && f.subject().toString().equals(STATUS))
+            .findFirst()
+            .orElseThrow()
+            .id();
+    Set<Boolean> before = new HashSet<>();
+    for (int version = 1; before.size() < 2; version++) {
+      Fact mapping =
+          Fact.create(
+              EntityId.parse(STATUS),
+              "stomp-mapping",
+              FactObject.string("/parcels/status"),
+              (ObjectNode) FactJson.parse("{\"kind\": \"message\"}"),
+              new Origin(Origin.Kind.STATIC, "test", Integer.toString(version)),
+              Evidence.of("ship", "Code.java", null, null),
+              1.0,
+              Validity.from(1));
+      if (!before.add(mapping.id().compareTo(endpoint) < 0)) {
+        continue;
+      }
+      List<Fact> all = new ArrayList<>(facts);
+      all.add(mapping);
+
+      assertThat(flows(system(all)).sections())
+          .extracting(SequenceFlowsTest::trigger)
+          .as("STOMP mapping's ID before the endpoint's: %s", mapping.id().compareTo(endpoint) < 0)
+          .contains("GET /status on ship")
+          .doesNotContain("STOMP message to /parcels/status on ship");
+    }
+  }
+
+  @Test
+  void stepsOnOneLineAreOrderedByWhatTheyReachWhateverTheFactIds() {
+    // Two pushes on one line of ship's status endpoint: /topic/a before /topic/b, whichever fact
+    // ID sorts first (#545).
+    Set<Boolean> seen = new HashSet<>();
+    for (int version = 1; seen.size() < 2; version++) {
+      Fact a = push("/topic/a", 1);
+      Fact b = push("/topic/b", version);
+      if (!seen.add(b.id().compareTo(a.id()) < 0)) {
+        continue;
+      }
+      List<Fact> all = new ArrayList<>(facts);
+      all.add(b);
+      all.add(a);
+
+      List<String> steps =
+          flows(system(all)).sections().stream()
+              .filter(f -> trigger(f).equals("GET /status on ship"))
+              .findFirst()
+              .map(f -> steps(diagram(f).steps()))
+              .orElseThrow();
+      String joined = String.join("\n", steps);
+      assertThat(joined.indexOf("/topic/a")).as(joined).isNotNegative();
+      assertThat(joined.indexOf("/topic/a")).as(joined).isLessThan(joined.indexOf("/topic/b"));
+    }
+  }
+
+  private static Fact push(String destination, int version) {
+    return Fact.create(
+        EntityId.parse(STATUS),
+        "stomp-send",
+        FactObject.string(destination),
+        (ObjectNode) FactJson.parse("{\"method\": \"convertAndSend\"}"),
+        new Origin(Origin.Kind.STATIC, "test", Integer.toString(version)),
+        Evidence.of("ship", "Code.java", new Evidence.LineRange(4, 4), null),
+        1.0,
+        Validity.from(1));
   }
 
   private static final String UI = "frontend:front/ui";
