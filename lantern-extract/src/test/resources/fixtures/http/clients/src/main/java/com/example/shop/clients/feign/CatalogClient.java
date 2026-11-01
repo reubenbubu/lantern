@@ -1,5 +1,6 @@
 package com.example.shop.clients.feign;
 
+import java.util.List;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,4 +20,7 @@ public interface CatalogClient {
 
   @RequestMapping("/search")
   String search();
+
+  @PostMapping("/bulk")
+  List<Product> bulk(@RequestBody Product product);
 }

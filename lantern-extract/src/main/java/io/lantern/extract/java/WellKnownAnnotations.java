@@ -38,7 +38,13 @@ final class WellKnownAnnotations {
           "jakarta.persistence.InheritanceType",
           "javax.persistence.InheritanceType",
           // @ImportHttpServices(clientType = ...)
-          "org.springframework.web.service.registry.HttpServiceGroup$ClientType");
+          "org.springframework.web.service.registry.HttpServiceGroup$ClientType",
+          // @Transactional(propagation = ...), Jakarta's @Transactional(TxType...) and
+          // @TransactionalEventListener(phase = ...)
+          "org.springframework.transaction.annotation.Propagation",
+          "jakarta.transaction.Transactional$TxType",
+          "javax.transaction.Transactional$TxType",
+          "org.springframework.transaction.event.TransactionPhase");
 
   private WellKnownAnnotations() {}
 

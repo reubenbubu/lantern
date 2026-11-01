@@ -241,5 +241,24 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "kubernetes-secret",
+    "kind": "attribute",
+    "keyAttributes": ["data", "environment", "platform", "stringData", "type"],
+    "description": "A Kubernetes Secret that a deployment descriptor of the subject repository declares in one environment (#520), as for deployment-container: a plain manifest, a kustomize overlay or a Helm chart. The value is its name. It lists the keys it writes as stringData, which the descriptor holds in plain text, and as data, which it holds base64-encoded; their values are not recorded. Evidence is its stringData line, else its data line.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string", "description": "As for deployment-container." },
+        "environment": { "type": "string", "description": "As for deployment-container." },
+        "type": { "type": "string", "description": "The Secret's type, such as Opaque, when written." },
+        "stringData": { "type": "array", "items": { "type": "string" }, "description": "The keys written as stringData, sorted." },
+        "data": { "type": "array", "items": { "type": "string" }, "description": "The keys written as data, sorted." }
+      },
+      "required": ["platform", "environment"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

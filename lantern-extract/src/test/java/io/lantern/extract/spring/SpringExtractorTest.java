@@ -621,4 +621,327 @@ public class Features {}
                 + "} @shop:src/main/java/com/example/Servers.java#7-7 0.7")
         .noneMatch(l -> l.contains("advised-by") && l.contains("\"com.example.Skip\""));
   }
+
+  @Test
+  void whatTheInvestigateLeadsNeed() throws IOException {
+    Map<String, String> files = new java.util.HashMap<>();
+    files.put(
+        "pom.xml",
+        "<project><modelVersion>4.0.0</modelVersion><groupId>com.example</groupId>"
+            + "<artifactId>shop</artifactId><version>1</version></project>\n");
+    // Stand-ins for the request and CORS types, which the test classpath lacks.
+    files.put(
+        "src/main/java/jakarta/servlet/http/HttpServletRequest.java",
+"""
+package jakarta.servlet.http;
+
+public interface HttpServletRequest {
+  String getHeader(String name);
+}
+""");
+    files.put(
+        "src/main/java/org/springframework/http/HttpHeaders.java",
+"""
+package org.springframework.http;
+
+public class HttpHeaders {
+  public String getFirst(String name) { return null; }
+}
+""");
+    files.put(
+        "src/main/java/org/springframework/http/server/reactive/ServerHttpRequest.java",
+"""
+package org.springframework.http.server.reactive;
+
+import org.springframework.http.HttpHeaders;
+
+public interface ServerHttpRequest {
+  HttpHeaders getHeaders();
+  Builder mutate();
+  interface Builder {
+    Builder header(String name, String... values);
+  }
+}
+""");
+    files.put(
+        "src/main/java/org/springframework/web/server/ServerWebExchange.java",
+"""
+package org.springframework.web.server;
+
+import org.springframework.http.server.reactive.ServerHttpRequest;
+
+public interface ServerWebExchange {
+  ServerHttpRequest getRequest();
+  ServerHttpRequest getResponse();
+}
+""");
+    files.put(
+        "src/main/java/org/springframework/web/cors/CorsConfiguration.java",
+"""
+package org.springframework.web.cors;
+
+import java.util.List;
+
+public class CorsConfiguration {
+  public void setAllowedOrigins(List<String> origins) {}
+  public void setAllowCredentials(Boolean allow) {}
+}
+""");
+    files.put(
+        "src/main/java/org/springframework/web/servlet/config/annotation/CorsRegistry.java",
+"""
+package org.springframework.web.servlet.config.annotation;
+
+public class CorsRegistry {
+  public CorsRegistration addMapping(String path) { return null; }
+}
+""");
+    files.put(
+        "src/main/java/org/springframework/web/servlet/config/annotation/CorsRegistration.java",
+"""
+package org.springframework.web.servlet.config.annotation;
+
+public class CorsRegistration {
+  public CorsRegistration allowedOrigins(String... origins) { return this; }
+  public CorsRegistration allowCredentials(boolean allow) { return this; }
+}
+""");
+    files.put(
+        "src/main/java/com/example/Headers.java",
+"""
+package com.example;
+
+public final class Headers {
+  public static final String USER_ID = "X-User-Id";
+  public static final String PERMISSIONS = "X-User-" + "Permissions";
+}
+""");
+    files.put(
+        "src/main/java/com/example/OrgController.java",
+"""
+package com.example;
+
+import java.util.Map;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@CrossOrigin
+public class OrgController {
+  @PostMapping("/orgs")
+  @RequiresPermission(resource = "ORGANIZATION", action = "CREATE")
+  @Transactional(propagation = Propagation.REQUIRES_NEW)
+  public void create(
+      @RequestHeader(Headers.USER_ID) String userId,
+      @RequestHeader Map<String, String> all,
+      @CookieValue(name = "session") String session,
+      @RequestParam String orgId) {}
+
+  @PostMapping("/orgs/{id}/notes")
+  @RequiresPermission
+  public void note() {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/RequiresPermission.java",
+"""
+package com.example;
+
+public @interface RequiresPermission {
+  String resource() default "ALL";
+  String action() default "ALL";
+}
+""");
+    files.put(
+        "src/main/java/com/example/Logged.java",
+"""
+package com.example;
+
+public @interface Logged {
+  String level() default "INFO";
+}
+""");
+    files.put(
+        "src/main/java/com/example/PermissionAspect.java",
+"""
+package com.example;
+
+import jakarta.servlet.http.HttpServletRequest;
+import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class PermissionAspect {
+  private HttpServletRequest request;
+
+  @Before("@annotation(requires)")
+  public void check(RequiresPermission requires) {
+    String granted = request.getHeader(Headers.PERMISSIONS);
+  }
+
+  @After("@annotation(com.example.Logged)")
+  public void log() {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/Service.java",
+"""
+package com.example;
+
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+@org.springframework.stereotype.Service
+@Transactional(readOnly = true)
+public class Service {
+  @Logged
+  public void read() {}
+
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
+  public void rolledBack(Object event) {}
+
+  @TransactionalEventListener
+  public void committed(Object event) {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/OrgFilter.java",
+"""
+package com.example;
+
+import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.web.server.ServerWebExchange;
+
+public class OrgFilter {
+  public ServerHttpRequest filter(ServerWebExchange exchange) {
+    String org = exchange.getRequest().getHeaders().getFirst("X-Organization-Id");
+    String type = exchange.getResponse().getHeaders().getFirst("Content-Type");
+    return exchange.getRequest().mutate().header(Headers.USER_ID, org);
+  }
+}
+""");
+    files.put(
+        "src/main/java/com/example/Web.java",
+"""
+package com.example;
+
+import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+
+public class Web {
+  @Value("${cors.origins}")
+  private String origins;
+
+  public void addCorsMappings(CorsRegistry registry) {
+    registry.addMapping("/api/**").allowedOrigins("https://shop.example", origins);
+  }
+
+  public CorsConfiguration cors() {
+    CorsConfiguration config = new CorsConfiguration();
+    config.setAllowedOrigins(List.of("*"));
+    config.setAllowCredentials(true);
+    return config;
+  }
+}
+""");
+    Repo repo = Fixtures.repo(temp.resolve("leads"), "shop", files);
+    JavaAnalysis code =
+        JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
+    List<String> facts =
+        Fixtures.render(Resolved.facts(code, SNAPSHOT))
+            .lines()
+            .filter(
+                l ->
+                    l.contains(" reads-request-value ")
+                        || l.contains(" transactional ")
+                        || l.contains(" cors-policy ")
+                        || l.contains(" access-check "))
+            .toList();
+    // Header reads bound or called, in a handler, a gateway filter and an aspect; transactions
+    // and transactional listeners; the aspect's permission checks, but not the after-advice of
+    // Logged; and CORS from an annotation, a registry and a configuration, a @Value kept.
+    assertThat(facts)
+        .containsExactly(
+            "method:com.example.OrgController#create(java.lang.String,java.util.Map"
+                + ",java.lang.String,java.lang.String) access-check resource=ORGANIZATION"
+                + ", action=CREATE {\"advice\":\"method:com.example.PermissionAspect#check(c"
+                + "om.example.RequiresPermission)\",\"annotation\":\"com.example.RequiresPerm"
+                + "ission\",\"aspect\":\"com.example.PermissionAspect\",\"kind\":\"custom\",\"via\":"
+                + "\"aspect\"} @shop:src/main/java/com/example/OrgController.java#17-17 0.7",
+            "method:com.example.OrgController#create(java.lang.String,java.util.Map"
+                + ",java.lang.String,java.lang.String) reads-request-value * {\"annotation"
+                + "\":\"org.springframework.web.bind.annotation.RequestHeader\",\"parameter\":"
+                + "\"all\",\"source\":\"header\",\"via\":\"binding\"} @shop:src/main/java/com/examp"
+                + "le/OrgController.java#21-21 0.7",
+            "method:com.example.OrgController#create(java.lang.String,java.util.Map"
+                + ",java.lang.String,java.lang.String) reads-request-value X-User-Id {\"an"
+                + "notation\":\"org.springframework.web.bind.annotation.RequestHeader\",\"par"
+                + "ameter\":\"userId\",\"source\":\"header\",\"via\":\"binding\"} @shop:src/main/jav"
+                + "a/com/example/OrgController.java#20-20 0.7",
+            "method:com.example.OrgController#create(java.lang.String,java.util.Map"
+                + ",java.lang.String,java.lang.String) reads-request-value orgId {\"annota"
+                + "tion\":\"org.springframework.web.bind.annotation.RequestParam\",\"paramete"
+                + "r\":\"orgId\",\"source\":\"parameter\",\"via\":\"binding\"} @shop:src/main/java/c"
+                + "om/example/OrgController.java#23-23 0.7",
+            "method:com.example.OrgController#create(java.lang.String,java.util.Map"
+                + ",java.lang.String,java.lang.String) reads-request-value session {\"anno"
+                + "tation\":\"org.springframework.web.bind.annotation.CookieValue\",\"paramet"
+                + "er\":\"session\",\"source\":\"cookie\",\"via\":\"binding\"} @shop:src/main/java/c"
+                + "om/example/OrgController.java#22-22 0.7",
+            "method:com.example.OrgController#create(java.lang.String,java.util.Map"
+                + ",java.lang.String,java.lang.String) transactional REQUIRES_NEW {\"annot"
+                + "ation\":\"org.springframework.transaction.annotation.Transactional\",\"kin"
+                + "d\":\"transaction\"} @shop:src/main/java/com/example/OrgController.java#1"
+                + "8-18 0.7",
+            "method:com.example.OrgController#note() access-check RequiresPermissio"
+                + "n {\"advice\":\"method:com.example.PermissionAspect#check(com.example.Req"
+                + "uiresPermission)\",\"annotation\":\"com.example.RequiresPermission\",\"aspec"
+                + "t\":\"com.example.PermissionAspect\",\"kind\":\"custom\",\"via\":\"aspect\"} @sho"
+                + "p:src/main/java/com/example/OrgController.java#26-26 0.7",
+            "method:com.example.OrgFilter#filter(org.springframework.web.server.Ser"
+                + "verWebExchange) reads-request-value X-Organization-Id {\"call\":\"getFirs"
+                + "t\",\"requestType\":\"org.springframework.web.server.ServerWebExchange\",\"s"
+                + "ource\":\"header\",\"via\":\"call\"} @shop:src/main/java/com/example/OrgFilte"
+                + "r.java#8-8 0.7",
+            "method:com.example.PermissionAspect#check(com.example.RequiresPermissi"
+                + "on) reads-request-value X-User-Permissions {\"call\":\"getHeader\",\"reques"
+                + "tType\":\"jakarta.servlet.http.HttpServletRequest\",\"source\":\"header\",\"vi"
+                + "a\":\"call\"} @shop:src/main/java/com/example/PermissionAspect.java#16-16"
+                + " 0.7",
+            "method:com.example.Service#committed(java.lang.Object) transactional A"
+                + "FTER_COMMIT {\"annotation\":\"org.springframework.transaction.event.Trans"
+                + "actionalEventListener\",\"kind\":\"event-listener\"} @shop:src/main/java/co"
+                + "m/example/Service.java#16-16 0.7",
+            "method:com.example.Service#rolledBack(java.lang.Object) transactional "
+                + "AFTER_ROLLBACK {\"annotation\":\"org.springframework.transaction.event.Tr"
+                + "ansactionalEventListener\",\"kind\":\"event-listener\"} @shop:src/main/java"
+                + "/com/example/Service.java#13-13 0.7",
+            "method:com.example.Web#addCorsMappings(org.springframework.web.servlet"
+                + ".config.annotation.CorsRegistry) cors-policy https://shop.example, ${c"
+                + "ors.origins} {\"origins\":[\"https://shop.example\",\"${cors.origins}\"],\"pa"
+                + "th\":\"/api/**\",\"source\":\"cors-registry\"} @shop:src/main/java/com/exampl"
+                + "e/Web.java#13-13 0.7",
+            "method:com.example.Web#cors() cors-policy * {\"credentials\":\"true\",\"ori"
+                + "gins\":[\"*\"],\"source\":\"cors-configuration\"} @shop:src/main/java/com/exa"
+                + "mple/Web.java#18-18 0.7",
+            "type:com.example.OrgController cors-policy * {\"origins\":[\"*\"],\"source\""
+                + ":\"cross-origin\"} @shop:src/main/java/com/example/OrgController.java#14"
+                + "-14 0.7",
+            "type:com.example.Service transactional REQUIRED {\"annotation\":\"org.spr"
+                + "ingframework.transaction.annotation.Transactional\",\"kind\":\"transaction"
+                + "\",\"readOnly\":\"true\"} @shop:src/main/java/com/example/Service.java#8-8 "
+                + "0.7");
+  }
 }

@@ -28,8 +28,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
@@ -49,7 +51,7 @@ public final class ConfigExtractor implements Extractor {
   public static final String NAME = "config";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "9";
+  public static final String VERSION = "10";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "config-extractor";
@@ -81,6 +83,30 @@ public final class ConfigExtractor implements Extractor {
 
   /** Attribute: a config value of the subject module. */
   public static final String CONFIG_VALUE = "config-value";
+
+  /**
+   * Attribute: a CORS policy the keys of a module's config set; the type is the Spring extractor's,
+   * which also records the policies code sets (#520).
+   */
+  public static final String CORS_POLICY = "cors-policy";
+
+  /**
+   * Spring's CORS keys, as Spring Boot flattens them in any binding's spelling: a Spring Cloud
+   * Gateway's global CORS for a path, and the Actuator endpoints'. The groups are the path, if any,
+   * and what the key sets.
+   */
+  private static final Pattern GATEWAY_CORS =
+      Pattern.compile(
+          "spring\\.cloud\\.gateway(?:\\.server\\.webflux)?\\.globalcors\\.cors-?configurations"
+              + "\\.?\\[(.+)]\\.(allowed-?origins|allowed-?origin-?patterns|allow-?credentials)"
+              + "(?:\\[\\d+])?",
+          Pattern.CASE_INSENSITIVE);
+
+  private static final Pattern ACTUATOR_CORS =
+      Pattern.compile(
+          "management\\.endpoints\\.web\\.cors\\."
+              + "(allowed-?origins|allowed-?origin-?patterns|allow-?credentials)(?:\\[\\d+])?",
+          Pattern.CASE_INSENSITIVE);
 
   /** The value recorded in place of a secret. */
   public static final String MASK = "******";
@@ -225,6 +251,7 @@ public final class ConfigExtractor implements Extractor {
         for (ConfigValue value : defaults.values()) {
           add(facts, config, value, null, validity, known, false);
         }
+        cors(facts, config, validity, known);
         for (String profile : config.profiles()) {
           SortedMap<String, ConfigValue> values = config.values(profile);
           Set<String> lists = listsSet(defaults, values);
@@ -453,6 +480,131 @@ public final class ConfigExtractor implements Extractor {
             attributes,
             ORIGIN,
             evidence,
+            CONFIDENCE,
+            validity);
+    facts.putIfAbsent(fact.id(), fact);
+  }
+
+  /** A CORS policy as a view of a module's config sets it. */
+  private record Cors(
+      List<String> origins, List<String> written, String credentials, ConfigValue first) {}
+
+  /**
+   * Records the CORS policies a module's config sets (#520): one per gateway path, and one for the
+   * Actuator, by default and in each profile where it differs, with the origins resolved and as
+   * written. Config a config repository serves is left to the modules that read it.
+   */
+  private static void cors(
+      Map<String, Fact> facts, ModuleConfig config, Validity validity, Set<String> known) {
+    if (config.application() != null) {
+      return;
+    }
+    Map<String, Cors> byDefault = cors(config.values(null), known);
+    byDefault.forEach((path, cors) -> cors(facts, config, null, path, cors, validity));
+    for (String profile : config.profiles()) {
+      cors(config.values(profile), known)
+          .forEach(
+              (path, cors) -> {
+                Cors d = byDefault.get(path);
+                if (d == null
+                    || !d.origins().equals(cors.origins())
+                    || !Objects.equals(d.credentials(), cors.credentials())) {
+                  cors(facts, config, profile, path, cors, validity);
+                }
+              });
+    }
+  }
+
+  /** The CORS policies of one view, by gateway path, or the empty path for the Actuator's. */
+  private static Map<String, Cors> cors(SortedMap<String, ConfigValue> values, Set<String> known) {
+    Map<String, List<ConfigValue>> origins = new TreeMap<>();
+    Map<String, ConfigValue> credentials = new TreeMap<>();
+    for (ConfigValue value : values.values()) {
+      String path;
+      String what;
+      Matcher gateway = GATEWAY_CORS.matcher(value.key());
+      Matcher actuator = ACTUATOR_CORS.matcher(value.key());
+      if (gateway.matches()) {
+        path = gateway.group(1);
+        what = gateway.group(2);
+      } else if (actuator.matches()) {
+        path = "";
+        what = actuator.group(1);
+      } else {
+        continue;
+      }
+      if (what.toLowerCase(Locale.ROOT).replace("-", "").equals("allowcredentials")) {
+        // A flag, though its key names credentials.
+        credentials.put(path, value);
+      } else if (!exposesSecret(value, known)) {
+        origins.computeIfAbsent(path, p -> new ArrayList<>()).add(value);
+      }
+    }
+    Map<String, Cors> policies = new TreeMap<>();
+    origins.forEach(
+        (path, set) -> {
+          List<String> resolved = new ArrayList<>();
+          List<String> written = new ArrayList<>();
+          for (ConfigValue v : set) {
+            items(v.value(), resolved);
+            items(v.written(), written);
+          }
+          ConfigValue c = credentials.get(path);
+          policies.put(
+              path, new Cors(resolved, written, c == null ? null : c.value(), set.getFirst()));
+        });
+    return policies;
+  }
+
+  /** Adds a comma-separated value's items. */
+  private static void items(String value, List<String> to) {
+    for (String item : value.split(",")) {
+      if (!item.isBlank()) {
+        to.add(item.strip());
+      }
+    }
+  }
+
+  private static void cors(
+      Map<String, Fact> facts,
+      ModuleConfig config,
+      String profile,
+      String path,
+      Cors cors,
+      Validity validity) {
+    if (cors.origins().isEmpty()) {
+      return;
+    }
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("source", "config");
+    ArrayNode origins = attributes.putArray("origins");
+    cors.origins().forEach(origins::add);
+    if (cors.credentials() != null) {
+      attributes.put("credentials", cors.credentials());
+    }
+    if (!path.isEmpty()) {
+      attributes.put("path", path);
+    }
+    attributes.put("key", cors.first().key());
+    if (!cors.written().equals(cors.origins())) {
+      attributes.put("written", String.join(", ", cors.written()));
+    }
+    if (profile != null) {
+      attributes.put("profile", profile);
+    }
+    ConfigValue.Where where = cors.first().where();
+    Fact fact =
+        Fact.create(
+            config.module(),
+            CORS_POLICY,
+            FactObject.string(String.join(", ", cors.origins())),
+            attributes,
+            ORIGIN,
+            Evidence.of(
+                config.repo().repo().name(),
+                where.path(),
+                where.line() > 0 ? new Evidence.LineRange(where.line(), where.line()) : null,
+                where.contentHash()),
             CONFIDENCE,
             validity);
     facts.putIfAbsent(fact.id(), fact);

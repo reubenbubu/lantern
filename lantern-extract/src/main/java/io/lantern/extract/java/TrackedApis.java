@@ -92,7 +92,18 @@ final class TrackedApis {
           // accessors, and the generic sending operations a template may be injected as.
           "org.springframework.web.socket.config.annotation.",
           "org.springframework.messaging.simp.",
-          "org.springframework.messaging.core.MessageSendingOperations");
+          "org.springframework.messaging.core.MessageSendingOperations",
+          // Requests (the Spring extractor): the headers, cookies and parameters code reads from
+          // a servlet request, a reactive exchange or request, or a functional endpoint's request.
+          "jakarta.servlet.http.HttpServletRequest",
+          "javax.servlet.http.HttpServletRequest",
+          "org.springframework.http.server.reactive.ServerHttpRequest",
+          "org.springframework.web.server.ServerWebExchange",
+          "org.springframework.web.reactive.function.server.ServerRequest",
+          // CORS (the Spring extractor): CorsConfiguration and the web configurers' registries.
+          "org.springframework.web.cors.CorsConfiguration",
+          "org.springframework.web.servlet.config.annotation.CorsRegistry",
+          "org.springframework.web.reactive.config.CorsRegistry");
 
   private static final String REGISTRY = "org.springframework.web.service.registry.";
   private static final String GROUPS = REGISTRY + "HttpServiceGroupConfigurer$Groups";

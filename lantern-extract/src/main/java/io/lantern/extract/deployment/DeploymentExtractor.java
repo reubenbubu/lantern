@@ -60,7 +60,7 @@ public final class DeploymentExtractor implements Extractor {
   public static final String NAME = "deployment";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "3";
+  public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "deployment-extractor";
@@ -76,6 +76,21 @@ public final class DeploymentExtractor implements Extractor {
 
   /** Attribute: a Dockerfile of the subject repository; the value is its path. */
   public static final String DOCKERFILE = "dockerfile";
+
+  /**
+   * Attribute: a Kubernetes Secret a deployment descriptor of the subject repository declares, with
+   * the keys it writes in plain text ({@code stringData}) and base64 ({@code data}) (#520).
+   */
+  public static final String KUBERNETES_SECRET = "kubernetes-secret";
+
+  /**
+   * Attribute: a CORS policy, here one an Ingress's annotations turn on; the type is the Spring
+   * extractor's, which also records the policies code and config set (#520).
+   */
+  public static final String CORS_POLICY = "cors-policy";
+
+  /** The nginx Ingress controller's annotations' prefix. */
+  private static final String NGINX = "nginx.ingress.kubernetes.io/";
 
   /** The platforms, as the {@code platform} attribute of a container. */
   public static final String COMPOSE = "compose";
@@ -1205,6 +1220,10 @@ public final class DeploymentExtractor implements Extractor {
           httpRoute(doc, platform, environment);
           continue;
         }
+        if (kind.equals("Secret")) {
+          secret(doc, platform, environment);
+          continue;
+        }
         Map<String, Object> metadata = Yaml.map(doc.map().get("metadata"));
         String workload = metadata == null ? null : Yaml.string(metadata.get("name"));
         Map<String, Object> spec = Yaml.map(doc.map().get("spec"));
@@ -1375,7 +1394,8 @@ public final class DeploymentExtractor implements Extractor {
           metadata == null ? null : Yaml.map(metadata.get("annotations"));
       String rewrite = null;
       if (annotations != null) {
-        rewrite = Yaml.string(annotations.get("nginx.ingress.kubernetes.io/rewrite-target"));
+        rewrite = Yaml.string(annotations.get(NGINX + "rewrite-target"));
+        cors(doc, name, annotations, platform, environment);
       }
       String className = Yaml.string(spec.get("ingressClassName"));
       // The default backend: spec.defaultBackend, or spec.backend before networking.k8s.io/v1.
@@ -1423,6 +1443,94 @@ public final class DeploymentExtractor implements Extractor {
               rewrite);
         }
       }
+    }
+
+    /**
+     * The CORS policy the nginx Ingress controller's annotations turn on (#520): the allowed origin
+     * as written, {@code *} when none is, as the controller then allows; and whether credentials
+     * are allowed, as written.
+     */
+    private void cors(
+        Doc doc,
+        String name,
+        Map<String, Object> annotations,
+        String platform,
+        String environment) {
+      if (!"true".equalsIgnoreCase(Yaml.string(annotations.get(NGINX + "enable-cors")))) {
+        return;
+      }
+      String origin = Yaml.string(annotations.get(NGINX + "cors-allow-origin"));
+      List<String> origins = new ArrayList<>();
+      for (String o : (origin == null ? "*" : origin).split(",")) {
+        if (!o.isBlank()) {
+          origins.add(o.strip());
+        }
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("source", "ingress");
+      ArrayNode array = attributes.putArray("origins");
+      origins.forEach(array::add);
+      String credentials = Yaml.string(annotations.get(NGINX + "cors-allow-credentials"));
+      if (credentials != null) {
+        attributes.put("credentials", credentials);
+      }
+      if (name != null) {
+        attributes.put("name", name);
+      }
+      attributes.put("platform", platform);
+      attributes.put("environment", environment);
+      add(
+          CORS_POLICY,
+          String.join(", ", origins),
+          attributes,
+          doc.file(),
+          keyLine(doc, NGINX + "enable-cors"));
+    }
+
+    /**
+     * A Secret: its name, and the keys it writes as {@code stringData}, in plain text in the
+     * descriptor, and as {@code data} (#520).
+     */
+    private void secret(Doc doc, String platform, String environment) {
+      Map<String, Object> metadata = Yaml.map(doc.map().get("metadata"));
+      String name = metadata == null ? null : Yaml.string(metadata.get("name"));
+      Map<String, Object> plain = Yaml.map(doc.map().get("stringData"));
+      Map<String, Object> encoded = Yaml.map(doc.map().get("data"));
+      if (name == null || (plain == null && encoded == null)) {
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("platform", platform);
+      attributes.put("environment", environment);
+      String type = Yaml.string(doc.map().get("type"));
+      if (type != null) {
+        attributes.put("type", type);
+      }
+      if (plain != null) {
+        ArrayNode keys = attributes.putArray("stringData");
+        new TreeSet<>(plain.keySet()).forEach(keys::add);
+      }
+      if (encoded != null) {
+        ArrayNode keys = attributes.putArray("data");
+        new TreeSet<>(encoded.keySet()).forEach(keys::add);
+      }
+      add(
+          KUBERNETES_SECRET,
+          name,
+          attributes,
+          doc.file(),
+          keyLine(doc, plain != null ? "stringData" : "data"));
+    }
+
+    /** The first line of the document that sets the key, else its first line. */
+    private static int keyLine(Doc doc, String key) {
+      Pattern line = Pattern.compile("^\\s*[\"']?" + Pattern.quote(key) + "[\"']?\\s*:.*$");
+      for (int n = doc.start() - 1; n < doc.end() && n < doc.file().lines().size(); n++) {
+        if (line.matcher(doc.file().lines().get(n)).matches()) {
+          return n + 1;
+        }
+      }
+      return doc.start();
     }
 
     /** The first value if it is set, else the second, which may be null too. */
