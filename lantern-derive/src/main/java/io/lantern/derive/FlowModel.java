@@ -194,6 +194,16 @@ public final class FlowModel {
       int messages,
       boolean truncated) {
 
+    /**
+     * Whether a document may show it: its own steps (the gateway's routing to its entry point is
+     * not one) reach another container, or it pushes to STOMP subscribers or calls what Lantern
+     * could not link. A flow that stays in its unit is stored too, as its trace found it.
+     */
+    public boolean candidate() {
+      int own = messages - (gateway == null ? 0 : 1);
+      return own > 0 || pushes > 0 || !unresolved.isEmpty();
+    }
+
     /** The entry point, as unit and method IDs separated by a space. */
     public String key() {
       return unit + " " + method;

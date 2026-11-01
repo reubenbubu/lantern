@@ -872,7 +872,12 @@ final class SequenceFlows {
   private List<Trace> choose() {
     List<Trace> candidates = new ArrayList<>();
     for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
-      candidates.add(new Trace(flow));
+      // Every stored flow is drawn, so the document holds the facts of all; the candidates are
+      // those that leave their unit.
+      Trace trace = new Trace(flow);
+      if (flow.candidate()) {
+        candidates.add(trace);
+      }
     }
     candidates.sort(
         Comparator.comparingInt(Trace::touches)

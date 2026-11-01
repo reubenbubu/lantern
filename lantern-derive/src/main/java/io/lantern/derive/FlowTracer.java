@@ -266,8 +266,9 @@ final class FlowTracer {
   }
 
   /**
-   * The flows of every entry point whose code reaches outside its unit (or pushes to STOMP
-   * subscribers, or calls what Lantern could not link), each with its steps, in entry-point order.
+   * The flows of every entry point whose trace has a step, each with its steps, in entry-point
+   * order. Those that reach another container, push to STOMP subscribers or call what Lantern could
+   * not link are the candidates a document may show ({@link FlowModel.Flow#candidate}).
    *
    * @param id the flow entity of an entry point's unit and trigger fact
    */
@@ -285,9 +286,7 @@ final class FlowTracer {
     List<FlowModel.Flow> flows = new ArrayList<>();
     for (Entry entry : entries) {
       Trace trace = trace(entry);
-      // The gateway's routing to the entry point is no step of the flow's own.
-      int own = trace.messages - (trace.gateway == null ? 0 : 1);
-      if (own > 0 || trace.pushes > 0 || !trace.unresolved.isEmpty()) {
+      if (!trace.items.isEmpty()) {
         flows.add(trace.flow(id.apply(entry.unit, entry.fact)));
       }
     }
@@ -304,7 +303,7 @@ final class FlowTracer {
     final String kind;
     final List<String> profiles;
     final List<EntityId> over;
-    final LinkedHashSet<Fact> facts;
+    final List<Fact> facts;
     final List<String> detail;
     final List<Part> parts = new ArrayList<>();
     final List<OperandNode> operands = new ArrayList<>();
@@ -324,7 +323,7 @@ final class FlowTracer {
       this.kind = kind;
       this.profiles = List.copyOf(profiles);
       this.over = List.copyOf(over);
-      this.facts = new LinkedHashSet<>(facts);
+      this.facts = new ArrayList<>(facts);
       this.detail = new ArrayList<>(detail);
     }
 
@@ -537,7 +536,11 @@ final class FlowTracer {
       }
       Node node = items.get(run.item);
       node.parts.add(new Part(verb, List.copyOf(what)));
-      node.facts.addAll(facts);
+      // A run cites each fact once, those of its first access first.
+      LinkedHashSet<Fact> all = new LinkedHashSet<>(node.facts);
+      all.addAll(facts);
+      node.facts.clear();
+      node.facts.addAll(all);
       added++;
     }
 

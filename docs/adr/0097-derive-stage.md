@@ -116,8 +116,10 @@ The agent decided these under the owner's standing go-ahead for 1D.
   action, ends, kind, profiles, the frame operand it sits in) and the facts it rests on; the
   composer words and draws the stored steps (labels, intent phrases, notes, the LLM's outline) as
   it did, and still chooses which flows a scope shows (ADR 0047) until flow significance (#272).
-  Only flows the composer could show are stored: those whose code reaches another container,
-  pushes to STOMP subscribers or calls what Lantern could not link.
+  Every entry point whose trace has a step is stored; the candidates a document may show are
+  those whose own steps reach another container, push to STOMP subscribers or call what Lantern
+  could not link, as before. The composer draws all of them, as it traced all of them, so a
+  document still lists the facts of the flows it does not show.
 - **A flow's key holds its unit.** `flow:<unit>/<entry-point claim>`, since a library's entry
   point runs in each unit that bundles it and is a flow in each.
 - **A step's link is its first fact.** A claim is no entity, so a step cannot point at its link

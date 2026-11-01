@@ -27,10 +27,11 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Every candidate flow of the architecture model, with its steps (#618; knowledge-build epic,
- * section 9): traced from each entry point whose code reaches outside its unit ({@link
- * FlowTracer}), with no cap on how many, and stored so documents and the flow roles read the stored
- * flows instead of tracing them again.
+ * Every flow of the architecture model, with its steps (#618; knowledge-build epic, section 9):
+ * traced from each entry point whose trace has a step ({@link FlowTracer}), with no cap on how
+ * many, and stored so documents and the flow roles read the stored flows instead of tracing them
+ * again. The candidates a document may show are those that leave their unit ({@link
+ * FlowModel.Flow#candidate}).
  *
  * <ul>
  *   <li>{@code flow:<entry point's claim>} {@code TRIGGERED_BY} the entry point's method, with how
