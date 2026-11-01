@@ -48,6 +48,18 @@ public final class OpenAiStub implements AutoCloseable {
   private final Map<String, ObjectNode> batches = new ConcurrentHashMap<>();
   private final AtomicInteger ids = new AtomicInteger();
   private final AtomicInteger batchReads = new AtomicInteger();
+  private final List<String> deleted = new CopyOnWriteArrayList<>();
+  private volatile int failReads;
+
+  /** Fails the next reads of a batch's status with a 503, as a passing outage would. */
+  public void failingNextBatchReads(int reads) {
+    this.failReads = reads;
+  }
+
+  /** The files deleted. */
+  public List<String> deleted() {
+    return List.copyOf(deleted);
+  }
 
   /**
    * @param answers the provider that answers
@@ -126,8 +138,21 @@ public final class OpenAiStub implements AutoCloseable {
         batch.put("completion_window", "24h").put("created_at", 0).put("status", "in_progress");
         batches.put(id, batch.deepCopy().put("status", "completed").put("output_file_id", output));
         reply(exchange, 200, batch);
+      } else if (method.equals("DELETE") && path.contains("/files/")) {
+        String id = path.substring(path.lastIndexOf('/') + 1);
+        deleted.add(id);
+        files.remove(id);
+        reply(
+            exchange,
+            200,
+            JSON.createObjectNode().put("id", id).put("object", "file").put("deleted", true));
       } else if (method.equals("GET") && path.contains("/batches/")) {
         batchReads.incrementAndGet();
+        if (failReads > 0) {
+          failReads--;
+          reply(exchange, 503, JSON.createObjectNode().put("error", "unavailable"));
+          return;
+        }
         reply(exchange, 200, batches.get(path.substring(path.lastIndexOf('/') + 1)));
       } else if (method.equals("GET") && path.endsWith("/content")) {
         String[] parts = path.split("/");

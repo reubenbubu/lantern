@@ -235,6 +235,8 @@ class OpenAiProviderTest {
     List<LlmBatchResult> results = provider.completeBatch(CACHING, requests);
 
     assertThat(stub.batches()).isEqualTo(1);
+    // The input and output files are deleted once read.
+    assertThat(stub.deleted()).hasSize(2);
     assertThat(results)
         .extracting(r -> r.response().text())
         .containsExactly("answer to one", "answer to two", "answer to three");
@@ -329,5 +331,18 @@ class OpenAiProviderTest {
     assertThat(read.messages()).isEqualTo(sent.messages());
     assertThat(read.maxOutputTokens()).isEqualTo(300);
     assertThat(read.tools()).isEqualTo(sent.tools());
+  }
+
+  @Test
+  void aPassingOutageWhileTheBatchRunsIsRetriedWithoutSendingTheBatchAgain() throws Exception {
+    fake.answering("ok");
+    start();
+    stub.failingNextBatchReads(3);
+
+    List<LlmBatchResult> results =
+        provider.completeBatch(CACHING, List.of(request(Role.SUMMARIZE, "one")));
+
+    assertThat(results.getFirst().response().text()).isEqualTo("ok");
+    assertThat(stub.batches()).isEqualTo(1);
   }
 }

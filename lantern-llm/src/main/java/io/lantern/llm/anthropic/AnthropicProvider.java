@@ -32,6 +32,7 @@ import com.anthropic.models.messages.batches.BatchCreateParams;
 import com.anthropic.models.messages.batches.MessageBatch;
 import com.anthropic.models.messages.batches.MessageBatchIndividualResponse;
 import com.anthropic.models.messages.batches.MessageBatchResult;
+import io.lantern.llm.BatchPolling;
 import io.lantern.llm.CacheBreak;
 import io.lantern.llm.Capability;
 import io.lantern.llm.LlmBatchResult;
@@ -216,13 +217,28 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
           Thread.currentThread().interrupt();
           throw new LlmException("Interrupted while waiting for batch " + created.id(), e);
         }
-        status = client.messages().batches().retrieve(created.id());
+        status =
+            BatchPolling.step(
+                "reading batch " + created.id(),
+                batchPoll,
+                () -> client.messages().batches().retrieve(created.id()),
+                AnthropicProvider::anyError);
       }
-      try (StreamResponse<MessageBatchIndividualResponse> results =
-          client.messages().batches().resultsStreaming(created.id())) {
-        results.stream().forEach(result -> byId.put(result.customId(), result(model, result)));
-      }
+      BatchPolling.step(
+          "reading the results of batch " + created.id(),
+          batchPoll,
+          () -> {
+            byId.clear();
+            try (StreamResponse<MessageBatchIndividualResponse> results =
+                client.messages().batches().resultsStreaming(created.id())) {
+              results.stream()
+                  .forEach(result -> byId.put(result.customId(), result(model, result)));
+            }
+            return byId;
+          },
+          AnthropicProvider::anyError);
     } catch (AnthropicException e) {
+      // Only creating the batch gets here: nothing was created, so it may be sent again.
       throw error(e);
     }
     List<LlmBatchResult> results = new ArrayList<>();
@@ -232,6 +248,13 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
               id(i), LlmBatchResult.failed(new LlmException("The batch returned no result"))));
     }
     return results;
+  }
+
+  /** The error of a failed step, transient when retrying it may help. */
+  private static LlmException anyError(RuntimeException e) {
+    return e instanceof AnthropicException anthropic
+        ? error(anthropic)
+        : new LlmException("Anthropic batch step failed: " + e, e);
   }
 
   /** A request's custom id in a batch, by its place. */

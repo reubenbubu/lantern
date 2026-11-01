@@ -60,6 +60,7 @@ public final class RoleSession {
   private volatile BatchCollector batch;
   private final java.util.concurrent.atomic.AtomicBoolean prefixSent =
       new java.util.concurrent.atomic.AtomicBoolean();
+  private volatile Thread warmer;
   private final java.util.concurrent.CompletableFuture<Void> prefixWritten =
       new java.util.concurrent.CompletableFuture<>();
 
@@ -131,7 +132,8 @@ public final class RoleSession {
       input = Math.max(0, input - prefixTokens * toAsk);
     }
     long output = (long) toAsk * spec.expectedOutputTokens();
-    // A role that batches pays the batch price for all but its warm-up request.
+    // A role that batches pays the batch price; its warm-up request, at the full price and with
+    // the one-hour cache write, is not told apart (ADR 0102).
     TokenUsage planned = new TokenUsage(input, output, write, read);
     BigDecimal usd =
         batchIfBulk(toAsk) ? model.pricing().batchCost(planned) : model.pricing().cost(planned);
@@ -661,11 +663,17 @@ public final class RoleSession {
     }
     LlmRequest longLived = request.withLongLivedCache();
     if (prefixSent.compareAndSet(false, true)) {
+      warmer = Thread.currentThread();
       try {
         return client.call(longLived);
       } finally {
         prefixWritten.complete(null);
       }
+    }
+    if (Thread.currentThread() == warmer) {
+      // The warm-up item's repair turn: the role's other items wait for this item to finish, so
+      // it goes interactively rather than as a batch of one.
+      return client.call(longLived);
     }
     prefixWritten.join();
     return collector.call(longLived);

@@ -15,6 +15,7 @@ import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.files.FileCreateParams;
 import com.openai.models.files.FilePurpose;
+import io.lantern.llm.BatchPolling;
 import io.lantern.llm.Capability;
 import io.lantern.llm.LlmBatchResult;
 import io.lantern.llm.LlmException;
@@ -228,7 +229,13 @@ public final class OpenAiProvider implements LlmProvider, AutoCloseable {
           Thread.currentThread().interrupt();
           throw new LlmException("Interrupted while waiting for batch " + batch.id(), e);
         }
-        batch = client.batches().retrieve(batch.id());
+        String id = batch.id();
+        batch =
+            BatchPolling.step(
+                "reading batch " + id,
+                batchPoll,
+                () -> client.batches().retrieve(id),
+                OpenAiProvider::anyError);
       }
       if (batch.status().equals(Batch.Status.FAILED)) {
         throw new LlmException("OpenAI batch " + batch.id() + " failed: " + batch.errors());
@@ -236,10 +243,20 @@ public final class OpenAiProvider implements LlmProvider, AutoCloseable {
       for (String output :
           List.of(batch.outputFileId().orElse(""), batch.errorFileId().orElse(""))) {
         if (!output.isEmpty()) {
-          read(output, caches, byId);
+          BatchPolling.step(
+              "reading batch file " + output,
+              batchPoll,
+              () -> read(output, caches, byId),
+              OpenAiProvider::anyError);
         }
       }
+      // The files are kept only as long as the batch needs them.
+      for (String done :
+          List.of(file, batch.outputFileId().orElse(""), batch.errorFileId().orElse(""))) {
+        delete(done);
+      }
     } catch (OpenAIException e) {
+      // Only uploading the file or creating the batch gets here, before anything ran.
       throw error(e);
     }
     List<LlmBatchResult> results = new ArrayList<>();
@@ -251,8 +268,28 @@ public final class OpenAiProvider implements LlmProvider, AutoCloseable {
     return results;
   }
 
+  /** Deletes a batch file, if there is one; a failure to delete leaves it and is no error. */
+  private void delete(String file) {
+    if (file.isEmpty()) {
+      return;
+    }
+    try {
+      client.files().delete(file);
+    } catch (OpenAIException e) {
+      // The file stays in the account; the batch's answers are already read.
+    }
+  }
+
+  /** The error of a failed step, transient when retrying it may help. */
+  private static LlmException anyError(RuntimeException e) {
+    return e instanceof OpenAIException openai
+        ? error(openai)
+        : new LlmException("OpenAI batch step failed: " + e, e);
+  }
+
   /** Reads the results in a batch's output or error file into the map, by custom id. */
-  private void read(String file, boolean caches, Map<String, LlmBatchResult> byId) {
+  private Map<String, LlmBatchResult> read(
+      String file, boolean caches, Map<String, LlmBatchResult> byId) {
     String text;
     try (HttpResponse content = client.files().content(file);
         InputStream body = content.body()) {
@@ -279,6 +316,7 @@ public final class OpenAiProvider implements LlmProvider, AutoCloseable {
                 new LlmException("OpenAI batch request failed (" + status + "): " + error)));
       }
     }
+    return byId;
   }
 
   /** A request's custom id in a batch, by its place. */
