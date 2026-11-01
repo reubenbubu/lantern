@@ -1,6 +1,6 @@
 # 0097: The derive stage stores the architecture model
 
-Status: accepted (#523), amended (#617)
+Status: accepted (#523), amended (#617, #271)
 
 ## Context
 
@@ -78,3 +78,27 @@ The agent decided these under the owner's standing go-ahead for 1D.
 - **`COMPONENT_LINK` stands for the epic's `INTERACTS_WITH` between components, but is not a kind of it.** Every kind of `INTERACTS_WITH` keys on the links' key attributes (ADR 0090), while a component line keys on the code it rests on, what it reaches and its label, so two calls from different methods stay two lines. The epic's row now says so. Only links to another thing get a code end: an open link, whose object is the text it could not resolve, has none.
 - **An instance's environment includes its platform, and a descriptor naming no environment is its own.** Environment names such as `prod` recur across platforms, and two repositories' compose files that each run a `postgres` are not one container; the key then holds `@`, the repository and the descriptor's path, so moving or renaming such a descriptor renames its instances. Parts are percent-encoded where they hold whitespace (project-8 has a Helm environment named `fleetcare prod`) or a separator. The epic's row now says so; #617 records the change.
 - **No document changes.** The composer draws the same lines and rows from the stored facts.
+
+## Amendment for #271: components as the bar draws them
+
+The agent decided these under the owner's standing go-ahead for 1D, following the quality bar's
+Component row ("Domain, DTO, mapper, configuration and util classes are left out"; code several
+entry points share is its own component).
+
+- **Constructors say what a bean uses.** A class uses the types its constructors take, as Spring
+  injects them; a constructor's ID names its parameter types even when its calls could not be
+  resolved. Without a build (degraded mode) a call whose argument has a library type is not
+  resolved, so on project-8's workorder-service, whose build fails, the controllers reached none of
+  their services and every repository became a box of its own.
+- **Mappers and settings are left out.** A class MapStruct generates (its `generated` fact) and a
+  class bound to config by `@ConfigurationProperties` (a new Spring extractor fact,
+  `configuration-properties`, with its prefix; extractor version 8) are never components, shared
+  or not.
+- **Only code that reaches another container is drawn when nothing reaches it.** An HTTP client
+  or a class that makes HTTP calls or sends stays a component when no entry point reaches it, so a
+  line to another container still starts at its code; a repository no entry point reaches is not
+  drawn. One an entry point reaches is a member of that entry point's component, whose data access
+  it gives.
+- **Intent phrases are Describe's.** Lines between components keep their static label (ADR 0050)
+  until Describe words every interaction in the stored model (#528); the issue's intent criterion
+  moved there.

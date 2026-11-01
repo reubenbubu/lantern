@@ -51,6 +51,8 @@ type:com.example.shop.app.audit.AuditTrail stereotype component {"annotation":"c
 type:com.example.shop.app.audit.LocalAudit profile-gate (local) | (!cloud) {"profiles":["local","!cloud"]} @spring:app/src/main/java/com/example/shop/app/audit/LocalAudit.java#7-7 0.7
 type:com.example.shop.app.audit.LocalAudit stereotype component {"annotation":"org.springframework.stereotype.Component"} @spring:app/src/main/java/com/example/shop/app/audit/LocalAudit.java#6-6 0.7
 type:com.example.shop.app.config.AppConfig stereotype configuration {"annotation":"org.springframework.context.annotation.Configuration"} @spring:app/src/main/java/com/example/shop/app/config/AppConfig.java#8-8 0.7
+type:com.example.shop.app.config.ShopSettings configuration-properties shop.checkout {"annotation":"org.springframework.boot.context.properties.ConfigurationProperties"} @spring:app/src/main/java/com/example/shop/app/config/ShopSettings.java#8-8 0.7
+type:com.example.shop.app.config.ShopSettings stereotype component {"annotation":"org.springframework.stereotype.Component"} @spring:app/src/main/java/com/example/shop/app/config/ShopSettings.java#7-7 0.7
 type:com.example.shop.app.jobs.AuditHandler stereotype service {"annotation":"org.springframework.stereotype.Service"} @spring:app/src/main/java/com/example/shop/app/jobs/AuditHandler.java#7-7 0.7
 type:com.example.shop.app.jobs.NightlyJob stereotype component {"annotation":"org.springframework.stereotype.Component"} @spring:app/src/main/java/com/example/shop/app/jobs/NightlyJob.java#7-7 0.7
 type:com.example.shop.app.jobs.QuartzSetup stereotype component {"annotation":"org.springframework.stereotype.Component"} @spring:app/src/main/java/com/example/shop/app/jobs/QuartzSetup.java#11-11 0.7
