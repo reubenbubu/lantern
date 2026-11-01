@@ -61,7 +61,7 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
   private static final String DEPLOYABLE_UNIT = "deployable-unit";
 
   private static final Set<String> READS =
-      Set.of(LINKED, Components.PART_OF, Components.ANCHORED_ON, Components.HAS_MEMBER);
+      Set.of(EXTRACTED, LINKED, Components.PART_OF, Components.ANCHORED_ON, Components.HAS_MEMBER);
 
   @Override
   public RuleInfo info() {

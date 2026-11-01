@@ -49,7 +49,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
 
   @Override
   public Set<String> reads() {
-    return Set.of(LINKED);
+    return Set.of(EXTRACTED, LINKED);
   }
 
   @Override
