@@ -25,29 +25,13 @@
         "content" : "Facts about type:t.TaxController:\n[T1] type:t.TaxController stereotype \"controller\" {\"rest\":true} (t:src/main/java/t/TaxController.java)\n[T2] package:g:tax:t CONTAINS type:t.TaxController (t:src/main/java/t/TaxController.java)\n",
         "error" : false
       } ]
-    }, {
-      "author" : "ASSISTANT",
-      "text" : "",
-      "toolCalls" : [ {
-        "id" : "toolu_02",
-        "name" : "read_file",
-        "input" : {
-          "repo" : "t",
-          "path" : "src/main/java/t/TaxController.java",
-          "from" : 3,
-          "to" : 6
-        }
-      } ]
-    }, {
-      "author" : "USER",
-      "text" : "",
-      "toolResults" : [ {
-        "callId" : "toolu_02",
-        "content" : "t:src/main/java/t/TaxController.java, lines 3 to 6 of 7:\n3: @RestController\n4: class TaxController {\n5:   private String apiKey = \"******\";\n6:   @GetMapping(\"/v2/quotes\") List<Quote> quotes() { return rates.quotes(); }\n",
-        "error" : false
-      } ]
     } ],
     "maxOutputTokens" : 600,
+    "cacheBreaks" : [ {
+      "message" : 2,
+      "offset" : 2147483647,
+      "longLived" : false
+    } ],
     "tools" : [ {
       "name" : "facts_about",
       "description" : "Lists the facts static analysis extracted about one entity: those it is the subject of, then those that point to it. Each fact gets a reference such as [T1] that an answer may cite.",
@@ -110,13 +94,23 @@
     } ]
   },
   "response" : {
-    "text" : "{\"target\": \"C2\", \"confidence\": \"medium\", \"cites\": [\"C2\", \"F9\", \"T1\"], \"rationale\": \"TaxController is a REST controller that serves GET /v2/quotes.\"}",
-    "stopReason" : "end_turn",
+    "text" : "",
+    "stopReason" : "tool_use",
     "usage" : {
-      "input" : 1431,
-      "output" : 37,
+      "input" : 1356,
+      "output" : 21,
       "cacheWrite" : 0,
       "cacheRead" : 0
-    }
+    },
+    "toolCalls" : [ {
+      "id" : "toolu_02",
+      "name" : "read_file",
+      "input" : {
+        "repo" : "t",
+        "path" : "src/main/java/t/TaxController.java",
+        "from" : 3,
+        "to" : 6
+      }
+    } ]
   }
 }

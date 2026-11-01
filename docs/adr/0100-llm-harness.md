@@ -1,6 +1,6 @@
 # 0100: The LLM harness
 
-Status: accepted (#525), amended for #42 (run budget, estimates) and #357 (cache warm-up)
+Status: accepted (#525), amended for #42 (run budget, estimates), #357 (cache warm-up) and #349 (per-turn caching, compaction)
 
 ## Context
 
@@ -141,3 +141,26 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   warmed cache saves. The documents do not change: only the reported token split does.
 - **Bulk runs.** Writing the prefix with a one-hour lifetime before a batch is submitted comes with
   the batch path (#527).
+
+## Amendment for #349: each turn of a conversation reads its history from the cache
+
+- **A moving breakpoint.** Every turn of a tool conversation carries a cache breakpoint after its
+  own last turn, so the next turn finds the whole history before it in the provider's cache and
+  pays full price only for what is new. The history is sent byte for byte as before; tools, tool
+  choice, thinking and output schema stay fixed through a conversation. The first request's own
+  breakpoints stay; when the provider's limit of four is reached (counting a cached system
+  prompt), the latest of them gives way to the moving one. One moving breakpoint is enough: the
+  previous turn's breakpoint sits only one turn's blocks back (two or three), well within the 20
+  blocks a provider looks back for a cached prefix, however long the conversation grows. Models without prompt caching get no breakpoints, as before.
+- **Compaction, at most once.** When a conversation's history passes 60% of the model's context
+  window, each tool result older than the last four tool-result turns is replaced by one line
+  naming the call (`[read_file {...} elided]`), and caching restarts from there. The model can read
+  again what it needs to cite. A history with nothing old enough to elide does not spend the one
+  compaction. Compaction makes room but does not guarantee a fit: if the last four tool turns alone
+  pass the window, the provider refuses the turn and the conversation fails.
+- **Resolve's input cap is the epic's 30,000** fresh-token equivalents, now that each turn reads its
+  history at the cache-read rate (the 120,000 of #525 was a stopgap).
+- **The fake provider looks back too.** Its cache simulation now reads the longest prefix cached
+  before that ends at an earlier turn within 20 blocks, as a provider does, and simulates the cache on tool-call
+  answers as well. The recorded Resolve tool loop in `LinkResolverTest` was re-recorded from its
+  scripted fake model, since its requests now carry breakpoints, which are part of the replay key.
