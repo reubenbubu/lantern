@@ -76,4 +76,3 @@ call them most. They serve every area, so putting them in one misleads. Rule 3 n
 component whose role is aspect, or whose class is not in one of the unit's own modules (it comes
 from a library the unit bundles). They stay ungrouped and are drawn as themselves at area level.
 A shared bean of the unit's own code still joins the area that calls it most, as rule 3 says.
-

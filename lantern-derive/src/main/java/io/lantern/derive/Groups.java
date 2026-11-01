@@ -297,10 +297,12 @@ public final class Groups implements LinkRule.OverFacts {
   /**
    * Whether a component cuts across the unit's areas, so rule 3 never joins it to one: an aspect,
    * which advises whatever its pointcut selects, or a class from a library the unit bundles rather
-   * than its own modules, which every unit bundling it shares.
+   * than its own modules, which every unit bundling it shares. A component anchored on a module (a
+   * gateway's config routes) is neither.
    */
   private static boolean crossCutting(Component component, Set<EntityId> own) {
-    return component.role().equals(Components.ASPECT_ROLE) || !own.contains(component.anchor());
+    return component.role().equals(Components.ASPECT_ROLE)
+        || component.anchor().type().equals(BuiltInTypes.TYPE) && !own.contains(component.anchor());
   }
 
   /** The classes of the unit's own modules, without the libraries it bundles. */
