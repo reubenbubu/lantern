@@ -54,23 +54,30 @@ final class ViewMerge {
     Map<String, Fact> plain = new LinkedHashMap<>();
     // By link, then by view index.
     Map<String, Map<Integer, Fact>> links = new LinkedHashMap<>();
+    Map<String, String> groups = new java.util.HashMap<>();
     for (int i = 0; i < views.size(); i++) {
       ClaimSink sink = found.get(i);
       List<Fact> facts = sink.facts();
       List<String> ids = sink.links();
+      List<String> inGroups = sink.groups();
       for (int j = 0; j < facts.size(); j++) {
         Fact f = facts.get(j);
         String link = ids.get(j);
         if (link == null) {
           plain.putIfAbsent(f.id(), f);
-        } else if (links.computeIfAbsent(link, l -> new LinkedHashMap<>()).putIfAbsent(i, f)
-            != null) {
+          continue;
+        }
+        // The group of the first view a link is found in counts, as its attributes do.
+        if (!groups.containsKey(link)) {
+          groups.put(link, inGroups.get(j));
+        }
+        if (links.computeIfAbsent(link, l -> new LinkedHashMap<>()).putIfAbsent(i, f) != null) {
           throw new IllegalStateException("Link " + link + " found twice in view " + views.get(i));
         }
       }
     }
     Map<String, LinkRule.Merged> result = new LinkedHashMap<>();
-    plain.forEach((id, f) -> result.put(id, new LinkRule.Merged(f, null)));
+    plain.forEach((id, f) -> result.put(id, new LinkRule.Merged(f, null, null)));
     for (Map.Entry<String, Map<Integer, Fact>> entry : links.entrySet()) {
       String link = entry.getKey();
       Map<Integer, Fact> byView = entry.getValue();
@@ -94,14 +101,14 @@ final class ViewMerge {
           cited.forEach(array::add);
         }
         Fact merged = with(standard, attributes);
-        result.putIfAbsent(merged.id(), new LinkRule.Merged(merged, link));
+        result.putIfAbsent(merged.id(), new LinkRule.Merged(merged, link, groups.get(link)));
       } else {
         byView.forEach(
             (i, f) -> {
               ObjectNode attributes = Claims.json(f);
               attributes.put("view", views.get(i).name());
               Fact merged = with(f, attributes);
-              result.putIfAbsent(merged.id(), new LinkRule.Merged(merged, link));
+              result.putIfAbsent(merged.id(), new LinkRule.Merged(merged, link, groups.get(link)));
             });
       }
     }

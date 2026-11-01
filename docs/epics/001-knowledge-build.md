@@ -383,7 +383,7 @@ public interface LinkRule {
 ```
 
 - **Querying.** `ClaimQuery` is a typed query API over the claims that hold in the snapshot, built on the generated record types: `in.all(Endpoint.class)` or `in.from(method, SendsTo.class)`. No rule reads attribute JSON by string key.
-- **Order.** Rules run in an order computed from `reads` and `writes`, a stratification, and fail fast on a cycle. Each rule runs once per view (default, each profile, each deployment environment) unless it declares itself view-independent.
+- **Order.** Rules run in an order computed from `reads` and `writes`, a stratification, and fail fast on a cycle. Each rule runs once per view (default, each profile, each deployment environment) unless it declares itself view-independent. As built in #590 (ADR 0095): the protocol rules run once per view over the default view and each profile; value resolution and address resolution resolve their views, deployment environments included, in one pass, since an answer can hold under a profile and be filled in by a deployment.
 - **Incrementality.** A rule re-runs only when a claim of a predicate in its `reads` set had an observation added, ended or changed since the last snapshot, or when the rule's own version changed. Its output is replaced as a whole for the snapshot, as `recordDerived` does today.
 
 ### The rules, in order
@@ -406,7 +406,7 @@ public interface LinkRule {
 
 ### Views
 
-A link found in the default view holds in every view except those listed in `absentIn`. A link found only under some views is one claim per view, with `view` as a key attribute. This is today's `exceptProfiles` rule, extended to deployment environments. A deployment environment is a view whose config overlay is the container's environment, applied as Spring Boot's relaxed binding reads it.
+A link found in the default view holds in every view except those listed in `absentIn`. A link found only under some views is one claim per view, with `view` as a key attribute. This is the former `exceptProfiles` rule, extended to deployment environments for value resolution's claims (#590); a link's views are the profiles, and where a deployment changes where a link goes, address resolution's claims carry it. A deployment environment is a view whose config overlay is the container's environment, applied as Spring Boot's relaxed binding reads it.
 
 ## 9. Derivation
 

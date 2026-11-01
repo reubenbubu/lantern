@@ -154,7 +154,10 @@ the knowledge-build epic (section 8, Rules and Views).
   and `exceptProfiles` named `absentIn`.
 - **A rule may describe a claim across views** once they are merged (`LinkRule.merged`): the HTTP
   rule names in `alternates` the other units and systems a call reaches in other views, which a
-  single view no longer shows. Its links are those whose link identity marks them as a call's.
+  single view no longer shows. The HTTP matcher gives each call's links a group, the unit making
+  the call and its code site, which the merge carries through (`ClaimSink.add(fact, link, group)`).
+- **The epic** (section 8, Rules and Views) is brought in line: a link's views are the profiles;
+  deployment environments are views of value resolution and address resolution only.
 - **Not per view: value resolution and address resolution.** Their views include deployment
   environments, whose overlay is a container's environment (ADR 0094, amendment for #588), and
   address resolution answers per profile and per deployment that fills an address in, so each

@@ -50,6 +50,18 @@ final class FoundLinks {
   /** Facts that are not links (attributes of entities the linker names), by ID. */
   private final Map<String, Fact> plain = new LinkedHashMap<>();
 
+  /** The group each link was first found in, by identity ({@link #add(String, Found, String)}). */
+  private final Map<String, String> groups = new java.util.HashMap<>();
+
+  /**
+   * Adds a link found in a view, in a group a rule describes its links by once the views are merged
+   * ({@link LinkRule#merged}): the first group a link is found in counts.
+   */
+  void add(String view, Found link, String group) {
+    groups.putIfAbsent(link.identity(), group);
+    add(view, link);
+  }
+
   /** Adds a link found in a view (null for the default view); the first one found counts. */
   void add(String view, Found link) {
     Map<String, Found> views = found.computeIfAbsent(link.identity(), i -> new TreeMap<>());
@@ -107,7 +119,10 @@ final class FoundLinks {
               "A link was found in view " + e.getKey() + " while linking in view " + view.name());
         }
         Found f = e.getValue();
-        out.add(fact(f, new TreeSet<>(f.facts()), origin, validity), f.identity());
+        out.add(
+            fact(f, new TreeSet<>(f.facts()), origin, validity),
+            f.identity(),
+            groups.get(f.identity()));
       }
     }
     plain.values().forEach(out::add);

@@ -59,8 +59,9 @@ public interface LinkRule {
    *
    * @param link what made it one claim in every view, as the rule gave it to {@link
    *     ClaimSink#add(Fact, String)}; null for a fact that holds whatever the view
+   * @param group the group the rule gave it in, in the first view it was found in; null for none
    */
-  record Merged(Fact fact, String link) {}
+  record Merged(Fact fact, String link, String group) {}
 
   /**
    * The facts of a rule that runs per view, once the linker has merged its views: a rule that

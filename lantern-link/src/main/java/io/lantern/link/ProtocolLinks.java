@@ -58,7 +58,11 @@ final class ProtocolLinks implements LinkRule {
   private final Matchers matchers;
   private final java.util.function.Function<List<Merged>, List<Fact>> merged;
 
-  /** The facts the index was last built from, compared by identity, and the index. */
+  /**
+   * The facts the index was last built from, compared by identity, and the index: the linker runs
+   * the rule once per view on the same facts, one view after another, and {@link #merged} clears
+   * them. Not for use from several threads at once.
+   */
   private List<Fact> indexed;
 
   private LinkIndex index;
@@ -242,6 +246,8 @@ final class ProtocolLinks implements LinkRule {
 
   @Override
   public List<Fact> merged(List<Merged> facts) {
+    indexed = null;
+    index = null;
     return merged.apply(facts).stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())

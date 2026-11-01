@@ -16,6 +16,7 @@ public final class ClaimSink {
   private final Set<String> writes;
   private final List<Fact> facts = new ArrayList<>();
   private final List<String> links = new ArrayList<>();
+  private final List<String> groups = new ArrayList<>();
 
   ClaimSink(RuleInfo rule, Set<String> writes) {
     this.rule = Objects.requireNonNull(rule, "rule");
@@ -44,6 +45,14 @@ public final class ClaimSink {
    *     write, or names its view itself
    */
   public void add(Fact fact, String link) {
+    add(fact, link, null);
+  }
+
+  /**
+   * Adds a claim found in the view the rule derives in, as {@link #add(Fact, String)}, in a group
+   * the rule describes its claims by once the views are merged ({@link LinkRule#merged}).
+   */
+  public void add(Fact fact, String link, String group) {
     Objects.requireNonNull(fact, "fact");
     if (link != null && (Claims.view(fact) != null || Claims.namesAbsence(fact))) {
       throw new IllegalArgumentException(
@@ -63,11 +72,17 @@ public final class ClaimSink {
     }
     facts.add(fact);
     links.add(link);
+    groups.add(link == null ? null : group);
   }
 
   /** The facts added, in the order added. */
   List<Fact> facts() {
     return List.copyOf(facts);
+  }
+
+  /** The group of each fact added, in the order added; null for none. */
+  List<String> groups() {
+    return java.util.Collections.unmodifiableList(groups);
   }
 
   /** What makes each fact added the same claim in every view, in the order added; null entries. */
