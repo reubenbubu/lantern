@@ -54,6 +54,14 @@ public final class RoleSession {
       new java.util.concurrent.atomic.AtomicBoolean();
   private final java.util.concurrent.CompletableFuture<Void> warmed =
       new java.util.concurrent.CompletableFuture<>();
+  // Once the role plans more cache misses than the harness's threshold, its requests go through the
+  // batch API (knowledge-build epic, section 10, Run modes): the first alone and interactively, to
+  // write the shared prefix with a long lifetime, the rest in batches that read it.
+  private volatile BatchCollector batch;
+  private final java.util.concurrent.atomic.AtomicBoolean prefixSent =
+      new java.util.concurrent.atomic.AtomicBoolean();
+  private final java.util.concurrent.CompletableFuture<Void> prefixWritten =
+      new java.util.concurrent.CompletableFuture<>();
 
   RoleSession(Harness harness, RoleSpec spec, LlmClient client, RoleRecord record) {
     this.harness = harness;
@@ -123,7 +131,10 @@ public final class RoleSession {
       input = Math.max(0, input - prefixTokens * toAsk);
     }
     long output = (long) toAsk * spec.expectedOutputTokens();
-    BigDecimal usd = model.pricing().cost(new TokenUsage(input, output, write, read));
+    // A role that batches pays the batch price for all but its warm-up request.
+    TokenUsage planned = new TokenUsage(input, output, write, read);
+    BigDecimal usd =
+        batchIfBulk(toAsk) ? model.pricing().batchCost(planned) : model.pricing().cost(planned);
     Estimate estimate =
         new Estimate(
             items.size() + predictedHits + predictedMisses,
@@ -138,6 +149,28 @@ public final class RoleSession {
     record.planned(estimate);
     LOG.info("Plan {}", estimate.line(spec.name()));
     return estimate;
+  }
+
+  /**
+   * Sends the role's requests through the batch API from now on if it is a bulk role with more
+   * planned misses than the harness's threshold and its model batches.
+   *
+   * @return whether the role batches
+   */
+  private synchronized boolean batchIfBulk(int misses) {
+    if (batch == null
+        && spec.runMode() == RunMode.BULK
+        && misses > harness.batchAbove()
+        && client.batches(spec.modelRole())) {
+      batch = new BatchCollector(client);
+      LOG.info("{} sends its {} cache misses through the batch API", spec.name(), misses);
+    }
+    return batch != null;
+  }
+
+  /** Whether the role's requests go through the batch API in this run. */
+  public boolean batching() {
+    return batch != null;
   }
 
   /** Plans items whose inputs are all known now. */
@@ -616,9 +649,26 @@ public final class RoleSession {
     return harness.planWithinShare(spec.budgetGroup(), cost);
   }
 
-  /** Sends a request of one of the role's items. */
+  /**
+   * Sends a request of one of the role's items: interactively, or once the role batches, its first
+   * request interactively with a long-lived cache and the others, once that is answered, through
+   * the batch API.
+   */
   LlmResponse send(LlmClient client, LlmRequest request) {
-    return client.call(request);
+    BatchCollector collector = batch;
+    if (collector == null) {
+      return client.call(request);
+    }
+    LlmRequest longLived = request.withLongLivedCache();
+    if (prefixSent.compareAndSet(false, true)) {
+      try {
+        return client.call(longLived);
+      } finally {
+        prefixWritten.complete(null);
+      }
+    }
+    prefixWritten.join();
+    return collector.call(longLived);
   }
 
   /** The role's run record. */

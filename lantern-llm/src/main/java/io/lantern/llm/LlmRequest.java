@@ -168,4 +168,34 @@ public record LlmRequest(
     }
     return Tokens.estimate(chars);
   }
+
+  /**
+   * The same request with every cache breakpoint long-lived, and its system prompt marked by a
+   * long-lived breakpoint at its end, which a model with prompt caching caches anyway ({@link
+   * ModelConfig#cachesSystem}): how a bulk run's requests are sent, so its warm-up's prefix
+   * outlives the wait for the batch (knowledge-build epic, section 10, Prompt layout). A model
+   * without prompt caching is sent no breakpoints.
+   */
+  public LlmRequest withLongLivedCache() {
+    List<CacheBreak> breaks = new java.util.ArrayList<>();
+    cacheBreaks.forEach(at -> breaks.add(at.withLongLife()));
+    boolean caches = cacheSystem;
+    if (system != null && breaks.size() < CacheBreak.MAX) {
+      boolean marked =
+          breaks.stream()
+              .anyMatch(
+                  at ->
+                      at.message() == CacheBreak.SYSTEM
+                          && (at.offset() == CacheBreak.END || at.offset() >= system.length()));
+      if (!marked) {
+        int after = 0;
+        while (after < breaks.size() && breaks.get(after).message() == CacheBreak.SYSTEM) {
+          after++;
+        }
+        breaks.add(after, new CacheBreak(CacheBreak.SYSTEM, CacheBreak.END, true));
+      }
+      caches = false;
+    }
+    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, caches, tools, breaks);
+  }
 }

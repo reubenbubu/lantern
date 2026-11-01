@@ -196,6 +196,42 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void openAiModelsWithAnApiKeyGetAnOpenAiProviderAndWithoutOneAreNotConfigured() throws Exception {
+    model("fast", "openai", "some-model");
+    model("deep", "anthropic", "other-model");
+    tiers("fast", "deep");
+    values.put("lantern.llm.anthropic.api-key", "test-key");
+    values.put("lantern.llm.openai.api-key", "");
+
+    assertThat(access(List.of()).isConfigured()).isFalse();
+
+    // A dummy key: making the provider sends nothing.
+    values.put("lantern.llm.openai.api-key", "openai-key");
+    values.put("lantern.llm.openai.base-url", "http://127.0.0.1:9");
+    try (LlmAccess access = access(List.of())) {
+      assertThat(access.isConfigured()).isTrue();
+      assertThat(access.client().model(Role.SUMMARIZE).provider()).isEqualTo("openai");
+      assertThat(access.client().model(Role.RESOLVE).provider()).isEqualTo("anthropic");
+    }
+    assertThat(bind().openai().toString()).doesNotContain("openai-key");
+  }
+
+  @Test
+  void theBatchThresholdIsFiftyMissesUnlessSet() {
+    assertThat(bind().batchingAbove()).isEqualTo(50);
+    assertThat(bind().batchPoll()).isEqualTo(java.time.Duration.ofSeconds(30));
+
+    values.put("lantern.llm.batch-above", "0");
+    values.put("lantern.llm.batch-poll", "2s");
+    assertThat(bind().batchingAbove()).isZero();
+    assertThat(bind().batchPoll()).isEqualTo(java.time.Duration.ofSeconds(2));
+
+    values.put("lantern.llm.batch-above", "-1");
+    assertThatThrownBy(this::bind)
+        .hasRootCauseMessage("lantern.llm.batch-above must not be negative: -1");
+  }
+
+  @Test
   void negativeMonthlyBudgetIsRefused() {
     values.put("lantern.llm.monthly-budget-usd", "-1");
 

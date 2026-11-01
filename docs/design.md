@@ -323,8 +323,8 @@ The LLM handles understanding that static analysis can't provide, and finds what
 
 **Provider interface**
 
-- A thin Java interface over the official Anthropic and OpenAI SDKs, with an OpenAI-compatible endpoint option for gateways.
-- **Capability flags** per configured model: tool use, structured output, prompt caching, context window, cost per token. Callers check capabilities instead of assuming them.
+- A thin Java interface over the official Anthropic and OpenAI SDKs, with an OpenAI-compatible endpoint option for gateways. The roles send the same requests to either; the OpenAI provider maps cache hints to a stable prefix and `prompt_cache_key`, and both record usage in one form: uncached input, cache write, cache read, output (ADR 0102).
+- **Capability flags** per configured model: tool use, structured output, prompt caching, batch, context window, cost per token. Callers check capabilities instead of assuming them.
 - Different models can be set per role, for example a cheaper model for leaf summaries and a stronger one for composition.
 
 **Grounding**
@@ -343,7 +343,8 @@ How summaries are built bottom-up and cited is in ADR 0010 (their cache, keyed o
 - Every role goes through one harness (ADR 0100). It caches per item: each question about one subject is an item, cached in `llm_answers` under a fingerprint of what the model may cite (the claims, the shown files' blobs, the child answers) and of the prompt, so a commit that changes nothing an item rests on makes no call, and a one-file change re-asks only the items resting on that file. Before a role's first call it plans every item and logs its estimate in tokens and dollars.
 - Items may share a request as a packet with an entry required per item, verified and cached one by one; prompts are laid out in blocks with cache breakpoints after the stable parts; a tool conversation is capped in turns, input and output, and submits its answers through a tool that verifies each at once (ADR 0100). Every answer passes one verification pipeline (schema, references, ranges, names, coverage, form, conflict, secrets) with one repair turn; the roles that keep their earlier prompts run their own check and the secrets check until milestone 1F rebuilds them.
 - A run budget in dollars, split by role group (investigate, describe, summarize, name groups, flows and purpose, resolve, model checks), with each role's estimate printed before its first call and against its cost at the end; a role that would pass its group's share stops, and what it skips is not asked and shown as unknown (ADR 0100, amended for #42).
-- Every call is logged with its role, purpose, model, tokens and cost.
+- A bulk role (Summarize, Describe, the model checks) with more than 50 cache misses in a run sends them through the provider's batch API at half price, once one interactive request has written the shared prompt prefix with a one-hour lifetime; agentic roles and incremental runs stay interactive (ADR 0102).
+- Every call is logged with its role, purpose, model, tokens and cost, and whether it was batched.
 - Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
 - Calls run in parallel on virtual threads, with concurrency and rate limits per model and retry with backoff (see ADR 0021).
 - Models that think by default can have thinking turned off or extra output room per model, and an answer cut off at its output limit is logged as such (see ADR 0022).

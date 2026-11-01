@@ -778,7 +778,7 @@ class Project0EndToEndIT {
    * Each project-0 repository, by name: in the folder {@code lantern.test.project0} names, or else
    * in the default folder, which setup.sh must have set up from the current pin.
    */
-  private static Map<String, Path> project0() throws IOException {
+  static Map<String, Path> project0() throws IOException {
     String given = given();
     if (given != null) {
       assertThat(Path.of(given).isAbsolute())

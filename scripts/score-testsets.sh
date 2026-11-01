@@ -174,7 +174,7 @@ lantern.llm.models.fake.prices.input=0
 lantern.llm.models.fake.prices.output=0
 lantern.llm.models.fake.prices.cache-write=0
 lantern.llm.models.fake.prices.cache-read=0
-lantern.llm.models.fake.capabilities=prompt-caching
+lantern.llm.models.fake.capabilities=prompt-caching,batch
 lantern.llm.models.fake-priced.provider=fake
 lantern.llm.models.fake-priced.id=fake-priced
 lantern.llm.models.fake-priced.context-window=1000000
@@ -182,7 +182,7 @@ lantern.llm.models.fake-priced.prices.input=3
 lantern.llm.models.fake-priced.prices.output=15
 lantern.llm.models.fake-priced.prices.cache-write=3.75
 lantern.llm.models.fake-priced.prices.cache-read=0.3
-lantern.llm.models.fake-priced.capabilities=prompt-caching
+lantern.llm.models.fake-priced.capabilities=prompt-caching,batch
 lantern.llm.tiers.high-volume=fake
 lantern.llm.tiers.reasoning=fake
 PROPERTIES

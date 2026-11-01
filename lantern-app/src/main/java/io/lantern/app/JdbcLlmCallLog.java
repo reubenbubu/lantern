@@ -40,10 +40,10 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             """
             INSERT INTO llm_calls (started_at, duration_ms, role, purpose, provider, model, outcome,
                 input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, error,
-                conversation_id, turn, tool_calls)
+                conversation_id, turn, tool_calls, batch)
             VALUES (:startedAt, :durationMs, :role, :purpose, :provider, :model, :outcome,
                 :input, :output, :cacheWrite, :cacheRead, :cost, :error,
-                :conversation, :turn, CAST(:toolCalls AS jsonb))
+                :conversation, :turn, CAST(:toolCalls AS jsonb), :batch)
             """)
         .param("startedAt", call.startedAt().atOffset(ZoneOffset.UTC))
         .param("durationMs", Math.max(0, call.duration().toMillis()))
@@ -61,6 +61,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
         .param("conversation", call.conversation())
         .param("turn", call.turn())
         .param("toolCalls", JSON.writeValueAsString(call.toolCalls()))
+        .param("batch", call.batch())
         .update();
   }
 

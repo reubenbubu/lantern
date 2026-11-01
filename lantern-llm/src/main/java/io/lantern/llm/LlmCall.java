@@ -25,6 +25,7 @@ import java.util.TreeMap;
  *     {@code null} for a call on its own
  * @param turn the call's turn in its conversation, from 1; 0 for a call on its own
  * @param toolCalls the tool calls the answer asked for, by tool name; empty if none
+ * @param batch whether the call went through the provider's batch API, at its discount
  */
 public record LlmCall(
     Instant startedAt,
@@ -39,7 +40,8 @@ public record LlmCall(
     String error,
     String conversation,
     int turn,
-    Map<String, Integer> toolCalls) {
+    Map<String, Integer> toolCalls,
+    boolean batch) {
 
   /** How a call ended. */
   public enum Outcome {
@@ -71,6 +73,41 @@ public record LlmCall(
           "A call has a turn exactly when it is part of a conversation: " + turn);
     }
     toolCalls = Collections.unmodifiableMap(new TreeMap<>(toolCalls));
+    if (batch && conversation != null) {
+      throw new IllegalArgumentException("A turn of a conversation is never batched");
+    }
+  }
+
+  /** A call sent on its own, not through the batch API. */
+  public LlmCall(
+      Instant startedAt,
+      Duration duration,
+      Role role,
+      String purpose,
+      String provider,
+      String model,
+      Outcome outcome,
+      TokenUsage usage,
+      BigDecimal costUsd,
+      String error,
+      String conversation,
+      int turn,
+      Map<String, Integer> toolCalls) {
+    this(
+        startedAt,
+        duration,
+        role,
+        purpose,
+        provider,
+        model,
+        outcome,
+        usage,
+        costUsd,
+        error,
+        conversation,
+        turn,
+        toolCalls,
+        false);
   }
 
   /** A call on its own, not a turn of a conversation. */

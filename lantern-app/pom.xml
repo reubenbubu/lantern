@@ -44,6 +44,13 @@
     </dependency>
     <dependency>
       <groupId>io.lantern</groupId>
+      <artifactId>lantern-llm</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.lantern</groupId>
       <artifactId>lantern-harness</artifactId>
     </dependency>
     <dependency>
