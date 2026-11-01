@@ -75,4 +75,6 @@ The agent decided these under the owner's standing go-ahead for 1D.
   give one instance citing both. The deployment table keeps one row per descriptor entry, reading
   the entries from the instance's lineage, so its rows and their evidence are unchanged; whether it
   should show one row per instance is a question for the deployment view, not this change.
+- **`COMPONENT_LINK` is a kind of `INTERACTS_WITH`**, the predicate the epic names for interactions, so whatever selects runtime lines by that hierarchy finds them; the epic's row now names it. Only links to another thing get a code end: an open link, whose object is the text it could not resolve, has none.
+- **An instance's environment includes its platform, and a descriptor naming no environment is its own.** Environment names such as `prod` recur across platforms, and two repositories' compose files that each run a `postgres` are not one container; the key then holds `@`, the repository and the descriptor's path. Parts are percent-encoded where they hold whitespace (project-8 has a Helm environment named `fleetcare prod`) or a separator. The epic's row now says so; #617 records the change.
 - **No document changes.** The composer draws the same lines and rows from the stored facts.

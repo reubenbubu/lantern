@@ -65,7 +65,9 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
   /**
    * The instance a {@code deployment-container} fact describes. Its parts are percent-encoded where
    * a key cannot hold a character (whitespace) or a separator would be ambiguous, so an environment
-   * named "fleetcare prod" gives {@code helm:fleetcare%20prod/notification-service}.
+   * named "fleetcare prod" gives {@code helm:fleetcare%20prod/notification-service}. A descriptor
+   * naming no environment stands for its own, {@code @} and its repository and path: {@code
+   * compose:@shop%2Fdocker-compose.yml/postgres}.
    */
   public static EntityId id(Fact container) {
     String platform = attribute(container, "platform");
@@ -74,7 +76,13 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
         DEPLOYMENT_INSTANCE,
         (platform == null ? "-" : encoded(platform, ":/"))
             + ":"
-            + (environment == null ? "-" : encoded(environment, ":/"))
+            + (environment != null
+                ? encoded(environment, ":/@")
+                // A descriptor naming no environment is one of its own: two repositories' compose
+                // files that both run a postgres are two instances.
+                : "@"
+                    + encoded(
+                        container.evidence().repo() + "/" + container.evidence().path(), ":/@"))
             + "/"
             + encoded(container.object().value().toString(), ""));
   }

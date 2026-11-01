@@ -180,7 +180,10 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
     // The code end of each link between containers that is in a component of the unit at that
     // end: the source for the unit the link is from, the target for the unit it goes to.
     for (Fact link : facts) {
-      if (attribute(link, "source") == null && attribute(link, "target") == null) {
+      // Only links to another thing: an open link, whose object is the text it could not
+      // resolve, has no other end.
+      if (!Knowledge.isEntity(link)
+          || (attribute(link, "source") == null && attribute(link, "target") == null)) {
         continue;
       }
       List<Object[]> ends = new ArrayList<>();

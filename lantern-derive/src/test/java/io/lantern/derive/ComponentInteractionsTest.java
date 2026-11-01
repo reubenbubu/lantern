@@ -68,6 +68,25 @@ class ComponentInteractionsTest {
   }
 
   @Test
+  void anOpenLinkHasNoCodeEnd() {
+    unit();
+    ObjectNode at = FactJson.newObject();
+    at.put("source", PLACE.toString());
+    model.add(UNIT, "unresolved-link", FactObject.string("${billing.url}/invoices"), at);
+
+    assertThat(
+            model.derived(ComponentInteractions.NAME).stream()
+                .filter(
+                    f ->
+                        f.predicate().equals(ComponentInteractions.COMPONENT_LINK)
+                            && f.attributes()
+                                .get("kind")
+                                .asString()
+                                .equals(ComponentInteractions.CODE_END)))
+        .isEmpty();
+  }
+
+  @Test
   void aComponentWritingTablesHasItsDataAccess() {
     unit();
     Fact writes = model.add(RECORD, "WRITES_TABLE", EntityId.parse("table:shop:audit_log"));

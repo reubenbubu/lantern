@@ -57,6 +57,26 @@ class DeploymentInstancesTest {
     assertThat(model.derived(DeploymentInstances.NAME)).isNotEmpty();
   }
 
+  @Test
+  void descriptorsNamingNoEnvironmentAreEachTheirOwn() {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("platform", "compose");
+    Fact shop =
+        model.add(
+            ENVIRONMENT, "deployment-container", FactObject.string("postgres"), attributes, "shop");
+    Fact billing =
+        model.add(
+            ENVIRONMENT,
+            "deployment-container",
+            FactObject.string("postgres"),
+            attributes.deepCopy(),
+            "billing");
+
+    assertThat(DeploymentInstances.id(shop).toString())
+        .isEqualTo("deployment-instance:compose:@shop%2Fsrc%2FShop.java/postgres");
+    assertThat(DeploymentInstances.id(billing)).isNotEqualTo(DeploymentInstances.id(shop));
+  }
+
   private Fact container(String repo) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("platform", "compose");

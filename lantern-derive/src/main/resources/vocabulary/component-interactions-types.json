@@ -3,6 +3,7 @@
     "name": "COMPONENT_LINK",
     "kind": "relationship",
     "keyAttributes": ["at", "detail", "kind", "relationship", "target"],
+    "parent": "INTERACTS_WITH",
     "description": "A line of a unit's component diagram (#617): from the subject component to another component of the unit, or, for a link between containers whose code end is in the component, to the link's other end. It rests on the calls, routes, advice or links it gathers.",
     "attributeSchema": {
       "type": "object",
