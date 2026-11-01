@@ -242,6 +242,8 @@ Lantern works like a build system: every derived artifact records its inputs, an
 | LLM summaries | Hash of the prompt (the facts, source files and child summaries it shows, without fact IDs) + prompt version + model |
 | LLM link resolutions | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
 | LLM wordings of units | Hash of the prompt (the facts it shows, without fact IDs) + prompt version + model |
+| Derived architecture model | Each derive rule's name and version plus the claims of the predicates it reads; a rule whose inputs changed is recomputed whole, never patched from lineage, since lineage cannot foresee a new flow or component (`docs/research/architecture-model.md`) |
+| LLM judgements of a flow or a lead | Its `content` hash + prompt version + model |
 | Layouts | Diagram ID; updated incrementally, never recomputed by default |
 | Document prose | Hash of the facts a section draws from + template version |
 

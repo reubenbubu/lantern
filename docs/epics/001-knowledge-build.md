@@ -285,7 +285,7 @@ The linker still decides which destination names are one topic, and which addres
 
 ### Derived and LLM facts
 
-- **The architecture model is stored.** New entity types: `component`, `flow` and `flow-step`, written by the derive stage (section 9). They carry lineage to the claims they come from.
+- **The architecture model is stored.** New entity types: `component`, `flow` and `flow-step`, written by the derive stage (section 9). They carry lineage to the claims they come from. Lineage is one level: the direct inputs of the rule that wrote the claim; an aggregate such as a flow lists its parts, not their leaves, and an explanation follows lineage down (#615, `docs/research/architecture-model.md`).
 - **LLM facts are ordinary claims with origin `llm`.** Each observation records the role, model, prompt version and work unit, and lists the claim IDs and file ranges the answer cited, all verified.
   - The predicates are: `responsibility`, `intent`, `flow-narrative`, `flow-significance`, `purpose`, `summary`, `investigated-risk`, `INVESTIGATED_CONNECTION` and `resolved-target`.
   - Each carries `basis`: `evidenced` (it cites something people wrote, such as a README claim or Javadoc) or `inferred`.
@@ -416,13 +416,13 @@ The architecture model is computed once per snapshot and stored, before any LLM 
 
 | Model element | Entity and key claims | Rule source today |
 | --- | --- | --- |
-| Component | `component:<unit>/<anchor>`, with `PART_OF` unit, `ANCHORED_ON` entry point(s), `CONTAINS` type, `role` (controller, listener, job, gateway filter, aspect, shared), `technology` | `C4Views` |
+| Component | `component:<unit>/<anchor type>` (the entry point's class, so a new endpoint does not rename it; a shared component is keyed on its own class), with `PART_OF` unit, `ANCHORED_ON` entry point(s), `CONTAINS` type, `role` (controller, listener, job, gateway filter, aspect, shared), `technology` | `C4Views` |
 | Component interaction | `INTERACTS_WITH` between components of one unit (from the call graph) and from a component to another container (from the unit's links, placed on the component whose code makes the call) | `C4Views` |
-| Flow | `flow:<entry-point claim>`, with `TRIGGERED_BY`, `trigger-kind`, `containers`, `async-handoff`, `handles-failure`, `shape` (a hash of start kind plus the ordered lifelines), `SAME_SHAPE_AS` the flow of its shape whose entry-point claim ID sorts first | `SequenceFlows` |
-| Flow step | `flow-step:<flow>/<n>`, with `order`, `from`, `to`, `VIA` link claim, `kind` (sync, async, reply), `condition` (profile or view), `fragment` (alt or opt with its guard) | `SequenceFlows` |
+| Flow | `flow:<entry-point claim>`, with `TRIGGERED_BY`, `trigger-kind`, `containers`, `async-handoff`, `handles-failure`, `shape` (a hash of start kind plus the ordered (from, to, kind) of its steps; #615 made it stricter than the ordered lifelines, so flows with the same participants but other messages are not hidden), `SAME_SHAPE_AS` the flow of its shape whose entry-point claim ID sorts first, `content` (a hash of its ordered step link claims and `truncated`), `truncated` | `SequenceFlows` |
+| Flow step | `flow-step:<flow>/<link claim>/<k>`, k counting repeats of that link in the flow, so inserting a step renames no other (#615); with `order` (descriptive), `from`, `to`, `VIA` link claim, `kind` (sync, async, reply), `condition` (profile or view), `fragment` (alt or opt with its guard) | `SequenceFlows` |
 | Unknown caller | `actor:unknown-caller`, with `INTERACTS_WITH` to each unit whose callable entry points nothing reaches and no person uses (#365, not built yet) | none |
-| Finding | `finding:<kind>/<subject>`: version skew, snapshot dependencies, dependency version drift, package cycles, unrouted endpoints, shared JWT secrets, README contradictions, technology end-of-life | `RepoRisks`, `BriefSections`, `ClaimChecks`, linker attributes |
-| Deployment instance | `deployment-instance:<env>/<container>`, with `RUNS` unit or data store, image, version, ports | `C4Views` (table) |
+| Finding | `finding:<kind>/<key>`, each kind declaring its key attributes (a version skew is keyed on the library and the versions, not the library alone), the rule's name as a fixed `rule`, lineage to the claims behind it and, when a path triggers it, `path` (ordered claim IDs); whether it is new or gone follows from validity, never stored (#615). Kinds: version skew, snapshot dependencies, dependency version drift, package cycles, unrouted endpoints, shared JWT secrets, README contradictions, technology end-of-life | `RepoRisks`, `BriefSections`, `ClaimChecks`, linker attributes |
+| Deployment instance | `deployment-instance:<env>/<deployment>`, keyed on the name the environment gives it (a compose service, a Kubernetes workload) so one container run twice in an environment is two instances (#615; nesting nodes as Structurizr does is left for when deployment is drawn as a diagram), with `RUNS` unit or data store, image, version, ports | `C4Views` (table) |
 
 ### Rules for flows change
 
@@ -430,6 +430,7 @@ The architecture model is computed once per snapshot and stored, before any LLM 
 - **Choosing what to draw is a judgement.** It is made by the flow-significance role (section 11.5) and stored as a claim, so a document filters by it instead of a constant.
 - **The trace bound is a safety limit only.** The 40-message bound stays. A flow that hits it is stored with `truncated = true`.
 - **Duplicates are linked, not dropped.** A flow of the same shape as an earlier one carries `SAME_SHAPE_AS`. Documents show the representative only.
+- **Judgements follow content, not identity.** A flow keeps its ID when its steps change, so an LLM judgement of a flow (significance, narrative) records the flow's `content` hash and is stale when it differs (#615).
 
 ### Grouping
 
@@ -455,7 +456,7 @@ A large system or service is drawn at a higher level by bundling related element
 - **One group per kind.** An element belongs to at most one group of each kind.
 - **Stored whatever the view.** Groups are stored as `group` entities with `CONTAINS` their members and a `basis` attribute naming the signal and the claims behind it. A view decides whether to use them (section 12).
 - **Stable keys.** A key comes from its signal, never from its membership, so adding an endpoint or a unit to an existing group does not rename it.
-- **Lines.** Lines between groups are aggregated: one `INTERACTS_WITH` claim per ordered pair (source group or ungrouped element, target group or ungrouped element) and protocol, with lineage to the member lines it stands for. Lines inside one group are not aggregated.
+- **Lines.** Lines between groups are aggregated: one line per ordered pair (source group or ungrouped element, target group or ungrouped element) and protocol, standing for the member lines. They follow wholly from the stored groups and member lines, so a view computes them when it needs them rather than storing a second copy (#615, as Glean's on-demand derived predicates). Lines inside one group are not aggregated.
 - **Left for later.** Clustering by coupling (Leiden, as `docs/design.md` plans) groups only what the explicit signals leave ungrouped, and only if the test sets show it is needed (#537).
 
 ### What stays in composition
@@ -811,6 +812,8 @@ Investigate is split into three modes. The first is driven by static analysis, t
 The branch's single open-ended conversation per unit found 1 of 3 named risks before its budget ran out. Pointing the model at the code each lead names is cheaper and more thorough than asking it to search.
 
 **Mode A, leads.** Derivation writes `lead:<kind>/<subject>` claims from the catalog below. Each lead is one item, asking Investigate to confirm or refute it and, if confirmed, to word the risk.
+
+- **A lead is stored; its verdict is a separate claim** (#615, as SARIF separates a `review` result from its suppression). The lead has origin `derive`, its evidence, and a `content` hash of the code and claims it points at. The verdict is an `llm` claim with lineage to the lead: `confirmed`, `refuted` or `unclear`, with its justification and citations; a confirmed lead gives a finding with lineage to both. A lead is asked again only when its content hash changes. A refuted lead is not deleted: the reader's risk list leaves it out and the quality report lists it.
 
 - **Packet.** The leads of one unit, at most 4 to start. These are reasoning items, where the research found batches above 3 or 4 lose accuracy.
 - **Context.** Block 4 holds the unit's facts. Each item carries the code its lead points at, as `<code>` excerpts.
