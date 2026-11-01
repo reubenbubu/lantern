@@ -299,6 +299,56 @@ class MavenRulesTest {
   }
 
   @Test
+  void aServiceInheritingItsGroupFromAFrameworkParentIsNamedByItsArtifact() throws IOException {
+    // No groupId of its own: Maven gives it spring-boot-starter-parent's, which names no group of
+    // the system. The module keeps Maven's coordinates, which other POMs depend on.
+    String own =
+        "<project><parent><groupId>org.springframework.boot</groupId>"
+            + "<artifactId>spring-boot-starter-parent</artifactId><version>3.5.0</version>"
+            + "<relativePath/></parent><artifactId>main-service</artifactId>"
+            + "<version>1</version>"
+            + BOOT
+            + "</project>";
+    // A child of a parent in the snapshot keeps the group it inherits.
+    Repo parent =
+        repo("parent", Map.of("pom.xml", pom("g", "parent", "<packaging>pom</packaging>")));
+    String inheriting =
+        "<project><parent><groupId>g</groupId><artifactId>parent</artifactId>"
+            + "<version>1</version></parent><artifactId>orders</artifactId>"
+            + BOOT
+            + "</project>";
+
+    // A module below a root that takes its group from the framework's parent too.
+    String root =
+        "<project><parent><groupId>org.springframework.boot</groupId>"
+            + "<artifactId>spring-boot-starter-parent</artifactId><version>3.5.0</version>"
+            + "<relativePath/></parent><artifactId>platform</artifactId><version>2</version>"
+            + "<packaging>pom</packaging><modules><module>api</module></modules></project>";
+    String api =
+        "<project><parent><groupId>org.springframework.boot</groupId>"
+            + "<artifactId>platform</artifactId><version>2</version></parent>"
+            + "<artifactId>api</artifactId>"
+            + BOOT
+            + "</project>";
+
+    List<String> facts =
+        extract(
+            repo("main", Map.of("pom.xml", own)),
+            parent,
+            repo("orders", Map.of("pom.xml", inheriting)),
+            repo("platform", Map.of("pom.xml", root, "api/pom.xml", api)));
+
+    assertThat(facts)
+        .anyMatch(
+            f ->
+                f.startsWith(
+                    "service:main-service CONTAINS module:org.springframework.boot:main-service"))
+        .anyMatch(f -> f.startsWith("service:g:orders CONTAINS module:g:orders"))
+        .anyMatch(f -> f.startsWith("service:api CONTAINS module:org.springframework.boot:api"))
+        .noneMatch(f -> f.startsWith("service:org.springframework.boot:"));
+  }
+
+  @Test
   void writtenPomsInheritFromAParentInTheSnapshot() throws IOException {
     String parentPom =
         pom(
