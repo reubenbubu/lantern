@@ -31,16 +31,19 @@ class GroupsTest {
     controller("io.acme.billing.payment", "RefundController", "POST /refunds");
     controller("io.acme.billing.collections", "DunningController", "GET /dunning");
     controller("io.acme.billing.collections", "CollectionsController", "GET /collections");
+    // A bean in another package tree does not move the base the entry points are below.
+    shared("com.other.directory.client", "DirectoryClient");
 
     Map<String, Set<String>> areas = areas(BILLING);
 
     assertThat(areas)
-        .containsOnlyKeys(area("pkg-collections"), area("pkg-invoice"), area("pkg-payment"))
-        .containsEntry(
-            area("pkg-invoice"),
-            Set.of(
-                component("io.acme.billing.invoice.InvoiceController"),
-                component("io.acme.billing.invoice.InvoiceEvents")));
+        .containsOnlyKeys(area("pkg-collections"), area("pkg-invoice"), area("pkg-payment"));
+    // The client both invoice and payment call joins the one whose key sorts first.
+    assertThat(areas.get(area("pkg-invoice")))
+        .containsExactlyInAnyOrder(
+            component("io.acme.billing.invoice.InvoiceController"),
+            component("io.acme.billing.invoice.InvoiceEvents"),
+            component("com.other.directory.client.DirectoryClient"));
   }
 
   @Test
@@ -186,6 +189,26 @@ class GroupsTest {
       model.add(method, "message-listener", FactObject.string("orders"));
     }
     return EntityId.parse(component(pkg + "." + name));
+  }
+
+  /** A bean shared by every entry point: a component of its own, not an entry point. */
+  private void shared(String pkg, String name) {
+    EntityId pkgId = EntityId.parse("package:io.acme:billing:" + pkg);
+    EntityId type = EntityId.parse("type:" + pkg + "." + name);
+    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, pkgId);
+    model.add(pkgId, BuiltInTypes.CONTAINS, type);
+    model.add(type, "stereotype", FactObject.string("service"));
+    for (String controller :
+        List.of(
+            "io.acme.billing.invoice.InvoiceController#handle()",
+            "io.acme.billing.payment.PaymentController#handle()")) {
+      model.add(
+          EntityId.parse("method:" + controller),
+          BuiltInTypes.CALLS,
+          EntityId.parse("method:" + pkg + "." + name + "#find()"));
+    }
+    model.add(
+        type, BuiltInTypes.CONTAINS, EntityId.parse("method:" + pkg + "." + name + "#find()"));
   }
 
   private void link(EntityId from, String to) {

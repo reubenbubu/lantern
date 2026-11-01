@@ -319,14 +319,24 @@ public final class Groups implements LinkRule.OverFacts {
     if (segments.isEmpty()) {
       return false;
     }
+    // The base is the package all entry points are below: a shared bean or client elsewhere
+    // (a library's package, say) does not move it.
     List<String> base = null;
-    for (List<String> s : segments.values()) {
-      base = base == null ? s : common(base, s);
+    for (Map.Entry<Component, List<String>> e : segments.entrySet()) {
+      if (e.getKey().role().equals(Components.ENTRY_POINT)) {
+        base = base == null ? e.getValue() : common(base, e.getValue());
+      }
+    }
+    if (base == null) {
+      return false;
     }
     int depth = base.size();
+    final List<String> root = base;
     // Below a feature package, if the code has one.
     Set<String> next = new TreeSet<>();
-    segments.values().stream().filter(s -> s.size() > depth).forEach(s -> next.add(s.get(depth)));
+    segments.values().stream()
+        .filter(s -> s.size() > depth && s.subList(0, depth).equals(root))
+        .forEach(s -> next.add(s.get(depth)));
     int below =
         next.stream().anyMatch(n -> n.equals("feature") || n.equals("features"))
             ? depth + 1
@@ -334,7 +344,10 @@ public final class Groups implements LinkRule.OverFacts {
     SortedMap<String, List<Component>> byPackage = new TreeMap<>();
     segments.forEach(
         (component, s) -> {
-          boolean under = below == depth || s.size() > depth && isFeature(s.get(depth));
+          boolean under =
+              s.size() > depth
+                  && s.subList(0, depth).equals(root)
+                  && (below == depth || isFeature(s.get(depth)));
           if (under && s.size() > below) {
             byPackage.computeIfAbsent(s.get(below), p -> new ArrayList<>()).add(component);
           }
