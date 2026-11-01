@@ -191,7 +191,7 @@ public final class Linker {
     for (LinkRule rule : rules) {
       RuleInfo info = rule.info();
       List<Fact> input = input(rule, extracted, derivedBy);
-      String inputs = digest(input);
+      String inputs = digest(input, rule);
       List<Fact> before = held.getOrDefault(info.name(), List.of());
       Optional<RuleRuns.Run> last = runs.last(scope, info.name());
       List<Fact> facts;
@@ -266,9 +266,23 @@ public final class Linker {
    * when a type's key attributes do (ADR 0090), which the fact ID does not show.
    */
   private static String digest(List<Fact> facts) {
-    List<String> lines = new ArrayList<>();
-    facts.forEach(f -> lines.add(f.id() + " " + f.claimId() + " " + f.confidence()));
-    lines.sort(null);
+    return digest(facts, null);
+  }
+
+  /**
+   * A digest of the facts a rule reads: of each, what the rule's facts depend on ({@link
+   * LinkRule#inputOf}), else its ID, claim ID and confidence; each distinct line once, in any
+   * order.
+   */
+  private static String digest(List<Fact> facts, LinkRule rule) {
+    java.util.SortedSet<String> lines = new TreeSet<>();
+    for (Fact f : facts) {
+      String part = rule == null ? null : rule.inputOf(f);
+      lines.add(
+          part != null
+              ? "part " + f.predicate() + " " + part
+              : f.id() + " " + f.claimId() + " " + f.confidence());
+    }
     try {
       MessageDigest sha = MessageDigest.getInstance("SHA-256");
       for (String line : lines) {

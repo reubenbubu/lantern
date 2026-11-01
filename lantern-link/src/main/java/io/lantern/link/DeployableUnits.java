@@ -138,6 +138,21 @@ public final class DeployableUnits implements LinkRule {
           ConfigExtractor.CONFIG_VALUE,
           SpringExtractor.MAIN_CLASS);
 
+  /**
+   * Of a config value, the units depend on the whole of a {@code spring.application.name}, and of
+   * any other only on which module has config of which family ({@code application}, {@code
+   * bootstrap}): a change to another setting does not run them again (#591). Value resolution reads
+   * the settings.
+   */
+  @Override
+  public String inputOf(Fact fact) {
+    if (!fact.predicate().equals(ConfigExtractor.CONFIG_VALUE)
+        || NAME_KEY.equals(Claims.key(fact))) {
+      return null;
+    }
+    return fact.subject() + " " + configFamily(fact);
+  }
+
   @Override
   public Set<String> reads() {
     return Set.copyOf(READS);

@@ -8,6 +8,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.lantern.app.archfixture.FactReadingRenderer;
 import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
+import io.lantern.extract.archfixture.ExtractorResolvingPlaceholders;
 import io.lantern.link.archfixture.FakeLinker;
 import io.lantern.link.archfixture.LinkerReadingAttributes;
 import io.lantern.link.archfixture.LinkerReadingComposer;
@@ -119,5 +120,28 @@ class ArchitectureRulesTest {
     assertThatThrownBy(() -> ArchitectureRules.MESSAGING_MATCHER_READS_RELATIONS.check(classes))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("MessageLinker");
+  }
+
+  @Test
+  void anExtractorResolvingPlaceholdersIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(
+                ExtractorResolvingPlaceholders.class,
+                ExtractorResolvingPlaceholders.OwnLookup.class);
+
+    assertThatThrownBy(
+            () -> ArchitectureRules.PLACEHOLDERS_RESOLVED_BY_VALUE_RESOLUTION.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("ExtractorResolvingPlaceholders.url(java.lang.String)")
+        .hasMessageContaining("ExtractorResolvingPlaceholders$OwnLookup");
+  }
+
+  @Test
+  void codeThatResolvesNothingIsAccepted() {
+    JavaClasses classes = new ClassFileImporter().importClasses(FakeLinker.class);
+
+    assertThatCode(() -> ArchitectureRules.PLACEHOLDERS_RESOLVED_BY_VALUE_RESOLUTION.check(classes))
+        .doesNotThrowAnyException();
   }
 }

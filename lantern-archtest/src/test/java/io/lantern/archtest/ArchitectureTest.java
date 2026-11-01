@@ -29,4 +29,8 @@ class ArchitectureTest {
   @ArchTest
   static final ArchRule messagingMatcherReadsRelations =
       ArchitectureRules.MESSAGING_MATCHER_READS_RELATIONS;
+
+  @ArchTest
+  static final ArchRule placeholdersResolvedByValueResolution =
+      ArchitectureRules.PLACEHOLDERS_RESOLVED_BY_VALUE_RESOLUTION;
 }
