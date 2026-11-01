@@ -484,6 +484,13 @@ public final class Summarizer {
           continue;
         }
         planned.add(node.entity());
+        // Under a budget, a unit is not asked while one of its parts waits for a later round: its
+        // prompt would lack that part's summary (#661).
+        List<String> parts =
+            node.children().stream()
+                .filter(child -> planned.contains(child.entity()))
+                .map(child -> child.entity().toString())
+                .toList();
         if (!childMissing) {
           // Its parts' summaries are all in the cache, as the ask will see them.
           List<Summary> children =
@@ -492,7 +499,7 @@ public final class Summarizer {
                   .filter(java.util.Objects::nonNull)
                   .toList();
           Item item = Summarizer.item(node, Excerpts.of(node, this::text), children);
-          inOrder.add(RoleSession.Planned.of(item));
+          inOrder.add(RoleSession.Planned.of(item).after(parts));
           Optional<String> answer = session.cachedAnswer(item);
           answer.ifPresent(
               json -> stored.put(node.entity(), rebind(SummaryJson.read(json), node, children)));
@@ -504,10 +511,11 @@ public final class Summarizer {
         } else {
           inOrder.add(
               RoleSession.Planned.predicted(
-                  node.entity().toString(),
-                  Tokens.estimate(Prompt.SYSTEM)
-                      + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
-                      + CHILD_TOKENS * node.children().size()));
+                      node.entity().toString(),
+                      Tokens.estimate(Prompt.SYSTEM)
+                          + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
+                          + CHILD_TOKENS * node.children().size())
+                  .after(parts));
           missing.put(node.entity(), true);
           toAsk.add(node.entity());
         }

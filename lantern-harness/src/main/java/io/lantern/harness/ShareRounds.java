@@ -13,11 +13,13 @@ import org.slf4j.LoggerFactory;
 /**
  * Decides which planned items of one role group fit the group's share of the run budget, in rounds
  * (ADR 0100, #659). The group's items queue in a fixed order: each role's own order, roles in the
- * order they plan. A round admits items from the head of the queue while their estimates fit what
- * is left of the share; once every item of the round is settled, the next round admits from what
- * the group has really spent, until the first item that does not fit even then: it and every item
- * after it are not asked. A round is decided only when nothing of the group is in flight, so what
- * fits never depends on thread timing, and two runs at the same budget ask the same items.
+ * order they plan. A round walks the queue and admits each item whose estimate fits what is left of
+ * the share; one that does not fit waits for a later round, and so does an item that rests on one
+ * waiting (a unit whose part waits), while the smaller ones behind them are admitted (#661). Once
+ * every item of the round is settled, the next round walks what still waits, from what the group
+ * has really spent. When a round admits nothing, nothing will free room: what still waits is not
+ * asked. A round is decided only when nothing of the group is in flight, so what fits never depends
+ * on thread timing, and two runs at the same budget ask the same items.
  *
  * <p>A claim is admitted at once, outside the queue, if its estimate fits: the item a group gives
  * first claim on its share (the system's purpose), and an item no plan knew. Rounds do not wait for
@@ -32,8 +34,15 @@ final class ShareRounds {
    *
    * @param item the item, or {@code null} for one whose input is not known yet
    * @param cost what it is expected to cost alone
+   * @param after the subjects of its role's items it rests on
    */
-  record Entry(RoleSession session, String key, String subject, Item item, BigDecimal cost) {
+  record Entry(
+      RoleSession session,
+      String key,
+      String subject,
+      Item item,
+      BigDecimal cost,
+      java.util.Set<String> after) {
     private String id() {
       return session.spec().name() + '\u0000' + key;
     }
@@ -42,8 +51,8 @@ final class ShareRounds {
   private final String group;
   private final BigDecimal share;
   private final BudgetGuard guard;
-  private final List<Entry> queue = new ArrayList<>();
-  private int next;
+  // The items not decided yet, in the group's order.
+  private final List<Entry> waiting = new ArrayList<>();
   private final Map<String, Entry> round = new LinkedHashMap<>();
   private final Map<String, Entry> claims = new LinkedHashMap<>();
   // Items that ended before their round was decided, such as a unit whose part failed: a later
@@ -63,7 +72,7 @@ final class ShareRounds {
    * round takes them at once if they fit.
    */
   synchronized void queue(List<Entry> entries) {
-    queue.addAll(entries);
+    waiting.addAll(entries);
     if (!started || round.isEmpty()) {
       decide();
     }
@@ -141,10 +150,14 @@ final class ShareRounds {
   }
 
   /**
-   * Admits items from the head of the queue while they fit. If none is admitted and none is out,
-   * nothing will free room: the rest are not asked.
+   * Admits, in the group's order, each waiting item that fits; one that does not, or rests on one
+   * that waits, waits for the next round. If none is admitted and none is out, nothing will free
+   * room: the rest are not asked.
    */
   private void decide() {
+    // Items a role plans while a round is open join that round; only a decide on an empty round
+    // starts a new one.
+    boolean fresh = round.isEmpty();
     BigDecimal base = base();
     Map<RoleSession, List<Entry>> byRole = byRole();
     Map<RoleSession, BigDecimal> costs = new LinkedHashMap<>();
@@ -155,11 +168,19 @@ final class ShareRounds {
       committed = committed.add(cost);
     }
     int admitted = 0;
-    while (next < queue.size()) {
-      Entry entry = queue.get(next);
+    List<Entry> still = new ArrayList<>();
+    // The subjects, per role, of the items that wait: an item resting on one of them waits too.
+    Map<RoleSession, java.util.Set<String>> held = new LinkedHashMap<>();
+    for (Entry entry : waiting) {
       if (ended.contains(entry.id())) {
-        next++;
         entry.session().decided(entry, false);
+        continue;
+      }
+      java.util.Set<String> heldOfRole =
+          held.computeIfAbsent(entry.session(), s -> new java.util.HashSet<>());
+      if (entry.after().stream().anyMatch(heldOfRole::contains)) {
+        heldOfRole.add(entry.subject());
+        still.add(entry);
         continue;
       }
       List<Entry> mine = new ArrayList<>(byRole.getOrDefault(entry.session(), List.of()));
@@ -168,37 +189,41 @@ final class ShareRounds {
       BigDecimal after =
           committed.subtract(costs.getOrDefault(entry.session(), BigDecimal.ZERO)).add(cost);
       if (after.compareTo(share) > 0) {
-        break;
+        heldOfRole.add(entry.subject());
+        still.add(entry);
+        continue;
       }
       committed = after;
       byRole.put(entry.session(), mine);
       costs.put(entry.session(), cost);
       round.put(entry.id(), entry);
-      next++;
       admitted++;
       entry.session().decided(entry, true);
     }
+    waiting.clear();
+    waiting.addAll(still);
     if (admitted > 0) {
-      rounds++;
+      if (fresh || rounds == 0) {
+        rounds++;
+      }
       LOG.info(
-          "Budget round {} of {}: {} items admitted, ${} of ${} spent or expected",
+          "Budget round {} of {}: {} items admitted, {} wait, ${} of ${} spent or expected",
           rounds,
           group,
           admitted,
+          waiting.size(),
           committed.toPlainString(),
           share.toPlainString());
     }
-    if (round.isEmpty() && next < queue.size()) {
+    if (round.isEmpty() && !waiting.isEmpty()) {
       LOG.info(
           "The {} share is spent: {} items not asked, ${} of ${} spent",
           group,
-          queue.size() - next,
+          waiting.size(),
           guard.spentCostUsd().toPlainString(),
           share.toPlainString());
-      while (next < queue.size()) {
-        Entry entry = queue.get(next++);
-        entry.session().decided(entry, false);
-      }
+      waiting.forEach(entry -> entry.session().decided(entry, false));
+      waiting.clear();
     }
     notifyAll();
   }

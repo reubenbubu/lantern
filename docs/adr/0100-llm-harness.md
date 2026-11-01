@@ -120,11 +120,14 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   - **Which items fit is decided in rounds, in a fixed order** (#657, #659). Each role queues its
     misses in its own order (Summarize's tree, parts before the units that contain them;
     Describe's questions; the screen's chunks) on its group's queue, the roles in the order they
-    plan. A round admits items from the head of the queue while their estimates fit what is left
-    of the share: what the group has spent, less the estimates of what it has admitted and not
-    settled. Once every item of the round has an outcome (or has ended without one), the next
-    round admits from what is really left, until the first item that does not fit even then: it
-    and every item after it are not asked. A round is decided only when nothing of the group is in
+    plan. A round walks the queue and admits each item whose estimate fits what is left of the
+    share: what the group has spent, less the estimates of what it has admitted and not settled.
+    An item that does not fit waits for a later round, and the smaller items behind it that fit
+    are admitted (#661); an item that rests on one that waits waits with it, so Summarize never
+    asks a unit while one of its parts waits, since its prompt would lack that part's summary. Under a tight share Summarize therefore spreads sideways: a large unit that does not fit, and the units above it, wait while smaller units of other subtrees take the share, so the parts of a unit left out may be summarized without it.
+    Once every item of the round has an outcome (or has ended without one), the next round walks
+    what still waits, from what is really left. A round that admits nothing ends the group's
+    rounds: what still waits is not asked. A round is decided only when nothing of the group is in
     flight (claims aside, below), so which items are asked never depends on which thread asks
     first, and two runs at the same budget ask the same items and spend the same. An item that
     ends before its round is decided, such as a unit whose part failed, is passed over. Answers shorter than estimated leave room

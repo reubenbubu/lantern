@@ -154,6 +154,103 @@ class SummarizerTest {
   }
 
   @Test
+  void underABudgetNoUnitIsAskedWithoutItsPartsAndSmallerUnitsBehindALargeOneAreAsked() {
+    ModelConfig priced =
+        new ModelConfig(
+            FakeLlmProvider.NAME,
+            "priced",
+            EnumSet.complementOf(EnumSet.of(Capability.BATCH)),
+            1_000_000,
+            new Pricing(
+                new java.math.BigDecimal("1000"),
+                new java.math.BigDecimal("1000"),
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO));
+    // A unit that does not fit waits while smaller ones behind it are asked; a unit whose part
+    // waits waits with it, since its prompt would lack the part's summary (#661). Whatever the
+    // budget, the run ends and every unit asked had each of its parts asked first.
+    int skippedPast = 0;
+    for (int cents = 5; cents <= 2000; cents += 15) {
+      String usd = java.math.BigDecimal.valueOf(cents, 2).toPlainString();
+      Harness harness =
+          new Harness(
+              new LlmClient(
+                  ModelSettings.single(priced),
+                  List.of(fake),
+                  BudgetGuard.unlimited("test"),
+                  new InMemoryLlmCallLog(),
+                  Clock.systemUTC()),
+              new InMemoryAnswerStore(),
+              new RunBudget(new java.math.BigDecimal(usd), java.util.Map.of("summarize", 100)),
+              BlobLookup.NONE,
+              Set.of());
+      List<SummaryNode> roots = SummaryTree.fromFacts(TestFacts.shop().list());
+      org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(
+          java.time.Duration.ofSeconds(30), () -> new Summarizer(harness).summarize(roots));
+
+      io.lantern.harness.RoleRecord record = harness.records().getFirst();
+      Set<String> asked = new java.util.HashSet<>(record.asked());
+      List<String> order = new ArrayList<>();
+      postOrder(roots, order);
+      List<String> planned = order.stream().filter(e -> anything(roots, e)).toList();
+      for (SummaryNode node : nodes(roots)) {
+        if (asked.contains(node.entity().toString())) {
+          for (SummaryNode part : node.children()) {
+            if (anything(roots, part.entity().toString())) {
+              assertThat(asked)
+                  .as("$" + usd + ", " + node.entity())
+                  .contains(part.entity().toString());
+            }
+          }
+        }
+      }
+      // Asked units that come after one not asked, in the tree's order.
+      int firstNotAsked = -1;
+      for (int i = 0; i < planned.size(); i++) {
+        if (!asked.contains(planned.get(i))) {
+          firstNotAsked = i;
+          break;
+        }
+      }
+      if (firstNotAsked >= 0
+          && planned.subList(firstNotAsked, planned.size()).stream().anyMatch(asked::contains)) {
+        skippedPast++;
+      }
+      assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+    }
+    assertThat(skippedPast)
+        .as("budgets where a smaller unit was asked past a larger one")
+        .isPositive();
+  }
+
+  private static void postOrder(List<SummaryNode> nodes, List<String> order) {
+    for (SummaryNode node : nodes) {
+      postOrder(node.children(), order);
+      order.add(node.entity().toString());
+    }
+  }
+
+  private static List<SummaryNode> nodes(List<SummaryNode> roots) {
+    List<SummaryNode> all = new ArrayList<>();
+    for (SummaryNode node : roots) {
+      all.add(node);
+      all.addAll(nodes(node.children()));
+    }
+    return all;
+  }
+
+  /** Whether the unit has anything to summarize: facts of its own or of a part below it. */
+  private static boolean anything(List<SummaryNode> roots, String entity) {
+    return nodes(roots).stream()
+        .filter(node -> node.entity().toString().equals(entity))
+        .anyMatch(SummarizerTest::anything);
+  }
+
+  private static boolean anything(SummaryNode node) {
+    return !node.facts().isEmpty() || node.children().stream().anyMatch(SummarizerTest::anything);
+  }
+
+  @Test
   void aRerunAfterABudgetPlansEveryUnitAsItWillBeAskedAndDecidesItInOrder() {
     ModelConfig priced =
         new ModelConfig(
@@ -214,7 +311,13 @@ class SummarizerTest {
                 java.math.BigDecimal.ZERO,
                 java.math.BigDecimal.ZERO));
     int scenarios = 0;
-    for (String usd : List.of("0.5", "0.8", "1", "1.5")) {
+    // A sweep of budgets for the first run and a rerun at the same or a larger one: the scenario
+    // needs a rerun whose first unit to ask has parts while units off its path are left to ask too,
+    // which depends on where each budget's rounds end.
+    for (int pair = 0; pair < 36; pair++) {
+      int tenths = 3 + pair / 3;
+      String firstUsd = java.math.BigDecimal.valueOf(tenths, 1).toPlainString();
+      String usd = java.math.BigDecimal.valueOf(tenths + 3 * (pair % 3), 1).toPlainString();
       InMemoryAnswerStore store = new InMemoryAnswerStore();
       io.lantern.harness.AnswerStore failing =
           new io.lantern.harness.AnswerStore() {
@@ -239,8 +342,8 @@ class SummarizerTest {
               store.save(answer);
             }
           };
-      java.util.function.Function<io.lantern.harness.AnswerStore, Harness> harness =
-          answers ->
+      java.util.function.BiFunction<io.lantern.harness.AnswerStore, String, Harness> harness =
+          (answers, budget) ->
               new Harness(
                   new LlmClient(
                       ModelSettings.single(priced),
@@ -249,13 +352,18 @@ class SummarizerTest {
                       new InMemoryLlmCallLog(),
                       Clock.systemUTC()),
                   answers,
-                  new RunBudget(new java.math.BigDecimal(usd), java.util.Map.of("summarize", 100)),
+                  new RunBudget(
+                      new java.math.BigDecimal(budget), java.util.Map.of("summarize", 100)),
                   BlobLookup.NONE,
                   Set.of());
-      new Summarizer(harness.apply(store))
-          .summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+      Harness first = harness.apply(store, firstUsd);
+      new Summarizer(first).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+      if (first.records().getFirst().toJson().get("items").get("accepted").asInt() == 0) {
+        // Nothing stored, nothing for the store to fail on.
+        continue;
+      }
 
-      Harness again = harness.apply(failing);
+      Harness again = harness.apply(failing, usd);
       List<SummaryNode> roots = SummaryTree.fromFacts(TestFacts.shop().list());
       org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(
           java.time.Duration.ofSeconds(30),
