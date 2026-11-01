@@ -50,9 +50,9 @@ No real call was made: every test answers from a fake through a stub of the prov
   - So a batched request is reserved at its estimate: the output the role's plan expects of it,
     and its system prompt read from the cache the warm-up wrote (`LlmClient.batch(requests,
     expectedOutputTokens)`). Its real cost replaces the estimate when its result comes back.
-  - The budget refuses the requests whose estimates no longer fit, which cuts the batch to what is
-    left of the share. The spend can pass the share only by what the batch's answers cost beyond
-    their estimates; once it has, every further request is refused.
+  - A budget that holds back estimates, such as the monthly one, refuses the requests whose
+    estimates no longer fit, which cuts the batch to what is left. A role group's share holds back
+    nothing: the plan chose the items that fit it (ADR 0100, amendment for #42, as changed by #657).
 - **A one-hour write has its own price and count** (#654). A long-lived cache write costs twice the
   input price on Anthropic, not the five-minute write's 1.25 times.
   - Token usage counts it apart (`TokenUsage.cacheWriteLong`), from the lifetime breakdown

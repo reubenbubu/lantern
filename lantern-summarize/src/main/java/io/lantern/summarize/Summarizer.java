@@ -452,11 +452,11 @@ public final class Summarizer {
      * subtrees needs asking, and otherwise as a miss whose prompt is estimated from its facts.
      */
     void plan(Collection<SummaryNode> units) {
-      List<Item> known = new ArrayList<>();
+      // In tree order, parts before the units that contain them: under a budget, the plan takes
+      // the units that fit in this order (#657).
+      List<RoleSession.Planned> inOrder = new ArrayList<>();
       Map<EntityId, Boolean> missing = new HashMap<>();
       int hits = 0;
-      int misses = 0;
-      long tokens = 0;
       for (SummaryNode node : units) {
         boolean childMissing =
             node.children().stream().anyMatch(child -> missing.getOrDefault(child.entity(), false));
@@ -472,21 +472,22 @@ public final class Summarizer {
         planned.add(node.entity());
         if (node.children().isEmpty()) {
           Item item = Summarizer.item(node, Excerpts.of(node, this::text), List.of());
-          known.add(item);
+          inOrder.add(RoleSession.Planned.of(item));
           missing.put(node.entity(), !session.cached(item));
         } else if (childMissing) {
-          misses++;
-          tokens +=
-              Tokens.estimate(Prompt.SYSTEM)
-                  + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
-                  + CHILD_TOKENS * node.children().size();
+          inOrder.add(
+              RoleSession.Planned.predicted(
+                  node.entity().toString(),
+                  Tokens.estimate(Prompt.SYSTEM)
+                      + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
+                      + CHILD_TOKENS * node.children().size()));
           missing.put(node.entity(), true);
         } else {
           hits++;
           missing.put(node.entity(), false);
         }
       }
-      session.plan(known, hits, misses, tokens, Tokens.estimate(Prompt.SYSTEM));
+      session.plan(inOrder, hits, Tokens.estimate(Prompt.SYSTEM));
     }
 
     /** Lets every unit run at once, as batching does; called before any unit runs. */
@@ -500,6 +501,9 @@ public final class Summarizer {
      */
     Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
       try {
+        // The warm-up unit goes first; the others wait for it before taking a slot, so they never
+        // hold the slot it needs.
+        session.awaitWarmUp(node.entity().toString());
         running.acquire();
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();

@@ -106,6 +106,78 @@ class BatchPlanTest {
     assertThat(record.settled()).isEqualTo(record.planned()).isEqualTo(60);
   }
 
+  @Test
+  void underABudgetTheSameItemsAreAskedAndTheSameGoesFirstWhateverTheThreadTiming()
+      throws Exception {
+    // 40 items of about $0.0005 each (100 output tokens at $5 a million), a share of $0.0075:
+    // the plan takes the first 14 or so in its order, whatever order the threads ask them in.
+    List<Item> items = items(40);
+    java.util.Set<List<String>> askedSets = new java.util.HashSet<>();
+    java.util.Set<String> firstSent = new java.util.HashSet<>();
+    for (int run = 0; run < 25; run++) {
+      FakeLlmProvider fake = new FakeLlmProvider().answering("\"" + "x".repeat(400) + "\"");
+      RunBudget budget =
+          new RunBudget(new BigDecimal("0.015"), Map.of("summarize", 50, "describe", 50));
+      Harness harness =
+          new Harness(
+              TestHarness.client(fake, TestHarness.priced(fake)),
+              new InMemoryAnswerStore(),
+              budget,
+              BlobLookup.NONE,
+              Set.of());
+      RoleSession session = harness.session(TestHarness.role());
+      session.plan(items, 0);
+      List<Item> shuffled = new ArrayList<>(items);
+      java.util.Collections.shuffle(shuffled, new java.util.Random(run));
+      try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        List<Future<Outcome>> asked = new ArrayList<>();
+        for (Item item : shuffled) {
+          asked.add(executor.submit(() -> session.ask(item, TestHarness.asking(item))));
+        }
+        for (Future<Outcome> outcome : asked) {
+          outcome.get();
+        }
+      }
+      List<String> subjects = new ArrayList<>(session.record().asked());
+      java.util.Collections.sort(subjects);
+      askedSets.add(subjects);
+      firstSent.add(fake.sent().getFirst().request().purpose());
+      assertThat(session.record().settled()).isEqualTo(40);
+    }
+
+    // One set every run: the first items in the plan's order, as many as fit.
+    assertThat(askedSets).hasSize(1);
+    List<String> asked = askedSets.iterator().next();
+    assertThat(asked.size()).isBetween(10, 20);
+    List<String> expected = new ArrayList<>();
+    items.subList(0, asked.size()).forEach(item -> expected.add(item.subject()));
+    java.util.Collections.sort(expected);
+    assertThat(asked).isEqualTo(expected);
+    assertThat(firstSent).containsExactly("describe unit-0");
+  }
+
+  @Test
+  void withRoomForEverythingEveryItemIsAskedAndTheFirstInOrderGoesFirst() throws Exception {
+    List<Item> items = items(30);
+    FakeLlmProvider fake = new FakeLlmProvider();
+    RoleSession session =
+        harness(TestHarness.client(fake), new InMemoryAnswerStore()).session(TestHarness.role());
+    session.plan(items, 0);
+    List<Item> reversed = new ArrayList<>(items);
+    java.util.Collections.reverse(reversed);
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<Future<Outcome>> asked = new ArrayList<>();
+      for (Item item : reversed) {
+        asked.add(executor.submit(() -> session.ask(item, TestHarness.asking(item))));
+      }
+      for (Future<Outcome> outcome : asked) {
+        assertThat(outcome.get().kind()).isEqualTo(Outcome.Kind.ANSWERED);
+      }
+    }
+    assertThat(fake.sent()).hasSize(30);
+    assertThat(fake.sent().getFirst().request().purpose()).isEqualTo("describe unit-0");
+  }
+
   /** Asks one request of up to the given output for the item, and accepts any answer. */
   private static Asker askingUpTo(Item item, int maxOutput) {
     return calls ->

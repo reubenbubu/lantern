@@ -116,17 +116,25 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   resolve 5, model-checks 5. Issue #42 listed Describe at 22% and no Name groups; the epic's split
   wins. A share of an unknown group, or shares adding up to more than 100%, stop the app at start.
 - **A share belongs to a group, not a role.** The roles of one group (the describe roles; flow
-  narrative and purpose) plan against, and spend from, one share. Before an item is asked, its
-  estimated cost is held against the share; an item whose estimate does not fit beside what the
-  group has spent and the estimates of its items still being asked is not asked. An item's estimate
-  is priced as the plan prices it: the prompt's start read from the cache, a role that groups items
-  paying its share of each request's start, and the batch price when the role batches. Once the
-  item is settled its estimate is released, its real cost counted instead, so the check follows
-  what is spent, not what was estimated (#654). A role that groups items into requests (the judge,
-  the screen) decides all the items of one call on their estimates before any request goes, so it
-  stops at its estimates, short of its share when its answers cost less than estimated. A call that still goes past the share, because the
-  estimate was low, is refused by the group's guard and its item is not asked either. Nothing not
-  asked is cached, so a later run with room asks it.
+  narrative and purpose) plan against, and spend from, one share.
+  - **The plan decides which items fit, before anything is asked** (#657). It walks the role's
+    items in the role's own order (Summarize's tree, parts before the units that contain them;
+    Describe's questions; the screen's chunks), adds each miss's estimate to the group's plan, and
+    stops at the first that does not fit: it and every item after it are not asked. So which items
+    are asked never depends on which thread asks first, and two runs at the same budget ask the
+    same items. An item the plan did not know by subject is decided when asked.
+  - An item's estimate is priced as the plan prices it: the prompt's start read from the cache, a
+    role that groups items paying its share of each request's start, and the batch price when the
+    role batches (#654).
+  - The plan also names the warm-up item: its first miss that is asked. It goes first; the others
+    wait for it to settle. Summarize waits for it before taking one of its slots, so waiting units
+    never hold the slot the warm-up needs.
+  - The group's guard holds back no worst case: it refuses a call only once the group has spent its
+    share (`BudgetGuard.stopOnceSpent`). Estimates above the real cost leave part of the share
+    unspent, as on the fakes, whose answers are short. Estimates below it let the group pass its
+    share by at most the calls running when it is reached; the calls after are refused and their
+    items not asked. The share is "very close", not "never over".
+  - Nothing not asked is cached, so a later run with room asks it.
 - **Each role's estimate is printed before its own first call, not all of them before the run's
   first call.** A role's items depend on earlier roles' answers: a parent summary shows its
   children's, Describe shows the summaries, so their fingerprints and cache hits are only known
