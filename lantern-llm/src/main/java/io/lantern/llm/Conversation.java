@@ -34,6 +34,9 @@ public final class Conversation {
   private final LlmClient client;
   private final ToolBox tools;
   private final int turnCap;
+  private final ConversationLimits limits;
+  private long freshInput;
+  private boolean nudged;
   private final String id = UUID.randomUUID().toString();
   private final Clock clock;
   private final Instant started;
@@ -44,12 +47,19 @@ public final class Conversation {
   private String purpose;
   private LlmResponse last;
   private int turns;
+  private int toolTurns;
   private TokenUsage usage = TokenUsage.NONE;
   private BigDecimal cost = BigDecimal.ZERO;
   private boolean ended;
 
   Conversation(LlmClient client, LlmRequest request, ToolBox tools, int turnCap) {
+    this(client, request, tools, turnCap, ConversationLimits.NONE);
+  }
+
+  Conversation(
+      LlmClient client, LlmRequest request, ToolBox tools, int turnCap, ConversationLimits limits) {
     this.client = Objects.requireNonNull(client, "client");
+    this.limits = Objects.requireNonNull(limits, "limits");
     this.tools = Objects.requireNonNull(tools, "tools");
     if (turnCap < 1) {
       throw new IllegalArgumentException("The turn cap must be positive: " + turnCap);
@@ -62,9 +72,10 @@ public final class Conversation {
             request.purpose(),
             request.system(),
             request.messages(),
-            request.maxOutputTokens(),
+            Math.min(request.maxOutputTokens(), limits.outputTokensPerTurn()),
             request.cacheSystem(),
-            tools.tools());
+            tools.tools(),
+            request.cacheBreaks());
     this.messages = new ArrayList<>(request.messages());
     this.purpose = request.purpose();
     this.model = client.model(request.role());
@@ -103,7 +114,7 @@ public final class Conversation {
     if (turns > 0 || ended) {
       throw new IllegalStateException("The conversation has already started");
     }
-    return loop();
+    return loop(false);
   }
 
   /**
@@ -131,7 +142,7 @@ public final class Conversation {
       messages.add(LlmMessage.assistant(last.text()));
       messages.add(LlmMessage.user(text));
     }
-    return loop();
+    return loop(true);
   }
 
   /**
@@ -166,8 +177,24 @@ public final class Conversation {
     end(ending, null);
   }
 
-  private LlmResponse loop() {
+  /** The input used so far in fresh-token equivalents ({@link ConversationLimits}). */
+  public long freshInput() {
+    return freshInput;
+  }
+
+  /**
+   * Sends turns until the model answers. A reply's own turn is not held to the caps: it answers the
+   * caller (a repair, say), not a tool result, and the caps bound tool use.
+   */
+  private LlmResponse loop(boolean replying) {
+    boolean exempt = replying;
     while (true) {
+      String capped = exempt ? null : capped();
+      exempt = false;
+      if (capped != null) {
+        end(LlmConversation.Ending.CAPPED, capped);
+        throw new ConversationCappedException(capped);
+      }
       if (turns >= turnCap) {
         String reason =
             "Stopped at the safety cap of %d turns before the model answered".formatted(turns);
@@ -195,6 +222,7 @@ public final class Conversation {
               usage.cacheWrite() + response.usage().cacheWrite(),
               usage.cacheRead() + response.usage().cacheRead());
       cost = cost.add(model.pricing().cost(response.usage()));
+      freshInput += ConversationLimits.freshEquivalent(response.usage());
       last = response;
       if (!response.wantsTools()) {
         return response;
@@ -214,7 +242,32 @@ public final class Conversation {
         results.add(result);
       }
       messages.add(LlmMessage.assistant(response));
-      messages.add(LlmMessage.toolResults(results, ""));
+      toolTurns++; // the turn these results go back in is a tool turn
+      String note = "";
+      if (!nudged && nearCap()) {
+        // Lantern's own words go after the tool results, never inside one.
+        nudged = true;
+        note = limits.nudge();
+      }
+      messages.add(LlmMessage.toolResults(results, note));
     }
+  }
+
+  /** Why the next turn may not be sent, or null if it may. */
+  private String capped() {
+    if (toolTurns > limits.toolTurns()) {
+      return "Stopped at the cap of %d tool turns".formatted(limits.toolTurns());
+    }
+    if (freshInput >= limits.inputTokens()) {
+      return "Stopped at the cap of %d input tokens (fresh-token equivalents)"
+          .formatted(limits.inputTokens());
+    }
+    return null;
+  }
+
+  /** Whether the turn about to be sent passes {@value ConversationLimits#NUDGE_SHARE} of a cap. */
+  private boolean nearCap() {
+    return toolTurns >= Math.ceil(limits.toolTurns() * ConversationLimits.NUDGE_SHARE)
+        || freshInput >= limits.inputTokens() * ConversationLimits.NUDGE_SHARE;
   }
 }

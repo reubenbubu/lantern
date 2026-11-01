@@ -2,7 +2,7 @@
 
 Status: accepted (#181), amends ADR 0044, ADR 0047 and ADR 0048, amended by ADR 0056 (#194),
 ADR 0058 (#195), ADR 0060 (#196), ADR 0065 (#216), ADR 0066 (#192), ADR 0067
-(#200), ADR 0068 (#191), ADR 0069 (#208) and ADR 0070 (#250), amended by ADR 0088 (#276), amended for #369
+(#200), ADR 0068 (#191), ADR 0069 (#208) and ADR 0070 (#250), amended by ADR 0088 (#276), amended for #369, its caching superseded by ADR 0100 (#525: `unit_wordings` replaced by `llm_answers`)
 
 ## Context
 

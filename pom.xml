@@ -24,6 +24,7 @@
     <module>lantern-link</module>
     <module>lantern-derive</module>
     <module>lantern-llm</module>
+    <module>lantern-harness</module>
     <module>lantern-summarize</module>
     <module>lantern-compose</module>
     <module>lantern-app</module>
@@ -82,6 +83,11 @@
       <dependency>
         <groupId>io.lantern</groupId>
         <artifactId>lantern-llm</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.lantern</groupId>
+        <artifactId>lantern-harness</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

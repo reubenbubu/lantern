@@ -123,6 +123,30 @@ public final class LlmClient {
     return new LlmClient(settings, providers, List.copyOf(all), log, clock, limiter);
   }
 
+  /**
+   * A client that also records every call in the given log, for example a role's run record, on top
+   * of this client's log.
+   */
+  public LlmClient alsoLogging(LlmCallLog extra) {
+    Objects.requireNonNull(extra, "extra");
+    LlmCallLog first = log;
+    LlmCallLog both =
+        new LlmCallLog() {
+          @Override
+          public void record(LlmCall call) {
+            first.record(call);
+            extra.record(call);
+          }
+
+          @Override
+          public void recordConversation(LlmConversation conversation) {
+            first.recordConversation(conversation);
+            extra.recordConversation(conversation);
+          }
+        };
+    return new LlmClient(settings, providers, budgets, both, clock, limiter);
+  }
+
   /** The model the given role uses, so callers can check its capabilities. */
   public ModelConfig model(Role role) {
     return settings.forRole(role);
@@ -147,6 +171,11 @@ public final class LlmClient {
    */
   public Conversation converse(LlmRequest request, ToolBox tools) {
     return new Conversation(this, request, tools, Conversation.DEFAULT_TURN_CAP);
+  }
+
+  /** As {@link #converse(LlmRequest, ToolBox)}, within the given caps. */
+  public Conversation converse(LlmRequest request, ToolBox tools, ConversationLimits limits) {
+    return new Conversation(this, request, tools, Conversation.DEFAULT_TURN_CAP, limits);
   }
 
   /**
@@ -182,6 +211,10 @@ public final class LlmClient {
   LlmResponse call(LlmRequest request, Turn turn) {
     Objects.requireNonNull(request, "request");
     ModelConfig model = settings.forRole(request.role());
+    if (!model.supports(Capability.PROMPT_CACHING) && !request.cacheBreaks().isEmpty()) {
+      // Breakpoints are hints: a model without prompt caching is sent the same prompt without them.
+      request = request.withCacheBreaks(List.of());
+    }
     Instant start = clock.instant();
     try {
       check(model, request);

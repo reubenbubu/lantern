@@ -21,8 +21,8 @@ final class ArchitectureRules {
           .resideInAPackage("io.lantern.extract..")
           .should()
           .dependOnClassesThat()
-          .resideInAPackage("io.lantern.llm..")
-          .because("extractors must not depend on lantern-llm");
+          .resideInAnyPackage("io.lantern.llm..", "io.lantern.harness..")
+          .because("extractors must not depend on lantern-llm or the LLM harness");
 
   /**
    * A renderer: a class of the app, nested ones included, whose name ends in {@code Renderer}
@@ -64,6 +64,7 @@ final class ArchitectureRules {
               "io.lantern.derive..",
               "io.lantern.summarize..",
               "io.lantern.investigate..",
+              "io.lantern.harness..",
               "io.lantern.llm..")
           .orShould()
           .dependOnClassesThat()

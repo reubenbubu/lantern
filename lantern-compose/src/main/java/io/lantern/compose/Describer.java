@@ -9,22 +9,24 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.Knowledge;
-import io.lantern.llm.LlmClient;
-import io.lantern.llm.LlmException;
+import io.lantern.harness.FingerprintInput;
+import io.lantern.harness.Harness;
+import io.lantern.harness.Item;
+import io.lantern.harness.Outcome;
+import io.lantern.harness.Rejected;
+import io.lantern.harness.Repair;
+import io.lantern.harness.RoleSession;
+import io.lantern.harness.RoleSpec;
+import io.lantern.harness.RunMode;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
-import io.lantern.llm.LlmResponse;
-import io.lantern.llm.ModelConfig;
 import io.lantern.llm.Role;
+import io.lantern.llm.Tokens;
 import io.lantern.summarize.SourceFiles;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,11 +61,15 @@ import org.slf4j.LoggerFactory;
  * sentences, with the facts they cite, and the README claims of its repositories (ADR 0060);
  * without a purpose the system's report states it as unknown.
  *
- * <p>Answers are cached by the hash of the prompt, which shows no fact IDs, so a run over unchanged
- * facts makes no call. It never fails the run: an answer rejected twice, and a call refused by a
- * budget or the model's capabilities or failing in the provider, log a warning and cache nothing,
- * so a later run asks again. Calls run in parallel on virtual threads, bounded by the client's
- * limits.
+ * <p>Each question is an item of the LLM harness (ADR 0100), under one of four roles: units, data
+ * stores and destinations, flows, and the system's purpose. Its answer is cached under the item's
+ * fingerprint, which hashes the role, its prompt version, the model, the facts the prompt shows
+ * (their claim IDs, with the blobs of the files whose code it shows) and the prompt, which shows no
+ * fact IDs, so a run over unchanged facts makes no call. Before any question of a role is asked,
+ * the harness's plan prints the role's estimate. It never fails the run: an answer rejected twice,
+ * a question past its role's share of the run budget, and a call refused by a budget or the model's
+ * capabilities or failing in the provider, log a warning and cache nothing, so a later run asks
+ * again. Calls run in parallel on virtual threads, bounded by the client's limits.
  */
 public final class Describer {
 
@@ -168,29 +174,65 @@ public final class Describer {
     }
   }
 
-  private final LlmClient client;
-  private final WordingStore store;
+  /** The role that words units, their components and links (ADR 0100). */
+  public static final RoleSpec UNITS =
+      RoleSpec.single(
+          "describe-unit",
+          Role.INFER_INTENT,
+          WordingPrompt.VERSION,
+          "describe",
+          RunMode.BULK,
+          MAX_OUTPUT_TOKENS / 2);
+
+  /** The role that words data stores, destinations and external systems. */
+  public static final RoleSpec ELEMENTS =
+      RoleSpec.single(
+          "describe-element",
+          Role.INFER_INTENT,
+          WordingPrompt.ELEMENT_VERSION,
+          "describe",
+          RunMode.BULK,
+          MAX_ELEMENT_OUTPUT_TOKENS / 2);
+
+  /** The role that narrates the main flows. */
+  public static final RoleSpec FLOWS =
+      RoleSpec.single(
+          "flow-narrative",
+          Role.COMPOSE,
+          WordingPrompt.FLOW_VERSION,
+          "flows-and-purpose",
+          RunMode.BULK,
+          MAX_FLOW_OUTPUT_TOKENS / 2);
+
+  /** The role that words the system's purpose. */
+  public static final RoleSpec PURPOSE =
+      RoleSpec.single(
+          "purpose",
+          Role.INFER_INTENT,
+          WordingPrompt.PURPOSE_VERSION,
+          "flows-and-purpose",
+          RunMode.INTERACTIVE,
+          MAX_PURPOSE_OUTPUT_TOKENS / 2);
+
+  private final Harness harness;
   private final SourceFiles sources;
 
   /**
    * A describer whose prompts show no code.
    *
-   * @param client the LLM, with the budgets the run's calls count against
-   * @param store where answers are cached
+   * @param harness the run's LLM harness
    */
-  public Describer(LlmClient client, WordingStore store) {
-    this(client, store, SourceFiles.NONE);
+  public Describer(Harness harness) {
+    this(harness, SourceFiles.NONE);
   }
 
   /**
-   * @param client the LLM, with the budgets the run's calls count against
-   * @param store where answers are cached
+   * @param harness the run's LLM harness
    * @param sources where the files the facts were observed in are read from, for the code of
    *     components
    */
-  public Describer(LlmClient client, WordingStore store, SourceFiles sources) {
-    this.client = Objects.requireNonNull(client, "client");
-    this.store = Objects.requireNonNull(store, "store");
+  public Describer(Harness harness, SourceFiles sources) {
+    this.harness = Objects.requireNonNull(harness, "harness");
     this.sources = Objects.requireNonNull(sources, "sources");
   }
 
@@ -237,14 +279,14 @@ public final class Describer {
       questions.add(question(element, knowledge, assembler, c4));
     }
     questions.addAll(flows(repoFacts, knowledge, assembler, c4));
-    List<Outcome> outcomes = new ArrayList<>();
+    plan(questions);
+    List<Asked> outcomes = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-      List<Future<Outcome>> futures = new ArrayList<>();
+      List<Future<Asked>> futures = new ArrayList<>();
       for (Question question : questions) {
-        ModelConfig model = client.model(role(question));
-        futures.add(executor.submit(() -> answer(question, model)));
+        futures.add(executor.submit(() -> answer(question)));
       }
-      for (Future<Outcome> future : futures) {
+      for (Future<Asked> future : futures) {
         outcomes.add(future.get());
       }
     } catch (InterruptedException e) {
@@ -262,7 +304,11 @@ public final class Describer {
     }
     // The system's purpose rests on the units' sentences, so it is asked about after them.
     Optional<Question> purpose = purpose(knowledge, questions, outcomes);
-    purpose.ifPresent(q -> tally.add(q, answer(q, client.model(role(q)))));
+    purpose.ifPresent(
+        q -> {
+          plan(List.of(q));
+          tally.add(q, answer(q));
+        });
     LOG.info(
         "Wordings: {} units, data stores, destinations, flows and the system asked, {} cached,"
             + " {} rejected, {} skipped",
@@ -288,7 +334,7 @@ public final class Describer {
     int asked;
     int reused;
 
-    void add(Question question, Outcome outcome) {
+    void add(Question question, Asked outcome) {
       switch (outcome.kind()) {
         case SKIPPED -> skipped.add(question.element());
         case REJECTED -> {
@@ -476,11 +522,11 @@ public final class Describer {
    * IDs.
    */
   private static Optional<Question> purpose(
-      Knowledge knowledge, List<Question> questions, List<Outcome> outcomes) {
+      Knowledge knowledge, List<Question> questions, List<Asked> outcomes) {
     List<WordingPrompt.UnitSentence> units = new ArrayList<>();
     for (int i = 0; i < questions.size(); i++) {
       Question question = questions.get(i);
-      Outcome outcome = outcomes.get(i);
+      Asked outcome = outcomes.get(i);
       if (!question.about().equals(WordingAnswer.UNIT) || outcome.kind() != Kind.ANSWERED) {
         continue;
       }
@@ -683,14 +729,63 @@ public final class Describer {
     SKIPPED
   }
 
-  private record Outcome(Kind kind, WordingAnswer answer, boolean cached) {}
+  private record Asked(Kind kind, WordingAnswer answer, boolean cached) {}
 
-  private Outcome answer(Question question, ModelConfig model) {
-    String key = key(question, model);
-    WordingAnswer cached = store.find(key).orElse(null);
-    if (cached != null) {
-      return new Outcome(Kind.ANSWERED, cached, true);
+  /** The role of a question. */
+  static RoleSpec spec(Question question) {
+    return switch (question.about()) {
+      case WordingAnswer.UNIT -> UNITS;
+      case WordingPrompt.WALKTHROUGH -> FLOWS;
+      case WordingPrompt.PURPOSE -> PURPOSE;
+      default -> ELEMENTS;
+    };
+  }
+
+  /**
+   * A question as an item of the harness: the claims it shows, the blobs of the files whose code it
+   * shows, and its whole prompt.
+   */
+  static Item item(Question question) {
+    List<FingerprintInput> inputs = new ArrayList<>();
+    question.facts().values().forEach(fact -> inputs.add(FingerprintInput.of(fact)));
+    // The files whose code the prompt shows, by their blobs.
+    question
+        .code()
+        .keySet()
+        .forEach(
+            ref -> {
+              Fact fact = question.facts().get(ref);
+              if (fact != null) {
+                FingerprintInput.fileOf(fact).ifPresent(inputs::add);
+              }
+            });
+    return new Item(
+        question.element().toString(),
+        "",
+        inputs,
+        "prompt "
+            + question.version()
+            + "\nsystem\n"
+            + question.system()
+            + "\nuser\n"
+            + question.user());
+  }
+
+  /** Plans the questions, role by role, before any is asked. */
+  private void plan(List<Question> questions) {
+    Map<RoleSpec, List<Item>> byRole = new LinkedHashMap<>();
+    Map<RoleSpec, Long> prefix = new LinkedHashMap<>();
+    for (Question question : questions) {
+      byRole.computeIfAbsent(spec(question), r -> new ArrayList<>()).add(item(question));
+      prefix.putIfAbsent(spec(question), Tokens.estimate(question.system()));
     }
+    byRole.forEach((role, items) -> harness.session(role).plan(items, prefix.get(role)));
+  }
+
+  private Asked answer(Question question) {
+    RoleSession session = harness.session(spec(question));
+    Item item = item(question);
+    String key = session.fingerprint(item);
     String purpose =
         switch (question.about()) {
           case WordingAnswer.UNIT -> "word unit " + question.element();
@@ -698,54 +793,58 @@ public final class Describer {
           case WordingPrompt.PURPOSE -> "word the system's purpose";
           default -> "word element " + question.element();
         };
-    try {
-      List<LlmMessage> messages = new ArrayList<>();
-      messages.add(LlmMessage.user(question.user()));
-      LlmResponse first = ask(question, purpose, messages);
-      Map<String, WordingAnswer.Item> items;
-      try {
-        items = WordingPrompt.check(first, question);
-      } catch (WordingPrompt.Rejected rejected) {
-        logRejected(purpose, rejected, first);
-        if (first.text().isBlank()) {
-          // A conversation cannot hold an empty turn, so the reason goes with the prompt again.
-          messages.set(
-              0,
-              LlmMessage.user(
-                  question.user() + "\n" + WordingPrompt.RETRY.formatted(rejected.getMessage())));
-        } else {
-          messages.add(LlmMessage.assistant(first.text()));
-          messages.add(LlmMessage.user(WordingPrompt.RETRY.formatted(rejected.getMessage())));
-        }
-        LlmResponse second = ask(question, purpose + " (retry)", messages);
-        try {
-          items = WordingPrompt.check(second, question);
-        } catch (WordingPrompt.Rejected again) {
-          logRejected(purpose + " (retry)", again, second);
-          return new Outcome(Kind.REJECTED, null, false);
-        }
+    Outcome outcome =
+        session.ask(
+            item,
+            calls -> {
+              Map<String, WordingAnswer.Item> items =
+                  calls.answer(
+                      new LlmRequest(
+                          role(question),
+                          purpose,
+                          question.system(),
+                          List.of(LlmMessage.user(question.user())),
+                          maxTokens(question),
+                          false),
+                      response -> {
+                        try {
+                          return WordingPrompt.check(response, question);
+                        } catch (WordingPrompt.Rejected rejected) {
+                          throw new Rejected(rejected.getMessage());
+                        }
+                      },
+                      Repair.withMessage(
+                          rejected -> WordingPrompt.RETRY.formatted(rejected.getMessage())));
+              return io.lantern.harness.Answer.of(WordingJson.write(items));
+            });
+    return switch (outcome.kind()) {
+      case CACHED, ANSWERED ->
+          new Asked(
+              Kind.ANSWERED,
+              new WordingAnswer(
+                  key,
+                  question.element(),
+                  WordingJson.read(outcome.answer()),
+                  question.version(),
+                  session.model().provider(),
+                  session.model().model()),
+              outcome.kind() == Outcome.Kind.CACHED);
+      case DROPPED -> new Asked(Kind.REJECTED, null, false);
+      case OMITTED, NOT_ASKED, FAILED -> {
+        LOG.warn(
+            "Left {} as it was, could not {}: {}", question.element(), purpose, outcome.reason());
+        yield new Asked(Kind.SKIPPED, null, false);
       }
-      WordingAnswer answer =
-          new WordingAnswer(
-              key, question.element(), items, question.version(), model.provider(), model.model());
-      store.save(answer);
-      return new Outcome(Kind.ANSWERED, answer, false);
-    } catch (LlmException e) {
-      LOG.warn("Left {} as it was, could not {}: {}", question.element(), purpose, e.getMessage());
-      return new Outcome(Kind.SKIPPED, null, false);
-    }
+    };
   }
 
-  private LlmResponse ask(Question question, String purpose, List<LlmMessage> messages) {
-    int maxTokens =
-        switch (question.about()) {
-          case WordingAnswer.UNIT -> MAX_OUTPUT_TOKENS;
-          case WordingPrompt.WALKTHROUGH -> MAX_FLOW_OUTPUT_TOKENS;
-          case WordingPrompt.PURPOSE -> MAX_PURPOSE_OUTPUT_TOKENS;
-          default -> MAX_ELEMENT_OUTPUT_TOKENS;
-        };
-    return client.call(
-        new LlmRequest(role(question), purpose, question.system(), messages, maxTokens, false));
+  private static int maxTokens(Question question) {
+    return switch (question.about()) {
+      case WordingAnswer.UNIT -> MAX_OUTPUT_TOKENS;
+      case WordingPrompt.WALKTHROUGH -> MAX_FLOW_OUTPUT_TOKENS;
+      case WordingPrompt.PURPOSE -> MAX_PURPOSE_OUTPUT_TOKENS;
+      default -> MAX_ELEMENT_OUTPUT_TOKENS;
+    };
   }
 
   /** Whether the question is about a sequence flow. */
@@ -759,41 +858,6 @@ public final class Describer {
    */
   private static Role role(Question question) {
     return flow(question) ? Role.COMPOSE : Role.INFER_INTENT;
-  }
-
-  private static void logRejected(
-      String purpose, WordingPrompt.Rejected reason, LlmResponse answer) {
-    String text = answer.text();
-    if (text.length() > LOGGED_ANSWER) {
-      text = text.substring(0, LOGGED_ANSWER) + "... (" + text.length() + " characters)";
-    }
-    LOG.warn(
-        "Rejected the answer to {}: {} The answer: {}",
-        purpose,
-        reason.getMessage(),
-        text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n"));
-  }
-
-  /** The cache key: the SHA-256 of the prompt version, provider, model and prompt. */
-  static String key(Question question, ModelConfig model) {
-    String text =
-        "prompt "
-            + question.version()
-            + "\nprovider "
-            + model.provider()
-            + "\nmodel "
-            + model.model()
-            + "\nsystem\n"
-            + question.system()
-            + "\nuser\n"
-            + question.user();
-    try {
-      return HexFormat.of()
-          .formatHex(
-              MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is not available", e);
-    }
   }
 
   // ---------------------------------------------------------------------------------------------

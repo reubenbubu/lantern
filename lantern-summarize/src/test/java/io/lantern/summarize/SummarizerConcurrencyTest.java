@@ -6,7 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
-import io.lantern.llm.BudgetExceededException;
+import io.lantern.harness.BlobLookup;
+import io.lantern.harness.Harness;
+import io.lantern.harness.InMemoryAnswerStore;
+import io.lantern.harness.RunBudget;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.CallLimiter;
 import io.lantern.llm.CallLimits;
@@ -22,6 +25,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -76,9 +80,13 @@ class SummarizerConcurrencyTest {
     FakeLlmProvider warmUp = new FakeLlmProvider().answering(SummarizerTest::citingAll);
     String type = "type:com.example.WarmUp";
     new Summarizer(
-            client(
-                warmUp, calls, BudgetGuard.unlimited("warm-up"), new InMemoryLlmCallLog(), limiter),
-            new InMemorySummaryStore())
+            Harness.inMemory(
+                client(
+                    warmUp,
+                    calls,
+                    BudgetGuard.unlimited("warm-up"),
+                    new InMemoryLlmCallLog(),
+                    limiter)))
         .summarize(
             List.of(
                 node(type, SummaryLevel.TYPE, List.of(fact(type, "kind", "class")), List.of())));
@@ -86,8 +94,7 @@ class SummarizerConcurrencyTest {
   }
 
   private Summarizer summarizer(int maxConcurrency) {
-    return new Summarizer(
-        client(maxConcurrency, BudgetGuard.unlimited("run")), new InMemorySummaryStore());
+    return new Summarizer(Harness.inMemory(client(maxConcurrency, BudgetGuard.unlimited("run"))));
   }
 
   /**
@@ -176,11 +183,14 @@ class SummarizerConcurrencyTest {
   void theBudgetHoldsAndEveryCallIsLogged() {
     // Enough for some of the types, not for the whole repository.
     BudgetGuard budget = new BudgetGuard("run", 5_000L, null);
-    InMemorySummaryStore store = new InMemorySummaryStore();
-    Summarizer summarizer = new Summarizer(client(8, budget), store);
+    InMemoryAnswerStore store = new InMemoryAnswerStore();
+    Summarizer summarizer =
+        new Summarizer(
+            new Harness(client(8, budget), store, RunBudget.NONE, BlobLookup.NONE, Set.of()));
 
-    assertThatThrownBy(() -> summarizer.summarize(wideRepo()))
-        .isInstanceOf(BudgetExceededException.class);
+    // A budget that refuses a call leaves the unit not asked (ADR 0100); the run goes on.
+    Summarizer.Result result = summarizer.summarize(wideRepo());
+    assertThat(result.notAsked()).isNotEmpty();
 
     int sent = fake.sent().size();
     assertThat(budget.spentTokens()).isPositive().isLessThanOrEqualTo(5_000);

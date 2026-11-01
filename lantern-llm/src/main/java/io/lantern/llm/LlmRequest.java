@@ -18,6 +18,9 @@ import java.util.Set;
  *     model with that capability caches it whether set or not ({@link ModelConfig#cachesSystem})
  * @param tools the tools the model may call, each with a distinct name; any needs {@link
  *     Capability#TOOL_USE}
+ * @param cacheBreaks where the provider may cache the prompt (knowledge-build epic, section 10), in
+ *     the order they come in the request, at most {@value CacheBreak#MAX} with {@code cacheSystem}
+ *     counted as one; any needs {@link Capability#PROMPT_CACHING}
  */
 public record LlmRequest(
     Role role,
@@ -26,7 +29,8 @@ public record LlmRequest(
     List<LlmMessage> messages,
     int maxOutputTokens,
     boolean cacheSystem,
-    List<LlmTool> tools) {
+    List<LlmTool> tools,
+    List<CacheBreak> cacheBreaks) {
 
   public LlmRequest {
     Objects.requireNonNull(role, "role");
@@ -58,6 +62,45 @@ public record LlmRequest(
     if (usesTools && tools.isEmpty()) {
       throw new IllegalArgumentException("A conversation with tool calls must offer the tools");
     }
+    cacheBreaks = List.copyOf(Objects.requireNonNull(cacheBreaks, "cacheBreaks"));
+    if (cacheBreaks.size() + (cacheSystem ? 1 : 0) > CacheBreak.MAX) {
+      throw new IllegalArgumentException(
+          "At most " + CacheBreak.MAX + " cache breakpoints: " + cacheBreaks);
+    }
+    CacheBreak previous = null;
+    for (CacheBreak at : cacheBreaks) {
+      String text = at.message() == CacheBreak.SYSTEM ? system : null;
+      if (at.message() == CacheBreak.SYSTEM && system == null) {
+        throw new IllegalArgumentException("A cache breakpoint in a missing system prompt");
+      }
+      if (at.message() >= messages.size()) {
+        throw new IllegalArgumentException("A cache breakpoint after the last turn: " + at);
+      }
+      if (at.message() >= 0) {
+        text = messages.get(at.message()).text();
+      }
+      if (at.offset() != CacheBreak.END && at.offset() > text.length()) {
+        throw new IllegalArgumentException("A cache breakpoint past its text: " + at);
+      }
+      if (previous != null
+          && (at.message() < previous.message()
+              || (at.message() == previous.message() && at.offset() <= previous.offset()))) {
+        throw new IllegalArgumentException("Cache breakpoints out of order: " + cacheBreaks);
+      }
+      previous = at;
+    }
+  }
+
+  /** A request without cache breakpoints. */
+  public LlmRequest(
+      Role role,
+      String purpose,
+      String system,
+      List<LlmMessage> messages,
+      int maxOutputTokens,
+      boolean cacheSystem,
+      List<LlmTool> tools) {
+    this(role, purpose, system, messages, maxOutputTokens, cacheSystem, tools, List.of());
   }
 
   /** A request without tools. */
@@ -80,17 +123,32 @@ public record LlmRequest(
 
   /** The same request with another output limit. */
   public LlmRequest withMaxOutputTokens(int maxOutputTokens) {
-    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem, tools);
+    return new LlmRequest(
+        role, purpose, system, messages, maxOutputTokens, cacheSystem, tools, cacheBreaks);
   }
 
   /** The same request with other turns. */
   public LlmRequest withMessages(List<LlmMessage> messages) {
-    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem, tools);
+    return new LlmRequest(
+        role, purpose, system, messages, maxOutputTokens, cacheSystem, tools, cacheBreaks);
   }
 
   /** The same request with another purpose. */
   public LlmRequest withPurpose(String purpose) {
-    return new LlmRequest(role, purpose, system, messages, maxOutputTokens, cacheSystem, tools);
+    return new LlmRequest(
+        role, purpose, system, messages, maxOutputTokens, cacheSystem, tools, cacheBreaks);
+  }
+
+  /** The same request with other cache breakpoints. */
+  public LlmRequest withCacheBreaks(List<CacheBreak> cacheBreaks) {
+    return new LlmRequest(
+        role, purpose, system, messages, maxOutputTokens, cacheSystem, tools, cacheBreaks);
+  }
+
+  /** The same request with other tools. */
+  public LlmRequest withTools(List<LlmTool> tools) {
+    return new LlmRequest(
+        role, purpose, system, messages, maxOutputTokens, cacheSystem, tools, cacheBreaks);
   }
 
   /**

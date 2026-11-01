@@ -1,17 +1,15 @@
 package io.lantern.app;
 
 import io.lantern.compose.ViewDefinitionStore;
-import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.harness.AnswerStore;
 import io.lantern.link.JdbcRuleRuns;
-import io.lantern.link.ResolutionStore;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.SandboxSettings;
-import io.lantern.summarize.SummaryStore;
 import java.nio.file.Path;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -65,9 +63,7 @@ class AnalysisConfiguration {
       PlatformTransactionManager transactionManager,
       LlmAccess llm,
       JdbcLlmCallLog callLog,
-      SummaryStore summaries,
-      ResolutionStore resolutions,
-      WordingStore wordings,
+      AnswerStore answers,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
@@ -85,9 +81,7 @@ class AnalysisConfiguration {
         new TransactionTemplate(transactionManager),
         llm,
         callLog,
-        summaries,
-        resolutions,
-        wordings,
+        answers,
         views,
         renderer,
         c4Renderer,

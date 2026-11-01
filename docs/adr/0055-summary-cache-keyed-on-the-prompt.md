@@ -1,6 +1,6 @@
 # 0055: Summary cache keyed on the prompt
 
-Status: accepted (#190), amends ADR 0010
+Status: accepted (#190), amends ADR 0010; superseded by ADR 0100 (#525: answers are keyed by item fingerprint)
 
 ## Context
 

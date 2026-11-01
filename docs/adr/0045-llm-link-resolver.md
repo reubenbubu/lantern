@@ -1,6 +1,6 @@
 # 0045: LLM resolver for links left open
 
-Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169), amended by ADR 0095 (#573), amended by ADR 0095 (#576)
+Status: accepted (#152), amended by ADR 0067 (#200) and ADR 0081 (#169), amended by ADR 0095 (#573), amended by ADR 0095 (#576), its caching superseded by ADR 0100 (#525: `link_resolutions` replaced by `llm_answers`)
 
 ## Context
 

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.lantern.compose.ViewDefinitionStore;
-import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentJson;
@@ -18,7 +17,7 @@ import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.extract.docs.DocsExtractor;
-import io.lantern.link.ResolutionStore;
+import io.lantern.harness.AnswerStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
@@ -28,7 +27,6 @@ import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
 import io.lantern.sandbox.SandboxException;
 import io.lantern.sandbox.UpstreamBuild;
-import io.lantern.summarize.SummaryStore;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -688,9 +686,7 @@ class EndToEndIT {
         transaction,
         context.getBean(LlmAccess.class),
         context.getBean(JdbcLlmCallLog.class),
-        context.getBean(SummaryStore.class),
-        context.getBean(ResolutionStore.class),
-        context.getBean(WordingStore.class),
+        context.getBean(AnswerStore.class),
         context.getBean(ViewDefinitionStore.class),
         context.getBean(HtmlRenderer.class),
         context.getBean(C4ReportRenderer.class),

@@ -18,7 +18,6 @@ import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
-import io.lantern.link.InMemoryResolutionStore;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
 import io.lantern.llm.BudgetGuard;
@@ -303,7 +302,7 @@ class LinkerIT {
             BudgetGuard.unlimited("test"),
             new InMemoryLlmCallLog(),
             Clock.systemUTC());
-    linker = Linker.standard(facts, new LinkResolver(client, new InMemoryResolutionStore()));
+    linker = Linker.standard(facts, new LinkResolver(io.lantern.harness.Harness.inMemory(client)));
 
     for (long snapshot : List.of(1L, 2L)) {
       facts.recordSnapshot(

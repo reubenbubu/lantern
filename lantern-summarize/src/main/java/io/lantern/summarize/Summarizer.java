@@ -4,22 +4,31 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.extract.docs.DocsExtractor;
-import io.lantern.llm.LlmClient;
+import io.lantern.harness.Calls;
+import io.lantern.harness.FingerprintInput;
+import io.lantern.harness.Fingerprints;
+import io.lantern.harness.Harness;
+import io.lantern.harness.Item;
+import io.lantern.harness.ItemDropped;
+import io.lantern.harness.Outcome;
+import io.lantern.harness.Rejected;
+import io.lantern.harness.Repair;
+import io.lantern.harness.RoleSession;
+import io.lantern.harness.RoleSpec;
+import io.lantern.harness.RunMode;
+import io.lantern.harness.verify.Grounding;
+import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.Role;
 import io.lantern.llm.Tokens;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,16 +69,19 @@ import org.slf4j.LoggerFactory;
  * whose purpose is evidenced. Each summary also has a confidence ({@link Confidence}), from that
  * mark and the share of the answer's sentences kept.
  *
- * <p>Every summary is cached under a key that hashes what the model sees: the prompt version, the
- * model (provider and identifier), the unit's entity and level, its contained units' entities
- * (which its citations of their summaries name), the system prompt and the unit's whole user turn,
- * with its facts, fact sheet, source files and contained units' summaries. Fact IDs and commits are
- * not in the prompt, so a new commit that changes nothing a unit's prompt shows makes no call for
- * it, and a contained unit whose summary reads the same leaves its parent's key as it was. A unit
- * whose key is already in the store is not sent to the model again; the stored summary is rebound
- * to the current inputs, so it cites the facts and contained summaries of this run (the same prompt
- * lists the same inputs in the same order). When a unit's prompt changes it is summarized again;
- * its new text then changes its parent's prompt, and so on up to the repository.
+ * <p>Every unit is an item of the LLM harness (ADR 0100): its answer is cached under the item's
+ * fingerprint, which hashes the role, the prompt version, the model (provider and identifier), the
+ * facts its prompt shows (their claim IDs), the blobs of the files whose text it shows, the text of
+ * its contained units' summaries as shown, its entity, level and contained units' entities, and its
+ * whole prompt. Fact IDs of earlier commits and commits are not in the prompt, so a new commit that
+ * changes nothing a unit's prompt shows makes no call for it, and a contained unit whose summary
+ * reads the same leaves its parent's fingerprint as it was. A unit whose fingerprint is in the
+ * cache is not sent to the model again; the stored summary is rebound to the current inputs, so it
+ * cites the facts and contained summaries of this run (the same prompt lists the same inputs in the
+ * same order). When a unit's prompt changes it is summarized again; its new text then changes its
+ * parent's prompt, and so on up to the repository. Before any unit is summarized, the harness's
+ * plan prints the role's estimate; a unit past the role's share of the run budget is not asked and
+ * gets no summary.
  *
  * <p>Every summary must cite the facts or contained summaries it used, in every sentence. A
  * sentence of an answer that cites nothing is left out of it, and logged, without asking again; if
@@ -109,28 +121,31 @@ public final class Summarizer {
   /** A fact citation in a stored summary's text. */
   private static final Pattern FACT_MARKER = Pattern.compile("\\[fact:([0-9a-f]{64})\\]");
 
-  private final LlmClient client;
-  private final SummaryStore store;
+  /** The role as the harness runs it (ADR 0100). */
+  public static final RoleSpec ROLE =
+      RoleSpec.single("summarize", Role.SUMMARIZE, Prompt.VERSION, "summarize", RunMode.BULK, 300);
+
+  /** The tokens a contained unit's summary is expected to add to its parent's prompt. */
+  private static final long CHILD_TOKENS = 120;
+
+  private final Harness harness;
   private final SourceFiles sources;
 
   /**
    * A summarizer whose prompts show no source excerpts.
    *
-   * @param client the LLM client, with the run's budgets
-   * @param store where summaries are cached
+   * @param harness the run's LLM harness
    */
-  public Summarizer(LlmClient client, SummaryStore store) {
-    this(client, store, SourceFiles.NONE);
+  public Summarizer(Harness harness) {
+    this(harness, SourceFiles.NONE);
   }
 
   /**
-   * @param client the LLM client, with the run's budgets
-   * @param store where summaries are cached
+   * @param harness the run's LLM harness
    * @param sources where the files the facts were observed in are read from, for source excerpts
    */
-  public Summarizer(LlmClient client, SummaryStore store, SourceFiles sources) {
-    this.client = Objects.requireNonNull(client, "client");
-    this.store = Objects.requireNonNull(store, "store");
+  public Summarizer(Harness harness, SourceFiles sources) {
+    this.harness = Objects.requireNonNull(harness, "harness");
     this.sources = Objects.requireNonNull(sources, "sources");
   }
 
@@ -143,12 +158,25 @@ public final class Summarizer {
    * @param reused how many came from the store
    * @param rejected the units that have no summary because the model's answer was rejected twice,
    *     in the order {@link #summaries} lists units in
+   * @param notAsked the units that have no summary because the role's share of the run budget was
+   *     spent, in the same order
    */
   public record Result(
-      Map<EntityId, Summary> summaries, int generated, int reused, List<EntityId> rejected) {
+      Map<EntityId, Summary> summaries,
+      int generated,
+      int reused,
+      List<EntityId> rejected,
+      List<EntityId> notAsked) {
     public Result {
       summaries = Collections.unmodifiableMap(new LinkedHashMap<>(summaries));
       rejected = List.copyOf(rejected);
+      notAsked = List.copyOf(notAsked);
+    }
+
+    /** A result with nothing left unasked. */
+    public Result(
+        Map<EntityId, Summary> summaries, int generated, int reused, List<EntityId> rejected) {
+      this(summaries, generated, reused, rejected, List.of());
     }
   }
 
@@ -161,12 +189,14 @@ public final class Summarizer {
    * @throws io.lantern.llm.LlmException if a call fails or is refused, for example over budget
    */
   public Result summarize(Collection<SummaryNode> roots) {
-    ModelConfig model = client.model(Role.SUMMARIZE);
-    Run run = new Run(model, model.limits().maxConcurrency());
+    RoleSession session = harness.session(ROLE);
+    ModelConfig model = session.model();
+    Run run = new Run(session, model.limits().maxConcurrency());
     Map<EntityId, SummaryNode> units = new LinkedHashMap<>();
     for (SummaryNode root : roots) {
       collect(root, units, new HashSet<>());
     }
+    run.plan(units.values());
     Map<EntityId, CompletableFuture<Optional<Summary>>> futures = new LinkedHashMap<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       for (SummaryNode node : units.values()) {
@@ -194,7 +224,8 @@ public final class Summarizer {
     Map<EntityId, Summary> summaries = new LinkedHashMap<>();
     futures.forEach((entity, future) -> future.join().ifPresent(s -> summaries.put(entity, s)));
     List<EntityId> rejected = units.keySet().stream().filter(run.rejected::contains).toList();
-    return new Result(summaries, run.generated.get(), run.reused.get(), rejected);
+    List<EntityId> notAsked = units.keySet().stream().filter(run.notAsked::contains).toList();
+    return new Result(summaries, run.generated.get(), run.reused.get(), rejected, notAsked);
   }
 
   /**
@@ -229,6 +260,17 @@ public final class Summarizer {
     }
   }
 
+  /** A unit not asked because its role's share of the run budget is spent. */
+  private static final class NotAsked extends RuntimeException {
+    NotAsked() {
+      super("Not asked: the role's budget share is spent", null, false, false);
+    }
+  }
+
+  private static String lowerFirst(String text) {
+    return text.isEmpty() ? text : Character.toLowerCase(text.charAt(0)) + text.substring(1);
+  }
+
   /** A unit not summarized because another one failed first. */
   private static final class Skipped extends RuntimeException {
     Skipped() {
@@ -236,26 +278,47 @@ public final class Summarizer {
     }
   }
 
-  /** The cache key of a unit with the given excerpts and contained summaries, for the model. */
+  /**
+   * A unit as an item of the harness (ADR 0100): the claims its prompt shows, the blobs of the
+   * files it shows the text of, each contained unit's summary as the prompt shows it (a hash of its
+   * text, so a part re-summarized to the same text leaves the unit's fingerprint as it was), its
+   * level, entity and contained units' entities, and its whole prompt.
+   */
+  static Item item(SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
+    List<FingerprintInput> inputs = new ArrayList<>();
+    List<Fact> facts = promptFacts(node);
+    facts.forEach(fact -> inputs.add(FingerprintInput.of(fact)));
+    // The files whose text the prompt shows, by their blobs.
+    for (Excerpts.Excerpt excerpt : excerpts) {
+      facts.stream()
+          .filter(fact -> fact.id().equals(excerpt.fact()))
+          .findFirst()
+          .flatMap(FingerprintInput::fileOf)
+          .ifPresent(inputs::add);
+    }
+    StringBuilder names = new StringBuilder("level ").append(node.level());
+    names.append("\nentity ").append(node.entity());
+    List<Prompt.Item> shown = Prompt.children(children);
+    for (int i = 0; i < children.size(); i++) {
+      inputs.add(FingerprintInput.answer(Fingerprints.sha256(shown.get(i).text())));
+      // The prompt names a contained unit without its full entity ID, which its citation stores.
+      names.append("\nchild ").append(children.get(i).entity());
+    }
+    inputs.add(FingerprintInput.text(names.toString()));
+    return new Item(
+        node.entity().toString(),
+        "",
+        inputs,
+        Prompt.SYSTEM + "\n" + Prompt.user(node, excerpts, children));
+  }
+
+  /** The fingerprint of a unit with the given excerpts and contained summaries, for the model. */
   static String key(
       SummaryNode node,
       List<Excerpts.Excerpt> excerpts,
       List<Summary> children,
       ModelConfig model) {
-    StringBuilder text = new StringBuilder();
-    text.append("lantern-summary\n");
-    text.append("prompt ").append(Prompt.VERSION).append('\n');
-    text.append("provider ").append(oneLine(model.provider())).append('\n');
-    text.append("model ").append(oneLine(model.model())).append('\n');
-    text.append("level ").append(node.level()).append('\n');
-    text.append("entity ").append(node.entity()).append('\n');
-    // The prompt names a contained unit without its full entity ID, which its citation stores.
-    for (Summary child : children) {
-      text.append("child ").append(child.entity()).append('\n');
-    }
-    text.append("system ").append(sha256(Prompt.SYSTEM)).append('\n');
-    text.append("user ").append(sha256(Prompt.user(node, excerpts, children))).append('\n');
-    return sha256(text.toString());
+    return Fingerprints.of(ROLE, model, item(node, excerpts, children));
   }
 
   /**
@@ -312,22 +375,6 @@ public final class Summarizer {
     return facts;
   }
 
-  private static String oneLine(String value) {
-    return value.replace("\\", "\\\\").replace("\n", "\\n");
-  }
-
-  private static String sha256(String text) {
-    return sha256(text.getBytes(StandardCharsets.UTF_8));
-  }
-
-  private static String sha256(byte[] bytes) {
-    try {
-      return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is not available", e);
-    }
-  }
-
   /**
    * The most tokens, as {@link io.lantern.llm.Tokens} estimates them, that a unit's user turn may
    * take so that the request still fits the context window with a retry: the system prompt, the
@@ -369,7 +416,9 @@ public final class Summarizer {
   }
 
   private final class Run {
+    private final RoleSession session;
     private final ModelConfig model;
+    private final Set<EntityId> notAsked = ConcurrentHashMap.newKeySet();
     private final AtomicInteger generated = new AtomicInteger();
     private final AtomicInteger reused = new AtomicInteger();
     private final AtomicBoolean failed = new AtomicBoolean();
@@ -384,9 +433,47 @@ public final class Summarizer {
           }
         };
 
-    Run(ModelConfig model, int maxRunning) {
-      this.model = model;
+    Run(RoleSession session, int maxRunning) {
+      this.session = session;
+      this.model = session.model();
       this.running = new Semaphore(maxRunning, true);
+    }
+
+    /**
+     * Plans the run before any unit is asked (ADR 0100): units without parts are items whose
+     * fingerprints are known now; a unit with parts is counted as cached when none of its parts'
+     * subtrees needs asking, and otherwise as a miss whose prompt is estimated from its facts.
+     */
+    void plan(Collection<SummaryNode> units) {
+      List<Item> known = new ArrayList<>();
+      Map<EntityId, Boolean> missing = new HashMap<>();
+      int hits = 0;
+      int misses = 0;
+      long tokens = 0;
+      for (SummaryNode node : units) {
+        boolean childMissing =
+            node.children().stream().anyMatch(child -> missing.getOrDefault(child.entity(), false));
+        if (node.children().isEmpty()) {
+          if (node.facts().isEmpty()) {
+            missing.put(node.entity(), false);
+            continue;
+          }
+          Item item = Summarizer.item(node, Excerpts.of(node, this::text), List.of());
+          known.add(item);
+          missing.put(node.entity(), !session.cached(item));
+        } else if (childMissing) {
+          misses++;
+          tokens +=
+              Tokens.estimate(Prompt.SYSTEM)
+                  + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
+                  + CHILD_TOKENS * node.children().size();
+          missing.put(node.entity(), true);
+        } else {
+          hits++;
+          missing.put(node.entity(), false);
+        }
+      }
+      session.plan(known, hits, misses, tokens, Tokens.estimate(Prompt.SYSTEM));
     }
 
     /**
@@ -414,6 +501,9 @@ public final class Summarizer {
           Optional<Summary> summary = Optional.of(summary(node, children));
           accepted.set(true);
           return summary;
+        } catch (NotAsked e) {
+          notAsked.add(node.entity());
+          return Optional.empty();
         } catch (SummaryRejectedException e) {
           rejected.add(node.entity());
           if (!accepted.get() && rejected.size() >= EARLY_STOP) {
@@ -440,16 +530,29 @@ public final class Summarizer {
 
     private Summary summary(SummaryNode node, List<Summary> children) {
       List<Excerpts.Excerpt> excerpts = Excerpts.of(node, this::text);
-      String key = key(node, excerpts, children, model);
-      Optional<Summary> cached = store.find(key);
-      if (cached.isPresent()) {
-        reused.incrementAndGet();
-        return rebind(cached.get(), node, children);
-      }
-      Summary summary = generate(key, node, excerpts, children);
-      store.save(summary);
-      generated.incrementAndGet();
-      return summary;
+      Item item = item(node, excerpts, children);
+      String key = session.fingerprint(item);
+      Outcome outcome =
+          session.ask(
+              item,
+              calls ->
+                  io.lantern.harness.Answer.of(
+                      SummaryJson.write(generate(calls, key, node, excerpts, children))));
+      return switch (outcome.kind()) {
+        case CACHED -> {
+          reused.incrementAndGet();
+          yield rebind(SummaryJson.read(outcome.answer()), node, children);
+        }
+        case ANSWERED -> {
+          generated.incrementAndGet();
+          yield SummaryJson.read(outcome.answer());
+        }
+        case DROPPED ->
+            throw new SummaryRejectedException(
+                "The summary of " + node.entity() + " was " + lowerFirst(outcome.reason()));
+        case NOT_ASKED -> throw new NotAsked();
+        case OMITTED, FAILED -> throw new LlmException(outcome.reason());
+      };
     }
 
     /**
@@ -476,7 +579,12 @@ public final class Summarizer {
     }
 
     private Summary generate(
-        String key, SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
+        Calls calls,
+        String key,
+        SummaryNode node,
+        List<Excerpts.Excerpt> excerpts,
+        List<Summary> children)
+        throws ItemDropped {
       Inputs inputs = new Inputs(node, excerpts, children);
       String purpose =
           "summarize " + node.level().name().toLowerCase(Locale.ROOT) + " " + node.entity();
@@ -487,7 +595,7 @@ public final class Summarizer {
       List<List<Prompt.Item>> parts =
           Tokens.estimate(whole) <= budget ? List.of() : inputs.parts(budget);
       if (parts.size() < 2) {
-        answer = answer(purpose, node, whole, inputs, null);
+        answer = answer(calls, purpose, node, whole, inputs, null);
       } else {
         List<Prompt.Tagged> texts = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
@@ -503,9 +611,9 @@ public final class Summarizer {
           Set<String> shown = new HashSet<>();
           part.forEach(item -> shown.add(item.ref()));
           String label = " (part " + (i + 1) + " of " + parts.size() + ")";
-          texts.add(answer(purpose + label, node, prompt, inputs, shown).tagged());
+          texts.add(answer(calls, purpose + label, node, prompt, inputs, shown).tagged());
         }
-        answer = merge(purpose, node, inputs, texts, budget);
+        answer = merge(calls, purpose, node, inputs, texts, budget);
       }
       Citations.Checked checked = answer.checked();
       return new Summary(
@@ -529,7 +637,13 @@ public final class Summarizer {
      * first, and so on.
      */
     private Answer merge(
-        String purpose, SummaryNode node, Inputs inputs, List<Prompt.Tagged> texts, long budget) {
+        Calls calls,
+        String purpose,
+        SummaryNode node,
+        Inputs inputs,
+        List<Prompt.Tagged> texts,
+        long budget)
+        throws ItemDropped {
       for (int round = 1; ; round++) {
         String prompt = Prompt.merge(node, texts);
         List<List<Prompt.Tagged>> groups =
@@ -541,14 +655,14 @@ public final class Summarizer {
                     Tokens.estimate(Prompt.merge(node, List.of())),
                     budget);
         if (groups.size() == 1 || groups.size() == texts.size()) {
-          return answer(purpose + " (merge)", node, prompt, inputs, cited(texts));
+          return answer(calls, purpose + " (merge)", node, prompt, inputs, cited(texts));
         }
         List<Prompt.Tagged> merged = new ArrayList<>();
         for (int i = 0; i < groups.size(); i++) {
           String label = " (merge " + round + "." + (i + 1) + " of " + groups.size() + ")";
           List<Prompt.Tagged> group = groups.get(i);
           merged.add(
-              answer(purpose + label, node, Prompt.merge(node, group), inputs, cited(group))
+              answer(calls, purpose + label, node, Prompt.merge(node, group), inputs, cited(group))
                   .tagged());
         }
         texts = merged;
@@ -562,53 +676,41 @@ public final class Summarizer {
     }
 
     /**
-     * Asks the model and checks its answer, sending it back once with the reason if it is rejected.
+     * Asks the model and checks its answer through the harness, which sends it back once with the
+     * reason if it is rejected.
      *
      * @param allowed the references the prompt shows, or {@code null} for all of the unit's
-     * @throws SummaryRejectedException if the second answer is rejected too, which {@link #visit}
-     *     turns into a unit without a summary
+     * @throws ItemDropped if the second answer is rejected too, which {@link #visit} turns into a
+     *     unit without a summary
      */
     private Answer answer(
-        String purpose, SummaryNode node, String prompt, Inputs inputs, Set<String> allowed) {
-      List<LlmMessage> messages = new ArrayList<>();
-      messages.add(LlmMessage.user(prompt));
-      LlmResponse first = ask(purpose, node, messages);
-      try {
-        return answer(purpose, first, inputs, allowed);
-      } catch (Citations.Rejected rejected) {
-        logRejected(purpose, rejected, first);
-        if (first.text().isBlank()) {
-          // A conversation cannot hold an empty turn, so the reason goes with the prompt again.
-          messages.set(
-              0,
-              LlmMessage.user(
-                  messages.getFirst().text()
-                      + "\n"
-                      + Prompt.RETRY.formatted(rejected.getMessage())));
-        } else {
-          messages.add(LlmMessage.assistant(first.text()));
-          messages.add(LlmMessage.user(Prompt.RETRY.formatted(rejected.getMessage())));
-        }
-        LlmResponse second = ask(purpose + " (retry)", node, messages);
-        try {
-          return answer(purpose + " (retry)", second, inputs, allowed);
-        } catch (Citations.Rejected again) {
-          logRejected(purpose + " (retry)", again, second);
-          throw new SummaryRejectedException(
-              "The summary of "
-                  + node.entity()
-                  + " was rejected twice, the second time because "
-                  + again.getMessage());
-        }
-      }
-    }
-
-    private static void logRejected(String purpose, Citations.Rejected reason, LlmResponse answer) {
-      LOG.warn(
-          "Rejected the answer to {}: {} The answer: {}",
-          purpose,
-          reason.getMessage(),
-          logged(answer.text()));
+        Calls calls,
+        String purpose,
+        SummaryNode node,
+        String prompt,
+        Inputs inputs,
+        Set<String> allowed)
+        throws ItemDropped {
+      stopIfFailed();
+      LlmRequest request =
+          new LlmRequest(
+              Role.SUMMARIZE,
+              purpose,
+              Prompt.SYSTEM,
+              List.of(LlmMessage.user(prompt)),
+              node.level().maxOutputTokens(),
+              false);
+      return calls.answer(
+          request,
+          response -> {
+            stopIfFailed();
+            try {
+              return answer(purpose, response, inputs, allowed);
+            } catch (Citations.Rejected rejected) {
+              throw new Rejected(rejected.getMessage());
+            }
+          },
+          Repair.withMessage(rejected -> Prompt.RETRY.formatted(rejected.getMessage())));
     }
 
     /** A model's text on one line, cut to its first {@value #LOGGED_ANSWER} characters. */
@@ -693,18 +795,6 @@ public final class Summarizer {
           + (names.size() > listed.size()
               ? " and " + (names.size() - listed.size()) + " more"
               : "");
-    }
-
-    private LlmResponse ask(String purpose, SummaryNode node, List<LlmMessage> messages) {
-      stopIfFailed();
-      return client.call(
-          new LlmRequest(
-              Role.SUMMARIZE,
-              purpose,
-              Prompt.SYSTEM,
-              messages,
-              node.level().maxOutputTokens(),
-              false));
     }
   }
 
