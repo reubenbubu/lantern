@@ -44,8 +44,20 @@ final class Project0 {
    * exists. For the tests the full check runs whenever project-0 is set up ({@code @EnabledIf}).
    */
   static boolean isPresent() {
-    return given() != null || Files.exists(defaultFolder());
+    boolean present = given() != null || Files.exists(defaultFolder());
+    if (!present && !skipNoted) {
+      // Failsafe prints only a count of skipped tests; say why, once (#628).
+      skipNoted = true;
+      System.out.println(
+          "[WARNING] project-0's checks are skipped: "
+              + defaultFolder()
+              + " does not exist and lantern.test.project0 is not set; run"
+              + " testsets/project-0/setup.sh (docs/adr/0029)");
+    }
+    return present;
   }
+
+  private static boolean skipNoted;
 
   private static String given() {
     String given = System.getProperty("lantern.test.project0");
