@@ -376,4 +376,31 @@ class ConversationTest {
           .isEqualTo(before.messages());
     }
   }
+
+  @Test
+  void theFakeCacheLooksBackAtMostTwentyBlocksForAnEarlierPrefix() {
+    fake.simulatingPromptCache().answering("ok");
+    LlmClient client = client(fake.model("m"), BudgetGuard.unlimited("run"));
+    LlmRequest start = request().withCacheBreaks(List.of(CacheBreak.afterMessage(0)));
+    client.call(start);
+
+    // Ten blocks back, the first turn is found; twenty-two back, only the system prompt is.
+    long near = client.call(grown(start, 5)).usage().cacheRead();
+    long far = client.call(grown(start, 11)).usage().cacheRead();
+    assertThat(far).isEqualTo(Tokens.estimate("You resolve."));
+    assertThat(near).isGreaterThan(far);
+  }
+
+  /** The request with {@code pairs} more answer and question turns, a breakpoint after the last. */
+  private static LlmRequest grown(LlmRequest start, int pairs) {
+    List<LlmMessage> messages = new ArrayList<>(start.messages());
+    for (int i = 0; i < pairs; i++) {
+      messages.add(LlmMessage.assistant("Answer " + i + " of " + pairs + "."));
+      messages.add(LlmMessage.user("Question " + i + " of " + pairs + "?"));
+    }
+    return start
+        .withCacheBreaks(List.of())
+        .withMessages(messages)
+        .withCacheBreaks(List.of(CacheBreak.afterMessage(messages.size() - 1)));
+  }
 }

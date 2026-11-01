@@ -263,14 +263,17 @@ public final class FakeLlmProvider implements LlmProvider {
     return new TokenUsage(input - read - written, output, written, read);
   }
 
-  /** The text a request sends up to each of its breakpoints, tools and system prompt first. */
-  /** The request's text up to the end of each turn before its last breakpoint's turn. */
+  /**
+   * The request's text up to the end of each turn before its last breakpoint's turn, within the
+   * {@value #LOOKBACK_BLOCKS} blocks a provider looks back from a breakpoint.
+   */
   private static List<String> turnEnds(LlmRequest request, boolean cachesSystem) {
     List<String> ends = new ArrayList<>();
     collect(request, cachesSystem, ends);
     return ends;
   }
 
+  /** The text a request sends up to each of its breakpoints, tools and system prompt first. */
   private static List<String> prefixes(LlmRequest request, boolean cachesSystem) {
     return collect(request, cachesSystem, null);
   }
@@ -311,7 +314,7 @@ public final class FakeLlmProvider implements LlmProvider {
       for (LlmToolCall call : message.toolCalls()) {
         text.append(call.id()).append(call.name()).append(call.input());
       }
-      if (ends != null && i < lastBreak) {
+      if (ends != null && i < lastBreak && blocksAfter(request, i, lastBreak) <= LOOKBACK_BLOCKS) {
         ends.add(text.toString());
       }
       for (CacheBreak at : request.cacheBreaks()) {
@@ -325,6 +328,25 @@ public final class FakeLlmProvider implements LlmProvider {
     }
     prefixes.sort(java.util.Comparator.comparingInt(String::length));
     return prefixes;
+  }
+
+  /** How many blocks back from a breakpoint a provider looks for a cached prefix (Anthropic). */
+  static final int LOOKBACK_BLOCKS = 20;
+
+  /**
+   * The blocks from after turn {@code from} to the end of turn {@code to}: a turn's text is one,
+   * its tool calls together one, its tool results together one.
+   */
+  private static int blocksAfter(LlmRequest request, int from, int to) {
+    int blocks = 0;
+    for (int i = from + 1; i <= to; i++) {
+      LlmMessage message = request.messages().get(i);
+      blocks +=
+          (message.text().isEmpty() ? 0 : 1)
+              + (message.toolCalls().isEmpty() ? 0 : 1)
+              + (message.toolResults().isEmpty() ? 0 : 1);
+    }
+    return blocks;
   }
 
   private static String digest(String text) {

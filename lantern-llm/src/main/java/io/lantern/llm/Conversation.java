@@ -302,8 +302,9 @@ public final class Conversation {
   /**
    * Once per conversation, when the history passes {@value #COMPACT_AT} of the model's context
    * window, replaces each tool result older than the last {@value #KEEP_TURNS} tool-result turns by
-   * one line naming the call, so the conversation fits; caching restarts from there. The model can
-   * read again what it needs to cite.
+   * one line naming the call, to make room; caching restarts from there. It does not guarantee the
+   * conversation fits: if the last turns alone are too long, the provider refuses the turn. The
+   * model can read again what it needs to cite.
    */
   private void compactIfLong() {
     if (compacted
@@ -311,7 +312,6 @@ public final class Conversation {
             <= model.contextWindow() * COMPACT_AT) {
       return;
     }
-    compacted = true;
     List<Integer> resultTurns = new ArrayList<>();
     for (int i = 0; i < messages.size(); i++) {
       if (!messages.get(i).toolResults().isEmpty()) {
@@ -320,7 +320,10 @@ public final class Conversation {
     }
     Map<String, LlmToolCall> calls = new HashMap<>();
     messages.forEach(message -> message.toolCalls().forEach(call -> calls.put(call.id(), call)));
-    for (int i : resultTurns.subList(0, Math.max(0, resultTurns.size() - KEEP_TURNS))) {
+    List<Integer> older = resultTurns.subList(0, Math.max(0, resultTurns.size() - KEEP_TURNS));
+    // The one compaction is spent only when it elides something.
+    compacted = !older.isEmpty();
+    for (int i : older) {
       LlmMessage turn = messages.get(i);
       List<LlmToolResult> elided = new ArrayList<>();
       for (LlmToolResult result : turn.toolResults()) {
