@@ -13,49 +13,58 @@ import tools.jackson.databind.node.ObjectNode;
  * route. The value is the endpoint, such as GET /api/organizations/{id}/preview. Not recorded for a
  * unit a route reaches through a filter that rewrites paths otherwise.
  *
+ * @param absentIn Descriptive. The views (Spring profiles) under which it does not hold (#590).
+ *     Absent when it holds in every view.
  * @param calledBy Key. The entity IDs of the units whose HTTP calls the linker matched to the
  *     endpoint, so it is reached inside the system; absent when none.
  * @param endpoint Key. The entity ID of the endpoint's handler method.
- * @param exceptProfiles Descriptive. The profiles under which it does not hold. Absent when it
- *     holds under every profile.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts it comes from: the endpoint and the gateway's
  *     routes to the unit, in every view it holds in.
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
  *     0095). Kept so links stored before stay valid.
- * @param profile Key. The Spring profile under which alone it holds. Absent when it holds in the
- *     default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param target Key. The entity ID of the unit that serves the endpoint.
+ * @param view Key. The Spring profile under which alone it holds: the view the linker found it in
+ *     (#590). Absent when it holds in the default view.
  */
 public record UnroutedEndpointAttributes(
+    List<String> absentIn,
     List<String> calledBy,
     String endpoint,
     List<String> exceptProfiles,
     List<String> facts,
     String link,
     String profile,
-    String target) {
+    String target,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "unrouted-endpoint";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("calledBy", "endpoint", "profile", "target");
+  public static final List<String> KEY_ATTRIBUTES = List.of("calledBy", "endpoint", "target", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static UnroutedEndpointAttributes from(ObjectNode attributes) {
     return new UnroutedEndpointAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "calledBy"),
         AttributeValues.string(attributes, "endpoint"),
         AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "link"),
         AttributeValues.string(attributes, "profile"),
-        AttributeValues.string(attributes, "target"));
+        AttributeValues.string(attributes, "target"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "calledBy", calledBy);
     AttributeValues.put(attributes, "endpoint", endpoint);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
@@ -63,6 +72,7 @@ public record UnroutedEndpointAttributes(
     AttributeValues.put(attributes, "link", link);
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "target", target);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

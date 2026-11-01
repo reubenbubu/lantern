@@ -12,6 +12,9 @@ import tools.jackson.databind.node.ObjectNode;
  * per gateway route that sends requests to it (route set), and for a frontend one per URL its code
  * calls from the browser and one per proxy of its server that no call goes through.
  *
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
  * @param alternates Descriptive. The entity IDs of the other units or external systems the same
  *     call reaches under other profiles, such as a production host for a sandbox one.
  * @param client Descriptive. The HTTP client: feign, rest-template, rest-client, web-client, and so
@@ -20,9 +23,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     gateway route, the path of the one WebSocket endpoint it reaches, such as /ws-notifications.
  * @param endpoints Descriptive. For a WebSocket gateway route that reaches more than one WebSocket
  *     endpoint of its target, their paths.
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param httpMethod Descriptive. The HTTP method, if known.
@@ -44,8 +46,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     the URL rather than requesting it from the page.
  * @param path Descriptive. The request path, after the URL's authority or a leading placeholder.
  * @param paths Descriptive. The path patterns of the gateway route, such as /api/users/**.
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param protocol Key. The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS,
  *     HTTP, HTTPS, WebSocket (a gateway route to ws://, wss:// or lb:ws://), AMQP, Kafka, JMS, JDBC
  *     or R2DBC.
@@ -74,8 +76,11 @@ import tools.jackson.databind.node.ObjectNode;
  *     that sends it on to reachesUnit.
  * @param url Descriptive. The URL the call goes to in the view the link was found in, when its host
  *     is known.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record CallsHttpAttributes(
+    List<String> absentIn,
     List<String> alternates,
     String client,
     String endpoint,
@@ -102,17 +107,19 @@ public record CallsHttpAttributes(
     String source,
     String target,
     String throughRoute,
-    String url) {
+    String url,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "CALLS_HTTP";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("endpoint", "profile", "protocol");
+  public static final List<String> KEY_ATTRIBUTES = List.of("endpoint", "protocol", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static CallsHttpAttributes from(ObjectNode attributes) {
     return new CallsHttpAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "alternates"),
         AttributeValues.string(attributes, "client"),
         AttributeValues.string(attributes, "endpoint"),
@@ -139,12 +146,14 @@ public record CallsHttpAttributes(
         AttributeValues.string(attributes, "source"),
         AttributeValues.string(attributes, "target"),
         AttributeValues.string(attributes, "throughRoute"),
-        AttributeValues.string(attributes, "url"));
+        AttributeValues.string(attributes, "url"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "alternates", alternates);
     AttributeValues.put(attributes, "client", client);
     AttributeValues.put(attributes, "endpoint", endpoint);
@@ -172,6 +181,7 @@ public record CallsHttpAttributes(
     AttributeValues.put(attributes, "target", target);
     AttributeValues.put(attributes, "throughRoute", throughRoute);
     AttributeValues.put(attributes, "url", url);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

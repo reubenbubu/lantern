@@ -303,8 +303,8 @@ The linker still decides which destination names are one topic, and which addres
 
 When in doubt, an attribute is key. Over-splitting yields two claims for one thing, which a later rule can merge. Over-merging silently loses a fact.
 
-- **Descriptive everywhere.** These attributes are descriptive in every type: `written`, `unresolved`, `masked`, `followed`, `expressions`, `alternates`, `defaulted`, `inferred`, `facts`, `link`, `exceptProfiles`, `cites`, `summary`, `description`.
-- **Profiles.** `profile` is descriptive in every extractor type except `config-value`, because profiles become linking views (section 8). In link and derived types, the view is the key attribute `view`.
+- **Descriptive everywhere.** These attributes are descriptive in every type: `written`, `unresolved`, `masked`, `followed`, `expressions`, `alternates`, `defaulted`, `inferred`, `facts`, `link`, `exceptProfiles`, `absentIn`, `cites`, `summary`, `description`.
+- **Profiles.** `profile` is descriptive in every extractor type except `config-value`, because profiles become linking views (section 8). In link and derived types, the view is the key attribute `view` (#590; `profile` stays declared there, descriptive, for facts stored before).
 - **Descriptive per type.** Beyond the global list:
 
 | Type | Descriptive attributes (all others are key) |
@@ -324,10 +324,10 @@ When in doubt, an attribute is key. Over-splitting yields two claims for one thi
 | `version-skew` | `pins` |
 | `deployed-in` | `fact` |
 | `claim-contradiction` | `claim`, `contradictedBy` |
-| `RESOLVES_TO` | `resolved`, `exceptDeployments`; for address resolution's answers `matched`, `matchedBy`, `factor`, `fact`, `filledBy`, `order`, `candidates`; for a datasource placed (#596) also `database`, `guessed` |
+| `RESOLVES_TO` | `resolved`, `exceptDeployments` (no longer given since #590); for address resolution's answers `matched`, `matchedBy`, `factor`, `fact`, `filledBy`, `order`, `candidates`; for a datasource placed (#596) also `database`, `guessed` |
 | Link claims (`INTERACTS_WITH` family) | everything except the channel attributes (`endpoint`, `destination`, `routingKey`, `bindingKey`, `table`, `host`, `key`), `protocol` and `view` |
 
-- **Changed by #518, with the owner.** `protocol` is a key of link claims, because C4 draws a line per protocol: a frontend's HTTP calls and its WebSocket to one gateway are two claims. `config-value` keys on `application`, because a config server's repository holds a file per application. An attribute that holds the IDs of the facts a claim comes from is lineage, so descriptive, like `facts`: fact IDs change with the evidence (`deployed-in`'s `fact`, `claim-contradiction`'s `claim` and `contradictedBy`). Until 1C introduces `view`, link-stage types record it as `profile`, which is key there (ADR 0090).
+- **Changed by #518, with the owner.** `protocol` is a key of link claims, because C4 draws a line per protocol: a frontend's HTTP calls and its WebSocket to one gateway are two claims. `config-value` keys on `application`, because a config server's repository holds a file per application. An attribute that holds the IDs of the facts a claim comes from is lineage, so descriptive, like `facts`: fact IDs change with the evidence (`deployed-in`'s `fact`, `claim-contradiction`'s `claim` and `contradictedBy`). Until #590 introduced `view`, link-stage types recorded it as `profile`, which was key there (ADR 0090).
 - **LLM claims.** Their key is fixed by the role (section 11). Their text is always descriptive, so a rewording is a new observation of the same claim.
 
 ## 7. Extraction
@@ -383,7 +383,7 @@ public interface LinkRule {
 ```
 
 - **Querying.** `ClaimQuery` is a typed query API over the claims that hold in the snapshot, built on the generated record types: `in.all(Endpoint.class)` or `in.from(method, SendsTo.class)`. No rule reads attribute JSON by string key.
-- **Order.** Rules run in an order computed from `reads` and `writes`, a stratification, and fail fast on a cycle. Each rule runs once per view (default, each profile, each deployment environment) unless it declares itself view-independent.
+- **Order.** Rules run in an order computed from `reads` and `writes`, a stratification, and fail fast on a cycle. Each rule runs once per view (default, each profile, each deployment environment) unless it declares itself view-independent. As built in #590 (ADR 0095): the protocol rules run once per view over the default view and each profile; value resolution and address resolution resolve their views, deployment environments included, in one pass, since an answer can hold under a profile and be filled in by a deployment.
 - **Incrementality.** A rule re-runs only when a claim of a predicate in its `reads` set had an observation added, ended or changed since the last snapshot, or when the rule's own version changed. Its output is replaced as a whole for the snapshot, as `recordDerived` does today.
 
 ### The rules, in order
@@ -406,7 +406,7 @@ public interface LinkRule {
 
 ### Views
 
-A link found in the default view holds in every view except those listed in `absentIn`. A link found only under some views is one claim per view, with `view` as a key attribute. This is today's `exceptProfiles` rule, extended to deployment environments. A deployment environment is a view whose config overlay is the container's environment, applied as Spring Boot's relaxed binding reads it.
+A link found in the default view holds in every view except those listed in `absentIn`. A link found only under some views is one claim per view, with `view` as a key attribute. This is the former `exceptProfiles` rule, extended to deployment environments for value resolution's claims (#590); a link's views are the profiles, and where a deployment changes where a link goes, address resolution's claims carry it. A deployment environment is a view whose config overlay is the container's environment, applied as Spring Boot's relaxed binding reads it.
 
 ## 9. Derivation
 

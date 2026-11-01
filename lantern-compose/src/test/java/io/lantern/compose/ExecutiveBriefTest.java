@@ -422,7 +422,7 @@ class ExecutiveBriefTest {
                 app,
                 "CALLS_HTTP",
                 "external-system:pay-sandbox.example.com",
-                "{\"protocol\": \"HTTPS\", \"exceptProfiles\": [\"prod\"], \"source\":"
+                "{\"protocol\": \"HTTPS\", \"absentIn\": [\"prod\"], \"source\":"
                     + " \"method:com.example.web.Controller#list()\"}")
             .list());
     return facts;

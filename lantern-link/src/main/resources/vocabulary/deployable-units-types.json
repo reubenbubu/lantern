@@ -17,13 +17,14 @@
   {
     "name": "application-name",
     "kind": "attribute",
-    "keyAttributes": ["module", "profile"],
-    "description": "The name the subject deployable unit runs under: its spring.application.name, else its Maven artifact ID. Without profile it is the name in the default view; with profile, the name under that profile where it differs.",
+    "keyAttributes": ["module", "view"],
+    "description": "The name the subject deployable unit runs under: its spring.application.name, else its Maven artifact ID. Without view it is the name in the default view; with view, the name under that profile where it differs.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "module": { "type": "string", "description": "The entity ID of the module whose config sets the name: the unit's own module, or a library it bundles when its own module has no config." },
-        "profile": { "type": "string", "description": "The profile active instead of the default one. Absent for the default view." },
+        "view": { "type": "string", "description": "The profile active instead of the default one: the view the name alone holds in (#590). Absent for the default view." },
+        "profile": { "type": "string", "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid." },
         "unresolved": { "type": "array", "items": { "type": "string" }, "description": "The keys of placeholders in the name that no config value resolved." },
         "defaulted": { "type": "boolean", "description": "Present and true when no config sets spring.application.name, so the name is the Maven artifact ID." }
       },

@@ -12,9 +12,11 @@ import tools.jackson.databind.node.ObjectNode;
  * that sends mail; a unit whose config names a mail server but whose code sends none the extractor
  * recognises has one without source.
  *
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from: the mail-send fact and the
  *     config values, in every view it holds in.
  * @param host Key. The mail server's host, from spring.mail.host.
@@ -22,13 +24,16 @@ import tools.jackson.databind.node.ObjectNode;
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
  *     0095). Kept so links stored before stay valid.
  * @param port Descriptive. The mail server's port, from spring.mail.port, if set.
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param protocol Key. SMTP, or SMTPS when spring.mail.protocol says smtps or the port is 465.
  * @param source Descriptive. The entity ID of the method that sends the mail. Absent when only the
  *     config shows mail is sent.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record SendsMailAttributes(
+    List<String> absentIn,
     List<String> exceptProfiles,
     List<String> facts,
     String host,
@@ -37,17 +42,19 @@ public record SendsMailAttributes(
     String port,
     String profile,
     String protocol,
-    String source) {
+    String source,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "SENDS_MAIL";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("host", "key", "profile", "protocol");
+  public static final List<String> KEY_ATTRIBUTES = List.of("host", "key", "protocol", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static SendsMailAttributes from(ObjectNode attributes) {
     return new SendsMailAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "host"),
@@ -56,12 +63,14 @@ public record SendsMailAttributes(
         AttributeValues.string(attributes, "port"),
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "protocol"),
-        AttributeValues.string(attributes, "source"));
+        AttributeValues.string(attributes, "source"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
     AttributeValues.put(attributes, "facts", facts);
     AttributeValues.put(attributes, "host", host);
@@ -71,6 +80,7 @@ public record SendsMailAttributes(
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "protocol", protocol);
     AttributeValues.put(attributes, "source", source);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

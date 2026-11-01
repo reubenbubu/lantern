@@ -222,3 +222,12 @@ resolves them, as relations to the destinations they join on (`MessageRelations`
 The message facts stay, for the composer and the summaries, which still read them; dropping them
 is left until those readers move. On project-0 to project-4 and project-8 there is one relation
 per message fact (#597's PR).
+
+## Amendment (#590): one `view`
+
+Value resolution's literal for a profile or a deployment names it in `view` (the profile's name, or
+the deployment's key), and the default view's claim lists both kinds in `absentIn`, profiles first,
+as #588 planned. Address resolution's answers name the profile asked in as `view` but keep
+`deployment` for the container that filled the address in: an answer can hold under a profile and
+be filled by a deployment, so that is part of the answer, not a second view (ADR 0095, amendment
+for #590).

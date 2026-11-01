@@ -312,7 +312,8 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       entry.put("subject", f.subject().toString());
       entry.put("predicate", f.predicate());
       entry.put("object", f.object().value());
-      String profile = Claims.profile(f);
+      // An extracted fact's profile, or a derived one's view (#590).
+      String profile = Claims.profile(f) != null ? Claims.profile(f) : Claims.view(f);
       if (profile != null) {
         entry.put("profile", profile);
       }
@@ -668,9 +669,9 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     return stated.size() == 1 ? stated.iterator().next() : null;
   }
 
-  /** The links that hold in the default view: those without a profile. */
+  /** The links that hold in the default view: those without a view. */
   private static List<Fact> defaultView(List<Fact> links) {
-    return links.stream().filter(f -> Claims.profile(f) == null).toList();
+    return links.stream().filter(f -> Claims.view(f) == null).toList();
   }
 
   /** Whether a sentence says the units make no synchronous calls to other services. */

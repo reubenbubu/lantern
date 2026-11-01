@@ -10,24 +10,29 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code USES_INFRASTRUCTURE}. The subject unit uses the
  * object service for infrastructure, not business: service discovery, a config server or tracing.
  *
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param key Key. The config key that names it.
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
  *     0095). Kept so links stored before stay valid.
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param protocol Key. The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS,
  *     HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC.
  * @param role Descriptive. service-discovery, config-server or tracing.
  * @param technology Descriptive. Such as Eureka, Consul, ZooKeeper, Spring Cloud Config, Zipkin or
  *     OpenTelemetry.
  * @param value Descriptive. The config value naming it.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record UsesInfrastructureAttributes(
+    List<String> absentIn,
     List<String> exceptProfiles,
     List<String> facts,
     String key,
@@ -36,17 +41,19 @@ public record UsesInfrastructureAttributes(
     String protocol,
     String role,
     String technology,
-    String value) {
+    String value,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "USES_INFRASTRUCTURE";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("key", "profile", "protocol");
+  public static final List<String> KEY_ATTRIBUTES = List.of("key", "protocol", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static UsesInfrastructureAttributes from(ObjectNode attributes) {
     return new UsesInfrastructureAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "key"),
@@ -55,12 +62,14 @@ public record UsesInfrastructureAttributes(
         AttributeValues.string(attributes, "protocol"),
         AttributeValues.string(attributes, "role"),
         AttributeValues.string(attributes, "technology"),
-        AttributeValues.string(attributes, "value"));
+        AttributeValues.string(attributes, "value"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
     AttributeValues.put(attributes, "facts", facts);
     AttributeValues.put(attributes, "key", key);
@@ -70,6 +79,7 @@ public record UsesInfrastructureAttributes(
     AttributeValues.put(attributes, "role", role);
     AttributeValues.put(attributes, "technology", technology);
     AttributeValues.put(attributes, "value", value);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

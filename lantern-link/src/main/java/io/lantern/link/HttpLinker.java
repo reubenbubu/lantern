@@ -131,7 +131,9 @@ final class HttpLinker {
   }
 
   void link() {
-    for (List<Fact> site : LinkIndex.codeSites(index.of(HttpClientExtractor.HTTP_CALL)).values()) {
+    for (Map.Entry<String, List<Fact>> entry :
+        LinkIndex.codeSites(index.of(HttpClientExtractor.HTTP_CALL)).entrySet()) {
+      List<Fact> site = entry.getValue();
       Fact first = site.getFirst();
       for (Unit caller : callers(first)) {
         Map<String, Call> calls = new LinkedHashMap<>();
@@ -146,38 +148,66 @@ final class HttpLinker {
           Call call = e.getValue();
           link(caller, call, view);
         }
-        flush();
+        flush(caller.id() + "|" + entry.getKey());
       }
     }
   }
 
-  /** The links of one call by one unit, in every view, before they are added. */
+  /** The links of one call by one unit, before they are added. */
   private final List<Map.Entry<String, Found>> pending = new ArrayList<>();
 
   private void emit(String view, Found found) {
     pending.add(new AbstractMap.SimpleEntry<>(view, found));
   }
 
-  /**
-   * Adds the pending links of one call, each naming in {@code alternates} the other units and
-   * external systems the same call reaches under other profiles.
-   */
-  private void flush() {
-    Set<String> targets = new TreeSet<>();
+  /** Adds the pending links of one call, the call (its unit and code site) as their group. */
+  private void flush(String call) {
     for (Map.Entry<String, Found> e : pending) {
-      if (e.getValue().predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
-        targets.add(e.getValue().object().value());
-      }
-    }
-    for (Map.Entry<String, Found> e : pending) {
-      Found found = e.getValue();
-      if (found.predicate().equals(CrossRepoLinks.CALLS_HTTP) && targets.size() > 1) {
-        ArrayNode alternates = found.attributes().putArray("alternates");
-        targets.stream().filter(t -> !t.equals(found.object().value())).forEach(alternates::add);
-      }
-      out.add(e.getKey(), found);
+      out.add(e.getKey(), e.getValue(), call);
     }
     pending.clear();
+  }
+
+  /**
+   * The HTTP rule's links once its views are merged, each link of a call naming in {@code
+   * alternates} the other units and external systems the same call by the same unit reaches in
+   * other views: the call is the unit making it and its code site, the group the HTTP matcher gives
+   * its links.
+   */
+  static List<Fact> alternates(List<LinkRule.Merged> merged) {
+    Map<String, Set<String>> targets = new HashMap<>();
+    for (LinkRule.Merged m : merged) {
+      if (isCall(m)) {
+        targets.computeIfAbsent(m.group(), k -> new TreeSet<>()).add(m.fact().object().value());
+      }
+    }
+    List<Fact> facts = new ArrayList<>();
+    for (LinkRule.Merged m : merged) {
+      Fact f = m.fact();
+      Set<String> others = isCall(m) ? targets.get(m.group()) : Set.of();
+      if (others.size() < 2) {
+        facts.add(f);
+        continue;
+      }
+      ObjectNode attributes = Claims.json(f);
+      ArrayNode alternates = attributes.putArray("alternates");
+      others.stream().filter(t -> !t.equals(f.object().value())).forEach(alternates::add);
+      facts.add(
+          Fact.create(
+              f.subject(),
+              f.predicate(),
+              f.object(),
+              attributes,
+              f.origin(),
+              f.evidence(),
+              f.confidence(),
+              f.validity()));
+    }
+    return facts;
+  }
+
+  private static boolean isCall(LinkRule.Merged m) {
+    return m.group() != null && m.fact().predicate().equals(CrossRepoLinks.CALLS_HTTP);
   }
 
   /**

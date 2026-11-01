@@ -13,12 +13,14 @@ import tools.jackson.databind.node.ObjectNode;
  * config value, or, when the value is masked or unset, the same config key. The value is the config
  * keys the unit reads the secret from; the secret's value is never recorded (ADR 0085).
  *
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
  * @param algorithm Key. HMAC.
  * @param basis Key. Why the secret is taken to be the same: placeholder, value or key (the weakest,
  *     confidence 0.7 of the fact's).
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts it comes from: the jwt-secret-key facts of every
  *     unit with the secret and the unit's config values, in every view it holds in.
  * @param library Key. The JWT library the method uses.
@@ -26,13 +28,16 @@ import tools.jackson.databind.node.ObjectNode;
  *     0095). Kept so links stored before stay valid.
  * @param placeholders Key. For basis placeholder: the placeholders, as relaxed binding reads them
  *     (auth.token.signing.key for AUTH_TOKEN_SIGNING_KEY).
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param source Key. The entity ID of the method that makes the key (its jwt-secret-key fact).
  * @param uses Key. What the unit's code does with JWTs: sign, verify or both.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  * @param with Key. The entity IDs of the other units with the same secret.
  */
 public record SharedSecretAttributes(
+    List<String> absentIn,
     String algorithm,
     String basis,
     List<String> exceptProfiles,
@@ -43,17 +48,19 @@ public record SharedSecretAttributes(
     String profile,
     String source,
     List<String> uses,
+    String view,
     List<String> with) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "shared-secret";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("algorithm", "basis", "library", "placeholders", "profile", "source", "uses", "with");
+  public static final List<String> KEY_ATTRIBUTES = List.of("algorithm", "basis", "library", "placeholders", "source", "uses", "view", "with");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static SharedSecretAttributes from(ObjectNode attributes) {
     return new SharedSecretAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.string(attributes, "algorithm"),
         AttributeValues.string(attributes, "basis"),
         AttributeValues.strings(attributes, "exceptProfiles"),
@@ -64,12 +71,14 @@ public record SharedSecretAttributes(
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "source"),
         AttributeValues.strings(attributes, "uses"),
+        AttributeValues.string(attributes, "view"),
         AttributeValues.strings(attributes, "with"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "algorithm", algorithm);
     AttributeValues.put(attributes, "basis", basis);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
@@ -80,6 +89,7 @@ public record SharedSecretAttributes(
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "source", source);
     AttributeValues.put(attributes, "uses", uses);
+    AttributeValues.put(attributes, "view", view);
     AttributeValues.put(attributes, "with", with);
     return attributes;
   }

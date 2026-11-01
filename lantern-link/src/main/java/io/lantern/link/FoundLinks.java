@@ -18,10 +18,10 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The links the linker finds in each view, turned into facts: a link found in the default view
- * holds whatever the profile, and one found only under profiles holds only under each of them,
- * which its {@code profile} attribute names. Each link carries the IDs of the facts it comes from,
- * on both ends and in every view, and a stable link ID that does not change with commits.
+ * The links a protocol rule's matchers find in the view they link in, turned into facts. Each link
+ * carries the IDs of the facts it comes from, on both ends, and an identity that is the same in
+ * every view and snapshot, by which the linker merges the views into one claim per view (ADR 0095,
+ * amendment for #590).
  */
 final class FoundLinks {
 
@@ -30,7 +30,7 @@ final class FoundLinks {
    *
    * @param identity what makes it the same link in every view and snapshot: its ends and the code
    *     on both, never a commit
-   * @param attributes its attributes, without {@code profile}, {@code facts} and {@code link}
+   * @param attributes its attributes, without {@code view}, {@code absentIn} and {@code facts}
    * @param evidence where it is seen: the fact on its subject's side
    * @param facts the IDs of the facts it comes from
    */
@@ -49,6 +49,18 @@ final class FoundLinks {
 
   /** Facts that are not links (attributes of entities the linker names), by ID. */
   private final Map<String, Fact> plain = new LinkedHashMap<>();
+
+  /** The group each link was first found in, by identity ({@link #add(String, Found, String)}). */
+  private final Map<String, String> groups = new java.util.HashMap<>();
+
+  /**
+   * Adds a link found in a view, in a group a rule describes its links by once the views are merged
+   * ({@link LinkRule#merged}): the first group a link is found in counts.
+   */
+  void add(String view, Found link, String group) {
+    groups.putIfAbsent(link.identity(), group);
+    add(view, link);
+  }
 
   /** Adds a link found in a view (null for the default view); the first one found counts. */
   void add(String view, Found link) {
@@ -91,57 +103,33 @@ final class FoundLinks {
   }
 
   /**
-   * The facts: each link once if found in the default view, naming in {@code exceptProfiles} the
-   * profiles under which it is not found; else once per profile it is found under.
+   * Gives what was found in a view to a rule's sink: each link as found in it, with its identity as
+   * the link that is the same in every view, for the linker to merge into one claim per view (ADR
+   * 0095, amendment for #590); then the facts that hold whatever the view.
    *
-   * @param profiles every profile the links were looked for under
+   * @throws IllegalStateException if a link was found in another view: the matchers link in the
+   *     views the index is narrowed to
    */
-  List<Fact> facts(List<String> profiles, Origin origin, Validity validity) {
-    List<Fact> facts = new ArrayList<>(plain.values());
+  void to(ClaimSink out, View view, Origin origin, Validity validity) {
+    String name = view.isDefault() ? "" : view.name();
     for (Map<String, Found> views : found.values()) {
-      Found standard = views.get("");
-      if (standard != null) {
-        Set<String> ids = new TreeSet<>();
-        views.values().forEach(f -> ids.addAll(f.facts()));
-        List<String> except =
-            profiles.stream().filter(p -> !views.containsKey(p)).sorted().toList();
-        Fact fact = fact(standard, null, ids, origin, validity);
-        if (!except.isEmpty()) {
-          ObjectNode attributes = standard.attributes().deepCopy();
-          ArrayNode array = attributes.putArray("exceptProfiles");
-          except.forEach(array::add);
-          fact =
-              fact(
-                  new Found(
-                      standard.identity(),
-                      standard.subject(),
-                      standard.predicate(),
-                      standard.object(),
-                      attributes,
-                      standard.evidence(),
-                      standard.confidence(),
-                      standard.facts()),
-                  null,
-                  ids,
-                  origin,
-                  validity);
+      for (Map.Entry<String, Found> e : views.entrySet()) {
+        if (!e.getKey().equals(name)) {
+          throw new IllegalStateException(
+              "A link was found in view " + e.getKey() + " while linking in view " + view.name());
         }
-        facts.add(fact);
-      } else {
-        views.forEach(
-            (profile, f) ->
-                facts.add(fact(f, profile, new TreeSet<>(f.facts()), origin, validity)));
+        Found f = e.getValue();
+        out.add(
+            fact(f, new TreeSet<>(f.facts()), origin, validity),
+            f.identity(),
+            groups.get(f.identity()));
       }
     }
-    return facts;
+    plain.values().forEach(out::add);
   }
 
-  private static Fact fact(
-      Found found, String profile, Set<String> ids, Origin origin, Validity validity) {
+  private static Fact fact(Found found, Set<String> ids, Origin origin, Validity validity) {
     ObjectNode attributes = found.attributes().deepCopy();
-    if (profile != null) {
-      attributes.put("profile", profile);
-    }
     ArrayNode facts = attributes.putArray("facts");
     ids.forEach(facts::add);
     return Fact.create(

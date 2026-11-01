@@ -57,9 +57,20 @@ final class Claims {
     return type(record).type();
   }
 
-  /** The profile under which alone a fact holds, or null for the default view. */
+  /**
+   * The profile under which alone an extracted fact holds, or null for the default view. A derived
+   * fact names its view in {@link #view} instead.
+   */
   static String profile(Fact fact) {
     return string(fact, "profile");
+  }
+
+  /**
+   * The view under which alone a derived fact holds (a profile, or for value resolution's claims a
+   * deployment), or null for the default view (ADR 0095, amendment for #590).
+   */
+  static String view(Fact fact) {
+    return string(fact, "view");
   }
 
   /** What was written where a fact's value was read, if it records it. */
@@ -88,6 +99,25 @@ final class Claims {
    */
   static java.util.List<String> unresolved(Fact fact) {
     JsonNode value = fact.attributes().get("unresolved");
+    java.util.List<String> result = new java.util.ArrayList<>();
+    if (value != null && value.isArray()) {
+      value.forEach(v -> result.add(v.asString()));
+    }
+    return result;
+  }
+
+  /** The IDs of the facts a derived fact comes from ({@code facts}); empty for none. */
+  static java.util.List<String> cited(Fact fact) {
+    return strings(fact, "facts");
+  }
+
+  /** Whether a derived fact names the views it is not found in ({@code absentIn}, #590). */
+  static boolean namesAbsence(Fact fact) {
+    return fact.attributes().has("absentIn");
+  }
+
+  private static java.util.List<String> strings(Fact fact, String name) {
+    JsonNode value = fact.attributes().get(name);
     java.util.List<String> result = new java.util.ArrayList<>();
     if (value != null && value.isArray()) {
       value.forEach(v -> result.add(v.asString()));

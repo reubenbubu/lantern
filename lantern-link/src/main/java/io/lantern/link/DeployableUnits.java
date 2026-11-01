@@ -438,7 +438,7 @@ public final class DeployableUnits implements LinkRule {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("module", name.subject().toString());
         if (profile != null) {
-          attributes.put("profile", profile);
+          attributes.put("view", profile);
         }
         AttributeValues.put(attributes, "unresolved", index.config(name).unresolved());
         facts.add(

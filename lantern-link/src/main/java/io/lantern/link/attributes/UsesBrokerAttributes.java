@@ -10,50 +10,59 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code USES_BROKER}. The subject unit's config connects it
  * to the object message broker.
  *
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param key Key. The config key that sets the address.
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
  *     0095). Kept so links stored before stay valid.
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param protocol Key. The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS,
  *     HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC.
  * @param technology Descriptive. The broker, such as Kafka or RabbitMQ.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record UsesBrokerAttributes(
+    List<String> absentIn,
     List<String> exceptProfiles,
     List<String> facts,
     String key,
     String link,
     String profile,
     String protocol,
-    String technology) {
+    String technology,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "USES_BROKER";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("key", "profile", "protocol");
+  public static final List<String> KEY_ATTRIBUTES = List.of("key", "protocol", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static UsesBrokerAttributes from(ObjectNode attributes) {
     return new UsesBrokerAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "key"),
         AttributeValues.string(attributes, "link"),
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "protocol"),
-        AttributeValues.string(attributes, "technology"));
+        AttributeValues.string(attributes, "technology"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
     AttributeValues.put(attributes, "facts", facts);
     AttributeValues.put(attributes, "key", key);
@@ -61,6 +70,7 @@ public record UsesBrokerAttributes(
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "protocol", protocol);
     AttributeValues.put(attributes, "technology", technology);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

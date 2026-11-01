@@ -11,11 +11,13 @@ import tools.jackson.databind.node.ObjectNode;
  * reach a listener of the object unit, asynchronously: the link between containers a queue or topic
  * carries. One fact per send and listener matched.
  *
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
  * @param bindingKey Key. The binding pattern the routing key matched.
  * @param destination Key. The entity ID of the topic, queue or exchange sent to.
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
@@ -23,8 +25,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param model Descriptive. The provider and model that picked this link, as provider/model.
  *     Present only on links of origin llm.
  * @param pattern Descriptive. The topic pattern the listener names, when the topic matched it.
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param protocol Key. The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS,
  *     HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC.
  * @param queue Descriptive. The entity ID of the queue the listener receives from, when an exchange
@@ -38,8 +40,11 @@ import tools.jackson.databind.node.ObjectNode;
  *     call, sending or listening, or declaring the binding.
  * @param target Descriptive. The entity ID of the code on the object's side: the endpoint's handler
  *     method, or the listener method.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record SendsMessagesToAttributes(
+    List<String> absentIn,
     String bindingKey,
     String destination,
     List<String> exceptProfiles,
@@ -54,17 +59,19 @@ public record SendsMessagesToAttributes(
     String resolves,
     String routingKey,
     String source,
-    String target) {
+    String target,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "SENDS_MESSAGES_TO";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("bindingKey", "destination", "profile", "protocol", "routingKey");
+  public static final List<String> KEY_ATTRIBUTES = List.of("bindingKey", "destination", "protocol", "routingKey", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static SendsMessagesToAttributes from(ObjectNode attributes) {
     return new SendsMessagesToAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.string(attributes, "bindingKey"),
         AttributeValues.string(attributes, "destination"),
         AttributeValues.strings(attributes, "exceptProfiles"),
@@ -79,12 +86,14 @@ public record SendsMessagesToAttributes(
         AttributeValues.string(attributes, "resolves"),
         AttributeValues.string(attributes, "routingKey"),
         AttributeValues.string(attributes, "source"),
-        AttributeValues.string(attributes, "target"));
+        AttributeValues.string(attributes, "target"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "bindingKey", bindingKey);
     AttributeValues.put(attributes, "destination", destination);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
@@ -100,6 +109,7 @@ public record SendsMessagesToAttributes(
     AttributeValues.put(attributes, "routingKey", routingKey);
     AttributeValues.put(attributes, "source", source);
     AttributeValues.put(attributes, "target", target);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

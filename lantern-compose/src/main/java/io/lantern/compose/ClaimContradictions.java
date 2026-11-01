@@ -212,7 +212,7 @@ final class ClaimContradictions {
     } else {
       content.add(TextRun.of("'s " + words(fact.predicate()) + " is " + fact.object().value()));
     }
-    String profile = RepoSections.attribute(fact, "profile", null);
+    String profile = Knowledge.view(fact);
     if (profile != null) {
       content.add(TextRun.of(" under the " + profile + " profile"));
     }

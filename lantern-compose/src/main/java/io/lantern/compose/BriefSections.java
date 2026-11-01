@@ -104,7 +104,7 @@ final class BriefSections {
     }
 
     void add(String how, Fact fact) {
-      String profile = RepoSections.attribute(fact, "profile", null);
+      String profile = Knowledge.view(fact);
       Set<String> profiles = hows.computeIfAbsent(how, h -> new TreeSet<>());
       // An empty string stands for "without a profile", so the connection always holds.
       profiles.add(profile == null ? "" : profile);

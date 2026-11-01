@@ -45,10 +45,10 @@ import tools.jackson.databind.node.ObjectNode;
  *       persistence extractor keys a server written out.
  * </ul>
  *
- * One fact for the default view and one for each profile whose config gives another literal, the
- * profile named, the default view's listing in {@code exceptProfiles} the profiles it does not hold
- * under; a placeholder's own default resolves too, citing no config value; none in a view where a
- * placeholder stays unresolved, a secret is used, config changes nothing or no literal host
+ * One fact for the default view and one for each profile or deployment that gives another literal,
+ * its {@code view} naming it, the default view's listing in {@code absentIn} the views it does not
+ * hold in (#590); a placeholder's own default resolves too, citing no config value; none in a view
+ * where a placeholder stays unresolved, a secret is used, config changes nothing or no literal host
  * results. Each cites the {@code config-value} facts used.
  */
 final class Literals {
@@ -206,13 +206,17 @@ final class Literals {
         }
         ObjectNode attributes = FactJson.newObject();
         if (in.deployment() != null) {
-          attributes.put("deployment", in.deployment());
+          attributes.put("view", in.deployment());
         } else if (in.profile() != null) {
-          attributes.put("profile", in.profile());
+          attributes.put("view", in.profile());
         } else {
-          // The default view's literal does not hold in a view that gives another or none.
-          except(attributes, "exceptProfiles", byView, literal);
-          except(attributes, "exceptDeployments", byDeployment, literal);
+          // The default view's literal does not hold in a view that gives another or none:
+          // profiles, then deployments (#590).
+          List<String> absent = new ArrayList<>(except(byView, literal));
+          absent.addAll(except(byDeployment, literal));
+          if (!absent.isEmpty()) {
+            absent.forEach(attributes.putArray("absentIn")::add);
+          }
         }
         if (!literal.resolved().equals(literal.entity().key())) {
           attributes.put("resolved", literal.resolved());
@@ -238,18 +242,13 @@ final class Literals {
   private record InView(String profile, String deployment, Literal literal) {}
 
   /** Lists the views (not the default) whose literal is not the default view's. */
-  private static void except(
-      ObjectNode attributes, String name, Map<String, Literal> views, Literal byDefault) {
-    List<String> except =
-        views.entrySet().stream()
-            .filter(v -> v.getKey() != null)
-            .filter(v -> v.getValue() == null || !byDefault.entity().equals(v.getValue().entity()))
-            .map(Map.Entry::getKey)
-            .sorted()
-            .toList();
-    if (!except.isEmpty()) {
-      except.forEach(attributes.putArray(name)::add);
-    }
+  private static List<String> except(Map<String, Literal> views, Literal byDefault) {
+    return views.entrySet().stream()
+        .filter(v -> v.getKey() != null)
+        .filter(v -> v.getValue() == null || !byDefault.entity().equals(v.getValue().entity()))
+        .map(Map.Entry::getKey)
+        .sorted()
+        .toList();
   }
 
   /**

@@ -319,7 +319,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
       HttpLinker http,
       RouteLinker routes,
       Map<String, Fact> byId) {
-    String view = Claims.profile(unresolved);
+    String view = Claims.view(unresolved);
     List<Fact> about = new ArrayList<>();
     unitFacts(index, unresolved.subject(), view, about);
     for (String id : Claims.list(unresolved(unresolved).facts())) {
@@ -468,7 +468,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
             + unresolved.object().value().replace('\n', ' ')
             + " of "
             + unresolved.subject()
-            + (Claims.profile(unresolved) == null ? "" : " under " + Claims.profile(unresolved));
+            + (Claims.view(unresolved) == null ? "" : " under " + Claims.view(unresolved));
     GraphTools tools = graph == null ? null : graph.tools();
     Conversation conversation =
         client.converse(
@@ -734,12 +734,12 @@ public final class LinkResolver implements LinkRule.OverFacts {
     } else {
       attributes.put("protocol", protocol(brokerOf(origin)));
     }
-    String profile = Claims.profile(unresolved);
-    if (profile != null) {
-      attributes.put("profile", profile);
+    String view = Claims.view(unresolved);
+    if (view != null) {
+      attributes.put("view", view);
     }
     io.lantern.core.vocabulary.AttributeValues.put(
-        attributes, "exceptProfiles", unresolved(unresolved).exceptProfiles());
+        attributes, "absentIn", unresolved(unresolved).absentIn());
     attributes.put("resolves", linkOf(unresolved));
     attributes.put("rationale", resolution.rationale());
     attributes.put("model", resolution.provider() + "/" + resolution.model());

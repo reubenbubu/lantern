@@ -133,3 +133,50 @@ The linker's facts on project-0 to project-4 are unchanged.
   `io.lantern.link` but `Claims` and `ClaimQuery` that calls `Fact.attributes()`; a fixture that
   does is rejected.
 - **Open links** as a rule of their own wait for views (#583, after #522).
+
+## Amendment (#590): rules per view; `view` and `absentIn`
+
+Decided by the agent under the owner's delegation of 2026-11-01 (milestones 1C, 1B, 1D), following
+the knowledge-build epic (section 8, Rules and Views).
+
+- **The linker runs a rule per view.** `LinkRule.perView()` says whether the linker runs a rule
+  once in each view: the default view, then each profile the facts it reads name (a fact's
+  `profile`, the names in a `profile-gate`), as the matchers' own loop did (`View.of`). The
+  protocol rules are per view: their index is narrowed to the one view (`LinkIndex.in`), so a
+  matcher finds only that view's links, and finding one in another view fails.
+- **The linker merges the views** (`ViewMerge`). A rule gives a claim found in a view with the link
+  that makes it the same claim in every view (`ClaimSink.add(fact, link)`; the protocol rules give
+  their matchers' link identities, which name the ends and the code on both, never a commit). A
+  claim found in the default view is one fact, citing the facts it comes from in every view and
+  listing in `absentIn` the views it is not found in; one found only in other views is one fact per
+  view, its `view` a key attribute. A fact given without a link holds whatever the view and is kept
+  once. This is `FoundLinks`' rule of ADR 0042 moved into the linker, with `profile` named `view`
+  and `exceptProfiles` named `absentIn`.
+- **A rule may describe a claim across views** once they are merged (`LinkRule.merged`): the HTTP
+  rule names in `alternates` the other units and systems a call reaches in other views, which a
+  single view no longer shows. The HTTP matcher gives each call's links a group, the unit making
+  the call and its code site, which the merge carries through (`ClaimSink.add(fact, link, group)`).
+- **The epic** (section 8, Rules and Views) is brought in line: a link's views are the profiles;
+  deployment environments are views of value resolution and address resolution only.
+- **Not per view: value resolution and address resolution.** Their views include deployment
+  environments, whose overlay is a container's environment (ADR 0094, amendment for #588), and
+  address resolution answers per profile and per deployment that fills an address in, so each
+  resolves its views in one pass, as before. Their claims name the view the same way: value
+  resolution's literal for a profile or a deployment carries `view` (a profile's name, or the
+  deployment's `<repository>|<platform>|<environment>[|<compose file>]|<container>`), its default
+  view's lists both in `absentIn`, profiles first; address resolution's answers carry `view` for
+  the profile asked in and keep `deployment` for the container that filled the address in, which is
+  part of the answer, not a view: one answer may hold under a profile and be filled by a deployment.
+  The other rules (units, people, README claim checks, the LLM resolver) find no links per view;
+  the units' `application-name` per profile carries `view` too.
+- **Readers.** The composer reads a fact's view as `view`, else an extracted fact's `profile`
+  (`Knowledge.view`), and `absentIn` where it read `exceptProfiles`; the LLM resolver reads an open
+  link's `view` and `absentIn` and gives the link it picks the same. The prompt's text is unchanged.
+- **Vocabulary.** `view` and `absentIn` are declared on every link-stage type that had `profile`
+  and `exceptProfiles`; `view` replaces `profile` among the key attributes. `profile`,
+  `exceptProfiles` and value resolution's `exceptDeployments` stay declared, no longer given, so
+  facts stored before stay valid; they are descriptive. Extracted facts keep `profile`.
+
+On project-0 to project-4 and project-8 every link and every other derived fact is the same once
+the names are mapped; only the IDs that README claim checks cite change with the links they cite
+(#590's PR).

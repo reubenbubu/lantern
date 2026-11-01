@@ -15,9 +15,11 @@ import tools.jackson.databind.node.ObjectNode;
  * like them (jwk-set-uri, issuer-uri), keycloak.auth-server-url and Keycloak's admin client (ADR
  * 0085). One fact per unit, provider and purpose.
  *
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from: the config values that name
  *     the provider, the admin client, and what the provider was found by (a unit's name or port, a
  *     deployment container), in every view it holds in.
@@ -29,8 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     deployment container of an identity provider's image answering the host), published-port (one
  *     publishing the port of this machine), provider-name (a provider Spring Security knows by
  *     name, such as google) or external (a host with a domain).
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param protocol Key. OIDC, JWKS, OAuth2 or the admin API (Keycloak Admin REST), over HTTP or
  *     HTTPS.
  * @param purpose Descriptive. What the unit does with the provider: validates-tokens (checks the
@@ -41,8 +43,11 @@ import tools.jackson.databind.node.ObjectNode;
  * @param target Descriptive. The entity ID of the endpoint of the target unit the URL's path
  *     reaches, such as its JWK set's handler.
  * @param url Descriptive. The provider's URL as the unit's config gives it in the view.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record UsesIdentityProviderAttributes(
+    List<String> absentIn,
     List<String> exceptProfiles,
     List<String> facts,
     String key,
@@ -53,17 +58,19 @@ public record UsesIdentityProviderAttributes(
     String purpose,
     String source,
     String target,
-    String url) {
+    String url,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "USES_IDENTITY_PROVIDER";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("key", "profile", "protocol");
+  public static final List<String> KEY_ATTRIBUTES = List.of("key", "protocol", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static UsesIdentityProviderAttributes from(ObjectNode attributes) {
     return new UsesIdentityProviderAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
         AttributeValues.string(attributes, "key"),
@@ -74,12 +81,14 @@ public record UsesIdentityProviderAttributes(
         AttributeValues.string(attributes, "purpose"),
         AttributeValues.string(attributes, "source"),
         AttributeValues.string(attributes, "target"),
-        AttributeValues.string(attributes, "url"));
+        AttributeValues.string(attributes, "url"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
     AttributeValues.put(attributes, "facts", facts);
     AttributeValues.put(attributes, "key", key);
@@ -91,6 +100,7 @@ public record UsesIdentityProviderAttributes(
     AttributeValues.put(attributes, "source", source);
     AttributeValues.put(attributes, "target", target);
     AttributeValues.put(attributes, "url", url);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

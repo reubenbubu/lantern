@@ -500,12 +500,12 @@ class CrossRepoLinksTest {
             "service:g:payments CALLS_HTTP external-system:api.paygate.example.com"
                 + " {\"alternates\":[\"external-system:sandbox.paygate.example.com\"],"
                 + "\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"matchedBy\":\"external\","
-                + "\"path\":\"/v1/charges\",\"profile\":\"prod\",\"protocol\":\"HTTPS\","
+                + "\"path\":\"/v1/charges\",\"protocol\":\"HTTPS\","
                 + "\"source\":\"method:p.Gateway#charge()\","
-                + "\"url\":\"https://api.paygate.example.com/v1/charges\"} 1.0",
+                + "\"url\":\"https://api.paygate.example.com/v1/charges\",\"view\":\"prod\"} 1.0",
             "service:g:payments CALLS_HTTP external-system:sandbox.paygate.example.com"
-                + " {\"alternates\":[\"external-system:api.paygate.example.com\"],"
-                + "\"client\":\"rest-client\",\"exceptProfiles\":[\"prod\"],\"httpMethod\":\"POST\","
+                + " {\"absentIn\":[\"prod\"],\"alternates\":[\"external-system:api.paygate.example.com\"],"
+                + "\"client\":\"rest-client\",\"httpMethod\":\"POST\","
                 + "\"matchedBy\":\"external\",\"path\":\"/v1/charges\",\"protocol\":\"HTTPS\","
                 + "\"source\":\"method:p.Gateway#charge()\","
                 + "\"url\":\"https://sandbox.paygate.example.com/v1/charges\"} 1.0");
@@ -603,7 +603,7 @@ class CrossRepoLinksTest {
     assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
         .singleElement()
         .asString()
-        .contains("\"exceptProfiles\":[\"local\"]");
+        .contains("\"absentIn\":[\"local\"]");
   }
 
   @Test
@@ -654,7 +654,7 @@ class CrossRepoLinksTest {
         .asString()
         .contains("CALLS_HTTP service:g:payments")
         .contains("\"matchedBy\":\"path\"")
-        .contains("\"profile\":\"local\"")
+        .contains("\"view\":\"local\"")
         .endsWith(" 0.6");
   }
 
@@ -1932,11 +1932,8 @@ class CrossRepoLinksTest {
     assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
         .singleElement()
         .asString()
-        .contains("\"profile\":\"audit\"");
-    assertThat(derive(CrossRepoLinks.CONSUMES))
-        .singleElement()
-        .asString()
-        .doesNotContain("profile");
+        .contains("\"view\":\"audit\"");
+    assertThat(derive(CrossRepoLinks.CONSUMES)).singleElement().asString().doesNotContain("view");
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1996,14 +1993,14 @@ class CrossRepoLinksTest {
         .containsExactly(
             "database:localhost:5432/shop technology PostgreSQL 1.0",
             "database:shop-db:5432/shop technology PostgreSQL 1.0",
-            "service:g:payments ACCESSES_DATA_OF service:g:shop {\"database\":\"database:shop-db:5432/shop\","
-                + "\"exceptProfiles\":[\"local\"],\"protocol\":\"JDBC\",\"reads\":[\"table:g:shop:orders\"]} 1.0",
+            "service:g:payments ACCESSES_DATA_OF service:g:shop {\"absentIn\":[\"local\"],\"database\":\"database:shop-db:5432/shop\","
+                + "\"protocol\":\"JDBC\",\"reads\":[\"table:g:shop:orders\"]} 1.0",
             "service:g:payments USES_DATABASE database:shop-db:5432/shop {\"key\":\"spring.datasource.url\","
                 + "\"protocol\":\"JDBC\",\"technology\":\"PostgreSQL\",\"url\":\"jdbc:postgresql://shop-db:5432/shop\"} 1.0",
             "service:g:shop USES_DATABASE database:localhost:5432/shop {\"key\":\"spring.datasource.url\","
-                + "\"profile\":\"local\",\"protocol\":\"JDBC\",\"schemas\":[\"schema:g:shop\"],"
-                + "\"technology\":\"PostgreSQL\",\"url\":\"jdbc:postgresql://localhost:5432/shop\"} 1.0",
-            "service:g:shop USES_DATABASE database:shop-db:5432/shop {\"exceptProfiles\":[\"local\"],"
+                + "\"protocol\":\"JDBC\",\"schemas\":[\"schema:g:shop\"],"
+                + "\"technology\":\"PostgreSQL\",\"url\":\"jdbc:postgresql://localhost:5432/shop\",\"view\":\"local\"} 1.0",
+            "service:g:shop USES_DATABASE database:shop-db:5432/shop {\"absentIn\":[\"local\"],"
                 + "\"key\":\"spring.datasource.url\",\"protocol\":\"JDBC\",\"schemas\":[\"schema:g:shop\"],\"technology\":\"PostgreSQL\","
                 + "\"url\":\"jdbc:postgresql://shop-db:5432/shop\"} 1.0");
   }

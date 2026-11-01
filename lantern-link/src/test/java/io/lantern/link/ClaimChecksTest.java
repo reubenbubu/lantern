@@ -383,14 +383,14 @@ class ClaimChecksTest {
         "orders",
         CrossRepoLinks.USES_DATABASE,
         "database:localhost:5432/shop",
-        "{\"profile\":\"local\"}",
+        "{\"view\":\"local\"}",
         1.0);
     link(
         "billing",
         "billing",
         CrossRepoLinks.USES_DATABASE,
         "database:localhost:5432/shop",
-        "{\"profile\":\"local\"}",
+        "{\"view\":\"local\"}",
         1.0);
 
     assertThat(derive()).isEmpty();
