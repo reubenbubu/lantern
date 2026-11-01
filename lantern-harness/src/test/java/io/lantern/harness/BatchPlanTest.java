@@ -211,6 +211,88 @@ class BatchPlanTest {
     assertThat(asked).isEqualTo(expected);
   }
 
+  /** Asks every item at once, on its own thread, and gives each subject's outcome. */
+  private static Map<String, Outcome.Kind> askAll(RoleSession session, List<Item> items)
+      throws Exception {
+    Map<String, Outcome.Kind> kinds = new java.util.TreeMap<>();
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<Future<Outcome>> asked = new ArrayList<>();
+      for (Item item : items) {
+        asked.add(executor.submit(() -> session.ask(item, TestHarness.asking(item))));
+      }
+      for (int i = 0; i < items.size(); i++) {
+        kinds.put(
+            items.get(i).subject(),
+            asked.get(i).get(30, java.util.concurrent.TimeUnit.SECONDS).kind());
+      }
+    }
+    return kinds;
+  }
+
+  private static Harness budgeted(FakeLlmProvider fake, String total) {
+    return new Harness(
+        TestHarness.client(fake, TestHarness.priced(fake)),
+        new InMemoryAnswerStore(),
+        new RunBudget(new BigDecimal(total), Map.of("summarize", 50, "describe", 50)),
+        BlobLookup.NONE,
+        Set.of());
+  }
+
+  @Test
+  void underABudgetAnItemThatDoesNotFitWaitsAndTheSmallerOnesBehindItAreAsked() throws Exception {
+    // A large item first, estimated at about $0.0025, then ten small ones at about $0.0005 each, in
+    // a share of $0.002: the large one never fits, and the small ones behind it are asked, the same
+    // every run, rather than none of them (#661).
+    List<Item> items = new ArrayList<>();
+    items.add(new Item("large", "repo/large", List.of(), "Describe " + "x".repeat(8000)));
+    items.addAll(items(10));
+    java.util.Set<Map<String, Outcome.Kind>> outcomes = new java.util.HashSet<>();
+    java.util.Set<BigDecimal> spent = new java.util.HashSet<>();
+    for (int run = 0; run < 10; run++) {
+      RoleSession session =
+          budgeted(new FakeLlmProvider().answering("\"ok\""), "0.004").session(TestHarness.role());
+      session.plan(items, 0);
+      List<Item> shuffled = new ArrayList<>(items);
+      java.util.Collections.shuffle(shuffled, new java.util.Random(run));
+      outcomes.add(askAll(session, shuffled));
+      spent.add(session.record().costUsd());
+      assertThat(session.record().warmUp()).isEqualTo("unit-0");
+    }
+
+    assertThat(outcomes).hasSize(1);
+    assertThat(spent).hasSize(1);
+    Map<String, Outcome.Kind> kinds = outcomes.iterator().next();
+    assertThat(kinds.get("large")).isEqualTo(Outcome.Kind.NOT_ASKED);
+    kinds.remove("large");
+    assertThat(kinds.values()).hasSize(10).containsOnly(Outcome.Kind.ANSWERED);
+  }
+
+  @Test
+  void underABudgetAnItemRestingOnOneThatWaitsWaitsWithIt() throws Exception {
+    // A unit rests on a part too large for the share: asked without the part's summary, its prompt
+    // would lack it, so it waits with the part and is not asked; an item resting on nothing that
+    // waits is asked (#661).
+    Item part = new Item("part", "repo/part", List.of(), "Describe " + "x".repeat(8000));
+    Item unit = item("unit", "Unit.java");
+    Item other = item("other", "Other.java");
+    RoleSession session =
+        budgeted(new FakeLlmProvider().answering("\"ok\""), "0.004").session(TestHarness.role());
+    session.plan(
+        List.of(
+            RoleSession.Planned.of(part),
+            RoleSession.Planned.of(unit).after(List.of("part")),
+            RoleSession.Planned.of(other)),
+        0,
+        0);
+
+    Map<String, Outcome.Kind> kinds = askAll(session, List.of(part, unit, other));
+
+    assertThat(kinds)
+        .containsEntry("part", Outcome.Kind.NOT_ASKED)
+        .containsEntry("unit", Outcome.Kind.NOT_ASKED)
+        .containsEntry("other", Outcome.Kind.ANSWERED);
+  }
+
   @Test
   void anItemWithFirstClaimIsAdmittedAheadOfTheGroupsOthersAndTheirRoundsDoNotWaitForIt()
       throws Exception {

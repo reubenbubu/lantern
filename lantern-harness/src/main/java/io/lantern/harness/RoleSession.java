@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -153,17 +154,28 @@ public final class RoleSession {
    * @param subject the item's subject, as it will be asked; {@code null} if not known yet
    * @param item the item, or {@code null} for one expected to be asked
    * @param tokens the input tokens an item expected to be asked is expected to take
+   * @param after the subjects of the role's items this one rests on, such as a unit's parts: under
+   *     a budget, it is not admitted while one of them waits for a later round (#661)
    */
-  public record Planned(String subject, Item item, long tokens) {
+  public record Planned(String subject, Item item, long tokens, Set<String> after) {
+
+    public Planned {
+      after = Set.copyOf(after);
+    }
 
     /** An item whose input is known now. */
     public static Planned of(Item item) {
-      return new Planned(item.subject(), item, 0);
+      return new Planned(item.subject(), item, 0, Set.of());
     }
 
     /** An item expected to be asked, of the given subject and input tokens. */
     public static Planned predicted(String subject, long tokens) {
-      return new Planned(subject, null, tokens);
+      return new Planned(subject, null, tokens, Set.of());
+    }
+
+    /** This item, resting on the role's items of the given subjects. */
+    public Planned after(Collection<String> subjects) {
+      return new Planned(subject, item, tokens, Set.copyOf(subjects));
     }
   }
 
@@ -171,9 +183,9 @@ public final class RoleSession {
    * Plans the role's items, in the role's order, before any is asked (knowledge-build epic, section
    * 10, Plan): counts the cache hits, estimates the misses, logs the estimate and adds it to the
    * run record. Under a budget share it also decides, walking the items in that order, which fit
-   * the share by their estimates; the first that does not fit and every item after it are not
-   * asked. The first miss that is asked warms the cache. Neither depends on which thread asks first
-   * (#657).
+   * the share by their estimates; one that does not fit waits for a later round while the items
+   * after it that fit are asked, and what never fits is not asked. The first miss that is asked
+   * warms the cache. Neither depends on which thread asks first (#657).
    *
    * @param planned the role's items in its order, known and expected
    * @param predictedHits items not yet known that are expected to be cached
@@ -312,7 +324,8 @@ public final class RoleSession {
               key,
               entry.subject(),
               entry.item(),
-              entry.item() != null ? itemCost(entry.item()) : cost(entry.tokens())));
+              entry.item() != null ? itemCost(entry.item()) : cost(entry.tokens()),
+              entry.after()));
     }
     if (claim) {
       entries.forEach(entry -> decided(entry, rounds.claim(entry)));
@@ -1040,7 +1053,9 @@ public final class RoleSession {
     synchronized (this) {
       Boolean fits = admitted.get(key);
       if (fits == null) {
-        fits = rounds.claim(new ShareRounds.Entry(this, key, item.subject(), item, itemCost(item)));
+        fits =
+            rounds.claim(
+                new ShareRounds.Entry(this, key, item.subject(), item, itemCost(item), Set.of()));
         admitted.put(key, fits);
       }
       return Optional.of(fits);
