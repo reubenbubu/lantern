@@ -493,7 +493,13 @@ The research behind this split is in section 4.
   - The answer must hold an entry for **every** item ID, either an answer or `{"omitted": true}`. An item missing from the answer is re-queued alone, once. If it is missing again, it is stored as `not-asked`.
   - Each item's answer is verified and cached independently, so a packet with one bad item keeps the others.
   - Packet neighbours are not part of a fingerprint. Packing is deterministic, so this is reproducible, and the calibration (next bullet) bounds their influence.
-- **Packet sizes are calibrated, not assumed.** Section 11 gives each role's starting size. Before a role's size is fixed, it is measured on the development sets at 1, 5, 10 and 20 items. The largest size whose role score (section 13, on a 0 to 100 scale) stays within one point of size 1 is kept, and recorded in the role's ADR.
+- **Packet sizes are calibrated, not assumed.** Section 11 gives each role's starting size. Before a role's size is fixed, it is measured on the development sets at 1, 5, 10 and 20 items, size 1 twice so that the noise between two runs is known. The largest size that is no worse than size 1 is kept, and recorded in the role's ADR. "No worse" is a paired test on the same items, since a margin of one point is below what 100 to 200 items per role can resolve (`docs/research/role-measurement.md`, #662):
+  - the lower bound of a one-sided 90% bootstrap interval of the per-item difference against size 1 (role score, 0 to 100) is above −7 points, about the smallest difference these sets can detect;
+  - the share of items whose answer changes against size 1 is at most that of the two size-1 runs plus 5 points;
+  - no set drops by more than 14 points;
+  - sizes pass in order: if 10 fails, 20 is not considered;
+  - for roles that write prose (Describe, flow narratives), the middle positions of a size-20 packet are not more than 7 points worse than the first and last, or the size is capped below 20;
+  - these limits rest on an assumed 10% of changed answers; the first recordings measure it, and the role's ADR records the limits used and how often they would reject a size truly equal to size 1.
 - **Order.** Roles run as a DAG; roles at one step run in parallel:
   1. Resolve (inside linking)
   2. derivation
@@ -1295,8 +1301,14 @@ Every role is tested without a real model, and measured on the development test 
 - **Extraction coverage** (ADR 0089) is unchanged. It keeps splitting losses between extraction and linking, and gains a third column for derivation (components, flows, leads).
 
 * **Packet-size calibration** (section 10).
-  - It runs on recordings made once per role at 1, 5, 10 and 20 items per request, on project-1 to project-4, under one budgeted real recording per role that the owner approves.
-  - The kept size, the scores at each size and the cost are written into the role's ADR.
+  - It runs on recordings made once per role at 1 (twice), 5, 10 and 20 items per request, on project-1 to project-4, under one budgeted real recording per role that the owner approves.
+  - The kept size, the paired differences and intervals at each size, the share of changed answers, and the cost are written into the role's ADR, with the role's smallest detectable difference.
+* **How a role's items are scored** (`docs/research/role-measurement.md`, #662).
+  - **Three outcomes.** Each item is correct, wrong or abstained ("unknown", omitted). A row reports coverage, accuracy on the answered items, and a penalized score, correct − p × wrong, with p set by how sure the role's instruction says it must be: 3 for Resolve ("only when the code or configuration shows it"), 1 for flow significance and Describe's intents. The role's ADR records its p. It also reports how often the role abstained on items the reference answers. An item not asked for budget is counted apart, neither abstained nor wrong. Where a reference marks an item's right answer as unknown, abstaining is correct and a pick is wrong.
+  - **Flows match** a reference flow when the trigger is the same entry point and the participants overlap by at least 2/3 (shared over the larger set), one to one, best overlap first.
+  - **Risks match** a reference risk by subject element and category. A finding that matches nothing is unjudged, not wrong: the scorecard lists it and its count, precision is over judged findings only, and once adjudicated it is added to the reference.
+  - **Judged rows** use the judge of #277, built to the note's judge rules and validated against the owner's labels before its score counts; until then those rows report coverage only.
+* **Claiming an improvement.** Two scorecards are compared on the same items: the bootstrap interval of the paired difference, and its direction per set. A change improves a row when the interval excludes 0 and all sets but at most one agree in direction; it does not regress one when the interval's lower bound is above −7 points. One new recording that a decision rests on is recorded twice, or its disagreeing items are rerun.
 * **A candidate test set.** Code2DFD's dataset of 17 Spring microservice applications comes with hand-checked dataflow diagrams and evidence lines (section 4). It would add breadth to the static layer's scoring, but the decision on test sets belongs to the owner (`design.md`, Test sets).
 
 ## 14. Migration plan
