@@ -46,7 +46,8 @@ Options:
                             them before Phase 2's real-model acceptance (docs/design.md, Test
                             sets); without this option they are refused.
   --score-only              Do not analyze: score each set's newest report as it is, the
-                            one whose run.json was written last. The sets need not be set up.
+                            one whose run.json was written last (the highest-numbered folder
+                            when none has a run.json). The sets need not be set up.
   -y, --yes                 Do not ask before analyzing (a real model costs money).
   -h, --help                Show this help.
 
@@ -153,11 +154,18 @@ reference_dir() {
   fi
 }
 
+# Temporary files, removed however the script ends.
+temporary=()
+cleanup() {
+  [[ ${#temporary[@]} -eq 0 ]] || rm -f "${temporary[@]}"
+}
+trap cleanup EXIT
+
 if $fake_llm && ! $score_only; then
   [[ -z "$llm_file" ]] || die "--fake-llm and --llm-properties exclude each other"
   # The settings of the fake models, outside the repository as launch.sh requires.
   llm_file="$(mktemp "${TMPDIR:-/tmp}/lantern-fake-llm-XXXXXX.properties")"
-  trap 'rm -f "$llm_file"' EXIT
+  temporary+=("$llm_file")
   cat > "$llm_file" <<'PROPERTIES'
 lantern.llm.models.fake.provider=fake
 lantern.llm.models.fake.id=fake-model
@@ -192,8 +200,23 @@ written_documents() {
   [[ -d "$dir" ]] || return 0
   local newer=()
   [[ -n "$since" ]] && newer=(-newer "$since")
-  find "$dir" -mindepth 2 -maxdepth 2 -name run.json -path "$dir/[0-9]*/run.json" ${newer[@]+"${newer[@]}"} \
-    -printf '%T@ %h\n' | sort -rn | cut -d' ' -f2-
+  find "$dir" -mindepth 2 -maxdepth 2 -name run.json -regex '.*/[0-9]+/run\.json' \
+    ${newer[@]+"${newer[@]}"} -printf '%T@ %h\n' | sort -rn | cut -d' ' -f2-
+}
+
+# The newest documents of a system without analyzing: the folder whose run.json was written last,
+# else, where no folder has one (documents from before run.json), the highest-numbered folder.
+newest_documents() {
+  local dir="$workspace/documents/$1" folders
+  mapfile -t folders < <(written_documents "$1")
+  if [[ ${#folders[@]} -gt 0 ]]; then
+    echo "${folders[0]}"
+  elif [[ -d "$dir" ]]; then
+    local newest
+    newest="$(find "$dir" -mindepth 1 -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' | sort -n | tail -n 1)"
+    [[ -z "$newest" ]] || echo "$dir/$newest"
+  fi
+  return 0
 }
 
 # The folder of documents the run just made, which must be the only one written since it started.
@@ -229,12 +252,12 @@ for set in "${sets[@]}"; do
     [[ -n "$mirror_file" ]] && launch+=(--mirror-properties "$mirror_file")
     info "$set: analyzing ${#repos[@]} repositories"
     started="$(mktemp "${TMPDIR:-/tmp}/lantern-score-started-XXXXXX")"
+    temporary+=("$started")
     LANTERN_WORKSPACE="$workspace" "${launch[@]}" ${overrides[@]+"${overrides[@]}"} -- "${repos[@]}" ||
-      { rm -f "$started"; die "$set: the analysis failed"; }
-    documents="$(run_documents "$set" "$started")" || { rm -f "$started"; exit 1; }
-    rm -f "$started"
+      die "$set: the analysis failed"
+    documents="$(run_documents "$set" "$started")" || exit 1
   else
-    documents="$(written_documents "$set" | head -n 1)"
+    documents="$(newest_documents "$set")"
   fi
   [[ -n "$documents" && -f "$documents/_system.c4.html" ]] || die "$set: no system report under $workspace/documents/$set"
   info "$set: scoring the documents in $documents"
