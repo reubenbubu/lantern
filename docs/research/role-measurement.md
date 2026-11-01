@@ -2,7 +2,7 @@
 
 This is the research for #662, the first issue of milestone 1F "Roles on the harness".
 
-**Depth: high.** It is a milestone's outcome and an open question of how to measure: it sets the rules for packet-size calibration, the judge, scoring "unknown" answers, matching flows and risks, and when an improvement can be claimed (`docs/epics/001-knowledge-build.md`, sections 10, 11 and 13). Twenty-three sources were read: twenty in full, three in substantial part (sources 5, 9 and 10, each to about 100,000 characters of 113,000 to 145,000). Two of the read sources (7 and 8) turned out to hold nothing on the question and carry no weight. Nine more were looked for and not read; they carry no weight either (see Not read). Research is generic: web sources only, never the test sets.
+**Depth: high.** It is a milestone's outcome and an open question of how to measure: it sets the rules for packet-size calibration, the judge, scoring "unknown" answers, matching flows and risks, and when an improvement can be claimed (`docs/epics/001-knowledge-build.md`, sections 10, 11 and 13). Twenty-three sources were read: twenty in full, three in substantial part (sources 5, 9 and 10, each to about 100,000 characters of 113,000 to 145,000). Two of those read in full (7 and 8) hold nothing on the question and carry no weight, so eighteen read in full count. Eleven more were looked for and not read; they carry no weight either (see Not read). Research is generic: web sources only, never the test sets.
 
 ## Question
 
@@ -16,7 +16,7 @@ Lantern has about five development systems and a few dozen items per role on eac
 
 ## Summary of findings
 
-- **A one-point margin cannot be measured at this size.** With 150 right-or-wrong items at 80% accuracy, one score has a standard error of about 3.3 points, so its 95% interval is about ±6.4 points. A paired comparison on the same items resolves differences of about 5 to 7 points. The epic's "within one point of size 1" would be decided by noise.
+- **A one-point margin cannot be measured at this size.** With 150 right-or-wrong items at 80% accuracy, one score has a standard error of about 3.3 points, so its 95% interval is about ±6.4 points. If about 10% of items change answer between two runs (an assumption until the first recordings measure it), a paired comparison on the same items resolves differences of about 7 points. The epic's "within one point of size 1" would be decided by noise.
 - **The right test is non-inferiority on paired items.** Compare each item's answer at size k with its answer at size 1, and measure the noise floor by asking size 1 twice: runs at temperature 0 are not deterministic.
 - **The literature agrees on the shape of the batching curve.** Short, uniform classifications lose little up to 16 to 32 items (1 to 3 points for GPT-4-class models). Answers that select or list items, reasoning and generation lose much more. Position inside the packet matters.
 - **LLM judges are usable once validated.** They have position, length and self-preference biases. Grading one dimension per call, with a binary or short scale and an "unknown" exit, by a judge other than the writer, works best. Validate the judge against human labels (true positive and true negative rate), then correct its raw pass rate. BLEU and ROUGE agree poorly with people on code summaries.
@@ -64,7 +64,7 @@ Lantern has about five development systems and a few dozen items per role on eac
 
 ### 1. Packet size against accuracy
 
-- **The epic's margin is below the noise.** At n = 150 and p = 0.8, one score's standard error is √(0.16/150) = 3.3 points (source 1). Paired, the variance is that of the per-item differences: if 10% of items change answer between sizes, the standard error of the difference is √(0.10/150) = 2.6 points, and the smallest difference detectable at 80% power is 2.8 × 2.6 ≈ 7 points. Detecting 5 points needs about 7.84 × 0.10 / 0.05² ≈ 310 items.
+- **The epic's margin is below the noise.** At n = 150 and p = 0.8, one score's standard error is √(0.16/150) = 3.3 points (source 1). Paired, the variance is that of the per-item differences: if 10% of items change answer between sizes (assumed here; the first recordings measure it), the standard error of the difference is √(0.10/150) = 2.6 points, and the smallest difference detectable at 80% power is 2.8 × 2.6 ≈ 7 points. Detecting 5 points needs about 7.84 × 0.10 / 0.05² ≈ 310 items.
 - **Size 1 is not a fixed point.** At temperature 0, accuracy moved by up to 15% between runs (source 15), so part of any gap is rerun noise. A second size-1 run measures that floor.
 - **Items cluster by system**, with only about five clusters. Clustered standard errors (source 1) are unreliable with so few; this is our reasoning, not a source's. Report each set, and check the direction agrees across sets.
 - **What others found.** Short uniform judgements hold up well (sources 12, 13); answers that list or select items lose 12 to 32 points (source 13); generation is a poor fit for batching (source 12); middle positions fare worst (sources 12, 14). No source chose a size by a fixed point margin: BatchPrompt weighed accuracy and token cost together.
@@ -96,7 +96,7 @@ Lantern has about five development systems and a few dozen items per role on eac
 
 - Replay makes rescoring free but freezes one draw of a non-deterministic output (source 15).
 - Compare on the same items: pairing removes shared variance at no cost (source 1).
-- The smallest detectable difference is 2.8 × √(Var(d)/n) (source 1): about 7 points at n ≈ 150 with 10% discordant items.
+- The smallest detectable difference is 2.8 × √(Var(d)/n) (source 1): about 7 points at n ≈ 150 if 10% of items are discordant.
 - A second baseline run gives the noise floor (source 15); read the transcripts of disagreeing items before believing a score (source 17).
 
 ## Options
@@ -104,7 +104,7 @@ Lantern has about five development systems and a few dozen items per role on eac
 | Topic | Option | For | Against |
 | --- | --- | --- | --- |
 | Packet size | A. The epic's one-point rule | Simple | Below the noise; picks a size at random |
-| | B. Non-inferiority on paired items, margin δ, against a size-1 rerun | Sound; uses the planned recordings | One extra size-1 run; δ must be about 5 points or more |
+| | B. Non-inferiority on paired items, margin δ, against a size-1 rerun | Sound; uses the planned recordings | One extra size-1 run; δ must be near the smallest detectable difference, or good sizes are often rejected |
 | | C. Smallest size that saves enough cost | No statistics | Ignores accuracy |
 | Judge | Pointwise, binary, one dimension per call | Scales; absolute; easy to validate | Coarse; ties |
 | | Pairwise, both orders | Sensitive for A/B tests | Two calls an item; no absolute score |
@@ -123,8 +123,10 @@ Lantern has about five development systems and a few dozen items per role on eac
 **Packet size** (replaces the one-point rule)
 
 1. Per role, record size 1 twice and sizes 5, 10 and 20 once, on the same items. The second size-1 run is the noise floor; if the budget is short, rerun size 1 on two sets only.
-2. For each size k, the paired difference of per-item scores against size 1, with a 95% bootstrap interval over items, overall and per set.
-3. Keep the largest k for which: the interval's lower bound is above −δ, δ = 5 points on the 0 to 100 role score; the discordance against size 1 is at most the two size-1 runs' discordance plus 5 points; no set drops by more than 2δ.
+2. For each size k, the paired difference of per-item scores against size 1, with a bootstrap interval over items, overall and per set.
+3. Keep the largest k for which: the lower bound of a one-sided 90% bootstrap interval is above −δ, with δ = 7 points on the 0 to 100 role score, the smallest difference these sets can detect; the discordance against size 1 is at most the two size-1 runs' discordance plus 5 points; no set drops by more than 2δ (14 points).
+   - Why these numbers. At n ≈ 150 with 10% discordance the paired standard error is 2.6 points. With δ = 5 and a two-sided 95% interval (half-width 5.1), a size truly equal to size 1 would pass only when its observed difference is about 0 or better, about half the time. With δ = 7 and a one-sided 90% bound (3.3 points), it passes about 9 times in 10. A set holds about 30 items, so its own standard error is about 6 points; a per-set drop of 14 points is a real loss, not noise.
+   - These are judgement calls on an assumed discordance. The first recordings (#529) measure the discordance, and the role's ADR records δ, the per-set limit and the false-reject rate they imply.
 4. Sizes pass in order: if 10 fails, 20 is not considered.
 5. For roles that write prose (Describe, flow narratives), check accuracy by position at size 20; if the middle positions are more than δ worse, cap below 20.
 6. Record n, each pair's discordance, the intervals and the cost in the role's ADR.
@@ -132,7 +134,7 @@ Lantern has about five development systems and a few dozen items per role on eac
 **Abstention**
 
 1. Score each item correct, wrong or abstained; report coverage, accuracy on the answered items, and correct − p·wrong.
-2. p from the role's instruction: Resolve ("only when the code or configuration shows it", t = 0.75) p = 3; flow significance and Describe intents (t = 0.5) p = 1.
+2. p from the role's instruction: Resolve ("only when the code or configuration shows it", t = 0.75) p = 3; flow significance and Describe intents (t = 0.5) p = 1. The instructions state no number, so t is a judgement of how strict each instruction is: Resolve's demands proof, the others a best reading. Each role's ADR records the t it uses, and a change of t is a change of the row.
 3. Over-abstention reported; items not asked for budget reported apart, neither abstained nor missed.
 4. Where a reference marks items whose right answer is "unknown", abstaining on them is correct and a pick is wrong.
 
@@ -144,7 +146,7 @@ Lantern has about five development systems and a few dozen items per role on eac
 **Claiming an improvement**
 
 1. Scorecards compare runs on the same items, with a bootstrap interval of the paired difference and the direction per set.
-2. An improvement is claimed when the interval excludes 0 and most sets agree in direction; no regression when its lower bound is above −δ.
+2. An improvement is claimed when the interval excludes 0 and all sets but at most one agree in direction (4 of 5); no regression when its lower bound is above −δ.
 3. Each role's ADR states its smallest detectable difference.
 4. A decision that rests on one new recording records twice, or reruns the disagreeing items, so the noise floor is known.
 
@@ -154,7 +156,7 @@ Lantern has about five development systems and a few dozen items per role on eac
 2. A different model from the writer; authorship hidden.
 3. Text length capped and the mean length shown beside the score.
 4. Pairwise, both orders, only for A/B tests of a prompt change.
-5. Validated once before its score is used: about 60 owner labels per dimension, half pass and half fail, 20 to tune and 40 held out; TPR and TNR at least 0.8 on the held-out labels; the corrected score θ reported with its interval (±10 points expected at this size).
+5. Validated once before its score is used: about 60 owner labels per dimension, half pass and half fail, 20 to tune and 40 held out; TPR and TNR at least 0.8 on the held-out labels, the minimum of source 22 rather than its target of 0.9, since 40 held-out labels cannot tell 0.85 from 0.9; the corrected score θ reported with its interval (±10 points expected at this size).
 6. No BLEU, ROUGE or BERTScore for wording.
 
 ## What it changes
