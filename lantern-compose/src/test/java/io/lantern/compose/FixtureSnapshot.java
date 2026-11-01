@@ -106,6 +106,10 @@ record FixtureSnapshot(
     facts.addAll(new DeployableUnits().derive(facts, NUMBER));
     facts.addAll(new CrossRepoLinks().derive(facts, NUMBER));
     facts.addAll(new io.lantern.link.People().derive(facts, NUMBER));
+    // The architecture model, as the linker's derive rules store it (#523).
+    List<Fact> modelled = io.lantern.derive.Derivation.withModel(facts, NUMBER);
+    facts.clear();
+    facts.addAll(modelled);
     Snapshot snapshot = new Snapshot(NUMBER, commits, 3, "test", Instant.EPOCH);
     return new FixtureSnapshot(
         snapshot,

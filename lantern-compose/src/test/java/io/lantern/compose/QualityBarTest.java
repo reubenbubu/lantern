@@ -22,6 +22,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
+import io.lantern.derive.Knowledge;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;

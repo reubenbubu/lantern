@@ -162,11 +162,15 @@ class ClaimIdentityTest {
   /** The build relationships: {@code DEPENDS_ON} and everything under it. */
   static final Set<String> BUILD = Set.of(BuiltInTypes.DEPENDS_ON, "BUILD_DEPENDS_ON", "PACKAGES");
 
-  /** Every type the app loads: the built-in ones, then the extractors' and the linker's. */
+  /**
+   * Every type the app loads: the built-in ones, then the extractors', the linker's and
+   * derivation's.
+   */
   static Vocabulary vocabulary() {
     List<VocabularyType> types = new ArrayList<>(BuiltInTypes.definitions());
     Extractors.vocabularies().values().forEach(types::addAll);
     LinkVocabularies.bySource().values().forEach(types::addAll);
+    io.lantern.derive.Derivation.vocabularies().values().forEach(types::addAll);
     return new Vocabulary(1, types);
   }
 

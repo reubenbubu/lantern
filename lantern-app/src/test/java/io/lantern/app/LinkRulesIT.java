@@ -336,4 +336,24 @@ class LinkRulesIT {
         .contains(DeployableUnits.NAME)
         .doesNotContain(People.NAME);
   }
+
+  /**
+   * #523: the derive rules run in the linker after the rules whose facts they read, so an unchanged
+   * snapshot does not run the component rule again, and a change to what it reads does.
+   */
+  @Test
+  void theComponentRuleRunsOnlyWhenWhatItReadsChanged() {
+    Linker linker =
+        new Linker(
+            facts,
+            List.of(new DeployableUnits(), new io.lantern.derive.Components()),
+            new JdbcRuleRuns(jdbc));
+    assertThat(linker.order()).containsExactly(DeployableUnits.NAME, "components");
+
+    assertThat(link(linker, 1, configured(1, "shop", "http://orders:8080")).ran())
+        .containsExactly(DeployableUnits.NAME, "components");
+    assertThat(link(linker, 2, configured(2, "shop", "http://orders:8080")).ran()).isEmpty();
+    assertThat(link(linker, 3, configured(3, "shop", "http://orders:9090")).ran())
+        .containsExactly("components");
+  }
 }

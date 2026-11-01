@@ -11,6 +11,8 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.Components;
+import io.lantern.derive.Knowledge;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -271,11 +273,7 @@ final class C4Views {
 
   /** The modules whose code runs in the unit: its own and those of the libraries it bundles. */
   static SortedSet<EntityId> codeModules(Knowledge knowledge, EntityId unit) {
-    SortedSet<EntityId> modules = knowledge.parts(unit, BuiltInTypes.MODULE);
-    for (Fact fact : knowledge.relations(unit, BUNDLES)) {
-      modules.addAll(knowledge.parts(Knowledge.object(fact), BuiltInTypes.MODULE));
-    }
-    return modules;
+    return Components.codeModules(knowledge, unit);
   }
 
   /** The name a unit runs under in Spring's default profile, if it has one. */
@@ -1695,93 +1693,50 @@ final class C4Views {
     return result;
   }
 
-  /** The unit's components by role, entry points first, each in ID order. */
+  /**
+   * The unit's stored components (#523): the routes its gateway config defines, then its entry
+   * points and aspects, then the beans they share, each in ID order.
+   */
   List<Component> components(EntityId unit) {
-    SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
-    for (EntityId module : codeModules(knowledge, unit)) {
-      code.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
-        code.addAll(knowledge.typesWithin(pkg));
-      }
-    }
-    SortedSet<EntityId> entries = new TreeSet<>(Knowledge.BY_ID);
-    SortedSet<EntityId> beans = new TreeSet<>(Knowledge.BY_ID);
-    for (EntityId type : code) {
-      if (knowledge.attribute(type, MAIN_CLASS).isPresent()) {
+    List<Component> routes = new ArrayList<>();
+    List<Component> entries = new ArrayList<>();
+    List<Component> shared = new ArrayList<>();
+    for (Fact part : knowledge.withPredicate(Components.PART_OF)) {
+      if (!part.subject().type().equals(BuiltInTypes.COMPONENT)
+          || !Knowledge.isEntity(part)
+          || !Knowledge.object(part).equals(unit)) {
         continue;
       }
-      if (!entryKinds(type).isEmpty()) {
-        entries.add(type);
-      } else if (isBean(type)) {
-        beans.add(type);
+      EntityId component = part.subject();
+      EntityId main =
+          knowledge.relations(component, Components.ANCHORED_ON).stream()
+              .map(Knowledge::object)
+              .findFirst()
+              .orElse(null);
+      if (main == null) {
+        continue;
       }
-    }
-    // An aspect that advises an entry point of the unit is a component of its own, built around
-    // the beans only it uses: it is where a check such as authorization is decided. One declared
-    // outside the unit's code (a shared library the linker did not match to the unit) counts when
-    // it selects by annotation, which the unit's code must then use.
-    SortedSet<EntityId> aspects = new TreeSet<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(ADVISES)) {
-      EntityId aspect = fact.subject();
-      if (!aspects.contains(aspect)
-          && entries.contains(PackageDependencies.ownerType(knowledge, Knowledge.object(fact)))
-          && (code.contains(aspect) || selectsByAnnotation(aspect))) {
-        aspects.add(aspect);
-      }
-    }
-    beans.removeAll(aspects);
-    entries.addAll(aspects);
-    Map<EntityId, Set<EntityId>> uses = typeGraph(code);
-    Map<EntityId, SortedSet<EntityId>> reachedBy = new TreeMap<>(Knowledge.BY_ID);
-    for (EntityId entry : entries) {
-      Set<EntityId> seen = new HashSet<>(Set.of(entry));
-      Deque<EntityId> todo = new ArrayDeque<>(List.of(entry));
-      while (!todo.isEmpty()) {
-        for (EntityId next : uses.getOrDefault(todo.removeFirst(), Set.of())) {
-          if (!entries.contains(next) && seen.add(next)) {
-            todo.add(next);
-            if (beans.contains(next)) {
-              reachedBy.computeIfAbsent(next, b -> new TreeSet<>(Knowledge.BY_ID)).add(entry);
-            }
-          }
-        }
-      }
-    }
-    List<Component> components = new ArrayList<>();
-    // The routes a gateway's config defines, one component per module that defines any.
-    for (EntityId module : codeModules(knowledge, unit)) {
-      if (knowledge.attributes(module).stream()
-          .anyMatch(f -> f.predicate().equals(GATEWAY_ROUTE))) {
-        components.add(new Component(module, only(module), CONFIG_ROUTES));
-      }
-    }
-    for (EntityId entry : entries) {
       SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
-      types.add(entry);
-      reachedBy.forEach(
-          (bean, from) -> {
-            if (from.size() == 1 && from.first().equals(entry)) {
-              types.add(bean);
-            }
-          });
-      String technology =
-          aspects.contains(entry) ? "Spring AOP aspect" : String.join(" · ", entryKinds(entry));
-      components.add(new Component(entry, types, technology));
-    }
-    for (EntityId bean : beans) {
-      SortedSet<EntityId> from = reachedBy.get(bean);
-      boolean own = from == null ? reachesOutside(bean) : from.size() > 1;
-      if (own) {
-        components.add(new Component(bean, only(bean), beanKind(bean)));
+      knowledge
+          .relations(component, Components.HAS_MEMBER)
+          .forEach(f -> types.add(Knowledge.object(f)));
+      String role = RepoSections.attribute(part, "role", "");
+      Component found =
+          new Component(main, types, RepoSections.attribute(part, "technology", null));
+      switch (role) {
+        case Components.CONFIG_ROUTES_ROLE -> routes.add(found);
+        case Components.SHARED -> shared.add(found);
+        default -> entries.add(found);
       }
     }
+    Comparator<Component> byMain = Comparator.comparing(c -> c.main().toString());
+    routes.sort(byMain);
+    entries.sort(byMain);
+    shared.sort(byMain);
+    List<Component> components = new ArrayList<>(routes);
+    components.addAll(entries);
+    components.addAll(shared);
     return components;
-  }
-
-  /** Whether an aspect's pointcuts select methods by an annotation. */
-  private boolean selectsByAnnotation(EntityId aspect) {
-    return knowledge.attributes(aspect).stream()
-        .anyMatch(f -> f.predicate().equals(ASPECT) && !strings(f, "annotations").isEmpty());
   }
 
   /**
@@ -1794,144 +1749,10 @@ final class C4Views {
         : assembler.name(component.main);
   }
 
-  /**
-   * The roles that make a type an entry point: web controller, listener, scheduled job, gateway
-   * filter, the routes of a gateway built in its code, a STOMP handler, or the registration of a
-   * WebSocket endpoint.
-   */
-  private List<String> entryKinds(EntityId type) {
-    Set<String> kinds = new LinkedHashSet<>();
-    knowledge.attributes(type).stream()
-        .filter(f -> f.predicate().equals(GATEWAY_FILTER))
-        .forEach(
-            f ->
-                kinds.add(
-                    switch (f.object().value()) {
-                      case "global" -> "Global gateway filter";
-                      case "factory" -> "Gateway filter factory";
-                      case "web" -> "Web filter";
-                      default -> "Gateway filter";
-                    }));
-    knowledge.attributes(type).stream()
-        .filter(f -> f.predicate().equals(STEREOTYPE) && f.object().value().equals("controller"))
-        .forEach(
-            f ->
-                kinds.add(
-                    RepoSections.attribute(f, "rest", "false").equals("true")
-                        ? "Spring MVC REST controller"
-                        : "Spring MVC controller"));
-    for (EntityId method : knowledge.parts(type, METHOD)) {
-      for (Fact fact : knowledge.attributes(method)) {
-        switch (fact.predicate()) {
-          case ENDPOINT -> {
-            if (kinds.isEmpty()) {
-              kinds.add("HTTP endpoints");
-            }
-          }
-          case MESSAGE_LISTENER ->
-              kinds.add(
-                  brokerName(RepoSections.attribute(fact, "broker", "message")) + " listener");
-          case SCHEDULED, BACKGROUND_JOB -> kinds.add(ExplorerSections.jobKind(fact));
-          case GATEWAY_ROUTE -> kinds.add("Gateway routes");
-          case STOMP_MAPPING -> kinds.add("STOMP message handler");
-          case WEBSOCKET_ENDPOINT ->
-              kinds.add(
-                  "stomp".equals(RepoSections.attribute(fact, "protocol", ""))
-                      ? "STOMP WebSocket endpoint"
-                      : "WebSocket endpoint");
-          default -> {}
-        }
-      }
-    }
-    return List.copyOf(kinds);
-  }
-
-  private boolean isBean(EntityId type) {
-    for (Fact fact : knowledge.attributes(type)) {
-      if ((fact.predicate().equals(STEREOTYPE) && BEAN_STEREOTYPES.contains(fact.object().value()))
-          || fact.predicate().equals(HTTP_CLIENT)) {
-        return true;
-      }
-    }
-    return !knowledge.relations(type, REPOSITORY_FOR).isEmpty();
-  }
-
-  /** What kind of bean a component built around one bean is. */
-  private String beanKind(EntityId type) {
-    Optional<Fact> client =
-        knowledge.attributes(type).stream()
-            .filter(f -> f.predicate().equals(HTTP_CLIENT))
-            .findFirst();
-    if (client.isPresent()) {
-      String kind = client.get().object().value();
-      return kind.equals("feign") ? "Feign client" : "HTTP client";
-    }
-    for (Fact fact : knowledge.relations(type, REPOSITORY_FOR)) {
-      String base = RepoSections.attribute(fact, "base", "");
-      return base.contains(".jpa.") ? "Spring Data JPA repository" : "Spring Data repository";
-    }
-    return knowledge
-        .attribute(type, STEREOTYPE)
-        .map(
-            s ->
-                switch (s) {
-                  case "service" -> "Spring service";
-                  case "repository" -> "Spring repository";
-                  default -> "Spring component";
-                })
-        .orElse(null);
-  }
-
-  /** Whether a type's code reaches outside the unit: HTTP calls, sends or SQL, or data access. */
-  private boolean reachesOutside(EntityId type) {
-    if (!knowledge.relations(type, REPOSITORY_FOR).isEmpty()
-        || knowledge.attribute(type, HTTP_CLIENT).isPresent()) {
-      return true;
-    }
-    for (EntityId member : withMethods(type)) {
-      for (Fact fact : knowledge.about(member)) {
-        switch (fact.predicate()) {
-          case HTTP_CALL, MESSAGE_SEND, READS_TABLE, WRITES_TABLE -> {
-            return true;
-          }
-          default -> {}
-        }
-      }
-    }
-    return false;
-  }
-
   private List<EntityId> withMethods(EntityId type) {
     List<EntityId> members = new ArrayList<>(List.of(type));
     members.addAll(knowledge.parts(type, METHOD));
     return members;
-  }
-
-  /**
-   * Which types of the unit's code each uses: the types whose methods it calls and the clients
-   * injected into it, and for an interface the types of the code implementing it.
-   */
-  private Map<EntityId, Set<EntityId>> typeGraph(Set<EntityId> code) {
-    Map<EntityId, Set<EntityId>> uses = new TreeMap<>(Knowledge.BY_ID);
-    for (EntityId type : code) {
-      Set<EntityId> targets = new TreeSet<>(Knowledge.BY_ID);
-      for (EntityId member : withMethods(type)) {
-        for (Fact fact : knowledge.relations(member, BuiltInTypes.CALLS)) {
-          targets.add(PackageDependencies.ownerType(knowledge, Knowledge.object(fact)));
-        }
-      }
-      knowledge.relations(type, INJECTS).forEach(f -> targets.add(Knowledge.object(f)));
-      targets.remove(type);
-      targets.retainAll(code);
-      uses.computeIfAbsent(type, t -> new TreeSet<>(Knowledge.BY_ID)).addAll(targets);
-      for (Fact fact : knowledge.relations(type, BuiltInTypes.IMPLEMENTS)) {
-        EntityId contract = Knowledge.object(fact);
-        if (code.contains(contract)) {
-          uses.computeIfAbsent(contract, c -> new TreeSet<>(Knowledge.BY_ID)).add(type);
-        }
-      }
-    }
-    return uses;
   }
 
   private Diagram componentDiagram(String id, EntityId unit, List<Component> components) {

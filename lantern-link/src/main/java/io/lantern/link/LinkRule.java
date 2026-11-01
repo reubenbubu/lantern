@@ -21,12 +21,20 @@ public interface LinkRule {
    */
   String EXTRACTED = "*extracted";
 
+  /**
+   * In {@link #reads}: every fact the rules that do not read it gave, whatever its predicate. A
+   * rule of a later stage that reads the linked graph as a whole, as derivation's do (#523), runs
+   * after all of them.
+   */
+  String LINKED = "*linked";
+
   /** The rule's name, version and origin kind. */
   RuleInfo info();
 
   /**
-   * The predicates the rule reads, and {@link #EXTRACTED} for every extracted fact. Facts of a
-   * predicate another rule writes are those of the rules that write it, which run first.
+   * The predicates the rule reads, {@link #EXTRACTED} for every extracted fact and {@link #LINKED}
+   * for every fact the other rules gave. Facts of a predicate another rule writes are those of the
+   * rules that write it, which run first.
    */
   Set<String> reads();
 

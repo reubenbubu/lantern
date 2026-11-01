@@ -24,6 +24,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.Derivation;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,13 +46,20 @@ class C4ViewsTest {
 
   private Document repo(List<Fact> facts) {
     return new Composer("1")
-        .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, facts, Map.of());
+        .compose(
+            ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+            SNAPSHOT,
+            Derivation.withModel(facts, 1),
+            Map.of());
   }
 
   private Document system(List<Fact> facts) {
     return new Composer("1")
         .compose(
-            ViewDefinition.c4System("system:c4", "System", TEMPLATE), SNAPSHOT, facts, Map.of());
+            ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+            SNAPSHOT,
+            Derivation.withModel(facts, 1),
+            Map.of());
   }
 
   private static Section section(Document document, String id) {
@@ -402,8 +410,8 @@ class C4ViewsTest {
             "shop-app",
             "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
                 + "\"build\":\"./app\"}");
-    Fact db = facts.list().get(facts.list().size() - 2);
-    Fact app = facts.list().getLast();
+    Fact db = facts.raw().get(facts.raw().size() - 2);
+    Fact app = facts.raw().getLast();
     facts
         .attribute(
             "shop",

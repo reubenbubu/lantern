@@ -11,6 +11,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.Knowledge;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
