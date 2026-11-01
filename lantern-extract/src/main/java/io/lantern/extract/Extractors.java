@@ -65,10 +65,12 @@ public final class Extractors {
   public Extractors(Collection<? extends Extractor> extractors, ExtractionCache cache) {
     this.extractors = order(extractors);
     this.cache = Objects.requireNonNull(cache, "cache");
-    List<Extractor> every = new ArrayList<>(load());
+    // The given extractors' vocabularies, and those of the others found, whose types theirs may
+    // borrow; a given extractor replaces a found one of its name.
+    List<Extractor> every = new ArrayList<>(this.extractors);
     Set<String> names = new HashSet<>();
     every.forEach(e -> names.add(e.info().name()));
-    this.extractors.stream().filter(e -> !names.contains(e.info().name())).forEach(every::add);
+    load().stream().filter(e -> !names.contains(e.info().name())).forEach(every::add);
     List<VocabularyType> types = new ArrayList<>(BuiltInTypes.definitions());
     vocabularies(every).values().forEach(types::addAll);
     this.vocabulary = new Vocabulary(1, types);
