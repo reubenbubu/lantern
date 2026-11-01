@@ -161,7 +161,7 @@ public final class CrossRepoLinks {
     List<Fact> input = new ArrayList<>(facts);
     input.addAll(answers.facts());
     List<Fact> derived = new ArrayList<>();
-    for (ProtocolLinks rule : ProtocolLinks.all()) {
+    for (ProtocolLinks rule : ProtocolLinks.withOpenLinks()) {
       derived.addAll(
           ViewMerge.derive(
               rule, new ClaimQuery(rule.info(), rule.reads(), Set.of(), input, snapshot)));

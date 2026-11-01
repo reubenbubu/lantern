@@ -58,6 +58,9 @@ final class ProtocolLinks implements LinkRule {
   private final Matchers matchers;
   private final java.util.function.Function<List<Merged>, List<Fact>> merged;
 
+  /** Whether this is the open-links rule, which keeps only what the matchers leave open (#583). */
+  private final boolean open;
+
   /**
    * The facts the index was last built from, compared by identity, and the index: the linker runs
    * the rule once per view on the same facts, one view after another, and {@link #merged} clears
@@ -77,7 +80,18 @@ final class ProtocolLinks implements LinkRule {
       Set<String> writes,
       Matchers matchers,
       java.util.function.Function<List<Merged>, List<Fact>> merged) {
+    this(name, version, writes, matchers, merged, false);
+  }
+
+  private ProtocolLinks(
+      String name,
+      String version,
+      Set<String> writes,
+      Matchers matchers,
+      java.util.function.Function<List<Merged>, List<Fact>> merged,
+      boolean open) {
     this.origin = new Origin(Origin.Kind.STATIC, name, version);
+    this.open = open;
     this.writes = Set.copyOf(writes);
     this.matchers = Objects.requireNonNull(matchers, "matchers");
     this.merged = Objects.requireNonNull(merged, "merged");
@@ -92,7 +106,6 @@ final class ProtocolLinks implements LinkRule {
             CrossRepoLinks.CALLS_HTTP,
             CrossRepoLinks.ROUTED_ENDPOINT,
             CrossRepoLinks.UNROUTED_ENDPOINT,
-            CrossRepoLinks.UNRESOLVED_LINK,
             CrossRepoLinks.USES_INFRASTRUCTURE,
             DataLinker.DISPLAY_NAME,
             Deployments.DEPLOYED_IN,
@@ -123,7 +136,6 @@ final class ProtocolLinks implements LinkRule {
             CrossRepoLinks.ROUTES_TO,
             CrossRepoLinks.SENDS_MESSAGES_TO,
             CrossRepoLinks.USES_BROKER,
-            CrossRepoLinks.UNRESOLVED_LINK,
             DataLinker.DISPLAY_NAME,
             DeployableUnits.TECHNOLOGY),
         (index, found, origin, validity) -> new MessageLinker(index, found).link());
@@ -149,7 +161,6 @@ final class ProtocolLinks implements LinkRule {
             CrossRepoLinks.ACCESSES_DATA_OF,
             CrossRepoLinks.USES_BROKER,
             CrossRepoLinks.USES_INFRASTRUCTURE,
-            CrossRepoLinks.UNRESOLVED_LINK,
             DataLinker.DISPLAY_NAME,
             Deployments.DEPLOYED_IN,
             DeployableUnits.TECHNOLOGY),
@@ -163,11 +174,7 @@ final class ProtocolLinks implements LinkRule {
     return new ProtocolLinks(
         "mail-links",
         "1",
-        Set.of(
-            CrossRepoLinks.SENDS_MAIL,
-            CrossRepoLinks.UNRESOLVED_LINK,
-            DataLinker.DISPLAY_NAME,
-            DeployableUnits.TECHNOLOGY),
+        Set.of(CrossRepoLinks.SENDS_MAIL, DataLinker.DISPLAY_NAME, DeployableUnits.TECHNOLOGY),
         // Mail hosts read where they lead from address resolution's claims (#595).
         (index, found, origin, validity) ->
             new MailLinker(index, found, new AddressClaims(index)).link());
@@ -181,7 +188,6 @@ final class ProtocolLinks implements LinkRule {
         Set.of(
             CrossRepoLinks.USES_IDENTITY_PROVIDER,
             CrossRepoLinks.SHARED_SECRET,
-            CrossRepoLinks.UNRESOLVED_LINK,
             DataLinker.DISPLAY_NAME,
             Deployments.DEPLOYED_IN,
             DeployableUnits.TECHNOLOGY),
@@ -198,7 +204,6 @@ final class ProtocolLinks implements LinkRule {
         "1",
         Set.of(
             CrossRepoLinks.USES_DATABASE,
-            CrossRepoLinks.UNRESOLVED_LINK,
             DataLinker.DISPLAY_NAME,
             Deployments.DEPLOYED_IN,
             DeployableUnits.TECHNOLOGY),
@@ -206,9 +211,42 @@ final class ProtocolLinks implements LinkRule {
             new RedisLinker(index, found, new Deployments(index)).link(origin, validity));
   }
 
-  /** The rules, in the order the cross-repo links step ran their matchers. */
+  /**
+   * The requests, gateway routes and sends no matcher places, each an open link with the units or
+   * destinations it might go to (knowledge-build epic, section 8, rule 6; #583): the HTTP, route
+   * and messaging matchers, run in each view as their own rules run them, of which only what they
+   * leave open is kept. Which candidates a site has is part of matching, so the rule runs the
+   * matchers rather than repeating their logic, as address resolution does to learn their questions
+   * (#589).
+   */
+  static ProtocolLinks open() {
+    return new ProtocolLinks(
+        OPEN_LINKS,
+        "1",
+        Set.of(CrossRepoLinks.UNRESOLVED_LINK),
+        (index, found, origin, validity) -> {
+          AddressClaims addresses = new AddressClaims(index);
+          new HttpLinker(index, found, addresses).link();
+          new RouteLinker(index, found, addresses).link();
+          new MessageLinker(index, found).link();
+        },
+        facts -> facts.stream().map(Merged::fact).toList(),
+        true);
+  }
+
+  /** The open-links rule's name. */
+  static final String OPEN_LINKS = "open-links";
+
+  /** The protocol rules, in the order the cross-repo links step ran their matchers. */
   static List<ProtocolLinks> all() {
     return List.of(http(), messaging(), deployments(), data(), mail(), identity(), redis());
+  }
+
+  /** The protocol rules, then the open-links rule. */
+  static List<ProtocolLinks> withOpenLinks() {
+    List<ProtocolLinks> rules = new java.util.ArrayList<>(all());
+    rules.add(open());
+    return List.copyOf(rules);
   }
 
   @Override
@@ -241,7 +279,15 @@ final class ProtocolLinks implements LinkRule {
     Validity validity = Validity.from(in.snapshot());
     FoundLinks found = new FoundLinks();
     matchers.link(index.in(view), found, origin, validity);
-    found.to(out, view, origin, validity);
+    // The protocol rules give what they place; the open-links rule what they leave open (#583).
+    found.to(
+        out,
+        view,
+        origin,
+        validity,
+        open
+            ? CrossRepoLinks.UNRESOLVED_LINK::equals
+            : predicate -> !predicate.equals(CrossRepoLinks.UNRESOLVED_LINK));
   }
 
   @Override

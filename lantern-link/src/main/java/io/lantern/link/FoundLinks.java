@@ -111,6 +111,20 @@ final class FoundLinks {
    *     views the index is narrowed to
    */
   void to(ClaimSink out, View view, Origin origin, Validity validity) {
+    to(out, view, origin, validity, predicate -> true);
+  }
+
+  /**
+   * As {@link #to(ClaimSink, View, Origin, Validity)}, giving only the links and facts of the
+   * predicates a rule keeps: the protocol rules all but the links they leave open, the open-links
+   * rule only those (#583). What is not given still counts while matching.
+   */
+  void to(
+      ClaimSink out,
+      View view,
+      Origin origin,
+      Validity validity,
+      java.util.function.Predicate<String> kept) {
     String name = view.isDefault() ? "" : view.name();
     for (Map<String, Found> views : found.values()) {
       for (Map.Entry<String, Found> e : views.entrySet()) {
@@ -119,13 +133,16 @@ final class FoundLinks {
               "A link was found in view " + e.getKey() + " while linking in view " + view.name());
         }
         Found f = e.getValue();
+        if (!kept.test(f.predicate())) {
+          continue;
+        }
         out.add(
             fact(f, new TreeSet<>(f.facts()), origin, validity),
             f.identity(),
             groups.get(f.identity()));
       }
     }
-    plain.values().forEach(out::add);
+    plain.values().stream().filter(f -> kept.test(f.predicate())).forEach(out::add);
   }
 
   private static Fact fact(Found found, Set<String> ids, Origin origin, Validity validity) {

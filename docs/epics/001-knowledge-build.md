@@ -396,7 +396,7 @@ public interface LinkRule {
    - The claim ID replaces today's separate `link` attribute as the stable link ID.
    - Lineage lists the claims on both ends.
 5. **`People`**: unchanged in substance.
-6. **Open links**: a request, send or datasource no matcher places becomes an `open-link` claim with its candidates (units, destinations) as key attributes, as `unresolved-link` is today.
+6. **Open links**: a request, send or datasource no matcher places becomes an `open-link` claim with its candidates (units, destinations) as key attributes, as `unresolved-link` is today. Built in #583 as the `open-links` rule, still writing `unresolved-link` (ADR 0095).
 7. **`Resolve`** (LLM, section 11.1): picks among an open link's candidates. Candidates are (unit, channel) pairs: the channel is the endpoint or destination that matched, or, when none matched, the open link's own request or send entity. A pick writes the link claim from the caller's unit to the candidate unit, keyed on that channel and the view, as an observation of origin `llm` on the claim a static matcher would write for that pair, so documents need no special case. Resolve stays in linking because derivation (flows, components) needs every link.
 
 ### What moves out
