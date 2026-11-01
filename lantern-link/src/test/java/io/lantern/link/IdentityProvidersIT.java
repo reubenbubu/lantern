@@ -29,14 +29,15 @@ import org.junit.jupiter.api.condition.EnabledIf;
  * services fetch auth-service's JWK set, and project-4's gateway and auth-service share their HMAC
  * secret. Runs where the sets are set up ({@code testsets/project-N/setup.sh}, each repository at
  * its pin): in the folder {@code lantern.test.projects} names, or else in the default folder {@code
- * ~/workspace/lantern-test-projects} when project-1, project-2 and project-4 are there, so the full
- * check runs it (#603). Runs the rules the app runs before linking, value resolution included, so
- * the lines are the app's. Writes what it finds to {@code target/identity-providers/}.
+ * ~/workspace/lantern-test-projects} when any of project-1, project-2 and project-4 is there (one
+ * missing then fails rather than skips), so the full check runs it (#603). Runs the rules the app
+ * runs before linking, value resolution included, so the lines are the app's. Writes what it finds
+ * to {@code target/identity-providers/}.
  */
 @EnabledIf(
     value = "setsArePresent",
     disabledReason =
-        "project-1, project-2 and project-4 are not set up in ~/workspace/lantern-test-projects and"
+        "none of project-1, project-2 and project-4 is set up in ~/workspace/lantern-test-projects and"
             + " lantern.test.projects is not set; see testsets/project-N/setup.sh")
 class IdentityProvidersIT {
 
@@ -44,7 +45,7 @@ class IdentityProvidersIT {
 
   static boolean setsArePresent() {
     return given() != null
-        || SETS.stream().allMatch(set -> Files.isDirectory(folder().resolve(set)));
+        || SETS.stream().anyMatch(set -> Files.isDirectory(folder().resolve(set)));
   }
 
   private static String given() {
