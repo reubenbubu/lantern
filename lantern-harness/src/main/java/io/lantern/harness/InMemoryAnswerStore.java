@@ -30,9 +30,11 @@ public final class InMemoryAnswerStore implements AnswerStore {
 
   @Override
   public synchronized void save(StoredAnswer answer) {
-    if (answers.putIfAbsent(answer.fingerprint(), answer) == null) {
-      order.add(answer);
+    StoredAnswer earlier = answers.put(answer.fingerprint(), answer);
+    if (earlier != null) {
+      order.remove(earlier);
     }
+    order.add(answer);
   }
 
   /** How many answers it holds. */

@@ -123,8 +123,14 @@ final class SubmitTool implements ToolBox {
     return Map.copyOf(accepted);
   }
 
+  /**
+   * The items dropped: rejected twice, or rejected once and never submitted again, which is not an
+   * answer and must not be cached as one.
+   */
   synchronized Set<String> dropped() {
-    return Set.copyOf(dropped);
+    Set<String> all = new LinkedHashSet<>(dropped);
+    failedOnce.stream().filter(id -> !accepted.containsKey(id)).forEach(all::add);
+    return Set.copyOf(all);
   }
 
   synchronized boolean repaired(String id) {

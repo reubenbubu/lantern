@@ -333,20 +333,11 @@ class Project0EndToEndIT {
   }
 
   /**
-   * Analyzes all of project-4's repositories at their pins, with the {@code analyze} command, into
-   * the database that holds project-0, as another named system, and checks that the repositories
-   * without a {@code pom.xml} are analyzed without a build and not in degraded mode, and their
-   * READMEs read (#254); that its report shows nothing of project-0, is titled by the words its
-   * READMEs' headings share, that a removed repository leaves the next snapshot, and that project-0
-   * analyzed again finds the same facts without an LLM call (ADR 0071). Runs after the test above,
-   * which needs a database without project-0, and only when {@code lantern.test.project4} names the
-   * folder project-4 is set up in. Writes the command's output and project-4's system document and
-   * report to {@code target/project-4}, to look at.
-   */
-  /**
    * The harness's gate (knowledge-build epic, section 13; ADR 0100): a one-file change re-asks only
    * the items whose fingerprint inputs come from that file, or that show an earlier answer that
-   * changed; a warm rerun of the changed snapshot makes no call.
+   * changed; a warm rerun of the changed snapshot makes no call. The items asked are exactly the
+   * changed type, its two nested types (same file) and the payments unit, whose description shows
+   * that type's code.
    */
   @Test
   @Order(2)
@@ -383,6 +374,25 @@ class Project0EndToEndIT {
             .query()
             .listOfRows();
     assertThat(asked).as("items asked after the change").isNotEmpty();
+    // Exactly these items were asked, and each asked item stored its answer.
+    java.util.Set<String> askedByRecord = new java.util.TreeSet<>();
+    JSON.readTree(Files.readString(changed.runRecord()))
+        .get("harness")
+        .forEach(
+            role ->
+                role.get("askedSubjects")
+                    .forEach(
+                        subject ->
+                            askedByRecord.add(
+                                role.get("role").asString() + " " + subject.asString())));
+    assertThat(askedByRecord)
+        .containsExactlyInAnyOrder(
+            "summarize type:com.acme.shop.payments.PaymentController",
+            "summarize type:com.acme.shop.payments.PaymentController$Charge",
+            "summarize type:com.acme.shop.payments.PaymentController$Receipt",
+            "describe-unit service:com.acme.shop:payments");
+    assertThat(asked.stream().map(row -> row.get("role") + " " + row.get("subject")))
+        .containsExactlyInAnyOrderElementsOf(askedByRecord);
     // What the change re-asked, for the run's evidence.
     Files.createDirectories(OUT);
     Files.write(
@@ -436,6 +446,17 @@ class Project0EndToEndIT {
     assertThat(warm.llm().calls()).isZero();
   }
 
+  /**
+   * Analyzes all of project-4's repositories at their pins, with the {@code analyze} command, into
+   * the database that holds project-0, as another named system, and checks that the repositories
+   * without a {@code pom.xml} are analyzed without a build and not in degraded mode, and their
+   * READMEs read (#254); that its report shows nothing of project-0, is titled by the words its
+   * READMEs' headings share, that a removed repository leaves the next snapshot, and that project-0
+   * analyzed again finds the same facts without an LLM call (ADR 0071). Runs after the end-to-end
+   * test, which needs a database without project-0, and only when {@code lantern.test.project4}
+   * names the folder project-4 is set up in. Writes the command's output and project-4's system
+   * document and report to {@code target/project-4}, to look at.
+   */
   @Test
   @Order(3)
   void analyzingProject4AfterProject0ShowsNothingOfProject0() throws IOException {

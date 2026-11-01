@@ -45,6 +45,13 @@ public record CheckInputs(
     secrets = Set.copyOf(secrets);
   }
 
+  /** These inputs with more secret values, such as the run's. */
+  public CheckInputs withSecrets(java.util.Collection<String> more) {
+    Set<String> all = new java.util.LinkedHashSet<>(secrets);
+    all.addAll(more);
+    return new CheckInputs(schema, references, citable, ranges, files, staticClaims, all);
+  }
+
   /** The key of a subject and predicate in {@link #staticClaims}. */
   public static String claimKey(String subject, String predicate) {
     return subject + " " + predicate;

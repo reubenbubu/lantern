@@ -64,10 +64,10 @@ import org.slf4j.LoggerFactory;
  * <p>Each question is an item of the LLM harness (ADR 0100), under one of four roles: units, data
  * stores and destinations, flows, and the system's purpose. Its answer is cached under the item's
  * fingerprint, which hashes the role, its prompt version, the model, the facts the prompt shows
- * (their observation IDs, which change with their file's blob) and the prompt, which shows no fact
- * IDs, so a run over unchanged facts makes no call. Before any question of a role is asked, the
- * harness's plan prints the role's estimate. It never fails the run: an answer rejected twice, a
- * question past its role's share of the run budget, and a call refused by a budget or the model's
+ * (their claim IDs, with the blobs of the files whose code it shows) and the prompt, which shows no
+ * fact IDs, so a run over unchanged facts makes no call. Before any question of a role is asked,
+ * the harness's plan prints the role's estimate. It never fails the run: an answer rejected twice,
+ * a question past its role's share of the run budget, and a call refused by a budget or the model's
  * capabilities or failing in the provider, log a warning and cache nothing, so a later run asks
  * again. Calls run in parallel on virtual threads, bounded by the client's limits.
  */

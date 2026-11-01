@@ -97,6 +97,11 @@ public final class Harness {
     return blobs;
   }
 
+  /** The values masking marked as secret. */
+  Set<String> secrets() {
+    return secrets;
+  }
+
   /** A secret value the text holds, or null if it holds none. */
   String secretIn(String text) {
     for (String secret : secrets) {

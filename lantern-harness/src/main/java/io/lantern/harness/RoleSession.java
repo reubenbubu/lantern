@@ -243,10 +243,10 @@ public final class RoleSession {
       }
     }
     List<List<Item>> packets = Packer.pack(misses, spec.packetSize(), this::fingerprint);
-    List<Item> missing = new ArrayList<>();
+    List<Item> missing = java.util.Collections.synchronizedList(new ArrayList<>());
     run(packets, packet -> missing.addAll(askPacket(packet, role, outcomes)));
     List<List<Item>> alone = missing.stream().map(List::of).toList();
-    List<Item> missingTwice = new ArrayList<>();
+    List<Item> missingTwice = java.util.Collections.synchronizedList(new ArrayList<>());
     run(alone, packet -> missingTwice.addAll(askPacket(packet, role, outcomes)));
     for (Item item : missingTwice) {
       settle(
@@ -297,7 +297,7 @@ public final class RoleSession {
                 spec.name() + " " + packet.size() + " items: " + packet.getFirst().subject(),
                 role.maxOutputTokens(packet.size()),
                 List.of());
-    CheckInputs inputs = role.inputs(packet, ids);
+    CheckInputs inputs = role.inputs(packet, ids).withSecrets(harness.secrets());
     List<Item> missing = new ArrayList<>();
     try {
       LlmResponse first = send(client, request);
@@ -459,7 +459,9 @@ public final class RoleSession {
     for (int i = 1; i <= packet.size(); i++) {
       ids.add("I" + i);
     }
-    SubmitTool submit = new SubmitTool(tools, packet, ids, role, role.inputs(packet, ids));
+    SubmitTool submit =
+        new SubmitTool(
+            tools, packet, ids, role, role.inputs(packet, ids).withSecrets(harness.secrets()));
     LlmRequest request =
         role.layout(packet, ids)
             .request(

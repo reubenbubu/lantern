@@ -77,13 +77,15 @@ class AnswerStoreIT {
   }
 
   @Test
-  void savingTheSameFingerprintTwiceKeepsTheFirst() {
+  void savingTheSameFingerprintAgainReplacesTheAnswerAndMakesItTheLatest() {
     String fingerprint = fingerprint();
     String subject = "link-" + UUID.randomUUID();
     store.save(answer(fingerprint, subject, "{\"n\":1}"));
-    store.save(answer(fingerprint, subject, "{\"n\":2}"));
+    store.save(answer(fingerprint(), subject, "{\"n\":2}"));
+    store.save(answer(fingerprint, subject, "{\"n\":3}"));
 
-    assertThat(store.find(fingerprint).orElseThrow().answer()).contains("1");
+    assertThat(store.find(fingerprint).orElseThrow().answer()).contains("3");
+    assertThat(store.latest("resolve", subject).orElseThrow().fingerprint()).isEqualTo(fingerprint);
   }
 
   @Test

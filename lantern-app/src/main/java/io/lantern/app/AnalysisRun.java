@@ -372,6 +372,11 @@ public final class AnalysisRun {
             "Units without a summary, their answer rejected twice: {}",
             summarized.rejected().size());
       }
+      if (!summarized.notAsked().isEmpty()) {
+        LOG.warn(
+            "Units without a summary, not asked because a budget refused the call: {}",
+            summarized.notAsked().size());
+      }
 
       // The LLM words the responsibilities of the snapshot's units and components and the intent
       // of their links, and narrates the main flows, from every fact that holds in it, carried

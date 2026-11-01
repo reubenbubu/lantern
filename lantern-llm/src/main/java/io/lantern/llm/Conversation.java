@@ -47,6 +47,7 @@ public final class Conversation {
   private String purpose;
   private LlmResponse last;
   private int turns;
+  private int toolTurns;
   private TokenUsage usage = TokenUsage.NONE;
   private BigDecimal cost = BigDecimal.ZERO;
   private boolean ended;
@@ -113,7 +114,7 @@ public final class Conversation {
     if (turns > 0 || ended) {
       throw new IllegalStateException("The conversation has already started");
     }
-    return loop();
+    return loop(false);
   }
 
   /**
@@ -141,7 +142,7 @@ public final class Conversation {
       messages.add(LlmMessage.assistant(last.text()));
       messages.add(LlmMessage.user(text));
     }
-    return loop();
+    return loop(true);
   }
 
   /**
@@ -181,9 +182,15 @@ public final class Conversation {
     return freshInput;
   }
 
-  private LlmResponse loop() {
+  /**
+   * Sends turns until the model answers. A reply's own turn is not held to the caps: it answers the
+   * caller (a repair, say), not a tool result, and the caps bound tool use.
+   */
+  private LlmResponse loop(boolean replying) {
+    boolean exempt = replying;
     while (true) {
-      String capped = capped();
+      String capped = exempt ? null : capped();
+      exempt = false;
       if (capped != null) {
         end(LlmConversation.Ending.CAPPED, capped);
         throw new ConversationCappedException(capped);
@@ -235,6 +242,7 @@ public final class Conversation {
         results.add(result);
       }
       messages.add(LlmMessage.assistant(response));
+      toolTurns++; // the turn these results go back in is a tool turn
       String note = "";
       if (!nudged && nearCap()) {
         // Lantern's own words go after the tool results, never inside one.
@@ -247,8 +255,7 @@ public final class Conversation {
 
   /** Why the next turn may not be sent, or null if it may. */
   private String capped() {
-    int toolTurns = Math.max(0, turns - 1);
-    if (turns > 0 && toolTurns >= limits.toolTurns()) {
+    if (toolTurns > limits.toolTurns()) {
       return "Stopped at the cap of %d tool turns".formatted(limits.toolTurns());
     }
     if (freshInput >= limits.inputTokens()) {
@@ -260,7 +267,6 @@ public final class Conversation {
 
   /** Whether the turn about to be sent passes {@value ConversationLimits#NUDGE_SHARE} of a cap. */
   private boolean nearCap() {
-    int toolTurns = turns; // the turn the tool results go back in is a tool turn
     return toolTurns >= Math.ceil(limits.toolTurns() * ConversationLimits.NUDGE_SHARE)
         || freshInput >= limits.inputTokens() * ConversationLimits.NUDGE_SHARE;
   }

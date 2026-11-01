@@ -71,17 +71,17 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Every unit is an item of the LLM harness (ADR 0100): its answer is cached under the item's
  * fingerprint, which hashes the role, the prompt version, the model (provider and identifier), the
- * facts its prompt shows (their observation IDs, which change with their file's blob), its
- * contained units' summaries (by their fingerprints), its entity, level and contained units'
- * entities, and its whole prompt. Fact IDs of earlier commits and commits are not in the prompt, so
- * a new commit that changes nothing a unit's prompt shows makes no call for it, and a contained
- * unit whose summary reads the same leaves its parent's fingerprint as it was. A unit whose
- * fingerprint is in the cache is not sent to the model again; the stored summary is rebound to the
- * current inputs, so it cites the facts and contained summaries of this run (the same prompt lists
- * the same inputs in the same order). When a unit's prompt changes it is summarized again; its new
- * text then changes its parent's prompt, and so on up to the repository. Before any unit is
- * summarized, the harness's plan prints the role's estimate; a unit past the role's share of the
- * run budget is not asked and gets no summary.
+ * facts its prompt shows (their claim IDs), the blobs of the files whose text it shows, the text of
+ * its contained units' summaries as shown, its entity, level and contained units' entities, and its
+ * whole prompt. Fact IDs of earlier commits and commits are not in the prompt, so a new commit that
+ * changes nothing a unit's prompt shows makes no call for it, and a contained unit whose summary
+ * reads the same leaves its parent's fingerprint as it was. A unit whose fingerprint is in the
+ * cache is not sent to the model again; the stored summary is rebound to the current inputs, so it
+ * cites the facts and contained summaries of this run (the same prompt lists the same inputs in the
+ * same order). When a unit's prompt changes it is summarized again; its new text then changes its
+ * parent's prompt, and so on up to the repository. Before any unit is summarized, the harness's
+ * plan prints the role's estimate; a unit past the role's share of the run budget is not asked and
+ * gets no summary.
  *
  * <p>Every summary must cite the facts or contained summaries it used, in every sentence. A
  * sentence of an answer that cites nothing is left out of it, and logged, without asking again; if
@@ -280,9 +280,9 @@ public final class Summarizer {
 
   /**
    * A unit as an item of the harness (ADR 0100): the claims its prompt shows, the blobs of the
-   * files it shows the text of, each contained unit's summary as the prompt shows it (its
-   * observation hash, so a part re-summarized to the same text leaves the unit's fingerprint as it
-   * was), its level, entity and contained units' entities, and its whole prompt.
+   * files it shows the text of, each contained unit's summary as the prompt shows it (a hash of its
+   * text, so a part re-summarized to the same text leaves the unit's fingerprint as it was), its
+   * level, entity and contained units' entities, and its whole prompt.
    */
   static Item item(SummaryNode node, List<Excerpts.Excerpt> excerpts, List<Summary> children) {
     List<FingerprintInput> inputs = new ArrayList<>();

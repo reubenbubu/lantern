@@ -19,9 +19,13 @@ public record Outcome(Kind kind, String fingerprint, String answer, String reaso
     ANSWERED,
     /** The model answered that its inputs show nothing for it, a correct answer, now cached. */
     OMITTED,
-    /** Its answer failed the checks twice, or it was missing twice; nothing is stored. */
+    /** Its answer failed the checks twice; nothing is stored. */
     DROPPED,
-    /** It was not asked: its role's share of the run budget was spent. Shown as unknown. */
+    /**
+     * It was not asked, or got no answer: its role's share of the run budget was spent, a budget
+     * refused the call, or it was missing from a packet's answer twice. Nothing is stored, so the
+     * next run asks it again; the run record counts it.
+     */
     NOT_ASKED,
     /** The call failed in the provider or was refused; nothing is stored. */
     FAILED

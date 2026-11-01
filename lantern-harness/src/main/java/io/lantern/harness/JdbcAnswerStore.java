@@ -80,7 +80,12 @@ public final class JdbcAnswerStore implements AnswerStore {
                                      omitted, answer, files_read, inputs)
             VALUES (:fingerprint, :role, :subject, :promptVersion, :provider, :model, :omitted,
                     CAST(:answer AS jsonb), CAST(:files AS jsonb), CAST(:inputs AS jsonb))
-            ON CONFLICT (fingerprint) DO NOTHING
+            ON CONFLICT (fingerprint) DO UPDATE
+              SET seq = nextval(pg_get_serial_sequence('llm_answers', 'seq')),
+                  role = EXCLUDED.role, subject = EXCLUDED.subject,
+                  omitted = EXCLUDED.omitted, answer = EXCLUDED.answer,
+                  files_read = EXCLUDED.files_read, inputs = EXCLUDED.inputs,
+                  created_at = now()
             """)
         .param("fingerprint", answer.fingerprint())
         .param("role", answer.role())

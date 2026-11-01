@@ -142,7 +142,8 @@ class RoleSessionTest {
     Map<String, String> blobs = new java.util.HashMap<>(Map.of("Read.java", "1".repeat(40)));
     BlobLookup lookup = (repo, path) -> Optional.ofNullable(blobs.get(path));
     Asker reading =
-        calls -> new Answer("{}", List.of(new FileRead("repo", "Read.java", "1".repeat(40))));
+        calls ->
+            new Answer("{}", List.of(new FileRead("repo", "Read.java", blobs.get("Read.java"))));
     new Harness(client(fake), store, RunBudget.NONE, lookup, Set.of())
         .session(role())
         .ask(item, reading);
@@ -155,6 +156,11 @@ class RoleSessionTest {
     RoleSession changed =
         new Harness(client(fake), store, RunBudget.NONE, lookup, Set.of()).session(role());
     assertThat(changed.ask(item, reading).kind()).isEqualTo(Outcome.Kind.ANSWERED);
+
+    // The new answer replaces the stale one, so the next run reuses it.
+    RoleSession again =
+        new Harness(client(fake), store, RunBudget.NONE, lookup, Set.of()).session(role());
+    assertThat(again.ask(item, reading).kind()).isEqualTo(Outcome.Kind.CACHED);
   }
 
   @Test
