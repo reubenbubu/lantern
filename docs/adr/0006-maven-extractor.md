@@ -206,7 +206,9 @@ because other POMs depend on it by them and dependencies resolve against module 
 application class to that library (`DeployableUnits`), go by the shared key, and no test set has a
 library in this case. A unit keyed this way has no Maven group, so it joins no Maven-group domain.
 The whole parent chain counts: a module whose root POM in the snapshot also declares no groupId
-and takes it from the framework's parent is keyed the same way. Parents are found by their exact
-coordinates, as for inheritance, so a parent in the snapshot at another version counts as foreign.
+and takes it from the framework's parent is keyed the same way. A parent in the snapshot counts
+at any version: FleetCare's services name `io.fleetcare:fleetcare-parent` at `1.4.0-SNAPSHOT`
+while the snapshot has `1.4.0`, and an exact match took their own organization's parent for a
+framework's.
 Two such services with the same artifactId share a key, as they shared the framework's group
-before. Extractor `maven` version 7.
+before. Extractor `maven` version 7, and 8 for the parent at any version.

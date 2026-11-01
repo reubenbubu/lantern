@@ -312,9 +312,10 @@ class MavenRulesTest {
     // A child of a parent in the snapshot keeps the group it inherits.
     Repo parent =
         repo("parent", Map.of("pom.xml", pom("g", "parent", "<packaging>pom</packaging>")));
+    // It names the parent at another version than the snapshot's, as FleetCare's services do.
     String inheriting =
         "<project><parent><groupId>g</groupId><artifactId>parent</artifactId>"
-            + "<version>1</version></parent><artifactId>orders</artifactId>"
+            + "<version>1-SNAPSHOT</version></parent><artifactId>orders</artifactId>"
             + BOOT
             + "</project>";
 

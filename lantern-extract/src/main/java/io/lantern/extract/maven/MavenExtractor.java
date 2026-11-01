@@ -71,7 +71,7 @@ public final class MavenExtractor implements Extractor {
   public static final String NAME = "maven";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "7";
+  public static final String VERSION = "8";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
@@ -695,7 +695,8 @@ public final class MavenExtractor implements Extractor {
    * Whether a POM's groupId comes only from a parent that is not among the analyzed POMs: neither
    * it nor any ancestor found in the snapshot declares one, and the chain ends at a framework's
    * parent, such as {@code org.springframework.boot:spring-boot-starter-parent}, whose group the
-   * module does not belong to. Parents are found by their exact coordinates, as for inheritance.
+   * module does not belong to. A parent counts as analyzed at any version: a module often names its
+   * organization's parent at another version than the one in the snapshot.
    */
   private static boolean foreignGroup(Pom pom, Map<String, Written> byCoordinates) {
     Pom current = pom;
@@ -706,11 +707,24 @@ public final class MavenExtractor implements Extractor {
       }
       Written parent = byCoordinates.get(p.groupId() + ":" + p.artifactId() + ":" + p.version());
       if (parent == null) {
+        parent = anyVersion(p, byCoordinates);
+      }
+      if (parent == null) {
         return true;
       }
       current = parent.pom();
     }
     return false;
+  }
+
+  /** The analyzed POM with a parent's groupId and artifactId at any version, the first by key. */
+  private static Written anyVersion(Pom.Coordinates p, Map<String, Written> byCoordinates) {
+    String prefix = p.groupId() + ":" + p.artifactId() + ":";
+    return byCoordinates.entrySet().stream()
+        .filter(e -> e.getKey().startsWith(prefix))
+        .min(Map.Entry.comparingByKey())
+        .map(Map.Entry::getValue)
+        .orElse(null);
   }
 
   private static Module fromEffective(Written w, Pom pom, boolean foreignGroup) {
