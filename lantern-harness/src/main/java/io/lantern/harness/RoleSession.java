@@ -59,6 +59,7 @@ public final class RoleSession {
   // write the shared prefix with a long lifetime, the rest in batches that read it.
   private volatile BatchCollector batch;
   private volatile long prefixTokens;
+  private volatile double requestsPerItem;
   private final java.util.concurrent.atomic.AtomicBoolean prefixSent =
       new java.util.concurrent.atomic.AtomicBoolean();
   private volatile Thread warmer;
@@ -120,11 +121,13 @@ public final class RoleSession {
     this.prefixTokens = prefixTokens;
     int cached = predictedHits;
     long input = predictedTokens;
+    List<Item> misses = new ArrayList<>();
     for (Item item : items) {
       if (harness.answers().find(fingerprint(item)).isPresent()) {
         cached++;
       } else {
         input += Tokens.estimate(item.rendering());
+        misses.add(item);
       }
     }
     int toAsk = items.size() + predictedHits - cached + predictedMisses;
@@ -132,8 +135,12 @@ public final class RoleSession {
     long read = 0;
     if (spec.packetSize() > 1) {
       // A role that groups items into requests renders each item without the prompt's start,
-      // which every request sends once: the plan counts requests, not items.
-      int requests = (toAsk + spec.packetSize() - 1) / spec.packetSize();
+      // which every request sends once: the plan counts requests, not items, packed as they will
+      // be sent (a new request at every change of repository).
+      int requests =
+          Packer.pack(misses, spec.packetSize(), this::fingerprint).size()
+              + (predictedMisses + spec.packetSize() - 1) / spec.packetSize();
+      this.requestsPerItem = toAsk == 0 ? 0 : (double) requests / toAsk;
       if (requests > 0 && model.supports(Capability.PROMPT_CACHING) && prefixTokens > 0) {
         write = prefixTokens;
         read = prefixTokens * (requests - 1L);
@@ -725,15 +732,17 @@ public final class RoleSession {
     long prefix = prefixTokens;
     long read = 0;
     int packet = spec.packetSize();
+    // A grouped item pays its share of its requests' starts, as the plan packed them.
+    long share = (long) Math.ceil(prefix * (requestsPerItem > 0 ? requestsPerItem : 1.0 / packet));
     if (model.supports(Capability.PROMPT_CACHING) && prefix > 0) {
       if (packet > 1) {
-        read = (prefix + packet - 1) / packet;
+        read = share;
       } else {
         read = Math.min(prefix, input);
         input -= read;
       }
     } else if (packet > 1) {
-      input += (prefix + packet - 1) / packet;
+      input += share;
     }
     TokenUsage usage = new TokenUsage(input, spec.expectedOutputTokens(), 0, read);
     return batching() ? model.pricing().batchCost(usage) : model.pricing().cost(usage);

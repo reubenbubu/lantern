@@ -122,7 +122,9 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   is priced as the plan prices it: the prompt's start read from the cache, a role that groups items
   paying its share of each request's start, and the batch price when the role batches. Once the
   item is settled its estimate is released, its real cost counted instead, so the check follows
-  what is spent, not what was estimated (#654). A call that still goes past the share, because the
+  what is spent, not what was estimated (#654). A role that groups items into requests (the judge,
+  the screen) decides all the items of one call on their estimates before any request goes, so it
+  stops at its estimates, short of its share when its answers cost less than estimated. A call that still goes past the share, because the
   estimate was low, is refused by the group's guard and its item is not asked either. Nothing not
   asked is cached, so a later run with room asks it.
 - **Each role's estimate is printed before its own first call, not all of them before the run's

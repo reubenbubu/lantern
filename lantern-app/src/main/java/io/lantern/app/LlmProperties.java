@@ -218,7 +218,10 @@ public record LlmProperties(
           id,
           supported,
           contextWindow,
-          prices.toPricing(property + ".prices", supported.contains(Capability.PROMPT_CACHING)),
+          prices.toPricing(
+              property + ".prices",
+              supported.contains(Capability.PROMPT_CACHING),
+              io.lantern.llm.anthropic.AnthropicProvider.NAME.equals(provider)),
           limits(property),
           thinking(property));
     }
@@ -261,7 +264,8 @@ public record LlmProperties(
   /**
    * A model's prices in US dollars per million tokens. Cache prices may be left out for a model
    * without prompt caching. {@code cache-write} is the five-minute write's price and {@code
-   * cache-write-long} the one-hour write's, twice the input price when left out, as on Anthropic.
+   * cache-write-long} the one-hour write's. Left out, it is twice the input price on Anthropic and
+   * the five-minute write's price on any other provider, such as OpenAI, which bills no write.
    */
   public record Prices(
       BigDecimal input,
@@ -270,7 +274,7 @@ public record LlmProperties(
       BigDecimal cacheRead,
       BigDecimal cacheWriteLong) {
 
-    Pricing toPricing(String property, boolean caching) {
+    Pricing toPricing(String property, boolean caching, boolean anthropic) {
       require(property + ".input", input);
       require(property + ".output", output);
       if (caching) {
@@ -282,7 +286,11 @@ public record LlmProperties(
           output,
           cacheWrite == null ? BigDecimal.ZERO : cacheWrite,
           cacheRead == null ? BigDecimal.ZERO : cacheRead,
-          cacheWriteLong == null ? input.multiply(Pricing.LONG_WRITE_MULTIPLE) : cacheWriteLong);
+          cacheWriteLong != null
+              ? cacheWriteLong
+              : anthropic
+                  ? input.multiply(Pricing.LONG_WRITE_MULTIPLE)
+                  : cacheWrite == null ? BigDecimal.ZERO : cacheWrite);
     }
   }
 

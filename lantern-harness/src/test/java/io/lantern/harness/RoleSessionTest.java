@@ -287,14 +287,20 @@ class RoleSessionTest {
       items.add(item);
       rendered += Tokens.estimate(item.rendering());
     }
+    // Two items of another repository, which go in a request of their own.
+    for (String subject : List.of("x", "y")) {
+      Item item = new Item(subject, "other/" + subject, List.of(), "Describe " + subject + ".");
+      items.add(item);
+      rendered += Tokens.estimate(item.rendering());
+    }
 
     Estimate estimate = session.plan(items, 0, 0, 0, 1_000);
 
-    // 25 items go as three requests: the first writes the prompt's start, the other two read it,
-    // and every item's own text is input.
-    assertThat(estimate.toAsk()).isEqualTo(25);
+    // 25 items of one repository go as three requests and the other two as a fourth: the first
+    // writes the prompt's start, the other three read it, and every item's own text is input.
+    assertThat(estimate.toAsk()).isEqualTo(27);
     assertThat(estimate.cacheWriteTokens()).isEqualTo(1_000);
-    assertThat(estimate.cacheReadTokens()).isEqualTo(2_000);
+    assertThat(estimate.cacheReadTokens()).isEqualTo(3_000);
     assertThat(estimate.inputTokens()).isEqualTo(rendered);
   }
 

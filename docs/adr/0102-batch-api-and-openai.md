@@ -59,7 +59,8 @@ No real call was made: every test answers from a fake through a stub of the prov
     Anthropic reports (`cache_creation.ephemeral_1h_input_tokens`). The call log stores it in
     `llm_calls.cache_write_long_tokens` and `llm_conversations.cache_write_long_tokens`, and the
     run record shows it.
-  - Its price is the setting `prices.cache-write-long`, twice the input price when left out.
+  - Its price is the setting `prices.cache-write-long`. Left out, it is twice the input price on
+    Anthropic, and the five-minute write's price on any other provider (OpenAI bills no write).
   - A batching role's plan prices its warm-up's write at that price, at the full price since the
     warm-up goes interactively, and the rest at the batch price. A request with long-lived
     breakpoints reserves its system prompt at that price.
