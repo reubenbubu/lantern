@@ -318,11 +318,25 @@ class MavenRulesTest {
             + BOOT
             + "</project>";
 
+    // A module below a root that takes its group from the framework's parent too.
+    String root =
+        "<project><parent><groupId>org.springframework.boot</groupId>"
+            + "<artifactId>spring-boot-starter-parent</artifactId><version>3.5.0</version>"
+            + "<relativePath/></parent><artifactId>platform</artifactId><version>2</version>"
+            + "<packaging>pom</packaging><modules><module>api</module></modules></project>";
+    String api =
+        "<project><parent><groupId>org.springframework.boot</groupId>"
+            + "<artifactId>platform</artifactId><version>2</version></parent>"
+            + "<artifactId>api</artifactId>"
+            + BOOT
+            + "</project>";
+
     List<String> facts =
         extract(
             repo("main", Map.of("pom.xml", own)),
             parent,
-            repo("orders", Map.of("pom.xml", inheriting)));
+            repo("orders", Map.of("pom.xml", inheriting)),
+            repo("platform", Map.of("pom.xml", root, "api/pom.xml", api)));
 
     assertThat(facts)
         .anyMatch(
@@ -330,6 +344,7 @@ class MavenRulesTest {
                 f.startsWith(
                     "service:main-service CONTAINS module:org.springframework.boot:main-service"))
         .anyMatch(f -> f.startsWith("service:g:orders CONTAINS module:g:orders"))
+        .anyMatch(f -> f.startsWith("service:api CONTAINS module:org.springframework.boot:api"))
         .noneMatch(f -> f.startsWith("service:org.springframework.boot:"));
   }
 

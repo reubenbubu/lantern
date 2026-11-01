@@ -205,4 +205,8 @@ because other POMs depend on it by them and dependencies resolve against module 
 `groupId:artifactId` too: links from a library to its module, and from a unit found by a library's
 application class to that library (`DeployableUnits`), go by the shared key, and no test set has a
 library in this case. A unit keyed this way has no Maven group, so it joins no Maven-group domain.
-Extractor `maven` version 7.
+The whole parent chain counts: a module whose root POM in the snapshot also declares no groupId
+and takes it from the framework's parent is keyed the same way. Parents are found by their exact
+coordinates, as for inheritance, so a parent in the snapshot at another version counts as foreign.
+Two such services with the same artifactId share a key, as they shared the framework's group
+before. Extractor `maven` version 7.

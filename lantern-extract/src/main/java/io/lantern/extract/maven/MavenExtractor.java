@@ -692,16 +692,25 @@ public final class MavenExtractor implements Extractor {
   }
 
   /**
-   * Whether a POM declares no groupId and inherits it from a parent that is not among the analyzed
-   * POMs: a framework's parent, such as {@code
-   * org.springframework.boot:spring-boot-starter-parent}, whose group the module does not belong
-   * to.
+   * Whether a POM's groupId comes only from a parent that is not among the analyzed POMs: neither
+   * it nor any ancestor found in the snapshot declares one, and the chain ends at a framework's
+   * parent, such as {@code org.springframework.boot:spring-boot-starter-parent}, whose group the
+   * module does not belong to. Parents are found by their exact coordinates, as for inheritance.
    */
   private static boolean foreignGroup(Pom pom, Map<String, Written> byCoordinates) {
-    Pom.Coordinates p = pom.parent();
-    return pom.groupId() == null
-        && p != null
-        && !byCoordinates.containsKey(p.groupId() + ":" + p.artifactId() + ":" + p.version());
+    Pom current = pom;
+    for (int depth = 0; depth <= MAX_ANCESTORS; depth++) {
+      Pom.Coordinates p = current.parent();
+      if (current.groupId() != null || p == null) {
+        return false;
+      }
+      Written parent = byCoordinates.get(p.groupId() + ":" + p.artifactId() + ":" + p.version());
+      if (parent == null) {
+        return true;
+      }
+      current = parent.pom();
+    }
+    return false;
   }
 
   private static Module fromEffective(Written w, Pom pom, boolean foreignGroup) {
