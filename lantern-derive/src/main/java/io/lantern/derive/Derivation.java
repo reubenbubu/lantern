@@ -62,6 +62,7 @@ public final class Derivation {
       for (Fact f : derived) {
         Fact stored = f.withLineage(Lineage.of(f.attributes().deepCopy(), claims::get));
         all.add(stored);
+        claims.put(stored.id(), stored.claimId());
       }
     }
     return all;

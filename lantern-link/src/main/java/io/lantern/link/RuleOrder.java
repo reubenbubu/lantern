@@ -66,8 +66,8 @@ final class RuleOrder {
 
   /** Whether one rule reads a predicate another writes. */
   static boolean reads(LinkRule reader, LinkRule writer) {
-    if (reader.reads().contains(LinkRule.LINKED)) {
-      return !writer.reads().contains(LinkRule.LINKED);
+    if (reader.reads().contains(LinkRule.LINKED) && !writer.reads().contains(LinkRule.LINKED)) {
+      return true;
     }
     for (String predicate : writer.writes()) {
       if (reader.reads().contains(predicate)) {

@@ -92,30 +92,22 @@ final class C4Views {
 
   private static final String METHOD = "method";
   private static final String STEREOTYPE = "stereotype";
-  private static final String MAIN_CLASS = "main-class";
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
   private static final String SCHEDULED = "scheduled";
   private static final String BACKGROUND_JOB = "background-job";
   private static final String GATEWAY_ROUTE = "gateway-route";
-  private static final String STOMP_MAPPING = "stomp-mapping";
-  private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
   private static final String GATEWAY_FILTER = "gateway-filter";
 
   /** The name of a component of the routes a gateway's config defines. */
   static final String CONFIG_ROUTES = "Gateway routes";
 
   private static final String HTTP_CLIENT = "http-client";
-  private static final String HTTP_CALL = "http-call";
-  private static final String MESSAGE_SEND = "message-send";
   private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
   private static final String READS_TABLE = "READS_TABLE";
   private static final String WRITES_TABLE = "WRITES_TABLE";
-  private static final String INJECTS = "INJECTS";
   private static final String ASPECT = "aspect";
   private static final String ADVISES = "ADVISES";
-  private static final Set<String> BEAN_STEREOTYPES =
-      Set.of("controller", "service", "repository", "component");
 
   private final Knowledge knowledge;
   private final Assembler assembler;

@@ -47,8 +47,10 @@ store the rest. The agent decided the points below under the owner's standing go
 
 - An unchanged snapshot does not run the component rule again (`LinkRulesIT`); any change to an
   extracted fact does, since components read every extracted fact.
-- A repository's documents show the components of its units as derived from the whole system's
-  facts, not only the repository's. Where a unit bundles a library of another repository, its
-  component view now counts that library's entry points and beans, as the system report already did.
+- A repository's documents are composed from its own facts and the linked facts whose evidence is
+  in it, as before. Its components are derived from the whole system's facts, so a member from a
+  library of another repository that a unit bundles shows inside the component that reaches it; a
+  component whose evidence is in that library shows only in the library's own documents. On
+  project-4 and project-8 this changed no document.
 - Composing without stored components draws no component diagrams: a caller must give the composer
   the model, as the run and `Derivation.withModel` do.
