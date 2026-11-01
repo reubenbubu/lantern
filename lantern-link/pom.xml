@@ -14,7 +14,8 @@
   <name>Lantern Link</name>
 
   <properties>
-    <!-- Set to the folder project-0 was set up in to run the Project0*IT tests. -->
+    <!-- Set to the folder project-0 was set up in to run the Project0*IT tests; Project0LinksIT
+         also runs on the default folder ~/workspace/lantern-test-projects/project-0. -->
     <lantern.test.project0></lantern.test.project0>
     <!-- Set to the folder the development test sets project-1 to project-4 were set up in
          (testsets/project-N/setup.sh) to run GatewayRoutesIT. -->

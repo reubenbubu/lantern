@@ -33,11 +33,12 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
@@ -46,12 +47,17 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The links between the deployable units of the synthetic test set project-0 (docs/adr/0029),
  * checked against the cases its README lists, named by id: with the repositories built in the
- * sandbox, and read without builds (degraded mode). Runs only when {@code lantern.test.project0}
- * names the folder {@code testsets/project-0/setup.sh} set it up in; see Commands in {@code
- * CLAUDE.md}. Needs Docker and Maven Central, or the Maven mirror of the test properties; the
- * builds use the default shared Maven cache directory.
+ * sandbox, and read without builds (degraded mode). Runs where project-0 is set up: in the folder
+ * {@code lantern.test.project0} names, or else in the default folder {@code
+ * testsets/project-0/setup.sh} sets it up in, so the full check runs it (#603). Needs Docker and
+ * Maven Central, or the Maven mirror of the test properties; the builds use the default shared
+ * Maven cache directory.
  */
-@EnabledIfSystemProperty(named = "lantern.test.project0", matches = ".+")
+@EnabledIf(
+    value = "io.lantern.link.Project0#isPresent",
+    disabledReason =
+        "project-0 is not set up: ~/workspace/lantern-test-projects/project-0 does not exist and"
+            + " lantern.test.project0 is not set; see testsets/project-0/setup.sh (docs/adr/0029)")
 class Project0LinksIT {
 
   private static final String J = "src/main/java/com/acme/shop/";
@@ -94,6 +100,12 @@ class Project0LinksIT {
 
   private static List<String> unbuiltResolved;
 
+  /**
+   * The links left open, by their link ID (the claim ID, #576): what each says was called or sent
+   * to, so a picked link's {@code resolves} reads as the open link it closes.
+   */
+  private static final Map<String, String> openLinks = new HashMap<>();
+
   @BeforeAll
   static void derive() throws IOException {
     BuildSandbox sandbox = new BuildSandbox(sandboxSettings(temp.resolve("builds")));
@@ -135,6 +147,10 @@ class Project0LinksIT {
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(links);
+    links.stream()
+        .filter(f -> f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK))
+        .forEach(
+            f -> openLinks.put(f.claimId() != null ? f.claimId() : f.id(), f.object().value()));
     List<Fact> claims = new ClaimChecks().derive(facts, 1);
     links.addAll(claims);
     // The LLM resolver with a fake model that gives the known answer, to see what a real run
@@ -216,7 +232,8 @@ class Project0LinksIT {
 
   /**
    * One line per fact, without the confidence, the IDs of the facts it comes from and its link ID,
-   * the package com.acme.shop as "~".
+   * the package com.acme.shop as "~"; a picked link's {@code resolves} as what the open link it
+   * closes says was called or sent to.
    */
   private static List<String> render(List<Fact> facts) {
     return facts.stream()
@@ -226,6 +243,10 @@ class Project0LinksIT {
               attributes.remove("facts");
               attributes.remove("link");
               attributes.remove("claim");
+              if (attributes.has("resolves")) {
+                String link = attributes.get("resolves").asString();
+                attributes.put("resolves", openLinks.getOrDefault(link, link));
+              }
               if (attributes.has("contradictedBy")) {
                 ArrayNode by = attributes.putArray("contradictedBy");
                 for (JsonNode e : f.attributes().get("contradictedBy")) {
@@ -416,7 +437,8 @@ class Project0LinksIT {
         "service:~:fulfilment CALLS_HTTP service:~:storefront-app {\"client\":\"web-client\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
             + "\"path\":\"/api/orders/{id}\",\"protocol\":\"HTTP\","
-            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":\"50bc052e7262ce21\","
+            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":"
+            + "\"GET http://storefront-web:8080/api/orders/{id}\","
             + "\"source\":\"method:~.fulfilment.OrderClient#order(long)\"}"
             + " @fulfilment:"
             + J
@@ -443,7 +465,8 @@ class Project0LinksIT {
         "service:~:fulfilment CALLS_HTTP service:~:payments {\"client\":\"web-client\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
             + "\"path\":\"/api/orders/{id}\",\"protocol\":\"HTTP\","
-            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":\"d50bdb199adaf990\","
+            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":"
+            + "\"GET ${PAYMENTS_SERVICE_URL}/api/orders/{id}\","
             + "\"source\":\"method:~.fulfilment.PaymentStatusClient#paymentOf(long)\"}"
             + " @fulfilment:"
             + J
@@ -456,6 +479,8 @@ class Project0LinksIT {
         "service:~:fulfilment unresolved-link shop.returns"
             + " {\"candidates\":[\"service:~:payments\",\"service:~:storefront-app\"],"
             + "\"kind\":\"message\",\"reason\":\"unknown-routing-key\","
+            // The send's site keeps it apart from a listener of the same method (#576).
+            + "\"site\":\"message-send|shop.returns\","
             + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\"}"
             + " @fulfilment:"
             + J
@@ -478,7 +503,7 @@ class Project0LinksIT {
     assertBothResolved(
         "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"model\":\"fake/fake\","
             + "\"protocol\":\"AMQP\",\"rationale\":\"The answer project-0 documents.\","
-            + "\"resolves\":\"f9995358ef8d1925\","
+            + "\"resolves\":\"shop.returns\","
             + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\"}"
             + " @fulfilment:"
             + J

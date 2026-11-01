@@ -22,7 +22,8 @@ import java.util.TreeMap;
 
 /**
  * The synthetic test set project-0 (docs/adr/0029), as {@code testsets/project-0/setup.sh} set it
- * up in the folder the system property {@code lantern.test.project0} names.
+ * up in the folder the system property {@code lantern.test.project0} names, or else in its default
+ * folder {@code ~/workspace/lantern-test-projects/project-0}.
  */
 final class Project0 {
 
@@ -39,11 +40,29 @@ final class Project0 {
   private Project0() {}
 
   /**
+   * Whether project-0 is there to test: {@code lantern.test.project0} is set, or the default folder
+   * exists. For the tests the full check runs whenever project-0 is set up ({@code @EnabledIf}).
+   */
+  static boolean isPresent() {
+    return given() != null || Files.exists(defaultFolder());
+  }
+
+  private static String given() {
+    String given = System.getProperty("lantern.test.project0");
+    return given == null || given.isBlank() ? null : given;
+  }
+
+  private static Path defaultFolder() {
+    return Path.of(
+        System.getProperty("user.home"), "workspace", "lantern-test-projects", "project-0");
+  }
+
+  /**
    * Each repository, by name, in a folder setup.sh set up from the current pin in pins.txt, which
    * it records in the folder as {@value #PIN_FILE}.
    */
   static Map<String, Repo> repos() throws IOException {
-    String setUp = System.getProperty("lantern.test.project0");
+    String setUp = given() != null ? given() : defaultFolder().toString();
     assertThat(Path.of(setUp).isAbsolute())
         .as("lantern.test.project0 must be an absolute path: " + setUp)
         .isTrue();

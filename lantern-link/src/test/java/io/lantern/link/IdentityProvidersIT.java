@@ -20,19 +20,44 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.condition.EnabledIf;
 
 /**
  * The identity providers and shared JWT secrets of the development test sets project-1, project-2
  * and project-4 (#261), read without builds (degraded mode), against their references: project-1's
  * Keycloak is an external system with the lines of the units that use it, project-2's gateway and
  * services fetch auth-service's JWK set, and project-4's gateway and auth-service share their HMAC
- * secret. Runs only when {@code lantern.test.projects} names the folder the sets were set up in
- * ({@code testsets/project-N/setup.sh}, each repository at its pin). Writes what it finds to {@code
- * target/identity-providers/}.
+ * secret. Runs where the sets are set up ({@code testsets/project-N/setup.sh}, each repository at
+ * its pin): in the folder {@code lantern.test.projects} names, or else in the default folder {@code
+ * ~/workspace/lantern-test-projects} when project-1, project-2 and project-4 are there, so the full
+ * check runs it (#603). Runs the rules the app runs before linking, value resolution included, so
+ * the lines are the app's. Writes what it finds to {@code target/identity-providers/}.
  */
-@EnabledIfSystemProperty(named = "lantern.test.projects", matches = ".+")
+@EnabledIf(
+    value = "setsArePresent",
+    disabledReason =
+        "project-1, project-2 and project-4 are not set up in ~/workspace/lantern-test-projects and"
+            + " lantern.test.projects is not set; see testsets/project-N/setup.sh")
 class IdentityProvidersIT {
+
+  private static final List<String> SETS = List.of("project-1", "project-2", "project-4");
+
+  static boolean setsArePresent() {
+    return given() != null
+        || SETS.stream().allMatch(set -> Files.isDirectory(folder().resolve(set)));
+  }
+
+  private static String given() {
+    String given = System.getProperty("lantern.test.projects");
+    return given == null || given.isBlank() ? null : given;
+  }
+
+  /** The folder the sets were set up in. */
+  private static Path folder() {
+    return given() != null
+        ? Path.of(given())
+        : Path.of(System.getProperty("user.home"), "workspace", "lantern-test-projects");
+  }
 
   @Test
   void project1UsesKeycloakAsAnExternalSystem() throws IOException {
@@ -40,18 +65,20 @@ class IdentityProvidersIT {
 
     assertThat(lines)
         .contains(
+            // The compose file sets each service's issuer to the keycloak container's name, which
+            // is stronger than the default's localhost port the container publishes.
             "service:com.example:bff USES_IDENTITY_PROVIDER external-system:keycloak"
-                + " signs-in-users OIDC over HTTP published-port",
+                + " signs-in-users OIDC over HTTP container",
             "service:com.example:gateway USES_IDENTITY_PROVIDER external-system:keycloak"
-                + " validates-tokens OIDC over HTTP published-port",
+                + " validates-tokens OIDC over HTTP container",
             // The issuer comes from common-security's EnvironmentPostProcessor (#333).
             "service:com.example:order-service USES_IDENTITY_PROVIDER external-system:keycloak"
-                + " validates-tokens OIDC over HTTP published-port",
+                + " validates-tokens OIDC over HTTP container",
             "service:com.example:profile-service USES_IDENTITY_PROVIDER external-system:keycloak"
-                + " gets-tokens OAuth2 over HTTP published-port",
+                + " gets-tokens OAuth2 over HTTP container",
             "service:com.example:keycloak-admin-service USES_IDENTITY_PROVIDER"
                 + " external-system:keycloak manages-users Keycloak Admin REST over HTTP"
-                + " published-port",
+                + " container",
             "external-system:keycloak display-name Keycloak",
             "external-system:keycloak deployed-in Docker Compose (default)");
   }
@@ -60,6 +87,8 @@ class IdentityProvidersIT {
   void project2ServicesFetchAuthServicesJwkSet() throws IOException {
     List<String> lines = identity("project-2");
 
+    // The compose file sets each service's JWK set URI to the auth-service host, which names the
+    // unit; the endpoint is auth-service's JWK set controller.
     for (String unit :
         List.of(
             "api-gateway",
@@ -73,7 +102,8 @@ class IdentityProvidersIT {
               l ->
                   l.startsWith("service:com.eventplatform:" + unit + " USES_IDENTITY_PROVIDER")
                       && l.contains(
-                          ":auth-service validates-tokens JWKS over HTTP port target=method:"));
+                          ":auth-service validates-tokens JWKS over HTTP host"
+                              + " target=method:com.eventplatform.auth.api.JwkSetController#jwks()"));
     }
     assertThat(lines).noneMatch(l -> l.contains("external-system"));
   }
@@ -111,6 +141,7 @@ class IdentityProvidersIT {
     facts.addAll(new SpringExtractor().extract(code, 1));
     facts.addAll(new IdentityExtractor().extract(code, repos, 1));
     facts.addAll(new DeploymentExtractor().extract(repos, 1));
+    facts.addAll(new ValueResolution().derive(facts, 1));
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<String> lines = new ArrayList<>();
     for (Fact f : facts) {
@@ -154,7 +185,7 @@ class IdentityProvidersIT {
 
   /** The set's repositories at their pins, without builds. */
   private static List<RepoBuild> repos(String set) throws IOException {
-    Path folder = Path.of(System.getProperty("lantern.test.projects")).resolve(set);
+    Path folder = folder().resolve(set);
     List<RepoBuild> repos = new ArrayList<>();
     for (String line : Files.readAllLines(Path.of("..", "testsets", set, "pins.txt"))) {
       line = line.strip();
