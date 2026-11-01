@@ -179,6 +179,11 @@ public final class Knowledge {
         .toList();
   }
 
+  /** The repositories whose modules' facts the knowledge holds, sorted. */
+  public SortedSet<String> repos() {
+    return new TreeSet<>(modulesByRepo.keySet());
+  }
+
   /** The modules whose facts were observed in the repository. */
   public SortedSet<EntityId> modules(String repo) {
     return modulesByRepo.getOrDefault(repo, new TreeSet<>(BY_ID));

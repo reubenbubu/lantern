@@ -18,6 +18,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Knowledge;
 import io.lantern.summarize.Summary;
 import java.math.BigDecimal;
@@ -215,13 +216,7 @@ final class RepoSections {
       case HEADLINES -> blocks.add(headlines(id));
       case RISKS ->
           blocks.addAll(
-              new RepoRisks(
-                      knowledge,
-                      assembler,
-                      repo,
-                      modules,
-                      containers,
-                      c -> PackageDependencies.of(knowledge, c))
+              new RepoRisks(knowledge, assembler, repo, containers)
                   .callouts(id, brief().currencyRisks(id)));
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
       case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));

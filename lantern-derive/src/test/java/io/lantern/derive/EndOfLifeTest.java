@@ -1,10 +1,10 @@
-package io.lantern.compose;
+package io.lantern.derive;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.lantern.compose.EndOfLife.Product;
-import io.lantern.compose.EndOfLife.Support;
+import io.lantern.derive.EndOfLife.Product;
+import io.lantern.derive.EndOfLife.Support;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;

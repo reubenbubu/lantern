@@ -39,7 +39,7 @@ final class Rules {
             List.of(new DeployableUnits(), new ValueResolution(), new AddressResolution()));
     rules.addAll(ProtocolLinks.withOpenLinks());
     rules.add(new People());
-    rules.add(new ClaimChecks());
+    // The README claim checks raise findings, so they run with the derive rules (#619).
     return List.copyOf(rules);
   }
 }

@@ -21,6 +21,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.Derivation;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,7 +50,7 @@ class ExecutiveBriefTest {
         .compose(
             ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE),
             SNAPSHOT,
-            facts,
+            Derivation.withModel(facts, 1),
             Map.of());
   }
 
@@ -182,7 +183,7 @@ class ExecutiveBriefTest {
             .compose(
                 ViewDefinition.executiveBrief("b", "base", TEMPLATE),
                 SNAPSHOT,
-                TestFacts.shop().list(),
+                Derivation.withModel(TestFacts.shop().list(), 1),
                 Map.of());
     Metrics metrics = (Metrics) section(document, "headlines").blocks().getFirst();
 
@@ -303,7 +304,7 @@ class ExecutiveBriefTest {
             d, Map.of(e, List.of()),
             e, Map.of(d, List.of()));
 
-    assertThat(RepoRisks.stronglyConnected(edges))
+    assertThat(io.lantern.derive.PackageGraph.stronglyConnected(edges))
         .extracting(Object::toString)
         .containsExactlyInAnyOrder(
             "[package:m:a, package:m:b, package:m:c]", "[package:m:d, package:m:e]");
@@ -318,7 +319,7 @@ class ExecutiveBriefTest {
         .compose(
             ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE),
             new Snapshot(2, SNAPSHOT.commits(), 5, "0.1.0", at),
-            facts,
+            Derivation.withModel(facts, 2),
             Map.of());
   }
 
@@ -468,7 +469,7 @@ class ExecutiveBriefTest {
             .compose(
                 ViewDefinition.executiveBrief("base.brief", "base", TEMPLATE),
                 SNAPSHOT,
-                facts,
+                Derivation.withModel(facts, 1),
                 Map.of());
     List<Block> blocks = section(document, "blast_radius").blocks();
 
@@ -594,7 +595,7 @@ class ExecutiveBriefTest {
             .compose(
                 ViewDefinition.executiveBrief("base.brief", "base", TEMPLATE),
                 new Snapshot(2, SNAPSHOT.commits(), 5, "0.1.0", OCTOBER_2026),
-                facts,
+                Derivation.withModel(facts, 2),
                 Map.of());
     Callout risk = (Callout) section(document, "risks").blocks().getFirst();
 

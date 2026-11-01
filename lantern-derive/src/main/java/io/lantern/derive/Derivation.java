@@ -4,6 +4,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.Lineage;
 import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.link.ClaimChecks;
 import io.lantern.link.LinkRule;
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,6 +38,9 @@ public final class Derivation {
   /** The vocabulary source of the flows' types. */
   public static final String FLOWS_SOURCE = "derive-flows";
 
+  /** The vocabulary source of the findings' types. */
+  public static final String FINDINGS_SOURCE = "derive-findings";
+
   /** The source of the leads' vocabulary types. */
   public static final String LEADS_SOURCE = "derive-leads";
 
@@ -50,7 +54,9 @@ public final class Derivation {
                 new Components(),
                 new ComponentInteractions(),
                 new DeploymentInstances(),
-                new Flows()));
+                new Flows(),
+                new ClaimChecks(),
+                new Findings()));
     rules.addAll(LeadRules.all());
     return List.copyOf(rules);
   }
@@ -62,6 +68,7 @@ public final class Derivation {
     sources.put(INTERACTIONS_SOURCE, ComponentInteractions.vocabulary());
     sources.put(DEPLOYMENT_SOURCE, DeploymentInstances.vocabulary());
     sources.put(FLOWS_SOURCE, Flows.vocabulary());
+    sources.put(FINDINGS_SOURCE, Findings.vocabulary());
     sources.put(LEADS_SOURCE, LeadRule.vocabulary());
     return sources;
   }

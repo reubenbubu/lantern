@@ -1,0 +1,36 @@
+[
+  {
+    "name": "finding",
+    "kind": "entity",
+    "description": "A finding of the architecture model (#619): a candidate risk a fixed check raises. Its key is its kind, '/' and what the kind is about, such as snapshot-dependency/shop/artifact:com.acme:lib, with whitespace percent-encoded.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "finding-raised",
+    "kind": "attribute",
+    "keyAttributes": ["about", "module", "packages", "product", "repo", "rule", "target", "version", "versions", "via"],
+    "description": "A fixed check raised the subject finding, of the kind the value names (#619): snapshot-dependency, dependency-drift, package-cycle, end-of-life, version-skew, shared-jwt-secret, unrouted-endpoint or readme-contradiction. Its key attributes are what the kind is about, so a skew between other versions is another claim; its lineage is the facts behind it. Whether it is new or gone follows from its validity.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "rule": { "type": "string", "description": "The rule that raised it: findings/ and its kind." },
+        "about": { "type": "string", "description": "What it is about: a repository (repo: and its name), a service, library or module, a deployable unit, or the subject of the fact it wraps." },
+        "repo": { "type": "string", "description": "For a dependency finding, the repository whose modules depend." },
+        "target": { "type": "string", "description": "For a dependency finding, what they depend on." },
+        "versions": { "type": "array", "items": { "type": "string" }, "description": "For a dependency finding, the versions, sorted: the unreleased ones, or every one in use." },
+        "packages": { "type": "array", "items": { "type": "string" }, "description": "For a package cycle, its packages, sorted." },
+        "product": { "type": "string", "enum": ["JAVA", "SPRING_BOOT", "SPRING_FRAMEWORK"], "description": "For an end of life, the runtime or framework." },
+        "version": { "type": "string", "description": "For an end of life, the version in use, as the facts give it." },
+        "via": { "type": "string", "enum": ["unit", "dependency", "java-release"], "description": "For an end of life, how the version is in use: a unit's technology, a module's dependency, or the Java release a module is compiled for." },
+        "module": { "type": "string", "description": "For an end of life through a module, the module." },
+        "support": { "type": "string", "enum": ["until", "older", "ended-by"], "description": "For an end of life, what the bundled table says: free support until a date, a line older than any it lists, or ended by a date at the latest." },
+        "line": { "type": "string", "description": "For an end of life, the version's line in the table." },
+        "ends": { "type": "string", "description": "For an end of life with a date, the date (ISO 8601). Whether support has ended is judged as of a document's date." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it rests on." }
+      },
+      "required": ["about", "rule"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

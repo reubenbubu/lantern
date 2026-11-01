@@ -11,6 +11,8 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.EndOfLife;
+import io.lantern.derive.Findings;
 import io.lantern.derive.Knowledge;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -19,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -752,13 +755,17 @@ final class BriefSections {
       String lead,
       String consequence,
       BigDecimal factor) {
-    if (found.isEmpty()) {
-      return Optional.empty();
-    }
+    // A version is a risk when the end-of-life check stored a finding for it (#619); the risk
+    // cites the facts its findings rest on.
+    Set<Fact> raised = raisedEndOfLife();
     List<Fact> facts = new ArrayList<>();
     List<String> named = new ArrayList<>();
     for (Version v : found) {
-      facts.addAll(v.facts());
+      List<Fact> cited = v.facts().stream().filter(raised::contains).toList();
+      if (cited.isEmpty()) {
+        continue;
+      }
+      facts.addAll(cited);
       List<String> users = new ArrayList<>();
       v.usedBy().forEach(u -> users.add(assembler.name(u)));
       named.add(
@@ -770,10 +777,13 @@ final class BriefSections {
               + ") in "
               + join(users));
     }
+    if (named.isEmpty()) {
+      return Optional.empty();
+    }
     String text =
         repo
             + "'s code runs on "
-            + (found.size() == 1 ? "a version" : found.size() + " versions")
+            + (named.size() == 1 ? "a version" : named.size() + " versions")
             + lead
             + names(named);
     return Optional.of(
@@ -786,6 +796,15 @@ final class BriefSections {
             assembler.facts(facts),
             consequence,
             confidence(facts, factor)));
+  }
+
+  /** The facts the stored end-of-life findings rest on. */
+  private Set<Fact> raisedEndOfLife() {
+    Set<Fact> facts = new HashSet<>();
+    for (Fact finding : Findings.of(knowledge, Findings.END_OF_LIFE)) {
+      facts.addAll(Findings.cited(knowledge, finding));
+    }
+    return facts;
   }
 
   /** The lowest confidence of the facts times the factor, to two decimal places. */
