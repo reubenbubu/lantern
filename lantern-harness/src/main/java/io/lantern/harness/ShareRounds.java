@@ -27,8 +27,13 @@ final class ShareRounds {
 
   private static final Logger LOG = LoggerFactory.getLogger(ShareRounds.class);
 
-  /** A planned item of one of the group's roles, under the key its role keeps it by. */
-  record Entry(RoleSession session, String key, String subject, BigDecimal cost) {
+  /**
+   * A planned item of one of the group's roles, under the key its role keeps it by.
+   *
+   * @param item the item, or {@code null} for one whose input is not known yet
+   * @param cost what it is expected to cost alone
+   */
+  record Entry(RoleSession session, String key, String subject, Item item, BigDecimal cost) {
     private String id() {
       return session.spec().name() + '\u0000' + key;
     }
@@ -67,7 +72,7 @@ final class ShareRounds {
    * @return whether it is admitted
    */
   synchronized boolean claim(Entry entry) {
-    if (committed().add(entry.cost()).compareTo(share) > 0) {
+    if (base().add(roundCost()).add(entry.cost()).compareTo(share) > 0) {
       return false;
     }
     claims.put(entry.id(), entry);
@@ -103,16 +108,28 @@ final class ShareRounds {
     }
   }
 
-  /** What the group has spent, and expects to spend on what it has admitted and not settled. */
-  private BigDecimal committed() {
-    BigDecimal committed = guard.spentCostUsd();
-    for (Entry entry : round.values()) {
-      committed = committed.add(entry.cost());
-    }
+  /** What the group has spent, and expects its claims not settled yet to cost. */
+  private BigDecimal base() {
+    BigDecimal base = guard.spentCostUsd();
     for (Entry entry : claims.values()) {
-      committed = committed.add(entry.cost());
+      base = base.add(entry.cost());
     }
-    return committed;
+    return base;
+  }
+
+  /** What the round's items are expected to cost, each role's priced as it will ask them. */
+  private BigDecimal roundCost() {
+    BigDecimal cost = BigDecimal.ZERO;
+    for (Map.Entry<RoleSession, List<Entry>> byRole : byRole().entrySet()) {
+      cost = cost.add(byRole.getKey().roundCost(byRole.getValue()));
+    }
+    return cost;
+  }
+
+  private Map<RoleSession, List<Entry>> byRole() {
+    Map<RoleSession, List<Entry>> byRole = new LinkedHashMap<>();
+    round.values().forEach(e -> byRole.computeIfAbsent(e.session(), s -> new ArrayList<>()).add(e));
+    return byRole;
   }
 
   /**
@@ -120,14 +137,29 @@ final class ShareRounds {
    * nothing will free room: the rest are not asked.
    */
   private void decide() {
-    BigDecimal committed = committed();
+    BigDecimal base = base();
+    Map<RoleSession, List<Entry>> byRole = byRole();
+    Map<RoleSession, BigDecimal> costs = new LinkedHashMap<>();
+    BigDecimal committed = base;
+    for (Map.Entry<RoleSession, List<Entry>> role : byRole.entrySet()) {
+      BigDecimal cost = role.getKey().roundCost(role.getValue());
+      costs.put(role.getKey(), cost);
+      committed = committed.add(cost);
+    }
     int admitted = 0;
     while (next < queue.size()) {
       Entry entry = queue.get(next);
-      if (committed.add(entry.cost()).compareTo(share) > 0) {
+      List<Entry> mine = new ArrayList<>(byRole.getOrDefault(entry.session(), List.of()));
+      mine.add(entry);
+      BigDecimal cost = entry.session().roundCost(mine);
+      BigDecimal after =
+          committed.subtract(costs.getOrDefault(entry.session(), BigDecimal.ZERO)).add(cost);
+      if (after.compareTo(share) > 0) {
         break;
       }
-      committed = committed.add(entry.cost());
+      committed = after;
+      byRole.put(entry.session(), mine);
+      costs.put(entry.session(), cost);
       round.put(entry.id(), entry);
       next++;
       admitted++;

@@ -130,7 +130,10 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
     that the next round takes, so a role spends most of its share; the rounds end within a few
     when estimates are near the real cost, more the shorter the answers. A role waits for an
     item's round when it asks it; Summarize waits before taking one of its slots, and roles that
-    group items into requests ask each round's items together.
+    group items into requests ask each round's items together. A round prices a grouping role's
+    items as they will be sent: packed per repository, each request reading the prompt's start, or
+    the role's first writing it. A small round packs fewer items a request than the plan's average,
+    and priced at the average it passed the screen's share.
   - Decisions are kept by each item's fingerprint, since a role may ask several items of one
     subject (a flow shown in two documents), each counted against the share. Summarize plans a
     unit whose parts are all in the cache as the very item it will ask, built from its parts'
@@ -143,7 +146,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
     purpose has first claim on the flows-and-purpose share: one cheap call that writes the
     report's first paragraph, asked after the flows on the units' sentences, so its claim is
     planned before the flows on a prompt of the expected size (each unit with a sentence of the
-    expected length and the first facts it may cite). Without a share it is planned when asked, as
+    expected length and its first three facts, as many as a sentence is expected to cite). Without a share it is planned when asked, as
     before.
   - An item's estimate is priced as the plan prices it: the prompt's start read from the cache, a
     role that groups items paying its share of each request's start, and the batch price when the

@@ -69,6 +69,10 @@ public final class RoleSession {
   private final Map<String, List<String>> keysBySubject =
       new java.util.concurrent.ConcurrentHashMap<>();
   private final ShareRounds rounds;
+  // Whether the role has asked the model anything yet: until it has, its first request writes the
+  // prompt's start to the cache.
+  private final java.util.concurrent.atomic.AtomicBoolean asking =
+      new java.util.concurrent.atomic.AtomicBoolean();
   // The item that goes first and warms the cache: the plan's first miss in the role's order, by its
   // key (see key) and its subject.
   private volatile String warmUpKey;
@@ -307,6 +311,7 @@ public final class RoleSession {
               this,
               key,
               entry.subject(),
+              entry.item(),
               entry.item() != null ? itemCost(entry.item()) : cost(entry.tokens())));
     }
     if (claim) {
@@ -510,6 +515,7 @@ public final class RoleSession {
     if (rounds != null) {
       rounds.started();
     }
+    asking.set(true);
     boolean first = warmUp(item);
     if (first) {
       record.warmUp(item.subject());
@@ -650,6 +656,7 @@ public final class RoleSession {
         if (rounds != null) {
           rounds.started();
         }
+        asking.set(true);
         ask.accept(now);
       } else if (!later.isEmpty()) {
         awaitDecision(later.getFirst());
@@ -1033,7 +1040,7 @@ public final class RoleSession {
     synchronized (this) {
       Boolean fits = admitted.get(key);
       if (fits == null) {
-        fits = rounds.claim(new ShareRounds.Entry(this, key, item.subject(), itemCost(item)));
+        fits = rounds.claim(new ShareRounds.Entry(this, key, item.subject(), item, itemCost(item)));
         admitted.put(key, fits);
       }
       return Optional.of(fits);
@@ -1052,6 +1059,51 @@ public final class RoleSession {
    */
   BigDecimal itemCost(Item item) {
     return cost(Tokens.estimate(item.rendering()));
+  }
+
+  /**
+   * What a round's items of this role are expected to cost, priced as the role will ask them. A
+   * role that groups items into requests asks the round's items together, packed as they will be
+   * sent (a new request at every change of repository), so each request reads the prompt's start
+   * from the cache, or the first of the role's writes it; a small round packs fewer items a request
+   * than the plan's average. Other roles' items cost what each is expected to cost alone.
+   */
+  BigDecimal roundCost(List<ShareRounds.Entry> entries) {
+    int packet = spec.packetSize();
+    if (packet <= 1 || entries.stream().anyMatch(entry -> entry.item() == null)) {
+      BigDecimal cost = BigDecimal.ZERO;
+      for (ShareRounds.Entry entry : entries) {
+        cost = cost.add(entry.cost());
+      }
+      return cost;
+    }
+    Map<String, Integer> byRepo = new LinkedHashMap<>();
+    long input = 0;
+    for (ShareRounds.Entry entry : entries) {
+      byRepo.merge(Packer.repo(entry.item().locality()), 1, Integer::sum);
+      input += Tokens.estimate(entry.item().rendering());
+    }
+    long requests = 0;
+    for (int count : byRepo.values()) {
+      requests += (count + packet - 1) / packet;
+    }
+    long output = (long) spec.expectedOutputTokens() * entries.size();
+    long prefix = prefixTokens;
+    long write = 0;
+    long read = 0;
+    if (model.supports(Capability.PROMPT_CACHING) && prefix > 0) {
+      write = asking.get() ? 0 : prefix;
+      read = prefix * (requests - (asking.get() ? 0 : 1));
+    } else {
+      input += prefix * requests;
+    }
+    if (batching()) {
+      return model
+          .pricing()
+          .batchCost(new TokenUsage(input, output, 0, read))
+          .add(model.pricing().cost(new TokenUsage(0, 0, 0, 0, write)));
+    }
+    return model.pricing().cost(new TokenUsage(input, output, write, read));
   }
 
   /** What an item of the given input tokens is expected to cost (see {@link #itemCost}). */

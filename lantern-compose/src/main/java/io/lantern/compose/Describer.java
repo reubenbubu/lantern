@@ -592,10 +592,13 @@ public final class Describer {
       "Handles the requests of its domain, stores their records and calls the services it"
           + " depends on, publishing the events other units consume.";
 
+  /** How many facts a unit's responsibility sentence is expected to cite. */
+  private static final int EXPECTED_CITES = 3;
+
   /**
    * The prompt about the system's purpose as it is expected to be once every unit is worded: each
-   * unit with a sentence of the expected length and the first facts it may cite. Its size is what
-   * the purpose's claim on its share is planned on.
+   * unit with a sentence of the expected length and as many of its first facts as a sentence is
+   * expected to cite. Its size is what the purpose's claim on its share is planned on.
    */
   private static Optional<Question> expectedPurpose(Knowledge knowledge, List<Question> questions) {
     List<WordingPrompt.UnitSentence> units = new ArrayList<>();
@@ -606,7 +609,7 @@ public final class Describer {
             new WordingPrompt.UnitSentence(
                 question.name(),
                 EXPECTED_SENTENCE,
-                facts.subList(0, Math.min(MAX_PURPOSE_UNIT_FACTS, facts.size()))));
+                facts.subList(0, Math.min(EXPECTED_CITES, facts.size()))));
       }
     }
     return purpose(knowledge, units);
