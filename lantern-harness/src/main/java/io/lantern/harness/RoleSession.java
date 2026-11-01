@@ -48,6 +48,12 @@ public final class RoleSession {
   private final LlmClient client;
   private final RoleRecord record;
   private final BigDecimal share;
+  // The first item the role asks the model about goes alone; the others wait until it is answered,
+  // so its request writes the shared prompt prefix to the cache and theirs read it (#357).
+  private final java.util.concurrent.atomic.AtomicBoolean warming =
+      new java.util.concurrent.atomic.AtomicBoolean();
+  private final java.util.concurrent.CompletableFuture<Void> warmed =
+      new java.util.concurrent.CompletableFuture<>();
 
   RoleSession(Harness harness, RoleSpec spec, LlmClient client, RoleRecord record) {
     this.harness = harness;
@@ -181,6 +187,7 @@ public final class RoleSession {
       record.outcome(item.subject(), outcome, false);
       return outcome;
     }
+    boolean first = warmUp();
     Calls calls = new Calls(this, client);
     Outcome outcome;
     try {
@@ -197,9 +204,33 @@ public final class RoleSession {
       LOG.warn("Not asked about {} for {}: {}", item.subject(), spec.name(), e.getMessage());
     } catch (LlmException e) {
       outcome = Outcome.of(Outcome.Kind.FAILED, fingerprint, null, e.getMessage());
+    } finally {
+      if (first) {
+        warmed.complete(null);
+      }
     }
     record.outcome(item.subject(), outcome, calls.repaired());
     return outcome;
+  }
+
+  /**
+   * Whether this is the role's first item to ask the model about; any other waits until the first
+   * is answered (or has failed), so the requests that share its prompt prefix read it from the
+   * provider's cache instead of all writing it at once (#357).
+   */
+  private boolean warmUp() {
+    if (warming.compareAndSet(false, true)) {
+      return true;
+    }
+    try {
+      warmed.get();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new LlmException("Interrupted while " + spec.name() + " warmed the prompt cache", e);
+    } catch (java.util.concurrent.ExecutionException e) {
+      throw new IllegalStateException(e.getCause());
+    }
+    return false;
   }
 
   /**

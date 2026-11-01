@@ -311,4 +311,46 @@ class RoleSessionTest {
     // Nothing not asked is cached: a later run with room asks it.
     assertThat(store.find(session.fingerprint(item("c")))).isEmpty();
   }
+
+  @Test
+  void aRolesFirstRequestIsAnsweredBeforeTheOthersAreSentSoTheyReadItsPrefix() throws Exception {
+    List<String> events = java.util.Collections.synchronizedList(new ArrayList<>());
+    FakeLlmProvider timed =
+        new FakeLlmProvider()
+            .simulatingPromptCache()
+            .answering(
+                request -> {
+                  String subject = request.messages().getFirst().text();
+                  events.add("start " + subject);
+                  try {
+                    Thread.sleep(30);
+                  } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                  }
+                  events.add("end " + subject);
+                  return "An answer.";
+                });
+    RoleSession session = harness(client(timed), store).session(role());
+    List<Item> items = List.of(item("a"), item("b"), item("c"), item("d"), item("e"));
+    try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+      List<java.util.concurrent.Future<Outcome>> futures = new ArrayList<>();
+      for (Item item : items) {
+        futures.add(executor.submit(() -> session.ask(item, asking(item))));
+      }
+      for (var future : futures) {
+        assertThat(future.get().kind()).isEqualTo(Outcome.Kind.ANSWERED);
+      }
+    }
+
+    // The first request ends before any other starts; the rest then run at once.
+    assertThat(events).hasSize(10);
+    String first = events.getFirst().substring("start ".length());
+    assertThat(events.get(1)).isEqualTo("end " + first);
+    assertThat(events.subList(2, 6)).allSatisfy(event -> assertThat(event).startsWith("start "));
+    // The first writes the shared system prompt to the cache; each of the other four reads it.
+    long system = io.lantern.llm.Tokens.estimate("System.");
+    var tokens = session.record().toJson().get("tokens");
+    assertThat(tokens.get("cacheWrite").asLong()).isEqualTo(system);
+    assertThat(tokens.get("cacheRead").asLong()).isEqualTo(4 * system);
+  }
 }

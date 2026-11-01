@@ -136,11 +136,17 @@ class SummarizerConcurrencyTest {
     Summarizer.Result sequential = summarizer(1).summarize(tree);
     assertThat(fake.maxConcurrentCalls()).isOne();
 
-    // The first eight calls answer only once all eight are in flight, which they can only be if the
-    // summarizer runs eight units at once.
+    // The role's first call goes alone, to warm the prompt cache (#357). The eight after it answer
+    // only once all eight are in flight, which they can only be if the summarizer runs eight units
+    // at once.
     CountDownLatch eightInFlight = new CountDownLatch(8);
+    java.util.concurrent.atomic.AtomicBoolean first =
+        new java.util.concurrent.atomic.AtomicBoolean();
     fake.answering(
         request -> {
+          if (first.compareAndSet(false, true)) {
+            return SummarizerTest.citingAll(request);
+          }
           eightInFlight.countDown();
           awaitEightInFlight(eightInFlight);
           return SummarizerTest.citingAll(request);
