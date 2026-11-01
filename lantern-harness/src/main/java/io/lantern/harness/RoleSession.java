@@ -378,6 +378,9 @@ public final class RoleSession {
 
   private Outcome askAdmitted(Item item, Asker asker, String fingerprint) {
     boolean first = warmUp(item);
+    if (first) {
+      record.warmUp(item.subject());
+    }
     Calls calls = new Calls(this, client);
     Outcome outcome;
     try {

@@ -142,6 +142,7 @@ class BatchPlanTest {
       java.util.Collections.sort(subjects);
       askedSets.add(subjects);
       firstSent.add(fake.sent().getFirst().request().purpose());
+      assertThat(session.record().warmUp()).isEqualTo("unit-0");
       assertThat(session.record().settled()).isEqualTo(40);
     }
 
