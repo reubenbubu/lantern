@@ -1,6 +1,6 @@
 # 0097: The derive stage stores the architecture model
 
-Status: accepted (#523)
+Status: accepted (#523), amended (#617)
 
 ## Context
 
@@ -76,5 +76,5 @@ The agent decided these under the owner's standing go-ahead for 1D.
   the entries from the instance's lineage, so its rows and their evidence are unchanged; whether it
   should show one row per instance is a question for the deployment view, not this change.
 - **`COMPONENT_LINK` stands for the epic's `INTERACTS_WITH` between components, but is not a kind of it.** Every kind of `INTERACTS_WITH` keys on the links' key attributes (ADR 0090), while a component line keys on the code it rests on, what it reaches and its label, so two calls from different methods stay two lines. The epic's row now says so. Only links to another thing get a code end: an open link, whose object is the text it could not resolve, has none.
-- **An instance's environment includes its platform, and a descriptor naming no environment is its own.** Environment names such as `prod` recur across platforms, and two repositories' compose files that each run a `postgres` are not one container; the key then holds `@`, the repository and the descriptor's path. Parts are percent-encoded where they hold whitespace (project-8 has a Helm environment named `fleetcare prod`) or a separator. The epic's row now says so; #617 records the change.
+- **An instance's environment includes its platform, and a descriptor naming no environment is its own.** Environment names such as `prod` recur across platforms, and two repositories' compose files that each run a `postgres` are not one container; the key then holds `@`, the repository and the descriptor's path, so moving or renaming such a descriptor renames its instances. Parts are percent-encoded where they hold whitespace (project-8 has a Helm environment named `fleetcare prod`) or a separator. The epic's row now says so; #617 records the change.
 - **No document changes.** The composer draws the same lines and rows from the stored facts.
