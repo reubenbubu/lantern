@@ -353,6 +353,9 @@ value as config resolved it (`address`):
 - or one claim to `outcome:unknown` when no deployment places it, so the matcher tells it from a
   question not asked.
 
+These claims carry no `profile`: placing reads the datasource as written and the deployment's
+environment, not the view.
+
 The vocabulary has no entity for a deployment's container, so the server's container is cited by
 its fact rather than made the claim's object; `database` and `guessed` are new descriptive
 attributes of `RESOLVES_TO`. Two datasources of one unit with the same value but different reads

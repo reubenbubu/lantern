@@ -276,6 +276,7 @@ public final class AddressResolution implements LinkRule {
             Fact f = placed(q, placing.asked(), null, 0, validity);
             facts.putIfAbsent(f.id(), f);
           }
+          // One placing per container running the unit, so deployment keeps the claims apart.
           for (int i = 0; i < placed.size(); i++) {
             Fact f = placed(q, placing.asked(), placed.get(i), i, validity);
             facts.putIfAbsent(f.id(), f);
