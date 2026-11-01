@@ -44,6 +44,15 @@ No real call was made: every test answers from a fake through a stub of the prov
     batch, not for a slot. Each level of the tree then becomes one batch.
   - Agentic roles (Resolve, and Investigate when it comes) always run interactively.
   - `lantern.llm.batch-above=0` batches every miss of a bulk role. The parity check below uses it.
+- **A batch reserves its requests at their estimates** (#654). An interactive call reserves its
+  worst case for the moment it runs; a batch would hold the worst case of every request at once,
+  for as long as it runs, and refuse most of a role's requests long before its share is spent.
+  - So a batched request is reserved at its estimate: the output the role's plan expects of it,
+    and its system prompt read from the cache the warm-up wrote (`LlmClient.batch(requests,
+    expectedOutputTokens)`). Its real cost replaces the estimate when its result comes back.
+  - The budget refuses the requests whose estimates no longer fit, which cuts the batch to what is
+    left of the share. The spend can pass the share only by what the batch's answers cost beyond
+    their estimates; once it has, every further request is refused.
 - **A one-hour write has its own price and count** (#654). A long-lived cache write costs twice the
   input price on Anthropic, not the five-minute write's 1.25 times.
   - Token usage counts it apart (`TokenUsage.cacheWriteLong`), from the lifetime breakdown
@@ -104,11 +113,6 @@ No real call was made: every test answers from a fake through a stub of the prov
   sets. Requests carry no output schema, since the harness checks every answer against its role's
   schema itself. So OpenAI's structured output (`response_format`) is not used. A role that wants it
   can add a schema to its request later.
-- **A batch reserves each request's worst case.** As an interactive call does, but for every request
-  of the batch at once, for as long as it runs. A budget with room for what a role will spend but
-  not for its worst case refuses the batch's later requests, which are then not asked. The epic
-  sizes the budget per role from the plan; reserving at the plan's estimate instead is left until a
-  real run shows the worst case binds.
 - **Requests are not cut at 256 MB.** A batch is cut only by count (10,000), far below both
   providers' limits (100,000 requests on Anthropic, 50,000 on OpenAI). A role whose prompts were
   very long could still pass the size limits; none does today.

@@ -58,6 +58,7 @@ public final class RoleSession {
   // batch API (knowledge-build epic, section 10, Run modes): the first alone and interactively, to
   // write the shared prefix with a long lifetime, the rest in batches that read it.
   private volatile BatchCollector batch;
+  private volatile long prefixTokens;
   private final java.util.concurrent.atomic.AtomicBoolean prefixSent =
       new java.util.concurrent.atomic.AtomicBoolean();
   private volatile Thread warmer;
@@ -116,6 +117,7 @@ public final class RoleSession {
       int predictedMisses,
       long predictedTokens,
       long prefixTokens) {
+    this.prefixTokens = prefixTokens;
     int cached = predictedHits;
     long input = predictedTokens;
     for (Item item : items) {
@@ -231,7 +233,8 @@ public final class RoleSession {
       record.outcome(item.subject(), outcome, false);
       return outcome;
     }
-    if (!withinShare(item)) {
+    BigDecimal estimate = planItem(item);
+    if (estimate == null) {
       Outcome outcome =
           Outcome.of(
               Outcome.Kind.NOT_ASKED,
@@ -242,6 +245,14 @@ public final class RoleSession {
       record.outcome(item.subject(), outcome, false);
       return outcome;
     }
+    try {
+      return askPlanned(item, asker, fingerprint);
+    } finally {
+      unplan(estimate);
+    }
+  }
+
+  private Outcome askPlanned(Item item, Asker asker, String fingerprint) {
     boolean first = warmUp();
     Calls calls = new Calls(this, client);
     Outcome outcome;
@@ -302,6 +313,8 @@ public final class RoleSession {
     Map<String, Outcome> outcomes = new LinkedHashMap<>();
     items.forEach(item -> outcomes.put(item.subject(), null));
     List<Item> misses = new ArrayList<>();
+    BigDecimal planned = BigDecimal.ZERO;
+    BigDecimal estimate;
     for (Item item : items) {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
@@ -313,7 +326,7 @@ public final class RoleSession {
                 ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
                 : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
             false);
-      } else if (!withinShare(item)) {
+      } else if ((estimate = planItem(item)) == null) {
         settle(
             outcomes,
             item,
@@ -325,8 +338,19 @@ public final class RoleSession {
             false);
       } else {
         misses.add(item);
+        planned = planned.add(estimate);
       }
     }
+    try {
+      askPlannedPackets(misses, role, outcomes);
+    } finally {
+      unplan(planned);
+    }
+    return outcomes;
+  }
+
+  private void askPlannedPackets(
+      List<Item> misses, PacketRole role, Map<String, Outcome> outcomes) {
     List<List<Item>> packets = Packer.pack(misses, spec.packetSize(), this::fingerprint);
     List<Item> missing = java.util.Collections.synchronizedList(new ArrayList<>());
     run(packets, packet -> missing.addAll(askPacket(packet, role, outcomes)));
@@ -341,7 +365,6 @@ public final class RoleSession {
               Outcome.Kind.NOT_ASKED, fingerprint(item), null, "missing from the answer twice"),
           false);
     }
-    return outcomes;
   }
 
   /** Runs the packets: the first alone, the rest in parallel once it is done. */
@@ -385,7 +408,8 @@ public final class RoleSession {
     CheckInputs inputs = role.inputs(packet, ids).withSecrets(harness.secrets());
     List<Item> missing = new ArrayList<>();
     try {
-      LlmResponse first = send(client, request);
+      long expected = (long) spec.expectedOutputTokens() * packet.size();
+      LlmResponse first = send(client, request, expected);
       Map<String, ItemAnswer> accepted = new LinkedHashMap<>();
       Map<String, List<Rejection>> rejected = new LinkedHashMap<>();
       Optional<Map<String, JsonNode>> entries = Envelope.entries(first.text());
@@ -416,7 +440,10 @@ public final class RoleSession {
         turns.add(LlmMessage.assistant(first.text().isBlank() ? "{}" : first.text()));
         turns.add(LlmMessage.user(Pipeline.repairTurn(all)));
         LlmResponse second =
-            send(client, request.withMessages(turns).withPurpose(request.purpose() + " (repair)"));
+            send(
+                client,
+                request.withMessages(turns).withPurpose(request.purpose() + " (repair)"),
+                expected);
         Map<String, JsonNode> corrected = Envelope.entries(second.text()).orElse(Map.of());
         for (String id : List.copyOf(rejected.keySet())) {
           Item item = packet.get(ids.indexOf(id));
@@ -512,6 +539,8 @@ public final class RoleSession {
       java.util.function.Supplier<List<FileRead>> filesRead) {
     Map<String, Outcome> outcomes = new LinkedHashMap<>();
     List<Item> packet = new ArrayList<>();
+    BigDecimal planned = BigDecimal.ZERO;
+    BigDecimal estimate;
     for (Item item : items) {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
@@ -523,7 +552,7 @@ public final class RoleSession {
                 ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
                 : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
             false);
-      } else if (!withinShare(item)) {
+      } else if ((estimate = planItem(item)) == null) {
         settle(
             outcomes,
             item,
@@ -535,11 +564,26 @@ public final class RoleSession {
             false);
       } else {
         packet.add(item);
+        planned = planned.add(estimate);
       }
     }
     if (packet.isEmpty()) {
       return outcomes;
     }
+    try {
+      conversePlanned(packet, role, tools, filesRead, outcomes);
+    } finally {
+      unplan(planned);
+    }
+    return outcomes;
+  }
+
+  private void conversePlanned(
+      List<Item> packet,
+      PacketRole role,
+      io.lantern.llm.ToolBox tools,
+      java.util.function.Supplier<List<FileRead>> filesRead,
+      Map<String, Outcome> outcomes) {
     List<String> ids = new ArrayList<>();
     for (int i = 1; i <= packet.size(); i++) {
       ids.add("I" + i);
@@ -611,7 +655,6 @@ public final class RoleSession {
             false);
       }
     }
-    return outcomes;
   }
 
   /** Stores an accepted answer under the item's fingerprint. */
@@ -658,25 +701,53 @@ public final class RoleSession {
    * Adds the item's estimated cost to its group's plan if it fits the group's share: a role that
    * would pass its share stops planning new items (knowledge-build epic, section 10).
    */
-  private boolean withinShare(Item item) {
+  private BigDecimal planItem(Item item) {
     if (share == null) {
-      return true;
+      return BigDecimal.ZERO;
     }
-    BigDecimal cost =
-        model
-            .pricing()
-            .cost(
-                new TokenUsage(
-                    Tokens.estimate(item.rendering()), spec.expectedOutputTokens(), 0, 0));
-    return harness.planWithinShare(spec.budgetGroup(), cost);
+    BigDecimal cost = itemCost(item);
+    return harness.planWithinShare(spec.budgetGroup(), cost) ? cost : null;
+  }
+
+  private void unplan(BigDecimal estimate) {
+    if (share != null) {
+      harness.unplan(spec.budgetGroup(), estimate);
+    }
+  }
+
+  /**
+   * What one item is expected to cost, priced as the plan prices it: the prompt's start read from
+   * the cache once the role's first request has written it, a role that groups items into requests
+   * paying its share of each request's start, and the batch price when the role batches.
+   */
+  BigDecimal itemCost(Item item) {
+    long input = Tokens.estimate(item.rendering());
+    long prefix = prefixTokens;
+    long read = 0;
+    int packet = spec.packetSize();
+    if (model.supports(Capability.PROMPT_CACHING) && prefix > 0) {
+      if (packet > 1) {
+        read = (prefix + packet - 1) / packet;
+      } else {
+        read = Math.min(prefix, input);
+        input -= read;
+      }
+    } else if (packet > 1) {
+      input += (prefix + packet - 1) / packet;
+    }
+    TokenUsage usage = new TokenUsage(input, spec.expectedOutputTokens(), 0, read);
+    return batching() ? model.pricing().batchCost(usage) : model.pricing().cost(usage);
   }
 
   /**
    * Sends a request of one of the role's items: interactively, or once the role batches, its first
    * request interactively with a long-lived cache and the others, once that is answered, through
    * the batch API.
+   *
+   * @param expectedOutputTokens the output the plan expects of the request, at which a batched
+   *     request is reserved against the budget instead of at its most output (ADR 0102)
    */
-  LlmResponse send(LlmClient client, LlmRequest request) {
+  LlmResponse send(LlmClient client, LlmRequest request, long expectedOutputTokens) {
     BatchCollector collector = batch;
     if (collector == null) {
       return client.call(request);
@@ -696,7 +767,7 @@ public final class RoleSession {
       return client.call(longLived);
     }
     prefixWritten.join();
-    return collector.call(longLived);
+    return collector.call(longLived, expectedOutputTokens);
   }
 
   /**

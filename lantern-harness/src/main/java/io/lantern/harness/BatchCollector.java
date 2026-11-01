@@ -27,7 +27,8 @@ final class BatchCollector {
   /** The most requests one batch holds, well under the providers' limits (50,000 on OpenAI). */
   static final int MAX = 10_000;
 
-  private record Pending(LlmRequest request, CompletableFuture<LlmBatchResult> result) {}
+  private record Pending(
+      LlmRequest request, long expectedOutputTokens, CompletableFuture<LlmBatchResult> result) {}
 
   private final LlmClient client;
   private final Duration quiet;
@@ -49,10 +50,12 @@ final class BatchCollector {
   /**
    * Sends the request in the next batch and waits for its answer.
    *
+   * @param expectedOutputTokens the output the role's plan expects of it, at which it is reserved
+   *     against the budget
    * @throws LlmException the request's own error, such as a refusal for the budget
    */
-  LlmResponse call(LlmRequest request) {
-    Pending mine = new Pending(request, new CompletableFuture<>());
+  LlmResponse call(LlmRequest request, long expectedOutputTokens) {
+    Pending mine = new Pending(request, expectedOutputTokens, new CompletableFuture<>());
     synchronized (this) {
       pending.add(mine);
       lastAdded = System.nanoTime();
@@ -119,7 +122,10 @@ final class BatchCollector {
 
   private void send(List<Pending> batch) {
     try {
-      List<LlmBatchResult> results = client.batch(batch.stream().map(Pending::request).toList());
+      List<LlmBatchResult> results =
+          client.batch(
+              batch.stream().map(Pending::request).toList(),
+              batch.stream().map(Pending::expectedOutputTokens).toList());
       for (int i = 0; i < batch.size(); i++) {
         batch.get(i).result().complete(results.get(i));
       }

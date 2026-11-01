@@ -115,10 +115,14 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   wins. A share of an unknown group, or shares adding up to more than 100%, stop the app at start.
 - **A share belongs to a group, not a role.** The roles of one group (the describe roles; flow
   narrative and purpose) plan against, and spend from, one share. Before an item is asked, its
-  estimated cost is added to the group's plan, or to what the group has spent if that is more; an
-  item that would pass the share is not asked, and the role stops planning. A call that still goes
-  past the share, because the estimate was low, is refused by the group's guard and its item is not
-  asked either. Nothing not asked is cached, so a later run with room asks it.
+  estimated cost is held against the share; an item whose estimate does not fit beside what the
+  group has spent and the estimates of its items still being asked is not asked. An item's estimate
+  is priced as the plan prices it: the prompt's start read from the cache, a role that groups items
+  paying its share of each request's start, and the batch price when the role batches. Once the
+  item is settled its estimate is released, its real cost counted instead, so the check follows
+  what is spent, not what was estimated (#654). A call that still goes past the share, because the
+  estimate was low, is refused by the group's guard and its item is not asked either. Nothing not
+  asked is cached, so a later run with room asks it.
 - **Each role's estimate is printed before its own first call, not all of them before the run's
   first call.** A role's items depend on earlier roles' answers: a parent summary shows its
   children's, Describe shows the summaries, so their fingerprints and cache hits are only known

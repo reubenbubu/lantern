@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -217,6 +218,49 @@ class LlmClientTest {
 
     assertThat(response.usage().cacheWriteLong()).isEqualTo(100);
     assertThat(response.usage().cacheWrite()).isZero();
+  }
+
+  @Test
+  void aBatchIsReservedAtItsEstimatesAndCutWhereTheyNoLongerFit() {
+    ModelConfig batching =
+        new ModelConfig(
+            "fake",
+            "m",
+            fake.batchingModel("m").capabilities(),
+            1_000_000,
+            new Pricing(BigDecimal.ONE, BigDecimal.valueOf(5), BigDecimal.ZERO, BigDecimal.ZERO));
+    // 100 tokens of input and up to 1,000 of output, 100 expected: at half price, an estimate of
+    // (100 x $1 + 100 x $5) / 2 per million = $0.0003, a worst case of $0.00255.
+    List<LlmRequest> requests = new ArrayList<>();
+    for (int i = 0; i < 4; i++) {
+      requests.add(LlmRequest.of(Role.SUMMARIZE, "item " + i, null, "u".repeat(400), 1_000));
+    }
+
+    List<LlmBatchResult> byWorstCase =
+        new LlmClient(
+                ModelSettings.single(batching),
+                List.of(fake),
+                new BudgetGuard("run", null, new BigDecimal("0.0007")),
+                log,
+                clock)
+            .batch(requests);
+    List<LlmBatchResult> byEstimate =
+        new LlmClient(
+                ModelSettings.single(batching),
+                List.of(fake),
+                new BudgetGuard("run", null, new BigDecimal("0.0007")),
+                log,
+                clock)
+            .batch(requests, List.of(100L, 100L, 100L, 100L));
+
+    assertThat(byWorstCase)
+        .allSatisfy(
+            result -> assertThat(result.error()).isInstanceOf(BudgetExceededException.class));
+    // $0.0007 holds two estimates: the batch is cut to them.
+    assertThat(byEstimate.subList(0, 2)).allSatisfy(result -> assertThat(result.error()).isNull());
+    assertThat(byEstimate.subList(2, 4))
+        .allSatisfy(
+            result -> assertThat(result.error()).isInstanceOf(BudgetExceededException.class));
   }
 
   @Test

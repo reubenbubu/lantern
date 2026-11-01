@@ -301,8 +301,9 @@ class RoleSessionTest {
   @Test
   void aRoleThatWouldPassItsShareStopsAndItsRemainingItemsAreNotAsked() {
     io.lantern.llm.LlmClient priced = client(fake, TestHarness.priced(fake));
-    // Each item is expected to cost about $0.0005 (100 output tokens at $5 a million); the
-    // summarize group's half of $0.0025 holds two of them.
+    // Each item is expected to cost about $0.0005 (100 output tokens at $5 a million), and each
+    // answer, of about 100 tokens, costs that: the summarize group's half of $0.0025 holds two.
+    fake.answering("\"" + "x".repeat(400) + "\"");
     RunBudget budget =
         new RunBudget(new BigDecimal("0.0025"), Map.of("summarize", 50, "describe", 50));
     Harness harness = new Harness(priced, store, budget, BlobLookup.NONE, Set.of());
