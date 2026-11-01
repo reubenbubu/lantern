@@ -230,6 +230,7 @@ class AnalyzeCommandTest {
         0,
         llm,
         List.of(),
+        List.of(),
         null);
   }
 

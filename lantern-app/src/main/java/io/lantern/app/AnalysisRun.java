@@ -125,6 +125,7 @@ public final class AnalysisRun {
   private final LlmAccess llm;
   private final JdbcLlmCallLog callLog;
   private final AnswerStore answers;
+  private final RunBudget runBudget;
   private final RuleRuns ruleRuns;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
@@ -147,6 +148,7 @@ public final class AnalysisRun {
       LlmAccess llm,
       JdbcLlmCallLog callLog,
       AnswerStore answers,
+      RunBudget runBudget,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
@@ -166,6 +168,7 @@ public final class AnalysisRun {
     this.llm = Objects.requireNonNull(llm, "llm");
     this.callLog = Objects.requireNonNull(callLog, "callLog");
     this.answers = Objects.requireNonNull(answers, "answers");
+    this.runBudget = Objects.requireNonNull(runBudget, "runBudget");
     this.views = Objects.requireNonNull(views, "views");
     this.renderer = Objects.requireNonNull(renderer, "renderer");
     this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
@@ -201,6 +204,7 @@ public final class AnalysisRun {
    *     system for its purpose, the LLM was asked to word (ADR 0050, ADR 0056, ADR 0058, ADR 0060)
    * @param wordingsReused how many of their wordings came from the cache
    * @param llm the LLM calls made during the run, whatever their outcome, by role
+   * @param roles what each role of the harness planned, estimated, asked and spent (ADR 0100)
    * @param documents the rendered documents, in the order written
    * @param runRecord the file that records each role's model and the run's cost, next to the
    *     documents
@@ -223,6 +227,7 @@ public final class AnalysisRun {
       int wordingsAsked,
       int wordingsReused,
       JdbcLlmCallLog.Spending llm,
+      List<io.lantern.harness.RoleRecord> roles,
       List<Rendered> documents,
       Path runRecord) {
 
@@ -336,7 +341,7 @@ public final class AnalysisRun {
           new Harness(
               client,
               answers,
-              RunBudget.NONE,
+              runBudget,
               (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
               Set.of());
       Stored stored =
@@ -481,6 +486,7 @@ public final class AnalysisRun {
           described.asked(),
           described.reused(),
           callLog.spentSince(started),
+          harness.records(),
           documents,
           runRecord);
     }

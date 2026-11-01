@@ -141,6 +141,11 @@ public final class RoleRecord implements LlmCallLog {
     return List.copyOf(asked);
   }
 
+  /** What the role's calls cost. */
+  public synchronized BigDecimal costUsd() {
+    return usd;
+  }
+
   /** The role's plan, summed over its plans in the run, or null if it planned nothing. */
   public synchronized Estimate estimate() {
     return estimate;

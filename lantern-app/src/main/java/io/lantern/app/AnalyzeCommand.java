@@ -262,6 +262,7 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
             + result.llm().tokens()
             + ", cost: $"
             + result.llm().costUsd().toPlainString());
+    printEstimates(result.roles());
     for (AnalysisRun.Rendered document : result.documents()) {
       out.println("Wrote " + document.file());
     }
@@ -283,5 +284,39 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
   @Override
   public int getExitCode() {
     return exitCode;
+  }
+
+  /** Each role's estimate, printed before its first call, against what it then cost (#42). */
+  private void printEstimates(List<io.lantern.harness.RoleRecord> roles) {
+    java.math.BigDecimal estimated = java.math.BigDecimal.ZERO;
+    java.math.BigDecimal spent = java.math.BigDecimal.ZERO;
+    List<String> lines = new java.util.ArrayList<>();
+    for (io.lantern.harness.RoleRecord role : roles) {
+      io.lantern.harness.Estimate estimate = role.estimate();
+      if (estimate == null) {
+        continue;
+      }
+      estimated = estimated.add(estimate.usd());
+      spent = spent.add(role.costUsd());
+      lines.add(
+          "  %s: %d items, %d to ask, about $%s; %d calls, $%s"
+              .formatted(
+                  role.role(),
+                  estimate.items(),
+                  estimate.toAsk(),
+                  dollars(estimate.usd()),
+                  role.calls(),
+                  dollars(role.costUsd())));
+    }
+    if (lines.isEmpty()) {
+      return;
+    }
+    out.println(
+        "Estimated against spent, per role: about $" + dollars(estimated) + ", $" + dollars(spent));
+    lines.forEach(out::println);
+  }
+
+  private static String dollars(java.math.BigDecimal usd) {
+    return usd.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
   }
 }

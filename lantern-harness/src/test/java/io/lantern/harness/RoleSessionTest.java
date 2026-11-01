@@ -274,4 +274,41 @@ class RoleSessionTest {
     assertThat(estimate.line("summarize")).startsWith("summarize: 5 items, 2 cached, 3 to ask;");
     assertThat(harness.records().getFirst().estimate()).isEqualTo(estimate);
   }
+
+  @Test
+  void aRoleThatWouldPassItsShareStopsAndItsRemainingItemsAreNotAsked() {
+    io.lantern.llm.LlmClient priced = client(fake, TestHarness.priced(fake));
+    // Each item is expected to cost about $0.0005 (100 output tokens at $5 a million); the
+    // summarize group's half of $0.0025 holds two of them.
+    RunBudget budget =
+        new RunBudget(new BigDecimal("0.0025"), Map.of("summarize", 50, "describe", 50));
+    Harness harness = new Harness(priced, store, budget, BlobLookup.NONE, Set.of());
+    RoleSession session = harness.session(role());
+    List<Outcome.Kind> kinds = new ArrayList<>();
+    for (String subject : List.of("a", "b", "c", "d")) {
+      kinds.add(session.ask(item(subject), asking(item(subject))).kind());
+    }
+
+    assertThat(kinds)
+        .containsExactly(
+            Outcome.Kind.ANSWERED,
+            Outcome.Kind.ANSWERED,
+            Outcome.Kind.NOT_ASKED,
+            Outcome.Kind.NOT_ASKED);
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(session.record().toJson().get("items").get("notAsked").asInt()).isEqualTo(2);
+    // Another role of the same group finds the share spent; a role of another group does not.
+    RoleSession sameGroup =
+        harness.session(
+            RoleSpec.single("summarize-more", Role.SUMMARIZE, "1", "summarize", RunMode.BULK, 100));
+    assertThat(sameGroup.ask(item("e"), asking(item("e"))).kind())
+        .isEqualTo(Outcome.Kind.NOT_ASKED);
+    RoleSession otherGroup =
+        harness.session(
+            RoleSpec.single("describe", Role.SUMMARIZE, "1", "describe", RunMode.BULK, 100));
+    assertThat(otherGroup.ask(item("f"), asking(item("f"))).kind())
+        .isEqualTo(Outcome.Kind.ANSWERED);
+    // Nothing not asked is cached: a later run with room asks it.
+    assertThat(store.find(session.fingerprint(item("c")))).isEmpty();
+  }
 }

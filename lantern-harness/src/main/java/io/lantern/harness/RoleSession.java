@@ -5,7 +5,6 @@ import io.lantern.harness.verify.ItemAnswer;
 import io.lantern.harness.verify.Pipeline;
 import io.lantern.harness.verify.Rejection;
 import io.lantern.llm.BudgetExceededException;
-import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.Capability;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmException;
@@ -49,15 +48,15 @@ public final class RoleSession {
   private final LlmClient client;
   private final RoleRecord record;
   private final BigDecimal share;
-  private BigDecimal planned = BigDecimal.ZERO;
 
   RoleSession(Harness harness, RoleSpec spec, LlmClient client, RoleRecord record) {
     this.harness = harness;
     this.spec = spec;
     this.model = client.model(spec.modelRole());
     this.share = harness.budget().share(spec.budgetGroup());
+    // The roles of one group share its guard, so together they never spend past its share.
     LlmClient budgeted =
-        share == null ? client : client.withBudget(new BudgetGuard(spec.name(), null, share));
+        share == null ? client : client.withBudget(harness.guard(spec.budgetGroup()));
     this.client = budgeted.alsoLogging(record);
     this.record = record;
   }
@@ -569,8 +568,11 @@ public final class RoleSession {
     return true;
   }
 
-  /** Adds the item's estimated cost to the plan if it fits the role's share. */
-  private synchronized boolean withinShare(Item item) {
+  /**
+   * Adds the item's estimated cost to its group's plan if it fits the group's share: a role that
+   * would pass its share stops planning new items (knowledge-build epic, section 10).
+   */
+  private boolean withinShare(Item item) {
     if (share == null) {
       return true;
     }
@@ -580,11 +582,7 @@ public final class RoleSession {
             .cost(
                 new TokenUsage(
                     Tokens.estimate(item.rendering()), spec.expectedOutputTokens(), 0, 0));
-    if (planned.add(cost).compareTo(share) > 0) {
-      return false;
-    }
-    planned = planned.add(cost);
-    return true;
+    return harness.planWithinShare(spec.budgetGroup(), cost);
   }
 
   /** Sends a request of one of the role's items. */
