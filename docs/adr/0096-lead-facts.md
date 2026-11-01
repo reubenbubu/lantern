@@ -32,11 +32,18 @@ than asked.
   `send-before-commit` trigger excludes paths through such a listener, and nothing else records it.
   The transaction enums join the parser's list of known library enums, so degraded mode reads them
   too.
-- **`access-check` with `via: aspect`** (Spring extractor), beside the `advised-by` fact (ADR 0079):
-  when a before or around advice applies to a method because of an annotation, and reads that
-  annotation's attributes (takes it as a parameter, as `@annotation(requires)` binds it, or calls
-  its methods). `kind` is `custom`, the value the annotation's values as written (`resource=TASK,
-  action=READ`). After-advice and an annotation the advice never reads (a logging marker) give none.
+- **`custom-access-check`** (Spring extractor), beside the `advised-by` fact (ADR 0079): when a
+  before or around advice applies to a method because of an annotation, and reads that annotation's
+  attributes (takes it as a parameter, as `@annotation(requires)` binds it, or calls its methods).
+  The value is the annotation's values as written (`resource=TASK, action=READ`), with `via:
+  aspect`, the aspect and the advice. After-advice and an annotation the advice never reads give
+  none, and so does an aspect whose and whose annotation's names say nothing of access
+  (permission, role, access, auth, security, privilege, grant, policy, guard, entitlement): aspects
+  that log, lock, rate-limit or audit read their annotations too, and counting them as checks would
+  hide an endpoint that has none from the `weak-access-check` lead. The epic writes it as `access-check` with `via: aspect`, but that needs
+  `access-check`'s `kind` widened, and the vocabulary refuses any change to an existing attribute on
+  a database that has it (`Vocabulary.changes`), so it is a type of its own; the
+  `weak-access-check` lead (#524) reads both.
 - **`payload-type`** (messaging and HTTP client extractors), on the method: `role` is `send`,
   `receive`, `request` or `response`; the value is the type's erasure and `typeArguments` lists the
   named types its arguments hold at any depth, so `List<OrderPlaced>` and
@@ -72,6 +79,10 @@ than asked.
   cached facts are extracted again.
 - None of the new facts is read by linking or composition yet, so documents and scores do not
   change; the leads (#524) read them.
+- Request reads through a local variable of the headers (`HttpHeaders h =
+  exchange.getRequest().getHeaders(); h.getFirst("X-User")`) are not seen: the chain starts from
+  `HttpHeaders`, which is not a request type. Spring Cloud Stream functions' payloads are not
+  recorded. Both are gaps for a later issue if a lead misses them.
 - project-4's Helm Ingress renders `cors-allow-origin: *` unquoted, which is not valid YAML, so that
   Ingress (and its CORS policy) is not read; the chart would fail the same way when applied. Its
   gateway's CORS policy comes from config.

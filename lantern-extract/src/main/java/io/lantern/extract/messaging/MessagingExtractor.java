@@ -791,7 +791,8 @@ public final class MessagingExtractor implements Extractor {
           emit(caller, SEND, destination, Map.of(), attributes, i.where());
         }
         if (call.method().startsWith("convertAndSend")) {
-          payload(caller, "send", i, named ? 1 : 0, JMS);
+          // (destination name or Destination, payload[, post-processor]), or (payload).
+          payload(caller, "send", i, arguments.size() >= 2 ? 1 : 0, JMS);
         }
         return;
       }

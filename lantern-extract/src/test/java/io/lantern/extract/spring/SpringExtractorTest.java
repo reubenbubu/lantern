@@ -745,6 +745,7 @@ public class OrgController {
 
   @PostMapping("/orgs/{id}/notes")
   @RequiresPermission
+  @RateLimit(5)
   public void note() {}
 }
 """);
@@ -790,6 +791,33 @@ public class PermissionAspect {
 
   @After("@annotation(com.example.Logged)")
   public void log() {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/Limiter.java",
+"""
+package com.example;
+
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class Limiter {
+  @Around("@annotation(limit)")
+  public Object around(Object joinPoint, RateLimit limit) {
+    return joinPoint;
+  }
+}
+""");
+    files.put(
+        "src/main/java/com/example/RateLimit.java",
+"""
+package com.example;
+
+public @interface RateLimit {
+  int value() default 10;
 }
 """);
     files.put(
@@ -846,6 +874,7 @@ public class Web {
 
   public void addCorsMappings(CorsRegistry registry) {
     registry.addMapping("/api/**").allowedOrigins("https://shop.example", origins);
+    registry.addMapping("/public/**");
   }
 
   public CorsConfiguration cors() {
@@ -867,18 +896,19 @@ public class Web {
                     l.contains(" reads-request-value ")
                         || l.contains(" transactional ")
                         || l.contains(" cors-policy ")
-                        || l.contains(" access-check "))
+                        || l.contains(" custom-access-check "))
             .toList();
     // Header reads bound or called, in a handler, a gateway filter and an aspect; transactions
     // and transactional listeners; the aspect's permission checks, but not the after-advice of
-    // Logged; and CORS from an annotation, a registry and a configuration, a @Value kept.
+    // Logged nor the rate limiter; and CORS from an annotation, a registry (every origin where it
+    // names none) and a configuration, a @Value kept.
     assertThat(facts)
         .containsExactly(
             "method:com.example.OrgController#create(java.lang.String,java.util.Map"
-                + ",java.lang.String,java.lang.String) access-check resource=ORGANIZATION"
+                + ",java.lang.String,java.lang.String) custom-access-check resource=ORGANIZATION"
                 + ", action=CREATE {\"advice\":\"method:com.example.PermissionAspect#check(c"
                 + "om.example.RequiresPermission)\",\"annotation\":\"com.example.RequiresPerm"
-                + "ission\",\"aspect\":\"com.example.PermissionAspect\",\"kind\":\"custom\",\"via\":"
+                + "ission\",\"aspect\":\"com.example.PermissionAspect\",\"via\":"
                 + "\"aspect\"} @shop:src/main/java/com/example/OrgController.java#17-17 0.7",
             "method:com.example.OrgController#create(java.lang.String,java.util.Map"
                 + ",java.lang.String,java.lang.String) reads-request-value * {\"annotation"
@@ -905,10 +935,10 @@ public class Web {
                 + "ation\":\"org.springframework.transaction.annotation.Transactional\",\"kin"
                 + "d\":\"transaction\"} @shop:src/main/java/com/example/OrgController.java#1"
                 + "8-18 0.7",
-            "method:com.example.OrgController#note() access-check RequiresPermissio"
+            "method:com.example.OrgController#note() custom-access-check RequiresPermissio"
                 + "n {\"advice\":\"method:com.example.PermissionAspect#check(com.example.Req"
                 + "uiresPermission)\",\"annotation\":\"com.example.RequiresPermission\",\"aspec"
-                + "t\":\"com.example.PermissionAspect\",\"kind\":\"custom\",\"via\":\"aspect\"} @sho"
+                + "t\":\"com.example.PermissionAspect\",\"via\":\"aspect\"} @sho"
                 + "p:src/main/java/com/example/OrgController.java#26-26 0.7",
             "method:com.example.OrgFilter#filter(org.springframework.web.server.Ser"
                 + "verWebExchange) reads-request-value X-Organization-Id {\"call\":\"getFirs"
@@ -928,6 +958,10 @@ public class Web {
                 + "AFTER_ROLLBACK {\"annotation\":\"org.springframework.transaction.event.Tr"
                 + "ansactionalEventListener\",\"kind\":\"event-listener\"} @shop:src/main/java"
                 + "/com/example/Service.java#13-13 0.7",
+            "method:com.example.Web#addCorsMappings(org.springframework.web.servlet.config"
+                + ".annotation.CorsRegistry) cors-policy * {\"origins\":[\"*\"],\"path\":\"/pu"
+                + "blic/**\",\"source\":\"cors-registry\"} @shop:src/main/java/com/example/Web"
+                + ".java#14-14 0.7",
             "method:com.example.Web#addCorsMappings(org.springframework.web.servlet"
                 + ".config.annotation.CorsRegistry) cors-policy https://shop.example, ${c"
                 + "ors.origins} {\"origins\":[\"https://shop.example\",\"${cors.origins}\"],\"pa"
@@ -935,7 +969,7 @@ public class Web {
                 + "e/Web.java#13-13 0.7",
             "method:com.example.Web#cors() cors-policy * {\"credentials\":\"true\",\"ori"
                 + "gins\":[\"*\"],\"source\":\"cors-configuration\"} @shop:src/main/java/com/exa"
-                + "mple/Web.java#18-18 0.7",
+                + "mple/Web.java#19-19 0.7",
             "type:com.example.OrgController cors-policy * {\"origins\":[\"*\"],\"source\""
                 + ":\"cross-origin\"} @shop:src/main/java/com/example/OrgController.java#14"
                 + "-14 0.7",

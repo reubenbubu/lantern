@@ -8,13 +8,13 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The attributes of a fact of the type {@code reads-request-value}. The subject method reads a
- * value of the HTTP request it serves (#520): a header, cookie or parameter, bound to a parameter
- * of a handler (&#64;RequestHeader, &#64;CookieValue or &#64;RequestParam, or Jakarta REST's
- * &#64;HeaderParam, &#64;CookieParam or &#64;QueryParam, also when written on the method it
- * overrides), or read by a call on the request in any code, such as a filter, an aspect or an
- * interceptor (a servlet request's getHeader, a reactive request's getHeaders().getFirst). The
- * value is the name as written, constants folded and a &#64;Value's text kept; for a binding
- * without a name, the parameter's name, or * for a map of every value.
+ * value of an HTTP request (#520): a header, cookie or parameter, bound to a parameter of a handler
+ * (&#64;RequestHeader, &#64;CookieValue or &#64;RequestParam, or Jakarta REST's &#64;HeaderParam,
+ * &#64;CookieParam or &#64;QueryParam, also when written on the method it overrides), or read by a
+ * call on the request in any code, such as a filter, an aspect or an interceptor (a servlet
+ * request's getHeader, a reactive request's getHeaders().getFirst). The value is the name as
+ * written, constants folded and a &#64;Value's text kept; for a binding without a name, the
+ * parameter's name, or * for a map of every value.
  *
  * @param annotation Key. For a binding: the binary name of the binding annotation.
  * @param call Key. For a call: the name of the method that reads the value, such as getHeader or

@@ -11,9 +11,10 @@ import tools.jackson.databind.node.ObjectNode;
  * browser may call the subject from, as written (or, from config, as resolved), joined by a comma
  * and a space. From code, the subject is the controller or handler of a &#64;CrossOrigin (every
  * origin when it names none), or the method that makes a CorsConfiguration or registers a mapping
- * with a web configurer's CorsRegistry. From config (the Config extractor), the subject is the
- * module whose Spring Cloud Gateway global CORS or Actuator CORS keys set it. From a Kubernetes
- * Ingress's nginx annotations (the Deployment extractor), the subject is the repository.
+ * with a web configurer's CorsRegistry (every origin, *, when a registration names none or a
+ * configuration takes Spring's permissive defaults). From config (the Config extractor), the
+ * subject is the module whose Spring Cloud Gateway global CORS or Actuator CORS keys set it. From a
+ * Kubernetes Ingress's nginx annotations (the Deployment extractor), the subject is the repository.
  *
  * @param credentials Key. Whether credentials are allowed, as written, when it is.
  * @param environment Key. From an Ingress: the environment, as for deployment-route.

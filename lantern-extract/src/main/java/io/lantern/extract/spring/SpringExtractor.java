@@ -123,6 +123,12 @@ public final class SpringExtractor implements Extractor {
    */
   public static final String ACCESS_CHECK = "access-check";
 
+  /**
+   * Attribute: a method whose callers must pass a custom access check an aspect makes from the
+   * annotation that selects it (#520, ADR 0096).
+   */
+  public static final String CUSTOM_ACCESS_CHECK = "custom-access-check";
+
   /** Attribute: a class that turns method security on, {@code @EnableMethodSecurity}. */
   public static final String METHOD_SECURITY = "method-security";
 
@@ -290,6 +296,11 @@ public final class SpringExtractor implements Extractor {
 
   private static final String TRANSACTIONAL_EVENT_LISTENER =
       SPRING + "transaction.event.TransactionalEventListener";
+
+  /** Words in the name of an annotation or aspect that checks access. */
+  private static final java.util.regex.Pattern ACCESS_NAMES =
+      java.util.regex.Pattern.compile(
+          "(?i)permi|role|access|auth|secur|privilege|grant|polic|guard|entitle");
 
   private static final String CROSS_ORIGIN = WEB + "CrossOrigin";
   private static final String CORS_CONFIGURATION = SPRING + "web.cors.CorsConfiguration";
@@ -1430,6 +1441,7 @@ public final class SpringExtractor implements Extractor {
       final Set<String> origins = new LinkedHashSet<>();
       String credentials;
       String path;
+      boolean permitsDefaults;
       Location where;
       String source;
     }
@@ -1480,6 +1492,10 @@ public final class SpringExtractor implements Extractor {
         }
       }
       if (cors.path != null) {
+        if (cors.origins.isEmpty()) {
+          // A registration allows every origin unless told otherwise.
+          cors.origins.add("*");
+        }
         cors.where = i.where();
         corsPolicy(i.caller(), cors);
       }
@@ -1509,6 +1525,13 @@ public final class SpringExtractor implements Extractor {
           case "setAllowCredentials" ->
               cors.credentials =
                   call.arguments().isEmpty() ? null : written(call.arguments().getFirst(), i);
+          case "applyPermitDefaultValues" -> {
+            // Every origin, unless origins are set too.
+            cors.permitsDefaults = true;
+            if (cors.where == null) {
+              cors.where = i.where();
+            }
+          }
           default -> {}
         }
       }
@@ -1538,6 +1561,9 @@ public final class SpringExtractor implements Extractor {
     }
 
     private void corsPolicy(EntityId subject, Cors cors) {
+      if (cors.permitsDefaults && cors.origins.isEmpty()) {
+        cors.origins.add("*");
+      }
       if (subject == null || cors.where == null || cors.origins.isEmpty()) {
         return;
       }
@@ -1678,12 +1704,16 @@ public final class SpringExtractor implements Extractor {
                 fact(method.id(), ADVISED_BY, aspect.type().binaryName(), at, selecting.where());
                 if (checksAccess(aspect, advice, selecting.type())) {
                   ObjectNode check = FactJson.newObject();
-                  check.put("kind", "custom");
                   check.put("via", "aspect");
                   check.put("annotation", selecting.type());
                   check.put("aspect", aspect.type().binaryName());
                   check.put("advice", advice.method().id().toString());
-                  fact(method.id(), ACCESS_CHECK, written(selecting), check, selecting.where());
+                  fact(
+                      method.id(),
+                      CUSTOM_ACCESS_CHECK,
+                      written(selecting),
+                      check,
+                      selecting.where());
                 }
                 module = was;
               }
@@ -1702,6 +1732,12 @@ public final class SpringExtractor implements Extractor {
       if (!advice.kind().equals("before") && !advice.kind().equals("around")) {
         return false;
       }
+      // An aspect that reads its annotation may as well log, lock or limit; one about access says
+      // so in its own or its annotation's name.
+      if (!ACCESS_NAMES.matcher(simpleName(annotation)).find()
+          && !ACCESS_NAMES.matcher(simpleName(aspect.type().binaryName())).find()) {
+        return false;
+      }
       EntityId id = advice.method().id();
       if (parameterTypes(id).contains(annotation)) {
         return true;
@@ -1712,6 +1748,11 @@ public final class SpringExtractor implements Extractor {
         }
       }
       return false;
+    }
+
+    private static String simpleName(String binaryName) {
+      return binaryName.substring(
+          Math.max(binaryName.lastIndexOf('.'), binaryName.lastIndexOf('$')) + 1);
     }
 
     /**

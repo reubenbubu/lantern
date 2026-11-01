@@ -1768,10 +1768,6 @@ final class JavaParserAnalyzer {
     }
 
     /**
-     * The type of what the innermost call of a chain is made on, or of the object a constructor
-     * call makes; null for a call without a receiver or when parsing cannot name it.
-     */
-    /**
      * The static types of the arguments of the calls written in a chain, innermost first, as far as
      * the parser tells them: a variable's as declared, a new object's or a cast's as written, and
      * anything else as the symbol solver resolves it.
@@ -1820,8 +1816,13 @@ final class JavaParserAnalyzer {
                 case Binding.Field field -> field.fieldType();
                 case null, default -> null;
               };
+          // A field's type is named as the file that declares it imports it.
+          Node context =
+              binding instanceof Binding.Field field && field.declaration() != null
+                  ? field.declaration()
+                  : name;
           if (type != null && !type.isVarType()) {
-            return typeUse(type, name);
+            return typeUse(type, context);
           }
         }
         case ObjectCreationExpr created -> {
@@ -1829,6 +1830,13 @@ final class JavaParserAnalyzer {
         }
         case CastExpr cast -> {
           return typeUse(cast.getType(), cast);
+        }
+        case LambdaExpr l -> {
+          // The symbol solver is slow on these, and no payload is one.
+          return null;
+        }
+        case MethodReferenceExpr r -> {
+          return null;
         }
         default -> {}
       }
@@ -1905,6 +1913,10 @@ final class JavaParserAnalyzer {
       }
     }
 
+    /**
+     * The type of what the innermost call of a chain is made on, or of the object a constructor
+     * call makes; null for a call without a receiver or when parsing cannot name it.
+     */
     private String rootType(Node e) {
       Node n = e;
       while (true) {
