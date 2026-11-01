@@ -1,5 +1,6 @@
 package io.lantern.app;
 
+import io.lantern.harness.RunBudget;
 import io.lantern.llm.CallLimits;
 import io.lantern.llm.Capability;
 import io.lantern.llm.ModelConfig;
@@ -31,6 +32,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param monthlyBudgetUsd the most US dollars all calls in a calendar month (UTC) may cost, or
  *     {@code null} for no limit
  * @param retry how calls that failed for a passing reason are retried
+ * @param runBudgetUsd the most US dollars one analysis run's calls may cost, or {@code null} for no
+ *     run budget (ADR 0100, amended for #42)
+ * @param runBudgetShares each role group's share of the run budget in percent, replacing the
+ *     default share of the groups it names ({@link RunBudget#DEFAULT_SHARES})
  */
 @ConfigurationProperties("lantern.llm")
 public record LlmProperties(
@@ -39,7 +44,9 @@ public record LlmProperties(
     Map<Role, String> roles,
     Anthropic anthropic,
     BigDecimal monthlyBudgetUsd,
-    Retry retry) {
+    Retry retry,
+    BigDecimal runBudgetUsd,
+    Map<String, Integer> runBudgetShares) {
 
   public LlmProperties {
     models = models == null ? Map.of() : Map.copyOf(models);
@@ -47,10 +54,27 @@ public record LlmProperties(
     roles = roles == null ? Map.of() : Map.copyOf(roles);
     anthropic = anthropic == null ? new Anthropic(null, null) : anthropic;
     retry = retry == null ? new Retry(null, null, null) : retry;
+    runBudgetShares = runBudgetShares == null ? Map.of() : Map.copyOf(runBudgetShares);
+    for (String group : runBudgetShares.keySet()) {
+      if (!RunBudget.DEFAULT_SHARES.containsKey(group)) {
+        throw new IllegalArgumentException(
+            "lantern.llm.run-budget-shares."
+                + group
+                + " names no role group; the groups are "
+                + new java.util.TreeSet<>(RunBudget.DEFAULT_SHARES.keySet()));
+      }
+    }
     if (monthlyBudgetUsd != null && monthlyBudgetUsd.signum() < 0) {
       throw new IllegalArgumentException(
           "lantern.llm.monthly-budget-usd must not be negative: " + monthlyBudgetUsd);
     }
+  }
+
+  /** The run budget these settings give, split by role group. */
+  RunBudget runBudget() {
+    Map<String, Integer> shares = new java.util.LinkedHashMap<>(RunBudget.DEFAULT_SHARES);
+    shares.putAll(runBudgetShares);
+    return new RunBudget(runBudgetUsd, shares);
   }
 
   /** Whether any tier has a model, that is whether the LLM is meant to be used at all. */

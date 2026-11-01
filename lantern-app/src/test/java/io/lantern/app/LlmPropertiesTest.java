@@ -290,4 +290,33 @@ class LlmPropertiesTest {
         .hasMessageContaining("lantern.llm.models.opus.disable-thinking is true")
         .hasMessageContaining("cannot turn thinking off");
   }
+
+  @Test
+  void aRunBudgetIsSplitByRoleGroupWithTheDefaultSharesUnlessChanged() {
+    assertThat(bind().runBudget().totalUsd()).isNull();
+
+    values.put("lantern.llm.run-budget-usd", "10");
+    values.put("lantern.llm.run-budget-shares.investigate", "30");
+    values.put("lantern.llm.run-budget-shares.summarize", "28");
+    io.lantern.harness.RunBudget budget = bind().runBudget();
+
+    assertThat(budget.share("investigate")).isEqualByComparingTo("3");
+    assertThat(budget.share("summarize")).isEqualByComparingTo("2.8");
+    assertThat(budget.share("describe")).isEqualByComparingTo("2");
+  }
+
+  @Test
+  void aShareOfAnUnknownGroupOrSharesOverAHundredPercentAreRefused() {
+    values.put("lantern.llm.run-budget-shares.investigation", "30");
+    assertThatThrownBy(this::bind)
+        .hasRootCauseMessage(
+            "lantern.llm.run-budget-shares.investigation names no role group; the groups are"
+                + " [describe, flows-and-purpose, investigate, model-checks, name-groups, resolve,"
+                + " summarize]");
+
+    values.clear();
+    values.put("lantern.llm.run-budget-shares.summarize", "50");
+    assertThatThrownBy(() -> bind().runBudget())
+        .hasMessage("The shares add up to 132%, more than 100%");
+  }
 }

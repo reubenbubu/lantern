@@ -24,6 +24,8 @@ public final class Harness {
   private final BlobLookup blobs;
   private final Set<String> secrets;
   private final Map<String, RoleSession> sessions = new LinkedHashMap<>();
+  private final Map<String, io.lantern.llm.BudgetGuard> guards = new LinkedHashMap<>();
+  private final Map<String, java.math.BigDecimal> planned = new LinkedHashMap<>();
 
   /**
    * @param client the LLM client, with the run's other budgets
@@ -83,6 +85,30 @@ public final class Harness {
     List<RoleRecord> records = new ArrayList<>();
     sessions.values().forEach(session -> records.add(session.record()));
     return records;
+  }
+
+  /** The guard of a role group's share of the run budget, shared by the group's roles. */
+  synchronized io.lantern.llm.BudgetGuard guard(String group) {
+    return guards.computeIfAbsent(
+        group, g -> new io.lantern.llm.BudgetGuard(g, null, budget.share(g)));
+  }
+
+  /**
+   * Adds an item's estimated cost to its group's plan if the plan, or what the group has spent if
+   * more, stays within the group's share.
+   */
+  synchronized boolean planWithinShare(String group, java.math.BigDecimal cost) {
+    java.math.BigDecimal share = budget.share(group);
+    if (share == null) {
+      return true;
+    }
+    java.math.BigDecimal sofar =
+        planned.getOrDefault(group, java.math.BigDecimal.ZERO).max(guard(group).spentCostUsd());
+    if (sofar.add(cost).compareTo(share) > 0) {
+      return false;
+    }
+    planned.put(group, sofar.add(cost));
+    return true;
   }
 
   AnswerStore answers() {

@@ -155,7 +155,9 @@ class TestSetScoreIT {
             roles,
             properties.anthropic(),
             properties.monthlyBudgetUsd(),
-            properties.retry());
+            properties.retry(),
+            properties.runBudgetUsd(),
+            properties.runBudgetShares());
     int sentBefore = fake.sent().size();
     AnalysisRun.Result second;
     try (LlmAccess access =
@@ -202,6 +204,7 @@ class TestSetScoreIT {
             access,
             callLog,
             context.getBean(AnswerStore.class),
+            context.getBean(LlmProperties.class),
             context.getBean(ViewDefinitionStore.class),
             context.getBean(HtmlRenderer.class),
             context.getBean(C4ReportRenderer.class),

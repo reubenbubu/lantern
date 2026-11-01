@@ -687,6 +687,7 @@ class EndToEndIT {
         context.getBean(LlmAccess.class),
         context.getBean(JdbcLlmCallLog.class),
         context.getBean(AnswerStore.class),
+        io.lantern.harness.RunBudget.NONE,
         context.getBean(ViewDefinitionStore.class),
         context.getBean(HtmlRenderer.class),
         context.getBean(C4ReportRenderer.class),

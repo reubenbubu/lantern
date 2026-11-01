@@ -1,6 +1,6 @@
 # 0100: The LLM harness
 
-Status: accepted (#525)
+Status: accepted (#525), amended for #42 (run budget, estimates)
 
 ## Context
 
@@ -51,8 +51,8 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   (`PromptAttributes`), and a step's facts are sorted by their rendered line.
 - **The plan prints the estimate before a role's first call.** `Plan <role>: n items, h cached, m to
   ask, about t tokens, $c`, from uncached input, one cache write of the shared prefix, cache reads
-  for the other requests, and expected output. Budgets by role, the stop and the run's printed
-  estimate before it starts are #42.
+  for the other requests, and expected output. The run budget and the printed estimates are
+  in the amendment for #42 below.
 - **A budget refusal means not asked.** An item its role's share refuses, or whose call a budget
   refuses, is recorded as not asked in the run record and the log, and not stored, so the next run
   asks it. This changes Summarize: a budget refusal used to fail the whole run; now the unit is left
@@ -105,3 +105,24 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
 - Open for 1F: the Conflict check rejects any proposal whose subject and predicate already have a
   static object, which would block a second connection of a many-valued predicate (a unit's HTTP
   calls). Investigate's ADR decides which predicates it applies to before Investigate uses it.
+
+## Amendment for #42: the run budget and its estimate
+
+- **Settings.** `lantern.llm.run-budget-usd` sets a budget per analysis run, none by default;
+  `lantern.llm.run-budget-shares.<group>` changes a group's share. The defaults are the epic's
+  (section 10): investigate 40, describe 20, summarize 18, name-groups 2, flows-and-purpose 10,
+  resolve 5, model-checks 5. Issue #42 listed Describe at 22% and no Name groups; the epic's split
+  wins. A share of an unknown group, or shares adding up to more than 100%, stop the app at start.
+- **A share belongs to a group, not a role.** The roles of one group (the describe roles; flow
+  narrative and purpose) plan against, and spend from, one share. Before an item is asked, its
+  estimated cost is added to the group's plan, or to what the group has spent if that is more; an
+  item that would pass the share is not asked, and the role stops planning. A call that still goes
+  past the share, because the estimate was low, is refused by the group's guard and its item is not
+  asked either. Nothing not asked is cached, so a later run with room asks it.
+- **Each role's estimate is printed before its own first call, not all of them before the run's
+  first call.** A role's items depend on earlier roles' answers: a parent summary shows its
+  children's, Describe shows the summaries, so their fingerprints and cache hits are only known
+  once those roles have run. Each role plans every item it needs before it sends anything (a
+  parent whose children are not all cached is counted as a miss), logs `Plan <role>: ...`, and
+  `analyze` ends with each role's estimate against what it spent. The run's estimate is the sum.
+  Whether an estimate is close enough is first checked on a real recording in #529.

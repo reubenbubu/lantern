@@ -33,6 +33,10 @@ public record RunBudget(BigDecimal totalUsd, Map<String, Integer> shares) {
             throw new IllegalArgumentException("A share is a percentage: " + group + "=" + share);
           }
         });
+    int total = shares.values().stream().mapToInt(Integer::intValue).sum();
+    if (total > 100) {
+      throw new IllegalArgumentException("The shares add up to " + total + "%, more than 100%");
+    }
   }
 
   private static Map<String, Integer> defaults() {
