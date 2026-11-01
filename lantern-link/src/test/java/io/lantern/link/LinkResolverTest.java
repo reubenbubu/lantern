@@ -648,6 +648,29 @@ class LinkResolverTest {
   }
 
   @Test
+  void anOpenSendCitesValueResolutionsRelationWhoseBrokerNamesTheProtocol() {
+    unit("s", "shop");
+    type("s", "shop", "s.Publisher");
+    add(
+        MessagingExtractor.NAME,
+        "method:s.Publisher#send()",
+        MessagingExtractor.SEND,
+        FactObject.string("orders"),
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        "s:src/main/java/s/Publisher.java#7");
+    Fact relation =
+        linked().stream()
+            .filter(f -> f.predicate().equals(MessagingExtractor.SENDS_TO))
+            .findFirst()
+            .orElseThrow();
+
+    // The messaging matcher cites the relation, not the message fact (#597).
+    assertThat(LinkResolver.isSend(relation)).isTrue();
+    assertThat(LinkResolver.brokerOf(relation)).isEqualTo("kafka");
+    assertThat(LinkResolver.protocol(LinkResolver.brokerOf(relation))).isEqualTo("Kafka");
+  }
+
+  @Test
   void aRecordedAnswerIsReplayedWithoutTheModel() {
     taxCall();
     FakeLlmProvider fake = answering(r -> PICK_TAX);

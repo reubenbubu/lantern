@@ -209,8 +209,10 @@ resolves them, as relations to the destinations they join on (`MessageRelations`
   written, keyed by the module (`destination:<module>:<broker>:<kind>:<written>`), so no literal
   destination is named that config does not give.
 - One relation per view as for the message facts: the default view's, and one per profile whose
-  values differ, with `profile`. Where nothing needs config, the relation is the same claim the
-  extractor's relation is, observed by value resolution too (ADR 0091 allows several origins).
+  values differ, with `profile`. Where nothing needs config and the extractor's relation has no
+  key attribute the message fact lacks (`configured`, `binders`, `streamOnClasspath`, `binder` or
+  a `...Followed` list), it is the same claim as the extractor's relation, observed by value
+  resolution too (ADR 0091 allows several origins); otherwise a claim of its own.
 - The relations gain the attributes the message facts carry: `profile`, `binding`, `written`,
   `unresolved`, `masked`, and `routingKeyWritten`, `exchangeWritten`, `anonymous` as each type
   has them, descriptive as on the message facts (`profile` as for every extractor type, `binding`

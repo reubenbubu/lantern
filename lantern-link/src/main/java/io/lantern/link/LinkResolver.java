@@ -338,11 +338,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     String url = urlOf(call);
     String httpMethod = url.equals(call) ? null : call.substring(0, call.indexOf(' '));
     String path = LinkText.parse(url).path();
-    Fact send =
-        about.stream()
-            .filter(f -> f.predicate().equals(MessagingExtractor.SEND))
-            .findFirst()
-            .orElse(null);
+    Fact send = about.stream().filter(LinkResolver::isSend).findFirst().orElse(null);
     Map<EntityId, List<Fact>> candidates = new LinkedHashMap<>();
     for (String text : Claims.list(unresolved(unresolved).candidates())) {
       EntityId id = EntityId.parse(text);
@@ -361,6 +357,28 @@ public final class LinkResolver implements LinkRule.OverFacts {
       candidates.put(id, shown);
     }
     return ResolvePrompt.question(unresolved, about, candidates);
+  }
+
+  /**
+   * Whether a fact an open link cites is its send: a {@code message-send}, or the {@code SENDS_TO}
+   * relation of value resolution the messaging matcher cites instead (#597).
+   */
+  static boolean isSend(Fact f) {
+    return f.predicate().equals(MessagingExtractor.SEND)
+        || (f.predicate().equals(MessagingExtractor.SENDS_TO)
+            && f.origin().name().equals(ValueResolution.NAME));
+  }
+
+  /** The broker of a send ({@link #isSend}), or null. */
+  static String brokerOf(Fact send) {
+    if (send == null) {
+      return null;
+    }
+    if (send.predicate().equals(MessagingExtractor.SENDS_TO)) {
+      return Claims.of(send, io.lantern.extract.attributes.SendsToAttributes.class).broker();
+    }
+    MessageSendAttributes sent = Claims.ofOrNull(send, MessageSendAttributes.class);
+    return sent == null ? null : sent.broker();
   }
 
   /** A unit's own fact and its name in the view. */
@@ -382,8 +400,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
    */
   private static List<Fact> receiving(
       LinkIndex index, Unit unit, Fact send, String destination, String view) {
-    MessageSendAttributes sent = Claims.ofOrNull(send, MessageSendAttributes.class);
-    String broker = sent == null ? null : sent.broker();
+    String broker = brokerOf(send);
     List<Fact> listeners = new ArrayList<>();
     for (Fact listener : index.of(MessagingExtractor.LISTENER)) {
       if (index.unitsOf(listener.subject()).contains(unit)
@@ -631,7 +648,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     for (String id : Claims.list(unresolved(unresolved).facts())) {
       Fact fact = byId.get(id);
       if (fact != null
-          && (fact.predicate().equals(MessagingExtractor.SEND)
+          && (isSend(fact)
               || fact.predicate().equals(HttpClientExtractor.HTTP_CALL)
               || fact.predicate().equals(GatewayExtractor.ROUTE))) {
         origin = fact;
@@ -715,9 +732,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
       attributes.put("protocol", protocol);
       attributes.put("matchedBy", "llm");
     } else {
-      MessageSendAttributes send = Claims.ofOrNull(origin, MessageSendAttributes.class);
-      String broker = send == null ? null : send.broker();
-      attributes.put("protocol", protocol(broker));
+      attributes.put("protocol", protocol(brokerOf(origin)));
     }
     String profile = Claims.profile(unresolved);
     if (profile != null) {
@@ -756,7 +771,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
         : call;
   }
 
-  private static String protocol(String broker) {
+  static String protocol(String broker) {
     if (broker == null) {
       return "AMQP";
     }
