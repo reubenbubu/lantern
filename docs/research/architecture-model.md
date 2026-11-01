@@ -2,7 +2,7 @@
 
 This is the research for #615, the first issue of milestone 1D "Architecture model stored".
 
-**Depth: high.** The question settles rules of the design: how the model is keyed, what its lineage holds, and how findings and leads keep their identity. Fifteen sources were read in full or in substantial part. Six more were looked for and not read, and they carry no weight here (see Not read).
+**Depth: high.** The question settles rules of the design: how the model is keyed, what its lineage holds, and how findings and leads keep their identity. Eighteen sources were read: fifteen in full, three in substantial part (jQAssistant about half, the Alibaba study about 70%, IRIS about 90%). Six more were looked for and not read, and they carry no weight here (see Not read).
 
 ## Question
 
@@ -173,6 +173,8 @@ Identity by the right key columns is the common answer. Lantern's `finding:<kind
 
 ## What it changes in docs/design.md and the epic
 
+The agent's proposed changes, as written; "Decisions taken" below supersedes this list where they differ.
+
 - **Epic §9, What is derived:**
   - Flow step row: replace `flow-step:<flow>/<n>` with `flow-step:<flow>/<link claim>/<k>`, and add `nestingLevel` and `importance`.
   - Flow row: add `content` (hash of its ordered step links) and `similarity-to-representative`, and define `shape` as start kind plus ordered (from, to, kind) steps.
@@ -195,9 +197,9 @@ PR. The agent decided them under the owner's standing go-ahead for 1D.
 
 - **Taken now:** whole-rule recomputation (1); one-level lineage (2); flow steps keyed on the link
   they follow (3, with `order` descriptive); a flow `content` hash that judgements record (4);
-  shape as start kind plus ordered (from, to, kind) steps (5); findings keyed per kind with a fixed
-  rule name, lineage and a `path` when a path triggers them (7); leads stored, verdicts as separate
-  claims (8); components keyed on their anchor class (11); lines between groups computed on demand
+  shape as start kind plus ordered (from, to, kind, channel) steps, the channel being the endpoint or destination the step's link follows, so two different endpoints between the same units are two shapes (5, option C's stricter form); findings keyed per kind with a fixed
+  rule name, lineage and a `path` when a path triggers them (7); leads stored as `lead:<kind>/<key>` with per-kind key attributes, verdicts as separate
+  claims (8); components keyed on their anchor class, a class several entry points reach being a component of its own keyed on that class, membership one `CONTAINS` claim per class (11; the warning for a unit with entry points and no components is left to #523's checks); lines between groups computed on demand
   (12).
 - **Taken with a narrower form:** deployment instances are keyed on the name the environment gives
   them (a compose service, a Kubernetes workload) rather than on a node path: today's documents draw
@@ -208,7 +210,7 @@ PR. The agent decided them under the owner's standing go-ahead for 1D.
 - **Scope of 1D's issues is unchanged:** #523 stores the model with these keys, #524 the leads as
   stored claims (the verdicts are Investigate's, 1F), #271 and #535 as written.
 
-## Sources read in full
+## Sources read (in full, or in substantial part where marked)
 
 - <https://glean.software/docs/derived/>: stored and on-demand derived predicates, and the derivation order.
 - <https://glean.software/docs/implementation/incrementality/>: AND ownership of derived facts, and the stacked-database gap.
