@@ -38,7 +38,10 @@ class FakeLlmConfiguration {
 
   @Bean
   FakeLlmProvider fakeLlmProvider() {
+    // It reports cache writes and reads as a provider with prompt caching would (#357), for the
+    // models whose settings say they cache.
     return new FakeLlmProvider()
+        .simulatingPromptCache()
         .answering(
             request -> {
               if (request.role() == Role.COMPOSE && flow(request)) {

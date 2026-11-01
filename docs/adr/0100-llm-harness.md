@@ -1,6 +1,6 @@
 # 0100: The LLM harness
 
-Status: accepted (#525), amended for #42 (run budget, estimates)
+Status: accepted (#525), amended for #42 (run budget, estimates) and #357 (cache warm-up)
 
 ## Context
 
@@ -126,3 +126,18 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   parent whose children are not all cached is counted as a miss), logs `Plan <role>: ...`, and
   `analyze` ends with each role's estimate against what it spent. The run's estimate is the sum.
   Whether an estimate is close enough is first checked on a real recording in #529.
+
+## Amendment for #357: the first request warms the prompt cache
+
+- **A role's first item goes alone.** A provider can read a cached prefix only once the request
+  that writes it has been answered, so calls of one role sent at the same moment all write the same
+  prefix and none reads it. The first item a role asks the model about now runs on its own; every
+  other item of that role waits until it is answered (or has failed), then they run as before, in
+  parallel. Cached items do not wait. For a tool-using role the first item is a whole conversation.
+- **The fake profile simulates the prompt cache.** The fake provider of the `fake-llm` profile
+  reports cache writes and reads as a provider with prompt caching would, and the fake models of
+  `scripts/score-testsets.sh` declare `prompt-caching` (with zero cache prices for `fake`, and
+  1.25x and 0.1x the input price for `fake-priced`). Fake runs then show in their run record what a
+  warmed cache saves. The documents do not change: only the reported token split does.
+- **Bulk runs.** Writing the prefix with a one-hour lifetime before a batch is submitted comes with
+  the batch path (#527).
