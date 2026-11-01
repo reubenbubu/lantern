@@ -290,4 +290,90 @@ class ConversationTest {
     assertThat(words.ran).extracting(LlmToolCall::id).containsExactly("t1", "t2", "t3");
     assertThat(fake.sent()).hasSize(3);
   }
+
+  @Test
+  void eachTurnResendsTheHistoryUnchangedWithABreakpointAfterItsLastTurn() {
+    fake.simulatingPromptCache();
+    twoToolTurnsThenAnswer();
+    Conversation conversation =
+        client(fake.model("m"), BudgetGuard.unlimited("run")).converse(request(), new Words());
+
+    conversation.answer();
+    conversation.end(LlmConversation.Ending.ANSWERED);
+
+    List<LlmRequest> sent = fake.sent().stream().map(FakeLlmProvider.Sent::request).toList();
+    assertThat(sent).hasSize(3);
+    for (int n = 0; n < sent.size(); n++) {
+      LlmRequest turn = sent.get(n);
+      assertThat(turn.cacheBreaks())
+          .as("turn %d ends with a breakpoint on its own last block", n + 1)
+          .endsWith(CacheBreak.afterMessage(turn.messages().size() - 1));
+      if (n > 0) {
+        LlmRequest before = sent.get(n - 1);
+        assertThat(turn.messages().subList(0, before.messages().size()))
+            .as("turn %d carries turn %d's history unchanged", n + 1, n)
+            .isEqualTo(before.messages());
+        assertThat(turn.system()).isEqualTo(before.system());
+        assertThat(turn.tools()).isEqualTo(before.tools());
+      }
+    }
+    // Every turn after the first reads the history before it from the cache.
+    List<LlmCall> turns = log.calls();
+    assertThat(turns).hasSize(3);
+    assertThat(turns.getFirst().usage().cacheRead()).isZero();
+    assertThat(turns.subList(1, 3))
+        .allSatisfy(call -> assertThat(call.usage().cacheRead()).isPositive());
+  }
+
+  @Test
+  void aLongHistoryIsCompactedOnceKeepingTheLastFourToolTurnsWhole() {
+    // Seven tool turns, each with a long result, on a model whose window the history outgrows.
+    fake.callingTools(
+            r ->
+                r.messages().size() < 15
+                    ? List.of(lookup("t" + r.messages().size(), "w".repeat(800)))
+                    : List.of())
+        .answering("{\"target\": \"C1\"}");
+    ModelConfig small = fake.model("m");
+    small =
+        new ModelConfig(
+            small.provider(), small.model(), small.capabilities(), 4_000, small.pricing());
+    Conversation conversation =
+        client(small, BudgetGuard.unlimited("run")).converse(request(), new Words());
+
+    conversation.answer();
+    conversation.end(LlmConversation.Ending.ANSWERED);
+
+    List<LlmRequest> sent = fake.sent().stream().map(FakeLlmProvider.Sent::request).toList();
+    LlmRequest last = sent.getLast();
+    List<LlmMessage> results =
+        last.messages().stream().filter(m -> !m.toolResults().isEmpty()).toList();
+    assertThat(results).hasSize(7);
+    long elided =
+        results.stream()
+            .filter(m -> m.toolResults().getFirst().content().endsWith(" elided]"))
+            .count();
+    assertThat(elided).isPositive();
+    assertThat(results.subList(0, (int) elided))
+        .allSatisfy(m -> assertThat(m.toolResults().getFirst().content()).startsWith("[lookup {"));
+    assertThat(results.subList((int) elided, 7))
+        .hasSizeGreaterThanOrEqualTo(Conversation.KEEP_TURNS)
+        .allSatisfy(m -> assertThat(m.toolResults().getFirst().content()).startsWith("WWW"));
+    // Compacted once: the turn that compacted and every later one keep the same elided history.
+    int compactedAt = -1;
+    for (int n = 0; n < sent.size(); n++) {
+      if (sent.get(n).messages().stream()
+          .anyMatch(
+              m -> m.toolResults().stream().anyMatch(r -> r.content().endsWith(" elided]")))) {
+        compactedAt = n;
+        break;
+      }
+    }
+    assertThat(compactedAt).isPositive();
+    for (int n = compactedAt + 1; n < sent.size(); n++) {
+      LlmRequest before = sent.get(n - 1);
+      assertThat(sent.get(n).messages().subList(0, before.messages().size()))
+          .isEqualTo(before.messages());
+    }
+  }
 }

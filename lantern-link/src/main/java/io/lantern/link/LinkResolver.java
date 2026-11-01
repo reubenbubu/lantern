@@ -68,8 +68,8 @@ import tools.jackson.databind.node.ObjectNode;
  * item's fingerprint, which hashes the role, its prompt version, the model, the tools offered, the
  * facts the prompt shows (by claim ID) and the prompt, so a run over unchanged facts makes no call.
  * A cached answer is reused only while every file a tool read has the blob it read and every fact a
- * tool showed it still holds. Each conversation keeps the role's caps: 6 tool turns, 120,000 (until
- * #349) input tokens in fresh-token equivalents, 4,000 output tokens a turn.
+ * tool showed it still holds. Each conversation keeps the role's caps: 6 tool turns, 30,000 input
+ * tokens in fresh-token equivalents, 4,000 output tokens a turn.
  *
  * <p>It never fails the run. An answer that is rejected twice (a target that is not a candidate, a
  * reference not in the prompt, no citation of the candidate it picks), and a call refused by a
@@ -143,11 +143,10 @@ public final class LinkResolver implements LinkRule.OverFacts {
 
   /**
    * The caps of each Resolve conversation (knowledge-build epic, section 10, Agent loop): 6 tool
-   * turns and 4,000 output tokens a turn. The epic's input cap of 30,000 fresh-token equivalents
-   * assumes each turn reads the history from the prompt cache; until that lands (#349) every turn
-   * resends it at full price, so the cap is 120,000 (ADR 0100).
+   * turns, 30,000 input tokens in fresh-token equivalents (each turn reads its history from the
+   * prompt cache, #349) and 4,000 output tokens a turn.
    */
-  static final ConversationLimits LIMITS = new ConversationLimits(6, 120_000, 4_000);
+  static final ConversationLimits LIMITS = new ConversationLimits(6, 30_000, 4_000);
 
   /** The role as the harness runs it, before its tools are known (ADR 0100). */
   public static final RoleSpec ROLE =

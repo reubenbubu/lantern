@@ -344,7 +344,7 @@ How summaries are built bottom-up and cited is in ADR 0010 (their cache, keyed o
 - Tests never call a real provider: they use a fake or recorded responses (see ADR 0008).
 - Calls run in parallel on virtual threads, with concurrency and rate limits per model and retry with backoff (see ADR 0021).
 - Models that think by default can have thinking turned off or extra output room per model, and an answer cut off at its output limit is logged as such (see ADR 0022).
-- A role with tools holds a conversation: the model calls tools and gets their results until it answers. Each turn is a logged call; each conversation is logged with its turns, tool calls by tool, tokens, cost and how it ended, and the run's record shows them by role. Caps on turns, input and output per turn bound it, with a note to submit at 75% of a cap (ADR 0081, amended by ADR 0100).
+- A role with tools holds a conversation: the model calls tools and gets their results until it answers. Each turn is a logged call; each conversation is logged with its turns, tool calls by tool, tokens, cost and how it ended, and the run's record shows them by role. Caps on turns, input and output per turn bound it, with a note to submit at 75% of a cap; every turn carries a cache breakpoint after its last turn, so the next reads the history from the cache, and a history past 60% of the context window is compacted once (ADR 0081, amended by ADR 0100).
 
 ## Learned rules (self-improving extractors)
 

@@ -206,10 +206,13 @@ public final class FakeLlmProvider implements LlmProvider {
       for (LlmToolCall call : calls) {
         chars += call.name().length() + call.input().toString().length();
       }
+      long output = thinking + Tokens.estimate(chars);
       return new LlmResponse(
           "",
           LlmResponse.TOOL_USE,
-          new TokenUsage(request.estimatedInputTokens(), thinking + Tokens.estimate(chars), 0, 0),
+          simulatesCache
+              ? simulated(request, cachesSystem, output)
+              : new TokenUsage(request.estimatedInputTokens(), output, 0, 0),
           calls);
     }
     String text = answer.apply(request);
@@ -244,7 +247,11 @@ public final class FakeLlmProvider implements LlmProvider {
     List<String> prefixes = prefixes(request, cachesSystem);
     long input = request.estimatedInputTokens();
     long read = 0;
-    for (String prefix : prefixes) {
+    // Like a provider, it looks back from the breakpoints for the longest prefix cached before,
+    // ending at an earlier turn, as a conversation's previous breakpoint did.
+    List<String> candidates = new ArrayList<>(prefixes);
+    candidates.addAll(turnEnds(request, cachesSystem));
+    for (String prefix : candidates) {
       if (cachedPrefixes.contains(digest(prefix))) {
         read = Math.max(read, Tokens.estimate(prefix));
       }
@@ -257,7 +264,27 @@ public final class FakeLlmProvider implements LlmProvider {
   }
 
   /** The text a request sends up to each of its breakpoints, tools and system prompt first. */
+  /** The request's text up to the end of each turn before its last breakpoint's turn. */
+  private static List<String> turnEnds(LlmRequest request, boolean cachesSystem) {
+    List<String> ends = new ArrayList<>();
+    collect(request, cachesSystem, ends);
+    return ends;
+  }
+
   private static List<String> prefixes(LlmRequest request, boolean cachesSystem) {
+    return collect(request, cachesSystem, null);
+  }
+
+  /**
+   * The request's text up to each of its breakpoints, shortest first; with {@code ends}, also adds
+   * the text up to the end of each turn before the last breakpoint's turn to it.
+   */
+  private static List<String> collect(LlmRequest request, boolean cachesSystem, List<String> ends) {
+    int lastBreak =
+        request.cacheBreaks().stream()
+            .mapToInt(CacheBreak::message)
+            .max()
+            .orElse(CacheBreak.SYSTEM);
     StringBuilder text = new StringBuilder();
     for (LlmTool tool : request.tools()) {
       text.append(tool.name()).append(tool.description()).append(tool.inputSchema());
@@ -283,6 +310,9 @@ public final class FakeLlmProvider implements LlmProvider {
       text.append(message.text());
       for (LlmToolCall call : message.toolCalls()) {
         text.append(call.id()).append(call.name()).append(call.input());
+      }
+      if (ends != null && i < lastBreak) {
+        ends.add(text.toString());
       }
       for (CacheBreak at : request.cacheBreaks()) {
         if (at.message() == i) {

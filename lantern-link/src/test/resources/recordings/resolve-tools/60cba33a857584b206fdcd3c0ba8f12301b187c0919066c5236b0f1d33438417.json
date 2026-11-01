@@ -9,6 +9,11 @@
       "text" : "The HTTP call that static matching left open: GET ${TAX_SERVICE_URL}/v2/quotes\nMade by the unit service:g:orders, in method:o.TaxClient#quote().\nLeft open because its URL or destination has placeholders; placeholders no config resolves: TAX_SERVICE_URL.\n\nFacts about the call:\n[F1] service:g:orders deployable-unit \"spring-boot\" (a:pom.xml)\n[F2] service:g:orders application-name \"orders\" {\"module\":\"module:g:orders\"} (a:src/main/resources/application.yml)\n[F3] method:o.TaxClient#quote() http-call \"GET ${TAX_SERVICE_URL}/v2/quotes\" {\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\",\"unresolved\":[\"TAX_SERVICE_URL\"],\"written\":\"${clients.tax.url}/v2/quotes\"} (a:src/main/java/o/TaxClient.java)\n\nCandidates:\n[C1] service:g:billing\n  [F4] service:g:billing deployable-unit \"spring-boot\" (b:pom.xml)\n  [F5] service:g:billing application-name \"billing\" {\"module\":\"module:g:billing\"} (b:src/main/resources/application.yml)\n  [F6] method:b.BillingController#quotes() endpoint \"GET /v2/quotes\" {\"controller\":\"b.BillingController\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\"} (b:src/main/java/b/BillingController.java)\n[C2] service:g:tax\n  [F7] service:g:tax deployable-unit \"spring-boot\" (t:pom.xml)\n  [F8] service:g:tax application-name \"tax\" {\"module\":\"module:g:tax\"} (t:src/main/resources/application.yml)\n  [F9] method:t.TaxController#quotes() endpoint \"GET /v2/quotes\" {\"controller\":\"t.TaxController\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\"} (t:src/main/java/t/TaxController.java)\n"
     } ],
     "maxOutputTokens" : 600,
+    "cacheBreaks" : [ {
+      "message" : 0,
+      "offset" : 2147483647,
+      "longLived" : false
+    } ],
     "tools" : [ {
       "name" : "facts_about",
       "description" : "Lists the facts static analysis extracted about one entity: those it is the subject of, then those that point to it. Each fact gets a reference such as [T1] that an answer may cite.",

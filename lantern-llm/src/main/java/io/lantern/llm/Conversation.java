@@ -37,6 +37,7 @@ public final class Conversation {
   private final ConversationLimits limits;
   private long freshInput;
   private boolean nudged;
+  private boolean compacted;
   private final String id = UUID.randomUUID().toString();
   private final Clock clock;
   private final Instant started;
@@ -204,10 +205,7 @@ public final class Conversation {
       turns++;
       LlmResponse response;
       try {
-        response =
-            client.call(
-                first.withMessages(messages).withPurpose(purpose),
-                new LlmClient.Turn(id, turns, Map.of()));
+        response = client.call(turnRequest(), new LlmClient.Turn(id, turns, Map.of()));
       } catch (BudgetExceededException e) {
         end(LlmConversation.Ending.BUDGET, e.getMessage());
         throw e;
@@ -269,5 +267,72 @@ public final class Conversation {
   private boolean nearCap() {
     return toolTurns >= Math.ceil(limits.toolTurns() * ConversationLimits.NUDGE_SHARE)
         || freshInput >= limits.inputTokens() * ConversationLimits.NUDGE_SHARE;
+  }
+
+  /** The share of the model's context window past which the history is compacted, once. */
+  static final double COMPACT_AT = 0.6;
+
+  /** How many of the latest tool-result turns compaction keeps whole. */
+  static final int KEEP_TURNS = 4;
+
+  /**
+   * The next turn's request (knowledge-build epic, section 10, Prompt layout for caching): the
+   * history as sent before, byte for byte, with a cache breakpoint after its last turn, moved
+   * forward every turn, so each turn pays full price only for what is new and reads the rest from
+   * the cache (#349). The first request's own breakpoints stay, within the provider's limit; the
+   * latest of them gives way to the moving one when there is no room.
+   */
+  private LlmRequest turnRequest() {
+    compactIfLong();
+    LlmRequest request = first.withMessages(messages).withPurpose(purpose);
+    if (!model.supports(Capability.PROMPT_CACHING)) {
+      return request;
+    }
+    CacheBreak moving = CacheBreak.afterMessage(messages.size() - 1);
+    List<CacheBreak> breaks = new ArrayList<>(first.cacheBreaks());
+    breaks.remove(moving);
+    int room = CacheBreak.MAX - (model.cachesSystem(first) ? 1 : 0);
+    while (!breaks.isEmpty() && breaks.size() + 1 > room) {
+      breaks.removeLast();
+    }
+    breaks.add(moving);
+    return request.withCacheBreaks(breaks);
+  }
+
+  /**
+   * Once per conversation, when the history passes {@value #COMPACT_AT} of the model's context
+   * window, replaces each tool result older than the last {@value #KEEP_TURNS} tool-result turns by
+   * one line naming the call, so the conversation fits; caching restarts from there. The model can
+   * read again what it needs to cite.
+   */
+  private void compactIfLong() {
+    if (compacted
+        || first.withMessages(messages).estimatedInputTokens()
+            <= model.contextWindow() * COMPACT_AT) {
+      return;
+    }
+    compacted = true;
+    List<Integer> resultTurns = new ArrayList<>();
+    for (int i = 0; i < messages.size(); i++) {
+      if (!messages.get(i).toolResults().isEmpty()) {
+        resultTurns.add(i);
+      }
+    }
+    Map<String, LlmToolCall> calls = new HashMap<>();
+    messages.forEach(message -> message.toolCalls().forEach(call -> calls.put(call.id(), call)));
+    for (int i : resultTurns.subList(0, Math.max(0, resultTurns.size() - KEEP_TURNS))) {
+      LlmMessage turn = messages.get(i);
+      List<LlmToolResult> elided = new ArrayList<>();
+      for (LlmToolResult result : turn.toolResults()) {
+        LlmToolCall call = calls.get(result.callId());
+        String line =
+            call == null
+                ? "[tool result elided]"
+                : "[" + call.name() + " " + call.input() + " elided]";
+        elided.add(new LlmToolResult(result.callId(), line, result.error()));
+      }
+      messages.set(
+          i, new LlmMessage(turn.author(), turn.text(), turn.toolCalls(), elided, turn.thinking()));
+    }
   }
 }
