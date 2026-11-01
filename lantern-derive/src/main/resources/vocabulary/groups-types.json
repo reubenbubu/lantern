@@ -1,0 +1,42 @@
+[
+  {
+    "name": "group",
+    "kind": "entity",
+    "description": "A group of the architecture model (#535): related elements bundled by what the code shows, so a large system or service can be drawn a level higher. Its key is its scope (a unit, or system), '/', its kind (feature-area or domain), '/' and its signal, such as service:io.acme:billing/feature-area/pkg-invoice: never its members, so adding one renames none.",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "group-of",
+    "kind": "attribute",
+    "keyAttributes": ["basis", "scope", "signal"],
+    "description": "The subject group's kind (#535): a feature-area, grouping a unit's components, or a domain, grouping the system's units.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "scope": { "type": "string", "description": "The unit whose components it groups, or system." },
+        "basis": { "type": "string", "enum": ["feature-folder", "resource-path", "database", "gateway-route", "repository", "maven-group"], "description": "The signal it rests on: a feature package, the resource segment of endpoint paths, a shared relational database, a gateway route prefix, a repository or a segment of the Maven groupId." },
+        "signal": { "type": "string", "description": "The signal's value, as its key gives it: pkg-, path-, db-, route-, repo- or maven- and the package, segment, database key, repository or groupId segment." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts behind the signal: those its members joined by." }
+      },
+      "required": ["basis", "scope", "signal"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "GROUPS",
+    "kind": "relationship",
+    "parent": "CONTAINS",
+    "keyAttributes": ["basis"],
+    "description": "The subject group holds the object element (#535). A kind of CONTAINS, a type of its own so derivation does not write what the extractors write.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "basis": { "type": "string", "enum": ["feature-folder", "resource-path", "calls", "tables", "database", "gateway-route", "repository", "maven-group"], "description": "How it joined: by the group's signal, or, for a component no signal placed, by the calls between it and the group's components or the tables they share." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it joined by." }
+      },
+      "required": ["basis"],
+      "additionalProperties": false
+    }
+  }
+]
