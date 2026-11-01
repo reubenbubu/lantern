@@ -333,3 +333,34 @@ fact asking it (the config value or admin client holding the provider's URL, or 
 caller, as the frontend matcher does, for the identity provider containers only it knows. On
 project-0 to project-4 and project-8 every link is unchanged; only the new address claims are
 added (#595's PR).
+
+## Amendment (#596): data stores read address resolution's claims
+
+`DataLinker` asked no address of `Addresses`: where a datasource or data store leads in a
+deployment came from `Deployments.place`, which fills its server and database in from the
+environment of each container that runs the unit and finds the server's container by host name or
+by the compose variable that names the database. That placing is address resolution's now. It
+runs the data matcher against its recorder as it runs the identity and mail matchers (#595); the
+matcher asks for each datasource whose server or database is a placeholder, and address
+resolution writes, with `by: datasource`, keyed by the unit (`from`) and the datasource's URL or
+value as config resolved it (`address`):
+
+- one claim per deployment that runs the unit and places it (`deployment`, `filledBy`, `order`),
+  to the address entity of the server's address as that deployment gives it (`matched`), as value
+  resolution writes a datasource's, or to `outcome:unknown` when it gives none; with the server's
+  container (`fact`) and the database's name (`database`), and `guessed` where that name was
+  chosen among the server's several by the words it shares with the unit's names;
+- or one claim to `outcome:unknown` when no deployment places it, so the matcher tells it from a
+  question not asked.
+
+The vocabulary has no entity for a deployment's container, so the server's container is cited by
+its fact rather than made the claim's object; `database` and `guessed` are new descriptive
+attributes of `RESOLVES_TO`. Two datasources of one unit with the same value but different reads
+would share these claims, so address resolution fails the run on them rather than answer one with
+the other's placing.
+
+`RedisLinker` resolves no address: its server is the config's address as written, and the
+deployments give it only which Redis containers run next to the unit, for the technology and
+where the store is deployed, as the identity matcher takes identity provider containers. The
+architecture rule covers both, and now also forbids `Deployments.place`. On project-0 to project-4
+and project-8 every link is unchanged; only the new placement claims are added (#596's PR).

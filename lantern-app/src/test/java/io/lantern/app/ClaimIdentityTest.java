@@ -114,7 +114,10 @@ class ClaimIdentityTest {
                   "fact",
                   "filledBy",
                   "order",
-                  "candidates")));
+                  "candidates",
+                  // Since #596, a datasource placed: the database the deployment names, and how.
+                  "database",
+                  "guessed")));
 
   /**
    * The key attributes of link claims: the channel attributes, the protocol (#518: a different

@@ -11,6 +11,7 @@ import io.lantern.extract.EntityKeys;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Target;
+import io.lantern.link.Deployments.Placed;
 import io.lantern.link.LinkIndex.Unit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -38,11 +39,17 @@ import tools.jackson.databind.node.ObjectNode;
  *       {@code outcome:unknown}.
  *   <li>For a service name ({@code by: name}): one claim to each unit whose {@code
  *       spring.application.name} in the view it is.
+ *   <li>For a datasource or data store whose server or database is a placeholder ({@code by:
+ *       datasource}), keyed by the unit and its URL or value: one claim for each deployment that
+ *       runs the unit and places it, to the address entity of the server's address as the
+ *       deployment gives it, as value resolution's for a datasource, or {@code outcome:unknown}
+ *       when it gives none, with the server's container and the database's name; or one to {@code
+ *       outcome:unknown} when none places it (#596).
  * </ul>
  *
  * Each claim cites the fact the unit was found by and the container that filled the address in. The
  * matchers whose addresses it answers so far: HTTP calls (#589), gateway routes and frontends
- * (#594), identity providers and mail hosts (#595); data stores follow (#596).
+ * (#594), identity providers and mail hosts (#595), data stores (#596); messaging follows (#597).
  */
 public final class AddressResolution implements LinkRule {
 
@@ -60,6 +67,9 @@ public final class AddressResolution implements LinkRule {
 
   /** The value of {@code by} on a service name's claims. */
   static final String BY_NAME = "name";
+
+  /** The value of {@code by} on a datasource's placement claims (#596). */
+  static final String BY_DATASOURCE = "datasource";
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
@@ -94,6 +104,12 @@ public final class AddressResolution implements LinkRule {
 
     record Name(String name, String view) {}
 
+    /** A datasource or data store of a unit, by its URL or value as config resolved it. */
+    record Datasource(Unit from, String text) {}
+
+    /** A datasource asked about: what placing it reads, and where it was asked. */
+    record Placing(Deployments.Place place, Asked asked) {}
+
     /**
      * Where a question was asked: the facts asking it, the first first, and the config facts they
      * used.
@@ -114,6 +130,7 @@ public final class AddressResolution implements LinkRule {
 
     final Map<Address, Asked> addresses = new LinkedHashMap<>();
     final Map<Name, Asked> names = new LinkedHashMap<>();
+    final Map<Datasource, Placing> datasources = new LinkedHashMap<>();
 
     void address(
         Unit from, String view, String text, String written, Fact source, List<Fact> used) {
@@ -129,6 +146,23 @@ public final class AddressResolution implements LinkRule {
           .computeIfAbsent(
               new Name(name, view), k -> new Asked(new ArrayList<>(), new ArrayList<>()))
           .add(source, List.of());
+    }
+
+    void datasource(Unit from, Fact source, Deployments.Place place) {
+      Placing placing =
+          datasources.computeIfAbsent(
+              new Datasource(from, source.object().value()),
+              k -> new Placing(place, new Asked(new ArrayList<>(), new ArrayList<>())));
+      if (!placing.place().equals(place)) {
+        // The claims are keyed by the unit and the value: two places for one would share them.
+        throw new IllegalStateException(
+            "Two datasources of "
+                + from
+                + " with the value "
+                + source.object().value()
+                + " differ");
+      }
+      placing.asked().add(source, List.of());
     }
   }
 
@@ -169,6 +203,12 @@ public final class AddressResolution implements LinkRule {
       questions.name(name, view, asking);
       return addresses.byApplicationName(name, view, matchedBy, factor);
     }
+
+    @Override
+    public List<Placed> placed(Unit unit, Fact store, Deployments.Place place) {
+      questions.datasource(unit, store, place);
+      return addresses.placed(unit, store, place);
+    }
   }
 
   /** The questions the matchers ask of the facts an index holds, each with the fact asking it. */
@@ -192,6 +232,8 @@ public final class AddressResolution implements LinkRule {
     // Identity providers and mail hosts ask as they link too (#595).
     new IdentityLinker(index, scratch, recorder, deployments).link(ORIGIN, Validity.from(0));
     new MailLinker(index, scratch, recorder).link();
+    // And data stores, whose placeholders the deployments fill in (#596).
+    new DataLinker(index, scratch, recorder).link(ORIGIN, Validity.from(0));
     return questions;
   }
 
@@ -222,6 +264,20 @@ public final class AddressResolution implements LinkRule {
           }
           for (Target t : targets) {
             Fact f = name(q, asked, t, validity);
+            facts.putIfAbsent(f.id(), f);
+          }
+        });
+    questions.datasources.forEach(
+        (q, placing) -> {
+          List<Placed> placed =
+              addresses.placed(q.from(), placing.asked().source(), placing.place());
+          if (placed.isEmpty()) {
+            // Asked, and no deployment places it: recorded, so the matcher tells it from not asked.
+            Fact f = placed(q, placing.asked(), null, 0, validity);
+            facts.putIfAbsent(f.id(), f);
+          }
+          for (int i = 0; i < placed.size(); i++) {
+            Fact f = placed(q, placing.asked(), placed.get(i), i, validity);
             facts.putIfAbsent(f.id(), f);
           }
         });
@@ -323,6 +379,54 @@ public final class AddressResolution implements LinkRule {
         EntityKeys.of(HttpClientExtractor.ADDRESS, q.name().toLowerCase(Locale.ROOT)),
         ValueResolution.RESOLVES_TO,
         FactObject.entity(t == null ? UNKNOWN : t.unit().id()),
+        attributes,
+        ORIGIN,
+        asked.source().evidence(),
+        1.0,
+        validity);
+  }
+
+  /**
+   * The claim of where a deployment places a datasource, or of none placing it ({@code p} null).
+   */
+  private static Fact placed(
+      Questions.Datasource q, Questions.Asked asked, Placed p, int order, Validity validity) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("by", BY_DATASOURCE);
+    attributes.put("from", q.from().id().toString());
+    attributes.put("address", q.text());
+    List<Fact> cited = new ArrayList<>(asked.sources());
+    FactObject object = FactObject.entity(UNKNOWN);
+    if (p != null) {
+      attributes.put("deployment", Literals.view(p.unit()));
+      attributes.put("filledBy", p.unit().fact().id());
+      attributes.put("order", order);
+      if (p.address() != null) {
+        // The server's address entity, as value resolution writes a datasource's.
+        object =
+            FactObject.entity(
+                EntityKeys.of(HttpClientExtractor.ADDRESS, p.address().toLowerCase(Locale.ROOT)));
+        attributes.put("matched", p.address());
+      }
+      if (p.database() != null) {
+        attributes.put("database", p.database());
+      }
+      if (p.guessed()) {
+        attributes.put("guessed", true);
+      }
+      cited.add(p.unit().fact());
+      if (p.server() != null) {
+        attributes.put("fact", p.server().fact().id());
+        cited.add(p.server().fact());
+      }
+    }
+    ArrayNode lineage = attributes.putArray("facts");
+    cited.stream().map(Fact::id).distinct().sorted().forEach(lineage::add);
+    // Seen where the datasource is configured.
+    return Fact.create(
+        subject(q.from(), q.text()),
+        ValueResolution.RESOLVES_TO,
+        object,
         attributes,
         ORIGIN,
         asked.source().evidence(),

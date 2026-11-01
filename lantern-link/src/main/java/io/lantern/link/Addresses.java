@@ -170,6 +170,11 @@ final class Addresses implements AddressAnswers {
     this.deployments = deployments;
   }
 
+  @Override
+  public List<Deployments.Placed> placed(Unit unit, Fact store, Deployments.Place place) {
+    return deployments.place(unit, place);
+  }
+
   Deployments deployments() {
     return deployments;
   }

@@ -45,6 +45,16 @@ interface AddressAnswers {
     return answers(from, view, text, written);
   }
 
+  /**
+   * Where a datasource or data store whose server or database is a placeholder leads in each
+   * deployment that runs the unit, in the order of the containers running it (#596).
+   *
+   * @param store the datasource or data store fact asking, which address resolution cites
+   * @param place what placing it reads of the fact
+   */
+  List<Deployments.Placed> placed(
+      Unit unit, io.lantern.core.fact.Fact store, Deployments.Place place);
+
   /** As {@link #byApplicationName(String, String, String, double)}, asked for a fact. */
   default List<Target> byApplicationName(
       io.lantern.core.fact.Fact asking, String name, String view, String matchedBy, double factor) {

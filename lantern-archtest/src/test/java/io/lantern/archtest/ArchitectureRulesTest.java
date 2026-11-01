@@ -91,4 +91,20 @@ class ArchitectureRulesTest {
         .hasMessageContaining("HttpLinker.link(java.lang.String)")
         .hasMessageNotContaining("UnlistedLinker");
   }
+
+  @Test
+  void aMatcherThatPlacesDatasourcesItselfIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(
+                io.lantern.link.archfixture.matchers.DataLinker.class,
+                io.lantern.link.archfixture.matchers.RedisLinker.class,
+                io.lantern.link.archfixture.matchers.Deployments.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.MATCHERS_READ_ADDRESS_CLAIMS.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("DataLinker.link(java.lang.String)")
+        .hasMessageContaining("(1 times)")
+        .hasMessageNotContaining("RedisLinker.link");
+  }
 }

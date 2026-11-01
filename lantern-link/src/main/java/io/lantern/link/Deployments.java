@@ -79,6 +79,13 @@ final class Deployments {
   record Placed(
       Container unit, Container server, String address, String database, boolean guessed) {}
 
+  /**
+   * What placing a datasource reads of it: its server and database as the config writes them,
+   * placeholders and all, its technology, and the words that tell the unit's database among a
+   * server's several (the unit's names and the datasource's placeholder keys).
+   */
+  record Place(String server, String database, String technology, List<String> words) {}
+
   /** Words a database name shares with any service's config, so they tie nothing. */
   private static final Set<String> GENERIC =
       Set.of(
@@ -201,13 +208,13 @@ final class Deployments {
    * or by the compose variable that names the database in both), and the database's name when the
    * environment, the server's image variable or its init scripts give it.
    *
-   * @param server the datasource's server as the config writes it, placeholders and all
-   * @param database the datasource's database as the config writes it
-   * @param words names that tell the unit's database among a server's several: the unit's names and
-   *     the datasource's placeholder keys
+   * <p>Address resolution's to decide (#596); a matcher reads its answers ({@link AddressAnswers}).
    */
-  List<Placed> place(
-      Unit unit, String server, String database, String technology, Collection<String> words) {
+  List<Placed> place(Unit unit, Place place) {
+    String server = place.server();
+    String database = place.database();
+    String technology = place.technology();
+    Collection<String> words = place.words();
     List<Placed> placed = new ArrayList<>();
     for (Container c : running(unit)) {
       String address = EnvironmentValues.fill(c, server);
