@@ -1756,9 +1756,10 @@ public final class SpringExtractor implements Extractor {
     }
 
     /**
-     * Whether an advice checks access by the annotation that selects a method (ADR 0079, #520): it
-     * runs before the method (before or around), and reads the annotation's attributes, by taking
-     * the annotation as a parameter ({@code @annotation(requires)}) or calling its methods.
+     * Whether an advice checks access by the annotation that selects a method (ADR 0079, #520,
+     * #612): it runs before the method (before or around); its own or its annotation's name is about
+     * access; it reads the annotation's attributes, by taking the annotation as a parameter ({@code
+     * @annotation(requires)}) or calling its methods; and it can refuse the call ({@link #refuses}).
      */
     private boolean checksAccess(AspectOf aspect, Advice advice, String annotation) {
       if (!advice.kind().equals("before") && !advice.kind().equals("around")) {
@@ -1830,8 +1831,17 @@ public final class SpringExtractor implements Extractor {
       }
       Map<EntityId, List<ModuleStructure.Call>> byCaller = new HashMap<>();
       Set<EntityId> throwing = new HashSet<>();
+      Map<EntityId, List<EntityId>> ownCalls = new HashMap<>();
       for (JavaAnalysis.Module m : code.modules()) {
         throwing.addAll(m.structure().throwing());
+        // Calls of the aspect's own methods, kept by name and count also where the parser cannot
+        // resolve an argument and drops the call from calls().
+        for (ModuleStructure.OwnCall call : m.structure().ownCalls()) {
+          String caller = call.caller().key();
+          if (own.stream().anyMatch(caller::startsWith)) {
+            ownCalls.computeIfAbsent(call.caller(), c -> new ArrayList<>()).add(call.callee());
+          }
+        }
         for (ModuleStructure.Call call : m.structure().calls()) {
           String caller = call.caller().key();
           if (own.stream().anyMatch(caller::startsWith)) {
@@ -1849,6 +1859,11 @@ public final class SpringExtractor implements Extractor {
         }
         if (throwing.contains(next.getKey())) {
           return true;
+        }
+        if (next.getValue() < 2) {
+          for (EntityId callee : ownCalls.getOrDefault(next.getKey(), List.of())) {
+            queue.add(Map.entry(callee, next.getValue() + 1));
+          }
         }
         for (ModuleStructure.Call call : byCaller.getOrDefault(next.getKey(), List.of())) {
           String callee = call.callee().key();

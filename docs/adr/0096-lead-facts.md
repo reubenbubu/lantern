@@ -103,13 +103,22 @@ than asked.
   privilege, grant, policy, guard or entitlement, or be RBAC, ABAC or ACL. So `AuthorAuditAspect`
   no longer counts for "auth", and a `PolicyLogging` aspect that refuses nothing no longer counts
   either. Every access-check aspect of the development sets throws in its advice.
-- **Known limits.** An around advice that refuses by returning without calling `proceed()` (a 403
-  response, say) and throws nothing is not seen as a check; nor is one that delegates to a bean
-  whose names say nothing of access.
+- **Known limits.** Missed: an around advice that refuses by returning without calling `proceed()`
+  (a 403 response, say) and throws nothing; one that delegates to a bean whose names say nothing of
+  access; and, without a build, an exception made only inside a lambda (`orElseThrow(() -> new
+  ...Exception())`) or a delegating call the parser cannot resolve. Counted although not access
+  checks: an aspect whose name or annotation is about access and that throws for another reason,
+  such as a rethrow in a logging around-advice, or a retry or rate-limit aspect named for a
+  "policy" or "guard". Calls of the aspect's own methods are followed by name and argument count,
+  so a helper that throws is found with or without a build.
 - **A JMS send's payload is chosen by the overload.** A JMS template call takes a destination first
   when the overload's first parameter is a `String` or a `Destination`, or, for
   `JmsMessagingTemplate`'s generic destination (which erases to `Object`), when the next parameter
   is not a `MessagePostProcessor` or a header `Map`. So `convertAndSend(message, postProcessor)`
-  records the message, not the post-processor. Without the overload (degraded mode), two arguments
-  whose second is typed as a post-processor or a map read the same way.
+  records the message, not the post-processor. The header map counts only on
+  `JmsMessagingTemplate`, since `JmsTemplate` has no `(payload, headers)` overload and sends a
+  `Map` as a `MapMessage`. Without the overload (degraded mode), the arguments' types decide the
+  same way: a `String` or `Destination` first is a destination, a post-processor (or, on
+  `JmsMessagingTemplate`, a map) second follows a payload. A lambda passed as the post-processor has
+  no type, so it still reads as a destination and payload.
 - The Spring and messaging extractors' versions rise to 9.

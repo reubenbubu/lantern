@@ -787,7 +787,10 @@ public class PermissionAspect {
   @Before("@annotation(requires)")
   public void check(RequiresPermission requires) {
     String granted = request.getHeader(Headers.PERMISSIONS);
-    if (granted == null) throw new ForbiddenException(requires.resource());
+    if (granted == null) {
+      // A library's exception the parser cannot resolve without a build: the throw decides.
+      throw new org.springframework.security.access.AccessDeniedException(requires.resource());
+    }
   }
 
   @After("@annotation(com.example.Logged)")

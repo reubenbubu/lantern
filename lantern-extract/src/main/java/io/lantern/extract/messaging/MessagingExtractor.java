@@ -775,7 +775,7 @@ public final class MessagingExtractor implements Extractor {
       if (JMS_TEMPLATES.contains(type) && JMS_METHODS.contains(call.method())) {
         // (destination name or Destination, payload[, post-processor]), or (payload[,
         // post-processor]): the overload says which, by its first parameter's type (#612).
-        boolean addressed = jmsAddressed(typed ? parameters : List.of(), i, arguments.size());
+        boolean addressed = jmsAddressed(typed ? parameters : List.of(), i, arguments.size(), type);
         boolean named = typed ? parameters.getFirst().equals(STRING) : addressed;
         Text destination = named ? text(first, caller) : null;
         if (destination != null) {
@@ -818,34 +818,44 @@ public final class MessagingExtractor implements Extractor {
      * Whether a JMS template call names its destination first (#612). With the overload: its first
      * parameter is a String or a Destination; or, for JmsMessagingTemplate's generic destination,
      * which erases to Object, a first parameter of Object followed by another that is not a
-     * post-processor or a header map ({@code convertAndSend(payload, postProcessor)} sends its
-     * first argument). Without the overload: three arguments or more, or two of which the second is
-     * not typed as a post-processor or a map.
+     * post-processor or (on JmsMessagingTemplate, whose (payload, headers) overloads JmsTemplate
+     * lacks) a header map. Without the overload, by the arguments as the compiler typed them: a
+     * String or Destination first is a destination; a post-processor (or, on JmsMessagingTemplate,
+     * a map) second follows a payload; else two arguments or more name a destination.
      */
-    private static boolean jmsAddressed(List<String> parameters, Invocation i, int arguments) {
+    private static boolean jmsAddressed(
+        List<String> parameters, Invocation i, int arguments, String template) {
+      boolean headers =
+          template.endsWith(".JmsMessagingTemplate") || template.endsWith(".JmsMessageOperations");
       if (!parameters.isEmpty()) {
-        // A String, or jakarta.jms.Destination (javax.jms.Destination before Jakarta EE).
         String first = parameters.getFirst();
-        if (first.equals(STRING)
-            || first.endsWith(".Destination")
-            || first.endsWith("$Destination")) {
+        if (destination(first)) {
           return true;
         }
         return first.equals("java.lang.Object")
             && parameters.size() >= 2
-            && !payloadCompanion(parameters.get(1));
-      }
-      if (arguments != 2) {
-        return arguments > 2;
+            && !payloadCompanion(parameters.get(1), headers);
       }
       List<ModuleStructure.TypeUse> types = i.argumentTypes(0);
-      ModuleStructure.TypeUse second = types.size() == 2 ? types.get(1) : null;
-      return second == null || !payloadCompanion(second.type());
+      ModuleStructure.TypeUse first = types.isEmpty() ? null : types.getFirst();
+      if (first != null && destination(first.type())) {
+        return true;
+      }
+      ModuleStructure.TypeUse second = types.size() >= 2 ? types.get(1) : null;
+      if (second != null && payloadCompanion(second.type(), headers)) {
+        return false;
+      }
+      return arguments >= 2;
     }
 
-    /** Whether a parameter that follows a payload is a post-processor or a header map. */
-    private static boolean payloadCompanion(String type) {
-      return JMS_POST_PROCESSORS.contains(type) || type.equals("java.util.Map");
+    /** A String, or jakarta.jms.Destination (javax.jms.Destination before Jakarta EE). */
+    private static boolean destination(String type) {
+      return type.equals(STRING) || type.endsWith(".Destination") || type.endsWith("$Destination");
+    }
+
+    /** Whether a parameter that follows a payload is a post-processor, or a header map. */
+    private static boolean payloadCompanion(String type, boolean headers) {
+      return JMS_POST_PROCESSORS.contains(type) || (headers && type.equals("java.util.Map"));
     }
 
     /**
