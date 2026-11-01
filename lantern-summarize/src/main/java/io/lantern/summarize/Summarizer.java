@@ -430,6 +430,10 @@ public final class Summarizer {
     private final Set<EntityId> rejected = ConcurrentHashMap.newKeySet();
     // The units the plan counted as items: each gets exactly one outcome in the role's record.
     private final Set<EntityId> planned = ConcurrentHashMap.newKeySet();
+    // The units the plan expects to ask: only these wait for the warm-up unit. A unit answered
+    // from the cache, or with nothing to summarize, may be a part of the warm-up unit, which
+    // cannot start before its parts are done.
+    private final Set<EntityId> toAsk = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean accepted = new AtomicBoolean();
     private volatile Semaphore running;
     private final Map<String, Optional<String>> files =
@@ -456,7 +460,9 @@ public final class Summarizer {
       // the units that fit in this order (#657).
       List<RoleSession.Planned> inOrder = new ArrayList<>();
       Map<EntityId, Boolean> missing = new HashMap<>();
-      int hits = 0;
+      // The summaries the cache holds, so a unit whose parts are all cached is planned as the very
+      // item it will be asked as, and its own cache entry checked.
+      Map<EntityId, Summary> stored = new HashMap<>();
       for (SummaryNode node : units) {
         boolean childMissing =
             node.children().stream().anyMatch(child -> missing.getOrDefault(child.entity(), false));
@@ -470,11 +476,24 @@ public final class Summarizer {
           continue;
         }
         planned.add(node.entity());
-        if (node.children().isEmpty()) {
-          Item item = Summarizer.item(node, Excerpts.of(node, this::text), List.of());
+        if (!childMissing) {
+          // Its parts' summaries are all in the cache, as the ask will see them.
+          List<Summary> children =
+              node.children().stream()
+                  .map(child -> stored.get(child.entity()))
+                  .filter(java.util.Objects::nonNull)
+                  .toList();
+          Item item = Summarizer.item(node, Excerpts.of(node, this::text), children);
           inOrder.add(RoleSession.Planned.of(item));
-          missing.put(node.entity(), !session.cached(item));
-        } else if (childMissing) {
+          Optional<String> answer = session.cachedAnswer(item);
+          answer.ifPresent(
+              json -> stored.put(node.entity(), rebind(SummaryJson.read(json), node, children)));
+          boolean miss = !session.cached(item);
+          missing.put(node.entity(), miss);
+          if (miss) {
+            toAsk.add(node.entity());
+          }
+        } else {
           inOrder.add(
               RoleSession.Planned.predicted(
                   node.entity().toString(),
@@ -482,12 +501,10 @@ public final class Summarizer {
                       + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
                       + CHILD_TOKENS * node.children().size()));
           missing.put(node.entity(), true);
-        } else {
-          hits++;
-          missing.put(node.entity(), false);
+          toAsk.add(node.entity());
         }
       }
-      session.plan(inOrder, hits, Tokens.estimate(Prompt.SYSTEM));
+      session.plan(inOrder, 0, Tokens.estimate(Prompt.SYSTEM));
     }
 
     /** Lets every unit run at once, as batching does; called before any unit runs. */
@@ -501,14 +518,21 @@ public final class Summarizer {
      */
     Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
       try {
-        // The warm-up unit goes first; the others wait for it before taking a slot, so they never
-        // hold the slot it needs.
-        session.awaitWarmUp(node.entity().toString());
+        // The warm-up unit goes first; the others to be asked wait for it before taking a slot,
+        // so they never hold the slot it needs.
+        if (toAsk.contains(node.entity())) {
+          session.awaitWarmUp(node.entity().toString());
+        }
         running.acquire();
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         failed.set(true);
+        session.releaseWarmUp(node.entity().toString());
         throw new IllegalStateException("Interrupted while summarizing " + node.entity(), e);
+      } catch (RuntimeException e) {
+        failed.set(true);
+        session.releaseWarmUp(node.entity().toString());
+        throw e;
       }
       try {
         stopIfFailed();
@@ -549,6 +573,8 @@ public final class Summarizer {
         throw e;
       } finally {
         running.release();
+        // Whatever ended it, the units waiting for the warm-up unit go on.
+        session.releaseWarmUp(node.entity().toString());
       }
     }
 

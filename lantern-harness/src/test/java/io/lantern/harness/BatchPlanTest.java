@@ -183,6 +183,27 @@ class BatchPlanTest {
   }
 
   @Test
+  void theOthersGoOnWhenTheWarmUpItemEndsWithoutBeingAsked() throws Exception {
+    // The warm-up item fails before it is asked, as a unit whose file cannot be read: once its
+    // role releases it, the item waiting for it is asked rather than waiting for ever.
+    List<Item> items = items(2);
+    FakeLlmProvider fake = new FakeLlmProvider();
+    RoleSession session =
+        harness(TestHarness.client(fake), new InMemoryAnswerStore()).session(TestHarness.role());
+    session.plan(items, 0);
+    assertThat(session.warmUpItem()).contains("unit-0");
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      Future<Outcome> waiting =
+          executor.submit(() -> session.ask(items.get(1), TestHarness.asking(items.get(1))));
+      Thread.sleep(100);
+      assertThat(waiting.isDone()).isFalse();
+      session.releaseWarmUp(items.get(0));
+      assertThat(waiting.get(5, java.util.concurrent.TimeUnit.SECONDS).kind())
+          .isEqualTo(Outcome.Kind.ANSWERED);
+    }
+  }
+
+  @Test
   void withRoomForEverythingEveryItemIsAskedAndTheFirstInOrderGoesFirst() throws Exception {
     List<Item> items = items(30);
     FakeLlmProvider fake = new FakeLlmProvider();

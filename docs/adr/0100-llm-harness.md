@@ -123,14 +123,20 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
     stops at the first that does not fit: it and every item after it are not asked. So which items
     are asked never depends on which thread asks first, and two runs at the same budget ask the
     same items. Decisions are kept by each item's fingerprint, since a role may ask several items
-    of one subject (a flow shown in two documents), each counted against the share; an item the
-    plan did not know is decided when asked.
+    of one subject (a flow shown in two documents), each counted against the share. Summarize
+    plans a unit whose parts are all in the cache as the very item it will ask, built from its
+    parts' stored summaries, so a rerun after a budget-limited run decides its units in order too.
+    An item counts as cached only if its stored answer passes the role's own check; an item the
+    plan did not know (a stored answer a role rejects when asked, as Resolve's) is decided when
+    asked.
   - An item's estimate is priced as the plan prices it: the prompt's start read from the cache, a
     role that groups items paying its share of each request's start, and the batch price when the
     role batches (#654).
   - The plan also names the warm-up item: its first miss that is asked. It goes first; the others
-    wait for it to settle. Summarize waits for it before taking one of its slots, so waiting units
-    never hold the slot the warm-up needs.
+    wait for it to settle. Summarize's units to be asked wait for it before taking one of their
+    slots, so waiting units never hold the slot the warm-up needs; units answered from the cache
+    do not wait, since they may be parts of the warm-up unit. However the warm-up item ends (a
+    failure, an unreadable file, a run stopped), its role releases the others.
   - The group's guard holds back no worst case: it refuses a call only once the group has spent its
     share (`BudgetGuard.stopOnceSpent`). Estimates above the real cost leave part of the share
     unspent, as on the fakes, whose answers are short. Estimates below it let the group pass its

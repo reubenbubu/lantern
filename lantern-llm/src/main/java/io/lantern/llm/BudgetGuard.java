@@ -8,7 +8,8 @@ import java.util.Objects;
  * reserves the call's worst case (estimated input plus the most output tokens) and refuses the call
  * if that would go over; after the call the reservation is replaced by what the call really used.
  * The input estimate is rough, so spending can go slightly over the limit, but once it has, every
- * further call is refused.
+ * further call is refused. A guard made by {@link #stopOnceSpent} holds back no worst case: it
+ * refuses only once the limit is spent.
  *
  * <p>Thread-safe.
  */

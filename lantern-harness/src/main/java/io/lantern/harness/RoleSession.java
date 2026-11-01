@@ -180,7 +180,7 @@ public final class RoleSession {
     for (Planned entry : planned) {
       if (entry.item() != null) {
         known++;
-        if (harness.answers().find(fingerprint(entry.item())).isPresent()) {
+        if (cached(entry.item())) {
           cached++;
           continue;
         }
@@ -333,6 +333,32 @@ public final class RoleSession {
   public boolean cached(Item item) {
     Optional<StoredAnswer> stored = harness.answers().find(fingerprint(item));
     return stored.isPresent() && revalidated(stored.get());
+  }
+
+  /**
+   * The answer the cache holds for the item and would answer it with, if any: an omitted answer has
+   * none.
+   */
+  public Optional<String> cachedAnswer(Item item) {
+    return harness
+        .answers()
+        .find(fingerprint(item))
+        .filter(this::revalidated)
+        .map(StoredAnswer::answer);
+  }
+
+  /**
+   * Opens the gate the other items wait at, if the subject is the warm-up item's: for a role whose
+   * warm-up item ended before it was asked, such as a unit whose files could not be read, so a
+   * failure fails the run instead of leaving the others waiting.
+   */
+  public void releaseWarmUp(String subject) {
+    settledWithoutAsking(subject);
+  }
+
+  /** As {@link #releaseWarmUp(String)}, for the item itself. */
+  public void releaseWarmUp(Item item) {
+    settledWithoutAsking(item);
   }
 
   /**

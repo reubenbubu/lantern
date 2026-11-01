@@ -500,6 +500,21 @@ public final class LinkResolver implements LinkRule.OverFacts {
       String system,
       Map<String, Fact> byId) {
     Item item = item(question, system);
+    try {
+      return answer(question, session, graph, system, byId, item);
+    } finally {
+      // Whatever ended it, the items waiting for the warm-up item go on.
+      session.releaseWarmUp(item);
+    }
+  }
+
+  private Outcome answer(
+      Question question,
+      RoleSession session,
+      GraphTools.Graph graph,
+      String system,
+      Map<String, Fact> byId,
+      Item item) {
     String key = session.fingerprint(item);
     Fact unresolved = question.unresolved();
     String purpose =
