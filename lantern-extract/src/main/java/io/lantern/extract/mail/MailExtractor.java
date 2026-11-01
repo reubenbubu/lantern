@@ -19,10 +19,6 @@ import io.lantern.extract.java.JavaAnalysis;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -30,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -174,19 +169,7 @@ public final class MailExtractor implements Extractor {
 
   /** The vocabulary types this extractor's facts use. */
   public static List<VocabularyType> vocabulary() {
-    try (InputStream in = MailExtractor.class.getResourceAsStream(RESOURCE)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + RESOURCE);
-      }
-      JsonNode array = FactJson.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
-      List<VocabularyType> types = new ArrayList<>();
-      for (JsonNode node : array) {
-        types.add(VocabularyType.fromJson(node));
-      }
-      return List.copyOf(types);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + RESOURCE, e);
-    }
+    return ExtractorInfo.load(RESOURCE);
   }
 
   /**
@@ -274,9 +257,12 @@ public final class MailExtractor implements Extractor {
         : null;
   }
 
+  private static final ExtractorInfo INFO =
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of());
+
   @Override
   public ExtractorInfo info() {
-    return new ExtractorInfo(NAME, VERSION);
+    return INFO;
   }
 
   @Override

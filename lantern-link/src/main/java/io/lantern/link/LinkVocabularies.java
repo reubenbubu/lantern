@@ -12,7 +12,7 @@ public final class LinkVocabularies {
 
   /**
    * Each step's types by its vocabulary source, in the order they are applied, after the
-   * extractors' ({@code ExtractorVocabularies}).
+   * extractors' ({@code Extractors.vocabularies()}).
    */
   public static SequencedMap<String, List<VocabularyType>> bySource() {
     SequencedMap<String, List<VocabularyType>> sources = new LinkedHashMap<>();

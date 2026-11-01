@@ -12,7 +12,7 @@ import io.lantern.core.repo.GitTree;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
-import io.lantern.extract.ExtractorVocabularies;
+import io.lantern.extract.Extractors;
 import io.lantern.link.LinkVocabularies;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -324,7 +324,7 @@ public class V19__claims_and_observations extends BaseJavaMigration {
   /** Every type the app's sources define, as the app loads them. */
   private static Vocabulary vocabulary() {
     List<VocabularyType> types = new ArrayList<>(BuiltInTypes.definitions());
-    ExtractorVocabularies.bySource().values().forEach(types::addAll);
+    Extractors.vocabularies().values().forEach(types::addAll);
     LinkVocabularies.bySource().values().forEach(types::addAll);
     return new Vocabulary(1, types);
   }

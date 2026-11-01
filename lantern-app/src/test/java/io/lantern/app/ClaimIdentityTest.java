@@ -16,7 +16,7 @@ import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.TypeKind;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
-import io.lantern.extract.ExtractorVocabularies;
+import io.lantern.extract.Extractors;
 import io.lantern.link.LinkVocabularies;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -165,7 +165,7 @@ class ClaimIdentityTest {
   /** Every type the app loads: the built-in ones, then the extractors' and the linker's. */
   static Vocabulary vocabulary() {
     List<VocabularyType> types = new ArrayList<>(BuiltInTypes.definitions());
-    ExtractorVocabularies.bySource().values().forEach(types::addAll);
+    Extractors.vocabularies().values().forEach(types::addAll);
     LinkVocabularies.bySource().values().forEach(types::addAll);
     return new Vocabulary(1, types);
   }
@@ -335,7 +335,7 @@ class ClaimIdentityTest {
     assertThat(BuiltInTypes.definitions())
         .extracting(VocabularyType::name)
         .contains(BuiltInTypes.REPO);
-    assertThat(ExtractorVocabularies.bySource().values().stream().flatMap(List::stream))
+    assertThat(Extractors.vocabularies().values().stream().flatMap(List::stream))
         .extracting(VocabularyType::name)
         .doesNotContain(BuiltInTypes.REPO);
   }

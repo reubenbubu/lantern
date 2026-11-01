@@ -3,7 +3,7 @@ package io.lantern.app;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyRegistry;
-import io.lantern.extract.ExtractorVocabularies;
+import io.lantern.extract.Extractors;
 import io.lantern.link.LinkVocabularies;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,7 +34,7 @@ class FactStoreConfiguration {
    */
   static void loadVocabulary(VocabularyRegistry registry) {
     registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
-    ExtractorVocabularies.bySource().forEach(registry::apply);
+    Extractors.vocabularies().forEach(registry::apply);
     LinkVocabularies.bySource().forEach(registry::apply);
   }
 

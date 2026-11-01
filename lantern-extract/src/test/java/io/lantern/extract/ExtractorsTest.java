@@ -3,10 +3,16 @@ package io.lantern.extract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
@@ -21,11 +27,13 @@ import io.lantern.extract.test.TestExtractor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The extractors run through one interface, in the order of their requirements, each unit read from
@@ -249,6 +257,86 @@ class ExtractorsTest {
     // Config reads POMs too.
     assertThat(pomChanged.extracted()).isEqualTo(1 + 4);
     assertThat(pomChanged.facts()).isNotEmpty();
+  }
+
+  @Test
+  void everyExtractorDeclaresItsVocabularyAndTheSourcesComeParentsFirst() {
+    for (Extractor extractor : Extractors.load()) {
+      assertThat(extractor.info().vocabularySource()).as(extractor.info().name()).isNotNull();
+      assertThat(extractor.info().vocabulary()).as(extractor.info().name()).isNotEmpty();
+    }
+    Set<String> defined = new HashSet<>();
+    BuiltInTypes.definitions().forEach(t -> defined.add(t.name()));
+    Extractors.vocabularies()
+        .forEach(
+            (source, types) -> {
+              types.forEach(t -> defined.add(t.name()));
+              types.forEach(
+                  t -> assertThat(t.parent() == null || defined.contains(t.parent())).isTrue());
+            });
+    assertThat(Extractors.vocabularies()).hasSize(Extractors.load().size());
+  }
+
+  @Test
+  void theSinkRefusesAFactOfAnUndeclaredTypeOrWithoutARequiredKeyAttribute() {
+    EntityId method = EntityId.parse("method:com.example:shop:com.example.Mailer#send()");
+    ObjectNode full = FactJson.newObject();
+    full.put("template", "org.springframework.mail.javamail.JavaMailSender");
+    full.put("method", "send");
+    ObjectNode keyMissing = FactJson.newObject();
+    keyMissing.put("method", "send");
+
+    assertThat(sinkRun(mailFact("mail-send", method, full))).isEqualTo(1);
+    assertThatThrownBy(() -> sinkRun(mailFact("mail-host", method, full)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("type 'mail-host', which its vocabulary neither defines nor borrows");
+    assertThatThrownBy(() -> sinkRun(mailFact("mail-send", method, keyMissing)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("template");
+    assertThatThrownBy(
+            () ->
+                new Extractors(
+                    List.of(sinkFake(Set.of("no-such-type"), List.of())), ExtractionCache.NONE))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("borrows the type 'no-such-type'");
+  }
+
+  private static Fact mailFact(String predicate, EntityId subject, ObjectNode attributes) {
+    return Fact.create(
+        subject,
+        predicate,
+        FactObject.string("smtp"),
+        attributes,
+        new Origin(Origin.Kind.STATIC, "mailer", "1"),
+        Evidence.of("shop", "src/Mailer.java", new Evidence.LineRange(3, 3), null),
+        1.0,
+        Validity.from(1));
+  }
+
+  /** Runs a fake extractor that borrows mail-send and emits the fact; the facts it gave. */
+  private static int sinkRun(Fact fact) {
+    Extractors run =
+        new Extractors(List.of(sinkFake(Set.of("mail-send"), List.of(fact))), ExtractionCache.NONE);
+    return run.run(1, List.of()).facts("mailer").size();
+  }
+
+  private static Extractor sinkFake(Set<String> borrowed, List<Fact> facts) {
+    return new Extractor() {
+      @Override
+      public ExtractorInfo info() {
+        return new ExtractorInfo("mailer", "1", null, List.of(), borrowed);
+      }
+
+      @Override
+      public CacheUnit unit() {
+        return CacheUnit.SNAPSHOT;
+      }
+
+      @Override
+      public void extract(ExtractionContext context, ExtractionUnit unit, ClaimSink sink) {
+        sink.emitAll(facts);
+      }
+    };
   }
 
   private static RepoBuild build(Repo repo) {
