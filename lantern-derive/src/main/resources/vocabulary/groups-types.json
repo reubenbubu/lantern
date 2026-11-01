@@ -2,7 +2,7 @@
   {
     "name": "group",
     "kind": "entity",
-    "description": "A group of the architecture model (#535): related elements bundled by what the code shows, so a large system or service can be drawn a level higher. Its key is its scope (a unit, or system), '/', its kind (feature-area or domain), '/' and its signal, such as service:io.acme:billing/feature-area/pkg-invoice: never its members, so adding one renames none.",
+    "description": "A group of the architecture model (#535): related elements bundled by what the code shows, so a large system or service can be drawn a level higher. Its key is its scope (a unit, or system), '/', area or domain, '/' and its signal, such as service:io.acme:billing/area/pkg-invoice: never its members, so adding one renames none.",
     "attributeSchema": { "additionalProperties": false }
   },
   {
@@ -16,7 +16,7 @@
         "scope": { "type": "string", "description": "The unit whose components it groups, or system." },
         "basis": { "type": "string", "enum": ["feature-folder", "resource-path", "database", "gateway-route", "repository", "maven-group"], "description": "The signal it rests on: a feature package, the resource segment of endpoint paths, a shared relational database, a gateway route prefix, a repository or a segment of the Maven groupId." },
         "signal": { "type": "string", "description": "The signal's value, as its key gives it: pkg-, path-, db-, route-, repo- or maven- and the package, segment, database key, repository or groupId segment." },
-        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts behind the signal: those its members joined by." }
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts its members joined by." }
       },
       "required": ["basis", "scope", "signal"],
       "additionalProperties": false

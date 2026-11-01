@@ -18,6 +18,9 @@ decided these under the owner's standing go-ahead for 1D.
   of `CONTAINS` with a type of its own, as `HAS_MEMBER` is, so derivation does not write what the
   extractors write and the rules and documents reading `CONTAINS` do not see groups as code
   structure.
+- **Keys as the epic gives them**: `group:<unit>/area/<signal>` and `group:system/domain/<signal>`,
+  the signal percent-encoded where it holds whitespace or `/`; the `group-of` fact names the kind
+  (`feature-area` or `domain`).
 - **A domain's scope is `system`.** The epic keys domains `group:<system>/domain/...`; a derive rule
   runs on one system's snapshot and does not know its name, so the scope is the literal `system`.
   Facts of different systems never share a repository, so their groups' observations stay apart.
@@ -25,10 +28,21 @@ decided these under the owner's standing go-ahead for 1D.
   holds only variables after it) is the last literal segment of the prefix: `/api/work-orders/{id}`
   in a unit whose paths all start `/api/work-orders` is a `work-orders` resource. The epic gave no
   rule for it, and dropping such endpoints would leave a unit's main controller ungrouped.
-- **Rule 3 places each component once, against the areas rules 1 and 2 formed**, so the order
-  components are looked at does not matter. Calls count the `COMPONENT_LINK` facts in either
-  direction; tables are what each component's `data-access` fact rests on (tables, or the entity
-  classes a Spring Data repository is for).
+- **A package named as a layer is not a feature, and does not cancel the others.** Rule 1 counts
+  the sibling packages that hold an entry point and are not named as a layer; with at least 3, each
+  is an area, and the components of layer packages (a `messaging` listener beside `invoice` and
+  `payment`) are left to rule 3, which the epic expects to place "one in a layer package".
+- **The base package is where the entry points are**: the common prefix of the entry points'
+  packages, so a shared bean or client in another package tree (a library's) does not move it.
+- **Rule 3 runs in rounds**, each against the placements of the rounds before, until a round places
+  none: a component linked only to one placed in an earlier round (an outbox poller to its
+  listener) joins too, and within a round the order components are looked at does not matter.
+  Calls count the `COMPONENT_LINK` facts between the unit's components in either direction; tables
+  are what each component's `data-access` fact rests on (tables, or the entity classes a Spring Data
+  repository is for), and a component joined by tables cites that fact.
+- **An endpoint seen in several views counts once** in rule 2's majority.
+- **Only the default view's datasources count** for signal 1: a profile's (local, test) datasource
+  is not where the unit keeps its data.
 - **A unit using several relational databases** joins the one whose datasource lists the most of
   its schemas, ties by key: the linker records which schemas a unit's migrations build in a
   datasource, not which database each table it touches is in. Relational means reached over JDBC
@@ -37,8 +51,11 @@ decided these under the owner's standing go-ahead for 1D.
   receives it (`routed-endpoint`); a unit routed under several joins the segment most of its routed
   endpoints are under.
 - **Repository domains** count the repository of a unit's own modules, and only when they all come
-  from one; **Maven-group domains** take the segment after the longest dotted prefix of every
-  remaining unit's groupId, so units whose groupId is that prefix stay ungrouped.
+  from one. **Maven-group domains** take the segment after the longest dotted prefix of every
+  unit's groupId in the system, as the epic says, for the units the stronger signals left; units
+  whose groupId is that prefix stay ungrouped. When the prefix is empty the groupIds share no
+  organization and the next segment is a top-level domain (`com`, `org`), which names no domain, so
+  there is no Maven-group domain.
 - **Lines between groups are computed, not stored** (#615): `Groups.lines` merges member lines per
   ordered pair of ends (a group, or an element no group of the kind holds) and protocol, citing
   the member lines' facts, and leaves out lines inside one group.

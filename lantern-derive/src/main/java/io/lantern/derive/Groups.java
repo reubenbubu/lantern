@@ -1,7 +1,6 @@
 package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
@@ -157,7 +156,9 @@ public final class Groups implements LinkRule.OverFacts {
 
   /** The group of a kind in a scope (a unit, or {@link #SYSTEM}) with a signal. */
   public static EntityId id(String scope, String kind, String signal) {
-    return new EntityId(GROUP, scope + "/" + kind + "/" + DeploymentInstances.encoded(signal, ""));
+    String segment = kind.equals(FEATURE_AREA) ? "area" : kind;
+    return new EntityId(
+        GROUP, scope + "/" + segment + "/" + DeploymentInstances.encoded(signal, "/"));
   }
 
   @Override
@@ -170,17 +171,16 @@ public final class Groups implements LinkRule.OverFacts {
     for (EntityId unit : units) {
       write(featureAreas(knowledge, unit), FEATURE_AREA, unit.toString(), validity, derived);
     }
-    write(domains(knowledge, units), DOMAIN, SYSTEM, validity, derived);
+    write(domains(knowledge, units, units), DOMAIN, SYSTEM, validity, derived);
     return Derivation.merged(derived);
   }
 
   // Groups being formed.
 
-  /** A group being formed: its signal and basis, the facts behind it, and its members. */
+  /** A group being formed: its signal and basis, and its members with the facts they joined by. */
   static final class Forming {
     final String signal;
     final String basis;
-    final List<Fact> facts = new ArrayList<>();
     final SortedMap<EntityId, Joined> members = new TreeMap<>(Knowledge.BY_ID);
 
     Forming(String signal, String basis) {
@@ -212,27 +212,41 @@ public final class Groups implements LinkRule.OverFacts {
     }
     for (Forming group : kept) {
       EntityId id = id(scope, kind, group.signal);
-      List<Fact> cited = new ArrayList<>(group.facts);
+      List<Fact> cited = new ArrayList<>();
       group.members.values().forEach(j -> cited.addAll(j.facts));
-      if (cited.isEmpty()) {
+      if (cited.isEmpty() || group.members.values().stream().anyMatch(j -> j.facts.isEmpty())) {
         continue;
       }
-      Evidence evidence = cited.getFirst().evidence();
       ObjectNode of = FactJson.newObject();
       of.put("scope", scope);
       of.put("basis", group.basis);
       of.put("signal", group.signal);
-      cite(of, group.facts.isEmpty() ? cited : group.facts);
+      cite(of, cited);
       derived.add(
-          Fact.create(id, GROUP_OF, FactObject.string(kind), of, ORIGIN, evidence, 1.0, validity));
+          Fact.create(
+              id,
+              GROUP_OF,
+              FactObject.string(kind),
+              of,
+              ORIGIN,
+              cited.getFirst().evidence(),
+              1.0,
+              validity));
       group.members.forEach(
           (member, joined) -> {
             ObjectNode in = FactJson.newObject();
             in.put("basis", joined.how());
-            cite(in, joined.facts().isEmpty() ? cited : joined.facts());
+            cite(in, joined.facts());
             derived.add(
                 Fact.create(
-                    id, GROUPS, FactObject.entity(member), in, ORIGIN, evidence, 1.0, validity));
+                    id,
+                    GROUPS,
+                    FactObject.entity(member),
+                    in,
+                    ORIGIN,
+                    joined.facts().getFirst().evidence(),
+                    1.0,
+                    validity));
           });
     }
   }
@@ -352,15 +366,16 @@ public final class Groups implements LinkRule.OverFacts {
             byPackage.computeIfAbsent(s.get(below), p -> new ArrayList<>()).add(component);
           }
         });
+    // Packages named as a layer are not features; their components are left to rule 3.
     SortedSet<String> withEntryPoints = new TreeSet<>();
     byPackage.forEach(
         (pkg, held) -> {
-          if (held.stream().anyMatch(c -> c.role().equals(Components.ENTRY_POINT))) {
+          if (!LAYERS.contains(pkg)
+              && held.stream().anyMatch(c -> c.role().equals(Components.ENTRY_POINT))) {
             withEntryPoints.add(pkg);
           }
         });
-    if (withEntryPoints.size() < FEATURE_PACKAGES
-        || withEntryPoints.stream().anyMatch(LAYERS::contains)) {
+    if (withEntryPoints.size() < FEATURE_PACKAGES) {
       return false;
     }
     for (String pkg : withEntryPoints) {
@@ -404,9 +419,11 @@ public final class Groups implements LinkRule.OverFacts {
         continue;
       }
       List<Fact> found = new ArrayList<>();
+      Set<String> seen = new HashSet<>();
       for (EntityId method : knowledge.parts(component.anchor(), METHOD)) {
         for (Fact fact : knowledge.attributes(method)) {
-          if (fact.predicate().equals(ENDPOINT)) {
+          // An endpoint seen in several views counts once.
+          if (fact.predicate().equals(ENDPOINT) && seen.add(method + " " + fact.object().value())) {
             found.add(fact);
             List<String> path = path(fact.object().value());
             prefix = prefix == null ? path : common(prefix, path);
@@ -491,87 +508,103 @@ public final class Groups implements LinkRule.OverFacts {
   /**
    * Rule 3: a component neither rule placed joins the area whose components it calls, or is called
    * by, most often; failing that, the area whose tables it shares, at a Jaccard similarity of at
-   * least {@value #TABLE_SIMILARITY}. Ties go to the area whose key sorts first.
+   * least {@value #TABLE_SIMILARITY}. Ties go to the area whose key sorts first. It runs in rounds,
+   * each against the placements of the rounds before, until a round places none, so a component
+   * linked only to one placed in an earlier round joins too and the order components are looked at
+   * does not matter.
    */
   private static void byCallsOrTables(
       Knowledge knowledge,
       List<Component> components,
       SortedMap<String, Forming> areas,
       Map<EntityId, String> placed) {
-    Map<String, Set<String>> areaTables = new TreeMap<>();
     Map<EntityId, Set<String>> tables = new HashMap<>();
-    for (Component component : components) {
-      tables.put(component.id(), tables(knowledge, component.id()));
-      String area = placed.get(component.id());
-      if (area != null) {
-        areaTables.computeIfAbsent(area, a -> new TreeSet<>()).addAll(tables.get(component.id()));
+    Map<EntityId, List<Fact>> links = new HashMap<>();
+    Set<EntityId> ids = new HashSet<>();
+    components.forEach(c -> ids.add(c.id()));
+    for (Fact fact : knowledge.withPredicate(ComponentInteractions.COMPONENT_LINK)) {
+      if (Knowledge.isEntity(fact)
+          && ids.contains(fact.subject())
+          && ids.contains(Knowledge.object(fact))) {
+        links.computeIfAbsent(fact.subject(), c -> new ArrayList<>()).add(fact);
+        links.computeIfAbsent(Knowledge.object(fact), c -> new ArrayList<>()).add(fact);
       }
     }
-    Map<EntityId, String> joins = new TreeMap<>(Knowledge.BY_ID);
-    Map<EntityId, List<Fact>> because = new HashMap<>();
-    Map<EntityId, String> how = new HashMap<>();
     for (Component component : components) {
-      if (placed.containsKey(component.id())) {
-        continue;
-      }
-      SortedMap<String, List<Fact>> calls = new TreeMap<>();
-      for (Fact fact : knowledge.relations(component.id(), ComponentInteractions.COMPONENT_LINK)) {
-        String area = placed.get(Knowledge.object(fact));
-        if (area != null) {
-          calls.computeIfAbsent(area, a -> new ArrayList<>()).add(fact);
+      tables.put(component.id(), tables(knowledge, component.id()));
+    }
+    while (true) {
+      Map<String, Set<String>> areaTables = new TreeMap<>();
+      placed.forEach(
+          (component, area) ->
+              areaTables.computeIfAbsent(area, a -> new TreeSet<>()).addAll(tables.get(component)));
+      Map<EntityId, String> joins = new TreeMap<>(Knowledge.BY_ID);
+      Map<EntityId, List<Fact>> because = new HashMap<>();
+      Map<EntityId, String> how = new HashMap<>();
+      for (Component component : components) {
+        EntityId id = component.id();
+        if (placed.containsKey(id)) {
+          continue;
         }
-      }
-      for (Fact fact : knowledge.withPredicate(ComponentInteractions.COMPONENT_LINK)) {
-        if (Knowledge.isEntity(fact) && Knowledge.object(fact).equals(component.id())) {
-          String area = placed.get(fact.subject());
+        SortedMap<String, List<Fact>> calls = new TreeMap<>();
+        for (Fact fact : links.getOrDefault(id, List.of())) {
+          EntityId other = fact.subject().equals(id) ? Knowledge.object(fact) : fact.subject();
+          String area = placed.get(other);
           if (area != null) {
             calls.computeIfAbsent(area, a -> new ArrayList<>()).add(fact);
           }
         }
-      }
-      String best = null;
-      for (Map.Entry<String, List<Fact>> e : calls.entrySet()) {
-        if (best == null || e.getValue().size() > calls.get(best).size()) {
-          best = e.getKey();
+        String best = null;
+        for (Map.Entry<String, List<Fact>> e : calls.entrySet()) {
+          if (best == null || e.getValue().size() > calls.get(best).size()) {
+            best = e.getKey();
+          }
+        }
+        if (best != null) {
+          joins.put(id, best);
+          because.put(id, calls.get(best));
+          how.put(id, CALLS);
+          continue;
+        }
+        Set<String> own = tables.get(id);
+        if (own.isEmpty()) {
+          continue;
+        }
+        double most = TABLE_SIMILARITY;
+        for (Map.Entry<String, Set<String>> e : areaTables.entrySet()) {
+          double similarity = jaccard(own, e.getValue());
+          if (similarity >= most && (best == null || similarity > most)) {
+            best = e.getKey();
+            most = similarity;
+          }
+        }
+        if (best != null) {
+          joins.put(id, best);
+          because.put(id, dataAccess(knowledge, id));
+          how.put(id, TABLES);
         }
       }
-      if (best != null) {
-        joins.put(component.id(), best);
-        because.put(component.id(), calls.get(best));
-        how.put(component.id(), CALLS);
-        continue;
+      if (joins.isEmpty()) {
+        return;
       }
-      Set<String> own = tables.get(component.id());
-      if (own.isEmpty()) {
-        continue;
-      }
-      double most = TABLE_SIMILARITY;
-      for (Map.Entry<String, Set<String>> e : areaTables.entrySet()) {
-        double similarity = jaccard(own, e.getValue());
-        if (similarity >= most && (best == null || similarity > most)) {
-          best = e.getKey();
-          most = similarity;
-        }
-      }
-      if (best != null) {
-        joins.put(component.id(), best);
-        because.put(
-            component.id(), knowledge.relations(component.id(), ComponentInteractions.DATA_ACCESS));
-        how.put(component.id(), TABLES);
-      }
+      joins.forEach(
+          (component, area) -> {
+            areas.get(area).join(component, how.get(component), because.get(component));
+            placed.put(component, area);
+          });
     }
-    joins.forEach(
-        (component, area) ->
-            areas.get(area).join(component, how.get(component), because.get(component)));
+  }
+
+  private static List<Fact> dataAccess(Knowledge knowledge, EntityId component) {
+    return knowledge.attributes(component).stream()
+        .filter(f -> f.predicate().equals(ComponentInteractions.DATA_ACCESS))
+        .toList();
   }
 
   /** The tables (or persisted classes) a component's data access rests on. */
   private static Set<String> tables(Knowledge knowledge, EntityId component) {
     Set<String> tables = new TreeSet<>();
-    for (Fact access : knowledge.attributes(component)) {
-      if (!access.predicate().equals(ComponentInteractions.DATA_ACCESS)) {
-        continue;
-      }
+    for (Fact access : dataAccess(knowledge, component)) {
       for (String id : strings(access, "facts")) {
         Fact fact = knowledge.fact(id);
         if (fact != null && Knowledge.isEntity(fact)) {
@@ -595,14 +628,15 @@ public final class Groups implements LinkRule.OverFacts {
 
   // Domains.
 
-  static SortedMap<String, Forming> domains(Knowledge knowledge, SortedSet<EntityId> units) {
+  static SortedMap<String, Forming> domains(
+      Knowledge knowledge, SortedSet<EntityId> units, Set<EntityId> system) {
     SortedMap<String, Forming> domains = new TreeMap<>();
     Set<EntityId> left = new TreeSet<>(Knowledge.BY_ID);
     left.addAll(units);
     stage(domains, left, byDatabase(knowledge, left));
     stage(domains, left, byRoute(knowledge, left));
     stage(domains, left, byRepository(knowledge, left));
-    stage(domains, left, byMavenGroup(knowledge, left));
+    stage(domains, left, byMavenGroup(knowledge, left, system));
     return domains;
   }
 
@@ -627,7 +661,11 @@ public final class Groups implements LinkRule.OverFacts {
     for (EntityId unit : units) {
       Fact best = null;
       for (Fact fact : knowledge.relations(unit, USES_DATABASE)) {
-        if (!RELATIONAL.contains(attribute(fact, "protocol", ""))) {
+        // The default view's datasources only: a profile's (local, test) is not where it keeps its
+        // data.
+        if (!RELATIONAL.contains(attribute(fact, "protocol", ""))
+            || attribute(fact, "view", null) != null
+            || attribute(fact, "profile", null) != null) {
           continue;
         }
         if (best == null
@@ -720,35 +758,40 @@ public final class Groups implements LinkRule.OverFacts {
 
   /**
    * Signal 4: units whose Maven groupId shares the segment after the longest dotted prefix common
-   * to every unit's groupId.
+   * to every unit's groupId in the system. When that prefix is empty the groupIds share no
+   * organization, and the next segment is a top-level domain (com, org), which names no domain: no
+   * group.
    */
-  private static SortedMap<String, Forming> byMavenGroup(Knowledge knowledge, Set<EntityId> units) {
+  private static SortedMap<String, Forming> byMavenGroup(
+      Knowledge knowledge, Set<EntityId> units, Set<EntityId> system) {
     SortedMap<String, Forming> found = new TreeMap<>();
-    Map<EntityId, List<String>> groups = new TreeMap<>(Knowledge.BY_ID);
-    for (EntityId unit : units) {
-      int colon = unit.key().indexOf(':');
-      if (colon > 0) {
-        groups.put(unit, Arrays.asList(unit.key().substring(0, colon).split("\\.")));
+    List<String> prefix = null;
+    for (EntityId unit : system) {
+      List<String> g = groupId(unit);
+      if (g != null) {
+        prefix = prefix == null ? g : common(prefix, g);
       }
     }
-    if (groups.size() < 2) {
+    if (prefix == null || prefix.isEmpty()) {
       return found;
     }
-    List<String> prefix = null;
-    for (List<String> g : groups.values()) {
-      prefix = prefix == null ? g : common(prefix, g);
-    }
     int depth = prefix.size();
-    groups.forEach(
-        (unit, g) -> {
-          if (g.size() > depth) {
-            String signal = "maven-" + g.get(depth);
-            found
-                .computeIfAbsent(signal, s -> new Forming(s, MAVEN_GROUP))
-                .join(unit, MAVEN_GROUP, deployable(knowledge, unit));
-          }
-        });
+    for (EntityId unit : units) {
+      List<String> g = groupId(unit);
+      if (g != null && g.size() > depth) {
+        String signal = "maven-" + g.get(depth);
+        found
+            .computeIfAbsent(signal, s -> new Forming(s, MAVEN_GROUP))
+            .join(unit, MAVEN_GROUP, deployable(knowledge, unit));
+      }
+    }
     return found;
+  }
+
+  /** The segments of a unit's Maven groupId, from its ID (service:group:artifact), or null. */
+  private static List<String> groupId(EntityId unit) {
+    int colon = unit.key().indexOf(':');
+    return colon > 0 ? Arrays.asList(unit.key().substring(0, colon).split("\\.")) : null;
   }
 
   /** The facts that make a unit deployable: those behind a group of its Maven groupId. */

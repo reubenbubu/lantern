@@ -103,6 +103,97 @@ class GroupsTest {
   }
 
   @Test
+  void addingAnEndpointToAComponentKeepsEveryGroupKey() {
+    unit(BILLING, BILLING_MODULE, "billing");
+    controller("io.acme.billing.web", "OrderController", "GET /api/orders/{id}");
+    controller("io.acme.billing.web", "OrderAdmin", "GET /api/orders/admin");
+    controller("io.acme.billing.web", "InvoiceController", "GET /api/invoices");
+    controller("io.acme.billing.web", "InvoiceAdmin", "GET /api/invoices/admin");
+    Map<String, Set<String>> before = areas(BILLING);
+
+    // Another endpoint of an existing controller, under a path that still shares /api.
+    model.add(
+        EntityId.parse("method:io.acme.billing.web.OrderController#handle()"),
+        "endpoint",
+        FactObject.string("POST /api/orders"));
+
+    assertThat(areas(BILLING)).isEqualTo(before);
+  }
+
+  @Test
+  void aLayerPackageWithAnEntryPointDoesNotCancelFeatureFolders() {
+    unit(BILLING, BILLING_MODULE, "billing");
+    controller("io.acme.billing.invoice", "InvoiceController", "GET /invoices");
+    controller("io.acme.billing.invoice", "InvoiceEvents", "GET /invoices/events");
+    controller("io.acme.billing.payment", "PaymentController", "POST /payments");
+    controller("io.acme.billing.payment", "RefundController", "POST /refunds");
+    controller("io.acme.billing.collections", "DunningController", "GET /dunning");
+    controller("io.acme.billing.collections", "CollectionsController", "GET /collections");
+    EntityId listener = controller("io.acme.billing.messaging", "PaymentListener", null);
+    link(listener, component("io.acme.billing.payment.PaymentController"));
+
+    Map<String, Set<String>> areas = areas(BILLING);
+
+    assertThat(areas)
+        .containsOnlyKeys(area("pkg-collections"), area("pkg-invoice"), area("pkg-payment"));
+    assertThat(areas.get(area("pkg-payment"))).contains(listener.toString());
+  }
+
+  @Test
+  void aComponentLinkedOnlyToOneJoinedByCallsJoinsInALaterRound() {
+    unit(BILLING, BILLING_MODULE, "billing");
+    controller("io.acme.billing.web", "OrderController", "GET /orders");
+    controller("io.acme.billing.web", "OrderAdmin", "GET /orders/admin");
+    controller("io.acme.billing.web", "InvoiceController", "GET /invoices");
+    controller("io.acme.billing.web", "InvoiceAdmin", "GET /invoices/admin");
+    EntityId poller = controller("io.acme.billing.messaging", "OutboxPoller", null);
+    EntityId listener = controller("io.acme.billing.messaging", "OrderListener", null);
+    link(listener, component("io.acme.billing.web.OrderController"));
+    link(poller, listener.toString());
+
+    Map<String, Set<String>> areas = areas(BILLING);
+
+    assertThat(areas.get(area("path-orders"))).contains(listener.toString(), poller.toString());
+    // No element is in two groups of one kind.
+    assertThat(areas.get(area("path-invoices")))
+        .doesNotContain(listener.toString(), poller.toString());
+  }
+
+  @Test
+  void aComponentNoCallPlacesJoinsTheAreaWhoseTablesItSharesCitingItsDataAccess() {
+    unit(BILLING, BILLING_MODULE, "billing");
+    controller("io.acme.billing.web", "OrderController", "GET /orders");
+    controller("io.acme.billing.web", "OrderAdmin", "GET /orders/admin");
+    controller("io.acme.billing.web", "InvoiceController", "GET /invoices");
+    controller("io.acme.billing.web", "InvoiceAdmin", "GET /invoices/admin");
+    EntityId listener = controller("io.acme.billing.messaging", "OrderListener", null);
+    EntityId orders = EntityId.parse("table:io.acme:billing:orders");
+    model.add(
+        EntityId.parse("method:io.acme.billing.web.OrderController#handle()"),
+        "READS_TABLE",
+        orders);
+    model.add(
+        EntityId.parse("method:io.acme.billing.messaging.OrderListener#handle()"),
+        "WRITES_TABLE",
+        orders);
+
+    Knowledge knowledge = new Knowledge(Derivation.withModel(model.facts, 1));
+
+    Fact joined =
+        knowledge.relations(EntityId.parse(area("path-orders")), Groups.GROUPS).stream()
+            .filter(f -> Knowledge.object(f).equals(listener))
+            .findFirst()
+            .orElseThrow();
+    assertThat(joined.attributes().get("basis").asString()).isEqualTo(Groups.TABLES);
+    Fact access =
+        knowledge.attributes(listener).stream()
+            .filter(f -> f.predicate().equals(ComponentInteractions.DATA_ACCESS))
+            .findFirst()
+            .orElseThrow();
+    assertThat(joined.attributes().get("facts").get(0).asString()).isEqualTo(access.id());
+  }
+
+  @Test
   void unitsSharingARelationalDatabaseAreADomainAndRedisDoesNotCount() {
     EntityId orders = EntityId.parse("service:io.acme:orders");
     EntityId stock = EntityId.parse("service:io.acme:stock");
