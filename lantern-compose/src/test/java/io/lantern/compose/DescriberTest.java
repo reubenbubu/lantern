@@ -1715,4 +1715,18 @@ class DescriberTest {
         .contains("Interactions:\n[R1] ")
         .doesNotContain("Components:");
   }
+
+  @Test
+  void aRerunOverTheStoredTextsMakesNoCall() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    Describer.Result first = describe(fake);
+    int calls = fake.sent().size();
+    List<Fact> withTexts = new ArrayList<>(facts.list());
+    first.facts(SNAPSHOT.number()).values().forEach(withTexts::addAll);
+
+    Describer.Result again = new Describer(harness(client(fake))).describe(withTexts);
+
+    assertThat(fake.sent()).hasSize(calls);
+    assertThat(again.reused()).isEqualTo(first.asked());
+  }
 }

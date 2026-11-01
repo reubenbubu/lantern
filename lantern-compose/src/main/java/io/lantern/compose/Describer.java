@@ -178,6 +178,17 @@ public final class Describer {
     }
   }
 
+  /** The facts without the responsibilities and intents the LLM roles wrote. */
+  static List<Fact> withoutTexts(Collection<Fact> facts) {
+    return facts.stream()
+        .filter(
+            f ->
+                f.origin().kind() != io.lantern.core.fact.Origin.Kind.LLM
+                    || !(f.predicate().equals(io.lantern.harness.LlmFacts.RESPONSIBILITY)
+                        || f.predicate().equals(io.lantern.harness.LlmFacts.INTENT)))
+        .toList();
+  }
+
   /**
    * A text a Describe role wrote, with what it is about.
    *
@@ -281,6 +292,10 @@ public final class Describer {
     Objects.requireNonNull(facts, "facts");
     Objects.requireNonNull(summaries, "summaries");
     Objects.requireNonNull(repoFacts, "repoFacts");
+    // What Describe wrote in an earlier run is not its input: shown, it would change every item
+    // it is about, and the model would word from its own words.
+    facts = withoutTexts(facts);
+    repoFacts = withoutTexts(repoFacts);
     Knowledge knowledge = new Knowledge(facts);
     Assembler assembler = new Assembler(knowledge, Map.of(), Set.of(), null, "The system");
     C4Views c4 =
