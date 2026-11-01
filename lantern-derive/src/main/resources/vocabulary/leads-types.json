@@ -1,0 +1,27 @@
+[
+  {
+    "name": "lead",
+    "kind": "entity",
+    "description": "A lead for Investigate (#524): a candidate risk a rule of the lead catalog found in the facts, for the model to confirm or refute by reading the code it points at. Its key is the kind, '/' and a key the kind's rule gives, percent-encoded where it holds whitespace, such as weak-access-check/service:com.acme:shop/method:com.acme.OrderController#delete(long).",
+    "attributeSchema": { "additionalProperties": false }
+  },
+  {
+    "name": "lead-trigger",
+    "kind": "attribute",
+    "keyAttributes": ["code", "content", "trigger", "units"],
+    "description": "The subject lead was raised (#524): the value is its kind, one of the catalog's (leads.json). Its lineage is the facts that triggered it.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "trigger": { "type": "string", "description": "Why the rule raised it, in one sentence from the facts." },
+        "units": { "type": "array", "items": { "type": "string" }, "description": "The deployable units it concerns, if any." },
+        "code": { "type": "array", "items": { "type": "string" }, "description": "The entity IDs of the code or descriptors the model should read." },
+        "content": { "type": "string", "description": "sha256: and a SHA-256 hash, in base64url, of the claims it rests on and the content of the files they were read from, so the lead is asked again only when what it points at changes." },
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts that triggered it." }
+      },
+      "required": ["trigger", "code", "content"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  }
+]

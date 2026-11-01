@@ -34,11 +34,18 @@ public final class Derivation {
   /** The vocabulary source of the deployment instances' types. */
   public static final String DEPLOYMENT_SOURCE = "derive-deployment-instances";
 
+  /** The source of the leads' vocabulary types. */
+  public static final String LEADS_SOURCE = "derive-leads";
+
   private Derivation() {}
 
   /** The derive rules of this version of Lantern. */
   public static List<LinkRule> rules() {
-    return List.of(new Components(), new ComponentInteractions(), new DeploymentInstances());
+    List<LinkRule> rules =
+        new java.util.ArrayList<>(
+            List.of(new Components(), new ComponentInteractions(), new DeploymentInstances()));
+    rules.addAll(LeadRules.all());
+    return List.copyOf(rules);
   }
 
   /** The derive rules' vocabularies by source, applied after the linker's. */
@@ -47,6 +54,7 @@ public final class Derivation {
     sources.put(COMPONENTS_SOURCE, Components.vocabulary());
     sources.put(INTERACTIONS_SOURCE, ComponentInteractions.vocabulary());
     sources.put(DEPLOYMENT_SOURCE, DeploymentInstances.vocabulary());
+    sources.put(LEADS_SOURCE, LeadRule.vocabulary());
     return sources;
   }
 
