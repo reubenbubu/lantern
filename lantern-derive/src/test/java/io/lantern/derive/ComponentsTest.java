@@ -71,6 +71,75 @@ class ComponentsTest {
     assertThat(components(derived())).isEqualTo(before);
   }
 
+  @Test
+  void aBeanAConstructorTakesBelongsToItsComponentWithoutResolvedCalls() {
+    add(UNIT, "deployable-unit", FactObject.string("spring-boot"));
+    add(UNIT, BuiltInTypes.CONTAINS, MODULE);
+    for (EntityId type : List.of(ORDERS, PRICING)) {
+      add(MODULE, BuiltInTypes.CONTAINS, type);
+    }
+    ObjectNode rest = FactJson.newObject();
+    rest.put("rest", true);
+    add(ORDERS, "stereotype", FactObject.string("controller"), rest);
+    add(PRICING, "stereotype", FactObject.string("service"));
+    // No calls were resolved (no build), but the constructor names what it takes.
+    add(
+        ORDERS,
+        BuiltInTypes.CONTAINS,
+        EntityId.parse(
+            "method:com.example.OrdersController#<init>(com.example.Pricing,java.util.List,java.lang.String[])"));
+
+    List<Fact> derived = derived();
+
+    assertThat(objects(derived, Components.id(UNIT, ORDERS), Components.HAS_MEMBER))
+        .containsExactly(ORDERS, PRICING);
+    assertThat(components(derived)).containsExactly(Components.id(UNIT, ORDERS));
+  }
+
+  @Test
+  void mappersSettingsAndRepositoriesNoEntryPointReachesAreNotComponents() {
+    unitWithTwoControllers();
+    EntityId mapper = EntityId.parse("type:com.example.OrderMapperImpl");
+    EntityId settings = EntityId.parse("type:com.example.ShopSettings");
+    EntityId unused = EntityId.parse("type:com.example.ArchiveRepository");
+    EntityId client = EntityId.parse("type:com.example.BillingClient");
+    for (EntityId type : List.of(mapper, settings, unused, client)) {
+      add(MODULE, BuiltInTypes.CONTAINS, type);
+    }
+    add(mapper, "stereotype", FactObject.string("component"));
+    add(mapper, "generated", FactObject.string("org.mapstruct.ap.MappingProcessor"));
+    add(settings, "stereotype", FactObject.string("component"));
+    add(settings, "configuration-properties", FactObject.string("shop"));
+    // Both controllers use the mapper and the settings, which would make them shared.
+    for (EntityId controller : List.of(ORDERS, ADMIN)) {
+      add(controller, "INJECTS", mapper);
+      add(controller, "INJECTS", settings);
+    }
+    add(unused, "REPOSITORY_FOR", EntityId.parse("type:com.example.Archive"));
+    // Pricing, inside OrdersController's component, already reaches the database.
+    add(PRICING, "WRITES_TABLE", EntityId.parse("table:shop:prices"));
+    add(client, "http-client", FactObject.string("feign"));
+
+    List<EntityId> components = components(derived());
+
+    assertThat(components)
+        .doesNotContain(
+            Components.id(UNIT, mapper), Components.id(UNIT, settings), Components.id(UNIT, unused))
+        // An HTTP client nothing reaches still shows where calls to another container start.
+        .contains(Components.id(UNIT, client));
+  }
+
+  @Test
+  void aRepositoryNothingReachesStaysWhenNoOtherComponentReachesTheDatabase() {
+    unitWithTwoControllers();
+    EntityId users = EntityId.parse("type:com.example.UserRepository");
+    add(MODULE, BuiltInTypes.CONTAINS, users);
+    // Spring Security calls the service that uses it, not an entry point.
+    add(users, "REPOSITORY_FOR", EntityId.parse("type:com.example.User"));
+
+    assertThat(components(derived())).contains(Components.id(UNIT, users));
+  }
+
   private void unitWithTwoControllers() {
     add(UNIT, "deployable-unit", FactObject.string("spring-boot"));
     add(UNIT, BuiltInTypes.CONTAINS, MODULE);

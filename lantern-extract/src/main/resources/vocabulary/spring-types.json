@@ -17,6 +17,21 @@
     "objectKind": "string"
   },
   {
+    "name": "configuration-properties",
+    "kind": "attribute",
+    "keyAttributes": ["annotation"],
+    "description": "The subject type is bound to config by @ConfigurationProperties, directly or through a meta-annotation: settings, not a component, even when it is also a bean (#271). The value is the prefix it binds, empty when it names none.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "annotation": { "type": "string", "description": "The binary name of the annotation written on the type that makes it one." }
+      },
+      "required": ["annotation"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
     "name": "main-class",
     "kind": "attribute",
     "keyAttributes": ["main"],

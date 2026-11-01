@@ -64,7 +64,7 @@ public final class SpringExtractor implements Extractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "7";
+  public static final String VERSION = "8";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -351,6 +351,12 @@ public final class SpringExtractor implements Extractor {
 
   private static final String MAIN_SIGNATURE = "main(java.lang.String[])";
 
+  private static final String CONFIGURATION_PROPERTIES =
+      "org.springframework.boot.context.properties.ConfigurationProperties";
+
+  /** A class bound to config by {@code @ConfigurationProperties}, with its prefix (#271). */
+  public static final String CONFIGURATION_PROPERTIES_FACT = "configuration-properties";
+
   private static Map<String, String> stereotypes() {
     Map<String, String> s = new LinkedHashMap<>();
     s.put(SPRING + "stereotype.Controller", "controller");
@@ -437,6 +443,7 @@ public final class SpringExtractor implements Extractor {
           mainClass(type);
           registrations(type);
           stereotype(type);
+          configurationProperties(type);
           endpoints(type);
           accessChecks(type.annotations(), typeId(type));
           crossOrigin(type.annotations(), typeId(type));
@@ -494,6 +501,30 @@ public final class SpringExtractor implements Extractor {
       }
       Location where = boot != null ? boot.getFirst().where() : main.where();
       fact(typeId(type), MAIN_CLASS, boot != null ? SPRING_BOOT : JAVA, attributes, where);
+    }
+
+    /**
+     * A class bound to config by {@code @ConfigurationProperties}: settings, not a component, even
+     * when it is also a bean (#271). The value is its prefix, empty when it names none.
+     */
+    private void configurationProperties(TypeDecl type) {
+      List<Annotation> path = first(type.annotations(), CONFIGURATION_PROPERTIES);
+      if (path == null) {
+        return;
+      }
+      Annotation written = path.getLast();
+      List<String> prefix = written.values("prefix");
+      if (prefix.isEmpty()) {
+        prefix = written.values("value");
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("annotation", path.getFirst().type());
+      fact(
+          typeId(type),
+          CONFIGURATION_PROPERTIES_FACT,
+          prefix.isEmpty() ? "" : prefix.getFirst(),
+          attributes,
+          path.getFirst().where());
     }
 
     private void stereotype(TypeDecl type) {

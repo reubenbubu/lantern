@@ -45,7 +45,7 @@ public final class Components implements LinkRule.OverFacts {
   public static final String NAME = "components";
 
   /** Raised whenever the components it gives for the same facts change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
 
   public static final String PART_OF = "PART_OF";
   public static final String ANCHORED_ON = "ANCHORED_ON";
@@ -83,8 +83,10 @@ public final class Components implements LinkRule.OverFacts {
   private static final String HTTP_CALL = "http-call";
   private static final String MESSAGE_SEND = "message-send";
   private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
+  private static final String GENERATED = "generated";
   private static final String READS_TABLE = "READS_TABLE";
   private static final String WRITES_TABLE = "WRITES_TABLE";
+  private static final String CONFIGURATION_PROPERTIES = "configuration-properties";
   private static final String INJECTS = "INJECTS";
   private static final String ASPECT = "aspect";
   private static final String ADVISES = "ADVISES";
@@ -267,10 +269,28 @@ public final class Components implements LinkRule.OverFacts {
                   entry, ENTRY_POINT, String.join(" · ", kinds.names()), types, kinds.basis()));
         }
       }
+      // Code with only data access that no entry point reaches is not drawn (#271), unless no
+      // drawn component would then reach the unit's databases: the framework may call it (a
+      // UserDetailsService, a data seeder), or the calls to it were not seen.
+      boolean dataAccessShown = false;
+      for (Found found : components) {
+        dataAccessShown |= found.members().stream().anyMatch(this::accessesData);
+      }
+      List<EntityId> unreachedData = new ArrayList<>();
       for (EntityId bean : beans) {
         SortedSet<EntityId> from = reachedBy.get(bean);
+        if (from == null && !reachesOutside(bean) && accessesData(bean)) {
+          unreachedData.add(bean);
+          continue;
+        }
         boolean own = from == null ? reachesOutside(bean) : from.size() > 1;
         if (own) {
+          components.add(new Found(bean, SHARED, beanKind(bean), only(bean), beanBasis(bean)));
+          dataAccessShown |= accessesData(bean);
+        }
+      }
+      if (!dataAccessShown) {
+        for (EntityId bean : unreachedData) {
           components.add(new Found(bean, SHARED, beanKind(bean), only(bean), beanBasis(bean)));
         }
       }
@@ -349,7 +369,29 @@ public final class Components implements LinkRule.OverFacts {
     }
 
     private boolean isBean(EntityId type) {
-      return !beanBasis(type).isEmpty();
+      return !beanBasis(type).isEmpty() && !isLeftOut(type);
+    }
+
+    /**
+     * Whether a bean is left out of components, as the quality bar leaves out mappers and
+     * configuration (#271): a mapper MapStruct generates, or a class bound to config by
+     * {@code @ConfigurationProperties}.
+     */
+    private boolean isLeftOut(EntityId type) {
+      for (Fact fact : knowledge.attributes(type)) {
+        switch (fact.predicate()) {
+          case GENERATED -> {
+            if (fact.object().value().toString().startsWith("org.mapstruct.")) {
+              return true;
+            }
+          }
+          case CONFIGURATION_PROPERTIES -> {
+            return true;
+          }
+          default -> {}
+        }
+      }
+      return false;
     }
 
     /** The facts that make a type a bean: a bean stereotype, an HTTP client, a repository. */
@@ -392,20 +434,67 @@ public final class Components implements LinkRule.OverFacts {
           .orElse(null);
     }
 
-    /** Whether a type's code reaches outside the unit: HTTP calls, sends or SQL, or data access. */
+    /**
+     * Whether a type's code reaches another container: an HTTP client, HTTP calls or sends. Data
+     * access does not count: a repository no entry point reaches is not drawn (#271), and one an
+     * entry point reaches shows its data access on that entry point's component.
+     */
     private boolean reachesOutside(EntityId type) {
-      if (!knowledge.relations(type, REPOSITORY_FOR).isEmpty()
-          || knowledge.attribute(type, HTTP_CLIENT).isPresent()) {
+      if (knowledge.attribute(type, HTTP_CLIENT).isPresent()) {
         return true;
       }
       for (EntityId member : withMethods(type)) {
         for (Fact fact : knowledge.about(member)) {
           switch (fact.predicate()) {
-            case HTTP_CALL, MESSAGE_SEND, READS_TABLE, WRITES_TABLE -> {
+            case HTTP_CALL, MESSAGE_SEND -> {
               return true;
             }
             default -> {}
           }
+        }
+      }
+      return false;
+    }
+
+    /** The parameter types a constructor's ID names, such as {@code <init>(a.B,c.D)}; none else. */
+    private static List<EntityId> constructorParameters(EntityId method) {
+      String key = method.key();
+      int open = key.indexOf("#<init>(");
+      if (open < 0 || !key.endsWith(")")) {
+        return List.of();
+      }
+      String params = key.substring(open + "#<init>(".length(), key.length() - 1);
+      List<EntityId> types = new ArrayList<>();
+      int depth = 0;
+      int start = 0;
+      for (int i = 0; i <= params.length(); i++) {
+        char c = i < params.length() ? params.charAt(i) : ',';
+        if (c == '<') {
+          depth++;
+        } else if (c == '>') {
+          depth--;
+        } else if (c == ',' && depth == 0) {
+          String param = params.substring(start, i).strip();
+          int generic = param.indexOf('<');
+          param = (generic < 0 ? param : param.substring(0, generic)).replace("...", "");
+          if (!param.isEmpty() && !param.endsWith("]")) {
+            types.add(new EntityId(BuiltInTypes.TYPE, param));
+          }
+          start = i + 1;
+        }
+      }
+      return types;
+    }
+
+    /** Whether a type is a repository or its code reads or writes tables. */
+    private boolean accessesData(EntityId type) {
+      if (!knowledge.relations(type, REPOSITORY_FOR).isEmpty()) {
+        return true;
+      }
+      for (EntityId member : withMethods(type)) {
+        if (!knowledge.relations(member, READS_TABLE).isEmpty()
+            || !knowledge.relations(member, WRITES_TABLE).isEmpty()) {
+          return true;
         }
       }
       return false;
@@ -431,6 +520,11 @@ public final class Components implements LinkRule.OverFacts {
           }
         }
         knowledge.relations(type, INJECTS).forEach(f -> targets.add(Knowledge.object(f)));
+        // What its constructors take: Spring injects them, and a constructor's ID names its
+        // parameter types even when its calls could not be resolved without a build (#271).
+        for (EntityId method : knowledge.parts(type, METHOD)) {
+          targets.addAll(constructorParameters(method));
+        }
         targets.remove(type);
         targets.retainAll(code);
         uses.computeIfAbsent(type, t -> new TreeSet<>(Knowledge.BY_ID)).addAll(targets);
