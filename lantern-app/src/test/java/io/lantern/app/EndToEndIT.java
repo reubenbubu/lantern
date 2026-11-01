@@ -120,6 +120,10 @@ class EndToEndIT {
       return new FakeLlmProvider()
           .answering(
               request -> {
+                String check = FakeLlmConfiguration.modelCheck(request);
+                if (check != null) {
+                  return check;
+                }
                 String prompt = request.messages().getFirst().text();
                 if (request.role() == Role.RESOLVE) {
                   return "{\"target\": \"C1\", \"confidence\": \"low\", \"cites\": [\"C1\"],"
@@ -754,7 +758,14 @@ class EndToEndIT {
     assertThat(byRole.getOrDefault(Role.COMPOSE, 0L) + byRole.getOrDefault(Role.INFER_INTENT, 0L))
         .as("wordings")
         .isEqualTo(run.wordingsAsked());
-    assertThat(calls).isEqualTo(run.summariesGenerated() + run.linksAsked() + run.wordingsAsked());
+    // The model checks (ADR 0101) make the rest.
+    assertThat(calls)
+        .isEqualTo(
+            run.summariesGenerated()
+                + run.linksAsked()
+                + run.wordingsAsked()
+                + byRole.getOrDefault(Role.JUDGE, 0L)
+                + byRole.getOrDefault(Role.SCREEN, 0L));
   }
 
   /** What two runs over the same commits did. */

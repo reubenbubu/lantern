@@ -24,12 +24,15 @@ import java.util.Set;
  *     asked about it, so a flow is worded only when it is traced as the model saw it
  * @param documented the IDs of the facts that a prompt showed code holding Javadoc under, which
  *     count as evidence, as README claims do, when a responsibility sentence cites them (ADR 0069)
+ * @param unsupported the elements, and {@code RepoSections.SYSTEM} for the purpose, whose sentence
+ *     the support judge found a claim of supported by none of its cited facts (ADR 0101)
  */
 public record Wordings(
     Map<EntityId, String> responsibilities,
     Map<String, Phrase> phrases,
     Map<String, Flow> flows,
-    Set<String> documented) {
+    Set<String> documented,
+    Set<EntityId> unsupported) {
 
   /** No wording: documents keep summaries as descriptions and static labels. */
   public static final Wordings NONE = new Wordings(Map.of(), Map.of());
@@ -39,6 +42,21 @@ public record Wordings(
     phrases = Map.copyOf(phrases);
     flows = Map.copyOf(flows);
     documented = Set.copyOf(documented);
+    unsupported = Set.copyOf(unsupported);
+  }
+
+  /** Wordings whose sentences the support judge found all supported or did not check. */
+  public Wordings(
+      Map<EntityId, String> responsibilities,
+      Map<String, Phrase> phrases,
+      Map<String, Flow> flows,
+      Set<String> documented) {
+    this(responsibilities, phrases, flows, documented, Set.of());
+  }
+
+  /** The same wordings, with the elements whose sentence the support judge found unsupported. */
+  public Wordings withUnsupported(Set<EntityId> elements) {
+    return new Wordings(responsibilities, phrases, flows, documented, elements);
   }
 
   /** Responsibility sentences, intent phrases and flows, citing no code with Javadoc. */

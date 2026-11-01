@@ -19,6 +19,7 @@ import io.lantern.core.repo.SystemTitle;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
 import io.lantern.derive.Derivation;
+import io.lantern.derive.Findings;
 import io.lantern.extract.ExtractionCache;
 import io.lantern.extract.Extractors;
 import io.lantern.extract.RepoBuild;
@@ -28,6 +29,7 @@ import io.lantern.harness.AnswerStore;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;
 import io.lantern.harness.RunBudget;
+import io.lantern.harness.checks.InjectionScreen;
 import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
@@ -401,6 +403,11 @@ public final class AnalysisRun {
               .withSecretKeys(secretKeys);
       Describer.Result described =
           new Describer(harness, allSources).describe(systemFacts, extracted);
+      // The injection screen reads every file the run's prompts showed, each blob once; what it
+      // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
+      List<Fact> screened = screen(harness, snapshot);
+      List<Fact> composed = new ArrayList<>(extracted);
+      composed.addAll(screened);
 
       String systemTitle =
           systems
@@ -420,7 +427,7 @@ public final class AnalysisRun {
               composer.compose(
                   view,
                   snapshot,
-                  extracted,
+                  composed,
                   summarized.summaries(),
                   described.wordings(),
                   systemTitle);
@@ -490,6 +497,47 @@ public final class AnalysisRun {
           documents,
           runRecord);
     }
+  }
+
+  /**
+   * Screens the files the run's prompts showed and records what it flags as findings of the
+   * snapshot, replacing those of the last screen only when every chunk was answered (ADR 0101).
+   *
+   * @return the findings that hold in the snapshot
+   */
+  private List<Fact> screen(Harness harness, Snapshot snapshot) {
+    InjectionScreen.Result result =
+        new InjectionScreen(harness).screen(InjectionScreen.chunks(harness.shown()));
+    List<Fact> found = new ArrayList<>();
+    for (InjectionScreen.Suspected suspected : result.suspected()) {
+      found.add(
+          Findings.injectionSuspected(
+              suspected.chunk().repo(),
+              suspected.chunk().path(),
+              suspected.chunk().blob(),
+              suspected.from(),
+              suspected.to(),
+              suspected.quote(),
+              snapshot.number()));
+    }
+    // One finding per file: the first flagged chunk.
+    Map<String, Fact> byFile = new LinkedHashMap<>();
+    found.forEach(f -> byFile.putIfAbsent(f.subject().toString(), f));
+    if (!result.suspected().isEmpty()) {
+      LOG.warn("Injection screen: text addressed to an AI in {} files", byFile.size());
+    }
+    if (!result.complete()) {
+      LOG.warn("Injection screen: not every chunk was answered; earlier findings are kept");
+      return List.copyOf(byFile.values());
+    }
+    transaction.executeWithoutResult(
+        status ->
+            facts.recordDerived(
+                snapshot.number(),
+                Findings.SCREEN_ORIGIN,
+                snapshot.commits().keySet(),
+                byFile.values()));
+    return List.copyOf(byFile.values());
   }
 
   /**

@@ -26,6 +26,7 @@ public final class Harness {
   private final Map<String, RoleSession> sessions = new LinkedHashMap<>();
   private final Map<String, io.lantern.llm.BudgetGuard> guards = new LinkedHashMap<>();
   private final Map<String, java.math.BigDecimal> planned = new LinkedHashMap<>();
+  private final Map<String, Shown> shown = new LinkedHashMap<>();
 
   /**
    * @param client the LLM client, with the run's other budgets
@@ -73,6 +74,30 @@ public final class Harness {
             this, spec, client, new RoleRecord(spec.name(), model.provider(), model.model()));
     sessions.put(spec.name(), session);
     return session;
+  }
+
+  /**
+   * A file whose text entered a prompt, as the prompt showed it (secrets masked), for the injection
+   * screen (ADR 0101).
+   *
+   * @param repo the repository
+   * @param path the file's path in it
+   * @param blob the file's git blob
+   * @param text the file's text as shown
+   */
+  public record Shown(String repo, String path, String blob, String text) {}
+
+  /** Notes that a prompt showed the file's text; the first showing of a blob is kept. */
+  public synchronized void showed(String repo, String path, String blob, String text) {
+    if (repo != null && path != null && blob != null && text != null) {
+      shown.putIfAbsent(
+          repo + "\u0000" + path + "\u0000" + blob, new Shown(repo, path, blob, text));
+    }
+  }
+
+  /** The files whose text entered a prompt in this run, in the order first shown. */
+  public synchronized List<Shown> shown() {
+    return List.copyOf(shown.values());
   }
 
   /** The model configured for the role. */

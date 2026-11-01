@@ -123,6 +123,10 @@ class Project0EndToEndIT {
       return new FakeLlmProvider()
           .answering(
               request -> {
+                String check = FakeLlmConfiguration.modelCheck(request);
+                if (check != null) {
+                  return check;
+                }
                 String prompt = request.messages().getFirst().text();
                 if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                   return "{}";
@@ -385,7 +389,10 @@ class Project0EndToEndIT {
                         subject ->
                             askedByRecord.add(
                                 role.get("role").asString() + " " + subject.asString())));
-    assertThat(askedByRecord)
+    // The injection screen reads the changed file again (ADR 0101): its new blob is new text.
+    String screened = "injection-screen payments:" + path + ":";
+    assertThat(askedByRecord).anySatisfy(item -> assertThat(item).startsWith(screened));
+    assertThat(askedByRecord.stream().filter(item -> !item.startsWith(screened)))
         .containsExactlyInAnyOrder(
             "summarize type:com.acme.shop.payments.PaymentController",
             "summarize type:com.acme.shop.payments.PaymentController$Charge",

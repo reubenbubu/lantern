@@ -30,7 +30,7 @@ Options:
                             Default: \$LANTERN_LLM_PROPERTIES.
   --mirror-properties FILE  Optional Maven mirror settings (docs/adr/0030-maven-mirror.md).
   --role ROLE=MODEL         Serve ROLE (summarize, resolve, infer-intent, name-groups,
-                            propose-rules, compose, translate) with the model named MODEL
+                            propose-rules, compose, translate, judge, screen) with the model named MODEL
                             under lantern.llm.models, for this run. Repeatable.
   --tier TIER=MODEL         The same for a tier (high-volume, reasoning). Repeatable.
   --label NAME              Names this run's folder of scorecards. Default: the date and

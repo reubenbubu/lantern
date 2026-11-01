@@ -130,6 +130,7 @@ public final class GraphTools implements ToolBox {
   private final Set<String> secretKeys;
   private final Map<String, Fact> shown = new LinkedHashMap<>();
   private final Map<String, io.lantern.harness.FileRead> read = new LinkedHashMap<>();
+  private final Map<String, io.lantern.harness.Harness.Shown> texts = new LinkedHashMap<>();
   private final Map<String, String> refs = new HashMap<>();
 
   private GraphTools(Graph graph) {
@@ -146,6 +147,11 @@ public final class GraphTools implements ToolBox {
    */
   public synchronized List<io.lantern.harness.FileRead> filesRead() {
     return List.copyOf(read.values());
+  }
+
+  /** The files {@code read_file} has shown so far, as shown (secrets masked), for the screen. */
+  public synchronized List<io.lantern.harness.Harness.Shown> textsShown() {
+    return List.copyOf(texts.values());
   }
 
   /** The facts the tools have shown so far, by reference, in the order shown. */
@@ -355,6 +361,14 @@ public final class GraphTools implements ToolBox {
               repo, path, io.lantern.harness.Fingerprints.gitBlob(content.get())));
     }
     String text = masked(path, content.get(), secretKeys);
+    if (text != null) {
+      synchronized (this) {
+        texts.putIfAbsent(
+            repo + '\u0000' + path,
+            new io.lantern.harness.Harness.Shown(
+                repo, path, io.lantern.harness.Fingerprints.gitBlob(content.get()), text));
+      }
+    }
     if (text == null) {
       return LlmToolResult.error(
           call, path + " is not shown: it is binary, or a key or keystore that holds secrets.");

@@ -44,6 +44,10 @@ class FakeLlmConfiguration {
         .simulatingPromptCache()
         .answering(
             request -> {
+              String check = modelCheck(request);
+              if (check != null) {
+                return check;
+              }
               if (request.role() == Role.COMPOSE && flow(request)) {
                 // A flow's title is a heading: marked as the fake's, so the reader ignores it.
                 return "{\"title\": {\"text\": \"" + FLOW_TITLE + "\", \"cites\": [\"F1\"]}}";
@@ -66,6 +70,33 @@ class FakeLlmConfiguration {
               }
               return String.join(" ", sentences);
             });
+  }
+
+  /**
+   * The fake's answer to a model check (ADR 0101), or null for another role: every text supported
+   * and nothing addressed to an AI, so fake runs show what the checks cost and change no document.
+   */
+  static String modelCheck(LlmRequest request) {
+    if (request.role() == Role.JUDGE) {
+      return items(
+          request, "{\"claims\": [{\"claim\": \"The text.\", \"verdict\": \"supported\"}]}");
+    }
+    if (request.role() == Role.SCREEN) {
+      return items(request, "{\"suspected\": false}");
+    }
+    return null;
+  }
+
+  /** An answer envelope giving every item of the request the same entry. */
+  private static String items(LlmRequest request, String entry) {
+    java.util.regex.Matcher ids =
+        java.util.regex.Pattern.compile("<item id=\"(I[0-9]+)\">")
+            .matcher(request.messages().getFirst().text());
+    List<String> entries = new ArrayList<>();
+    while (ids.find()) {
+      entries.add("\"" + ids.group(1) + "\": " + entry);
+    }
+    return "{\"items\": {" + String.join(", ", entries) + "}}";
   }
 
   /** The title the fake gives a flow, where a model words the scenario the flow is. */

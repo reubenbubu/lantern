@@ -572,6 +572,9 @@ public final class Summarizer {
         }
       }
       Optional<String> read = sources.shown(evidence);
+      // The injection screen reads every file a prompt showed (ADR 0101).
+      read.ifPresent(
+          text -> harness.showed(evidence.repo(), evidence.path(), evidence.blob(), text));
       synchronized (files) {
         files.put(file, read);
       }

@@ -66,6 +66,15 @@ public final class Findings implements LinkRule.OverFacts {
   public static final String UNROUTED_ENDPOINT = "unrouted-endpoint";
   public static final String README_CONTRADICTION = "readme-contradiction";
 
+  /**
+   * A chunk of a file the injection screen found addressed to an AI (ADR 0101). Unlike the other
+   * kinds it is raised by a model, after derivation, with origin {@code llm}.
+   */
+  public static final String INJECTION_SUSPECTED = "injection-suspected";
+
+  /** The origin of the injection screen's findings (ADR 0101). */
+  public static final Origin SCREEN_ORIGIN = new Origin(Origin.Kind.LLM, "injection-screen", "1");
+
   /** How an end-of-life finding's version is in use: see {@link #endOfLife}. */
   public static final String VIA_UNIT = "unit";
 
@@ -383,6 +392,37 @@ public final class Findings implements LinkRule.OverFacts {
               1.0,
               validity));
     }
+  }
+
+  /**
+   * The finding that the screen flagged lines of a file as addressed to an AI (ADR 0101), keyed by
+   * the file: {@code finding:injection-suspected/<repo>:<path>}.
+   */
+  public static Fact injectionSuspected(
+      String repo, String path, String blob, int from, int to, String quote, long snapshot) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("about", "file:" + repo + ":" + path);
+    attributes.put("repo", repo);
+    attributes.put("rule", "injection-screen/" + INJECTION_SUSPECTED);
+    attributes.put("lines", from + "-" + to);
+    attributes.put("quote", quote);
+    return Fact.create(
+        id(INJECTION_SUSPECTED, repo + ":" + path),
+        RAISED,
+        FactObject.string(INJECTION_SUSPECTED),
+        attributes,
+        SCREEN_ORIGIN,
+        new io.lantern.core.fact.Evidence(
+            java.util.List.of(
+                new io.lantern.core.fact.Evidence.Location(
+                    repo,
+                    path,
+                    new io.lantern.core.fact.Evidence.LineRange(from, to),
+                    blob,
+                    null,
+                    io.lantern.core.fact.Evidence.Role.DECLARED))),
+        0.8,
+        Validity.from(snapshot));
   }
 
   private static void strings(ObjectNode attributes, String name, Collection<?> values) {

@@ -18,6 +18,7 @@ import io.lantern.harness.Repair;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
+import io.lantern.harness.checks.SupportJudge;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
@@ -269,7 +270,13 @@ public final class Describer {
         evidence ->
             read.computeIfAbsent(
                 evidence.repo() + '\u0000' + evidence.blob() + '\u0000' + evidence.path(),
-                f -> sources.shown(evidence));
+                f -> {
+                  Optional<String> text = sources.shown(evidence);
+                  // The injection screen reads every file a prompt showed (ADR 0101).
+                  text.ifPresent(
+                      t -> harness.showed(evidence.repo(), evidence.path(), evidence.blob(), t));
+                  return text;
+                });
     Set<String> documented = new TreeSet<>();
     for (EntityId unit : C4Views.units(knowledge)) {
       question(unit, knowledge, assembler, c4, alternatives, files, documented)
@@ -316,8 +323,22 @@ public final class Describer {
         tally.reused,
         tally.rejected.size(),
         tally.skipped.size());
+    // The support judge checks a sample of the sentences; one it finds unsupported is marked, not
+    // dropped (ADR 0101).
+    Map<String, SupportJudge.Support> verdicts =
+        new SupportJudge(harness).judge(List.copyOf(tally.judgeable.values()), Set.of());
+    Set<EntityId> unsupported = new TreeSet<>(java.util.Comparator.comparing(EntityId::toString));
+    tally.judgeable.forEach(
+        (element, text) -> {
+          if (verdicts.get(text.key()) == SupportJudge.Support.UNSUPPORTED) {
+            unsupported.add(element);
+          }
+        });
+    LOG.info(
+        "Support judge: {} sentences checked, {} unsupported", verdicts.size(), unsupported.size());
     return new Result(
-        new Wordings(tally.responsibilities, tally.phrases, tally.flows, documented),
+        new Wordings(tally.responsibilities, tally.phrases, tally.flows, documented)
+            .withUnsupported(unsupported),
         tally.asked,
         tally.reused,
         tally.rejected,
@@ -327,6 +348,8 @@ public final class Describer {
   /** What the answers of a run add up to. */
   private static final class Tally {
     final Map<EntityId, String> responsibilities = new HashMap<>();
+    final Map<EntityId, SupportJudge.Text> judgeable =
+        new java.util.TreeMap<>(java.util.Comparator.comparing(EntityId::toString));
     final Map<String, Wordings.Phrase> phrases = new HashMap<>();
     final Map<String, Wordings.Flow> flows = new HashMap<>();
     final List<EntityId> rejected = new ArrayList<>();
@@ -350,7 +373,7 @@ public final class Describer {
           if (flow(question)) {
             flows.put(Wordings.flowKey(question.user()), flow(question, outcome.answer()));
           } else {
-            resolve(question, outcome.answer(), responsibilities, phrases);
+            resolve(question, outcome.answer(), responsibilities, phrases, judgeable);
           }
         }
       }
@@ -871,17 +894,29 @@ public final class Describer {
       Question question,
       WordingAnswer answer,
       Map<EntityId, String> responsibilities,
-      Map<String, Wordings.Phrase> phrases) {
+      Map<String, Wordings.Phrase> phrases,
+      Map<EntityId, SupportJudge.Text> judgeable) {
     answer
         .items()
         .forEach(
             (ref, item) -> {
               if (ref.equals(question.about())) {
                 sentence(question, item)
-                    .ifPresent(s -> responsibilities.put(question.element(), s));
+                    .ifPresent(
+                        s -> {
+                          responsibilities.put(question.element(), s);
+                          judgeable.put(
+                              question.element(), judged(question, question.element(), item));
+                        });
               } else if (question.components().containsKey(ref)) {
                 EntityId type = question.components().get(ref);
-                sentence(question, item).ifPresent(s -> responsibilities.putIfAbsent(type, s));
+                sentence(question, item)
+                    .ifPresent(
+                        s -> {
+                          if (responsibilities.putIfAbsent(type, s) == null) {
+                            judgeable.put(type, judged(question, type, item));
+                          }
+                        });
               } else if (question.relationships().containsKey(ref)) {
                 List<String> cited = new ArrayList<>();
                 for (String cite : item.cites()) {
@@ -913,6 +948,25 @@ public final class Describer {
         title == null || !texts.containsKey(WordingPrompt.TITLE)
             ? null
             : title.text().replaceAll("[.\\s]+$", ""));
+  }
+
+  /**
+   * A responsibility sentence as the support judge sees it (ADR 0101): the text, and each fact it
+   * cites as the prompt showed it.
+   */
+  private static SupportJudge.Text judged(
+      Question question, EntityId element, WordingAnswer.Item item) {
+    List<String> cited = new ArrayList<>();
+    List<String> lines = question.user().lines().map(String::strip).toList();
+    for (String cite : item.cites()) {
+      String opening = "[" + cite + "] ";
+      lines.stream()
+          .filter(line -> line.startsWith(opening))
+          .findFirst()
+          .filter(line -> !cited.contains(line))
+          .ifPresent(cited::add);
+    }
+    return new SupportJudge.Text(element.toString(), item.text(), cited);
   }
 
   private static Optional<String> sentence(Question question, WordingAnswer.Item item) {

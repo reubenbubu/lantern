@@ -533,6 +533,12 @@ public final class LinkResolver implements LinkRule.OverFacts {
                     ResolutionJson.write(resolution),
                     tools == null ? List.of() : tools.filesRead());
               } finally {
+                // The injection screen reads every file a tool showed (ADR 0101).
+                if (tools != null) {
+                  tools
+                      .textsShown()
+                      .forEach(f -> harness.showed(f.repo(), f.path(), f.blob(), f.text()));
+                }
                 // Whatever ended the conversation unchecked, it is still logged.
                 conversation.end(LlmConversation.Ending.FAILED, "Ended without a checked answer");
               }

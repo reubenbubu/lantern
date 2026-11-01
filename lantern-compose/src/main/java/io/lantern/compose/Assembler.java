@@ -47,6 +47,9 @@ final class Assembler {
    */
   static final String INFERRED_SENTENCE = "Inferred:";
 
+  /** What opens a sentence the support judge found unsupported by its sources (ADR 0101). */
+  static final String UNSUPPORTED = "Not supported by its sources:";
+
   /**
    * What opens a deployable unit's description taken from its module's summary because the unit has
    * no responsibility sentence (ADR 0066), when the summary's purpose is evidenced.
@@ -329,7 +332,7 @@ final class Assembler {
   }
 
   private Text purpose(Text text) {
-    return evidenced(text, false) ? text : inferred(text);
+    return unsupported(RepoSections.SYSTEM, evidenced(text, false) ? text : inferred(text));
   }
 
   /**
@@ -338,7 +341,15 @@ final class Assembler {
    */
   private Text responsibility(EntityId about, String sentence) {
     Text text = rich(about, sentence);
-    return evidenced(text, true) ? text : opened(INFERRED_SENTENCE, text);
+    return unsupported(about, evidenced(text, true) ? text : opened(INFERRED_SENTENCE, text));
+  }
+
+  /**
+   * The text opened with {@value #UNSUPPORTED}, emphasized, when the support judge found the
+   * element's sentence unsupported by its cited facts (ADR 0101); otherwise as it is.
+   */
+  private Text unsupported(EntityId about, Text text) {
+    return wordings.unsupported().contains(about) ? opened(UNSUPPORTED, text) : text;
   }
 
   /**
