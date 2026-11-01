@@ -124,7 +124,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
     share: what the group has spent, less the estimates of what it has admitted and not settled.
     An item that does not fit waits for a later round, and the smaller items behind it that fit
     are admitted (#661); an item that rests on one that waits waits with it, so Summarize never
-    asks a unit while one of its parts waits, since its prompt would lack that part's summary.
+    asks a unit while one of its parts waits, since its prompt would lack that part's summary. Under a tight share Summarize therefore spreads sideways: a large unit that does not fit, and the units above it, wait while smaller units of other subtrees take the share, so the parts of a unit left out may be summarized without it.
     Once every item of the round has an outcome (or has ended without one), the next round walks
     what still waits, from what is really left. A round that admits nothing ends the group's
     rounds: what still waits is not asked. A round is decided only when nothing of the group is in

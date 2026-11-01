@@ -155,6 +155,9 @@ final class ShareRounds {
    * room: the rest are not asked.
    */
   private void decide() {
+    // Items a role plans while a round is open join that round; only a decide on an empty round
+    // starts a new one.
+    boolean fresh = round.isEmpty();
     BigDecimal base = base();
     Map<RoleSession, List<Entry>> byRole = byRole();
     Map<RoleSession, BigDecimal> costs = new LinkedHashMap<>();
@@ -200,7 +203,9 @@ final class ShareRounds {
     waiting.clear();
     waiting.addAll(still);
     if (admitted > 0) {
-      rounds++;
+      if (fresh || rounds == 0) {
+        rounds++;
+      }
       LOG.info(
           "Budget round {} of {}: {} items admitted, {} wait, ${} of ${} spent or expected",
           rounds,
