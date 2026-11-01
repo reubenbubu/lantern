@@ -223,6 +223,29 @@ class Project0EndToEndIT {
                 vocabulary.current(),
                 facts.findValidAt(first.snapshot().number(), commits.keySet())))
         .isEmpty();
+    // Investigate leads (#524): none where project-0's cases say there is nothing to suspect.
+    // Its schemas are migrated (DB-3, DB-4), its secrets are placeholders the environment fills
+    // (VAL-5), it has no frontend and no CORS policy, every call matches an endpoint, and nothing
+    // sends inside a transaction or reads an identity from a request.
+    List<String> leads =
+        facts.findValidAt(first.snapshot().number()).stream()
+            .filter(f -> f.predicate().equals("lead-trigger"))
+            .map(f -> f.subject().key())
+            .sorted()
+            .toList();
+    assertThat(leads)
+        .as("leads on project-0")
+        .noneMatch(
+            l ->
+                l.startsWith("schema-unmanaged/")
+                    || l.startsWith("plaintext-secret/")
+                    || l.startsWith("environment-baked/")
+                    || l.startsWith("open-cors/")
+                    || l.startsWith("contract-mismatch/"))
+        // Compose runs each service once, and catalog-service and fulfilment each serve two units.
+        .containsExactly(
+            "single-instance/service:com.acme.shop:catalog-service",
+            "single-instance/service:com.acme.shop:fulfilment");
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
     // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5.

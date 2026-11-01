@@ -1,0 +1,52 @@
+[
+  {
+    "kind": "identity-from-request",
+    "trigger": "A header, cookie or query parameter read by a unit's code (a handler's binding or a call on the request, in any class) whose name, case and dashes and underscores ignored, is user, account, member, role, permission, tenant, org or organization, optionally after x and followed by id, ids or s. One lead per unit and value.",
+    "judge": "Whether anything strips or verifies the value on every path that reaches the unit."
+  },
+  {
+    "kind": "send-before-commit",
+    "trigger": "A message send, HTTP call or mail send in code a method running in a read-write transaction (@Transactional on it or its class) reaches through the call graph, with no @TransactionalEventListener, afterCommit or outbox on the way. One lead per unit and sending method.",
+    "judge": "Whether a consumer can act before the data commits, and what then breaks."
+  },
+  {
+    "kind": "contract-mismatch",
+    "trigger": "A call from one unit to another whose method and path match no endpoint of the unit it reaches (the receiver has endpoints and is not a gateway); or a frontend's call that matches an endpoint no route of the gateway reaches.",
+    "judge": "Whether it fails, works by accident, or is dead code."
+  },
+  {
+    "kind": "weak-access-check",
+    "trigger": "A POST, PUT, PATCH or DELETE endpoint whose access check (method security or a custom check an aspect makes) names a permission ending in READ or VIEW, or that has none in a unit whose other endpoints have one.",
+    "judge": "Whether the check lets callers do more than the permission says."
+  },
+  {
+    "kind": "shared-type-skew",
+    "trigger": "A type passed as a message payload or an HTTP client's request or response, declared in an in-set library that the units passing it bundle at different versions (version-skew).",
+    "judge": "Whether the type differs between the versions in a way that breaks reading."
+  },
+  {
+    "kind": "single-instance",
+    "trigger": "A unit or data store every deployment environment runs with replicas 1 or unset, that two or more units interact with; or a unit whose STOMP broker is the simple broker, with no relay.",
+    "judge": "What stops when it fails."
+  },
+  {
+    "kind": "plaintext-secret",
+    "trigger": "A config value whose key names a secret, written as a literal (masked); a signing secret several units share (shared-secret); a Kubernetes Secret written as stringData.",
+    "judge": "What holding it allows."
+  },
+  {
+    "kind": "environment-baked",
+    "trigger": "A frontend's base URL whose host is localhost or a private address, in the environment file its default build uses, or in its code.",
+    "judge": "Where the build works and where it does not."
+  },
+  {
+    "kind": "open-cors",
+    "trigger": "A CORS policy (code, config or an ingress annotation) whose allowed origins are every origin, *, also as a placeholder's default.",
+    "judge": "What a browser will and will not do."
+  },
+  {
+    "kind": "schema-unmanaged",
+    "trigger": "spring.jpa.hibernate.ddl-auto set to update, create or create-drop in the default view or a profile whose name does not say test, for a module with no Flyway or Liquibase migrations.",
+    "judge": "What happens to data on a schema change."
+  }
+]
