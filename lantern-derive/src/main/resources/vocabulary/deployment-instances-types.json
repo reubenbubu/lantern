@@ -2,7 +2,8 @@
   {
     "name": "deployment-instance",
     "kind": "entity",
-    "description": "A container a deployment descriptor runs in one environment, keyed on the name the environment gives it (#617)."
+    "description": "A container a deployment descriptor runs in one environment, keyed on the name the environment gives it (#617). Its key is the platform, ':', the environment ('-' for none), '/' and the name, such as compose:local/postgres.",
+    "attributeSchema": { "additionalProperties": false }
   },
   {
     "name": "deployed-as",
