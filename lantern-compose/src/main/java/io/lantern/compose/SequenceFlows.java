@@ -52,34 +52,10 @@ final class SequenceFlows {
   /** The fewest flows a scope shows; flows that reach only databases fill up to it. */
   static final int MIN_FLOWS = 3;
 
-  /** The most implementations a call is drawn into, as the operands of one frame. */
-  static final int MAX_ALTERNATIVES = 4;
-
-  /** The most messages one flow shows before the trace stops. */
-  static final int MAX_MESSAGES = 40;
-
-  /** The most steps, notes included, one flow shows before the trace stops. */
-  static final int MAX_STEPS = 2 * MAX_MESSAGES;
-
-  private static final String METHOD = "method";
-
-  /** The name of a constructor in a method's ID (ADR 0007). */
-  private static final String CONSTRUCTOR = "<init>(";
-
   private static final String ENDPOINT = "endpoint";
   private static final String MESSAGE_LISTENER = "message-listener";
-  private static final String SCHEDULED = "scheduled";
   private static final String STOMP_MAPPING = "stomp-mapping";
-  private static final String STOMP_SEND = "stomp-send";
   private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
-  private static final String STOMP_INTERCEPTOR = "stomp-interceptor";
-  private static final String ROUTED_ENDPOINT = "routed-endpoint";
-  private static final String BACKGROUND_JOB = "background-job";
-  private static final String PROFILE_GATE = "profile-gate";
-  private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
-  private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
-  private static final String READS_TABLE = "READS_TABLE";
-  private static final String WRITES_TABLE = "WRITES_TABLE";
 
   private static final String UNKNOWN = "Not known from the code.";
 

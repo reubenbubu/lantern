@@ -34,17 +34,17 @@ import tools.jackson.databind.node.ObjectNode;
  * FlowModel.Flow#candidate}).
  *
  * <ul>
- *   <li>{@code flow:<entry point's claim>} {@code TRIGGERED_BY} the entry point's method, with how
- *       the flow starts (in a browser, at a gateway, or at the entry point);
+ *   <li>{@code flow:<unit>/<entry point's claim>} {@code TRIGGERED_BY} the entry point's method,
+ *       with how the flow starts (in a browser, at a gateway, or at the entry point);
  *   <li>its {@code flow-shape}: a hash of how it starts and the ordered (from, to, kind, link) of
  *       its messages, with its {@code content} (a hash of its steps' facts, so a judgement of the
  *       flow is stale when it differs), whether the 40-message bound {@code truncated} it, and the
  *       participants it reaches;
- *   <li>{@code SAME_SHAPE_AS} the flow of its shape whose entry point's claim sorts first;
+ *   <li>{@code SAME_SHAPE_AS} the flow of its shape whose key sorts first;
  *   <li>each step, {@code flow-step:<flow's key>/<claim of the fact it follows>/<k>} {@code
- *       STEP_OF} its flow, k counting repeats of that fact in the flow, so a step inserted renames
- *       no other (#615); with its order, action, ends, kind and Spring profiles, and the frame
- *       operand it sits in.
+ *       STEP_OF} its flow, k counting repeats of that fact in the flow, so a step following another
+ *       fact renames no other (#615); with its order, action, ends, kind and Spring profiles, and
+ *       the frame operand it sits in.
  * </ul>
  *
  * Every fact cites the facts it rests on; a flow's all have the evidence of its entry point, so a
@@ -113,7 +113,7 @@ public final class Flows implements LinkRule.OverFacts {
     Knowledge knowledge = new Knowledge(facts);
     List<Flow> flows = new FlowTracer(knowledge).trace(Flows::id);
     Validity validity = Validity.from(snapshot);
-    // The flow of each shape whose entry point's claim sorts first stands for the others.
+    // The flow of each shape whose key sorts first stands for the others.
     Map<String, Flow> first = new TreeMap<>();
     Map<Flow, String> shapes = new HashMap<>();
     for (Flow flow : flows) {

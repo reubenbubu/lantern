@@ -957,7 +957,7 @@ class SequenceFlowsTest {
   @Test
   void aCallWithMoreImplementationsThanAFrameHoldsIsANote() {
     type("front", "x.front", "x.front.Notifier", "interface", "send()");
-    for (int i = 1; i <= SequenceFlows.MAX_ALTERNATIVES + 1; i++) {
+    for (int i = 1; i <= io.lantern.derive.Flows.MAX_ALTERNATIVES + 1; i++) {
       type("front", "x.front", "x.front.N" + i, "class", "send()");
       relate("front", "type:x.front.N" + i, "IMPLEMENTS", "type:x.front.Notifier", "{}", 0);
     }
@@ -1137,7 +1137,7 @@ class SequenceFlowsTest {
 
   @Test
   void theTraceStopsAfterTheMostMessagesAFlowShows() {
-    for (int i = 0; i < SequenceFlows.MAX_MESSAGES + 5; i++) {
+    for (int i = 0; i < io.lantern.derive.Flows.MAX_MESSAGES + 5; i++) {
       httpCall("ship", SHIP, NIGHTLY, "e" + i + ".example.com", 10 + i);
     }
 
@@ -1145,7 +1145,7 @@ class SequenceFlowsTest {
         diagram(flow(system(facts), "Nightly.run on its schedule in ship")).steps();
 
     assertThat(steps.stream().filter(SequenceDiagram.Message.class::isInstance))
-        .hasSize(SequenceFlows.MAX_MESSAGES);
+        .hasSize(io.lantern.derive.Flows.MAX_MESSAGES);
     assertThat(steps(List.of(steps.getLast())))
         .containsExactly("note []: The trace stops here, after 40 messages.");
   }

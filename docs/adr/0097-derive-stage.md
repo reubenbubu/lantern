@@ -128,10 +128,14 @@ The agent decided these under the owner's standing go-ahead for 1D.
   that the trace stopped).
 - **Who uses the screens is the scope's.** The stored flow names the person the whole system
   shows; a repository's document draws the person its own people give, as before.
+- **The stored trace counts the system's person.** It counts the "uses the screens" message of
+  the person the whole system shows, so a flow near the 40-message bound in a repository whose own
+  people give no person stops one message earlier there than its trace did before, and its stored
+  `messages`, `content` and `truncated` are the system's. None of the test sets has such a flow.
 - **A flow is drawn whole or not at all.** A document composed from part of the snapshot's facts
   (a repository's, in a run that carries other repositories forward) leaves out a flow resting on
   a fact it does not hold, since it could not cite it; before, it traced the flow from the facts
-  it held. In a run of every repository, as the test sets are run, every flow holds.
+  it held. In a run of every repository, as the test sets are run, every flow holds; a partial run losing the flows that reach repositories it carries forward is #631.
 - **The shape is the epic's, the composer's check is not yet.** `flow-shape` hashes how a flow
   starts and the ordered sender, receiver, kind and link of its messages (#615), and
   `SAME_SHAPE_AS` links each flow to the one of its shape whose key sorts first. The composer

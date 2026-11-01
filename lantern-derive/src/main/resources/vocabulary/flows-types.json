@@ -14,7 +14,7 @@
   {
     "name": "TRIGGERED_BY",
     "kind": "relationship",
-    "keyAttributes": ["frontend", "gateway", "person", "start", "through", "unit"],
+    "keyAttributes": ["frontend", "gateway", "start", "through", "unit"],
     "description": "The subject flow starts when the object method's entry point is triggered (#618): in a browser, at a gateway that routes a request to it, or at the entry point itself.",
     "attributeSchema": {
       "type": "object",
@@ -22,7 +22,7 @@
         "unit": { "type": "string", "description": "The deployable unit whose entry point it is." },
         "trigger": { "type": "string", "description": "The fact that makes the method an entry point: an endpoint, a message listener, a STOMP mapping, a WebSocket endpoint, a schedule or a background job." },
         "start": { "type": "string", "enum": ["browser", "gateway"], "description": "How it starts before the entry point: a frontend's call in a browser, or a gateway routing a client's request; absent when it starts at the entry point." },
-        "person": { "type": "string", "description": "For a browser start, the person who uses the frontend, if one has screens on it." },
+        "person": { "type": "string", "description": "For a browser start, the person who uses the frontend: the one with the most screens on it, if any. Descriptive: a document draws the person its own scope gives." },
         "frontend": { "type": "string", "description": "For a browser start, the frontend that calls." },
         "link": { "type": "string", "description": "For a browser start, the frontend's call (its CALLS_HTTP fact)." },
         "through": { "type": "string", "description": "For a browser start, the gateway the call goes through, if any." },

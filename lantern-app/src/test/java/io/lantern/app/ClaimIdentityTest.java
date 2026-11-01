@@ -108,7 +108,7 @@ class ClaimIdentityTest {
           Map.entry("claim-contradiction", Set.of("claim", "contradictedBy")),
           // Since #618, the flows: the facts a flow starts from are lineage; a step's order is
           // descriptive (epic, section 9); what a flow's shape sums up is descriptive.
-          Map.entry("TRIGGERED_BY", Set.of("trigger", "link", "route", "routed")),
+          Map.entry("TRIGGERED_BY", Set.of("trigger", "link", "route", "routed", "person")),
           Map.entry("STEP_OF", Set.of("order")),
           Map.entry(
               "flow-shape",

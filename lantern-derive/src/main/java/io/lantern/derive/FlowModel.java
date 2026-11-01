@@ -161,7 +161,7 @@ public final class FlowModel {
   /**
    * A flow traced from an entry point.
    *
-   * @param id its entity, {@code flow:<the entry point's claim>}
+   * @param id its entity, {@code flow:<unit>/<the entry point's claim>}
    * @param unit the unit whose entry point starts it
    * @param method the entry point's method
    * @param trigger the fact that makes the method an entry point (an endpoint, a listener ...)
