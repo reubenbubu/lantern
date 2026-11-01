@@ -24,6 +24,31 @@ class PricingTest {
   }
 
   @Test
+  void aOneHourCacheWriteHasItsOwnPrice() {
+    Pricing pricing =
+        new Pricing(
+            BigDecimal.valueOf(3),
+            BigDecimal.valueOf(15),
+            new BigDecimal("3.75"),
+            new BigDecimal("0.3"),
+            BigDecimal.valueOf(6));
+
+    assertThat(pricing.cost(new TokenUsage(0, 0, 0, 0, 1_000_000))).isEqualByComparingTo("6");
+    assertThat(pricing.batchCost(new TokenUsage(0, 0, 0, 0, 1_000_000))).isEqualByComparingTo("3");
+    // Left out, it is twice the input price, as on Anthropic.
+    assertThat(
+            new Pricing(
+                    BigDecimal.valueOf(3),
+                    BigDecimal.valueOf(15),
+                    new BigDecimal("3.75"),
+                    new BigDecimal("0.3"))
+                .cacheWriteLong())
+        .isEqualByComparingTo("6");
+    assertThat(new TokenUsage(1, 2, 3, 4, 5).total()).isEqualTo(15);
+    assertThat(new TokenUsage(1, 2, 3, 4, 5).cacheAsInput()).isEqualTo(new TokenUsage(13, 2, 0, 0));
+  }
+
+  @Test
   void modelConfigsAreChecked() {
     assertThatThrownBy(() -> new ModelConfig("p", " ", Set.of(), 10, Pricing.FREE))
         .isInstanceOf(IllegalArgumentException.class);

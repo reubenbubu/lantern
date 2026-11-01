@@ -191,6 +191,45 @@ class AnthropicProviderTest {
     assertThat(response.usage().total()).isEqualTo(1 + 5 + 1234 + 66);
   }
 
+  @Test
+  void aOneHourCacheWriteIsCountedApartFromAFiveMinuteOne() {
+    responseBody =
+        """
+        {"id": "msg_local", "type": "message", "role": "assistant", "model": "local-model",
+         "content": [{"type": "text", "text": "An order aggregate."}],
+         "stop_reason": "end_turn", "stop_sequence": null,
+         "usage": {"input_tokens": 1, "output_tokens": 5,
+                   "cache_creation_input_tokens": 1234, "cache_read_input_tokens": 66,
+                   "cache_creation": {"ephemeral_5m_input_tokens": 234,
+                                      "ephemeral_1h_input_tokens": 1000}}}
+        """;
+    ModelConfig model =
+        new ModelConfig(
+            AnthropicProvider.NAME,
+            "local-model",
+            Set.of(Capability.PROMPT_CACHING),
+            100_000,
+            new Pricing(
+                BigDecimal.valueOf(3),
+                BigDecimal.valueOf(15),
+                new BigDecimal("3.75"),
+                new BigDecimal("0.3"),
+                BigDecimal.valueOf(6)));
+
+    LlmResponse response;
+    try (AnthropicProvider provider = provider()) {
+      response =
+          provider.complete(
+              model,
+              LlmRequest.of(Role.SUMMARIZE, "summarize", "You summarize.", "class O", 50)
+                  .withLongLivedCache());
+    }
+
+    assertThat(response.usage()).isEqualTo(new TokenUsage(1, 5, 234, 66, 1000));
+    // 1 x $3 + 5 x $15 + 234 x $3.75 + 66 x $0.30 + 1000 x $6, per million tokens.
+    assertThat(model.pricing().cost(response.usage())).isEqualByComparingTo("0.0069753");
+  }
+
   /** Two calls of one role, as a summarizer makes them: one system prompt, other user turns. */
   private List<JsonNode> twoCallsOfOneRole(ModelConfig model, List<LlmTool> tools) {
     responseBody = LOCAL_SERVER_ANSWER;

@@ -35,6 +35,7 @@ public final class RoleRecord implements LlmCallLog {
   private long input;
   private long output;
   private long cacheWrite;
+  private long cacheWriteLong;
   private long cacheRead;
   private BigDecimal usd = BigDecimal.ZERO;
   private BigDecimal batchUsd = BigDecimal.ZERO;
@@ -62,6 +63,7 @@ public final class RoleRecord implements LlmCallLog {
         call.usage().output(),
         call.usage().cacheWrite(),
         call.usage().cacheRead());
+    cacheWriteLong += call.usage().cacheWriteLong();
     usd = usd.add(call.costUsd());
     if (call.batch()) {
       batchCalls++;
@@ -126,6 +128,20 @@ public final class RoleRecord implements LlmCallLog {
     return batchCalls;
   }
 
+  /** How many items the role planned. */
+  public synchronized int planned() {
+    return planned;
+  }
+
+  /**
+   * How many items landed in a count: cached, accepted (omitted included), dropped, not asked and
+   * failed. Every planned item lands in exactly one, so this equals {@link #planned()} once the
+   * role is done.
+   */
+  public synchronized int settled() {
+    return cached + answered + omitted + dropped + notAsked + failed;
+  }
+
   /** How many items the cache answered. */
   public synchronized int cached() {
     return cached;
@@ -174,6 +190,7 @@ public final class RoleRecord implements LlmCallLog {
     tokens.put("input", input);
     tokens.put("output", output);
     tokens.put("cacheWrite", cacheWrite);
+    tokens.put("cacheWriteLong", cacheWriteLong);
     tokens.put("cacheRead", cacheRead);
     node.put("costUsd", usd.toPlainString());
     node.put("batchCostUsd", batchUsd.toPlainString());

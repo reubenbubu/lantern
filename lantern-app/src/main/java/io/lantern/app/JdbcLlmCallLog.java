@@ -40,10 +40,10 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             """
             INSERT INTO llm_calls (started_at, duration_ms, role, purpose, provider, model, outcome,
                 input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, error,
-                conversation_id, turn, tool_calls, batch)
+                conversation_id, turn, tool_calls, batch, cache_write_long_tokens)
             VALUES (:startedAt, :durationMs, :role, :purpose, :provider, :model, :outcome,
                 :input, :output, :cacheWrite, :cacheRead, :cost, :error,
-                :conversation, :turn, CAST(:toolCalls AS jsonb), :batch)
+                :conversation, :turn, CAST(:toolCalls AS jsonb), :batch, :cacheWriteLong)
             """)
         .param("startedAt", call.startedAt().atOffset(ZoneOffset.UTC))
         .param("durationMs", Math.max(0, call.duration().toMillis()))
@@ -55,6 +55,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
         .param("input", call.usage().input())
         .param("output", call.usage().output())
         .param("cacheWrite", call.usage().cacheWrite())
+        .param("cacheWriteLong", call.usage().cacheWriteLong())
         .param("cacheRead", call.usage().cacheRead())
         .param("cost", call.costUsd())
         .param("error", call.error())
@@ -71,10 +72,10 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             """
             INSERT INTO llm_conversations (id, started_at, duration_ms, role, purpose, provider,
                 model, turns, tool_calls, input_tokens, output_tokens, cache_write_tokens,
-                cache_read_tokens, cost_usd, ending, error)
+                cache_read_tokens, cost_usd, ending, error, cache_write_long_tokens)
             VALUES (:id, :startedAt, :durationMs, :role, :purpose, :provider, :model, :turns,
                 CAST(:toolCalls AS jsonb), :input, :output, :cacheWrite, :cacheRead, :cost,
-                :ending, :error)
+                :ending, :error, :cacheWriteLong)
             """)
         .param("id", conversation.id())
         .param("startedAt", conversation.startedAt().atOffset(ZoneOffset.UTC))
@@ -88,6 +89,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
         .param("input", conversation.usage().input())
         .param("output", conversation.usage().output())
         .param("cacheWrite", conversation.usage().cacheWrite())
+        .param("cacheWriteLong", conversation.usage().cacheWriteLong())
         .param("cacheRead", conversation.usage().cacheRead())
         .param("cost", conversation.costUsd())
         .param("ending", conversation.ending().name())
@@ -105,7 +107,8 @@ public final class JdbcLlmCallLog implements LlmCallLog {
     jdbc.sql(
             """
             SELECT conversation_id, turn,
-                   input_tokens + output_tokens + cache_write_tokens + cache_read_tokens AS tokens,
+                   input_tokens + output_tokens + cache_write_tokens + cache_read_tokens
+                       + cache_write_long_tokens AS tokens,
                    cost_usd, tool_calls, outcome
             FROM llm_calls
             WHERE conversation_id IS NOT NULL AND started_at >= :since
@@ -131,7 +134,8 @@ public final class JdbcLlmCallLog implements LlmCallLog {
     return jdbc.sql(
             """
             SELECT id, role, purpose, provider, model, turns, tool_calls,
-                   input_tokens + output_tokens + cache_write_tokens + cache_read_tokens AS tokens,
+                   input_tokens + output_tokens + cache_write_tokens + cache_read_tokens
+                       + cache_write_long_tokens AS tokens,
                    cost_usd, ending, error
             FROM llm_conversations
             WHERE started_at >= :since
@@ -233,7 +237,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             """
             SELECT role, count(*) AS calls,
                    coalesce(sum(input_tokens + output_tokens + cache_write_tokens
-                       + cache_read_tokens), 0) AS tokens,
+                       + cache_read_tokens + cache_write_long_tokens), 0) AS tokens,
                    coalesce(sum(cost_usd), 0) AS cost
             FROM llm_calls
             WHERE started_at >= :since
@@ -261,7 +265,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             """
             SELECT role, provider, model, count(*) AS calls,
                    coalesce(sum(input_tokens + output_tokens + cache_write_tokens
-                       + cache_read_tokens), 0) AS tokens,
+                       + cache_read_tokens + cache_write_long_tokens), 0) AS tokens,
                    coalesce(sum(cost_usd), 0) AS cost
             FROM llm_calls
             WHERE started_at >= :since

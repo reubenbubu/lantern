@@ -508,10 +508,25 @@ public final class AnalysisRun {
           described.asked(),
           described.reused(),
           callLog.spentSince(started),
-          harness.records(),
+          checked(harness.records()),
           documents,
           runRecord);
     }
+  }
+
+  /** The records, after warning of a role whose items did not each land in one count (#654). */
+  private static List<io.lantern.harness.RoleRecord> checked(
+      List<io.lantern.harness.RoleRecord> roles) {
+    for (io.lantern.harness.RoleRecord role : roles) {
+      if (role.settled() != role.planned()) {
+        LOG.warn(
+            "{} planned {} items but counted {} outcomes",
+            role.role(),
+            role.planned(),
+            role.settled());
+      }
+    }
+    return roles;
   }
 
   /**

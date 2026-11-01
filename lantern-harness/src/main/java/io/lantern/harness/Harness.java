@@ -25,7 +25,7 @@ public final class Harness {
   private final Set<String> secrets;
   private final Map<String, RoleSession> sessions = new LinkedHashMap<>();
   private final Map<String, io.lantern.llm.BudgetGuard> guards = new LinkedHashMap<>();
-  private final Map<String, java.math.BigDecimal> planned = new LinkedHashMap<>();
+  private final Map<String, java.math.BigDecimal> outstanding = new LinkedHashMap<>();
   private final Map<String, Shown> shown = new LinkedHashMap<>();
   private volatile int batchAbove = BATCH_ABOVE;
 
@@ -144,21 +144,29 @@ public final class Harness {
   }
 
   /**
-   * Adds an item's estimated cost to its group's plan if the plan, or what the group has spent if
-   * more, stays within the group's share.
+   * Holds an item's estimated cost against its group's share if what the group has spent, plus the
+   * estimates of its items not yet settled, plus this one stays within the share. The caller
+   * {@linkplain #unplan releases} it once the item is settled, whose real cost the group's guard
+   * has counted by then, so the check follows what is spent rather than what was estimated.
    */
   synchronized boolean planWithinShare(String group, java.math.BigDecimal cost) {
     java.math.BigDecimal share = budget.share(group);
     if (share == null) {
       return true;
     }
-    java.math.BigDecimal sofar =
-        planned.getOrDefault(group, java.math.BigDecimal.ZERO).max(guard(group).spentCostUsd());
-    if (sofar.add(cost).compareTo(share) > 0) {
+    java.math.BigDecimal held = outstanding.getOrDefault(group, java.math.BigDecimal.ZERO);
+    if (guard(group).spentCostUsd().add(held).add(cost).compareTo(share) > 0) {
       return false;
     }
-    planned.put(group, sofar.add(cost));
+    outstanding.put(group, held.add(cost));
     return true;
+  }
+
+  /** Releases an estimate {@link #planWithinShare} held, once its item is settled. */
+  synchronized void unplan(String group, java.math.BigDecimal cost) {
+    if (budget.share(group) != null) {
+      outstanding.merge(group, cost.negate(), java.math.BigDecimal::add);
+    }
   }
 
   AnswerStore answers() {

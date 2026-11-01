@@ -72,7 +72,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   for a model without prompt caching. They are part of the replay key only when a request sets any,
   so existing recordings still replay.
 - **The agent loop's caps.** `ConversationLimits` caps tool turns, input in fresh-token equivalents
-  (input + 1.25 × cache write + 0.1 × cache read) and output per turn. At 75% of a cap a note after
+  (input + 1.25 × five-minute cache write + 2 × one-hour cache write + 0.1 × cache read) and output per turn. At 75% of a cap a note after
   the tool results asks the model to submit what it has; at the cap the conversation ends as
   `CAPPED`. A reply the caller sends after the model's answer, such as a repair, is not held to the
   caps. Resolve keeps its tools and gets the epic's 6 tool turns and 4,000 output tokens a turn, but
@@ -90,14 +90,16 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   answers as observations comes with the roles that 1F rebuilds and the composer of 1G, which read
   them.
 - **The run record shows each role**: items planned, cached, asked, answered, omitted, dropped, not
-  asked and failed; calls and batch calls; tokens (fresh, cache write, cache read); cost; and the
+  asked and failed; calls and batch calls; tokens (fresh, five-minute and one-hour cache write, cache read); cost; and the
   estimate. It also lists the subjects asked, which the incrementality test reads.
 
 ## Consequences
 
 - A warm rerun of an unchanged snapshot makes no call, and a one-file change re-asks only the items
   whose inputs hold that file's blob or a claim observed in it, plus their parents whose child
-  answer changed (`Project0EndToEndIT`).
+  answer changed (`Project0EndToEndIT`). A change that alters an extracted fact, such as a renamed
+  endpoint path, also re-asks the items that show the facts derived from it, such as a link the
+  rename leaves open and the flows it changes; the test lists exactly those (#654).
 - The first run after V22 re-asks every item once, since the old caches are dropped.
 - A new answer under a new fingerprint is a new row of `llm_answers`; one under a stored
   fingerprint replaces it and becomes the newest. The newest row per role and subject is what a
@@ -115,10 +117,16 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   wins. A share of an unknown group, or shares adding up to more than 100%, stop the app at start.
 - **A share belongs to a group, not a role.** The roles of one group (the describe roles; flow
   narrative and purpose) plan against, and spend from, one share. Before an item is asked, its
-  estimated cost is added to the group's plan, or to what the group has spent if that is more; an
-  item that would pass the share is not asked, and the role stops planning. A call that still goes
-  past the share, because the estimate was low, is refused by the group's guard and its item is not
-  asked either. Nothing not asked is cached, so a later run with room asks it.
+  estimated cost is held against the share; an item whose estimate does not fit beside what the
+  group has spent and the estimates of its items still being asked is not asked. An item's estimate
+  is priced as the plan prices it: the prompt's start read from the cache, a role that groups items
+  paying its share of each request's start, and the batch price when the role batches. Once the
+  item is settled its estimate is released, its real cost counted instead, so the check follows
+  what is spent, not what was estimated (#654). A role that groups items into requests (the judge,
+  the screen) decides all the items of one call on their estimates before any request goes, so it
+  stops at its estimates, short of its share when its answers cost less than estimated. A call that still goes past the share, because the
+  estimate was low, is refused by the group's guard and its item is not asked either. Nothing not
+  asked is cached, so a later run with room asks it.
 - **Each role's estimate is printed before its own first call, not all of them before the run's
   first call.** A role's items depend on earlier roles' answers: a parent summary shows its
   children's, Describe shows the summaries, so their fingerprints and cache hits are only known
@@ -137,7 +145,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
 - **The fake profile simulates the prompt cache.** The fake provider of the `fake-llm` profile
   reports cache writes and reads as a provider with prompt caching would, and the fake models of
   `scripts/score-testsets.sh` declare `prompt-caching` (with zero cache prices for `fake`, and
-  1.25x and 0.1x the input price for `fake-priced`). Fake runs then show in their run record what a
+  1.25x, 2x for a one-hour write, and 0.1x the input price for `fake-priced`). Fake runs then show in their run record what a
   warmed cache saves. The documents do not change: only the reported token split does.
 - **Bulk runs.** Writing the prefix with a one-hour lifetime before a batch is submitted comes with
   the batch path (#527).

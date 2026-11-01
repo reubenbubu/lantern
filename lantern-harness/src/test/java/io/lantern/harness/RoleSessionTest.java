@@ -11,6 +11,7 @@ import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
+import io.lantern.llm.Tokens;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -276,10 +277,39 @@ class RoleSessionTest {
   }
 
   @Test
+  void aRoleThatGroupsItemsIntoRequestsIsPlannedByRequest() {
+    io.lantern.llm.LlmClient priced = client(fake, TestHarness.priced(fake));
+    RoleSession session = harness(priced, store).session(role().withPacketSize(10));
+    List<Item> items = new ArrayList<>();
+    long rendered = 0;
+    for (int i = 0; i < 25; i++) {
+      Item item = item("unit-" + i);
+      items.add(item);
+      rendered += Tokens.estimate(item.rendering());
+    }
+    // Two items of another repository, which go in a request of their own.
+    for (String subject : List.of("x", "y")) {
+      Item item = new Item(subject, "other/" + subject, List.of(), "Describe " + subject + ".");
+      items.add(item);
+      rendered += Tokens.estimate(item.rendering());
+    }
+
+    Estimate estimate = session.plan(items, 0, 0, 0, 1_000);
+
+    // 25 items of one repository go as three requests and the other two as a fourth: the first
+    // writes the prompt's start, the other three read it, and every item's own text is input.
+    assertThat(estimate.toAsk()).isEqualTo(27);
+    assertThat(estimate.cacheWriteTokens()).isEqualTo(1_000);
+    assertThat(estimate.cacheReadTokens()).isEqualTo(3_000);
+    assertThat(estimate.inputTokens()).isEqualTo(rendered);
+  }
+
+  @Test
   void aRoleThatWouldPassItsShareStopsAndItsRemainingItemsAreNotAsked() {
     io.lantern.llm.LlmClient priced = client(fake, TestHarness.priced(fake));
-    // Each item is expected to cost about $0.0005 (100 output tokens at $5 a million); the
-    // summarize group's half of $0.0025 holds two of them.
+    // Each item is expected to cost about $0.0005 (100 output tokens at $5 a million), and each
+    // answer, of about 100 tokens, costs that: the summarize group's half of $0.0025 holds two.
+    fake.answering("\"" + "x".repeat(400) + "\"");
     RunBudget budget =
         new RunBudget(new BigDecimal("0.0025"), Map.of("summarize", 50, "describe", 50));
     Harness harness = new Harness(priced, store, budget, BlobLookup.NONE, Set.of());

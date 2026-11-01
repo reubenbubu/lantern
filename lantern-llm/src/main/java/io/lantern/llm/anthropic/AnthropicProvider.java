@@ -558,14 +558,19 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
               });
     }
     Usage usage = message.usage();
+    // The breakdown by lifetime tells one-hour writes, which cost more, from five-minute ones.
+    long written = usage.cacheCreationInputTokens().orElse(0L);
+    long writtenLong =
+        Math.min(written, usage.cacheCreation().map(c -> c.ephemeral1hInputTokens()).orElse(0L));
     return new LlmResponse(
         text.toString(),
         message.stopReason().map(StopReason::asString).orElse(null),
         new TokenUsage(
             usage.inputTokens(),
             usage.outputTokens(),
-            usage.cacheCreationInputTokens().orElse(0L),
-            usage.cacheReadInputTokens().orElse(0L)),
+            written - writtenLong,
+            usage.cacheReadInputTokens().orElse(0L),
+            writtenLong),
         calls,
         calls.isEmpty() ? List.of() : thought);
   }

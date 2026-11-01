@@ -18,10 +18,17 @@ import java.util.Set;
 /** Clients, items and askers for the harness's tests. */
 final class TestHarness {
 
-  /** A priced fake model: $1 per million input tokens, $5 per million output tokens. */
+  /**
+   * A priced fake model: $1 per million input tokens, $5 per million output tokens, $1.25 and $2
+   * per million written to the cache for five minutes and an hour.
+   */
   static final Pricing PRICED =
       new Pricing(
-          new BigDecimal("1"), new BigDecimal("5"), new BigDecimal("1.25"), new BigDecimal("0.1"));
+          new BigDecimal("1"),
+          new BigDecimal("5"),
+          new BigDecimal("1.25"),
+          new BigDecimal("0.1"),
+          new BigDecimal("2"));
 
   private TestHarness() {}
 

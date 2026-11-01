@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -174,6 +175,92 @@ class LlmClientTest {
     client.call(request(Role.COMPOSE, "y".repeat(385), 10));
 
     assertThat(run.spentTokens()).isEqualTo(101);
+  }
+
+  @Test
+  void aLongLivedRequestIsReservedAndRecordedAtTheOneHourWritePrice() {
+    Pricing pricing =
+        new Pricing(
+            BigDecimal.ONE,
+            BigDecimal.ZERO,
+            new BigDecimal("1.25"),
+            BigDecimal.ZERO,
+            BigDecimal.TWO);
+    ModelConfig model =
+        new ModelConfig("fake", "m", Set.of(Capability.PROMPT_CACHING), 10_000, pricing);
+    fake.simulatingPromptCache();
+    // System "s".repeat(400) = 100 tokens; user 400 characters = 100 tokens.
+    // Worst case: 100 * $2 + 100 * $1 per million = $0.0003, which $0.000299 does not hold.
+    BudgetGuard tight = new BudgetGuard("run", null, new BigDecimal("0.000299"));
+    LlmRequest request =
+        new LlmRequest(
+                Role.SUMMARIZE,
+                "warm-up",
+                "s".repeat(400),
+                List.of(LlmMessage.user("u".repeat(400))),
+                1,
+                true)
+            .withLongLivedCache();
+    assertThatThrownBy(
+            () ->
+                new LlmClient(ModelSettings.single(model), List.of(fake), tight, log, clock)
+                    .call(request))
+        .isInstanceOf(BudgetExceededException.class);
+
+    LlmResponse response =
+        new LlmClient(
+                ModelSettings.single(model),
+                List.of(fake),
+                BudgetGuard.unlimited("run"),
+                log,
+                clock)
+            .call(request);
+
+    assertThat(response.usage().cacheWriteLong()).isEqualTo(100);
+    assertThat(response.usage().cacheWrite()).isZero();
+  }
+
+  @Test
+  void aBatchIsReservedAtItsEstimatesAndCutWhereTheyNoLongerFit() {
+    ModelConfig batching =
+        new ModelConfig(
+            "fake",
+            "m",
+            fake.batchingModel("m").capabilities(),
+            1_000_000,
+            new Pricing(BigDecimal.ONE, BigDecimal.valueOf(5), BigDecimal.ZERO, BigDecimal.ZERO));
+    // 100 tokens of input and up to 1,000 of output, 100 expected: at half price, an estimate of
+    // (100 x $1 + 100 x $5) / 2 per million = $0.0003, a worst case of $0.00255.
+    List<LlmRequest> requests = new ArrayList<>();
+    for (int i = 0; i < 4; i++) {
+      requests.add(LlmRequest.of(Role.SUMMARIZE, "item " + i, null, "u".repeat(400), 1_000));
+    }
+
+    List<LlmBatchResult> byWorstCase =
+        new LlmClient(
+                ModelSettings.single(batching),
+                List.of(fake),
+                new BudgetGuard("run", null, new BigDecimal("0.0007")),
+                log,
+                clock)
+            .batch(requests);
+    List<LlmBatchResult> byEstimate =
+        new LlmClient(
+                ModelSettings.single(batching),
+                List.of(fake),
+                new BudgetGuard("run", null, new BigDecimal("0.0007")),
+                log,
+                clock)
+            .batch(requests, List.of(100L, 100L, 100L, 100L));
+
+    assertThat(byWorstCase)
+        .allSatisfy(
+            result -> assertThat(result.error()).isInstanceOf(BudgetExceededException.class));
+    // $0.0007 holds two estimates: the batch is cut to them.
+    assertThat(byEstimate.subList(0, 2)).allSatisfy(result -> assertThat(result.error()).isNull());
+    assertThat(byEstimate.subList(2, 4))
+        .allSatisfy(
+            result -> assertThat(result.error()).isInstanceOf(BudgetExceededException.class));
   }
 
   @Test

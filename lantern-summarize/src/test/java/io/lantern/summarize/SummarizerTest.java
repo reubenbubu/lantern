@@ -119,6 +119,41 @@ class SummarizerTest {
   }
 
   @Test
+  void underAnyBudgetEveryPlannedUnitLandsInExactlyOneCount() {
+    ModelConfig priced =
+        new ModelConfig(
+            FakeLlmProvider.NAME,
+            "priced",
+            EnumSet.complementOf(EnumSet.of(Capability.BATCH)),
+            1_000_000,
+            new Pricing(
+                new java.math.BigDecimal("1000"),
+                new java.math.BigDecimal("1000"),
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO));
+    // From a budget that asks nothing to one that asks everything: whatever is not asked, a
+    // package whose parts were all not asked included, is counted once.
+    for (String usd : List.of("0", "0.5", "2", "5", "20", "1000")) {
+      Harness harness =
+          new Harness(
+              new LlmClient(
+                  ModelSettings.single(priced),
+                  List.of(fake),
+                  BudgetGuard.unlimited("test"),
+                  new InMemoryLlmCallLog(),
+                  Clock.systemUTC()),
+              new InMemoryAnswerStore(),
+              new RunBudget(new java.math.BigDecimal(usd), java.util.Map.of("summarize", 100)),
+              BlobLookup.NONE,
+              Set.of());
+      new Summarizer(harness).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+      io.lantern.harness.RoleRecord record = harness.records().getFirst();
+      assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+    }
+  }
+
+  @Test
   void aBatchedRunStoresTheSameSummariesAsAnInteractiveOne() {
     // Interactive: the default threshold of 50 misses is not reached.
     Summarizer.Result interactive =

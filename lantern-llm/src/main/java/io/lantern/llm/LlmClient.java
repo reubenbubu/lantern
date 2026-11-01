@@ -187,6 +187,23 @@ public final class LlmClient {
    *     batch
    */
   public List<LlmBatchResult> batch(List<LlmRequest> requests) {
+    return batch(requests, null);
+  }
+
+  /**
+   * As {@link #batch(List)}, but each request is reserved against the budgets at its estimate
+   * rather than its worst case: the output the caller's plan expects of it, and its system prompt
+   * read from the prompt cache, which the role's first request wrote (ADR 0102). The real cost
+   * replaces the estimate when the request's result comes back. A budget then refuses the requests
+   * whose estimates no longer fit, so the batch is cut to what is left, and the spend passes the
+   * limit by at most what the batch's answers cost beyond their estimates.
+   *
+   * @param expectedOutputTokens the output expected of each request, in the order given
+   */
+  public List<LlmBatchResult> batch(List<LlmRequest> requests, List<Long> expectedOutputTokens) {
+    if (expectedOutputTokens != null && expectedOutputTokens.size() != requests.size()) {
+      throw new IllegalArgumentException("One expected output a request");
+    }
     if (requests.isEmpty()) {
       return List.of();
     }
@@ -211,7 +228,10 @@ public final class LlmClient {
       try {
         check(model, request);
         request = request.withMaxOutputTokens(model.outputLimit(request));
-        reservations.add(reserve(model, request, true));
+        reservations.add(
+            expectedOutputTokens == null
+                ? reserve(model, request, true)
+                : reserveEstimate(model, request, expectedOutputTokens.get(i)));
       } catch (LlmException e) {
         logMessage(
             start,
@@ -583,19 +603,43 @@ public final class LlmClient {
     return reserve(model, request, false);
   }
 
+  /** Reserves a batched request at its estimate (see {@link #batch(List, List)}). */
+  private List<BudgetGuard.Reservation> reserveEstimate(
+      ModelConfig model, LlmRequest request, long expectedOutputTokens) {
+    long input = request.estimatedInputTokens();
+    long cached =
+        model.cachesSystem(request) ? Math.min(input, Tokens.estimate(request.system())) : 0;
+    TokenUsage estimate =
+        new TokenUsage(
+            input - cached,
+            Math.max(0, Math.min(expectedOutputTokens, request.maxOutputTokens())),
+            0,
+            cached);
+    return hold(estimate, model.pricing().batchCost(estimate));
+  }
+
   private List<BudgetGuard.Reservation> reserve(
       ModelConfig model, LlmRequest request, boolean batch) {
     long input = request.estimatedInputTokens();
     // With caching, the system prompt may be written to the cache; the rest is normal input.
     long cached =
         model.cachesSystem(request) ? Math.min(input, Tokens.estimate(request.system())) : 0;
-    TokenUsage worstCase = new TokenUsage(input - cached, request.maxOutputTokens(), cached, 0);
-    BigDecimal cost =
-        batch ? model.pricing().batchCost(worstCase) : model.pricing().cost(worstCase);
+    // A long-lived breakpoint writes for an hour, at its own price.
+    boolean longLived = request.cacheBreaks().stream().anyMatch(CacheBreak::longLived);
+    TokenUsage worstCase =
+        longLived
+            ? new TokenUsage(input - cached, request.maxOutputTokens(), 0, 0, cached)
+            : new TokenUsage(input - cached, request.maxOutputTokens(), cached, 0);
+    return hold(
+        worstCase, batch ? model.pricing().batchCost(worstCase) : model.pricing().cost(worstCase));
+  }
+
+  /** Reserves the usage at the cost against every budget, or none if one refuses it. */
+  private List<BudgetGuard.Reservation> hold(TokenUsage usage, BigDecimal cost) {
     List<BudgetGuard.Reservation> reservations = new ArrayList<>();
     try {
       for (BudgetGuard budget : budgets) {
-        reservations.add(budget.reserve(worstCase.total(), cost));
+        reservations.add(budget.reserve(usage.total(), cost));
       }
     } catch (RuntimeException e) {
       reservations.forEach(BudgetGuard.Reservation::release);

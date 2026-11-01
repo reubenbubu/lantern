@@ -112,6 +112,7 @@ class OpenAiBatchParityIT {
     }
 
     AnalysisRun.Result interactive = run.run(set, null, repos);
+    Project0EndToEndIT.assertEveryPlannedItemCountedOnce(interactive);
 
     try (OpenAiStub stub = new OpenAiStub(fake, fake::model)) {
       Map<String, String> values = new LinkedHashMap<>();
@@ -140,6 +141,7 @@ class OpenAiBatchParityIT {
         batched = withLlm(access, openai).run(set, null, repos);
       }
 
+      Project0EndToEndIT.assertEveryPlannedItemCountedOnce(batched);
       // Every request of the second run went through the stub; none reached the fake directly.
       assertThat(stub.chats()).hasSize(fake.sent().size() - sentBefore);
       assertThat(stub.batches()).isPositive();
@@ -158,6 +160,15 @@ class OpenAiBatchParityIT {
         assertThat(record.batchCalls()).as(bulk).isEqualTo(record.calls() - 1);
       }
 
+      // The stub reports cached tokens by OpenAI's rule (a shared prompt start of 1,024 tokens or
+      // more), and every one is recorded as a cache read. Project-0's prompts share starts of 600
+      // to 750 tokens, under that least, so OpenAI caches none of them (#655).
+      assertThat(
+              batched.roles().stream()
+                  .mapToLong(r -> r.toJson().path("tokens").path("cacheRead").asLong())
+                  .sum())
+          .as("cache reads on OpenAI")
+          .isEqualTo(stub.cachedTokens());
       // The same stored answer for every item of every role, on both providers.
       Map<String, String> fakeAnswers = answers("fake");
       Map<String, String> openaiAnswers = answers("openai");
@@ -190,7 +201,7 @@ class OpenAiBatchParityIT {
                         before.facts(),
                         before.sections())));
       }
-      write(set, interactive, batched);
+      write(set, interactive, batched, stub.cachedTokens());
     }
   }
 
@@ -218,26 +229,35 @@ class OpenAiBatchParityIT {
     return answers;
   }
 
-  private static void write(String set, AnalysisRun.Result interactive, AnalysisRun.Result batched)
+  private static void write(
+      String set, AnalysisRun.Result interactive, AnalysisRun.Result batched, long cached)
       throws IOException {
     StringBuilder md = new StringBuilder("# " + set + ": interactive on the fake, then batched");
-    md.append(" on the OpenAI provider\n\n| Role | Interactive calls | OpenAI calls | Batched |\n");
-    md.append("| --- | --- | --- | --- |\n");
-    Map<String, int[]> rows = new TreeMap<>();
+    md.append(" on the OpenAI provider\n\n");
+    md.append(
+        "| Role | Interactive calls | OpenAI calls | Batched | OpenAI cache reads (tokens) |\n");
+    md.append("| --- | --- | --- | --- | --- |\n");
+    Map<String, long[]> rows = new TreeMap<>();
     interactive
         .roles()
-        .forEach(r -> rows.computeIfAbsent(r.role(), k -> new int[3])[0] = r.calls());
+        .forEach(r -> rows.computeIfAbsent(r.role(), k -> new long[4])[0] = r.calls());
     batched
         .roles()
         .forEach(
             r -> {
-              int[] row = rows.computeIfAbsent(r.role(), k -> new int[3]);
+              long[] row = rows.computeIfAbsent(r.role(), k -> new long[4]);
               row[1] = r.calls();
               row[2] = r.batchCalls();
+              row[3] = r.toJson().path("tokens").path("cacheRead").asLong();
             });
     rows.forEach(
         (role, row) ->
-            md.append("| %s | %d | %d | %d |\n".formatted(role, row[0], row[1], row[2])));
+            md.append(
+                "| %s | %d | %d | %d | %d |\n".formatted(role, row[0], row[1], row[2], row[3])));
+    md.append(
+        "\nThe stub reported %d cached tokens in all, by OpenAI's rule: a prompt start shared with an"
+                .formatted(cached)
+            + " earlier request of 1,024 tokens or more, counted in steps of 128.\n");
     Path out = Path.of("target", "openai-parity");
     Files.createDirectories(out);
     Files.writeString(out.resolve(set + ".md"), md);

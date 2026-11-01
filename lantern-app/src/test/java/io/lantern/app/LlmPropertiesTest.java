@@ -84,6 +84,7 @@ class LlmPropertiesTest {
     values.put("lantern.llm.models.fast.capabilities", "prompt-caching,tool-use");
     values.put("lantern.llm.models.fast.prices.cache-write", "3.75");
     values.put("lantern.llm.models.fast.prices.cache-read", "0.3");
+    values.put("lantern.llm.models.strong.prices.cache-write-long", "10");
     tiers("fast", "strong");
     values.put("lantern.llm.roles.summarize", "leaf");
     values.put("lantern.llm.roles.infer-intent", "fast");
@@ -103,10 +104,26 @@ class LlmPropertiesTest {
                     BigDecimal.valueOf(3),
                     BigDecimal.valueOf(15),
                     new BigDecimal("3.75"),
-                    new BigDecimal("0.3"))));
+                    new BigDecimal("0.3"),
+                    new BigDecimal("3.75"))));
     assertThat(settings.forRole(Role.RESOLVE).model()).isEqualTo("strong-model");
     assertThat(settings.forRole(Role.RESOLVE).capabilities()).isEmpty();
     assertThat(settings.forRole(Role.RESOLVE).pricing().cacheWrite()).isZero();
+    // The one-hour write's price as set; left out, twice the input price on Anthropic, and the
+    // five-minute write's on any other provider, such as OpenAI, which bills no write.
+    assertThat(settings.forRole(Role.RESOLVE).pricing().cacheWriteLong())
+        .isEqualByComparingTo("10");
+    assertThat(settings.forRole(Role.COMPOSE).pricing().cacheWriteLong())
+        .isEqualByComparingTo("3.75");
+    LlmProperties.Prices unset =
+        new LlmProperties.Prices(
+            BigDecimal.valueOf(3),
+            BigDecimal.valueOf(15),
+            new BigDecimal("3.75"),
+            new BigDecimal("0.3"),
+            null);
+    assertThat(unset.toPricing("p", true, true).cacheWriteLong()).isEqualByComparingTo("6");
+    assertThat(unset.toPricing("p", true, false).cacheWriteLong()).isEqualByComparingTo("3.75");
     assertThat(settings.forRole(Role.SUMMARIZE).model()).isEqualTo("leaf-model");
     assertThat(settings.forRole(Role.INFER_INTENT).model()).isEqualTo("fast-model");
     assertThat(properties.monthlyBudgetUsd()).isEqualByComparingTo("100");

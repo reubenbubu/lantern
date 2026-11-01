@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -217,6 +218,7 @@ public final class Describer {
 
   private final Harness harness;
   private final SourceFiles sources;
+  private final Set<EntityId> alsoJudged;
 
   /**
    * A describer whose prompts show no code.
@@ -233,8 +235,21 @@ public final class Describer {
    *     components
    */
   public Describer(Harness harness, SourceFiles sources) {
+    this(harness, sources, Set.of());
+  }
+
+  private Describer(Harness harness, SourceFiles sources, Set<EntityId> alsoJudged) {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.sources = Objects.requireNonNull(sources, "sources");
+    this.alsoJudged = Set.copyOf(alsoJudged);
+  }
+
+  /**
+   * The same describer, whose support judge also checks the sentences about the given elements,
+   * whether the sample takes them or not (ADR 0101).
+   */
+  public Describer alsoJudging(Set<EntityId> elements) {
+    return new Describer(harness, sources, elements);
   }
 
   /**
@@ -326,7 +341,10 @@ public final class Describer {
     // The support judge checks a sample of the sentences; one it finds unsupported is marked, not
     // dropped (ADR 0101).
     Map<String, SupportJudge.Support> verdicts =
-        new SupportJudge(harness).judge(List.copyOf(tally.judgeable.values()), Set.of());
+        new SupportJudge(harness)
+            .judge(
+                List.copyOf(tally.judgeable.values()),
+                alsoJudged.stream().map(EntityId::toString).collect(Collectors.toSet()));
     Set<EntityId> unsupported = new TreeSet<>(java.util.Comparator.comparing(EntityId::toString));
     tally.judgeable.forEach(
         (element, text) -> {

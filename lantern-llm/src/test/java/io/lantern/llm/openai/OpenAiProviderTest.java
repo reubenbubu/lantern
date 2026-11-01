@@ -155,6 +155,43 @@ class OpenAiProviderTest {
   }
 
   @Test
+  void aRepeatedPromptStartIsReadFromTheCacheAndRecordedAsCacheReads() throws Exception {
+    fake.answering("{}");
+    start();
+    InMemoryLlmCallLog log = new InMemoryLlmCallLog();
+    LlmClient client =
+        new LlmClient(
+            ModelSettings.single(CACHING),
+            List.of(provider),
+            BudgetGuard.unlimited("t"),
+            log,
+            Clock.systemUTC());
+    // A system prompt of about 1,500 tokens, shared by both requests; a short one, under OpenAI's
+    // least of 1,024 tokens, is never cached.
+    String system = "Rules. ".repeat(860);
+    LlmRequest first = LlmRequest.of(Role.SUMMARIZE, "first", system, "class A", 100);
+    LlmRequest second = LlmRequest.of(Role.SUMMARIZE, "second", system, "class B", 100);
+    LlmRequest shortOne = LlmRequest.of(Role.COMPOSE, "short", "Rules.", "class A", 100);
+
+    LlmResponse cold = client.call(first);
+    LlmResponse warm = client.call(second);
+    client.call(shortOne);
+    LlmResponse shortAgain = client.call(shortOne);
+
+    assertThat(cold.usage().cacheRead()).isZero();
+    // The shared start counts from 1,024 tokens in steps of 128.
+    assertThat(warm.usage().cacheRead()).isGreaterThanOrEqualTo(1_024);
+    assertThat((warm.usage().cacheRead() - 1_024) % 128).isZero();
+    assertThat(warm.usage().cacheRead() + warm.usage().input()).isEqualTo(cold.usage().input());
+    assertThat(warm.usage().cacheWrite()).isZero();
+    assertThat(shortAgain.usage().cacheRead()).isZero();
+    LlmCall logged = log.calls().get(1);
+    assertThat(logged.usage().cacheRead()).isEqualTo(warm.usage().cacheRead());
+    assertThat(logged.costUsd()).isEqualByComparingTo(CACHING.pricing().cost(warm.usage()));
+    assertThat(logged.costUsd()).isLessThan(log.calls().getFirst().costUsd());
+  }
+
+  @Test
   void aConversationRunsItsToolsOverTheChatApi() throws Exception {
     LlmTool readFile =
         new LlmTool(

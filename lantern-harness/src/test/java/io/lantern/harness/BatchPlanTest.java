@@ -5,10 +5,16 @@ import static io.lantern.harness.TestHarness.item;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelConfig;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 
 /** When a bulk role batches, and what its plan then estimates (ADR 0102). */
@@ -53,8 +59,66 @@ class BatchPlanTest {
             .session(TestHarness.role());
     Estimate same = interactive.plan(items(51), 100);
     assertThat(interactive.batching()).isFalse();
-    assertThat(past.usd()).isEqualByComparingTo(same.usd().multiply(new BigDecimal("0.5")));
+    // Everything at half price but the warm-up's cache write of the 100-token prompt start, which
+    // goes at the full one-hour write price ($2 a million) instead of the five-minute one ($1.25).
+    BigDecimal write = new BigDecimal("0.000125");
+    BigDecimal writeLong = new BigDecimal("0.0002");
+    assertThat(past.usd())
+        .isEqualByComparingTo(
+            same.usd().subtract(write).multiply(new BigDecimal("0.5")).add(writeLong));
     assertThat(atFifty.usd()).isPositive();
+  }
+
+  @Test
+  void aBatchingRoleSpendsMostOfItsShare() throws Exception {
+    // Each answer is about 100 output tokens, as the role expects, of up to 1,000 the request
+    // allows: about $0.00025 an item at the batch price, a worst case of about $0.0025.
+    FakeLlmProvider fake = new FakeLlmProvider().answering("\"" + "x".repeat(400) + "\"");
+    RunBudget budget =
+        new RunBudget(new BigDecimal("0.02"), Map.of("summarize", 50, "describe", 50));
+    Harness harness =
+        new Harness(
+            TestHarness.client(fake, batching(fake)),
+            new InMemoryAnswerStore(),
+            budget,
+            BlobLookup.NONE,
+            Set.of());
+    RoleSession session = harness.session(TestHarness.role());
+    List<Item> items = items(60);
+    session.plan(items, 0);
+    assertThat(session.batching()).isTrue();
+
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<Future<Outcome>> asked = new ArrayList<>();
+      for (Item item : items) {
+        asked.add(executor.submit(() -> session.ask(item, askingUpTo(item, 1_000))));
+      }
+      for (Future<Outcome> outcome : asked) {
+        outcome.get();
+      }
+    }
+
+    // The $0.01 share holds about 40 of the 60 items, which are asked and spend most of it.
+    RoleRecord record = session.record();
+    BigDecimal spent = new BigDecimal(record.toJson().get("costUsd").asString());
+    assertThat(spent).isGreaterThan(new BigDecimal("0.008")).isLessThan(new BigDecimal("0.0105"));
+    assertThat(record.toJson().get("items").get("notAsked").asInt()).isBetween(15, 25);
+    assertThat(record.settled()).isEqualTo(record.planned()).isEqualTo(60);
+  }
+
+  /** Asks one request of up to the given output for the item, and accepts any answer. */
+  private static Asker askingUpTo(Item item, int maxOutput) {
+    return calls ->
+        Answer.of(
+            calls
+                .call(
+                    LlmRequest.of(
+                        io.lantern.llm.Role.SUMMARIZE,
+                        "describe " + item.subject(),
+                        "System.",
+                        item.rendering(),
+                        maxOutput))
+                .text());
   }
 
   @Test

@@ -220,11 +220,56 @@ public final class OpenAiStub implements AutoCloseable {
       }
     }
     ObjectNode usage = completion.putObject("usage");
-    long prompt = answer.usage().input() + answer.usage().cacheWrite() + answer.usage().cacheRead();
+    long prompt =
+        answer.usage().input() + answer.usage().cacheWritten() + answer.usage().cacheRead();
     usage.put("prompt_tokens", prompt).put("completion_tokens", answer.usage().output());
     usage.put("total_tokens", prompt + answer.usage().output());
-    usage.putObject("prompt_tokens_details").put("cached_tokens", answer.usage().cacheRead());
+    long cached = Math.min(prompt, cached(chat));
+    cachedTokens.addAndGet(cached);
+    usage.putObject("prompt_tokens_details").put("cached_tokens", cached);
     return completion;
+  }
+
+  /** The least prompt OpenAI caches, in tokens. */
+  static final int CACHE_MIN = 1024;
+
+  /** The steps in which OpenAI counts a cached prompt start beyond its least, in tokens. */
+  static final int CACHE_STEP = 128;
+
+  private final Map<String, List<String>> prompts = new ConcurrentHashMap<>();
+  private final java.util.concurrent.atomic.AtomicLong cachedTokens =
+      new java.util.concurrent.atomic.AtomicLong();
+
+  /** The cached tokens reported, in all. */
+  public long cachedTokens() {
+    return cachedTokens.get();
+  }
+
+  /**
+   * The tokens of the request's prompt that OpenAI would read from its cache: the longest start it
+   * shares with an earlier request of the same {@code prompt_cache_key}, counted only from 1,024
+   * tokens and then in steps of 128, as OpenAI's prompt caching guide says. The prompt is the tools
+   * and then the messages, in order.
+   */
+  long cached(JsonNode chat) {
+    StringBuilder text = new StringBuilder(chat.path("tools").toString());
+    chat.path("messages").forEach(message -> text.append(message.toString()));
+    String prompt = text.toString();
+    List<String> earlier =
+        prompts.computeIfAbsent(
+            chat.path("prompt_cache_key").asString(""), key -> new CopyOnWriteArrayList<>());
+    int shared = 0;
+    for (String before : earlier) {
+      int same = 0;
+      int most = Math.min(before.length(), prompt.length());
+      while (same < most && before.charAt(same) == prompt.charAt(same)) {
+        same++;
+      }
+      shared = Math.max(shared, same);
+    }
+    earlier.add(prompt);
+    long tokens = io.lantern.llm.Tokens.estimate(prompt.substring(0, shared));
+    return tokens < CACHE_MIN ? 0 : CACHE_MIN + (tokens - CACHE_MIN) / CACHE_STEP * CACHE_STEP;
   }
 
   /** The request a chat request body was made from. */

@@ -8,25 +8,45 @@ import java.util.Objects;
  *
  * @param input per million normal input tokens
  * @param output per million output tokens
- * @param cacheWrite per million input tokens written to the prompt cache
+ * @param cacheWrite per million input tokens written to the prompt cache with the default,
+ *     five-minute lifetime
  * @param cacheRead per million input tokens read from the prompt cache
+ * @param cacheWriteLong per million input tokens written to the prompt cache with the long,
+ *     one-hour lifetime
  */
 public record Pricing(
-    BigDecimal input, BigDecimal output, BigDecimal cacheWrite, BigDecimal cacheRead) {
+    BigDecimal input,
+    BigDecimal output,
+    BigDecimal cacheWrite,
+    BigDecimal cacheRead,
+    BigDecimal cacheWriteLong) {
 
   private static final BigDecimal MILLION = BigDecimal.valueOf(1_000_000);
 
   /** No cost, for fakes and free models. */
   public static final Pricing FREE =
-      new Pricing(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+      new Pricing(
+          BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+
+  /** The multiple of the input price a long-lived cache write costs on Anthropic. */
+  public static final BigDecimal LONG_WRITE_MULTIPLE = BigDecimal.TWO;
 
   public Pricing {
-    for (BigDecimal price : new BigDecimal[] {input, output, cacheWrite, cacheRead}) {
+    for (BigDecimal price :
+        new BigDecimal[] {input, output, cacheWrite, cacheRead, cacheWriteLong}) {
       Objects.requireNonNull(price, "price");
       if (price.signum() < 0) {
         throw new IllegalArgumentException("Prices must not be negative: " + price);
       }
     }
+  }
+
+  /**
+   * Prices whose long-lived cache write costs twice the input price, as on Anthropic, the only
+   * provider whose cache writes are billed.
+   */
+  public Pricing(BigDecimal input, BigDecimal output, BigDecimal cacheWrite, BigDecimal cacheRead) {
+    this(input, output, cacheWrite, cacheRead, input.multiply(LONG_WRITE_MULTIPLE));
   }
 
   /**
@@ -47,6 +67,7 @@ public record Pricing(
         .add(output.multiply(BigDecimal.valueOf(usage.output())))
         .add(cacheWrite.multiply(BigDecimal.valueOf(usage.cacheWrite())))
         .add(cacheRead.multiply(BigDecimal.valueOf(usage.cacheRead())))
+        .add(cacheWriteLong.multiply(BigDecimal.valueOf(usage.cacheWriteLong())))
         .divide(MILLION);
   }
 }

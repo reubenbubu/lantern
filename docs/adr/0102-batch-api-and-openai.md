@@ -44,6 +44,28 @@ No real call was made: every test answers from a fake through a stub of the prov
     batch, not for a slot. Each level of the tree then becomes one batch.
   - Agentic roles (Resolve, and Investigate when it comes) always run interactively.
   - `lantern.llm.batch-above=0` batches every miss of a bulk role. The parity check below uses it.
+- **A batch reserves its requests at their estimates** (#654). An interactive call reserves its
+  worst case for the moment it runs; a batch would hold the worst case of every request at once,
+  for as long as it runs, and refuse most of a role's requests long before its share is spent.
+  - So a batched request is reserved at its estimate: the output the role's plan expects of it,
+    and its system prompt read from the cache the warm-up wrote (`LlmClient.batch(requests,
+    expectedOutputTokens)`). Its real cost replaces the estimate when its result comes back.
+  - The budget refuses the requests whose estimates no longer fit, which cuts the batch to what is
+    left of the share. The spend can pass the share only by what the batch's answers cost beyond
+    their estimates; once it has, every further request is refused.
+- **A one-hour write has its own price and count** (#654). A long-lived cache write costs twice the
+  input price on Anthropic, not the five-minute write's 1.25 times.
+  - Token usage counts it apart (`TokenUsage.cacheWriteLong`), from the lifetime breakdown
+    Anthropic reports (`cache_creation.ephemeral_1h_input_tokens`). The call log stores it in
+    `llm_calls.cache_write_long_tokens` and `llm_conversations.cache_write_long_tokens`, and the
+    run record shows it.
+  - Its price is the setting `prices.cache-write-long`. Left out, it is twice the input price on
+    Anthropic, and the five-minute write's price on any other provider (OpenAI bills no write).
+  - A batching role's plan prices its warm-up's write at that price, at the full price since the
+    warm-up goes interactively, and the rest at the batch price. A request with long-lived
+    breakpoints reserves its system prompt at that price.
+  - The fake writes through long-lived breakpoints as one-hour writes, and `fake-priced` sets the
+    price at twice its input price.
 - **Polling never resends a batch.** Reading a running batch's status, or its results, retries a
   passing failure in place by the batch's id, up to 10 times (`BatchPolling`). Only creating the
   batch, before anything ran, may be retried by sending it again. OpenAI's batch files are deleted
@@ -79,7 +101,11 @@ No real call was made: every test answers from a fake through a stub of the prov
   than 50.
 - **Evidence without a real call.**
   - `OpenAiStub`, a test server, speaks OpenAI's Chat Completions, Files and Batch APIs. It reads
-    each request back into the harness's request and answers with a fake.
+    each request back into the harness's request and answers with a fake. It reports cached tokens
+    by OpenAI's rule (#654): the start a prompt shares with an earlier request of the same
+    `prompt_cache_key`, from 1,024 tokens and then in steps of 128. `OpenAiProviderTest` shows them
+    recorded as cache reads. Project-0's prompts share starts of 600 to 750 tokens, under that
+    least, so the parity run reports none (#655).
   - `OpenAiBatchParityIT` analyzes project-0, or the set `lantern.test.set` names, twice: first on
     the fake interactively, then with every role on the OpenAI provider through the stub, every
     bulk role batching all its misses. The test requires both runs to store the same answer for
@@ -92,15 +118,6 @@ No real call was made: every test answers from a fake through a stub of the prov
   sets. Requests carry no output schema, since the harness checks every answer against its role's
   schema itself. So OpenAI's structured output (`response_format`) is not used. A role that wants it
   can add a schema to its request later.
-- **The one-hour write costs more than estimated.** A long-lived cache write costs twice the input
-  price, not 1.25 times. Only the warm-up request writes it, and the price settings have one
-  cache-write price, so the run record undercounts that one write. It is small next to a batch's
-  savings.
-- **A batch reserves each request's worst case.** As an interactive call does, but for every request
-  of the batch at once, for as long as it runs. A budget with room for what a role will spend but
-  not for its worst case refuses the batch's later requests, which are then not asked. The epic
-  sizes the budget per role from the plan; reserving at the plan's estimate instead is left until a
-  real run shows the worst case binds.
 - **Requests are not cut at 256 MB.** A batch is cut only by count (10,000), far below both
   providers' limits (100,000 requests on Anthropic, 50,000 on OpenAI). A role whose prompts were
   very long could still pass the size limits; none does today.
