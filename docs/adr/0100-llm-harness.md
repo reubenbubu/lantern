@@ -125,8 +125,9 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
     settled. Once every item of the round has an outcome (or has ended without one), the next
     round admits from what is really left, until the first item that does not fit even then: it
     and every item after it are not asked. A round is decided only when nothing of the group is in
-    flight, so which items are asked never depends on which thread asks first, and two runs at the
-    same budget ask the same items and spend the same. Answers shorter than estimated leave room
+    flight (claims aside, below), so which items are asked never depends on which thread asks
+    first, and two runs at the same budget ask the same items and spend the same. An item that
+    ends before its round is decided, such as a unit whose part failed, is passed over. Answers shorter than estimated leave room
     that the next round takes, so a role spends most of its share; the rounds end within a few
     when estimates are near the real cost, more the shorter the answers. A role waits for an
     item's round when it asks it; Summarize waits before taking one of its slots, and roles that

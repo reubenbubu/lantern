@@ -46,6 +46,9 @@ final class ShareRounds {
   private int next;
   private final Map<String, Entry> round = new LinkedHashMap<>();
   private final Map<String, Entry> claims = new LinkedHashMap<>();
+  // Items that ended before their round was decided, such as a unit whose part failed: a later
+  // round passes them over instead of admitting an item no one will settle.
+  private final java.util.Set<String> ended = new java.util.HashSet<>();
   private boolean started;
   private int rounds;
 
@@ -86,13 +89,18 @@ final class ShareRounds {
 
   /**
    * Notes that an item has an outcome, or ended without one. Once every item of the round has, the
-   * next round is decided. Settling an item twice, or one never admitted, changes nothing.
+   * next round is decided. An item that ends before its round is decided is passed over by it.
+   * Settling an item twice, or one decided as not fitting, changes nothing.
    */
   synchronized void settle(RoleSession session, String key) {
     String id = session.spec().name() + '\u0000' + key;
     claims.remove(id);
-    if (round.remove(id) != null && round.isEmpty()) {
-      decide();
+    if (round.remove(id) != null) {
+      if (round.isEmpty()) {
+        decide();
+      }
+    } else if (session.undecided(key)) {
+      ended.add(id);
     }
   }
 
@@ -149,6 +157,11 @@ final class ShareRounds {
     int admitted = 0;
     while (next < queue.size()) {
       Entry entry = queue.get(next);
+      if (ended.contains(entry.id())) {
+        next++;
+        entry.session().decided(entry, false);
+        continue;
+      }
       List<Entry> mine = new ArrayList<>(byRole.getOrDefault(entry.session(), List.of()));
       mine.add(entry);
       BigDecimal cost = entry.session().roundCost(mine);

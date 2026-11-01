@@ -250,6 +250,38 @@ class BatchPlanTest {
   }
 
   @Test
+  void anItemThatEndsBeforeItsRoundIsDecidedIsPassedOverAndTheRoundsGoOn() throws Exception {
+    // Three items, a share whose estimates hold one at a time; answers are short, so each round
+    // leaves room for the next. The second ends before its round is decided,
+    // as a unit whose part failed and which will never run: the next round passes it over and
+    // admits the third, rather than admitting an item no one will settle (#659).
+    FakeLlmProvider fake = new FakeLlmProvider().answering("\"ok\"");
+    Harness harness =
+        new Harness(
+            TestHarness.client(fake, TestHarness.priced(fake)),
+            new InMemoryAnswerStore(),
+            new RunBudget(new BigDecimal("0.0012"), Map.of("summarize", 50, "describe", 50)),
+            BlobLookup.NONE,
+            Set.of());
+    RoleSession session = harness.session(TestHarness.role());
+    List<Item> items = items(3);
+    session.plan(items, 0);
+    session.releaseWarmUp(items.get(1));
+    // Not closed by waiting: if the third item waited for ever, the test fails rather than hangs.
+    ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    try {
+      Future<Outcome> third =
+          executor.submit(() -> session.ask(items.get(2), TestHarness.asking(items.get(2))));
+      assertThat(session.ask(items.get(0), TestHarness.asking(items.get(0))).kind())
+          .isEqualTo(Outcome.Kind.ANSWERED);
+      assertThat(third.get(10, java.util.concurrent.TimeUnit.SECONDS).kind())
+          .isEqualTo(Outcome.Kind.ANSWERED);
+    } finally {
+      executor.shutdownNow();
+    }
+  }
+
+  @Test
   void itemsOfOneSubjectAreEachCountedAgainstTheShare() {
     // A flow shown in two documents is two items of one subject. Each costs about $0.0005; a share
     // of $0.0008 holds one of them, not both.
