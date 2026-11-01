@@ -207,10 +207,18 @@ public final class Summarizer {
       for (SummaryNode node : units.values()) {
         List<CompletableFuture<Optional<Summary>>> parts =
             node.children().stream().map(child -> futures.get(child.entity())).toList();
-        futures.put(
-            node.entity(),
+        CompletableFuture<Optional<Summary>> unit =
             CompletableFuture.allOf(parts.toArray(CompletableFuture[]::new))
-                .thenApplyAsync(done -> run.visit(node, parts), executor));
+                .thenApplyAsync(done -> run.visit(node, parts), executor);
+        // A unit whose part failed never runs: if it is the warm-up unit, the units waiting for it
+        // go on, and stop at the failure.
+        unit.whenComplete(
+            (summary, failure) -> {
+              if (failure != null) {
+                run.session.releaseWarmUp(node.entity().toString());
+              }
+            });
+        futures.put(node.entity(), unit);
       }
       // Waits for every unit, failed or not, before the executor closes.
       CompletableFuture.allOf(futures.values().toArray(CompletableFuture[]::new))
