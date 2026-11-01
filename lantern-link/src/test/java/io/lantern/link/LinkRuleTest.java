@@ -95,7 +95,7 @@ class LinkRuleTest {
   }
 
   @Test
-  void theStandardRulesRunUnitsValuesLinksTheResolverThenClaimChecks() {
+  void theStandardRulesRunUnitsValuesLinksThenTheResolver() {
     Rule resolver =
         new Rule(
             "link-resolver",
@@ -119,8 +119,7 @@ class LinkRuleTest {
             "redis-links",
             ProtocolLinks.OPEN_LINKS,
             People.NAME,
-            "link-resolver",
-            ClaimChecks.NAME);
+            "link-resolver");
   }
 
   @Test

@@ -1,4 +1,4 @@
-package io.lantern.compose;
+package io.lantern.derive;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -22,10 +22,10 @@ import java.util.regex.Pattern;
  * needed. A line is a major Java release, or a major and minor version of Spring Boot or Spring
  * Framework.
  */
-final class EndOfLife {
+public final class EndOfLife {
 
   /** The products the table covers. */
-  enum Product {
+  public enum Product {
     JAVA("java", "Java"),
     SPRING_BOOT("spring-boot", "Spring Boot"),
     SPRING_FRAMEWORK("spring-framework", "Spring Framework");
@@ -38,13 +38,13 @@ final class EndOfLife {
       this.title = title;
     }
 
-    String title() {
+    public String title() {
       return title;
     }
   }
 
   /** What the table says about a version. */
-  sealed interface Support {
+  public sealed interface Support {
     /** Its line's free support ends, or ended, on the date. */
     record Until(String line, LocalDate end) implements Support {}
 
@@ -66,7 +66,7 @@ final class EndOfLife {
       Pattern.compile("(\\d{1,6})\\.(\\d{1,6})(?:[.\\-+_].*)?");
 
   /** Orders lines by their numbers: 2.10 after 2.9, 11 after 8. */
-  static final Comparator<String> BY_VERSION =
+  public static final Comparator<String> BY_VERSION =
       (a, b) -> {
         String[] x = a.split("\\.");
         String[] y = b.split("\\.");
@@ -83,7 +83,7 @@ final class EndOfLife {
       };
 
   /** The table bundled with Lantern; declared after {@link #BY_VERSION}, which loading uses. */
-  static final EndOfLife BUNDLED = load("end-of-life.csv");
+  public static final EndOfLife BUNDLED = load("end-of-life.csv");
 
   private final LocalDate asOf;
   private final Map<Product, TreeMap<String, LocalDate>> lines;
@@ -94,7 +94,7 @@ final class EndOfLife {
   }
 
   /** The day the table's dates were last checked. */
-  LocalDate asOf() {
+  public LocalDate asOf() {
     return asOf;
   }
 
@@ -102,7 +102,7 @@ final class EndOfLife {
    * The line a version belongs to: the major release of Java ({@code 1.8} and {@code 8} are 8), the
    * major and minor version of the others; empty if it cannot be read.
    */
-  static Optional<String> line(Product product, String version) {
+  public static Optional<String> line(Product product, String version) {
     if (version == null) {
       return Optional.empty();
     }
@@ -120,7 +120,7 @@ final class EndOfLife {
   }
 
   /** What the table says about the version of the product. */
-  Support support(Product product, String version) {
+  public Support support(Product product, String version) {
     Optional<String> line = line(product, version);
     TreeMap<String, LocalDate> known = lines.getOrDefault(product, new TreeMap<>(BY_VERSION));
     if (line.isEmpty() || known.isEmpty()) {
@@ -151,7 +151,7 @@ final class EndOfLife {
     }
   }
 
-  static EndOfLife parse(List<String> text) {
+  public static EndOfLife parse(List<String> text) {
     Map<String, Product> products = new HashMap<>();
     for (Product product : Product.values()) {
       products.put(product.key, product);

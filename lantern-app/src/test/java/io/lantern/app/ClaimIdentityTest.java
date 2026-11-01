@@ -120,6 +120,9 @@ class ClaimIdentityTest {
                   "unresolved",
                   "pushes",
                   "messages")),
+          // Since #619, the findings: what the end-of-life table says of a version is descriptive,
+          // so a newer table updates the finding rather than raising another.
+          Map.entry("finding-raised", Set.of("support", "line", "ends")),
           // Since #587: the text config resolved an expression to; URLs that differ only in their
           // path are one address.
           Map.entry(

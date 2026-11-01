@@ -1,6 +1,6 @@
 # 0097: The derive stage stores the architecture model
 
-Status: accepted (#523), amended (#617, #271, #618)
+Status: accepted (#523), amended (#617, #271, #618, #619)
 
 ## Context
 
@@ -141,3 +141,32 @@ The agent decided these under the owner's standing go-ahead for 1D.
   `SAME_SHAPE_AS` links each flow to the one of its shape whose key sorts first. The composer
   still hides a flow of the same start and lifelines as one shown (ADR 0070), so documents do not
   change; flow significance (#272) will read the stored shapes.
+
+## Amendment for #619: findings, stored
+
+The agent decided these under the owner's standing go-ahead for 1D.
+
+- **One rule, a fact per finding.** `Findings` writes `finding:<kind>/<key>` with a
+  `finding-raised` fact whose value is the kind. Its key attributes are what the kind is about
+  (#615): a dependency finding's repository, target and versions, so a drift between other
+  versions is another claim of the same finding; a cycle's container and packages; an end of
+  life's product, version, user, way of use and module. What the end-of-life table says (`support`,
+  `line`, `ends`) is descriptive, so a newer table updates the finding instead of raising another.
+  The entity key leaves the versions out, so a finding keeps its ID while its versions change.
+- **Whether support has ended is a document's judgement.** The finding stores the table's date;
+  the brief judges it against the snapshot's date, as before, so a finding does not change with
+  the calendar.
+- **The brief's risks select findings; its table describes.** The risk callouts read the stored
+  findings and cite the facts they rest on. The technology currency table lists every version in
+  use, including those the table does not know, which are no finding, so it is still built from
+  the facts.
+- **The README claim checks run with the derive rules.** `ClaimChecks` stays in `lantern-link`,
+  but `Derivation.rules()` runs it, after the linker's rules and before `Findings`, which reads its
+  facts; its facts and vocabulary are unchanged. The linker's own facts that are candidate risks
+  (`version-skew`, `shared-secret`, `unrouted-endpoint`) stay where they are and each gets a
+  finding as it stands, keyed on the fact's subject and claim, so such a finding is a new one
+  when its fact's claim changes (a version skew between other versions); documents keep reading
+  them where they did. The entity key leaving the versions out holds for the dependency findings.
+- **A finding is shown only whole.** A document composed from part of the snapshot's facts (a
+  repository's, in a run that carries others forward) leaves out a finding resting on a fact it
+  does not hold, as it does a flow (#631).
