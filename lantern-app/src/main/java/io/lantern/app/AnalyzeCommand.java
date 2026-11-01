@@ -299,13 +299,14 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
       estimated = estimated.add(estimate.usd());
       spent = spent.add(role.costUsd());
       lines.add(
-          "  %s: %d items, %d to ask, about $%s; %d calls, $%s"
+          "  %s: %d items, %d to ask, about $%s; %d calls%s, $%s"
               .formatted(
                   role.role(),
                   estimate.items(),
                   estimate.toAsk(),
                   dollars(estimate.usd()),
                   role.calls(),
+                  role.batchCalls() == 0 ? "" : " (" + role.batchCalls() + " batched)",
                   dollars(role.costUsd())));
     }
     if (lines.isEmpty()) {

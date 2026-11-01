@@ -45,6 +45,7 @@ public final class FakeLlmProvider implements LlmProvider {
   private volatile Thinks thinks = new Thinks(0, false);
   private volatile boolean simulatesCache;
   private final Set<String> cachedPrefixes = ConcurrentHashMap.newKeySet();
+  private final List<Integer> batchSizes = new ArrayList<>();
 
   public FakeLlmProvider() {
     this(NAME);
@@ -54,8 +55,17 @@ public final class FakeLlmProvider implements LlmProvider {
     this.name = ModelConfig.nonBlank("Provider name", name);
   }
 
-  /** A free model of this provider with every capability and a large context window. */
+  /**
+   * A free model of this provider with every capability but {@link Capability#BATCH}, and a large
+   * context window; {@link #batchingModel} is one that batches too.
+   */
   public ModelConfig model(String model) {
+    return new ModelConfig(
+        name, model, EnumSet.complementOf(EnumSet.of(Capability.BATCH)), 1_000_000, Pricing.FREE);
+  }
+
+  /** A free model of this provider with every capability, the batch API included. */
+  public ModelConfig batchingModel(String model) {
     return new ModelConfig(name, model, EnumSet.allOf(Capability.class), 1_000_000, Pricing.FREE);
   }
 
@@ -147,6 +157,11 @@ public final class FakeLlmProvider implements LlmProvider {
     return maxInFlight.get();
   }
 
+  /** The size of each batch sent so far, oldest first. */
+  public synchronized List<Integer> batchSizes() {
+    return List.copyOf(batchSizes);
+  }
+
   /** The requests sent so far, oldest first. */
   public synchronized List<Sent> sent() {
     return List.copyOf(sent);
@@ -168,6 +183,34 @@ public final class FakeLlmProvider implements LlmProvider {
     boolean disabled = current.canBeDisabled() && model.thinking().disabled();
     return complete(
         model.model(), request, disabled ? 0 : current.tokens(), model.cachesSystem(request));
+  }
+
+  /** The fake has a batch API; a model uses it only when its settings say {@code batch}. */
+  @Override
+  public boolean batches() {
+    return true;
+  }
+
+  /**
+   * Answers each request of the batch as {@link #complete(ModelConfig, LlmRequest)} would, one
+   * after the other; a request that fails gets an error result.
+   */
+  @Override
+  public List<LlmBatchResult> completeBatch(ModelConfig model, List<LlmRequest> requests) {
+    synchronized (this) {
+      batchSizes.add(requests.size());
+    }
+    List<LlmBatchResult> results = new ArrayList<>();
+    for (LlmRequest request : requests) {
+      try {
+        results.add(LlmBatchResult.answered(complete(model, request)));
+      } catch (LlmException e) {
+        results.add(LlmBatchResult.failed(e));
+      } catch (RuntimeException e) {
+        results.add(LlmBatchResult.failed(new LlmException("Fake batch request failed: " + e, e)));
+      }
+    }
+    return results;
   }
 
   private LlmResponse complete(

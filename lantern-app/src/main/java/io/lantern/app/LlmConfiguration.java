@@ -7,6 +7,7 @@ import io.lantern.llm.LlmProvider;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.Slf4jLlmCallLog;
 import io.lantern.llm.anthropic.AnthropicProvider;
+import io.lantern.llm.openai.OpenAiProvider;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -60,8 +61,27 @@ class LlmConfiguration {
     Set<String> available = new HashSet<>();
     providerBeans.forEach(provider -> available.add(provider.name()));
     AnthropicProvider anthropic = null;
+    OpenAiProvider openai = null;
     for (String name : properties.providersInUse(settings)) {
       if (available.contains(name)) {
+        continue;
+      }
+      if (name.equals(OpenAiProvider.NAME)) {
+        if (properties.openai().apiKey() == null) {
+          if (anthropic != null) {
+            anthropic.close();
+          }
+          return LlmAccess.notConfigured(
+              "the configured models use OpenAI, but no API key is set (set OPENAI_API_KEY or"
+                  + " lantern.llm.openai.api-key)");
+        }
+        openai =
+            OpenAiProvider.create(
+                properties.openai().apiKey(),
+                properties.openai().baseUrl(),
+                properties.batchPoll());
+        providers.add(openai);
+        available.add(name);
         continue;
       }
       if (!name.equals(AnthropicProvider.NAME)) {
@@ -69,16 +89,23 @@ class LlmConfiguration {
             "A configured model uses provider '"
                 + name
                 + "', which Lantern does not have; known: "
-                + AnthropicProvider.NAME);
+                + AnthropicProvider.NAME
+                + ", "
+                + OpenAiProvider.NAME);
       }
       if (properties.anthropic().apiKey() == null) {
+        if (openai != null) {
+          openai.close();
+        }
         return LlmAccess.notConfigured(
             "the configured models use Anthropic, but no API key is set (set ANTHROPIC_API_KEY or"
                 + " lantern.llm.anthropic.api-key)");
       }
       anthropic =
           AnthropicProvider.create(
-              properties.anthropic().apiKey(), properties.anthropic().baseUrl());
+              properties.anthropic().apiKey(),
+              properties.anthropic().baseUrl(),
+              properties.batchPoll());
       providers.add(anthropic);
       available.add(name);
     }
@@ -117,10 +144,16 @@ class LlmConfiguration {
               properties.monthlyBudgetUsd(),
               clock,
               properties.retry().toPolicy());
-      return anthropic == null ? access : access.owning(anthropic);
+      if (anthropic != null) {
+        access = access.owning(anthropic);
+      }
+      return openai == null ? access : access.owning(openai);
     } catch (RuntimeException e) {
       if (anthropic != null) {
         anthropic.close();
+      }
+      if (openai != null) {
+        openai.close();
       }
       throw e;
     }

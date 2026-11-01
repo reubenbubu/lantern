@@ -73,24 +73,25 @@ class AnalysisConfiguration {
       @Value("${lantern.version}") String toolVersion,
       @Value("${lantern.workspace}") Path workspace) {
     return new AnalysisRun(
-        registry,
-        systems,
-        snapshots,
-        lock,
-        sandbox,
-        facts,
-        new TransactionTemplate(transactionManager),
-        llm,
-        callLog,
-        answers,
-        llmProperties.runBudget(),
-        views,
-        renderer,
-        c4Renderer,
-        extractionCache,
-        ruleRuns,
-        toolVersion,
-        absolute(workspace).resolve("documents"));
+            registry,
+            systems,
+            snapshots,
+            lock,
+            sandbox,
+            facts,
+            new TransactionTemplate(transactionManager),
+            llm,
+            callLog,
+            answers,
+            llmProperties.runBudget(),
+            views,
+            renderer,
+            c4Renderer,
+            extractionCache,
+            ruleRuns,
+            toolVersion,
+            absolute(workspace).resolve("documents"))
+        .batchingAbove(llmProperties.batchingAbove());
   }
 
   @Bean

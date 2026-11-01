@@ -119,6 +119,46 @@ class SummarizerTest {
   }
 
   @Test
+  void aBatchedRunStoresTheSameSummariesAsAnInteractiveOne() {
+    // Interactive: the default threshold of 50 misses is not reached.
+    Summarizer.Result interactive =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    assertThat(fake.batchSizes()).isEmpty();
+
+    // The same tree on a fresh cache, batching every miss: the first unit warms the prefix on its
+    // own, every other one goes through the batch API, level by level.
+    FakeLlmProvider batching = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+    Harness harness =
+        new Harness(
+                new LlmClient(
+                    ModelSettings.single(batching.batchingModel("model-a")),
+                    List.of(batching),
+                    BudgetGuard.unlimited("test"),
+                    new InMemoryLlmCallLog(),
+                    Clock.systemUTC()),
+                new io.lantern.harness.InMemoryAnswerStore(),
+                RunBudget.NONE,
+                BlobLookup.NONE,
+                Set.of())
+            .batchingAbove(0);
+    Summarizer.Result batched =
+        new Summarizer(harness).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(batched.summaries()).isEqualTo(interactive.summaries());
+    assertThat(batching.batchSizes()).isNotEmpty();
+    assertThat(batching.batchSizes().stream().mapToInt(Integer::intValue).sum())
+        .isEqualTo(batching.sent().size() - 1);
+    assertThat(harness.records().getFirst().batchCalls()).isEqualTo(batching.sent().size() - 1);
+    // Every request carries a long-lived cache, the warm-up's included.
+    assertThat(batching.sent())
+        .allSatisfy(
+            sent ->
+                assertThat(sent.request().cacheBreaks())
+                    .isNotEmpty()
+                    .allSatisfy(at -> assertThat(at.longLived()).isTrue()));
+  }
+
+  @Test
   void eachLevelIsSummarizedAfterTheLevelBelowAndFromIt() {
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));

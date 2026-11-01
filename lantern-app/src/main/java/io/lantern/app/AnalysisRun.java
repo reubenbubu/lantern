@@ -128,6 +128,7 @@ public final class AnalysisRun {
   private final JdbcLlmCallLog callLog;
   private final AnswerStore answers;
   private final RunBudget runBudget;
+  private volatile int batchAbove = Harness.BATCH_ABOVE;
   private final RuleRuns ruleRuns;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
@@ -176,6 +177,19 @@ public final class AnalysisRun {
     this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
     this.toolVersion = Objects.requireNonNull(toolVersion, "toolVersion");
     this.documentsDirectory = Objects.requireNonNull(documentsDirectory, "documentsDirectory");
+  }
+
+  /**
+   * Sends a bulk role's requests through the batch API once it has more than the given number of
+   * cache misses in a run ({@code lantern.llm.batch-above}, {@value Harness#BATCH_ABOVE} unless
+   * set).
+   */
+  AnalysisRun batchingAbove(int misses) {
+    if (misses < 0) {
+      throw new IllegalArgumentException("lantern.llm.batch-above must not be negative: " + misses);
+    }
+    this.batchAbove = misses;
+    return this;
   }
 
   /**
@@ -341,11 +355,12 @@ public final class AnalysisRun {
       // record (ADR 0100). A cached answer that read files holds while they keep their blobs.
       Harness harness =
           new Harness(
-              client,
-              answers,
-              runBudget,
-              (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
-              Set.of());
+                  client,
+                  answers,
+                  runBudget,
+                  (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
+                  Set.of())
+              .batchingAbove(batchAbove);
       Stored stored =
           store(
               snapshot.number(),

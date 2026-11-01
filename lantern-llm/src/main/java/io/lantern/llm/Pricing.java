@@ -29,6 +29,17 @@ public record Pricing(
     }
   }
 
+  /**
+   * The share of the price a request sent through a provider's batch API costs: half, on Anthropic
+   * and OpenAI alike, with the cache multipliers stacking on it.
+   */
+  public static final BigDecimal BATCH_DISCOUNT = new BigDecimal("0.5");
+
+  /** What the given usage costs through the provider's batch API, in US dollars. */
+  public BigDecimal batchCost(TokenUsage usage) {
+    return cost(usage).multiply(BATCH_DISCOUNT);
+  }
+
   /** What the given usage costs, in US dollars. */
   public BigDecimal cost(TokenUsage usage) {
     return input

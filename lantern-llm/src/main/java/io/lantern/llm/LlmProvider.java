@@ -28,4 +28,23 @@ public interface LlmProvider {
   default LlmResponse complete(ModelConfig model, LlmRequest request) {
     return complete(model.model(), request);
   }
+
+  /** Whether this provider has a batch API ({@link #completeBatch}). */
+  default boolean batches() {
+    return false;
+  }
+
+  /**
+   * Sends the requests through the provider's batch API, which answers them within a day at the
+   * batch discount, and waits for the batch to end. Requests run in any order; each gets its own
+   * result, in the order given. A request the batch failed, cancelled or let expire gets an error
+   * result; a failure of the batch as a whole is thrown.
+   *
+   * @throws LlmException if the batch could not be sent or read back
+   * @throws UnsupportedOperationException if the provider has no batch API
+   */
+  default java.util.List<LlmBatchResult> completeBatch(
+      ModelConfig model, java.util.List<LlmRequest> requests) {
+    throw new UnsupportedOperationException(name() + " has no batch API");
+  }
 }

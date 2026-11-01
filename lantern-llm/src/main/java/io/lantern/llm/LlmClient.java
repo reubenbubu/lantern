@@ -165,6 +165,162 @@ public final class LlmClient {
   }
 
   /**
+   * Whether the given role's requests can go through a batch API: its model says it may ({@link
+   * Capability#BATCH}) and its provider has one.
+   */
+  public boolean batches(Role role) {
+    ModelConfig model = settings.forRole(role);
+    return model.supports(Capability.BATCH) && provider(model).batches();
+  }
+
+  /**
+   * Sends requests of one role through its provider's batch API (knowledge-build epic, section 10,
+   * Run modes) and waits for the batch to end. Each request is checked and reserved against every
+   * budget at the batch price as {@link #call} does, and logged on its own, marked as batched; one
+   * that cannot be sent, or that the batch answers with an error, gets an error result while the
+   * others go on. Sending the batch is retried like a call; it holds no lane slot, since a batch
+   * API has its own limits.
+   *
+   * @param requests requests of one role, whose model {@linkplain #batches batches}
+   * @return the result of each request, in the order given
+   * @throws IllegalArgumentException if the requests are of different roles or the model does not
+   *     batch
+   */
+  public List<LlmBatchResult> batch(List<LlmRequest> requests) {
+    if (requests.isEmpty()) {
+      return List.of();
+    }
+    Role role = requests.getFirst().role();
+    if (requests.stream().anyMatch(r -> r.role() != role)) {
+      throw new IllegalArgumentException("A batch holds requests of one role");
+    }
+    if (!batches(role)) {
+      throw new IllegalArgumentException("The model of " + role + " does not batch");
+    }
+    ModelConfig model = settings.forRole(role);
+    LlmBatchResult[] results = new LlmBatchResult[requests.size()];
+    List<Integer> sent = new ArrayList<>();
+    List<LlmRequest> toSend = new ArrayList<>();
+    List<List<BudgetGuard.Reservation>> reservations = new ArrayList<>();
+    Instant start = clock.instant();
+    for (int i = 0; i < requests.size(); i++) {
+      LlmRequest request = requests.get(i);
+      if (!model.supports(Capability.PROMPT_CACHING) && !request.cacheBreaks().isEmpty()) {
+        request = request.withCacheBreaks(List.of());
+      }
+      try {
+        check(model, request);
+        request = request.withMaxOutputTokens(model.outputLimit(request));
+        reservations.add(reserve(model, request, true));
+      } catch (LlmException e) {
+        logMessage(
+            start,
+            request,
+            model,
+            LlmCall.Outcome.REFUSED,
+            TokenUsage.NONE,
+            BigDecimal.ZERO,
+            e.getMessage(),
+            null,
+            true);
+        results[i] = LlmBatchResult.failed(e);
+        continue;
+      }
+      sent.add(i);
+      toSend.add(request);
+    }
+    if (toSend.isEmpty()) {
+      return List.of(results);
+    }
+    List<LlmBatchResult> answers;
+    try {
+      answers = sendBatch(model, toSend);
+    } catch (RuntimeException e) {
+      LlmException error =
+          e instanceof LlmException llm ? llm : new LlmException("LLM batch failed: " + e, e);
+      for (int j = 0; j < toSend.size(); j++) {
+        reservations.get(j).forEach(BudgetGuard.Reservation::release);
+        logMessage(
+            start,
+            toSend.get(j),
+            model,
+            LlmCall.Outcome.FAILED,
+            TokenUsage.NONE,
+            BigDecimal.ZERO,
+            error.getMessage(),
+            null,
+            true);
+        results[sent.get(j)] = LlmBatchResult.failed(error);
+      }
+      return List.of(results);
+    }
+    for (int j = 0; j < toSend.size(); j++) {
+      LlmRequest request = toSend.get(j);
+      LlmBatchResult answer =
+          j < answers.size() && answers.get(j) != null
+              ? answers.get(j)
+              : LlmBatchResult.failed(new LlmException("The batch returned no result"));
+      if (answer.error() != null) {
+        reservations.get(j).forEach(BudgetGuard.Reservation::release);
+        logMessage(
+            start,
+            request,
+            model,
+            LlmCall.Outcome.FAILED,
+            TokenUsage.NONE,
+            BigDecimal.ZERO,
+            answer.error().getMessage(),
+            null,
+            true);
+      } else {
+        LlmResponse response = answer.response();
+        BigDecimal cost = model.pricing().batchCost(response.usage());
+        for (BudgetGuard.Reservation reservation : reservations.get(j)) {
+          reservation.settle(response.usage().total(), cost);
+        }
+        logMessage(
+            start,
+            request,
+            model,
+            response.cutOff() ? LlmCall.Outcome.TRUNCATED : LlmCall.Outcome.SUCCEEDED,
+            response.usage(),
+            cost,
+            response.cutOff()
+                ? "Cut off at the output limit of %d tokens or the context window (stop reason %s)"
+                    .formatted(request.maxOutputTokens(), response.stopReason())
+                : null,
+            null,
+            true);
+      }
+      results[sent.get(j)] = answer;
+    }
+    return List.of(results);
+  }
+
+  /** Sends one batch, retrying a transient failure by the limiter's policy. */
+  private List<LlmBatchResult> sendBatch(ModelConfig model, List<LlmRequest> requests) {
+    RetryPolicy policy = limiter.retryPolicy();
+    for (int attempt = 1; ; attempt++) {
+      try {
+        return provider(model).completeBatch(model, requests);
+      } catch (TransientLlmException e) {
+        if (attempt >= policy.maxAttempts()) {
+          throw policy.maxAttempts() == 1
+              ? e
+              : new LlmException(
+                  "Gave up on a batch after %d attempts: %s".formatted(attempt, e.getMessage()), e);
+        }
+        try {
+          TimeUnit.NANOSECONDS.sleep(policy.delay(attempt, e.retryAfter()).toNanos());
+        } catch (InterruptedException interrupted) {
+          Thread.currentThread().interrupt();
+          throw new LlmException("Interrupted while waiting to resend a batch", interrupted);
+        }
+      }
+    }
+  }
+
+  /**
    * Starts a conversation: a request whose answers may ask for the tool box's tools, which the
    * conversation runs and sends back until the model answers (ADR 0081). The request's tools are
    * replaced by the tool box's.
@@ -424,12 +580,18 @@ public final class LlmClient {
   }
 
   private List<BudgetGuard.Reservation> reserve(ModelConfig model, LlmRequest request) {
+    return reserve(model, request, false);
+  }
+
+  private List<BudgetGuard.Reservation> reserve(
+      ModelConfig model, LlmRequest request, boolean batch) {
     long input = request.estimatedInputTokens();
     // With caching, the system prompt may be written to the cache; the rest is normal input.
     long cached =
         model.cachesSystem(request) ? Math.min(input, Tokens.estimate(request.system())) : 0;
     TokenUsage worstCase = new TokenUsage(input - cached, request.maxOutputTokens(), cached, 0);
-    BigDecimal cost = model.pricing().cost(worstCase);
+    BigDecimal cost =
+        batch ? model.pricing().batchCost(worstCase) : model.pricing().cost(worstCase);
     List<BudgetGuard.Reservation> reservations = new ArrayList<>();
     try {
       for (BudgetGuard budget : budgets) {
@@ -480,6 +642,19 @@ public final class LlmClient {
       BigDecimal cost,
       String error,
       Turn turn) {
+    logMessage(start, request, model, outcome, usage, cost, error, turn, false);
+  }
+
+  private void logMessage(
+      Instant start,
+      LlmRequest request,
+      ModelConfig model,
+      LlmCall.Outcome outcome,
+      TokenUsage usage,
+      BigDecimal cost,
+      String error,
+      Turn turn,
+      boolean batch) {
     log.record(
         new LlmCall(
             start,
@@ -494,6 +669,7 @@ public final class LlmClient {
             error,
             turn == null ? null : turn.conversation(),
             turn == null ? 0 : turn.number(),
-            turn == null ? Map.of() : turn.toolCalls()));
+            turn == null ? Map.of() : turn.toolCalls(),
+            batch));
   }
 }

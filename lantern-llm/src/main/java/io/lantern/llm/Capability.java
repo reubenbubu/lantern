@@ -4,5 +4,10 @@ package io.lantern.llm;
 public enum Capability {
   TOOL_USE,
   STRUCTURED_OUTPUT,
-  PROMPT_CACHING
+  PROMPT_CACHING,
+  /**
+   * The provider's batch API, at its batch discount ({@link Pricing#batchCost}); used for a bulk
+   * role's cache misses (knowledge-build epic, section 10, Run modes).
+   */
+  BATCH
 }

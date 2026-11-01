@@ -157,7 +157,10 @@ class TestSetScoreIT {
             properties.monthlyBudgetUsd(),
             properties.retry(),
             properties.runBudgetUsd(),
-            properties.runBudgetShares());
+            properties.runBudgetShares(),
+            properties.openai(),
+            properties.batchAbove(),
+            properties.batchPoll());
     int sentBefore = fake.sent().size();
     AnalysisRun.Result second;
     try (LlmAccess access =
@@ -267,7 +270,7 @@ class TestSetScoreIT {
   }
 
   /** The set's repositories, by name, from its pins, in the folder setup.sh put them in. */
-  private static Map<String, Path> repos(Path pins, Path folder) throws IOException {
+  static Map<String, Path> repos(Path pins, Path folder) throws IOException {
     Map<String, Path> repos = new LinkedHashMap<>();
     for (String line : Files.readAllLines(pins)) {
       if (line.isBlank() || line.startsWith("#")) {

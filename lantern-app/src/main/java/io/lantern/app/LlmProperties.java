@@ -36,6 +36,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     run budget (ADR 0100, amended for #42)
  * @param runBudgetShares each role group's share of the run budget in percent, replacing the
  *     default share of the groups it names ({@link RunBudget#DEFAULT_SHARES})
+ * @param openai how to reach OpenAI or a server that speaks its API (ADR 0102)
+ * @param batchAbove how many cache misses a bulk role must have in a run, more than, for its
+ *     requests to go through the batch API of a model that may batch; {@value
+ *     io.lantern.harness.Harness#BATCH_ABOVE} unless set (ADR 0102)
+ * @param batchPoll how often a running batch's status is read, 30 seconds unless set (ADR 0102)
  */
 @ConfigurationProperties("lantern.llm")
 public record LlmProperties(
@@ -46,13 +51,25 @@ public record LlmProperties(
     BigDecimal monthlyBudgetUsd,
     Retry retry,
     BigDecimal runBudgetUsd,
-    Map<String, Integer> runBudgetShares) {
+    Map<String, Integer> runBudgetShares,
+    OpenAi openai,
+    Integer batchAbove,
+    java.time.Duration batchPoll) {
 
   public LlmProperties {
     models = models == null ? Map.of() : Map.copyOf(models);
     tiers = tiers == null ? Map.of() : Map.copyOf(tiers);
     roles = roles == null ? Map.of() : Map.copyOf(roles);
     anthropic = anthropic == null ? new Anthropic(null, null) : anthropic;
+    openai = openai == null ? new OpenAi(null, null) : openai;
+    batchPoll = batchPoll == null ? java.time.Duration.ofSeconds(30) : batchPoll;
+    if (batchPoll.isNegative() || batchPoll.isZero()) {
+      throw new IllegalArgumentException("lantern.llm.batch-poll must be positive: " + batchPoll);
+    }
+    if (batchAbove != null && batchAbove < 0) {
+      throw new IllegalArgumentException(
+          "lantern.llm.batch-above must not be negative: " + batchAbove);
+    }
     retry = retry == null ? new Retry(null, null, null) : retry;
     if (runBudgetUsd != null && runBudgetUsd.signum() < 0) {
       throw new IllegalArgumentException(
@@ -75,6 +92,11 @@ public record LlmProperties(
   }
 
   /** The run budget these settings give, split by role group. */
+  /** How many cache misses a bulk role must have, more than, to batch. */
+  int batchingAbove() {
+    return batchAbove == null ? io.lantern.harness.Harness.BATCH_ABOVE : batchAbove;
+  }
+
   RunBudget runBudget() {
     Map<String, Integer> shares = new java.util.LinkedHashMap<>(RunBudget.DEFAULT_SHARES);
     shares.putAll(runBudgetShares);
@@ -278,6 +300,25 @@ public record LlmProperties(
           + ", baseUrl="
           + baseUrl
           + "]";
+    }
+  }
+
+  /**
+   * How to reach OpenAI, or a server that speaks its Chat Completions API.
+   *
+   * @param apiKey the API key, or {@code null} if none is set
+   * @param baseUrl the API's base URL, or {@code null} for OpenAI's
+   */
+  public record OpenAi(String apiKey, String baseUrl) {
+
+    public OpenAi {
+      apiKey = apiKey == null || apiKey.isBlank() ? null : apiKey;
+      baseUrl = baseUrl == null || baseUrl.isBlank() ? null : baseUrl;
+    }
+
+    @Override
+    public String toString() {
+      return "OpenAi[apiKey=" + (apiKey == null ? "unset" : "***") + ", baseUrl=" + baseUrl + "]";
     }
   }
 

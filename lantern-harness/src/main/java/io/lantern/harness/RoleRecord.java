@@ -63,20 +63,15 @@ public final class RoleRecord implements LlmCallLog {
         call.usage().cacheWrite(),
         call.usage().cacheRead());
     usd = usd.add(call.costUsd());
+    if (call.batch()) {
+      batchCalls++;
+      batchUsd = batchUsd.add(call.costUsd());
+    }
   }
 
   @Override
   public synchronized void recordConversation(LlmConversation conversation) {
     conversations++;
-  }
-
-  /** Records a request answered through the provider's batch API, at its batch price. */
-  synchronized void recordBatch(io.lantern.llm.TokenUsage usage, BigDecimal cost) {
-    calls++;
-    batchCalls++;
-    add(usage.input(), usage.output(), usage.cacheWrite(), usage.cacheRead());
-    usd = usd.add(cost);
-    batchUsd = batchUsd.add(cost);
   }
 
   private void add(long in, long out, long write, long read) {
@@ -124,6 +119,11 @@ public final class RoleRecord implements LlmCallLog {
   /** How many calls the role made, batched ones included. */
   public synchronized int calls() {
     return calls;
+  }
+
+  /** How many of the role's calls went through the provider's batch API. */
+  public synchronized int batchCalls() {
+    return batchCalls;
   }
 
   /** How many items the cache answered. */

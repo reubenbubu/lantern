@@ -96,6 +96,40 @@ class ModelChecksTest {
   }
 
   @Test
+  void aBulkRolePastTheThresholdBatchesItsMissesAfterOneWarmUpAndFindsTheSame() throws Exception {
+    List<Harness.Shown> many = new ArrayList<>(fixtures());
+    for (int i = 0; i < 60; i++) {
+      String text = "class C" + i + " {}\n";
+      many.add(new Harness.Shown("orders", "C" + i + ".java", Fingerprints.gitBlob(text), text));
+    }
+    FakeLlmProvider interactive = new FakeLlmProvider().answering(ModelChecksTest::screening);
+    InjectionScreen.Result expected =
+        new InjectionScreen(
+                harness(
+                        client(interactive, interactive.batchingModel("m")),
+                        new InMemoryAnswerStore())
+                    .batchingAbove(1000))
+            .screen(InjectionScreen.chunks(many));
+    assertThat(interactive.batchSizes()).isEmpty();
+    assertThat(interactive.sent()).hasSize(7);
+
+    FakeLlmProvider batching = new FakeLlmProvider().answering(ModelChecksTest::screening);
+    Harness harness = harness(client(batching, batching.batchingModel("m")), store);
+    InjectionScreen.Result result =
+        new InjectionScreen(harness).screen(InjectionScreen.chunks(many));
+
+    assertThat(harness.session(InjectionScreen.ROLE).batching()).isTrue();
+    assertThat(result).isEqualTo(expected);
+    // 65 chunks in packets of 10: one warm-up request, six in one batch.
+    assertThat(batching.sent()).hasSize(7);
+    assertThat(batching.batchSizes()).containsExactly(6);
+    RoleRecord record = harness.records().getFirst();
+    assertThat(record.calls()).isEqualTo(7);
+    assertThat(record.batchCalls()).isEqualTo(6);
+    assertThat(record.toJson().path("batchCalls").asInt()).isEqualTo(6);
+  }
+
+  @Test
   void aFlagWhoseQuoteIsNotInTheLinesItGivesCountsAsNotSuspected() throws Exception {
     FakeLlmProvider fake =
         new FakeLlmProvider()

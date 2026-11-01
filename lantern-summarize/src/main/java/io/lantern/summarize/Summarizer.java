@@ -197,6 +197,11 @@ public final class Summarizer {
       collect(root, units, new HashSet<>());
     }
     run.plan(units.values());
+    if (session.batching()) {
+      // A batched request waits for its batch, not a slot of the model's lane: every unit whose
+      // parts are done joins the next batch.
+      run.unbounded();
+    }
     Map<EntityId, CompletableFuture<Optional<Summary>>> futures = new LinkedHashMap<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       for (SummaryNode node : units.values()) {
@@ -424,7 +429,7 @@ public final class Summarizer {
     private final AtomicBoolean failed = new AtomicBoolean();
     private final Set<EntityId> rejected = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean accepted = new AtomicBoolean();
-    private final Semaphore running;
+    private volatile Semaphore running;
     private final Map<String, Optional<String>> files =
         new LinkedHashMap<>(16, 0.75f, true) {
           @Override
@@ -474,6 +479,11 @@ public final class Summarizer {
         }
       }
       session.plan(known, hits, misses, tokens, Tokens.estimate(Prompt.SYSTEM));
+    }
+
+    /** Lets every unit run at once, as batching does; called before any unit runs. */
+    void unbounded() {
+      running = new Semaphore(Integer.MAX_VALUE, true);
     }
 
     /**

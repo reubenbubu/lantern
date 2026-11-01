@@ -27,6 +27,13 @@ public final class Harness {
   private final Map<String, io.lantern.llm.BudgetGuard> guards = new LinkedHashMap<>();
   private final Map<String, java.math.BigDecimal> planned = new LinkedHashMap<>();
   private final Map<String, Shown> shown = new LinkedHashMap<>();
+  private volatile int batchAbove = BATCH_ABOVE;
+
+  /**
+   * How many cache misses a bulk role must have in a run, more than, for its requests to go through
+   * the provider's batch API (knowledge-build epic, section 10, Run modes).
+   */
+  public static final int BATCH_ABOVE = 50;
 
   /**
    * @param client the LLM client, with the run's other budgets
@@ -56,6 +63,24 @@ public final class Harness {
   public static Harness inMemory(LlmClient client) {
     return new Harness(
         client, new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of());
+  }
+
+  /**
+   * Sends a bulk role's requests through the batch API once it has more than the given number of
+   * cache misses, instead of {@value #BATCH_ABOVE}; 0 batches every bulk role that misses at all,
+   * as a check that batching changes no answer does. Set before any role starts.
+   */
+  public Harness batchingAbove(int misses) {
+    if (misses < 0) {
+      throw new IllegalArgumentException("Misses must not be negative: " + misses);
+    }
+    this.batchAbove = misses;
+    return this;
+  }
+
+  /** How many cache misses a bulk role must have, more than, to batch. */
+  int batchAbove() {
+    return batchAbove;
   }
 
   /** The role's session in this run; asking again for a role gives the same session. */

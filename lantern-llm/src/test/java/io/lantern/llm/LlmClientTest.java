@@ -375,4 +375,73 @@ class LlmClientTest {
     assertThat(new LlmResponse("x", "end_turn", TokenUsage.NONE).cutOff()).isFalse();
     assertThat(new LlmResponse("x", null, TokenUsage.NONE).cutOff()).isFalse();
   }
+
+  @Test
+  void aBatchGivesEachRequestItsOwnResultAndRefusesWhatTheBudgetCannotHold() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  if (request.messages().getFirst().text().equals("fail")) {
+                    throw new LlmException("this one failed");
+                  }
+                  return "ok";
+                });
+    ModelConfig priced =
+        new ModelConfig(
+            fake.name(),
+            "m",
+            java.util.EnumSet.allOf(Capability.class),
+            1_000_000,
+            new Pricing(
+                new BigDecimal("1000"), new BigDecimal("1000"), BigDecimal.ZERO, BigDecimal.ZERO));
+    InMemoryLlmCallLog log = new InMemoryLlmCallLog();
+    LlmClient client =
+        new LlmClient(
+            ModelSettings.single(priced),
+            List.of(fake),
+            new BudgetGuard("run", null, new BigDecimal("0.12")),
+            log,
+            java.time.Clock.systemUTC());
+    LlmRequest ok = LlmRequest.of(Role.SUMMARIZE, "ok", null, "ok", 10);
+    LlmRequest fail = LlmRequest.of(Role.SUMMARIZE, "fail", null, "fail", 10);
+    LlmRequest big = LlmRequest.of(Role.SUMMARIZE, "big", null, "x".repeat(4000), 10);
+
+    List<LlmBatchResult> results = client.batch(List.of(ok, fail, big));
+
+    assertThat(results.get(0).response().text()).isEqualTo("ok");
+    assertThat(results.get(1).error()).hasMessageContaining("this one failed");
+    assertThat(results.get(2).error()).isInstanceOf(BudgetExceededException.class);
+    assertThat(fake.batchSizes()).containsExactly(2);
+    assertThat(log.calls())
+        .extracting(LlmCall::outcome)
+        .containsExactlyInAnyOrder(
+            LlmCall.Outcome.SUCCEEDED, LlmCall.Outcome.FAILED, LlmCall.Outcome.REFUSED);
+    assertThat(log.calls()).allSatisfy(call -> assertThat(call.batch()).isTrue());
+    LlmCall answered =
+        log.calls().stream()
+            .filter(c -> c.outcome() == LlmCall.Outcome.SUCCEEDED)
+            .findFirst()
+            .orElseThrow();
+    assertThat(answered.costUsd())
+        .isEqualByComparingTo(
+            priced.pricing().cost(answered.usage()).multiply(new BigDecimal("0.5")));
+  }
+
+  @Test
+  void aModelWhoseSettingsDoNotSayBatchNeverBatches() {
+    FakeLlmProvider fake = new FakeLlmProvider();
+    ModelConfig plain =
+        new ModelConfig(
+            fake.name(), "m", java.util.EnumSet.noneOf(Capability.class), 100_000, Pricing.FREE);
+    LlmClient client =
+        new LlmClient(
+            ModelSettings.single(plain),
+            List.of(fake),
+            BudgetGuard.unlimited("t"),
+            new InMemoryLlmCallLog(),
+            java.time.Clock.systemUTC());
+
+    assertThat(client.batches(Role.SUMMARIZE)).isFalse();
+  }
 }

@@ -3,7 +3,9 @@ package io.lantern.llm.anthropic;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
+import com.anthropic.core.ObjectMappers;
 import com.anthropic.core.http.Headers;
+import com.anthropic.core.http.StreamResponse;
 import com.anthropic.errors.AnthropicException;
 import com.anthropic.errors.AnthropicIoException;
 import com.anthropic.errors.AnthropicRetryableException;
@@ -26,8 +28,14 @@ import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
 import com.anthropic.models.messages.Usage;
+import com.anthropic.models.messages.batches.BatchCreateParams;
+import com.anthropic.models.messages.batches.MessageBatch;
+import com.anthropic.models.messages.batches.MessageBatchIndividualResponse;
+import com.anthropic.models.messages.batches.MessageBatchResult;
+import io.lantern.llm.BatchPolling;
 import io.lantern.llm.CacheBreak;
 import io.lantern.llm.Capability;
+import io.lantern.llm.LlmBatchResult;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmProvider;
@@ -85,17 +93,27 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
   /** The longest wait taken from a retry-after header, so a bad value cannot stall a run. */
   private static final double MAX_RETRY_AFTER_MS = 10 * 60 * 1000;
 
+  /** How often a batch's status is read while it runs, unless given another. */
+  public static final Duration BATCH_POLL = Duration.ofSeconds(30);
+
   private final AnthropicClient client;
   private final boolean ownsClient;
+  private final Duration batchPoll;
 
   /** Uses the given SDK client; the caller closes it. */
   public AnthropicProvider(AnthropicClient client) {
-    this(client, false);
+    this(client, false, BATCH_POLL);
   }
 
-  private AnthropicProvider(AnthropicClient client, boolean ownsClient) {
+  /** Uses the given SDK client, reading a running batch's status at the given interval. */
+  public AnthropicProvider(AnthropicClient client, Duration batchPoll) {
+    this(client, false, batchPoll);
+  }
+
+  private AnthropicProvider(AnthropicClient client, boolean ownsClient, Duration batchPoll) {
     this.client = Objects.requireNonNull(client, "client");
     this.ownsClient = ownsClient;
+    this.batchPoll = Objects.requireNonNull(batchPoll, "batchPoll");
   }
 
   /**
@@ -105,6 +123,14 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
    * @param baseUrl the API's base URL, or {@code null} for Anthropic's
    */
   public static AnthropicProvider create(String apiKey, String baseUrl) {
+    return create(apiKey, baseUrl, BATCH_POLL);
+  }
+
+  /**
+   * A provider with its own SDK client, which {@link #close()} closes, reading a running batch's
+   * status at the given interval.
+   */
+  public static AnthropicProvider create(String apiKey, String baseUrl, Duration batchPoll) {
     if (apiKey == null || apiKey.isBlank()) {
       throw new IllegalArgumentException("Anthropic API key must not be blank");
     }
@@ -113,7 +139,7 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     if (baseUrl != null) {
       builder.baseUrl(baseUrl);
     }
-    return new AnthropicProvider(builder.build(), true);
+    return new AnthropicProvider(builder.build(), true, batchPoll);
   }
 
   @Override
@@ -149,6 +175,112 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
         response.usage().cacheAsInput(),
         response.toolCalls(),
         response.thinking());
+  }
+
+  @Override
+  public boolean batches() {
+    return true;
+  }
+
+  /**
+   * Sends the requests as one Message Batch, each as {@link #complete(ModelConfig, LlmRequest)}
+   * would send it on its own, reads the batch's status every poll interval until it has ended, and
+   * reads back each request's result by its custom id.
+   */
+  @Override
+  public List<LlmBatchResult> completeBatch(ModelConfig model, List<LlmRequest> requests) {
+    com.fasterxml.jackson.databind.json.JsonMapper sdk = ObjectMappers.jsonMapper();
+    BatchCreateParams.Builder batch = BatchCreateParams.builder();
+    for (int i = 0; i < requests.size(); i++) {
+      LlmRequest request = requests.get(i);
+      MessageCreateParams params =
+          params(model.model(), request, model.thinking(), model.cachesSystem(request));
+      BatchCreateParams.Request.Params body;
+      try {
+        // The batch's request params are the Messages API's body, in a type of their own.
+        body =
+            sdk.readValue(
+                sdk.writeValueAsString(params._body()), BatchCreateParams.Request.Params.class);
+      } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+        throw new LlmException("Could not write a batch request: " + e.getMessage(), e);
+      }
+      batch.addRequest(BatchCreateParams.Request.builder().customId(id(i)).params(body).build());
+    }
+    Map<String, LlmBatchResult> byId = new LinkedHashMap<>();
+    try {
+      MessageBatch created = client.messages().batches().create(batch.build());
+      MessageBatch status = created;
+      while (!status.processingStatus().equals(MessageBatch.ProcessingStatus.ENDED)) {
+        try {
+          Thread.sleep(batchPoll);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new LlmException("Interrupted while waiting for batch " + created.id(), e);
+        }
+        status =
+            BatchPolling.step(
+                "reading batch " + created.id(),
+                batchPoll,
+                () -> client.messages().batches().retrieve(created.id()),
+                AnthropicProvider::anyError);
+      }
+      BatchPolling.step(
+          "reading the results of batch " + created.id(),
+          batchPoll,
+          () -> {
+            byId.clear();
+            try (StreamResponse<MessageBatchIndividualResponse> results =
+                client.messages().batches().resultsStreaming(created.id())) {
+              results.stream()
+                  .forEach(result -> byId.put(result.customId(), result(model, result)));
+            }
+            return byId;
+          },
+          AnthropicProvider::anyError);
+    } catch (AnthropicException e) {
+      // Only creating the batch gets here: nothing was created, so it may be sent again.
+      throw error(e);
+    }
+    List<LlmBatchResult> results = new ArrayList<>();
+    for (int i = 0; i < requests.size(); i++) {
+      results.add(
+          byId.getOrDefault(
+              id(i), LlmBatchResult.failed(new LlmException("The batch returned no result"))));
+    }
+    return results;
+  }
+
+  /** The error of a failed step, transient when retrying it may help. */
+  private static LlmException anyError(RuntimeException e) {
+    return e instanceof AnthropicException anthropic
+        ? error(anthropic)
+        : new LlmException("Anthropic batch step failed: " + e, e);
+  }
+
+  /** A request's custom id in a batch, by its place. */
+  private static String id(int index) {
+    return "r" + index;
+  }
+
+  private static LlmBatchResult result(ModelConfig model, MessageBatchIndividualResponse result) {
+    MessageBatchResult outcome = result.result();
+    if (outcome.isSucceeded()) {
+      LlmResponse response = response(outcome.asSucceeded().message());
+      return LlmBatchResult.answered(
+          model.supports(Capability.PROMPT_CACHING)
+              ? response
+              : new LlmResponse(
+                  response.text(),
+                  response.stopReason(),
+                  response.usage().cacheAsInput(),
+                  response.toolCalls(),
+                  response.thinking()));
+    }
+    String why =
+        outcome.isErrored()
+            ? "errored: " + outcome.asErrored().error()
+            : outcome.isExpired() ? "expired" : outcome.isCanceled() ? "canceled" : "no result";
+    return LlmBatchResult.failed(new LlmException("Anthropic batch request " + why));
   }
 
   private LlmResponse send(MessageCreateParams params) {
