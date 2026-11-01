@@ -65,6 +65,22 @@ final class RunRecord {
       Map<Role, ModelConfig> models,
       List<JdbcLlmCallLog.ModelSpending> spent,
       List<JdbcLlmCallLog.ConversationSpending> conversations) {
+    return of(system, snapshot, models, spent, conversations, List.of());
+  }
+
+  /**
+   * The record of a run with its conversations and what each role of the LLM harness did (ADR
+   * 0100): items planned, cached, asked, accepted, repaired, dropped and not asked, calls, tokens
+   * by kind, cost, the plan's estimate and the subjects asked.
+   */
+  static ObjectNode of(
+      String system,
+      long snapshot,
+      Map<Role, ModelConfig> models,
+      List<JdbcLlmCallLog.ModelSpending> spent,
+      List<JdbcLlmCallLog.ConversationSpending> conversations,
+      List<io.lantern.harness.RoleRecord> harness) {
+    Objects.requireNonNull(harness, "harness");
     Objects.requireNonNull(conversations, "conversations");
     Objects.requireNonNull(models, "models");
     Objects.requireNonNull(spent, "spent");
@@ -131,6 +147,12 @@ final class RunRecord {
         ObjectNode byEnding = summary.putObject("endings");
         endings.forEach(byEnding::put);
       }
+    }
+    ArrayNode harnessRoles = root.putArray("harness");
+    for (io.lantern.harness.RoleRecord record : harness) {
+      ObjectNode entry = record.toJson();
+      record.asked().stream().sorted().forEach(entry.putArray("askedSubjects")::add);
+      harnessRoles.add(entry);
     }
     ArrayNode byModel = root.putArray("byModel");
     for (JdbcLlmCallLog.ModelSpending s : spent) {

@@ -16,6 +16,9 @@ import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.harness.Harness;
+import io.lantern.harness.InMemoryAnswerStore;
+import io.lantern.harness.RunBudget;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
@@ -31,6 +34,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -47,7 +51,18 @@ class LinkResolverTest {
   private String model = "m";
   private int callLine = 18;
   private final List<Fact> facts = new ArrayList<>();
-  private final InMemoryResolutionStore store = new InMemoryResolutionStore();
+  private final InMemoryAnswerStore store = new InMemoryAnswerStore();
+
+  /** A harness with the test's answer cache, so later runs reuse earlier answers. */
+  private Harness harness(LlmClient client) {
+    return new Harness(
+        client,
+        store,
+        RunBudget.NONE,
+        (repo, path) -> FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
+        Set.of());
+  }
+
   private final InMemoryLlmCallLog log = new InMemoryLlmCallLog();
 
   @TempDir Path recordings;
@@ -185,7 +200,7 @@ class LinkResolverTest {
 
   private LinkResolver.Result resolve(LlmProvider provider, BudgetGuard budget) {
     LinkResolver.Result result =
-        new LinkResolver(client(provider, budget), store).resolve(linked(), 1);
+        new LinkResolver(harness(client(provider, budget))).resolve(linked(), 1);
     result.facts().forEach(DeployableUnitsTest.vocabulary()::validate);
     return result;
   }
@@ -465,7 +480,7 @@ class LinkResolverTest {
   void theResolverTotalsTheLinksItAskedAboutAcrossItsResolves() {
     taxCall();
     FakeLlmProvider fake = answering(r -> PICK_TAX);
-    LinkResolver resolver = new LinkResolver(client(fake, BudgetGuard.unlimited("test")), store);
+    LinkResolver resolver = new LinkResolver(harness(client(fake, BudgetGuard.unlimited("test"))));
 
     resolver.derive(linked(), 1);
     resolver.derive(linked(), 1);
@@ -678,13 +693,12 @@ class LinkResolverTest {
         resolve(RecordReplayLlmProvider.recording(fake, recordings), BudgetGuard.unlimited("t"));
     assertThat(fake.sent()).hasSize(1);
 
-    InMemoryResolutionStore fresh = new InMemoryResolutionStore();
     LinkResolver.Result replayed =
         new LinkResolver(
-                client(
-                    RecordReplayLlmProvider.replaying(FakeLlmProvider.NAME, recordings),
-                    BudgetGuard.unlimited("t")),
-                fresh)
+                Harness.inMemory(
+                    client(
+                        RecordReplayLlmProvider.replaying(FakeLlmProvider.NAME, recordings),
+                        BudgetGuard.unlimited("t"))))
             .resolve(linked(), 1);
 
     assertThat(fake.sent()).hasSize(1);
@@ -746,7 +760,7 @@ class LinkResolverTest {
 
   private LinkResolver.Result resolveWithFiles(LlmProvider provider) {
     LinkResolver.Result result =
-        new LinkResolver(client(provider, BudgetGuard.unlimited("t")), store, FILES)
+        new LinkResolver(harness(client(provider, BudgetGuard.unlimited("t"))), FILES)
             .resolve(linked(), 1);
     result.facts().forEach(DeployableUnitsTest.vocabulary()::validate);
     return result;
@@ -797,7 +811,14 @@ class LinkResolverTest {
             .orElseThrow()
             .id();
     assertThat(link.attributes().get("facts").toString()).contains(stereotype);
-    assertThat(store.latest(link.attributes().get("resolves").asString()).orElseThrow().cited())
+    assertThat(
+            ResolutionJson.read(
+                    store
+                        .latest(
+                            LinkResolver.ROLE.name(), link.attributes().get("resolves").asString())
+                        .orElseThrow()
+                        .answer())
+                .cited())
         .containsExactly("C2", "F9", stereotype);
     // One conversation of three turns, its calls numbered.
     assertThat(log.calls()).extracting(LlmCall::turn).containsExactly(1, 2, 3);
@@ -861,7 +882,7 @@ class LinkResolverTest {
             log,
             Clock.systemUTC());
 
-    LinkResolver.Result result = new LinkResolver(client, store, FILES).resolve(linked(), 1);
+    LinkResolver.Result result = new LinkResolver(harness(client), FILES).resolve(linked(), 1);
 
     assertThat(result.facts()).hasSize(1);
     LlmRequest request = fake.sent().getFirst().request();
@@ -901,13 +922,13 @@ class LinkResolverTest {
       // Rewrites the recordings from the scripted model above; no real model is called.
       FakeLlmProvider scripted = lookingFurther();
       new LinkResolver(
-              new LlmClient(
-                  ModelSettings.single(scripted.model(model)),
-                  List.of(RecordReplayLlmProvider.recording(scripted, TOOL_RECORDINGS)),
-                  BudgetGuard.unlimited("t"),
-                  new InMemoryLlmCallLog(),
-                  Clock.systemUTC()),
-              new InMemoryResolutionStore(),
+              Harness.inMemory(
+                  new LlmClient(
+                      ModelSettings.single(scripted.model(model)),
+                      List.of(RecordReplayLlmProvider.recording(scripted, TOOL_RECORDINGS)),
+                      BudgetGuard.unlimited("t"),
+                      new InMemoryLlmCallLog(),
+                      Clock.systemUTC())),
               FILES)
           .resolve(linked(), 1);
     }

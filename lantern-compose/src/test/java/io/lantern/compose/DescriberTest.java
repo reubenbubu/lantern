@@ -22,6 +22,10 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.harness.BlobLookup;
+import io.lantern.harness.Harness;
+import io.lantern.harness.InMemoryAnswerStore;
+import io.lantern.harness.RunBudget;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
@@ -37,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -63,7 +68,12 @@ class DescriberTest {
   private static final String RUN_FLOW = "Jobs.run on its schedule in shop-app";
 
   private final TestFacts facts = TestFacts.runtime();
-  private final InMemoryWordingStore store = new InMemoryWordingStore();
+  private final InMemoryAnswerStore store = new InMemoryAnswerStore();
+
+  /** A harness with the test's answer cache, so later runs reuse earlier answers. */
+  private Harness harness(LlmClient client) {
+    return new Harness(client, store, RunBudget.NONE, BlobLookup.NONE, Set.of());
+  }
 
   /**
    * Words each unit, its components and relationships from what its prompt shows: the shop app's
@@ -139,7 +149,7 @@ class DescriberTest {
   }
 
   private Describer.Result describe(FakeLlmProvider fake) {
-    return new Describer(client(fake), store).describe(facts.list());
+    return new Describer(harness(client(fake))).describe(facts.list());
   }
 
   private Document system(Wordings wordings) {
@@ -226,7 +236,7 @@ class DescriberTest {
             .relate("shop", "schema:com.example:app", "CONTAINS", "table:com.example:app:orders");
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
 
-    new Describer(client(fake), store).describe(withTables.list());
+    new Describer(harness(client(fake))).describe(withTables.list());
 
     Function<String, LlmRequest> request =
         purpose ->
@@ -276,7 +286,7 @@ class DescriberTest {
                 "{\"protocol\": \"AMQP\", \"bindingKey\": \"#\"}");
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
 
-    Describer.Result result = new Describer(client(fake), store).describe(routed.list());
+    Describer.Result result = new Describer(harness(client(fake))).describe(routed.list());
 
     assertThat(result.asked()).isEqualTo(8);
     assertThat(fake.sent())
@@ -468,7 +478,8 @@ class DescriberTest {
     List<Fact> repoFacts =
         facts.list().stream().filter(f -> !f.predicate().equals("SENDS_MESSAGES_TO")).toList();
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
-    Wordings both = new Describer(client(fake), store).describe(facts.list(), repoFacts).wordings();
+    Wordings both =
+        new Describer(harness(client(fake))).describe(facts.list(), repoFacts).wordings();
 
     Document repo =
         new Composer("1")
@@ -517,7 +528,7 @@ class DescriberTest {
     List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
 
-    Describer.Result result = new Describer(client(fake), store).describe(withClaim);
+    Describer.Result result = new Describer(harness(client(fake))).describe(withClaim);
 
     LlmRequest purpose =
         fake.sent().stream()
@@ -570,7 +581,7 @@ class DescriberTest {
                   return prompt.startsWith("The flow") ? answer(request) : "{}";
                 });
 
-    Describer.Result result = new Describer(client(fake), store).describe(withClaim);
+    Describer.Result result = new Describer(harness(client(fake))).describe(withClaim);
 
     assertThat(
             fake.sent().stream()
@@ -701,7 +712,7 @@ class DescriberTest {
   void aPurposeFromAReadmeClaimOpensTheSystemsOverviewAndDescribesTheSystem() {
     List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
     Wordings wordings =
-        new Describer(client(new FakeLlmProvider().answering(DescriberTest::answer)), store)
+        new Describer(harness(client(new FakeLlmProvider().answering(DescriberTest::answer))))
             .describe(withClaim)
             .wordings();
 
@@ -916,7 +927,7 @@ class DescriberTest {
             .attribute("shop", "service:g:lonely", "deployable-unit", "spring-boot", "{}");
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
 
-    Describer.Result result = new Describer(client(fake), store).describe(bare.list());
+    Describer.Result result = new Describer(harness(client(fake))).describe(bare.list());
 
     assertThat(fake.sent()).isEmpty();
     assertThat(result.asked()).isZero();
@@ -949,7 +960,7 @@ class DescriberTest {
             .toList();
 
     Describer.Result second =
-        new Describer(client(fake), store)
+        new Describer(harness(client(fake)))
             .describe(io.lantern.derive.Derivation.withModel(moved, 1));
 
     assertThat(fake.sent()).hasSize(calls);
@@ -1107,7 +1118,7 @@ class DescriberTest {
     SourceFiles sources =
         files(Map.of(CONTROLLER_PATH, CONTROLLER_CODE, JOBS_PATH, "class Jobs { int changed; }"));
 
-    Describer.Result result = new Describer(client(fake), store, sources).describe(withCode);
+    Describer.Result result = new Describer(harness(client(fake)), sources).describe(withCode);
 
     String app = appPrompt(fake);
     String declared =
@@ -1149,7 +1160,7 @@ class DescriberTest {
     List<Fact> withCode = new ArrayList<>(facts.list());
     withCode.add(kind(CONTROLLER, CONTROLLER_PATH, code.toString(), TestFacts.COMMIT));
 
-    new Describer(client(fake), store, files(Map.of(CONTROLLER_PATH, code.toString())))
+    new Describer(harness(client(fake)), files(Map.of(CONTROLLER_PATH, code.toString())))
         .describe(withCode);
 
     String app = appPrompt(fake);
@@ -1174,12 +1185,12 @@ class DescriberTest {
     List<Fact> first = new ArrayList<>(facts.list());
     first.add(kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, TestFacts.COMMIT));
     Map<String, String> files = new HashMap<>(Map.of(CONTROLLER_PATH, CONTROLLER_CODE));
-    new Describer(client(fake), store, files(files)).describe(first);
+    new Describer(harness(client(fake)), files(files)).describe(first);
     int calls = fake.sent().size();
 
     List<Fact> moved = new ArrayList<>(facts.list());
     moved.add(kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, "b".repeat(40)));
-    Describer.Result same = new Describer(client(fake), store, files(files)).describe(moved);
+    Describer.Result same = new Describer(harness(client(fake)), files(files)).describe(moved);
 
     assertThat(fake.sent()).hasSize(calls);
     assertThat(same.wordings().documented())
@@ -1194,7 +1205,7 @@ class DescriberTest {
     List<Fact> edited = new ArrayList<>(facts.list());
     edited.add(kind(CONTROLLER, CONTROLLER_PATH, changed, "c".repeat(40)));
     files.put(CONTROLLER_PATH, changed);
-    new Describer(client(fake), store, files(files)).describe(edited);
+    new Describer(harness(client(fake)), files(files)).describe(edited);
 
     assertThat(fake.sent())
         .hasSize(calls + 1)

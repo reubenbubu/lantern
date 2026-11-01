@@ -129,6 +129,7 @@ public final class GraphTools implements ToolBox {
   private final RepoFiles files;
   private final Set<String> secretKeys;
   private final Map<String, Fact> shown = new LinkedHashMap<>();
+  private final Map<String, io.lantern.harness.FileRead> read = new LinkedHashMap<>();
   private final Map<String, String> refs = new HashMap<>();
 
   private GraphTools(Graph graph) {
@@ -137,6 +138,14 @@ public final class GraphTools implements ToolBox {
     this.repos = graph.repos;
     this.files = graph.files;
     this.secretKeys = graph.secretKeys;
+  }
+
+  /**
+   * The files {@code read_file} has read so far, with their git blobs, in the order first read; a
+   * cached answer is reused only while each still has that blob (ADR 0100).
+   */
+  public synchronized List<io.lantern.harness.FileRead> filesRead() {
+    return List.copyOf(read.values());
   }
 
   /** The facts the tools have shown so far, by reference, in the order shown. */
@@ -338,6 +347,12 @@ public final class GraphTools implements ToolBox {
     Optional<byte[]> content = files.read(repo, path);
     if (content.isEmpty()) {
       return LlmToolResult.error(call, "No file " + path + " in " + repo + ".");
+    }
+    synchronized (this) {
+      read.putIfAbsent(
+          repo + '\u0000' + path,
+          new io.lantern.harness.FileRead(
+              repo, path, io.lantern.harness.Fingerprints.gitBlob(content.get())));
     }
     String text = masked(path, content.get(), secretKeys);
     if (text == null) {

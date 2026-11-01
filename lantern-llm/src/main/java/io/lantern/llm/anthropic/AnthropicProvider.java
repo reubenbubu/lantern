@@ -26,6 +26,7 @@ import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
 import com.anthropic.models.messages.Usage;
+import io.lantern.llm.CacheBreak;
 import io.lantern.llm.Capability;
 import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
@@ -230,13 +231,18 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
       }
     }
     if (request.system() != null) {
-      TextBlockParam.Builder system = TextBlockParam.builder().text(request.system());
-      // The one breakpoint, at the end of the system prompt: tools and system prompt render first
-      // and are the same for every call of a role, while the turns after it differ (#303).
-      if (cacheSystem) {
-        system.cacheControl(CacheControlEphemeral.builder().build());
+      List<CacheBreak> breaks = breaks(request, CacheBreak.SYSTEM);
+      if (breaks.isEmpty()) {
+        TextBlockParam.Builder system = TextBlockParam.builder().text(request.system());
+        // The one breakpoint, at the end of the system prompt: tools and system prompt render
+        // first and are the same for every call of a role, while the turns after it differ (#303).
+        if (cacheSystem) {
+          system.cacheControl(CacheControlEphemeral.builder().build());
+        }
+        params.systemOfTextBlockParams(List.of(system.build()));
+      } else {
+        params.systemOfTextBlockParams(textBlocks(request.system(), breaks, cacheSystem));
       }
-      params.systemOfTextBlockParams(List.of(system.build()));
     }
     for (LlmTool tool : request.tools()) {
       params.addTool(
@@ -249,8 +255,18 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
                       .build())
               .build());
     }
-    for (LlmMessage turn : request.messages()) {
-      if (turn.toolCalls().isEmpty() && turn.toolResults().isEmpty() && turn.thinking().isEmpty()) {
+    for (int index = 0; index < request.messages().size(); index++) {
+      LlmMessage turn = request.messages().get(index);
+      List<CacheBreak> breaks = breaks(request, index);
+      boolean cacheEnd = breaks.stream().anyMatch(at -> at.offset() == CacheBreak.END);
+      CacheBreak end =
+          breaks.stream().filter(at -> at.offset() == CacheBreak.END).findFirst().orElse(null);
+      List<CacheBreak> inText =
+          breaks.stream().filter(at -> at.offset() != CacheBreak.END).toList();
+      if (breaks.isEmpty()
+          && turn.toolCalls().isEmpty()
+          && turn.toolResults().isEmpty()
+          && turn.thinking().isEmpty()) {
         switch (turn.author()) {
           case USER -> params.addUserMessage(turn.text());
           case ASSISTANT -> params.addAssistantMessage(turn.text());
@@ -281,7 +297,12 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
                     .build()));
       }
       if (!turn.text().isBlank()) {
-        blocks.add(ContentBlockParam.ofText(turn.text()));
+        if (inText.isEmpty()) {
+          blocks.add(ContentBlockParam.ofText(turn.text()));
+        } else {
+          textBlocks(turn.text(), inText, false)
+              .forEach(b -> blocks.add(ContentBlockParam.ofText(b)));
+        }
       }
       for (LlmToolCall call : turn.toolCalls()) {
         blocks.add(
@@ -295,12 +316,74 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
                             .build())
                     .build()));
       }
+      if (cacheEnd && !blocks.isEmpty()) {
+        blocks.set(blocks.size() - 1, cached(blocks.getLast(), end.longLived()));
+      }
       params.addMessage(
           turn.author() == LlmMessage.Author.USER
               ? MessageParam.ofUserOfContentBlockParams(blocks)
               : MessageParam.ofAssistantOfContentBlockParams(blocks));
     }
     return params.build();
+  }
+
+  /** The request's cache breakpoints in the given turn, or the system prompt for -1, in order. */
+  private static List<CacheBreak> breaks(LlmRequest request, int message) {
+    return request.cacheBreaks().stream().filter(at -> at.message() == message).toList();
+  }
+
+  /**
+   * The text split into blocks at the breakpoints, each block that ends at one marked for caching;
+   * a breakpoint at the end, or {@code cacheEnd}, marks the last block.
+   */
+  static List<TextBlockParam> textBlocks(String text, List<CacheBreak> breaks, boolean cacheEnd) {
+    List<TextBlockParam> blocks = new ArrayList<>();
+    int from = 0;
+    for (CacheBreak at : breaks) {
+      int to = at.offset() == CacheBreak.END ? text.length() : at.offset();
+      if (to > from) {
+        blocks.add(
+            TextBlockParam.builder()
+                .text(text.substring(from, to))
+                .cacheControl(control(at.longLived()))
+                .build());
+        from = to;
+      }
+    }
+    if (from < text.length()) {
+      TextBlockParam.Builder rest = TextBlockParam.builder().text(text.substring(from));
+      if (cacheEnd) {
+        rest.cacheControl(control(false));
+      }
+      blocks.add(rest.build());
+    }
+    return blocks;
+  }
+
+  private static CacheControlEphemeral control(boolean longLived) {
+    CacheControlEphemeral.Builder control = CacheControlEphemeral.builder();
+    if (longLived) {
+      control.ttl(CacheControlEphemeral.Ttl.TTL_1H);
+    }
+    return control.build();
+  }
+
+  /** The block marked for caching, for a breakpoint after a turn's last block. */
+  private static ContentBlockParam cached(ContentBlockParam block, boolean longLived) {
+    CacheControlEphemeral control = control(longLived);
+    if (block.isText()) {
+      return ContentBlockParam.ofText(block.asText().toBuilder().cacheControl(control).build());
+    }
+    if (block.isToolResult()) {
+      return ContentBlockParam.ofToolResult(
+          block.asToolResult().toBuilder().cacheControl(control).build());
+    }
+    if (block.isToolUse()) {
+      return ContentBlockParam.ofToolUse(
+          block.asToolUse().toBuilder().cacheControl(control).build());
+    }
+    // Thinking blocks cannot be marked; a turn with tool calls always ends in one of those above.
+    return block;
   }
 
   /** The schema's fields without its type, which the SDK always sends as {@code object}. */

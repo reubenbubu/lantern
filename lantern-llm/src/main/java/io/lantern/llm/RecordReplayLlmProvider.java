@@ -133,6 +133,17 @@ public final class RecordReplayLlmProvider implements LlmProvider {
       }
     }
     key.put("maxOutputTokens", request.maxOutputTokens());
+    if (!request.cacheBreaks().isEmpty()) {
+      // Only when set, so recordings made before breakpoints existed keep their keys.
+      ArrayNode breaks = key.putArray("cacheBreaks");
+      for (CacheBreak at : request.cacheBreaks()) {
+        breaks
+            .addObject()
+            .put("message", at.message())
+            .put("offset", at.offset())
+            .put("longLived", at.longLived());
+      }
+    }
     if (thinking.disabled()) {
       // Only when set, so that recordings made before this setting existed keep their names.
       key.put("thinkingDisabled", true);

@@ -16,6 +16,14 @@ import io.lantern.extract.gateway.GatewayExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.spring.SpringExtractor;
+import io.lantern.harness.FingerprintInput;
+import io.lantern.harness.Harness;
+import io.lantern.harness.Item;
+import io.lantern.harness.ItemDropped;
+import io.lantern.harness.Rejected;
+import io.lantern.harness.RoleSession;
+import io.lantern.harness.RoleSpec;
+import io.lantern.harness.RunMode;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.ResolvePrompt.Answer;
 import io.lantern.link.ResolvePrompt.Candidate;
@@ -23,21 +31,17 @@ import io.lantern.link.ResolvePrompt.Question;
 import io.lantern.link.attributes.UnresolvedLinkAttributes;
 import io.lantern.llm.Capability;
 import io.lantern.llm.Conversation;
-import io.lantern.llm.LlmClient;
+import io.lantern.llm.ConversationLimits;
 import io.lantern.llm.LlmConversation;
-import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.Role;
+import io.lantern.llm.Tokens;
 import io.lantern.llm.ToolBox;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,8 +64,12 @@ import tools.jackson.databind.node.ObjectNode;
  * and the candidate units with their facts, and asks it to pick one candidate or answer unknown. A
  * pick becomes a {@code CALLS_HTTP} or {@code SENDS_MESSAGES_TO} fact of origin {@code llm}, at a
  * lower confidence than a static link, with the model's rationale; an answer of unknown leaves the
- * link open. Answers are cached by the hash of the prompt, so a run over unchanged facts makes no
- * call.
+ * link open. Each link is an item of the LLM harness (ADR 0100): its answer is cached under the
+ * item's fingerprint, which hashes the role, its prompt version, the model, the tools offered, the
+ * facts the prompt shows (by observation ID) and the prompt, so a run over unchanged facts makes no
+ * call. A cached answer is reused only while every file a tool read has the blob it read and every
+ * fact a tool showed it still holds. Each conversation keeps the role's caps: 6 tool turns, 30,000
+ * input tokens in fresh-token equivalents, 4,000 output tokens a turn.
  *
  * <p>It never fails the run. An answer that is rejected twice (a target that is not a candidate, a
  * reference not in the prompt, no citation of the candidate it picks), and a call refused by a
@@ -133,8 +141,16 @@ public final class LinkResolver implements LinkRule.OverFacts {
     }
   }
 
-  private final LlmClient client;
-  private final ResolutionStore store;
+  /** The caps of each Resolve conversation (knowledge-build epic, section 10, Agent loop). */
+  static final ConversationLimits LIMITS = new ConversationLimits(6, 30_000, 4_000);
+
+  /** The role as the harness runs it, before its tools are known (ADR 0100). */
+  public static final RoleSpec ROLE =
+      RoleSpec.single(
+              "resolve", Role.RESOLVE, ResolvePrompt.VERSION, "resolve", RunMode.INTERACTIVE, 300)
+          .withTools(List.of(), LIMITS);
+
+  private final Harness harness;
   private final GraphTools.RepoFiles files;
   private final AtomicInteger asked = new AtomicInteger();
   private final AtomicInteger reused = new AtomicInteger();
@@ -143,8 +159,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
    * @param client the LLM, with the budgets the run's calls count against
    * @param store where answers are cached
    */
-  public LinkResolver(LlmClient client, ResolutionStore store) {
-    this(client, store, GraphTools.RepoFiles.NONE);
+  public LinkResolver(Harness harness) {
+    this(harness, GraphTools.RepoFiles.NONE);
   }
 
   /**
@@ -153,9 +169,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
    * @param files the files of the snapshot's repositories, which the tools read when the model can
    *     use tools; {@link GraphTools.RepoFiles#NONE} offers no file reads
    */
-  public LinkResolver(LlmClient client, ResolutionStore store, GraphTools.RepoFiles files) {
-    this.client = Objects.requireNonNull(client, "client");
-    this.store = Objects.requireNonNull(store, "store");
+  public LinkResolver(Harness harness, GraphTools.RepoFiles files) {
+    this.harness = Objects.requireNonNull(harness, "harness");
     this.files = Objects.requireNonNull(files, "files");
   }
 
@@ -238,18 +253,22 @@ public final class LinkResolver implements LinkRule.OverFacts {
       }
       questions.add(question(unresolved, index, http, routes, byId));
     }
-    ModelConfig model = client.model(Role.RESOLVE);
+    if (questions.isEmpty()) {
+      return new Result(List.of(), 0, 0, 0, List.of(), List.of());
+    }
+    ModelConfig model = harness.model(Role.RESOLVE);
+    boolean tooling = model.supports(Capability.TOOL_USE);
     // Tools only for a model that can use them; the graph is prepared once, if anything is asked.
-    GraphTools.Graph graph =
-        model.supports(Capability.TOOL_USE) && !questions.isEmpty()
-            ? new GraphTools.Graph(facts, files)
-            : null;
-    String system = ResolvePrompt.system(model.supports(Capability.TOOL_USE));
+    GraphTools.Graph graph = tooling ? new GraphTools.Graph(facts, files) : null;
+    RoleSession session =
+        harness.session(ROLE.withTools(graph == null ? List.of() : graph.tools().tools(), LIMITS));
+    String system = ResolvePrompt.system(tooling);
+    session.plan(questions.stream().map(q -> item(q, system)).toList(), Tokens.estimate(system));
     List<Outcome> outcomes = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       List<Future<Outcome>> futures = new ArrayList<>();
       for (Question question : questions) {
-        futures.add(executor.submit(() -> answer(question, model, graph, system, byId)));
+        futures.add(executor.submit(() -> answer(question, session, graph, system, byId)));
       }
       for (Future<Outcome> future : futures) {
         outcomes.add(future.get());
@@ -283,11 +302,24 @@ public final class LinkResolver implements LinkRule.OverFacts {
           }
           // Keep what the model picked for this link before, if it is still a candidate, so a
           // failed or refused call does not drop a link that held.
-          Resolution earlier = store.latest(link).orElse(null);
+          Resolution earlier =
+              session
+                  .latest(link)
+                  .filter(stored -> !stored.omitted())
+                  .map(stored -> ResolutionJson.read(stored.answer()))
+                  .orElse(null);
           if (earlier != null
               && !earlier.unknown()
               && question.candidate(earlier.target().toString()) != null) {
-            derived.add(fact(question, earlier, index, byId, snapshot, system));
+            // Its references stand for this prompt's facts when it was given for the same prompt.
+            String sameprompt =
+                io.lantern.harness.Fingerprints.of(
+                    session.spec(),
+                    earlier.promptVersion(),
+                    earlier.provider(),
+                    earlier.model(),
+                    item(question, system));
+            derived.add(fact(question, earlier, index, byId, snapshot, sameprompt));
           }
         }
         case ANSWERED -> {
@@ -300,7 +332,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
           if (resolution.unknown() || question.candidate(resolution.target().toString()) == null) {
             unknown++;
           } else {
-            derived.add(fact(question, resolution, index, byId, snapshot, system));
+            derived.add(fact(question, resolution, index, byId, snapshot, outcome.key()));
           }
         }
       }
@@ -444,22 +476,27 @@ public final class LinkResolver implements LinkRule.OverFacts {
     SKIPPED
   }
 
-  private record Outcome(Kind kind, Resolution resolution, boolean cached) {}
+  private record Outcome(Kind kind, Resolution resolution, boolean cached, String key) {}
+
+  /** A link left open as an item of the harness: the facts its prompt shows and the prompt. */
+  private static Item item(Question question, String system) {
+    List<FingerprintInput> inputs = new ArrayList<>();
+    question.facts().values().forEach(fact -> inputs.add(FingerprintInput.of(fact)));
+    return new Item(
+        linkOf(question.unresolved()),
+        question.unresolved().subject().toString(),
+        inputs,
+        "system\n" + system + "\nuser\n" + question.user());
+  }
 
   private Outcome answer(
       Question question,
-      ModelConfig model,
+      RoleSession session,
       GraphTools.Graph graph,
       String system,
       Map<String, Fact> byId) {
-    String key = key(question, ResolvePrompt.VERSION, model.provider(), model.model(), system);
-    Resolution cached = store.find(key).orElse(null);
-    // An answer that rests on a fact a tool showed holds only while that fact does; else ask again.
-    if (cached != null
-        && cached.cited().stream()
-            .allMatch(ref -> !FACT_ID.matcher(ref).matches() || byId.containsKey(ref))) {
-      return new Outcome(Kind.ANSWERED, cached, true);
-    }
+    Item item = item(question, system);
+    String key = session.fingerprint(item);
     Fact unresolved = question.unresolved();
     String purpose =
         "resolve "
@@ -469,74 +506,106 @@ public final class LinkResolver implements LinkRule.OverFacts {
             + " of "
             + unresolved.subject()
             + (Claims.view(unresolved) == null ? "" : " under " + Claims.view(unresolved));
-    GraphTools tools = graph == null ? null : graph.tools();
-    Conversation conversation =
-        client.converse(
-            new LlmRequest(
-                Role.RESOLVE,
-                purpose,
-                system,
-                List.of(LlmMessage.user(question.user())),
-                MAX_OUTPUT_TOKENS,
-                false),
-            tools == null ? ToolBox.NONE : tools);
-    try {
-      return converse(question, conversation, purpose, key, tools, model);
-    } finally {
-      // Whatever ended the conversation unchecked, such as a failing store, it is still logged.
-      conversation.end(LlmConversation.Ending.FAILED, "Ended without a checked answer");
-    }
+    ModelConfig model = session.model();
+    io.lantern.harness.Outcome outcome =
+        session.ask(
+            item,
+            calls -> {
+              GraphTools tools = graph == null ? null : graph.tools();
+              Conversation conversation =
+                  calls.converse(
+                      new LlmRequest(
+                          Role.RESOLVE,
+                          purpose,
+                          system,
+                          List.of(LlmMessage.user(question.user())),
+                          MAX_OUTPUT_TOKENS,
+                          false),
+                      tools == null ? ToolBox.NONE : tools);
+              try {
+                Resolution resolution =
+                    converse(calls, question, conversation, purpose, key, tools, model);
+                return new io.lantern.harness.Answer(
+                    ResolutionJson.write(resolution),
+                    tools == null ? List.of() : tools.filesRead());
+              } finally {
+                // Whatever ended the conversation unchecked, it is still logged.
+                conversation.end(LlmConversation.Ending.FAILED, "Ended without a checked answer");
+              }
+            },
+            // An answer that rests on a fact a tool showed holds only while that fact does.
+            stored ->
+                stored.omitted()
+                    || ResolutionJson.read(stored.answer()).cited().stream()
+                        .allMatch(ref -> !FACT_ID.matcher(ref).matches() || byId.containsKey(ref)));
+    return switch (outcome.kind()) {
+      case CACHED, ANSWERED ->
+          new Outcome(
+              Kind.ANSWERED,
+              ResolutionJson.read(outcome.answer()),
+              outcome.kind() == io.lantern.harness.Outcome.Kind.CACHED,
+              key);
+      case DROPPED -> new Outcome(Kind.REJECTED, null, false, key);
+      case OMITTED, NOT_ASKED, FAILED -> {
+        LOG.warn("Left the link open, could not {}: {}", purpose, outcome.reason());
+        yield new Outcome(Kind.SKIPPED, null, false, key);
+      }
+    };
   }
 
-  private Outcome converse(
+  private Resolution converse(
+      io.lantern.harness.Calls calls,
       Question question,
       Conversation conversation,
       String purpose,
       String key,
       GraphTools tools,
-      ModelConfig model) {
+      ModelConfig model)
+      throws ItemDropped {
     Fact unresolved = question.unresolved();
+    LlmResponse first = conversation.answer();
+    Answer answer;
     try {
-      LlmResponse first = conversation.answer();
-      Answer answer;
+      answer = calls.verify(first, response -> check(response, question, tools));
+    } catch (Rejected rejected) {
+      logRejected(purpose, rejected, first);
+      LlmResponse second =
+          conversation.reply(
+              ResolvePrompt.RETRY.formatted(rejected.getMessage()), purpose + " (retry)");
       try {
-        answer = ResolvePrompt.check(first, question, shown(tools));
-      } catch (ResolvePrompt.Rejected rejected) {
-        logRejected(purpose, rejected, first);
-        LlmResponse second =
-            conversation.reply(
-                ResolvePrompt.RETRY.formatted(rejected.getMessage()), purpose + " (retry)");
-        try {
-          answer = ResolvePrompt.check(second, question, shown(tools));
-        } catch (ResolvePrompt.Rejected again) {
-          logRejected(purpose + " (retry)", again, second);
-          conversation.end(LlmConversation.Ending.REJECTED, again.getMessage());
-          return new Outcome(Kind.REJECTED, null, false);
-        }
+        answer = calls.verify(second, response -> check(response, question, tools));
+        calls.repairedAnswer();
+      } catch (Rejected again) {
+        logRejected(purpose + " (retry)", again, second);
+        conversation.end(LlmConversation.Ending.REJECTED, again.getMessage());
+        throw new ItemDropped("Rejected twice, the second time because " + again.getMessage());
       }
-      conversation.end(LlmConversation.Ending.ANSWERED);
-      // A fact a tool showed is kept by its ID, which stands for it whatever its reference was.
-      Map<String, Fact> found = shown(tools);
-      List<String> cited =
-          answer.cited().stream()
-              .map(ref -> found.containsKey(ref) ? found.get(ref).id() : ref)
-              .toList();
-      Resolution resolution =
-          new Resolution(
-              key,
-              linkOf(unresolved),
-              answer.target() == null ? null : answer.target().unit(),
-              answer.confidence(),
-              cited,
-              answer.rationale(),
-              ResolvePrompt.VERSION,
-              model.provider(),
-              model.model());
-      store.save(resolution);
-      return new Outcome(Kind.ANSWERED, resolution, false);
-    } catch (LlmException e) {
-      LOG.warn("Left the link open, could not {}: {}", purpose, e.getMessage());
-      return new Outcome(Kind.SKIPPED, null, false);
+    }
+    conversation.end(LlmConversation.Ending.ANSWERED);
+    // A fact a tool showed is kept by its ID, which stands for it whatever its reference was.
+    Map<String, Fact> found = shown(tools);
+    List<String> cited =
+        answer.cited().stream()
+            .map(ref -> found.containsKey(ref) ? found.get(ref).id() : ref)
+            .toList();
+    return new Resolution(
+        key,
+        linkOf(unresolved),
+        answer.target() == null ? null : answer.target().unit(),
+        answer.confidence(),
+        cited,
+        answer.rationale(),
+        ResolvePrompt.VERSION,
+        model.provider(),
+        model.model());
+  }
+
+  private static Answer check(LlmResponse response, Question question, GraphTools tools)
+      throws Rejected {
+    try {
+      return ResolvePrompt.check(response, question, shown(tools));
+    } catch (ResolvePrompt.Rejected rejected) {
+      throw new Rejected(rejected.getMessage());
     }
   }
 
@@ -544,8 +613,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     return tools == null ? Map.of() : tools.shown();
   }
 
-  private static void logRejected(
-      String purpose, ResolvePrompt.Rejected reason, LlmResponse answer) {
+  private static void logRejected(String purpose, Rejected reason, LlmResponse answer) {
     String text = answer.text();
     if (text.length() > LOGGED_ANSWER) {
       text = text.substring(0, LOGGED_ANSWER) + "... (" + text.length() + " characters)";
@@ -555,44 +623,6 @@ public final class LinkResolver implements LinkRule.OverFacts {
         purpose,
         reason.getMessage(),
         text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n"));
-  }
-
-  /** The cache key: the SHA-256 of the prompt version, provider, model and prompt. */
-  static String key(Question question, ModelConfig model) {
-    return key(
-        question,
-        ResolvePrompt.VERSION,
-        model.provider(),
-        model.model(),
-        ResolvePrompt.system(model.supports(Capability.TOOL_USE)));
-  }
-
-  /** The key the prompt would have had for the answer's prompt version and model. */
-  private static String key(Question question, Resolution resolution, String system) {
-    return key(
-        question, resolution.promptVersion(), resolution.provider(), resolution.model(), system);
-  }
-
-  private static String key(
-      Question question, String version, String provider, String model, String system) {
-    String text =
-        "prompt "
-            + version
-            + "\nprovider "
-            + provider
-            + "\nmodel "
-            + model
-            + "\nsystem\n"
-            + system
-            + "\nuser\n"
-            + question.user();
-    try {
-      return HexFormat.of()
-          .formatHex(
-              MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is not available", e);
-    }
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -617,7 +647,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
       LinkIndex index,
       Map<String, Fact> byId,
       long snapshot,
-      String system) {
+      String answerKey) {
     Fact unresolved = question.unresolved();
     boolean isRoute = "route".equals(unresolved(unresolved).kind());
     boolean isHttp = isRoute || "http".equals(unresolved(unresolved).kind());
@@ -626,8 +656,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     List<Fact> cited = new ArrayList<>();
     // The references stand for this prompt's facts only when the answer was given for it; a fact
     // a tool showed is cited by its ID, and counts while it holds.
-    List<String> refs =
-        resolution.key().equals(key(question, resolution, system)) ? resolution.cited() : List.of();
+    List<String> refs = resolution.key().equals(answerKey) ? resolution.cited() : List.of();
     for (String ref : refs) {
       Fact fact = question.facts().containsKey(ref) ? question.facts().get(ref) : byId.get(ref);
       if (fact != null && !cited.contains(fact)) {

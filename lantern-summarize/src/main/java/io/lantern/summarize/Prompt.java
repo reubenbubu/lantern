@@ -368,7 +368,10 @@ final class Prompt {
     } else {
       line.append(object.value());
     }
-    ObjectNode attributes = fact.attributes();
+    ObjectNode attributes = fact.attributes().deepCopy();
+    // Never the IDs of other facts, which change with any edit of their file (knowledge-build
+    // epic, section 10, Stable rendering; ADR 0091 names the attributes that hold them).
+    PromptAttributes.ID_ATTRIBUTES.forEach(attributes::remove);
     if (!attributes.isEmpty()) {
       line.append(' ').append(attributes);
     }

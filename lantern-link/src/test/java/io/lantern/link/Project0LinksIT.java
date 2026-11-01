@@ -19,6 +19,7 @@ import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.extract.sql.SqlExtractor;
+import io.lantern.harness.Harness;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
@@ -165,13 +166,13 @@ class Project0LinksIT {
     all.addAll(claims);
     LinkResolver.Result result =
         new LinkResolver(
-                new LlmClient(
-                    ModelSettings.single(fake.model("fake")),
-                    List.of(fake),
-                    BudgetGuard.unlimited("project-0"),
-                    log,
-                    Clock.systemUTC()),
-                new InMemoryResolutionStore())
+                Harness.inMemory(
+                    new LlmClient(
+                        ModelSettings.single(fake.model("fake")),
+                        List.of(fake),
+                        BudgetGuard.unlimited("project-0"),
+                        log,
+                        Clock.systemUTC())))
             .resolve(all, 1);
     assertThat(result.rejected()).as("answers rejected").isEmpty();
     assertThat(result.skipped()).as("calls skipped").isEmpty();

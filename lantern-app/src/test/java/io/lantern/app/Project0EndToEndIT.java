@@ -179,10 +179,13 @@ class Project0EndToEndIT {
     }
   }
 
+  private static final JsonMapper JSON = JsonMapper.builder().build();
+
   @Autowired AnalysisRun run;
   @Autowired FakeLlmProvider fake;
   @Autowired FactRepository facts;
   @Autowired VocabularyRegistry vocabulary;
+  @Autowired org.springframework.jdbc.core.simple.JdbcClient jdbc;
 
   @AfterAll
   static void cleanUp() {
@@ -340,8 +343,101 @@ class Project0EndToEndIT {
    * folder project-4 is set up in. Writes the command's output and project-4's system document and
    * report to {@code target/project-4}, to look at.
    */
+  /**
+   * The harness's gate (knowledge-build epic, section 13; ADR 0100): a one-file change re-asks only
+   * the items whose fingerprint inputs come from that file, or that show an earlier answer that
+   * changed; a warm rerun of the changed snapshot makes no call.
+   */
   @Test
   @Order(2)
+  void aOneFileChangeReAsksOnlyTheItemsRestingOnThatFile(@TempDir Path clones) throws IOException {
+    Map<String, Path> repos = new TreeMap<>(project0());
+    String repo = "payments";
+    String path = "src/main/java/com/acme/shop/payments/PaymentController.java";
+    Path clone = clones.resolve(repo);
+    Git.run(clones, "clone", "--quiet", repos.get(repo).toString(), clone.toString());
+    Files.writeString(
+        clone.resolve(path),
+        Files.readString(clone.resolve(path)) + "// A comment the incrementality test adds.\n");
+    Git.run(
+        clone,
+        "-c",
+        "user.name=Lantern test",
+        "-c",
+        "user.email=test@lantern.invalid",
+        "commit",
+        "--quiet",
+        "-am",
+        "A one-line change");
+    repos.put(repo, clone);
+    long before =
+        jdbc.sql("SELECT coalesce(max(seq), 0) FROM llm_answers").query(Long.class).single();
+    int sent = fake.sent().size();
+
+    AnalysisRun.Result changed = run.run("project-0", null, repos);
+    List<Map<String, Object>> asked =
+        jdbc.sql(
+                "SELECT role, subject, inputs::text AS inputs FROM llm_answers WHERE seq > :before"
+                    + " ORDER BY role, subject")
+            .param("before", before)
+            .query()
+            .listOfRows();
+    assertThat(asked).as("items asked after the change").isNotEmpty();
+    // What the change re-asked, for the run's evidence.
+    Files.createDirectories(OUT);
+    Files.write(
+        OUT.resolve("one-file-change.txt"),
+        asked.stream().map(row -> row.get("role") + " " + row.get("subject")).toList());
+    assertThat(asked)
+        .as("the type whose file changed is summarized again")
+        .anySatisfy(
+            row ->
+                assertThat(row.get("subject"))
+                    .isEqualTo("type:com.acme.shop.payments.PaymentController"));
+    for (Map<String, Object> row : asked) {
+      String previous =
+          jdbc.sql(
+                  "SELECT inputs::text FROM llm_answers WHERE role = :role AND subject = :subject"
+                      + " AND seq <= :before ORDER BY seq DESC LIMIT 1")
+              .param("role", row.get("role"))
+              .param("subject", row.get("subject"))
+              .param("before", before)
+              .query(String.class)
+              .optional()
+              .orElse(null);
+      String item = row.get("role") + " " + row.get("subject");
+      assertThat(previous).as(item + " was asked before the change").isNotNull();
+      java.util.Set<JsonNode> was = new java.util.HashSet<>();
+      JSON.readTree(previous).forEach(was::add);
+      java.util.Set<JsonNode> now = new java.util.HashSet<>();
+      JSON.readTree((String) row.get("inputs")).forEach(now::add);
+      java.util.Set<JsonNode> differ = new java.util.HashSet<>(was);
+      differ.addAll(now);
+      java.util.Set<JsonNode> same = new java.util.HashSet<>(was);
+      same.retainAll(now);
+      differ.removeAll(same);
+      assertThat(differ)
+          .as(item + ": inputs that changed")
+          .isNotEmpty()
+          .allSatisfy(
+              input ->
+                  assertThat(
+                          input.get("kind").asString().equals("ANSWER")
+                              || (input.get("repo").asString().equals(repo)
+                                  && input.get("path").asString().equals(path)))
+                      .as(item + " re-asked for an input not from " + path + ": " + input)
+                      .isTrue());
+    }
+    long calls = fake.sent().size() - sent;
+    assertThat(changed.llm().calls()).isEqualTo(calls);
+    // A warm rerun of the changed snapshot makes no call.
+    AnalysisRun.Result warm = run.run("project-0", null, repos);
+    assertThat(fake.sent()).hasSize(sent + (int) calls);
+    assertThat(warm.llm().calls()).isZero();
+  }
+
+  @Test
+  @Order(3)
   void analyzingProject4AfterProject0ShowsNothingOfProject0() throws IOException {
     String folder = System.getProperty("lantern.test.project4");
     assumeTrue(folder != null && !folder.isBlank(), "lantern.test.project4 is not set");

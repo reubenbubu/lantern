@@ -12,6 +12,10 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
+import io.lantern.harness.BlobLookup;
+import io.lantern.harness.Harness;
+import io.lantern.harness.InMemoryAnswerStore;
+import io.lantern.harness.RunBudget;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.Capability;
 import io.lantern.llm.FakeLlmProvider;
@@ -52,7 +56,12 @@ class SummarizerTest {
   private static final Pattern UNIT = Pattern.compile("^summarize \\S+ (\\S+:\\S+)");
 
   private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
-  private final InMemorySummaryStore store = new InMemorySummaryStore();
+  private final InMemoryAnswerStore store = new InMemoryAnswerStore();
+
+  /** A harness with the test's answer cache, so later runs reuse earlier answers. */
+  private Harness harness(LlmClient client) {
+    return new Harness(client, store, RunBudget.NONE, BlobLookup.NONE, Set.of());
+  }
 
   /** What the summarizer logs during a test. */
   private final ListAppender<ILoggingEvent> log = new ListAppender<>();
@@ -61,11 +70,13 @@ class SummarizerTest {
   void captureLog() {
     log.start();
     ((Logger) LoggerFactory.getLogger(Summarizer.class)).addAppender(log);
+    ((Logger) LoggerFactory.getLogger(io.lantern.harness.Calls.class)).addAppender(log);
   }
 
   @AfterEach
   void releaseLog() {
     ((Logger) LoggerFactory.getLogger(Summarizer.class)).detachAppender(log);
+    ((Logger) LoggerFactory.getLogger(io.lantern.harness.Calls.class)).detachAppender(log);
   }
 
   /**
@@ -100,7 +111,7 @@ class SummarizerTest {
   }
 
   private Summarizer summarizer() {
-    return new Summarizer(client("model-a", fake), store);
+    return new Summarizer(harness(client("model-a", fake)));
   }
 
   private List<String> summarizedUnits() {
@@ -348,12 +359,12 @@ class SummarizerTest {
                     ? Optional.of(ExcerptsTest.ORDER)
                     : Optional.empty());
     SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
-    new Summarizer(client("model-a", fake), store, anyCommit).summarize(List.of(order));
+    new Summarizer(harness(client("model-a", fake)), anyCommit).summarize(List.of(order));
     SummaryNode later =
         new SummaryNode(order.entity(), order.level(), atAnotherCommit(order.facts()), List.of());
 
     Summarizer.Result second =
-        new Summarizer(client("model-a", fake), store, anyCommit).summarize(List.of(later));
+        new Summarizer(harness(client("model-a", fake)), anyCommit).summarize(List.of(later));
 
     assertThat(fake.sent()).hasSize(1);
     assertThat(second.reused()).isEqualTo(1);
@@ -397,7 +408,7 @@ class SummarizerTest {
     List<SummaryNode> tree = SummaryTree.fromFacts(TestFacts.shop().list());
     summarizer().summarize(tree);
 
-    Summarizer.Result other = new Summarizer(client("model-b", fake), store).summarize(tree);
+    Summarizer.Result other = new Summarizer(harness(client("model-b", fake))).summarize(tree);
 
     assertThat(other.generated()).isEqualTo(7);
     assertThat(other.reused()).isZero();
@@ -575,7 +586,8 @@ class SummarizerTest {
             "Left out 2 sentences without references from the answer to summarize type"
                 + " type:p.Line: Line is part of an order. | It is very important.");
     // What is stored, and so reused, is the summary without them.
-    assertThat(store.find(summary.key()).orElseThrow().text()).isEqualTo(summary.text());
+    assertThat(SummaryJson.read(store.find(summary.key()).orElseThrow().answer()).text())
+        .isEqualTo(summary.text());
     assertThat(summarizer().summarize(List.of(line)).summaries().get(line.entity()))
         .extracting(Summary::text, Summary::confidence)
         .containsExactly(summary.text(), 0.12);
@@ -886,7 +898,7 @@ class SummarizerTest {
         };
 
     Summarizer.Result result =
-        new Summarizer(client("model-a", provider), store)
+        new Summarizer(harness(client("model-a", provider)))
             .summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     assertThat(result.summaries()).isEmpty();
@@ -914,7 +926,7 @@ class SummarizerTest {
             new InMemoryLlmCallLog(),
             Clock.systemUTC());
     Summarizer.Result result =
-        new Summarizer(roomy, store).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+        new Summarizer(harness(roomy)).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     assertThat(result.generated()).isEqualTo(7);
     assertThat(result.summaries().values())
@@ -986,7 +998,7 @@ class SummarizerTest {
     SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
 
     Summary summary =
-        new Summarizer(client("model-a", fake), store, ORDER_SOURCE)
+        new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE)
             .summarize(List.of(order))
             .summaries()
             .get(order.entity());
@@ -1106,7 +1118,7 @@ class SummarizerTest {
                 : "**Purpose: evidenced** Orders customers place. [S1]");
 
     Summarizer.Result result =
-        new Summarizer(client("model-a", fake), store, ORDER_SOURCE).summarize(List.of(pkg));
+        new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE).summarize(List.of(pkg));
 
     assertThat(result.summaries().get(order.entity()).purpose())
         .isEqualTo(Summary.Purpose.EVIDENCED);
@@ -1123,7 +1135,7 @@ class SummarizerTest {
     fake.answering(request -> "Purpose: evidenced\nAn order. [F1]");
 
     Summary summary =
-        new Summarizer(client("model-a", fake), store, ORDER_SOURCE)
+        new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE)
             .summarize(List.of(order))
             .summaries()
             .get(order.entity());
@@ -1136,7 +1148,7 @@ class SummarizerTest {
     SummaryNode order = orderWithSource("0".repeat(64));
 
     Summary summary =
-        new Summarizer(client("model-a", fake), store, ORDER_SOURCE)
+        new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE)
             .summarize(List.of(order))
             .summaries()
             .get(order.entity());
@@ -1162,7 +1174,7 @@ class SummarizerTest {
     SummaryNode order = orderWithSource(blob(source));
     SourceFiles files = TestFacts.files((repo, path) -> Optional.of(source));
 
-    new Summarizer(client("model-a", fake), store, files).summarize(List.of(order));
+    new Summarizer(harness(client("model-a", fake)), files).summarize(List.of(order));
 
     assertThat(fake.sent().getFirst().request().messages().getFirst().text())
         .contains("API_KEY = \"******\"", "\"jdbc:postgresql://db/shop\"")
@@ -1208,7 +1220,7 @@ class SummarizerTest {
     fake.answering(request -> "Purpose: evidenced\n" + citingWhatItSees(request, 0));
 
     Summary summary =
-        new Summarizer(smallWindowClient(4_000), store)
+        new Summarizer(harness(smallWindowClient(4_000)))
             .summarize(List.of(big))
             .summaries()
             .get(big.entity());
@@ -1226,7 +1238,7 @@ class SummarizerTest {
     fake.answering(request -> "It is big. " + citingWhatItSees(request, 0));
 
     Summary summary =
-        new Summarizer(smallWindowClient(4_000), store)
+        new Summarizer(harness(smallWindowClient(4_000)))
             .summarize(List.of(big))
             .summaries()
             .get(big.entity());
@@ -1289,7 +1301,7 @@ class SummarizerTest {
         });
 
     Summary summary =
-        new Summarizer(smallWindowClient(4_000), store)
+        new Summarizer(harness(smallWindowClient(4_000)))
             .summarize(List.of(module))
             .summaries()
             .get(module.entity());
@@ -1320,7 +1332,7 @@ class SummarizerTest {
         .isGreaterThan(4_000);
 
     Summary summary =
-        new Summarizer(client, store).summarize(List.of(big)).summaries().get(big.entity());
+        new Summarizer(harness(client)).summarize(List.of(big)).summaries().get(big.entity());
 
     List<String> purposes = fake.sent().stream().map(s -> s.request().purpose()).toList();
     assertThat(purposes.size()).isGreaterThan(2);
@@ -1339,7 +1351,8 @@ class SummarizerTest {
     // The merge keeps the citations of the first and the last part.
     assertThat(summary.citedFacts())
         .contains(summary.inputFacts().getFirst(), summary.inputFacts().getLast());
-    assertThat(store.find(summary.key())).contains(summary);
+    assertThat(store.find(summary.key()).map(stored -> SummaryJson.read(stored.answer())))
+        .contains(summary);
   }
 
   @Test
@@ -1352,7 +1365,7 @@ class SummarizerTest {
                 : citingWhatItSees(request, 0));
 
     Summarizer.Result result =
-        new Summarizer(smallWindowClient(4_000), store).summarize(List.of(big));
+        new Summarizer(harness(smallWindowClient(4_000))).summarize(List.of(big));
 
     assertThat(result.summaries()).isEmpty();
     assertThat(result.rejected()).containsExactly(big.entity());
@@ -1365,7 +1378,7 @@ class SummarizerTest {
     fake.answering(request -> citingWhatItSees(request, 1_400));
 
     Summary summary =
-        new Summarizer(smallWindowClient(4_000), store)
+        new Summarizer(harness(smallWindowClient(4_000)))
             .summarize(List.of(big))
             .summaries()
             .get(big.entity());
@@ -1401,7 +1414,7 @@ class SummarizerTest {
         });
 
     Summary summary =
-        new Summarizer(smallWindowClient(4_000), store)
+        new Summarizer(harness(smallWindowClient(4_000)))
             .summarize(List.of(big))
             .summaries()
             .get(big.entity());
@@ -1423,7 +1436,7 @@ class SummarizerTest {
                 ? "It has many methods. [F400]"
                 : citingWhatItSees(request, 0));
 
-    new Summarizer(smallWindowClient(4_000), store).summarize(List.of(big));
+    new Summarizer(harness(smallWindowClient(4_000))).summarize(List.of(big));
 
     assertThat(fake.sent().get(1).request().purpose())
         .startsWith("summarize type type:p.Big (part 1 of ")
@@ -1451,7 +1464,7 @@ class SummarizerTest {
     fake.answering(request -> citingWhatItSees(request, 0));
 
     Summary summary =
-        new Summarizer(smallWindowClient(4_000), store)
+        new Summarizer(harness(smallWindowClient(4_000)))
             .summarize(List.of(pkg))
             .summaries()
             .get(pkg.entity());
@@ -1484,7 +1497,7 @@ class SummarizerTest {
     fake.answering(request -> citingWhatItSees(request, 0));
 
     Summary summary =
-        new Summarizer(smallWindowClient(4_000), store, files)
+        new Summarizer(harness(smallWindowClient(4_000)), files)
             .summarize(List.of(order))
             .summaries()
             .get(order.entity());
@@ -1534,7 +1547,7 @@ class SummarizerTest {
         };
     SummaryNode order = orderWithSource(blob(source));
 
-    new Summarizer(client("model-a", fake), store, files).summarize(List.of(order));
+    new Summarizer(harness(client("model-a", fake)), files).summarize(List.of(order));
 
     String prompt = fake.sent().getFirst().request().messages().getFirst().text();
     assertThat(prompt).contains("${jwt.key:******}").doesNotContain("literal-secret-default");

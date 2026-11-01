@@ -3,19 +3,17 @@ package io.lantern.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.compose.ViewDefinitionStore;
-import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
-import io.lantern.link.ResolutionStore;
+import io.lantern.harness.AnswerStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.Role;
 import io.lantern.sandbox.BuildSandbox;
 import io.lantern.sandbox.BuildStatus;
 import io.lantern.sandbox.MavenMirror;
-import io.lantern.summarize.SummaryStore;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -203,9 +201,7 @@ class TestSetScoreIT {
             context.getBean(PlatformTransactionManager.class),
             access,
             callLog,
-            context.getBean(SummaryStore.class),
-            context.getBean(ResolutionStore.class),
-            context.getBean(WordingStore.class),
+            context.getBean(AnswerStore.class),
             context.getBean(ViewDefinitionStore.class),
             context.getBean(HtmlRenderer.class),
             context.getBean(C4ReportRenderer.class),

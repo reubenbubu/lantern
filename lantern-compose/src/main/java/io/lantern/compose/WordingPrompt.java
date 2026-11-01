@@ -6,9 +6,9 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.harness.verify.Grounding;
 import io.lantern.llm.LlmResponse;
 import io.lantern.summarize.Confidence;
-import io.lantern.summarize.Grounding;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -555,7 +555,11 @@ final class WordingPrompt {
     for (FlowStep step : steps) {
       String indent = "  ".repeat(step.depth());
       user.append(indent).append("- ").append(oneLine(step.text())).append('\n');
-      step.facts().forEach(f -> user.append(fact(f, facts, indent + "  ")).append('\n'));
+      // In the order of their lines, never of their IDs, which change with any edit of their file
+      // (knowledge-build epic, section 10, Stable rendering).
+      step.facts().stream()
+          .sorted(java.util.Comparator.comparing(WordingPrompt::fact))
+          .forEach(f -> user.append(fact(f, facts, indent + "  ")).append('\n'));
     }
     Map<String, Integer> texts = new LinkedHashMap<>();
     texts.put(TITLE, TITLE_WORDS);
@@ -756,7 +760,7 @@ final class WordingPrompt {
       line.append(object.value());
     }
     ObjectNode attributes = fact.attributes().deepCopy();
-    List.of("facts", "link", "candidates").forEach(attributes::remove);
+    io.lantern.summarize.PromptAttributes.ID_ATTRIBUTES.forEach(attributes::remove);
     if (!attributes.isEmpty()) {
       line.append(' ').append(attributes);
     }

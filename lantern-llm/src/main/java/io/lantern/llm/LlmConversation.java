@@ -53,7 +53,12 @@ public record LlmConversation(
     /** The conversation reached the safety cap on turns before the model answered. */
     TURN_CAP,
     /** A turn failed in the provider or was refused for another reason than a budget. */
-    FAILED
+    FAILED,
+    /**
+     * The conversation reached one of its {@linkplain ConversationLimits caps}; what the model
+     * submitted before it is kept.
+     */
+    CAPPED
   }
 
   public LlmConversation {

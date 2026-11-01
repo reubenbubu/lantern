@@ -4,7 +4,6 @@ import io.lantern.compose.Composer;
 import io.lantern.compose.Describer;
 import io.lantern.compose.ViewDefinition;
 import io.lantern.compose.ViewDefinitionStore;
-import io.lantern.compose.WordingStore;
 import io.lantern.core.analysis.AnalysisLock;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.TemplateRef;
@@ -25,10 +24,13 @@ import io.lantern.extract.Extractors;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.identity.IdentityExtractor;
+import io.lantern.harness.AnswerStore;
+import io.lantern.harness.Fingerprints;
+import io.lantern.harness.Harness;
+import io.lantern.harness.RunBudget;
 import io.lantern.link.GraphTools;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
-import io.lantern.link.ResolutionStore;
 import io.lantern.link.RuleRuns;
 import io.lantern.link.ValueResolution;
 import io.lantern.llm.LlmClient;
@@ -40,7 +42,6 @@ import io.lantern.sandbox.SandboxException;
 import io.lantern.sandbox.UpstreamBuild;
 import io.lantern.summarize.GitSourceFiles;
 import io.lantern.summarize.Summarizer;
-import io.lantern.summarize.SummaryStore;
 import io.lantern.summarize.SummaryTree;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -123,10 +124,8 @@ public final class AnalysisRun {
   private final TransactionTemplate transaction;
   private final LlmAccess llm;
   private final JdbcLlmCallLog callLog;
-  private final SummaryStore summaries;
-  private final ResolutionStore resolutions;
+  private final AnswerStore answers;
   private final RuleRuns ruleRuns;
-  private final WordingStore wordings;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
   private final C4ReportRenderer c4Renderer;
@@ -147,9 +146,7 @@ public final class AnalysisRun {
       TransactionTemplate transaction,
       LlmAccess llm,
       JdbcLlmCallLog callLog,
-      SummaryStore summaries,
-      ResolutionStore resolutions,
-      WordingStore wordings,
+      AnswerStore answers,
       ViewDefinitionStore views,
       HtmlRenderer renderer,
       C4ReportRenderer c4Renderer,
@@ -168,9 +165,7 @@ public final class AnalysisRun {
     this.transaction = Objects.requireNonNull(transaction, "transaction");
     this.llm = Objects.requireNonNull(llm, "llm");
     this.callLog = Objects.requireNonNull(callLog, "callLog");
-    this.summaries = Objects.requireNonNull(summaries, "summaries");
-    this.resolutions = Objects.requireNonNull(resolutions, "resolutions");
-    this.wordings = Objects.requireNonNull(wordings, "wordings");
+    this.answers = Objects.requireNonNull(answers, "answers");
     this.views = Objects.requireNonNull(views, "views");
     this.renderer = Objects.requireNonNull(renderer, "renderer");
     this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
@@ -335,13 +330,22 @@ public final class AnalysisRun {
           (repo, path) ->
               Optional.ofNullable(snapshot.commits().get(repo))
                   .flatMap(commit -> snapshotSources.read(repo, commit, path));
+      // Every LLM role of the run goes through one harness: one answer cache, one budget, one
+      // record (ADR 0100). A cached answer that read files holds while they keep their blobs.
+      Harness harness =
+          new Harness(
+              client,
+              answers,
+              RunBudget.NONE,
+              (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
+              Set.of());
       Stored stored =
           store(
               snapshot.number(),
               registered.keySet(),
               snapshot.commits().keySet(),
               found,
-              client,
+              harness,
               snapshotFiles);
       List<Fact> extracted = stored.facts();
       int newFacts = stored.added();
@@ -358,7 +362,7 @@ public final class AnalysisRun {
       List<Fact> summarizable = new ArrayList<>(extracted);
       summarizable.addAll(resolved);
       Summarizer.Result summarized =
-          new Summarizer(client, summaries, sources).summarize(SummaryTree.fromFacts(summarizable));
+          new Summarizer(harness, sources).summarize(SummaryTree.fromFacts(summarizable));
       LOG.info(
           "Summaries: {} written by the LLM, {} reused",
           summarized.generated(),
@@ -386,7 +390,7 @@ public final class AnalysisRun {
                           .map(Repo::path))
               .withSecretKeys(secretKeys);
       Describer.Result described =
-          new Describer(client, wordings, allSources).describe(systemFacts, extracted);
+          new Describer(harness, allSources).describe(systemFacts, extracted);
 
       String systemTitle =
           systems
@@ -442,7 +446,8 @@ public final class AnalysisRun {
                   snapshot.number(),
                   llm.models(),
                   callLog.spentByModelSince(started),
-                  callLog.conversationsSince(started)));
+                  callLog.conversationsSince(started),
+                  harness.records()));
       LOG.info("Wrote {}", runRecord);
       // With the first link step's facts, the facts extractors recorded before they kept values as
       // written, which extraction coverage counts as theirs (ADR 0094).
@@ -725,7 +730,7 @@ public final class AnalysisRun {
       Set<String> repos,
       Set<String> snapshotRepos,
       List<Fact> found,
-      LlmClient client,
+      Harness harness,
       GraphTools.RepoFiles files) {
     return transaction.execute(
         status -> {
@@ -733,7 +738,7 @@ public final class AnalysisRun {
           found.forEach(fact -> unique.putIfAbsent(fact.id(), fact));
           // The LLM resolver is the linker's last step: it picks among the candidates of the links
           // the static steps leave open, with cached answers reused (ADR 0045).
-          LinkResolver resolver = new LinkResolver(client, resolutions, files);
+          LinkResolver resolver = new LinkResolver(harness, files);
           // A rule whose input and version are those of its last run is not run again (ADR 0095).
           // The derive rules follow the link rules whose facts they read, as rules of the same
           // linker, so the architecture model is stored with the links (#523).

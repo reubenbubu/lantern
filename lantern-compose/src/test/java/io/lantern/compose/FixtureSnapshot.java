@@ -21,7 +21,6 @@ import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelSettings;
 import io.lantern.summarize.GitSourceFiles;
-import io.lantern.summarize.InMemorySummaryStore;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.Summary;
 import io.lantern.summarize.SummaryTree;
@@ -95,7 +94,7 @@ record FixtureSnapshot(
     facts.addAll(new ValueResolution().derive(facts, NUMBER));
     FakeLlmProvider fake = fake();
     Summarizer summarizer =
-        new Summarizer(fakeClient(fake), new InMemorySummaryStore(), sources(directories));
+        new Summarizer(io.lantern.harness.Harness.inMemory(fakeClient(fake)), sources(directories));
     Summarizer.Result result = summarizer.summarize(SummaryTree.fromFacts(facts));
     if (!result.rejected().isEmpty()) {
       throw new IllegalStateException("Fixture summaries were rejected: " + result.rejected());

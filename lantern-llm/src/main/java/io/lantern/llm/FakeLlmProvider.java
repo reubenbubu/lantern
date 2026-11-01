@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -41,6 +43,8 @@ public final class FakeLlmProvider implements LlmProvider {
   private final AtomicInteger inFlight = new AtomicInteger();
   private final AtomicInteger maxInFlight = new AtomicInteger();
   private volatile Thinks thinks = new Thinks(0, false);
+  private volatile boolean simulatesCache;
+  private final Set<String> cachedPrefixes = ConcurrentHashMap.newKeySet();
 
   public FakeLlmProvider() {
     this(NAME);
@@ -53,6 +57,19 @@ public final class FakeLlmProvider implements LlmProvider {
   /** A free model of this provider with every capability and a large context window. */
   public ModelConfig model(String model) {
     return new ModelConfig(name, model, EnumSet.allOf(Capability.class), 1_000_000, Pricing.FREE);
+  }
+
+  /**
+   * Reports cache tokens the way a provider with prompt caching would: the part of a request up to
+   * its last cache breakpoint (or the end of a cached system prompt) is written to the cache by the
+   * first answer that sends it, and read from the cache by every later request that starts with the
+   * same text up to one of its breakpoints. A prefix counts as written once its answer is returned,
+   * so requests sent at the same time all write it, as they do on a real provider (#357). Without
+   * this, a cached system prompt counts as written on every call.
+   */
+  public FakeLlmProvider simulatingPromptCache() {
+    this.simulatesCache = true;
+    return this;
   }
 
   /** Answers every request with the given text. */
@@ -208,6 +225,9 @@ public final class FakeLlmProvider implements LlmProvider {
       stopReason = LlmResponse.MAX_TOKENS;
     }
     long input = request.estimatedInputTokens();
+    if (simulatesCache) {
+      return new LlmResponse(text, stopReason, simulated(request, cachesSystem, output));
+    }
     TokenUsage usage =
         cachesSystem
             ? new TokenUsage(
@@ -217,6 +237,75 @@ public final class FakeLlmProvider implements LlmProvider {
                 0)
             : new TokenUsage(input, output, 0, 0);
     return new LlmResponse(text, stopReason, usage);
+  }
+
+  /** The usage of a request with the prompt cache simulated, and its prefixes then cached. */
+  private TokenUsage simulated(LlmRequest request, boolean cachesSystem, long output) {
+    List<String> prefixes = prefixes(request, cachesSystem);
+    long input = request.estimatedInputTokens();
+    long read = 0;
+    for (String prefix : prefixes) {
+      if (cachedPrefixes.contains(digest(prefix))) {
+        read = Math.max(read, Tokens.estimate(prefix));
+      }
+    }
+    long written = prefixes.isEmpty() ? 0 : Math.max(0, Tokens.estimate(prefixes.getLast()) - read);
+    read = Math.min(read, input);
+    written = Math.min(written, input - read);
+    prefixes.forEach(prefix -> cachedPrefixes.add(digest(prefix)));
+    return new TokenUsage(input - read - written, output, written, read);
+  }
+
+  /** The text a request sends up to each of its breakpoints, tools and system prompt first. */
+  private static List<String> prefixes(LlmRequest request, boolean cachesSystem) {
+    StringBuilder text = new StringBuilder();
+    for (LlmTool tool : request.tools()) {
+      text.append(tool.name()).append(tool.description()).append(tool.inputSchema());
+    }
+    List<String> prefixes = new ArrayList<>();
+    String system = request.system() == null ? "" : request.system();
+    for (CacheBreak at : request.cacheBreaks()) {
+      if (at.message() == CacheBreak.SYSTEM) {
+        prefixes.add(text + system.substring(0, Math.min(at.offset(), system.length())));
+      }
+    }
+    text.append(system);
+    if (cachesSystem && request.system() != null) {
+      prefixes.add(text.toString());
+    }
+    for (int i = 0; i < request.messages().size(); i++) {
+      LlmMessage message = request.messages().get(i);
+      text.append('\u0000').append(message.author());
+      for (LlmToolResult result : message.toolResults()) {
+        text.append(result.callId()).append(result.content());
+      }
+      int textStart = text.length();
+      text.append(message.text());
+      for (LlmToolCall call : message.toolCalls()) {
+        text.append(call.id()).append(call.name()).append(call.input());
+      }
+      for (CacheBreak at : request.cacheBreaks()) {
+        if (at.message() == i) {
+          prefixes.add(
+              at.offset() == CacheBreak.END
+                  ? text.toString()
+                  : text.substring(0, textStart + Math.min(at.offset(), message.text().length())));
+        }
+      }
+    }
+    prefixes.sort(java.util.Comparator.comparingInt(String::length));
+    return prefixes;
+  }
+
+  private static String digest(String text) {
+    try {
+      return java.util.HexFormat.of()
+          .formatHex(
+              java.security.MessageDigest.getInstance("SHA-256")
+                  .digest(text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    } catch (java.security.NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   /** How the fake thinks, in one value so that calls never see half a change. */
