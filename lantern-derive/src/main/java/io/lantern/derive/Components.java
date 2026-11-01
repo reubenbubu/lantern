@@ -14,6 +14,7 @@ import io.lantern.link.RuleInfo;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -237,6 +238,11 @@ public final class Components implements LinkRule.OverFacts {
           }
         }
       }
+      // Which component each bean an entry point reaches belongs to (#637): the
+      // entry point, when it alone reaches it; else the bean shared by several entry points that
+      // every path to it goes through (its nearest such dominator), as a shared class holds the
+      // classes only it reaches; else the bean itself, a shared component of its own.
+      Map<EntityId, EntityId> owner = owners(entries, beans, uses, reachedBy);
       List<Found> components = new ArrayList<>();
       // The routes a gateway's config defines, one component per module that defines any.
       for (EntityId module : codeModules(knowledge, unit)) {
@@ -252,9 +258,9 @@ public final class Components implements LinkRule.OverFacts {
       for (EntityId entry : entries) {
         SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
         types.add(entry);
-        reachedBy.forEach(
-            (bean, from) -> {
-              if (from.size() == 1 && from.first().equals(entry)) {
+        owner.forEach(
+            (bean, of) -> {
+              if (of.equals(entry)) {
                 types.add(bean);
               }
             });
@@ -283,10 +289,17 @@ public final class Components implements LinkRule.OverFacts {
           unreachedData.add(bean);
           continue;
         }
-        boolean own = from == null ? reachesOutside(bean) : from.size() > 1;
+        boolean own = from == null ? reachesOutside(bean) : bean.equals(owner.get(bean));
         if (own) {
-          components.add(new Found(bean, SHARED, beanKind(bean), only(bean), beanBasis(bean)));
-          dataAccessShown |= accessesData(bean);
+          SortedSet<EntityId> members = only(bean);
+          owner.forEach(
+              (member, of) -> {
+                if (of.equals(bean)) {
+                  members.add(member);
+                }
+              });
+          components.add(new Found(bean, SHARED, beanKind(bean), members, beanBasis(bean)));
+          dataAccessShown |= members.stream().anyMatch(this::accessesData);
         }
       }
       if (!dataAccessShown) {
@@ -295,6 +308,125 @@ public final class Components implements LinkRule.OverFacts {
         }
       }
       return components;
+    }
+
+    /**
+     * The component each bean the entry points reach belongs to: its entry point, or the anchor of
+     * the shared component it sits behind, or itself. Dominators are taken in the graph of the code
+     * the entry points reach, with a root before every entry point and no path through another
+     * entry point (Cooper, Harvey and Kennedy's iterative algorithm).
+     */
+    private static Map<EntityId, EntityId> owners(
+        Set<EntityId> entries,
+        Set<EntityId> beans,
+        Map<EntityId, Set<EntityId>> uses,
+        Map<EntityId, SortedSet<EntityId>> reachedBy) {
+      EntityId root = new EntityId("root", "root");
+      // Reverse postorder from the root, in ID order so the result does not depend on the input's.
+      List<EntityId> post = new ArrayList<>();
+      Set<EntityId> visited = new HashSet<>(Set.of(root));
+      Map<EntityId, List<EntityId>> successors = new HashMap<>();
+      SortedSet<EntityId> starts = new TreeSet<>(Knowledge.BY_ID);
+      starts.addAll(entries);
+      successors.put(root, new ArrayList<>(starts));
+      Deque<EntityId> stack = new ArrayDeque<>(List.of(root));
+      Deque<java.util.Iterator<EntityId>> its = new ArrayDeque<>();
+      its.push(successors.get(root).iterator());
+      while (!stack.isEmpty()) {
+        java.util.Iterator<EntityId> it = its.peek();
+        if (it.hasNext()) {
+          EntityId next = it.next();
+          if (visited.add(next)) {
+            SortedSet<EntityId> out = new TreeSet<>(Knowledge.BY_ID);
+            for (EntityId used : uses.getOrDefault(next, Set.of())) {
+              if (!entries.contains(used)) {
+                out.add(used);
+              }
+            }
+            successors.put(next, new ArrayList<>(out));
+            stack.push(next);
+            its.push(successors.get(next).iterator());
+          }
+        } else {
+          post.add(stack.pop());
+          its.pop();
+        }
+      }
+      Map<EntityId, Integer> index = new HashMap<>();
+      for (int i = 0; i < post.size(); i++) {
+        index.put(post.get(i), i);
+      }
+      Map<EntityId, List<EntityId>> predecessors = new HashMap<>();
+      successors.forEach(
+          (from, tos) -> {
+            for (EntityId to : tos) {
+              predecessors.computeIfAbsent(to, t -> new ArrayList<>()).add(from);
+            }
+          });
+      Map<EntityId, EntityId> idom = new HashMap<>();
+      idom.put(root, root);
+      boolean changed = true;
+      while (changed) {
+        changed = false;
+        for (int i = post.size() - 1; i >= 0; i--) {
+          EntityId node = post.get(i);
+          if (node.equals(root)) {
+            continue;
+          }
+          EntityId dominator = null;
+          for (EntityId pred : predecessors.getOrDefault(node, List.of())) {
+            if (idom.containsKey(pred)) {
+              dominator = dominator == null ? pred : meet(pred, dominator, idom, index);
+            }
+          }
+          if (dominator != null && !dominator.equals(idom.get(node))) {
+            idom.put(node, dominator);
+            changed = true;
+          }
+        }
+      }
+      Map<EntityId, EntityId> owner = new TreeMap<>(Knowledge.BY_ID);
+      for (EntityId bean : reachedBy.keySet()) {
+        owner.put(bean, ownerOf(bean, entries, beans, reachedBy, idom, root));
+      }
+      return owner;
+    }
+
+    private static EntityId meet(
+        EntityId a, EntityId b, Map<EntityId, EntityId> idom, Map<EntityId, Integer> index) {
+      while (!a.equals(b)) {
+        while (index.get(a) < index.get(b)) {
+          a = idom.get(a);
+        }
+        while (index.get(b) < index.get(a)) {
+          b = idom.get(b);
+        }
+      }
+      return a;
+    }
+
+    /**
+     * A reached bean's component: up its dominators, the first entry point, or the first bean
+     * shared by several entry points; the bean itself when it is shared and nothing above it is.
+     */
+    private static EntityId ownerOf(
+        EntityId bean,
+        Set<EntityId> entries,
+        Set<EntityId> beans,
+        Map<EntityId, SortedSet<EntityId>> reachedBy,
+        Map<EntityId, EntityId> idom,
+        EntityId root) {
+      EntityId at = idom.get(bean);
+      while (at != null && !at.equals(root)) {
+        if (entries.contains(at)) {
+          return at;
+        }
+        if (beans.contains(at) && reachedBy.getOrDefault(at, new TreeSet<>()).size() > 1) {
+          return ownerOf(at, entries, beans, reachedBy, idom, root);
+        }
+        at = idom.get(at);
+      }
+      return reachedBy.get(bean).size() == 1 ? reachedBy.get(bean).first() : bean;
     }
 
     /** Whether an aspect's pointcuts select methods by an annotation. */

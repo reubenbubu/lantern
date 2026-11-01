@@ -170,3 +170,17 @@ The agent decided these under the owner's standing go-ahead for 1D.
 - **A finding is shown only whole.** A document composed from part of the snapshot's facts (a
   repository's, in a run that carries others forward) leaves out a finding resting on a fact it
   does not hold, as it does a flow (#631).
+
+## Amendment for #637: a shared component holds what only it reaches
+
+A bean that several entry points reach became a component holding only itself, so a repository or
+policy reached only through another shared class was a component of its own: on FleetCare's
+billing-service, `TaxExemptionRepository` beside `TaxExemptionPolicy`, which alone uses it. Each
+bean now belongs to its owner, its nearest dominator in the graph of what uses what, rooted at the
+unit's entry points (computed with the iterative algorithm of Cooper, Harvey and Kennedy, "A Simple,
+Fast Dominance Algorithm", 2001). Walking up the dominators, the owner is the first entry point, or
+the first bean that several entry points reach. A shared bean is a component holding itself and
+the beans it owns; a bean reached by one entry point belongs to it, as before. On the test sets this
+removes 3 components on project-2, 20 on project-4 and 15 on project-8, none of them in a
+reference; billing-service's 26 now match its reference by name, and workorder-service's 46 match
+45 of the reference's 48.
