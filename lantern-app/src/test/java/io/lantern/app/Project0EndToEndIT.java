@@ -260,6 +260,7 @@ class Project0EndToEndIT {
     assertThat(resolves).isEqualTo(3);
     assertThat(first.linksAsked()).isEqualTo(3);
     EndToEndIT.assertEveryCallCountedUnderItsRole(first, calls);
+    assertEveryPlannedItemCountedOnce(first);
     List<String> files = new ArrayList<>();
     for (String name : commits.keySet()) {
       files.addAll(List.of(name + ".html", name + ".brief.html", name + ".c4.html"));
@@ -270,6 +271,7 @@ class Project0EndToEndIT {
         .containsExactlyElementsOf(files);
 
     AnalysisRun.Result second = run.run("project-0", null, repos);
+    assertEveryPlannedItemCountedOnce(second);
 
     assertThat(fake.sent()).as("LLM requests in the second run").hasSize(calls);
     assertThat(second.llm().calls()).as("LLM calls logged in the second run").isZero();
@@ -370,6 +372,7 @@ class Project0EndToEndIT {
     int sent = fake.sent().size();
 
     AnalysisRun.Result changed = run.run("project-0", null, repos);
+    assertEveryPlannedItemCountedOnce(changed);
     List<Map<String, Object>> asked =
         jdbc.sql(
                 "SELECT role, subject, inputs::text AS inputs FROM llm_answers WHERE seq > :before"
@@ -449,6 +452,7 @@ class Project0EndToEndIT {
     assertThat(changed.llm().calls()).isEqualTo(calls);
     // A warm rerun of the changed snapshot makes no call.
     AnalysisRun.Result warm = run.run("project-0", null, repos);
+    assertEveryPlannedItemCountedOnce(warm);
     assertThat(fake.sent()).hasSize(sent + (int) calls);
     assertThat(warm.llm().calls()).isZero();
   }
@@ -861,5 +865,12 @@ class Project0EndToEndIT {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while running docker", e);
     }
+  }
+
+  /** Every role's planned items each landed in exactly one count of its run record (#654). */
+  static void assertEveryPlannedItemCountedOnce(AnalysisRun.Result result) {
+    assertThat(result.roles())
+        .isNotEmpty()
+        .allSatisfy(role -> assertThat(role.settled()).as(role.role()).isEqualTo(role.planned()));
   }
 }

@@ -679,6 +679,15 @@ public final class RoleSession {
     return collector.call(longLived);
   }
 
+  /**
+   * Records that a planned item was not asked for a reason of the caller's, such as a unit whose
+   * parts were none of them summarized, so that every planned item lands in one count.
+   */
+  public void notAsked(String subject, String reason) {
+    LOG.info("Not asked about {} for {}: {}", subject, spec.name(), reason);
+    record.outcome(subject, Outcome.of(Outcome.Kind.NOT_ASKED, null, null, reason), false);
+  }
+
   /** The role's run record. */
   public RoleRecord record() {
     return record;

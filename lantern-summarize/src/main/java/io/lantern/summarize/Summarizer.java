@@ -428,6 +428,8 @@ public final class Summarizer {
     private final AtomicInteger reused = new AtomicInteger();
     private final AtomicBoolean failed = new AtomicBoolean();
     private final Set<EntityId> rejected = ConcurrentHashMap.newKeySet();
+    // The units the plan counted as items: each gets exactly one outcome in the role's record.
+    private final Set<EntityId> planned = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean accepted = new AtomicBoolean();
     private volatile Semaphore running;
     private final Map<String, Optional<String>> files =
@@ -458,11 +460,17 @@ public final class Summarizer {
       for (SummaryNode node : units) {
         boolean childMissing =
             node.children().stream().anyMatch(child -> missing.getOrDefault(child.entity(), false));
+        // A unit is planned only if it will have something to summarize: facts of its own, or a
+        // part that is planned. One with neither is never asked and is no item.
+        boolean anything =
+            !node.facts().isEmpty()
+                || node.children().stream().anyMatch(child -> planned.contains(child.entity()));
+        if (!anything) {
+          missing.put(node.entity(), false);
+          continue;
+        }
+        planned.add(node.entity());
         if (node.children().isEmpty()) {
-          if (node.facts().isEmpty()) {
-            missing.put(node.entity(), false);
-            continue;
-          }
           Item item = Summarizer.item(node, Excerpts.of(node, this::text), List.of());
           known.add(item);
           missing.put(node.entity(), !session.cached(item));
@@ -505,6 +513,11 @@ public final class Summarizer {
           part.join().ifPresent(children::add);
         }
         if (node.facts().isEmpty() && children.isEmpty()) {
+          if (planned.contains(node.entity())) {
+            // It was planned for its parts' summaries, and none came: they were not asked.
+            notAsked.add(node.entity());
+            session.notAsked(node.entity().toString(), "none of its parts was summarized");
+          }
           return Optional.empty();
         }
         try {
@@ -523,6 +536,9 @@ public final class Summarizer {
           return Optional.empty();
         }
       } catch (Skipped e) {
+        if (planned.contains(node.entity())) {
+          session.notAsked(node.entity().toString(), "another unit failed first");
+        }
         throw e;
       } catch (RuntimeException | Error e) {
         failed.set(true);

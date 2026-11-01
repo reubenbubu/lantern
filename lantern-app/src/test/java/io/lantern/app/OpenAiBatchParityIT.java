@@ -112,6 +112,7 @@ class OpenAiBatchParityIT {
     }
 
     AnalysisRun.Result interactive = run.run(set, null, repos);
+    Project0EndToEndIT.assertEveryPlannedItemCountedOnce(interactive);
 
     try (OpenAiStub stub = new OpenAiStub(fake, fake::model)) {
       Map<String, String> values = new LinkedHashMap<>();
@@ -140,6 +141,7 @@ class OpenAiBatchParityIT {
         batched = withLlm(access, openai).run(set, null, repos);
       }
 
+      Project0EndToEndIT.assertEveryPlannedItemCountedOnce(batched);
       // Every request of the second run went through the stub; none reached the fake directly.
       assertThat(stub.chats()).hasSize(fake.sent().size() - sentBefore);
       assertThat(stub.batches()).isPositive();

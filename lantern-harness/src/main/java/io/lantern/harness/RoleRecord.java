@@ -126,6 +126,20 @@ public final class RoleRecord implements LlmCallLog {
     return batchCalls;
   }
 
+  /** How many items the role planned. */
+  public synchronized int planned() {
+    return planned;
+  }
+
+  /**
+   * How many items landed in a count: cached, accepted (omitted included), dropped, not asked and
+   * failed. Every planned item lands in exactly one, so this equals {@link #planned()} once the
+   * role is done.
+   */
+  public synchronized int settled() {
+    return cached + answered + omitted + dropped + notAsked + failed;
+  }
+
   /** How many items the cache answered. */
   public synchronized int cached() {
     return cached;
