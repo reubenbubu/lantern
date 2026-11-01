@@ -10,13 +10,16 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code custom-access-check}. Callers of the subject method
  * must pass a custom access check an aspect makes (#520): the aspect's before or around advice
  * applies to the method because of the annotation at this line, and reads that annotation's
- * attributes, taking it as a parameter or calling its methods; and the annotation's or the aspect's
- * name is about access (permission, role, access, auth, security, privilege, grant, policy, guard
- * or entitlement), since aspects that log, lock or limit read their annotations too. The value is
- * the annotation's values as written, such as resource=TASK, action=READ, else its simple name.
- * Unlike access-check, it does not depend on method security: it holds wherever the aspect is a
- * bean. (The epic writes it as access-check with via aspect; access-check's kinds cannot be
- * widened, ADR 0096.)
+ * attributes, taking it as a parameter or calling its methods; the advice can refuse the call: its
+ * code, or that of the aspect's own methods it calls, throws, makes an exception or error, or calls
+ * code whose name is about access; and a whole word of the annotation's or the aspect's camel-case
+ * name is about access (permission, permit, role, access, auth but not author, security, privilege,
+ * grant, policy, guard, entitlement, RBAC, ABAC or ACL), since aspects that log, lock or limit read
+ * their annotations too. The name alone is not enough (#612, ADR 0096). The value is the
+ * annotation's values as written, such as resource=TASK, action=READ, else its simple name. Unlike
+ * access-check, it does not depend on method security: it holds wherever the aspect is a bean. (The
+ * epic writes it as access-check with via aspect; access-check's kinds cannot be widened, ADR
+ * 0096.)
  *
  * @param advice Key. The entity ID of the advice method that makes the check.
  * @param annotation Key. The binary name of the annotation the aspect reads.

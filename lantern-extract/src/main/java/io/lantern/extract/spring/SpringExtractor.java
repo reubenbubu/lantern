@@ -64,7 +64,7 @@ public final class SpringExtractor implements Extractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "8";
+  public static final String VERSION = "9";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -294,10 +294,26 @@ public final class SpringExtractor implements Extractor {
   private static final String TRANSACTIONAL_EVENT_LISTENER =
       SPRING + "transaction.event.TransactionalEventListener";
 
-  /** Words in the name of an annotation or aspect that checks access. */
-  private static final java.util.regex.Pattern ACCESS_NAMES =
-      java.util.regex.Pattern.compile(
-          "(?i)permi|role|access|auth|secur|privilege|grant|polic|guard|entitle");
+  /**
+   * Beginnings of the words of a name about access, matched against the whole words of its
+   * camel-case name, so AuthorAuditAspect is not about access (#612): permission, permit, role,
+   * access, auth (authentication, authorization, authority, not author), security, privilege,
+   * grant, policy, guard, entitlement; and the words RBAC, ABAC and ACL.
+   */
+  private static final List<String> ACCESS_PREFIXES =
+      List.of(
+          "permi",
+          "role",
+          "access",
+          "auth",
+          "secur",
+          "privileg",
+          "grant",
+          "polic",
+          "guard",
+          "entitl");
+
+  private static final Set<String> ACCESS_WORDS = Set.of("rbac", "abac", "acl");
 
   private static final String CROSS_ORIGIN = WEB + "CrossOrigin";
   private static final String CORS_CONFIGURATION = SPRING + "web.cors.CorsConfiguration";
@@ -1740,27 +1756,137 @@ public final class SpringExtractor implements Extractor {
     }
 
     /**
-     * Whether an advice checks access by the annotation that selects a method (ADR 0079, #520): it
-     * runs before the method (before or around), and reads the annotation's attributes, by taking
-     * the annotation as a parameter ({@code @annotation(requires)}) or calling its methods.
+     * Whether an advice checks access by the annotation that selects a method (ADR 0079, #520,
+     * #612): it runs before the method (before or around); its own or its annotation's name is about
+     * access; it reads the annotation's attributes, by taking the annotation as a parameter ({@code
+     * @annotation(requires)}) or calling its methods; and it can refuse the call ({@link #refuses}).
      */
-    private static boolean checksAccess(AspectOf aspect, Advice advice, String annotation) {
+    private boolean checksAccess(AspectOf aspect, Advice advice, String annotation) {
       if (!advice.kind().equals("before") && !advice.kind().equals("around")) {
         return false;
       }
       // An aspect that reads its annotation may as well log, lock or limit; one about access says
-      // so in its own or its annotation's name.
-      if (!ACCESS_NAMES.matcher(simpleName(annotation)).find()
-          && !ACCESS_NAMES.matcher(simpleName(aspect.type().binaryName())).find()) {
+      // so in its own or its annotation's name, and can refuse the call. The name alone is not
+      // enough (#612).
+      if (!aboutAccess(simpleName(annotation))
+          && !aboutAccess(simpleName(aspect.type().binaryName()))) {
         return false;
       }
       EntityId id = advice.method().id();
-      if (parameterTypes(id).contains(annotation)) {
-        return true;
-      }
+      boolean reads = parameterTypes(id).contains(annotation);
       for (ModuleStructure.Call call : aspect.module().structure().calls()) {
         if (call.caller().equals(id) && call.callee().key().startsWith(annotation + "#")) {
+          reads = true;
+        }
+      }
+      return reads && refuses(aspect, id, annotation);
+    }
+
+    /** Whether one of the whole words of a camel-case name is about access. */
+    private static boolean aboutAccess(String name) {
+      for (String part : name.split("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|[_$\\d]+")) {
+        String word = part.toLowerCase(java.util.Locale.ROOT);
+        if (ACCESS_WORDS.contains(word)) {
           return true;
+        }
+        if (word.startsWith("author")
+            && !word.startsWith("authoriz")
+            && !word.startsWith("authoris")
+            && !word.startsWith("authorit")) {
+          continue;
+        }
+        for (String prefix : ACCESS_PREFIXES) {
+          if (word.startsWith(prefix)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    private final Map<String, Boolean> refusals = new HashMap<>();
+
+    /**
+     * Whether an advice can refuse the call it runs before (#612): its code, or that of the
+     * aspect's own methods it calls (its supertypes' included, two calls deep), throws (has a
+     * {@code throw} statement, or makes an exception or error: a constructor of a type named {@code
+     * ...Exception} or {@code ...Error}), or hands the decision to code about access (a call to a
+     * method, or on a type, whose name is about access, such as {@code permissions.check(...)} or
+     * {@code SecurityContextHolder.getContext()}), other than reading the annotation itself.
+     */
+    private boolean refuses(AspectOf aspect, EntityId advice, String annotation) {
+      String key = advice + " " + annotation;
+      Boolean known = refusals.get(key);
+      if (known == null) {
+        known = refusesNow(aspect, advice, annotation);
+        refusals.put(key, known);
+      }
+      return known;
+    }
+
+    private boolean refusesNow(AspectOf aspect, EntityId advice, String annotation) {
+      List<String> own = new ArrayList<>();
+      for (TypeDecl t : lineage(aspect.type())) {
+        own.add(t.binaryName() + "#");
+      }
+      Map<EntityId, List<ModuleStructure.Call>> byCaller = new HashMap<>();
+      Set<EntityId> throwing = new HashSet<>();
+      Map<EntityId, List<EntityId>> ownCalls = new HashMap<>();
+      for (JavaAnalysis.Module m : code.modules()) {
+        throwing.addAll(m.structure().throwing());
+        // Calls of the aspect's own methods, kept by name and count also where the parser cannot
+        // resolve an argument and drops the call from calls().
+        for (ModuleStructure.OwnCall call : m.structure().ownCalls()) {
+          String caller = call.caller().key();
+          if (own.stream().anyMatch(caller::startsWith)) {
+            ownCalls.computeIfAbsent(call.caller(), c -> new ArrayList<>()).add(call.callee());
+          }
+        }
+        for (ModuleStructure.Call call : m.structure().calls()) {
+          String caller = call.caller().key();
+          if (own.stream().anyMatch(caller::startsWith)) {
+            byCaller.computeIfAbsent(call.caller(), c -> new ArrayList<>()).add(call);
+          }
+        }
+      }
+      Set<EntityId> seen = new HashSet<>();
+      Deque<Map.Entry<EntityId, Integer>> queue = new ArrayDeque<>();
+      queue.add(Map.entry(advice, 0));
+      while (!queue.isEmpty()) {
+        Map.Entry<EntityId, Integer> next = queue.removeFirst();
+        if (!seen.add(next.getKey())) {
+          continue;
+        }
+        if (throwing.contains(next.getKey())) {
+          return true;
+        }
+        if (next.getValue() < 2) {
+          for (EntityId callee : ownCalls.getOrDefault(next.getKey(), List.of())) {
+            queue.add(Map.entry(callee, next.getValue() + 1));
+          }
+        }
+        for (ModuleStructure.Call call : byCaller.getOrDefault(next.getKey(), List.of())) {
+          String callee = call.callee().key();
+          int hash = callee.indexOf('#');
+          int open = callee.indexOf('(', hash + 1);
+          if (hash < 0) {
+            continue;
+          }
+          String owner = callee.substring(0, hash);
+          String method = callee.substring(hash + 1, open < 0 ? callee.length() : open);
+          if (method.equals(ModuleStructure.CONSTRUCTOR)) {
+            String type = simpleName(owner);
+            if (type.endsWith("Exception") || type.endsWith("Error")) {
+              return true;
+            }
+          } else if (own.stream().anyMatch(callee::startsWith)) {
+            if (next.getValue() < 2) {
+              queue.add(Map.entry(call.callee(), next.getValue() + 1));
+            }
+          } else if (!owner.equals(annotation)
+              && (aboutAccess(method) || aboutAccess(simpleName(owner)))) {
+            return true;
+          }
         }
       }
       return false;
