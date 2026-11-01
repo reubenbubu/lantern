@@ -40,6 +40,23 @@ class DeploymentInstancesTest {
     assertThat(running.getFirst().lineage()).containsExactly(runs.claimId());
   }
 
+  @Test
+  void anEnvironmentNameWithASpaceGivesAValidKey() {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("platform", "helm");
+    attributes.put("environment", "fleetcare prod");
+    Fact container =
+        model.add(
+            ENVIRONMENT,
+            "deployment-container",
+            FactObject.string("notification-service"),
+            attributes);
+
+    assertThat(DeploymentInstances.id(container).toString())
+        .isEqualTo("deployment-instance:helm:fleetcare%20prod/notification-service");
+    assertThat(model.derived(DeploymentInstances.NAME)).isNotEmpty();
+  }
+
   private Fact container(String repo) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("platform", "compose");

@@ -62,17 +62,51 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
     return Derivation.load("/vocabulary/deployment-instances-types.json");
   }
 
-  /** The instance a {@code deployment-container} fact describes. */
+  /**
+   * The instance a {@code deployment-container} fact describes. Its parts are percent-encoded where
+   * a key cannot hold a character (whitespace) or a separator would be ambiguous, so an environment
+   * named "fleetcare prod" gives {@code helm:fleetcare%20prod/notification-service}.
+   */
   public static EntityId id(Fact container) {
     String platform = attribute(container, "platform");
     String environment = attribute(container, "environment");
     return new EntityId(
         DEPLOYMENT_INSTANCE,
-        (platform == null ? "-" : platform)
+        (platform == null ? "-" : encoded(platform, ":/"))
             + ":"
-            + (environment == null ? "-" : environment)
+            + (environment == null ? "-" : encoded(environment, ":/"))
             + "/"
-            + container.object().value());
+            + encoded(container.object().value().toString(), ""));
+  }
+
+  /** The text with '%', whitespace, control characters and the given separators percent-encoded. */
+  static String encoded(String text, String separators) {
+    if (text.equals("-")) {
+      return "%2D";
+    }
+    StringBuilder out = new StringBuilder();
+    text.codePoints()
+        .forEach(
+            c -> {
+              boolean plain =
+                  c != '%'
+                      && separators.indexOf(c) < 0
+                      && !Character.isWhitespace(c)
+                      && !Character.isSpaceChar(c)
+                      && !Character.isISOControl(c)
+                      && !(c >= 0x7f && c <= 0xa0)
+                      && c != 0xfeff;
+              if (plain) {
+                out.appendCodePoint(c);
+              } else {
+                for (byte b :
+                    new String(Character.toChars(c))
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+                  out.append('%').append(String.format("%02X", b & 0xff));
+                }
+              }
+            });
+    return out.toString();
   }
 
   @Override
