@@ -106,7 +106,9 @@ public final class RoleSession {
    *     units whose parts are still to be summarized
    * @param predictedTokens the input tokens those items are expected to take, in all
    * @param prefixTokens the tokens of the prompt every request of the role starts with, written to
-   *     the prompt cache once and read by the requests after the first
+   *     the prompt cache once and read by the requests after the first. A role that asks one item a
+   *     request includes them in each item's rendering; a role that groups items into requests does
+   *     not, and its plan counts them once a request
    */
   public Estimate plan(
       Collection<Item> items,
@@ -126,7 +128,18 @@ public final class RoleSession {
     int toAsk = items.size() + predictedHits - cached + predictedMisses;
     long write = 0;
     long read = 0;
-    if (toAsk > 0 && model.supports(Capability.PROMPT_CACHING) && prefixTokens > 0) {
+    if (spec.packetSize() > 1) {
+      // A role that groups items into requests renders each item without the prompt's start,
+      // which every request sends once: the plan counts requests, not items.
+      int requests = (toAsk + spec.packetSize() - 1) / spec.packetSize();
+      if (requests > 0 && model.supports(Capability.PROMPT_CACHING) && prefixTokens > 0) {
+        write = prefixTokens;
+        read = prefixTokens * (requests - 1L);
+      } else {
+        input += prefixTokens * requests;
+      }
+    } else if (toAsk > 0 && model.supports(Capability.PROMPT_CACHING) && prefixTokens > 0) {
+      // A role that asks one item a request renders each item with the prompt's start.
       write = prefixTokens;
       read = prefixTokens * (toAsk - 1L);
       input = Math.max(0, input - prefixTokens * toAsk);

@@ -11,6 +11,7 @@ import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
+import io.lantern.llm.Tokens;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -273,6 +274,28 @@ class RoleSessionTest {
     assertThat(estimate.usd()).isGreaterThan(BigDecimal.ZERO);
     assertThat(estimate.line("summarize")).startsWith("summarize: 5 items, 2 cached, 3 to ask;");
     assertThat(harness.records().getFirst().estimate()).isEqualTo(estimate);
+  }
+
+  @Test
+  void aRoleThatGroupsItemsIntoRequestsIsPlannedByRequest() {
+    io.lantern.llm.LlmClient priced = client(fake, TestHarness.priced(fake));
+    RoleSession session = harness(priced, store).session(role().withPacketSize(10));
+    List<Item> items = new ArrayList<>();
+    long rendered = 0;
+    for (int i = 0; i < 25; i++) {
+      Item item = item("unit-" + i);
+      items.add(item);
+      rendered += Tokens.estimate(item.rendering());
+    }
+
+    Estimate estimate = session.plan(items, 0, 0, 0, 1_000);
+
+    // 25 items go as three requests: the first writes the prompt's start, the other two read it,
+    // and every item's own text is input.
+    assertThat(estimate.toAsk()).isEqualTo(25);
+    assertThat(estimate.cacheWriteTokens()).isEqualTo(1_000);
+    assertThat(estimate.cacheReadTokens()).isEqualTo(2_000);
+    assertThat(estimate.inputTokens()).isEqualTo(rendered);
   }
 
   @Test
