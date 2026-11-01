@@ -51,6 +51,8 @@ class ClaimIdentityTest {
           "facts",
           "link",
           "exceptProfiles",
+          // Since #590, the views a default view's claim does not hold in.
+          "absentIn",
           "cites",
           "summary",
           "description");
@@ -125,7 +127,8 @@ class ClaimIdentityTest {
 
   /**
    * The key attributes of link claims: the channel attributes, the protocol (#518: a different
-   * protocol is a different line) and the view, which today's link types call {@code profile}.
+   * protocol is a different line) and the view, which link types called {@code profile} before
+   * #590.
    */
   static final Set<String> LINK_KEYS =
       Set.of(
@@ -137,7 +140,6 @@ class ClaimIdentityTest {
           "host",
           "key",
           "protocol",
-          "profile",
           "view");
 
   /** The runtime relationships: {@code INTERACTS_WITH} and everything under it. */
@@ -186,13 +188,14 @@ class ClaimIdentityTest {
       declared.stream().filter(LINK_KEYS::contains).forEach(keys::add);
       return keys;
     }
-    boolean link = linkSourceTypes().contains(type);
     Set<String> descriptive = new TreeSet<>(DESCRIPTIVE_EVERYWHERE);
     for (VocabularyType t : vocabulary.lineage(type)) {
       descriptive.addAll(DESCRIPTIVE_PER_TYPE.getOrDefault(t.name(), Set.of()));
     }
     for (String name : declared) {
-      boolean profile = name.equals("profile") && !link && !type.equals("config-value");
+      // An extracted fact's profile is descriptive, as profiles are views (#590: a derived fact's
+      // view is the key attribute view, and profile is kept only for facts stored before).
+      boolean profile = name.equals("profile") && !type.equals("config-value");
       if (!descriptive.contains(name) && !profile) {
         keys.add(name);
       }

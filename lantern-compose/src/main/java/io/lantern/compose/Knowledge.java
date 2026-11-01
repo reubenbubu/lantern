@@ -58,6 +58,20 @@ final class Knowledge {
     }
   }
 
+  /**
+   * The view under which alone a fact holds, or null when it holds in the default view: a derived
+   * fact's {@code view} (ADR 0095, amendment for #590), else an extracted one's {@code profile}.
+   */
+  static String view(Fact fact) {
+    for (String name : new String[] {"view", "profile"}) {
+      tools.jackson.databind.JsonNode value = fact.attributes().get(name);
+      if (value != null && value.isString()) {
+        return value.asString();
+      }
+    }
+    return null;
+  }
+
   static boolean isEntity(Fact fact) {
     return fact.object().kind() == FactObject.Kind.ENTITY;
   }

@@ -280,7 +280,7 @@ class DeployableUnitsTest {
             "service:g:orders-service application-name orders {\"module\":\"module:g:orders-lib\"}"
                 + " @r:orders-lib/src/main/resources/application.yml#3 1.0",
             "service:g:orders-service application-name orders-local"
-                + " {\"module\":\"module:g:orders-lib\",\"profile\":\"local\"}"
+                + " {\"module\":\"module:g:orders-lib\",\"view\":\"local\"}"
                 + " @r:orders-lib/src/main/resources/application.yml#3 1.0",
             "service:g:orders-service deployable-unit spring-boot"
                 + " {\"mainClass\":\"type:g.orders.OrdersApplication\",\"packaging\":\"jar\"}"
@@ -482,10 +482,10 @@ class DeployableUnitsTest {
             "service:g:svc application-name from-bootstrap {\"module\":\"module:g:lib\"}"
                 + " @r:lib/src/main/resources/bootstrap.yml#3 1.0",
             "service:g:svc application-name from-bootstrap-dev"
-                + " {\"module\":\"module:g:lib\",\"profile\":\"dev\"}"
+                + " {\"module\":\"module:g:lib\",\"view\":\"dev\"}"
                 + " @r:lib/src/main/resources/bootstrap-dev.yml#3 1.0",
             "service:g:svc application-name svc-cloud"
-                + " {\"module\":\"module:g:svc\",\"profile\":\"cloud\"}"
+                + " {\"module\":\"module:g:svc\",\"view\":\"cloud\"}"
                 + " @r:svc/src/main/resources/application-cloud.yml#3 1.0");
   }
 

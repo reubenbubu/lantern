@@ -148,7 +148,7 @@ final class ResolvePrompt {
     if (source != null) {
       user.append(", in ").append(source);
     }
-    String profile = Claims.profile(unresolved);
+    String profile = Claims.view(unresolved);
     if (profile != null) {
       user.append(", with the Spring profile ").append(profile).append(" active");
     }

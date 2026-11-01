@@ -79,42 +79,37 @@ class Project8ValuesIT {
   void aPlaceholderADeploymentSetsResolvesInThatDeploymentsView() {
     // The compose file sets DB_HOST; no config does, so only the deployment resolves it.
     assertThat(resolutions("address:io.fleetcare:workorder-service:${DB_HOST}:5432"))
-        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "deployment"))
+        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "view"))
         .containsExactly(tuple("address:postgres:5432", DEFAULT_COMPOSE + "workorder-service"));
     // The config's own URL in the default view, the compose service's name in the deployment.
     assertThat(
             resolutions(
                 "address:io.fleetcare:customer-portal-bff:${fleetcare.services.technicians-url}"))
-        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "deployment"))
+        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "view"))
         .containsExactlyInAnyOrder(
             tuple("address:localhost:8082", null),
             tuple("address:technician-service:8082", DEFAULT_COMPOSE + "customer-portal-bff"));
     // A deployment's environment over the profile it makes active: the local compose file runs
     // billing-service with the local profile, whose sandbox differs from the default view's.
     assertThat(resolutions("address:io.fleetcare:billing-service:${paygrid.base-url}"))
-        .extracting(
-            f -> f.object().value(),
-            f -> TestAttributes.text(f, "profile"),
-            f -> TestAttributes.text(f, "deployment"))
+        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "view"))
         .containsExactlyInAnyOrder(
-            tuple("address:sandbox.paygrid.example", null, null),
-            tuple("address:api.paygrid.example", "prod", null),
-            tuple("address:localhost:9443", "local", null),
-            tuple("address:localhost:9443", null, LOCAL_COMPOSE + "billing-service"));
+            tuple("address:sandbox.paygrid.example", null),
+            tuple("address:api.paygrid.example", "prod"),
+            tuple("address:localhost:9443", "local"),
+            tuple("address:localhost:9443", LOCAL_COMPOSE + "billing-service"));
+    // The default view's claim lists every other view, profiles first (#590).
     assertThat(resolutions("address:io.fleetcare:billing-service:${paygrid.base-url}"))
-        .filteredOn(
-            f ->
-                TestAttributes.text(f, "deployment") == null
-                    && TestAttributes.text(f, "profile") == null)
+        .filteredOn(f -> TestAttributes.text(f, "view") == null)
         .singleElement()
         .satisfies(
             f ->
-                assertThat(TestAttributes.texts(f, "exceptDeployments"))
-                    .containsExactly(LOCAL_COMPOSE + "billing-service"));
+                assertThat(TestAttributes.texts(f, "absentIn"))
+                    .containsExactly("local", "prod", LOCAL_COMPOSE + "billing-service"));
     // The deployment's literal comes from the profile it activates, and cites its container too.
     Fact local =
         resolutions("address:io.fleetcare:billing-service:${paygrid.base-url}").stream()
-            .filter(f -> TestAttributes.text(f, "deployment") != null)
+            .filter(f -> deployment(f))
             .findFirst()
             .get();
     assertThat(TestAttributes.texts(local, "facts"))
@@ -175,7 +170,7 @@ class Project8ValuesIT {
       // In the compose deployment, a container of the set's own: never this machine.
       assertThat(resolutions(address))
           .as(address)
-          .filteredOn(f -> TestAttributes.text(f, "deployment") != null)
+          .filteredOn(f -> deployment(f))
           .isNotEmpty()
           .allMatch(f -> !f.object().value().startsWith("address:localhost"));
     }
@@ -229,5 +224,11 @@ class Project8ValuesIT {
         .filter(f -> f.predicate().equals(ValueResolution.RESOLVES_TO))
         .filter(f -> f.subject().toString().equals(entity))
         .toList();
+  }
+
+  /** Whether a claim's view is a deployment's, whose key names its environment (#590). */
+  private static boolean deployment(Fact f) {
+    String view = TestAttributes.text(f, "view");
+    return view != null && view.contains("|");
   }
 }

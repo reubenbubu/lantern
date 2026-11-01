@@ -101,7 +101,7 @@ class SequenceFlowsTest {
         "CALLS_HTTP",
         "external-system:gw.example.com",
         "{\"protocol\": \"HTTPS\", \"httpMethod\": \"POST\", \"path\": \"/v1/charges\","
-            + " \"exceptProfiles\": [\"prod\"], \"alternates\": [\"external-system:live.example.com\"],"
+            + " \"absentIn\": [\"prod\"], \"alternates\": [\"external-system:live.example.com\"],"
             + " \"source\": \""
             + GATEWAY
             + "\"}",

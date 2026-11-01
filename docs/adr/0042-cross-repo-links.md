@@ -392,3 +392,11 @@ resolves a library's destination again with the config of each unit bundling it.
 
 On project-0 to project-4 and project-8 every link is unchanged apart from the facts it cites;
 only value resolution's relations are added, and fake-model scorecards are unchanged (#597's PR).
+
+## Amendment (#590): `view` and `absentIn`
+
+The views above are unchanged, but the linker runs them: it runs each protocol rule once per view
+and merges what it finds (ADR 0095, amendment for #590). A link found only under profiles names its
+profile in `view` (was `profile`), a key attribute; one found in the default view lists the
+profiles it is not found under in `absentIn` (was `exceptProfiles`). A call's `alternates` are
+named once the views are merged.

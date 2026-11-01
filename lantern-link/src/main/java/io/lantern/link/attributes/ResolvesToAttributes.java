@@ -9,21 +9,23 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The attributes of a fact of the type {@code RESOLVES_TO}. The subject, a destination or address
  * keyed by its module and the expression its code writes, is the object, the literal destination or
- * address, in a view: the default view, the profile named, or the deployment named, whose
- * container's environment overlays the config as Spring Boot's relaxed binding reads it (#588),
+ * address, in a view: the default view, or the one view named (a profile, or a deployment, whose
+ * container's environment overlays the config as Spring Boot's relaxed binding reads it, #588),
  * when the module's config resolves every placeholder of the expression (ADR 0094, amendment for
- * #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the
- * views it does not hold in, and one for each profile or deployment that gives another literal; a
- * placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a
- * secret is used. Address resolution (#589) also writes it for each address a matcher asks about,
- * with from naming the unit that uses it: to the unit it leads to, the external system, or
- * outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each
- * deployment that fills the address in; and with by: name, to each unit a service name names, or
- * outcome:unknown when none does; and with by: datasource, where a datasource or data store whose
- * server or database is a placeholder leads in each deployment that runs its unit (#596): to the
- * address entity of the server's address as the deployment gives it, or outcome:unknown when it
- * gives none, one fact per such deployment, or one to outcome:unknown when no deployment places it.
+ * #587). One fact for the default view, which names in absentIn the views it does not hold in, and
+ * one for each profile or deployment that gives another literal; a placeholder's own default
+ * resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address
+ * resolution (#589) also writes it for each address a matcher asks about, with from naming the unit
+ * that uses it: to the unit it leads to, the external system, or outcome:ambiguous or
+ * outcome:unknown, one fact for the config's answer and one for each deployment that fills the
+ * address in; and with by: name, to each unit a service name names, or outcome:unknown when none
+ * does; and with by: datasource, where a datasource or data store whose server or database is a
+ * placeholder leads in each deployment that runs its unit (#596): to the address entity of the
+ * server's address as the deployment gives it, or outcome:unknown when it gives none, one fact per
+ * such deployment, or one to outcome:unknown when no deployment places it.
  *
+ * @param absentIn Descriptive. On value resolution's default-view fact, the views whose config or
+ *     environment gives another literal or none: profiles, then deployments (#590).
  * @param address Key. Address resolution: the address asked about, as the unit's config resolved
  *     it, or the service name asked about.
  * @param by Key. Address resolution: name for a service name looked up among the units'
@@ -33,13 +35,15 @@ import tools.jackson.databind.node.ObjectNode;
  *     to, with unit, fact (when one), matchedBy and factor.
  * @param database Descriptive. Address resolution, for a datasource placed: the database's name as
  *     the deployment's environment, the server's image variable or its init scripts give it.
- * @param deployment Key. The deployment whose environment gives this literal:
+ * @param deployment Key. Address resolution: the deployment whose container fills the address in,
+ *     or places the datasource:
  *     &lt;repository&gt;|&lt;platform&gt;|&lt;environment&gt;[|&lt;compose
- *     file&gt;]|&lt;container&gt;; absent for the default view and a profile's.
- * @param exceptDeployments Descriptive. On the default view's fact, the deployments whose
- *     environment gives another literal or none.
- * @param exceptProfiles Descriptive. On the default view's fact, the profiles whose config gives
- *     another literal or none.
+ *     file&gt;]|&lt;container&gt;. Value resolution's facts before #590 named their deployment view
+ *     here.
+ * @param exceptDeployments Descriptive. No longer given since #590: absentIn names the views. Kept
+ *     so facts stored before stay valid.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param fact Descriptive. Address resolution: the ID of the fact the unit was found by, absent for
  *     a default port; for a datasource placed, of the server's deployment-container fact.
  * @param factor Descriptive. Address resolution: the confidence factor of the way the unit was
@@ -57,12 +61,19 @@ import tools.jackson.databind.node.ObjectNode;
  *     artifact-id, published-port, port, service-name).
  * @param order Descriptive. Address resolution: the answer's place among the address's answers, the
  *     config's first.
- * @param profile Key. The profile whose config gives this literal; absent for the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param resolved Descriptive. The expression as config resolved it, when that is not the literal's
  *     own key: a URL whose address is its host, or a JDBC URL whose address is its server.
+ * @param view Key. The view in which alone this holds: for value resolution, the profile whose
+ *     config gives this literal, or the deployment whose environment does
+ *     (&lt;repository&gt;|&lt;platform&gt;|&lt;environment&gt;[|&lt;compose
+ *     file&gt;]|&lt;container&gt;); for address resolution, the profile the address was asked about
+ *     in (#590). Absent for the default view.
  * @param written Descriptive. Address resolution: the address as written, when config changed it.
  */
 public record ResolvesToAttributes(
+    List<String> absentIn,
     String address,
     String by,
     List<ObjectNode> candidates,
@@ -81,17 +92,19 @@ public record ResolvesToAttributes(
     Long order,
     String profile,
     String resolved,
+    String view,
     String written) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "RESOLVES_TO";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("address", "by", "deployment", "from", "profile");
+  public static final List<String> KEY_ATTRIBUTES = List.of("address", "by", "deployment", "from", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static ResolvesToAttributes from(ObjectNode attributes) {
     return new ResolvesToAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.string(attributes, "address"),
         AttributeValues.string(attributes, "by"),
         AttributeValues.objects(attributes, "candidates"),
@@ -110,12 +123,14 @@ public record ResolvesToAttributes(
         AttributeValues.integer(attributes, "order"),
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "resolved"),
+        AttributeValues.string(attributes, "view"),
         AttributeValues.string(attributes, "written"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "address", address);
     AttributeValues.put(attributes, "by", by);
     AttributeValues.put(attributes, "candidates", candidates);
@@ -134,6 +149,7 @@ public record ResolvesToAttributes(
     AttributeValues.put(attributes, "order", order);
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "resolved", resolved);
+    AttributeValues.put(attributes, "view", view);
     AttributeValues.put(attributes, "written", written);
     return attributes;
   }

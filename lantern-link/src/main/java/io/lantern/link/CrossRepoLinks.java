@@ -162,10 +162,9 @@ public final class CrossRepoLinks {
     input.addAll(answers.facts());
     List<Fact> derived = new ArrayList<>();
     for (ProtocolLinks rule : ProtocolLinks.all()) {
-      ClaimSink sink = new ClaimSink(rule.info(), rule.writes());
-      rule.derive(
-          new ClaimQuery(rule.info(), rule.reads(), Set.of(), input, snapshot), sink, View.DEFAULT);
-      derived.addAll(sink.facts());
+      derived.addAll(
+          ViewMerge.derive(
+              rule, new ClaimQuery(rule.info(), rule.reads(), Set.of(), input, snapshot)));
     }
     return derived.stream()
         .sorted(

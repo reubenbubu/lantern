@@ -127,15 +127,19 @@
       "by",
       "deployment",
       "from",
-      "profile"
+      "view"
     ],
-    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, the profile named, or the deployment named, whose container's environment overlays the config as Spring Boot's relaxed binding reads it (#588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in exceptProfiles and exceptDeployments the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address resolution (#589) also writes it for each address a matcher asks about, with from naming the unit that uses it: to the unit it leads to, the external system, or outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each deployment that fills the address in; and with by: name, to each unit a service name names, or outcome:unknown when none does; and with by: datasource, where a datasource or data store whose server or database is a placeholder leads in each deployment that runs its unit (#596): to the address entity of the server's address as the deployment gives it, or outcome:unknown when it gives none, one fact per such deployment, or one to outcome:unknown when no deployment places it.",
+    "description": "The subject, a destination or address keyed by its module and the expression its code writes, is the object, the literal destination or address, in a view: the default view, or the one view named (a profile, or a deployment, whose container's environment overlays the config as Spring Boot's relaxed binding reads it, #588), when the module's config resolves every placeholder of the expression (ADR 0094, amendment for #587). One fact for the default view, which names in absentIn the views it does not hold in, and one for each profile or deployment that gives another literal; a placeholder's own default resolves it too. Not given where a placeholder stays unresolved or a secret is used. Address resolution (#589) also writes it for each address a matcher asks about, with from naming the unit that uses it: to the unit it leads to, the external system, or outcome:ambiguous or outcome:unknown, one fact for the config's answer and one for each deployment that fills the address in; and with by: name, to each unit a service name names, or outcome:unknown when none does; and with by: datasource, where a datasource or data store whose server or database is a placeholder leads in each deployment that runs its unit (#596): to the address entity of the server's address as the deployment gives it, or outcome:unknown when it gives none, one fact per such deployment, or one to outcome:unknown when no deployment places it.",
     "attributeSchema": {
       "type": "object",
       "properties": {
+        "view": {
+          "type": "string",
+          "description": "The view in which alone this holds: for value resolution, the profile whose config gives this literal, or the deployment whose environment does (<repository>|<platform>|<environment>[|<compose file>]|<container>); for address resolution, the profile the address was asked about in (#590). Absent for the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The profile whose config gives this literal; absent for the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "facts": {
           "type": "array",
@@ -146,21 +150,28 @@
         },
         "deployment": {
           "type": "string",
-          "description": "The deployment whose environment gives this literal: <repository>|<platform>|<environment>[|<compose file>]|<container>; absent for the default view and a profile's."
+          "description": "Address resolution: the deployment whose container fills the address in, or places the datasource: <repository>|<platform>|<environment>[|<compose file>]|<container>. Value resolution's facts before #590 named their deployment view here."
         },
         "exceptDeployments": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "On the default view's fact, the deployments whose environment gives another literal or none."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
+        },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "On value resolution's default-view fact, the views whose config or environment gives another literal or none: profiles, then deployments (#590)."
         },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "On the default view's fact, the profiles whose config gives another literal or none."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         },
         "resolved": {
           "type": "string",
@@ -232,7 +243,7 @@
   {
     "name": "CALLS_HTTP",
     "kind": "relationship",
-    "keyAttributes": ["endpoint", "profile", "protocol"],
+    "keyAttributes": ["endpoint", "protocol", "view"],
     "parent": "CALLS",
     "description": "The subject unit or frontend calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, one per gateway route that sends requests to it (route set), and for a frontend one per URL its code calls from the browser and one per proxy of its server that no call goes through.",
     "attributeSchema": {
@@ -249,9 +260,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -338,12 +353,19 @@
           "type": "string",
           "description": "How the target was found: service-name (a Feign client's name, or a gateway route's lb:// name, against spring.application.name), host (the URL's host against it), artifact-id (the host against the unit's artifact ID), path (a call to this machine, by its path alone), port (a gateway route or a frontend's call to this machine, by its port against the unit's server.port), published-port (a frontend's call to this machine or a private address, by the port a deployment container that runs the unit publishes), container-host (a frontend's URL host against the names of a deployment container that runs the unit), external (a host with a domain that names no unit) or llm (picked by the LLM resolver among the candidates of a link static matching left open)."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         },
         "alternates": {
           "type": "array",
@@ -371,7 +393,7 @@
   {
     "name": "PUBLISHES",
     "kind": "relationship",
-    "keyAttributes": ["profile", "protocol", "routingKey"],
+    "keyAttributes": ["protocol", "routingKey", "view"],
     "parent": "INTERACTS_WITH",
     "description": "The subject unit sends messages to the object topic, queue or exchange.",
     "attributeSchema": {
@@ -388,9 +410,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -404,12 +430,19 @@
           "type": "string",
           "description": "The routing key a RabbitMQ send gives."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -418,7 +451,7 @@
   {
     "name": "CONSUMES",
     "kind": "relationship",
-    "keyAttributes": ["profile", "protocol"],
+    "keyAttributes": ["protocol", "view"],
     "parent": "INTERACTS_WITH",
     "description": "The subject unit listens on the object topic or queue.",
     "attributeSchema": {
@@ -435,9 +468,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -455,12 +492,19 @@
           "type": "string",
           "description": "The topic pattern the listener names, when the object topic matches it."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -470,7 +514,7 @@
     "name": "ROUTES_TO",
     "kind": "relationship",
     "parent": "INTERACTS_WITH",
-    "keyAttributes": ["bindingKey", "profile", "protocol"],
+    "keyAttributes": ["bindingKey", "protocol", "view"],
     "description": "The subject exchange routes messages to the object queue, by a binding declared in a unit's code.",
     "attributeSchema": {
       "type": "object",
@@ -486,9 +530,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -506,12 +554,19 @@
           "type": "string",
           "description": "The exchange's type, if known: topic, direct, fanout or headers."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -521,7 +576,7 @@
     "name": "SENDS_MESSAGES_TO",
     "kind": "relationship",
     "parent": "INTERACTS_WITH",
-    "keyAttributes": ["bindingKey", "destination", "profile", "protocol", "routingKey"],
+    "keyAttributes": ["bindingKey", "destination", "protocol", "routingKey", "view"],
     "description": "Messages the subject unit sends reach a listener of the object unit, asynchronously: the link between containers a queue or topic carries. One fact per send and listener matched.",
     "attributeSchema": {
       "type": "object",
@@ -537,9 +592,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -573,12 +632,19 @@
           "type": "string",
           "description": "The topic pattern the listener names, when the topic matched it."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         },
         "resolves": {
           "type": "string",
@@ -599,7 +665,7 @@
   {
     "name": "USES_DATABASE",
     "kind": "relationship",
-    "keyAttributes": ["key", "profile", "protocol"],
+    "keyAttributes": ["key", "protocol", "view"],
     "parent": "INTERACTS_WITH",
     "description": "The subject unit connects to the object database through a datasource in its config.",
     "attributeSchema": {
@@ -616,9 +682,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -673,12 +743,19 @@
           },
           "description": "What the unit keeps in Redis, where the code shows it: for each kind of use and key, its kind, key or channel or hash name, data structure, time to live and operations (read, write, delete, lock, other)."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         },
         "deployments": {
           "type": "array",
@@ -694,7 +771,7 @@
   {
     "name": "ACCESSES_DATA_OF",
     "kind": "relationship",
-    "keyAttributes": ["profile", "protocol"],
+    "keyAttributes": ["protocol", "view"],
     "parent": "INTERACTS_WITH",
     "description": "The subject unit's code reads or writes tables that the object unit's schema declares, on a database both use: the two share data, not only a server.",
     "attributeSchema": {
@@ -711,9 +788,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -737,12 +818,19 @@
           },
           "description": "The entity IDs of the object's tables the subject writes."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -751,7 +839,7 @@
   {
     "name": "SENDS_MAIL",
     "kind": "relationship",
-    "keyAttributes": ["host", "key", "profile", "protocol"],
+    "keyAttributes": ["host", "key", "protocol", "view"],
     "parent": "CALLS",
     "description": "The subject unit sends mail through the object external system, the mail server its config names (spring.mail.host). One fact per method that sends mail; a unit whose config names a mail server but whose code sends none the extractor recognises has one without source.",
     "attributeSchema": {
@@ -768,9 +856,13 @@
           },
           "description": "The IDs of the facts the link comes from: the mail-send fact and the config values, in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -792,12 +884,19 @@
           "type": "string",
           "description": "The config key that names the host."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -806,7 +905,7 @@
   {
     "name": "USES_IDENTITY_PROVIDER",
     "kind": "relationship",
-    "keyAttributes": ["key", "profile", "protocol"],
+    "keyAttributes": ["key", "protocol", "view"],
     "parent": "CALLS",
     "description": "The subject unit uses the object as its identity provider: another unit of the snapshot (an auth service whose JWK set it fetches), or an external system (an issuer on a host with a domain, or one a deployment runs from an identity provider's image, such as Keycloak in compose). Found from spring.security.oauth2.* (resource server issuer-uri and jwk-set-uri, client providers and registrations), keys ending like them (jwk-set-uri, issuer-uri), keycloak.auth-server-url and Keycloak's admin client (ADR 0085). One fact per unit, provider and purpose.",
     "attributeSchema": {
@@ -823,9 +922,13 @@
           },
           "description": "The IDs of the facts the link comes from: the config values that name the provider, the admin client, and what the provider was found by (a unit's name or port, a deployment container), in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "purpose": {
           "type": "string",
@@ -855,12 +958,19 @@
           "type": "string",
           "description": "How the provider was found: host (a unit's spring.application.name), port (a unit's server.port, for this machine), container (a deployment container of an identity provider's image answering the host), published-port (one publishing the port of this machine), provider-name (a provider Spring Security knows by name, such as google) or external (a host with a domain)."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -869,7 +979,7 @@
   {
     "name": "USES_BROKER",
     "kind": "relationship",
-    "keyAttributes": ["key", "profile", "protocol"],
+    "keyAttributes": ["key", "protocol", "view"],
     "parent": "INTERACTS_WITH",
     "description": "The subject unit's config connects it to the object message broker.",
     "attributeSchema": {
@@ -886,9 +996,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -902,12 +1016,19 @@
           "type": "string",
           "description": "The config key that sets the address."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -916,7 +1037,7 @@
   {
     "name": "USES_INFRASTRUCTURE",
     "kind": "relationship",
-    "keyAttributes": ["key", "profile", "protocol"],
+    "keyAttributes": ["key", "protocol", "view"],
     "parent": "INTERACTS_WITH",
     "description": "The subject unit uses the object service for infrastructure, not business: service discovery, a config server or tracing.",
     "attributeSchema": {
@@ -933,9 +1054,13 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
         },
         "protocol": {
           "type": "string",
@@ -957,12 +1082,19 @@
           "type": "string",
           "description": "The config value naming it."
         },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
+        },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -981,7 +1113,7 @@
   {
     "name": "unresolved-link",
     "kind": "attribute",
-    "keyAttributes": ["candidates", "kind", "profile", "reason", "site", "source"],
+    "keyAttributes": ["candidates", "kind", "reason", "site", "source", "view"],
     "description": "A call, send or datasource of the subject unit that static matching cannot link: a URL or destination with a placeholder nothing resolves, a call that several units could serve, or a routing key not known. The value is the call, destination or URL as far as it is known. The LLM resolver picks among the candidates; what stays open goes to the questions queue.",
     "attributeSchema": {
       "type": "object",
@@ -1027,16 +1159,27 @@
           },
           "description": "The IDs of the facts the link comes from, on both ends and in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
+        },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
         },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false
@@ -1046,7 +1189,7 @@
   {
     "name": "unrouted-endpoint",
     "kind": "attribute",
-    "keyAttributes": ["calledBy", "endpoint", "profile", "target"],
+    "keyAttributes": ["calledBy", "endpoint", "target", "view"],
     "description": "An endpoint of a unit the subject gateway routes requests to that none of the gateway's routes to that unit reaches, by path (after StripPrefix and PrefixPath) and HTTP method, so a request to it through the gateway finds no route. The value is the endpoint, such as GET /api/organizations/{id}/preview. Not recorded for a unit a route reaches through a filter that rewrites paths otherwise.",
     "attributeSchema": {
       "type": "object",
@@ -1077,16 +1220,27 @@
           },
           "description": "The IDs of the facts it comes from: the endpoint and the gateway's routes to the unit, in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone it holds: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone it holds. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
+        },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which it does not hold (#590). Absent when it holds in every view."
         },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which it does not hold. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "required": [
@@ -1100,7 +1254,7 @@
   {
     "name": "routed-endpoint",
     "kind": "attribute",
-    "keyAttributes": ["discoveryLocator", "endpoint", "profile", "route", "served", "source", "target", "url"],
+    "keyAttributes": ["discoveryLocator", "endpoint", "route", "served", "source", "target", "url", "view"],
     "description": "An endpoint of a unit the subject gateway routes requests to, with the request as the gateway receives it: the endpoint's path behind the target's context and servlet paths, through the route's StripPrefix, PrefixPath and RewritePath filters in reverse, or, when no route reaches it and the gateway's discovery locator is on, under the target's service ID. The value is the request, such as POST /profile/profile/admin/users. A flow that starts at the endpoint starts at the gateway with it (ADR 0047, amendment for #351).",
     "attributeSchema": {
       "type": "object",
@@ -1144,16 +1298,27 @@
           },
           "description": "The IDs of the facts it comes from: the endpoint and the route, or the endpoint, the discovery locator's config and the target's name, in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone it holds: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone it holds. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
+        },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which it does not hold (#590). Absent when it holds in every view."
         },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which it does not hold. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "required": [
@@ -1168,7 +1333,7 @@
   {
     "name": "shared-secret",
     "kind": "attribute",
-    "keyAttributes": ["algorithm", "basis", "library", "placeholders", "profile", "source", "uses", "with"],
+    "keyAttributes": ["algorithm", "basis", "library", "placeholders", "source", "uses", "view", "with"],
     "description": "The subject unit signs or checks JWTs with an HMAC secret that other units have too (with), for the findings page: their secrets come from the same placeholder nothing resolves (the environment fills one value in for all), the same config value, or, when the value is masked or unset, the same config key. The value is the config keys the unit reads the secret from; the secret's value is never recorded (ADR 0085).",
     "attributeSchema": {
       "type": "object",
@@ -1221,16 +1386,27 @@
           },
           "description": "The IDs of the facts it comes from: the jwt-secret-key facts of every unit with the secret and the unit's config values, in every view it holds in."
         },
+        "view": {
+          "type": "string",
+          "description": "The Spring profile under which alone the link holds, so it is conditional: the view the linker found it in (#590). Absent when it holds in the default view."
+        },
         "profile": {
           "type": "string",
-          "description": "The Spring profile under which alone the link holds, so it is conditional. Absent when it holds in the default view."
+          "description": "No longer given since #590: view names the view. Kept so facts stored before stay valid."
+        },
+        "absentIn": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The views (Spring profiles) under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there (#590). Absent when it holds in every view."
         },
         "exceptProfiles": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "The profiles under which a link found in the default view does not hold, because the code or config of one of its ends is different or switched off there. Absent when it holds under every profile."
+          "description": "No longer given since #590: absentIn names the views. Kept so facts stored before stay valid."
         }
       },
       "additionalProperties": false

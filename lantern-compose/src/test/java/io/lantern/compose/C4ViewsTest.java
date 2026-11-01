@@ -693,7 +693,7 @@ class C4ViewsTest {
             "USES_DATABASE",
             "database:db:5432/shop",
             "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
-                + " \"exceptProfiles\": [\"local\"]}");
+                + " \"absentIn\": [\"local\"]}");
     for (int i = 0; i < 16; i++) {
       many.relate(
           "shop",
@@ -835,7 +835,7 @@ class C4ViewsTest {
             "USES_DATABASE",
             "database:db:5432/shop",
             "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
-                + " \"exceptProfiles\": [\"local\"]}");
+                + " \"absentIn\": [\"local\"]}");
 
     Section containers = section(repo(more.list()), "containers");
 
@@ -900,7 +900,7 @@ class C4ViewsTest {
             "SENDS_MAIL",
             "external-system:smtp.gmail.com",
             "{\"protocol\": \"SMTP\", \"source\": \"method:com.example.Mailer#send()\","
-                + " \"exceptProfiles\": [\"staging\"]}");
+                + " \"absentIn\": [\"staging\"]}");
 
     Section context = section(repo(more.list()), "context");
 

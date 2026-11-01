@@ -37,13 +37,13 @@ final class AddressClaims implements AddressAnswers {
       }
       ResolvesToAttributes a = Claims.of(f, ResolvesToAttributes.class);
       if (AddressResolution.BY_NAME.equals(a.by())) {
-        names.computeIfAbsent(nameKey(a.address(), a.profile()), k -> new ArrayList<>()).add(f);
+        names.computeIfAbsent(nameKey(a.address(), a.view()), k -> new ArrayList<>()).add(f);
       } else if (AddressResolution.BY_DATASOURCE.equals(a.by())) {
         datasources.computeIfAbsent(nameKey(a.from(), a.address()), k -> new ArrayList<>()).add(f);
       } else {
         answers
             .computeIfAbsent(
-                key(a.from(), a.profile(), a.address(), a.written()), k -> new ArrayList<>())
+                key(a.from(), a.view(), a.address(), a.written()), k -> new ArrayList<>())
             .add(f);
       }
     }

@@ -298,7 +298,7 @@ public final class AddressResolution implements LinkRule {
       attributes.put("from", q.from().id().toString());
     }
     if (q.view() != null) {
-      attributes.put("profile", q.view());
+      attributes.put("view", q.view());
     }
     attributes.put("address", q.text());
     if (q.written() != null) {
@@ -368,7 +368,7 @@ public final class AddressResolution implements LinkRule {
     attributes.put("by", BY_NAME);
     attributes.put("address", q.name());
     if (q.view() != null) {
-      attributes.put("profile", q.view());
+      attributes.put("view", q.view());
     }
     ArrayNode lineage = attributes.putArray("facts");
     asked.sources().forEach(f -> lineage.add(f.id()));

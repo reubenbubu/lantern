@@ -13,17 +13,19 @@ import tools.jackson.databind.node.ObjectNode;
  * call, destination or URL as far as it is known. The LLM resolver picks among the candidates; what
  * stays open goes to the questions queue.
  *
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
  * @param candidates Key. The entity IDs of the units it might link to.
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param kind Key. http, message, database or route (a gateway route).
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
  *     0095). Kept so links stored before stay valid.
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param reason Key. unresolved-placeholder, unknown-url, unknown-host (a host without a domain
  *     that names no unit, such as a compose or discovery name), ambiguous, no-match (a call to this
  *     machine no unit serves) or unknown-routing-key.
@@ -34,8 +36,11 @@ import tools.jackson.databind.node.ObjectNode;
  * @param source Key. The entity ID of the code or module it is written in: for a gateway route, the
  *     method that builds it or the module whose config defines it.
  * @param unresolved Descriptive. The keys of the placeholders nothing resolved.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record UnresolvedLinkAttributes(
+    List<String> absentIn,
     List<String> candidates,
     List<String> exceptProfiles,
     List<String> facts,
@@ -45,17 +50,19 @@ public record UnresolvedLinkAttributes(
     String reason,
     String site,
     String source,
-    List<String> unresolved) {
+    List<String> unresolved,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "unresolved-link";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("candidates", "kind", "profile", "reason", "site", "source");
+  public static final List<String> KEY_ATTRIBUTES = List.of("candidates", "kind", "reason", "site", "source", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static UnresolvedLinkAttributes from(ObjectNode attributes) {
     return new UnresolvedLinkAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "candidates"),
         AttributeValues.strings(attributes, "exceptProfiles"),
         AttributeValues.strings(attributes, "facts"),
@@ -65,12 +72,14 @@ public record UnresolvedLinkAttributes(
         AttributeValues.string(attributes, "reason"),
         AttributeValues.string(attributes, "site"),
         AttributeValues.string(attributes, "source"),
-        AttributeValues.strings(attributes, "unresolved"));
+        AttributeValues.strings(attributes, "unresolved"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "candidates", candidates);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
     AttributeValues.put(attributes, "facts", facts);
@@ -81,6 +90,7 @@ public record UnresolvedLinkAttributes(
     AttributeValues.put(attributes, "site", site);
     AttributeValues.put(attributes, "source", source);
     AttributeValues.put(attributes, "unresolved", unresolved);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

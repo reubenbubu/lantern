@@ -334,8 +334,8 @@ class Project0LinksIT {
   void http4AndExt1PayGateIsAnExternalSystemWhoseProdHostIsItsAlternate() {
     assertBoth(
         "service:~:payments CALLS_HTTP external-system:sandbox.paygate.example.com"
-            + " {\"alternates\":[\"external-system:api.paygate.example.com\"],"
-            + "\"client\":\"rest-client\",\"exceptProfiles\":[\"prod\"],\"httpMethod\":\"POST\","
+            + " {\"absentIn\":[\"prod\"],\"alternates\":[\"external-system:api.paygate.example.com\"],"
+            + "\"client\":\"rest-client\",\"httpMethod\":\"POST\","
             + "\"matchedBy\":\"external\",\"path\":\"/v1/charges\",\"protocol\":\"HTTPS\","
             + "\"source\":\"method:~.payments.PaymentGatewayClient#charge(long)\","
             + "\"url\":\"https://sandbox.paygate.example.com/v1/charges\"}"
@@ -345,9 +345,9 @@ class Project0LinksIT {
         "service:~:payments CALLS_HTTP external-system:api.paygate.example.com"
             + " {\"alternates\":[\"external-system:sandbox.paygate.example.com\"],"
             + "\"client\":\"rest-client\",\"httpMethod\":\"POST\",\"matchedBy\":\"external\","
-            + "\"path\":\"/v1/charges\",\"profile\":\"prod\",\"protocol\":\"HTTPS\","
+            + "\"path\":\"/v1/charges\",\"protocol\":\"HTTPS\","
             + "\"source\":\"method:~.payments.PaymentGatewayClient#charge(long)\","
-            + "\"url\":\"https://api.paygate.example.com/v1/charges\"}"
+            + "\"url\":\"https://api.paygate.example.com/v1/charges\",\"view\":\"prod\"}"
             + " @payments:"
             + J
             + "payments/PaymentGatewayClient.java#22");
@@ -576,9 +576,10 @@ class Project0LinksIT {
   void spr4TheAuditLinkHoldsOnlyUnderItsProfile() {
     assertBoth(
         "service:~:storefront-app SENDS_MESSAGES_TO service:~:fulfilment"
-            + " {\"destination\":\"queue:jms:audit.orders\",\"profile\":\"audit\",\"protocol\":\"JMS\","
+            + " {\"destination\":\"queue:jms:audit.orders\",\"protocol\":\"JMS\","
             + "\"source\":\"method:~.storefront.integration.AuditTrail#orderPlaced(long)\","
-            + "\"target\":\"method:~.fulfilment.AuditListener#orderPlaced(java.lang.String)\"}"
+            + "\"target\":\"method:~.fulfilment.AuditListener#orderPlaced(java.lang.String)\","
+            + "\"view\":\"audit\"}"
             + " @storefront:storefront-integration/"
             + J
             + "storefront/integration/AuditTrail.java#19");
@@ -592,7 +593,7 @@ class Project0LinksIT {
             + "\"url\":\"jdbc:postgresql://shop-db:5432/shop\"}"
             + " @payments:src/main/resources/application.properties#5",
         "service:~:storefront-app USES_DATABASE database:shop-db:5432/shop"
-            + " {\"exceptProfiles\":[\"local\"],\"key\":\"spring.datasource.url\",\"protocol\":\"JDBC\","
+            + " {\"absentIn\":[\"local\"],\"key\":\"spring.datasource.url\",\"protocol\":\"JDBC\","
             + "\"schemas\":[\"schema:~:storefront-app\"],\"technology\":\"PostgreSQL\","
             + "\"url\":\"jdbc:postgresql://shop-db:5432/shop\"}"
             + " @storefront:storefront-app/src/main/resources/application.yml#5",
@@ -609,7 +610,7 @@ class Project0LinksIT {
         .asString()
         .startsWith(
             "service:~:payments ACCESSES_DATA_OF service:~:storefront-app"
-                + " {\"database\":\"database:shop-db:5432/shop\",\"exceptProfiles\":[\"local\"],"
+                + " {\"absentIn\":[\"local\"],\"database\":\"database:shop-db:5432/shop\","
                 + "\"protocol\":\"JDBC\","
                 + "\"reads\":[\"table:~:storefront-app:orders\"]}");
   }

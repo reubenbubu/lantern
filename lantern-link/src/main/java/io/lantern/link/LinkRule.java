@@ -43,6 +43,34 @@ public interface LinkRule {
   void derive(ClaimQuery in, ClaimSink out, View view);
 
   /**
+   * Whether the linker runs the rule once in each view (knowledge-build epic, section 8): the
+   * default view, then each profile its facts name ({@link View#of}). It merges what the rule finds
+   * in each into one claim per view, by the link {@link ClaimSink#add(Fact, String)} names. A rule
+   * that is not per view runs once, in the default view, and finds what differs between views
+   * itself: value resolution and address resolution, whose views include deployment environments,
+   * resolve each view in one pass (ADR 0095, amendment for #590).
+   */
+  default boolean perView() {
+    return false;
+  }
+
+  /**
+   * A fact of a rule that runs per view, once the linker has merged its views.
+   *
+   * @param link what made it one claim in every view, as the rule gave it to {@link
+   *     ClaimSink#add(Fact, String)}; null for a fact that holds whatever the view
+   */
+  record Merged(Fact fact, String link) {}
+
+  /**
+   * The facts of a rule that runs per view, once the linker has merged its views: a rule that
+   * describes a claim by what it is in other views does so here; otherwise the facts as merged.
+   */
+  default List<Fact> merged(List<Merged> facts) {
+    return facts.stream().map(Merged::fact).toList();
+  }
+
+  /**
    * Whether the rule's facts depend only on what it reads and its version, so it need not run again
    * when neither changed. The LLM resolver also consults its answers and model, and so runs every
    * time (it asks the LLM only about what it has no answer for).

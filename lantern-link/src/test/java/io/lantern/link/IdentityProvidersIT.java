@@ -132,9 +132,7 @@ class IdentityProvidersIT {
                 + " "
                 + TestAttributes.text(f, "matchedBy")
                 + (target == null ? "" : " target=" + target)
-                + (f.attributes().has("profile")
-                    ? " profile=" + TestAttributes.text(f, "profile")
-                    : ""));
+                + (f.attributes().has("view") ? " profile=" + TestAttributes.text(f, "view") : ""));
       } else if (f.predicate().equals(CrossRepoLinks.SHARED_SECRET)) {
         lines.add(
             line

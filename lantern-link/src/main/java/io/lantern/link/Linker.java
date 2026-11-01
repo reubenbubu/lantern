@@ -203,14 +203,12 @@ public final class Linker {
           && last.get().outputs().equals(digest(before))) {
         facts = before;
       } else {
-        ClaimSink sink = new ClaimSink(info, rule.writes());
-        rule.derive(
-            new ClaimQuery(info, rule.reads(), derivedPredicates, input, snapshot),
-            sink,
-            View.DEFAULT);
+        ClaimQuery query = new ClaimQuery(info, rule.reads(), derivedPredicates, input, snapshot);
+        // Once in each view if the rule derives per view, merged into one claim per view (#590).
+        List<Fact> given = ViewMerge.derive(rule, query);
         // A derived fact's lineage is the claims of the facts it names (ADR 0091).
         List<Fact> found =
-            sink.facts().stream()
+            given.stream()
                 .map(f -> f.withLineage(Lineage.of(Claims.json(f), claims::get)))
                 .toList();
         FactRepository.SnapshotUpdate update =

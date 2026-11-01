@@ -4,18 +4,17 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * A link rule of one protocol (ADR 0095, amendment for #575): it indexes the facts it reads, runs
- * its matchers on them in every view, and gives each link once if it holds in the default view,
- * else once per profile (ADR 0042). The rules of the cross-repo links step, each with its own
- * origin: HTTP (with gateway routes and frontend calls, which reuse its matching), messaging, data
- * stores, Redis, mail, identity, and the deployment containers units run in.
+ * A link rule of one protocol (ADR 0095, amendment for #575): it indexes the facts it reads and
+ * runs its matchers on them in the view the linker runs it in, once per view; the linker merges the
+ * views into one link if it holds in the default view, else one per profile (ADR 0042; ADR 0095,
+ * amendment for #590). The rules of the cross-repo links step, each with its own origin: HTTP (with
+ * gateway routes and frontend calls, which reuse its matching), messaging, data stores, Redis,
+ * mail, identity, and the deployment containers units run in.
  *
  * <p>Until views are explicit (#522), each reads what the step read, every extracted fact and the
  * values' and units' facts but the units' technology, since the profiles it links in are those
@@ -57,11 +56,27 @@ final class ProtocolLinks implements LinkRule {
   private final Origin origin;
   private final Set<String> writes;
   private final Matchers matchers;
+  private final java.util.function.Function<List<Merged>, List<Fact>> merged;
+
+  /** The facts the index was last built from, compared by identity, and the index. */
+  private List<Fact> indexed;
+
+  private LinkIndex index;
 
   private ProtocolLinks(String name, String version, Set<String> writes, Matchers matchers) {
+    this(name, version, writes, matchers, facts -> facts.stream().map(Merged::fact).toList());
+  }
+
+  private ProtocolLinks(
+      String name,
+      String version,
+      Set<String> writes,
+      Matchers matchers,
+      java.util.function.Function<List<Merged>, List<Fact>> merged) {
     this.origin = new Origin(Origin.Kind.STATIC, name, version);
     this.writes = Set.copyOf(writes);
     this.matchers = Objects.requireNonNull(matchers, "matchers");
+    this.merged = Objects.requireNonNull(merged, "merged");
   }
 
   /** HTTP calls, gateway routes and the frontends' calls and proxies. */
@@ -88,7 +103,9 @@ final class ProtocolLinks implements LinkRule {
           routes.link();
           new FrontendLinker(index, found, addresses, new Deployments(index), http, routes)
               .link(origin, validity);
-        });
+        },
+        // A call that reaches other units in other views names them (#590: once views merge).
+        HttpLinker::alternates);
   }
 
   /** Messages sent and listened to, through topics, queues and exchanges. */
@@ -206,19 +223,31 @@ final class ProtocolLinks implements LinkRule {
   }
 
   @Override
+  public boolean perView() {
+    return true;
+  }
+
+  @Override
   public void derive(ClaimQuery in, ClaimSink out, View view) {
-    LinkIndex index = new LinkIndex(in.facts());
+    // The linker runs the rule once per view on the same facts: index them once.
+    if (indexed != in.facts()) {
+      index = new LinkIndex(in.facts());
+      indexed = in.facts();
+    }
     Validity validity = Validity.from(in.snapshot());
     FoundLinks found = new FoundLinks();
-    matchers.link(index, found, origin, validity);
-    Map<String, Fact> derived = new LinkedHashMap<>();
-    found.facts(index.profiles, origin, validity).forEach(f -> derived.putIfAbsent(f.id(), f));
-    derived.values().stream()
+    matchers.link(index.in(view), found, origin, validity);
+    found.to(out, view, origin, validity);
+  }
+
+  @Override
+  public List<Fact> merged(List<Merged> facts) {
+    return merged.apply(facts).stream()
         .sorted(
             Comparator.comparing((Fact f) -> f.subject().toString())
                 .thenComparing(Fact::predicate)
                 .thenComparing(f -> f.object().value())
                 .thenComparing(Fact::id))
-        .forEach(out::add);
+        .toList();
   }
 }

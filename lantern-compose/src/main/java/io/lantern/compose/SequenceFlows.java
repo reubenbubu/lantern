@@ -158,7 +158,7 @@ final class SequenceFlows {
     for (EntityId gateway : C4Views.units(knowledge)) {
       for (Fact fact : knowledge.attributes(gateway)) {
         if (fact.predicate().equals(ROUTED_ENDPOINT)
-            && attribute(fact, "profile") == null
+            && Knowledge.view(fact) == null
             && attribute(fact, "target") != null
             && attribute(fact, "endpoint") != null) {
           routedEndpoints
@@ -1172,7 +1172,7 @@ final class SequenceFlows {
   }
 
   private List<String> profiles(Fact link, List<String> outer) {
-    String profile = attribute(link, "profile");
+    String profile = Knowledge.view(link);
     return profile == null ? outer : List.of(profile);
   }
 
@@ -1201,7 +1201,7 @@ final class SequenceFlows {
         Fact other = alternative.getKey();
         info.add(
             "Under the Spring profile "
-                + attribute(other, "profile")
+                + Knowledge.view(other)
                 + " it calls "
                 + nameOf(Knowledge.object(other))
                 + " instead.");
@@ -1547,7 +1547,7 @@ final class SequenceFlows {
   private Database database(EntityId unit) {
     Map<EntityId, List<Fact>> databases = new TreeMap<>(Knowledge.BY_ID);
     for (Fact fact : knowledge.relations(unit, C4Views.USES_DATABASE)) {
-      if (attribute(fact, "profile") == null) {
+      if (Knowledge.view(fact) == null) {
         databases.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
       }
     }

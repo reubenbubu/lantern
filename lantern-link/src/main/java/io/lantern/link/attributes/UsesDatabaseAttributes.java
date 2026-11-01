@@ -10,15 +10,17 @@ import tools.jackson.databind.node.ObjectNode;
  * The attributes of a fact of the type {@code USES_DATABASE}. The subject unit connects to the
  * object database through a datasource in its config.
  *
+ * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
+ *     view does not hold, because the code or config of one of its ends is different or switched
+ *     off there (#590). Absent when it holds in every view.
  * @param defaulted Descriptive. Present and true when no config names the Redis server and Spring
  *     Boot's default, localhost:6379, is taken because the unit's code or a dependency uses Redis.
  * @param deployments Descriptive. Where the deployments put a datasource whose server or database
  *     is a placeholder no config resolves: for each environment that runs the unit, its
  *     environment, the container that runs the unit, the container the database is on, the server
  *     as the environment writes it (address) and the database's name, when known.
- * @param exceptProfiles Descriptive. The profiles under which a link found in the default view does
- *     not hold, because the code or config of one of its ends is different or switched off there.
- *     Absent when it holds under every profile.
+ * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
+ *     facts stored before stay valid.
  * @param facts Descriptive. The IDs of the facts the link comes from, on both ends and in every
  *     view it holds in.
  * @param inferred Descriptive. Why the link rests on an inference: the Redis host or port is a
@@ -29,8 +31,8 @@ import tools.jackson.databind.node.ObjectNode;
  * @param key Key. The config key that sets it.
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
  *     0095). Kept so links stored before stay valid.
- * @param profile Key. The Spring profile under which alone the link holds, so it is conditional.
- *     Absent when it holds in the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param protocol Key. The protocol, as a line between containers names it: JSON/HTTP, JSON/HTTPS,
  *     HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC.
  * @param schemas Descriptive. The entity IDs of the schemas the unit's migrations build.
@@ -44,8 +46,11 @@ import tools.jackson.databind.node.ObjectNode;
  * @param url Descriptive. The datasource URL, without credentials.
  * @param uses Descriptive. The kinds of Redis use the unit's code or config shows: template, hash,
  *     session, rate-limiter, lock, cache, pubsub or client.
+ * @param view Key. The Spring profile under which alone the link holds, so it is conditional: the
+ *     view the linker found it in (#590). Absent when it holds in the default view.
  */
 public record UsesDatabaseAttributes(
+    List<String> absentIn,
     Boolean defaulted,
     List<ObjectNode> deployments,
     List<String> exceptProfiles,
@@ -61,17 +66,19 @@ public record UsesDatabaseAttributes(
     List<ObjectNode> stores,
     String technology,
     String url,
-    List<String> uses) {
+    List<String> uses,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "USES_DATABASE";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("key", "profile", "protocol");
+  public static final List<String> KEY_ATTRIBUTES = List.of("key", "protocol", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static UsesDatabaseAttributes from(ObjectNode attributes) {
     return new UsesDatabaseAttributes(
+        AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.bool(attributes, "defaulted"),
         AttributeValues.objects(attributes, "deployments"),
         AttributeValues.strings(attributes, "exceptProfiles"),
@@ -87,12 +94,14 @@ public record UsesDatabaseAttributes(
         AttributeValues.objects(attributes, "stores"),
         AttributeValues.string(attributes, "technology"),
         AttributeValues.string(attributes, "url"),
-        AttributeValues.strings(attributes, "uses"));
+        AttributeValues.strings(attributes, "uses"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "defaulted", defaulted);
     AttributeValues.put(attributes, "deployments", deployments);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
@@ -109,6 +118,7 @@ public record UsesDatabaseAttributes(
     AttributeValues.put(attributes, "technology", technology);
     AttributeValues.put(attributes, "url", url);
     AttributeValues.put(attributes, "uses", uses);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

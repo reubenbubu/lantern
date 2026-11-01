@@ -62,16 +62,15 @@ class ValueResolutionTest {
         resolutions(facts, "address:com.example.shop:shop-app:${clients.shipping.url}");
 
     assertThat(resolutions)
-        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "profile"))
+        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "view"))
         .containsExactlyInAnyOrder(
             org.assertj.core.groups.Tuple.tuple("address:shipping:8080", null),
             org.assertj.core.groups.Tuple.tuple("address:localhost:8083", "local"));
     // The default view's literal does not hold under the profile that gives another.
     assertThat(resolutions)
-        .filteredOn(f -> TestAttributes.text(f, "profile") == null)
+        .filteredOn(f -> TestAttributes.text(f, "view") == null)
         .singleElement()
-        .satisfies(
-            f -> assertThat(TestAttributes.texts(f, "exceptProfiles")).containsExactly("local"));
+        .satisfies(f -> assertThat(TestAttributes.texts(f, "absentIn")).containsExactly("local"));
     for (Fact f : resolutions) {
       // Cites the config value used, seen where the URL is written and where config sets it.
       List<String> cited = TestAttributes.texts(f, "facts");
@@ -116,7 +115,7 @@ class ValueResolutionTest {
     String scoped = "destination:com.example.events:events:";
 
     assertThat(resolutions(facts, scoped + "kafka:topic:${events.kafka.payments-topic}"))
-        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "profile"))
+        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "view"))
         .containsExactlyInAnyOrder(
             org.assertj.core.groups.Tuple.tuple("destination:kafka:topic:payments.completed", null),
             org.assertj.core.groups.Tuple.tuple(
@@ -133,7 +132,7 @@ class ValueResolutionTest {
             });
     // An empty name names no destination: only the profile that sets one resolves it.
     assertThat(resolutions(facts, scoped + "rabbitmq:exchange:${events.rabbit.exchange:}"))
-        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "profile"))
+        .extracting(f -> f.object().value(), f -> TestAttributes.text(f, "view"))
         .containsExactly(
             org.assertj.core.groups.Tuple.tuple(
                 "destination:rabbitmq:exchange:cloud.exchange", "cloud"));
@@ -148,7 +147,7 @@ class ValueResolutionTest {
           derived.stream().filter(f -> f.predicate().equals(ValueResolution.RESOLVES_TO)).toList();
       assertThat(resolutions).as(fixture).isNotEmpty();
       for (Fact r : resolutions) {
-        String profile = TestAttributes.text(r, "profile");
+        String profile = TestAttributes.text(r, "view");
         java.util.Set<String> read = new java.util.HashSet<>();
         for (Fact use : facts) {
           if (use.object().kind() != io.lantern.core.fact.FactObject.Kind.ENTITY

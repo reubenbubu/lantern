@@ -281,7 +281,7 @@ final class C4Views {
   /** The name a unit runs under in Spring's default profile, if it has one. */
   static Optional<String> applicationName(Knowledge knowledge, EntityId unit) {
     return knowledge.attributes(unit).stream()
-        .filter(f -> f.predicate().equals(APPLICATION_NAME) && !f.attributes().has("profile"))
+        .filter(f -> f.predicate().equals(APPLICATION_NAME) && Knowledge.view(f) == null)
         .map(f -> f.object().value())
         .findFirst();
   }
@@ -294,7 +294,7 @@ final class C4Views {
                 f.predicate().equals(DEPLOYABLE_UNIT)
                     || f.predicate().equals(FRONTEND_APP)
                     || f.predicate().equals(TECHNOLOGY)
-                    || (f.predicate().equals(APPLICATION_NAME) && !f.attributes().has("profile")))
+                    || (f.predicate().equals(APPLICATION_NAME) && Knowledge.view(f) == null))
         .toList();
   }
 
@@ -393,13 +393,13 @@ final class C4Views {
       for (String relationship : REPLACEABLE) {
         List<Fact> facts = knowledge.relations(unit, relationship);
         for (Fact profiled : facts) {
-          String profile = attribute(profiled, "profile");
+          String profile = Knowledge.view(profiled);
           if (profile == null) {
             continue;
           }
           for (Fact fallback : facts) {
-            if (attribute(fallback, "profile") == null
-                && strings(fallback, "exceptProfiles").contains(profile)
+            if (Knowledge.view(fallback) == null
+                && strings(fallback, "absentIn").contains(profile)
                 && sameOrigin(profiled, fallback)) {
               result.put(profiled, fallback);
               break;
@@ -455,7 +455,7 @@ final class C4Views {
           TextRun.of(
               (content.isEmpty() ? "" : " ")
                   + "Under the Spring profile "
-                  + attribute(profiled, "profile")
+                  + Knowledge.view(profiled)
                   + ", "
                   + assembler.name(profiled.subject())
                   + " "
@@ -765,7 +765,7 @@ final class C4Views {
         detail,
         technology,
         null,
-        attribute(fact, "profile"),
+        Knowledge.view(fact),
         List.of(fact));
   }
 

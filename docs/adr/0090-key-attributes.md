@@ -91,3 +91,11 @@ key-attribute rules are fixed by the epic; this record says how they are built a
 - TypeScript types for the attributes, which the epic also names, are not generated: no frontend
   code reads facts; the frontend reads the document model, whose types are generated already. They
   come with the first consumer (#542).
+
+## Amendment (#590): `view`
+
+Link-stage types name their view in `view`, a key attribute, where they named it `profile`, and
+the views a default view's claim does not hold in in `absentIn`, descriptive everywhere like
+`exceptProfiles` (ADR 0095, amendment for #590). `profile`, `exceptProfiles` and
+`exceptDeployments` stay declared on those types for facts stored before, descriptive and no longer
+given; extracted types keep `profile`, descriptive except on `config-value`.

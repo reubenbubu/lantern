@@ -37,7 +37,6 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import tools.jackson.databind.JsonNode;
 
 /**
  * The Quality bar's checks that need no review ({@code docs/design.md}, Quality bar), made on a
@@ -398,11 +397,11 @@ final class QualityBar {
     SortedSet<String> profiles = new TreeSet<>();
     for (String id : lineFacts) {
       Fact fact = facts.get(id);
-      JsonNode profile = fact == null ? null : fact.attributes().get("profile");
-      if (profile == null || profile.isNull()) {
+      String profile = fact == null ? null : Knowledge.view(fact);
+      if (profile == null) {
         return Optional.empty();
       }
-      profiles.add(profile.asString());
+      profiles.add(profile);
     }
     profiles.removeAll(named);
     return profiles.isEmpty()

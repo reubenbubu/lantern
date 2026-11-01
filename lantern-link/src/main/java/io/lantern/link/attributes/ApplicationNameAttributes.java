@@ -8,28 +8,32 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The attributes of a fact of the type {@code application-name}. The name the subject deployable
- * unit runs under: its spring.application.name, else its Maven artifact ID. Without profile it is
- * the name in the default view; with profile, the name under that profile where it differs.
+ * unit runs under: its spring.application.name, else its Maven artifact ID. Without view it is the
+ * name in the default view; with view, the name under that profile where it differs.
  *
  * @param defaulted Descriptive. Present and true when no config sets spring.application.name, so
  *     the name is the Maven artifact ID.
  * @param module Key. The entity ID of the module whose config sets the name: the unit's own module,
  *     or a library it bundles when its own module has no config.
- * @param profile Key. The profile active instead of the default one. Absent for the default view.
+ * @param profile Descriptive. No longer given since #590: view names the view. Kept so facts stored
+ *     before stay valid.
  * @param unresolved Descriptive. The keys of placeholders in the name that no config value
  *     resolved.
+ * @param view Key. The profile active instead of the default one: the view the name alone holds in
+ *     (#590). Absent for the default view.
  */
 public record ApplicationNameAttributes(
     Boolean defaulted,
     String module,
     String profile,
-    List<String> unresolved) {
+    List<String> unresolved,
+    String view) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "application-name";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("module", "profile");
+  public static final List<String> KEY_ATTRIBUTES = List.of("module", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static ApplicationNameAttributes from(ObjectNode attributes) {
@@ -37,7 +41,8 @@ public record ApplicationNameAttributes(
         AttributeValues.bool(attributes, "defaulted"),
         AttributeValues.string(attributes, "module"),
         AttributeValues.string(attributes, "profile"),
-        AttributeValues.strings(attributes, "unresolved"));
+        AttributeValues.strings(attributes, "unresolved"),
+        AttributeValues.string(attributes, "view"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
@@ -47,6 +52,7 @@ public record ApplicationNameAttributes(
     AttributeValues.put(attributes, "module", module);
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "unresolved", unresolved);
+    AttributeValues.put(attributes, "view", view);
     return attributes;
   }
 }

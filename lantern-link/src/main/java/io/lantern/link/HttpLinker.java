@@ -151,33 +151,79 @@ final class HttpLinker {
     }
   }
 
-  /** The links of one call by one unit, in every view, before they are added. */
+  /** The links of one call by one unit, before they are added. */
   private final List<Map.Entry<String, Found>> pending = new ArrayList<>();
+
+  /** Identities of a call's links start with it, for {@link #alternates} to find them. */
+  private static final String CALL = "call|";
 
   private void emit(String view, Found found) {
     pending.add(new AbstractMap.SimpleEntry<>(view, found));
   }
 
-  /**
-   * Adds the pending links of one call, each naming in {@code alternates} the other units and
-   * external systems the same call reaches under other profiles.
-   */
+  /** Adds the pending links of one call. */
   private void flush() {
-    Set<String> targets = new TreeSet<>();
     for (Map.Entry<String, Found> e : pending) {
-      if (e.getValue().predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
-        targets.add(e.getValue().object().value());
-      }
-    }
-    for (Map.Entry<String, Found> e : pending) {
-      Found found = e.getValue();
-      if (found.predicate().equals(CrossRepoLinks.CALLS_HTTP) && targets.size() > 1) {
-        ArrayNode alternates = found.attributes().putArray("alternates");
-        targets.stream().filter(t -> !t.equals(found.object().value())).forEach(alternates::add);
-      }
-      out.add(e.getKey(), found);
+      out.add(e.getKey(), e.getValue());
     }
     pending.clear();
+  }
+
+  /**
+   * The HTTP rule's links once its views are merged, each link of a call naming in {@code
+   * alternates} the other units and external systems the same call by the same unit reaches in
+   * other views: the call is its code (subject and {@code source}) and where it is written.
+   */
+  static List<Fact> alternates(List<LinkRule.Merged> merged) {
+    Map<String, Set<String>> targets = new HashMap<>();
+    for (LinkRule.Merged m : merged) {
+      if (isCall(m)) {
+        targets
+            .computeIfAbsent(call(m.fact()), k -> new TreeSet<>())
+            .add(m.fact().object().value());
+      }
+    }
+    List<Fact> facts = new ArrayList<>();
+    for (LinkRule.Merged m : merged) {
+      Fact f = m.fact();
+      Set<String> others = isCall(m) ? targets.get(call(f)) : Set.of();
+      if (others.size() < 2) {
+        facts.add(f);
+        continue;
+      }
+      ObjectNode attributes = Claims.json(f);
+      ArrayNode alternates = attributes.putArray("alternates");
+      others.stream().filter(t -> !t.equals(f.object().value())).forEach(alternates::add);
+      facts.add(
+          Fact.create(
+              f.subject(),
+              f.predicate(),
+              f.object(),
+              attributes,
+              f.origin(),
+              f.evidence(),
+              f.confidence(),
+              f.validity()));
+    }
+    return facts;
+  }
+
+  private static boolean isCall(LinkRule.Merged m) {
+    return m.link() != null
+        && m.link().startsWith(CALL)
+        && m.fact().predicate().equals(CrossRepoLinks.CALLS_HTTP);
+  }
+
+  private static String call(Fact f) {
+    return f.subject()
+        + "|"
+        + Claims.source(f)
+        + "|"
+        + f.evidence().repo()
+        + "|"
+        + f.evidence().path()
+        + "|"
+        + (f.evidence().lines() == null ? "" : f.evidence().lines().start());
   }
 
   /**
@@ -385,7 +431,8 @@ final class HttpLinker {
     attributes.put("protocol", protocol);
     attributes.put("matchedBy", target.matchedBy());
     String identity =
-        CrossRepoLinks.CALLS_HTTP
+        CALL
+            + CrossRepoLinks.CALLS_HTTP
             + "|"
             + caller.id()
             + "|"
@@ -418,7 +465,14 @@ final class HttpLinker {
     emit(
         view,
         new Found(
-            CrossRepoLinks.CALLS_HTTP + "|" + caller.id() + "|" + system + "|" + fact.subject(),
+            CALL
+                + CrossRepoLinks.CALLS_HTTP
+                + "|"
+                + caller.id()
+                + "|"
+                + system
+                + "|"
+                + fact.subject(),
             caller.id(),
             CrossRepoLinks.CALLS_HTTP,
             FactObject.entity(system),
@@ -450,7 +504,13 @@ final class HttpLinker {
     emit(
         view,
         new Found(
-            CrossRepoLinks.UNRESOLVED_LINK + "|" + caller.id() + "|" + fact.subject() + "|http",
+            CALL
+                + CrossRepoLinks.UNRESOLVED_LINK
+                + "|"
+                + caller.id()
+                + "|"
+                + fact.subject()
+                + "|http",
             caller.id(),
             CrossRepoLinks.UNRESOLVED_LINK,
             FactObject.string(call.text()),

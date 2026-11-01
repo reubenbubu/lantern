@@ -4,7 +4,6 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
-import io.lantern.extract.attributes.ProfileGateAttributes;
 import io.lantern.extract.attributes.StereotypeAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.maven.MavenExtractor;
@@ -85,20 +84,18 @@ final class LinkIndex {
   /** The profiles the snapshot's facts name, sorted. */
   final List<String> profiles;
 
+  /** The views to link in ({@link #views()}). */
+  private final List<String> views;
+
   private final Map<String, Fact> byId = new HashMap<>();
 
   LinkIndex(List<Fact> facts) {
     Map<EntityId, Fact> containerOf = new HashMap<>();
-    Set<String> profileNames = new TreeSet<>();
     List<Fact> sorted = new ArrayList<>(facts);
     sorted.sort(BY_ID);
     for (Fact f : sorted) {
       byId.putIfAbsent(f.id(), f);
       byPredicate.computeIfAbsent(f.predicate(), p -> new ArrayList<>()).add(f);
-      String profile = Claims.profile(f);
-      if (profile != null) {
-        profileNames.add(profile);
-      }
       boolean entity = f.object().kind() == FactObject.Kind.ENTITY;
       switch (f.predicate()) {
         case BuiltInTypes.CONTAINS -> {
@@ -116,20 +113,8 @@ final class LinkIndex {
         }
         case ConfigExtractor.CONFIG_VALUE, PersistenceExtractor.DATASOURCE ->
             config.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
-        case SpringExtractor.PROFILE_GATE -> {
-          gates.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
-          List<String> named = Claims.of(f, ProfileGateAttributes.class).profiles();
-          if (named != null) {
-            // As written, so "!local" or "a & b": the profiles are the names in the expression.
-            for (String p : named) {
-              for (String name : p.split("[!&|()\\s]+")) {
-                if (!name.isEmpty()) {
-                  profileNames.add(name);
-                }
-              }
-            }
-          }
-        }
+        case SpringExtractor.PROFILE_GATE ->
+            gates.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
         case SpringExtractor.STEREOTYPE -> {
           if ("controller".equals(f.object().value())
               && Boolean.TRUE.equals(Claims.of(f, StereotypeAttributes.class).rest())) {
@@ -137,12 +122,14 @@ final class LinkIndex {
           }
         }
         case DeployableUnits.APPLICATION_NAME ->
-            names.computeIfAbsent(f.subject(), s -> new HashMap<>()).putIfAbsent(profile, f);
+            names.computeIfAbsent(f.subject(), s -> new HashMap<>()).putIfAbsent(Claims.view(f), f);
         default -> {}
       }
     }
-    profileNames.remove("default");
-    profiles = List.copyOf(profileNames);
+    profiles = View.profiles(sorted);
+    views = new ArrayList<>();
+    views.add(null);
+    views.addAll(profiles);
 
     Map<EntityId, List<Fact>> bundles = new HashMap<>();
     for (Fact f : of(DeployableUnits.BUNDLES)) {
@@ -199,12 +186,27 @@ final class LinkIndex {
     return byPredicate.getOrDefault(predicate, List.of());
   }
 
-  /** The views to link in: the default view (null), then each profile the facts name. */
+  /**
+   * The views to link in: the default view (null), then each profile the facts name; only the view
+   * given to {@link #in(View)} once given.
+   */
   List<String> views() {
-    List<String> views = new ArrayList<>();
-    views.add(null);
-    views.addAll(profiles);
-    return views;
+    return new ArrayList<>(views);
+  }
+
+  /**
+   * Narrows the views to link in to one, for a rule the linker runs once per view (ADR 0095,
+   * amendment for #590).
+   *
+   * @return this index
+   */
+  LinkIndex in(View view) {
+    if (!view.isDefault() && !profiles.contains(view.profile())) {
+      throw new IllegalArgumentException("No facts name the profile " + view.name());
+    }
+    views.clear();
+    views.add(view.profile());
+    return this;
   }
 
   // ---------------------------------------------------------------------------------------------
