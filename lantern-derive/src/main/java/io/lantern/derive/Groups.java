@@ -290,9 +290,7 @@ public final class Groups implements LinkRule.OverFacts {
     if (areas.isEmpty()) {
       return areas;
     }
-    Set<EntityId> own = ownCode(knowledge, unit);
-    byCallsOrTables(
-        knowledge, components.stream().filter(c -> !crossCutting(c, own)).toList(), areas, placed);
+    byCallsOrTables(knowledge, components, areas, placed, ownCode(knowledge, unit));
     return areas;
   }
 
@@ -534,13 +532,15 @@ public final class Groups implements LinkRule.OverFacts {
    * least {@value #TABLE_SIMILARITY}. Ties go to the area whose key sorts first. It runs in rounds,
    * each against the placements of the rounds before, until a round places none, so a component
    * linked only to one placed in an earlier round joins too and the order components are looked at
-   * does not matter.
+   * does not matter. A cross-cutting component never joins by this rule (#638), though one placed
+   * by rule 1 or 2 counts for its area.
    */
   private static void byCallsOrTables(
       Knowledge knowledge,
       List<Component> components,
       SortedMap<String, Forming> areas,
-      Map<EntityId, String> placed) {
+      Map<EntityId, String> placed,
+      Set<EntityId> ownCode) {
     Map<EntityId, Set<String>> tables = new HashMap<>();
     Map<EntityId, List<Fact>> links = new HashMap<>();
     Set<EntityId> ids = new HashSet<>();
@@ -566,7 +566,7 @@ public final class Groups implements LinkRule.OverFacts {
       Map<EntityId, String> how = new HashMap<>();
       for (Component component : components) {
         EntityId id = component.id();
-        if (placed.containsKey(id)) {
+        if (placed.containsKey(id) || crossCutting(component, ownCode)) {
           continue;
         }
         SortedMap<String, List<Fact>> calls = new TreeMap<>();

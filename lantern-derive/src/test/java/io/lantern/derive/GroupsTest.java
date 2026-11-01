@@ -80,6 +80,14 @@ class GroupsTest {
       model.add(
           EntityId.parse("method:io.acme.billing." + from + "#handle()"), BuiltInTypes.CALLS, send);
     }
+    // An aspect in a feature's own package belongs to that feature, by rule 1.
+    EntityId local = EntityId.parse("type:io.acme.billing.invoice.InvoiceAspect");
+    model.add(
+        EntityId.parse("package:io.acme:billing:io.acme.billing.invoice"),
+        BuiltInTypes.CONTAINS,
+        local);
+    model.add(
+        local, "ADVISES", EntityId.parse("method:io.acme.billing.invoice.InvoiceEvents#handle()"));
     String aspectComponent = component("io.acme.billing.security.AuditAspect");
     String senderComponent = component("io.acme.commons.messaging.Sender");
     link(EntityId.parse(aspectComponent), invoice.toString());
@@ -96,6 +104,8 @@ class GroupsTest {
     assertThat(areas.values())
         .allSatisfy(
             members -> assertThat(members).doesNotContain(aspectComponent, senderComponent));
+    assertThat(areas.get(area("pkg-invoice")))
+        .contains(component("io.acme.billing.invoice.InvoiceAspect"));
   }
 
   @Test
