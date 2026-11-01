@@ -67,3 +67,13 @@ decided these under the owner's standing go-ahead for 1D.
 - A unit whose code is laid out neither by feature nor with distinct resource paths, or a system
   whose units share no signal, has no groups of that kind; clustering by coupling (#537) is left
   for what the signals leave ungrouped, if the test sets show it is needed.
+
+## Amendment for #638: cross-cutting components join no area
+
+Rule 3 joined shared aspects and shared-library classes (project-8's `PermissionAspect`, project-4's
+`PermissionControlAspect` and the shared library's `MessagingService`) to whichever area happened to
+call them most. They serve every area, so putting them in one misleads. Rule 3 now skips a
+component whose role is aspect, or whose class is not in one of the unit's own modules (it comes
+from a library the unit bundles). They stay ungrouped and are drawn as themselves at area level.
+A shared bean of the unit's own code still joins the area that calls it most, as rule 3 says.
+

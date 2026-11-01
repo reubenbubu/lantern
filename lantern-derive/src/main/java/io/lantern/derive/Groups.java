@@ -290,8 +290,31 @@ public final class Groups implements LinkRule.OverFacts {
     if (areas.isEmpty()) {
       return areas;
     }
-    byCallsOrTables(knowledge, components, areas, placed);
+    Set<EntityId> own = ownCode(knowledge, unit);
+    byCallsOrTables(
+        knowledge, components.stream().filter(c -> !crossCutting(c, own)).toList(), areas, placed);
     return areas;
+  }
+
+  /**
+   * Whether a component cuts across the unit's areas, so rule 3 never joins it to one: an aspect,
+   * which advises whatever its pointcut selects, or a class from a library the unit bundles rather
+   * than its own modules, which every unit bundling it shares.
+   */
+  private static boolean crossCutting(Component component, Set<EntityId> own) {
+    return component.role().equals(Components.ASPECT_ROLE) || !own.contains(component.anchor());
+  }
+
+  /** The classes of the unit's own modules, without the libraries it bundles. */
+  private static Set<EntityId> ownCode(Knowledge knowledge, EntityId unit) {
+    Set<EntityId> own = new HashSet<>();
+    for (EntityId module : knowledge.parts(unit, BuiltInTypes.MODULE)) {
+      own.addAll(knowledge.typesWithin(module));
+      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+        own.addAll(knowledge.typesWithin(pkg));
+      }
+    }
+    return own;
   }
 
   /** The package a class is in, by name, or null. */

@@ -47,6 +47,58 @@ class GroupsTest {
   }
 
   @Test
+  void aspectsAndLibraryClassesJoinNoArea() {
+    unit(BILLING, BILLING_MODULE, "billing");
+    EntityId invoice = controller("io.acme.billing.invoice", "InvoiceController", "GET /invoices");
+    controller("io.acme.billing.payment", "PaymentController", "POST /payments");
+    controller("io.acme.billing.invoice", "InvoiceEvents", "GET /invoices/events");
+    controller("io.acme.billing.payment", "RefundController", "POST /refunds");
+    controller("io.acme.billing.collections", "DunningController", "GET /dunning");
+    controller("io.acme.billing.collections", "CollectionsController", "GET /collections");
+    // An aspect of the unit's own code advising the invoice controller, and calling into it.
+    EntityId aspect = EntityId.parse("type:io.acme.billing.security.AuditAspect");
+    EntityId security = EntityId.parse("package:io.acme:billing:io.acme.billing.security");
+    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, security);
+    model.add(security, BuiltInTypes.CONTAINS, aspect);
+    model.add(
+        aspect,
+        "ADVISES",
+        EntityId.parse("method:io.acme.billing.invoice.InvoiceController#handle()"));
+    // A class of a library the unit bundles, which both controllers call.
+    EntityId library = EntityId.parse("library:io.acme:commons");
+    EntityId libraryModule = EntityId.parse("module:io.acme:commons");
+    model.add(BILLING, "BUNDLES", library);
+    model.add(library, BuiltInTypes.CONTAINS, libraryModule);
+    EntityId messaging = EntityId.parse("package:io.acme:commons:io.acme.commons.messaging");
+    EntityId sender = EntityId.parse("type:io.acme.commons.messaging.Sender");
+    model.add(libraryModule, BuiltInTypes.CONTAINS, messaging);
+    model.add(messaging, BuiltInTypes.CONTAINS, sender);
+    model.add(sender, "stereotype", FactObject.string("service"));
+    EntityId send = EntityId.parse("method:io.acme.commons.messaging.Sender#send()");
+    model.add(sender, BuiltInTypes.CONTAINS, send);
+    for (String from : List.of("invoice.InvoiceController", "payment.PaymentController")) {
+      model.add(
+          EntityId.parse("method:io.acme.billing." + from + "#handle()"), BuiltInTypes.CALLS, send);
+    }
+    String aspectComponent = component("io.acme.billing.security.AuditAspect");
+    String senderComponent = component("io.acme.commons.messaging.Sender");
+    link(EntityId.parse(aspectComponent), invoice.toString());
+    link(invoice, senderComponent);
+
+    Map<String, Set<String>> areas = areas(BILLING);
+
+    // Both are components, called from one area only, yet neither joins it.
+    Knowledge derived = new Knowledge(Derivation.withModel(model.facts, 1));
+    assertThat(derived.about(EntityId.parse(aspectComponent))).isNotEmpty();
+    assertThat(derived.about(EntityId.parse(senderComponent))).isNotEmpty();
+    assertThat(areas)
+        .containsOnlyKeys(area("pkg-collections"), area("pkg-invoice"), area("pkg-payment"));
+    assertThat(areas.values())
+        .allSatisfy(
+            members -> assertThat(members).doesNotContain(aspectComponent, senderComponent));
+  }
+
+  @Test
   void aLayeredUnitIsGroupedByTheResourceSegmentOfItsPaths() {
     unit(BILLING, BILLING_MODULE, "billing");
     controller("io.acme.billing.web", "OrderController", "GET /api/v1/orders/{id}");
