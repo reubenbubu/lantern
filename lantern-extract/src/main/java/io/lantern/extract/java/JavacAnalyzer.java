@@ -608,7 +608,6 @@ final class JavacAnalyzer {
       return indexes;
     }
 
-    /** A type's erasure as it appears in a member ID: binary names, arrays with {@code []}. */
     /** A type with its type arguments, or null for none or one javac could not attribute. */
     private ModuleStructure.TypeUse typeUse(TypeMirror type) {
       if (type == null) {
@@ -659,6 +658,7 @@ final class JavacAnalyzer {
       }
     }
 
+    /** A type's erasure as it appears in a member ID: binary names, arrays with {@code []}. */
     private String describe(TypeMirror type) {
       TypeMirror erased = types.erasure(type);
       return switch (erased.getKind()) {
