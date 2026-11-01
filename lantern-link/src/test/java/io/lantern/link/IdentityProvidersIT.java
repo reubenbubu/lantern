@@ -44,8 +44,18 @@ class IdentityProvidersIT {
   private static final List<String> SETS = List.of("project-1", "project-2", "project-4");
 
   static boolean setsArePresent() {
-    return given() != null
-        || SETS.stream().anyMatch(set -> Files.isDirectory(folder().resolve(set)));
+    boolean present =
+        given() != null || SETS.stream().anyMatch(set -> Files.isDirectory(folder().resolve(set)));
+    if (!present) {
+      // Failsafe prints only a count of skipped tests; say why (#628).
+      System.out.println(
+          "[WARNING] IdentityProvidersIT is skipped: none of "
+              + String.join(", ", SETS)
+              + " is set up in "
+              + folder()
+              + " and lantern.test.projects is not set; run testsets/project-N/setup.sh");
+    }
+    return present;
   }
 
   private static String given() {
