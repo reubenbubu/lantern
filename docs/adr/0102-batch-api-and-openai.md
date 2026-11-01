@@ -100,7 +100,11 @@ No real call was made: every test answers from a fake through a stub of the prov
   than 50.
 - **Evidence without a real call.**
   - `OpenAiStub`, a test server, speaks OpenAI's Chat Completions, Files and Batch APIs. It reads
-    each request back into the harness's request and answers with a fake.
+    each request back into the harness's request and answers with a fake. It reports cached tokens
+    by OpenAI's rule (#654): the start a prompt shares with an earlier request of the same
+    `prompt_cache_key`, from 1,024 tokens and then in steps of 128. `OpenAiProviderTest` shows them
+    recorded as cache reads. Project-0's prompts share starts of 600 to 750 tokens, under that
+    least, so the parity run reports none (#655).
   - `OpenAiBatchParityIT` analyzes project-0, or the set `lantern.test.set` names, twice: first on
     the fake interactively, then with every role on the OpenAI provider through the stub, every
     bulk role batching all its misses. The test requires both runs to store the same answer for
