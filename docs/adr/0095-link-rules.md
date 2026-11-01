@@ -77,8 +77,8 @@ The cross-repo links step is split into seven rules (`ProtocolLinks`), each with
 the HTTP links found before them and frontend calls reuse the HTTP and route matching),
 `messaging-links`, `deployment-links` (the containers units run in), `data-links`, `mail-links`,
 `identity-links` and `redis-links`. Each builds its own index of what it reads and finds its links
-in every view as the step did. A link left open stays the `unresolved-link` of the rule that left it
-until #576.
+in every view as the step did. A link left open stayed the `unresolved-link` of the rule that left
+it until #583 gave open links a rule of their own (amendment for #583).
 
 - **Reads.** Until views are explicit (#522), each rule reads what the step read, every extracted
   fact and the values' and units' facts, because the profiles a rule links in are those every fact
@@ -208,3 +208,29 @@ Decided by the agent under the owner's delegation of 2026-11-01, finishing #522.
   narrows: the others that read config read every extracted fact and run again on any change, until
   1B's narrower reads. A rule's facts must cite only
   facts whose whole it depends on; the units cite only the name settings.
+
+## Amendment (#583): open links as a rule of their own
+
+Decided by the agent under the owner's delegation of 2026-11-01.
+
+- **The `open-links` rule** writes every request, gateway route and send that no matcher places,
+  with its candidates, once per view (knowledge-build epic, section 8, rule 6). The protocol rules
+  no longer write `unresolved-link`: they give only what they place.
+- **It runs the matchers.** What a site's candidates are, and why it is left open (no match,
+  ambiguous, an unknown URL, routing key or exchange, a placeholder no config resolves), is
+  decided while matching: the units whose endpoints a path matches, the answers address resolution
+  gives, the destinations a send might reach. Repeating that logic in a second place would let the
+  two drift, so the rule runs the HTTP, route and messaging matchers in each view, as their own
+  rules do, and keeps only what they leave open (`FoundLinks.to` with the predicates a rule keeps),
+  the way address resolution runs them to learn their questions (#589). The matchers still build
+  their open links while matching; no rule but `open-links` gives them, and a protocol rule whose
+  matchers the open-links rule does not run fails if it finds one, so none is lost. The issue's wish that the
+  rule read the matchers' output instead is set aside for that reason; the cost is matching those
+  three protocols twice per view.
+- **The predicate stays `unresolved-link`.** The epic calls the claim `open-link`; renaming it
+  would touch every reader (the LLM resolver, README claim checks, the composer) for no change in
+  what they read, so the name is left for a later vocabulary pass. Its key attributes already
+  include the candidates. An open link's origin is now `open-links`; no reader reads it by origin.
+- On project-0 to project-4 and project-8 every open link is the same in its site, reason and
+  candidates, and every other derived fact is unchanged; only README claim checks citing an open
+  link cite its new fact ID (#583's PR).

@@ -723,6 +723,15 @@ class CrossRepoLinksTest {
                 + " {\"candidates\":[\"service:g:tax\"],\"kind\":\"http\","
                 + "\"reason\":\"unresolved-placeholder\",\"source\":\"method:o.TaxClient#quote()\","
                 + "\"unresolved\":[\"TAX_SERVICE_URL\"]} 1.0");
+    // The open-links rule writes it, not the HTTP rule that matched the call (#583).
+    assertThat(linked())
+        .filteredOn(f -> f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK))
+        .extracting(f -> f.origin().name())
+        .containsExactly(ProtocolLinks.OPEN_LINKS);
+    assertThat(linked())
+        .filteredOn(f -> !f.origin().name().equals(ProtocolLinks.OPEN_LINKS))
+        .extracting(Fact::predicate)
+        .doesNotContain(CrossRepoLinks.UNRESOLVED_LINK);
   }
 
   @Test

@@ -37,7 +37,7 @@ final class Rules {
     List<LinkRule> rules =
         new ArrayList<>(
             List.of(new DeployableUnits(), new ValueResolution(), new AddressResolution()));
-    rules.addAll(ProtocolLinks.all());
+    rules.addAll(ProtocolLinks.withOpenLinks());
     rules.add(new People());
     rules.add(new ClaimChecks());
     return List.copyOf(rules);

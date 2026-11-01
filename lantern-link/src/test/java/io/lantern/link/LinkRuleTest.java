@@ -106,6 +106,7 @@ class LinkRuleTest {
             "mail-links",
             "identity-links",
             "redis-links",
+            ProtocolLinks.OPEN_LINKS,
             People.NAME,
             "link-resolver",
             ClaimChecks.NAME);
