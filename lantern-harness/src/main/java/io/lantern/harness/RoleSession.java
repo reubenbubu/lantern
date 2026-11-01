@@ -63,7 +63,9 @@ public final class RoleSession {
   // Under a budget share, whether each planned item fits, decided by the plan in the role's order
   // before anything is asked, so thread timing never picks the items (#657).
   private final Map<String, Boolean> admitted = new java.util.concurrent.ConcurrentHashMap<>();
-  // The item that goes first and warms the cache: the plan's first miss in the role's order.
+  // The item that goes first and warms the cache: the plan's first miss in the role's order, by its
+  // key (see key) and its subject.
+  private volatile String warmUpKey;
   private volatile String warmUpSubject;
   private final java.util.concurrent.atomic.AtomicBoolean prefixSent =
       new java.util.concurrent.atomic.AtomicBoolean();
@@ -249,9 +251,9 @@ public final class RoleSession {
    */
   private synchronized void decide(List<Planned> inOrder) {
     boolean full = false;
-    String first = null;
+    Planned first = null;
     for (Planned entry : inOrder) {
-      if (entry.subject() == null || admitted.containsKey(entry.subject())) {
+      if (entry.subject() == null || admitted.containsKey(key(entry))) {
         continue;
       }
       boolean fits = true;
@@ -262,15 +264,25 @@ public final class RoleSession {
                     spec.budgetGroup(),
                     entry.item() != null ? itemCost(entry.item()) : cost(entry.tokens()));
         full = !fits;
-        admitted.put(entry.subject(), fits);
+        admitted.put(key(entry), fits);
       }
       if (fits && first == null) {
-        first = entry.subject();
+        first = entry;
       }
     }
-    if (warmUpSubject == null && !warming.get() && first != null) {
-      warmUpSubject = first;
+    if (warmUpKey == null && !warming.get() && first != null) {
+      warmUpSubject = first.subject();
+      warmUpKey = key(first);
     }
+  }
+
+  /**
+   * What the plan's decisions are kept under: a known item's fingerprint, since a role may ask
+   * several items of one subject (a flow shown in two documents), or the subject of an item
+   * expected to be asked, whose fingerprint is not known yet.
+   */
+  private String key(Planned entry) {
+    return entry.item() != null ? fingerprint(entry.item()) : "subject " + entry.subject();
   }
 
   /** The item that goes first and warms the cache, if the plan named one. */
@@ -346,7 +358,7 @@ public final class RoleSession {
               ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
               : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null);
       record.outcome(item.subject(), outcome, false);
-      settledWithoutAsking(item.subject());
+      settledWithoutAsking(item);
       return outcome;
     }
     if (!admitted(item)) {
@@ -358,14 +370,14 @@ public final class RoleSession {
               "the " + spec.budgetGroup() + " share of the run budget is spent");
       LOG.warn("Not asked about {} for {}: {}", item.subject(), spec.name(), outcome.reason());
       record.outcome(item.subject(), outcome, false);
-      settledWithoutAsking(item.subject());
+      settledWithoutAsking(item);
       return outcome;
     }
     return askAdmitted(item, asker, fingerprint);
   }
 
   private Outcome askAdmitted(Item item, Asker asker, String fingerprint) {
-    boolean first = warmUp(item.subject());
+    boolean first = warmUp(item);
     Calls calls = new Calls(this, client);
     Outcome outcome;
     try {
@@ -396,9 +408,9 @@ public final class RoleSession {
    * is answered (or has failed), so the requests that share its prompt prefix read it from the
    * provider's cache instead of all writing it at once (#357).
    */
-  private boolean warmUp(String subject) {
-    String first = warmUpSubject;
-    if ((first == null || first.equals(subject)) && warming.compareAndSet(false, true)) {
+  private boolean warmUp(Item item) {
+    String first = warmUpKey;
+    if ((first == null || isWarmUp(item)) && warming.compareAndSet(false, true)) {
       return true;
     }
     awaitWarmed();
@@ -416,7 +428,22 @@ public final class RoleSession {
     }
   }
 
+  /** Whether the item is the one the plan named to go first. */
+  private boolean isWarmUp(Item item) {
+    String first = warmUpKey;
+    return first != null
+        && (first.equals(fingerprint(item)) || first.equals("subject " + item.subject()));
+  }
+
   /** Lets the others go when the warm-up item is settled without being asked. */
+  private void settledWithoutAsking(Item item) {
+    if (isWarmUp(item)) {
+      warming.set(true);
+      warmed.complete(null);
+    }
+  }
+
+  /** As {@link #settledWithoutAsking(Item)}, for an item known only by its subject. */
   private void settledWithoutAsking(String subject) {
     if (subject.equals(warmUpSubject)) {
       warming.set(true);
@@ -816,8 +843,12 @@ public final class RoleSession {
     if (share == null) {
       return true;
     }
+    Boolean expected = admitted.get("subject " + item.subject());
+    if (expected != null) {
+      return expected;
+    }
     return admitted.computeIfAbsent(
-        item.subject(), subject -> harness.admit(spec.budgetGroup(), itemCost(item)));
+        fingerprint(item), key -> harness.admit(spec.budgetGroup(), itemCost(item)));
   }
 
   /**

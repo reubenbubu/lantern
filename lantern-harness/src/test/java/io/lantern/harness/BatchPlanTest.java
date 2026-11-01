@@ -157,6 +157,31 @@ class BatchPlanTest {
   }
 
   @Test
+  void itemsOfOneSubjectAreEachCountedAgainstTheShare() {
+    // A flow shown in two documents is two items of one subject. Each costs about $0.0005; a share
+    // of $0.0008 holds one of them, not both.
+    FakeLlmProvider fake = new FakeLlmProvider().answering("\"" + "x".repeat(400) + "\"");
+    RunBudget budget =
+        new RunBudget(new BigDecimal("0.0016"), Map.of("summarize", 50, "describe", 50));
+    Harness harness =
+        new Harness(
+            TestHarness.client(fake, TestHarness.priced(fake)),
+            new InMemoryAnswerStore(),
+            budget,
+            BlobLookup.NONE,
+            Set.of());
+    RoleSession session = harness.session(TestHarness.role());
+    Item first = new Item("flow", "repo/a", List.of(), "Narrate the flow, system document.");
+    Item second = new Item("flow", "repo/a", List.of(), "Narrate the flow, repository document.");
+    session.plan(List.of(first, second), 0);
+
+    assertThat(session.ask(first, TestHarness.asking(first)).kind())
+        .isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(session.ask(second, TestHarness.asking(second)).kind())
+        .isEqualTo(Outcome.Kind.NOT_ASKED);
+  }
+
+  @Test
   void withRoomForEverythingEveryItemIsAskedAndTheFirstInOrderGoesFirst() throws Exception {
     List<Item> items = items(30);
     FakeLlmProvider fake = new FakeLlmProvider();

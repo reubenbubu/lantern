@@ -122,7 +122,9 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
     Describe's questions; the screen's chunks), adds each miss's estimate to the group's plan, and
     stops at the first that does not fit: it and every item after it are not asked. So which items
     are asked never depends on which thread asks first, and two runs at the same budget ask the
-    same items. An item the plan did not know by subject is decided when asked.
+    same items. Decisions are kept by each item's fingerprint, since a role may ask several items
+    of one subject (a flow shown in two documents), each counted against the share; an item the
+    plan did not know is decided when asked.
   - An item's estimate is priced as the plan prices it: the prompt's start read from the cache, a
     role that groups items paying its share of each request's start, and the batch price when the
     role batches (#654).
