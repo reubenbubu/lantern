@@ -69,6 +69,7 @@ import com.github.javaparser.ast.type.PrimitiveType;
 import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.TypeParameter;
 import com.github.javaparser.ast.type.UnknownType;
+import com.github.javaparser.ast.type.WildcardType;
 import com.github.javaparser.resolution.TypeSolver;
 import com.github.javaparser.resolution.declarations.AssociableToAST;
 import com.github.javaparser.resolution.declarations.ResolvedMethodDeclaration;
@@ -667,7 +668,7 @@ final class JavaParserAnalyzer {
           for (Parameter p : ((CallableDeclaration<?>) declaration).getParameters()) {
             parameters.add(
                 new ModuleStructure.Parameter(
-                    p.getNameAsString(), annotations(p.getAnnotations())));
+                    p.getNameAsString(), annotations(p.getAnnotations()), typeUse(p.getType(), p)));
           }
         }
         String returns =
@@ -683,7 +684,8 @@ final class JavaParserAnalyzer {
                 annotations(declaration.getAnnotations()),
                 null,
                 parameters,
-                returns));
+                returns,
+                declaration instanceof MethodDeclaration m ? typeUse(m.getType(), m) : null));
       }
     }
 
@@ -1146,7 +1148,8 @@ final class JavaParserAnalyzer {
       EntityId caller = owner(call);
       if (caller != null && expression(call, caller, 0) instanceof Expression.Invoke invoke) {
         structure.invocations.add(
-            new ModuleStructure.Invocation(caller, invoke, location(call), rootType));
+            new ModuleStructure.Invocation(
+                caller, invoke, location(call), rootType, argumentTypes(call)));
       }
     }
 
@@ -1768,6 +1771,140 @@ final class JavaParserAnalyzer {
      * The type of what the innermost call of a chain is made on, or of the object a constructor
      * call makes; null for a call without a receiver or when parsing cannot name it.
      */
+    /**
+     * The static types of the arguments of the calls written in a chain, innermost first, as far as
+     * the parser tells them: a variable's as declared, a new object's or a cast's as written, and
+     * anything else as the symbol solver resolves it.
+     */
+    private List<List<ModuleStructure.TypeUse>> argumentTypes(Node e) {
+      List<List<ModuleStructure.TypeUse>> calls = new ArrayList<>();
+      Node n = e;
+      while (true) {
+        switch (n) {
+          case MethodCallExpr call -> {
+            calls.addFirst(types(call.getArguments()));
+            if (call.getScope().isEmpty()) {
+              return calls;
+            }
+            n = call.getScope().get();
+          }
+          case EnclosedExpr x -> n = x.getInner();
+          case ObjectCreationExpr created -> {
+            calls.addFirst(types(created.getArguments()));
+            return calls;
+          }
+          default -> {
+            return calls;
+          }
+        }
+      }
+    }
+
+    private List<ModuleStructure.TypeUse> types(
+        List<com.github.javaparser.ast.expr.Expression> arguments) {
+      List<ModuleStructure.TypeUse> types = new ArrayList<>();
+      for (com.github.javaparser.ast.expr.Expression a : arguments) {
+        types.add(argumentType(a));
+      }
+      return types;
+    }
+
+    private ModuleStructure.TypeUse argumentType(com.github.javaparser.ast.expr.Expression a) {
+      switch (a) {
+        case NameExpr name -> {
+          Binding binding = bind(name, name.getNameAsString());
+          Type type =
+              switch (binding) {
+                case Binding.Local local -> local.declarator().getType();
+                case Binding.Param param -> param.type();
+                case Binding.Field field -> field.fieldType();
+                case null, default -> null;
+              };
+          if (type != null && !type.isVarType()) {
+            return typeUse(type, name);
+          }
+        }
+        case ObjectCreationExpr created -> {
+          return typeUse(created.getType(), created);
+        }
+        case CastExpr cast -> {
+          return typeUse(cast.getType(), cast);
+        }
+        default -> {}
+      }
+      try {
+        ResolvedType resolved = a.calculateResolvedType();
+        List<String> arguments = new ArrayList<>();
+        typeArguments(resolved, arguments, 0);
+        return new ModuleStructure.TypeUse(describe(resolved), arguments);
+      } catch (RuntimeException | StackOverflowError ex) {
+        return null;
+      }
+    }
+
+    /**
+     * A type as written, erased as {@link #describe(Type, Node)} names it, with the named types its
+     * type arguments hold as written (a wildcard as its bound); null for {@code var}.
+     */
+    private ModuleStructure.TypeUse typeUse(Type type, Node context) {
+      if (type == null || type.isVarType()) {
+        return null;
+      }
+      List<String> arguments = new ArrayList<>();
+      writtenArguments(type, context, arguments, 0);
+      return new ModuleStructure.TypeUse(describe(type, context), arguments);
+    }
+
+    private void writtenArguments(Type type, Node context, List<String> into, int depth) {
+      if (depth > 4) {
+        return;
+      }
+      if (type instanceof ArrayType array) {
+        writtenArguments(array.getComponentType(), context, into, depth);
+        return;
+      }
+      if (!(type instanceof ClassOrInterfaceType c) || c.getTypeArguments().isEmpty()) {
+        return;
+      }
+      for (Type argument : c.getTypeArguments().get()) {
+        Type t = argument;
+        if (t instanceof WildcardType w) {
+          t = w.getExtendedType().orElse(null);
+        }
+        if (t == null) {
+          continue;
+        }
+        String named = describe(t, context);
+        if (!named.equals("java.lang.Object")) {
+          into.add(named);
+          writtenArguments(t, context, into, depth + 1);
+        }
+      }
+    }
+
+    private static void typeArguments(ResolvedType type, List<String> into, int depth) {
+      if (depth > 4) {
+        return;
+      }
+      if (type.isArray()) {
+        typeArguments(type.asArrayType().getComponentType(), into, depth);
+        return;
+      }
+      if (!type.isReferenceType()) {
+        return;
+      }
+      for (ResolvedType argument : type.asReferenceType().typeParametersValues()) {
+        ResolvedType t = argument;
+        if (t.isWildcard()) {
+          t = t.asWildcard().isExtends() ? t.asWildcard().getBoundedType() : null;
+        }
+        if (t != null && (t.isReferenceType() || t.isArray())) {
+          into.add(describe(t));
+          typeArguments(t, into, depth + 1);
+        }
+      }
+    }
+
     private String rootType(Node e) {
       Node n = e;
       while (true) {

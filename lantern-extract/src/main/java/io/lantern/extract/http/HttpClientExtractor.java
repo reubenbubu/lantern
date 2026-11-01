@@ -77,7 +77,7 @@ public final class HttpClientExtractor implements Extractor {
   public static final String NAME = "http-client";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "9";
+  public static final String VERSION = "10";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
@@ -118,6 +118,14 @@ public final class HttpClientExtractor implements Extractor {
   public static final String WEB_CLIENT = "web-client";
   public static final String JAKARTA_CLIENT = "jakarta-rest-client";
   public static final String HTTP_INTERFACE = "http-interface";
+
+  /**
+   * Attribute: the type of a request body a client method sends, or of the response it returns; the
+   * type is the messaging extractor's, which records messages' payloads (#520).
+   */
+  public static final String PAYLOAD_TYPE = "payload-type";
+
+  private static final String REQUEST_BODY = "org.springframework.web.bind.annotation.RequestBody";
   public static final String JAVA_HTTP_CLIENT = "java-http-client";
   public static final String OKHTTP = "okhttp";
   public static final String APACHE_CLIENT = "apache-http-client";
@@ -1154,6 +1162,7 @@ public final class HttpClientExtractor implements Extractor {
         if (mapping == null) {
           continue;
         }
+        payloads(e.getValue(), client.kind(), mapping.written().where(), sources.get(e.getKey()));
         List<String> paths = mapping.paths().isEmpty() ? List.of("") : mapping.paths();
         List<String> methods = mapping.methods();
         if (methods.isEmpty() && client.kind().equals(FEIGN)) {
@@ -1191,6 +1200,57 @@ public final class HttpClientExtractor implements Extractor {
           }
         }
       }
+    }
+
+    /**
+     * Records the types a client method sends and returns (#520): its request body, a parameter
+     * annotated {@code @RequestBody} or, for Feign and the MicroProfile client, the first written
+     * without annotations; and its return type, unless void.
+     */
+    private void payloads(Member method, String kind, Location where, JavaAnalysis.Module source) {
+      if (where == null) {
+        return;
+      }
+      ModuleStructure.Parameter body = null;
+      for (ModuleStructure.Parameter p : method.parameters()) {
+        if (code.annotationPath(p.annotations(), REQUEST_BODY) != null) {
+          body = p;
+          break;
+        }
+        if (body == null && p.annotations().isEmpty() && !kind.equals(HTTP_INTERFACE)) {
+          body = p;
+        }
+      }
+      if (body != null) {
+        payload(method, "request", body.type(), where, source);
+      }
+      ModuleStructure.TypeUse returned = method.returnType();
+      if (returned == null && method.returns() != null) {
+        returned = new ModuleStructure.TypeUse(method.returns(), List.of());
+      }
+      if (returned != null && !returned.type().equals("void")) {
+        payload(method, "response", returned, where, source);
+      }
+    }
+
+    private void payload(
+        Member method,
+        String role,
+        ModuleStructure.TypeUse type,
+        Location where,
+        JavaAnalysis.Module source) {
+      if (!code.declaresAny(type)) {
+        // A String or a library's type says nothing a lead can check; a type the code declares,
+        // such as a shared library's message class, does.
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("role", role);
+      if (!type.arguments().isEmpty()) {
+        ArrayNode arguments = attributes.putArray("typeArguments");
+        type.arguments().forEach(arguments::add);
+      }
+      fact(method.id(), PAYLOAD_TYPE, type.type(), attributes, where, source);
     }
 
     /** A request mapping: its paths and HTTP methods, and the annotation written. */

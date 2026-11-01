@@ -11,34 +11,50 @@ import tools.jackson.databind.node.ObjectNode;
  * every method of the subject class, must pass the access check its method security annotation
  * states: &#64;PreAuthorize, &#64;PostAuthorize, &#64;Secured, &#64;RolesAllowed, &#64;PermitAll or
  * &#64;DenyAll, directly or through a meta-annotation. The value is the expression or roles as
- * written, else the kind. It is enforced only where method security is on (method-security).
+ * written, else the kind. It is enforced only where method security is on (method-security). With
+ * via aspect (#520), the check is a custom one an aspect makes instead: its before or around advice
+ * applies to the method because of the annotation at this line, and reads that annotation's
+ * attributes; the value is the annotation's values as written, such as resource=TASK, action=READ,
+ * and the check is enforced wherever the aspect is a bean.
  *
+ * @param advice Key. For via aspect: the entity ID of the advice method that makes the check.
  * @param annotation Key. The binary name of the custom annotation carrying the check, when it is
- *     not written directly.
- * @param kind Key. The kind of check.
+ *     not written directly; for via aspect, the annotation the aspect reads.
+ * @param aspect Key. For via aspect: the aspect's binary name.
+ * @param kind Key. The kind of check: custom for one an aspect makes.
+ * @param via Key. aspect when an aspect makes the check (#520); absent for method security.
  */
 public record AccessCheckAttributes(
+    String advice,
     String annotation,
-    String kind) {
+    String aspect,
+    String kind,
+    String via) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "access-check";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("annotation", "kind");
+  public static final List<String> KEY_ATTRIBUTES = List.of("advice", "annotation", "aspect", "kind", "via");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static AccessCheckAttributes from(ObjectNode attributes) {
     return new AccessCheckAttributes(
+        AttributeValues.string(attributes, "advice"),
         AttributeValues.string(attributes, "annotation"),
-        AttributeValues.string(attributes, "kind"));
+        AttributeValues.string(attributes, "aspect"),
+        AttributeValues.string(attributes, "kind"),
+        AttributeValues.string(attributes, "via"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "advice", advice);
     AttributeValues.put(attributes, "annotation", annotation);
+    AttributeValues.put(attributes, "aspect", aspect);
     AttributeValues.put(attributes, "kind", kind);
+    AttributeValues.put(attributes, "via", via);
     return attributes;
   }
 }

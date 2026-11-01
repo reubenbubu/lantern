@@ -85,6 +85,20 @@ public final class JavaAnalysis {
   }
 
   /**
+   * Whether a type, or a type its type arguments hold, is declared in the analyzed sources, such as
+   * a message class of a shared library of the set (#520); arrays count as their element type.
+   */
+  public boolean declaresAny(ModuleStructure.TypeUse use) {
+    if (use == null) {
+      return false;
+    }
+    if (type(use.type().replace("[]", "")) != null) {
+      return true;
+    }
+    return use.arguments().stream().anyMatch(a -> type(a.replace("[]", "")) != null);
+  }
+
+  /**
    * The module that declares the type {@link #type} returns, which may be in another repository
    * than code that uses it.
    *

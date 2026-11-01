@@ -106,6 +106,25 @@ public final class ModuleStructure {
   }
 
   /**
+   * A static type as the compiler (or the parser, as far as it resolves it) sees it, for the
+   * extractors that record what a value is, such as a message's payload (#520).
+   *
+   * @param type its erasure, as in a member ID ({@code java.util.List}, {@code int}, {@code
+   *     com.example.Order[]})
+   * @param arguments the erasures of the named types its type arguments hold, at any depth, depth
+   *     first ({@code java.util.List} and {@code com.example.Order} for {@code
+   *     ResponseEntity<List<Order>>}); a wildcard counts as its upper bound, a type variable not at
+   *     all
+   */
+  public record TypeUse(String type, List<String> arguments) {
+
+    public TypeUse {
+      Objects.requireNonNull(type, "type");
+      arguments = List.copyOf(arguments);
+    }
+  }
+
+  /**
    * A member: a {@code method:} or {@code field:} entity, its declaration and the annotations
    * written on it.
    *
@@ -116,6 +135,8 @@ public final class ModuleStructure {
    * @param returns for a method written in the source, its erased return type as in a member ID
    *     ({@code void} for none); null for a field, a constructor and a member the compiler declares
    *     implicitly
+   * @param returnType for a method written in the source, its return type with its type arguments,
+   *     when known; null otherwise
    */
   public record Member(
       EntityId id,
@@ -123,11 +144,23 @@ public final class ModuleStructure {
       List<Annotation> annotations,
       String type,
       List<Parameter> parameters,
-      String returns) {
+      String returns,
+      TypeUse returnType) {
 
     public Member {
       annotations = List.copyOf(annotations);
       parameters = List.copyOf(parameters);
+    }
+
+    /** A member without a return type's type arguments. */
+    public Member(
+        EntityId id,
+        Location where,
+        List<Annotation> annotations,
+        String type,
+        List<Parameter> parameters,
+        String returns) {
+      this(id, where, annotations, type, parameters, returns, null);
     }
 
     /** A member without a return type. */
@@ -146,11 +179,19 @@ public final class ModuleStructure {
     }
   }
 
-  /** A parameter of a method or constructor: its name and the annotations written on it. */
-  public record Parameter(String name, List<Annotation> annotations) {
+  /**
+   * A parameter of a method or constructor: its name, the annotations written on it, and its type
+   * with its type arguments when known (null otherwise).
+   */
+  public record Parameter(String name, List<Annotation> annotations, TypeUse type) {
 
     public Parameter {
       annotations = List.copyOf(annotations);
+    }
+
+    /** A parameter whose type is not known. */
+    public Parameter(String name, List<Annotation> annotations) {
+      this(name, annotations, null);
     }
   }
 
@@ -255,9 +296,44 @@ public final class ModuleStructure {
    * @param where the chain
    * @param rootType the binary name of the tracked type the chain starts from: of what its
    *     innermost call is made on, or of the object a constructor call makes
+   * @param argumentTypes the static types of the arguments of the calls written in the chain,
+   *     innermost first, each null where not known; the calls of a local variable's initializer
+   *     that {@code expression} holds in place of the variable are not among them, so they are the
+   *     last of {@code expression}'s chain
    */
   public record Invocation(
-      EntityId caller, Expression.Invoke expression, Location where, String rootType) {}
+      EntityId caller,
+      Expression.Invoke expression,
+      Location where,
+      String rootType,
+      List<List<TypeUse>> argumentTypes) {
+
+    public Invocation {
+      argumentTypes =
+          argumentTypes.stream()
+              .map(types -> Collections.unmodifiableList(new ArrayList<>(types)))
+              .toList();
+    }
+
+    /** An invocation whose argument types are not known. */
+    public Invocation(
+        EntityId caller, Expression.Invoke expression, Location where, String rootType) {
+      this(caller, expression, where, rootType, List.of());
+    }
+
+    /**
+     * The static types of the arguments of a call of {@link #expression}'s chain, each null where
+     * not known; empty when none are.
+     *
+     * @param index the call's position in {@code expression().chain()}, innermost first
+     */
+    public List<TypeUse> argumentTypes(int index) {
+      int written = index - (expression.chain().size() - argumentTypes.size());
+      return written >= 0 && written < argumentTypes.size()
+          ? argumentTypes.get(written)
+          : List.of();
+    }
+  }
 
   /**
    * A value given to a {@code String} field or a field of a tracked API's type ({@link

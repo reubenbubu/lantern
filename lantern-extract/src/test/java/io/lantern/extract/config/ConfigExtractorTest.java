@@ -149,6 +149,43 @@ class ConfigExtractorTest {
   }
 
   @Test
+  void corsPoliciesOfAGatewayAndTheActuator() throws IOException {
+    Repo repo =
+        repo(
+            Map.of(
+                RESOURCES + "application.properties",
+                """
+                spring.cloud.gateway.server.webflux.globalcors.cors-configurations[/**].allowedorigins=${cors.allowed.origins:*}
+                spring.cloud.gateway.server.webflux.globalcors.cors-configurations[/**].allow-credentials=true
+                management.endpoints.web.cors.allowed-origins=https://ops.example.com
+                """,
+                RESOURCES + "application-prod.yml",
+                """
+                cors:
+                  allowed:
+                    origins: https://shop.example.com,https://admin.example.com
+                """));
+
+    // The gateway's origins as resolved in each view, and as written; the Actuator's apart.
+    assertThat(extract(repo))
+        .filteredOn(l -> l.contains(" cors-policy "))
+        .containsExactly(
+            "module:g:app cors-policy * {\"credentials\":\"true\",\"key\":\"spring.cloud.gateway"
+                + ".server.webflux.globalcors.cors-configurations[/**].allowedorigins\",\"origin"
+                + "s\":[\"*\"],\"path\":\"/**\",\"source\":\"config\",\"written\":\"${cors.a"
+                + "llowed.origins:*}\"} @app:src/main/resources/application.properties#1-1 1.0",
+            "module:g:app cors-policy https://ops.example.com {\"key\":\"management.endpoints"
+                + ".web.cors.allowed-origins\",\"origins\":[\"https://ops.example.com\"],\"sourc"
+                + "e\":\"config\"} @app:src/main/resources/application.properties#3-3 1.0",
+            "module:g:app cors-policy https://shop.example.com, https://admin.example.com"
+                + " {\"credentials\":\"true\",\"key\":\"spring.cloud.gateway.server.webflux.glo"
+                + "balcors.cors-configurations[/**].allowedorigins\",\"origins\":[\"https://shop."
+                + "example.com\",\"https://admin.example.com\"],\"path\":\"/**\",\"profile\":\"p"
+                + "rod\",\"source\":\"config\",\"written\":\"${cors.allowed.origins:*}\"}"
+                + " @app:src/main/resources/application.properties#1-1 1.0");
+  }
+
+  @Test
   void documentsApplyByTheirProfileExpressions() throws IOException {
     Repo repo =
         repo(

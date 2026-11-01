@@ -71,7 +71,7 @@ public final class MessagingExtractor implements Extractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "7";
+  public static final String VERSION = "8";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
@@ -105,6 +105,28 @@ public final class MessagingExtractor implements Extractor {
 
   /** Attribute: the method is a function bean Spring Cloud Stream may bind. */
   public static final String STREAM_FUNCTION = "stream-function";
+
+  /**
+   * Attribute: the type of the messages a method sends or receives, or (from the HTTP client
+   * extractor) of a request body or response a client method declares (#520).
+   */
+  public static final String PAYLOAD_TYPE = "payload-type";
+
+  /** Listener parameters that are not the message: headers, channels, acknowledgements. */
+  private static final Set<String> NOT_PAYLOADS =
+      Set.of(
+          "com.rabbitmq.client.Channel",
+          "org.springframework.amqp.core.Message",
+          "org.springframework.kafka.support.Acknowledgment",
+          "org.apache.kafka.clients.consumer.Consumer",
+          "org.springframework.messaging.MessageHeaders",
+          "jakarta.jms.Session",
+          "javax.jms.Session",
+          "jakarta.jms.Message",
+          "javax.jms.Message");
+
+  private static final String HANDLER_ANNOTATIONS =
+      "org.springframework.messaging.handler.annotation.";
 
   /** The broker of a destination that is a Spring Cloud Stream binding, as code names it. */
   public static final String STREAM = "stream";
@@ -572,6 +594,7 @@ public final class MessagingExtractor implements Extractor {
       attributes.put("broker", broker);
       attributes.put("annotation", written.type());
       Location where = written.where() != null ? written.where() : method.where();
+      listenerPayload(method, broker, where);
       switch (broker) {
         case KAFKA -> {
           Text group = null;
@@ -756,6 +779,7 @@ public final class MessagingExtractor implements Extractor {
         if (topic != null) {
           emit(caller, SEND, topic, Map.of(), attributes, i.where());
         }
+        payload(caller, "send", i, arguments.size() - 1, KAFKA);
         return;
       }
       if (JMS_TEMPLATES.contains(type) && JMS_METHODS.contains(call.method())) {
@@ -765,6 +789,9 @@ public final class MessagingExtractor implements Extractor {
           attributes.put("broker", JMS);
           attributes.put("destinationKind", "destination");
           emit(caller, SEND, destination, Map.of(), attributes, i.where());
+        }
+        if (call.method().startsWith("convertAndSend")) {
+          payload(caller, "send", i, named ? 1 : 0, JMS);
         }
         return;
       }
@@ -790,7 +817,81 @@ public final class MessagingExtractor implements Extractor {
           // message): the key is then marked unknown rather than the send dropped.
           rabbitSend(caller, text(first, caller), key, key == null, attributes, i.where());
         }
+        payload(caller, "send", i, names, RABBITMQ);
       }
+    }
+
+    /**
+     * Records the type of the message a send passes (#520), the argument at the index of the
+     * chain's first call, as the compiler typed it.
+     */
+    private void payload(EntityId caller, String role, Invocation i, int index, String broker) {
+      List<ModuleStructure.TypeUse> types = i.argumentTypes(0);
+      if (index >= 0 && index < types.size()) {
+        payload(caller, role, types.get(index), broker, i.where());
+      }
+    }
+
+    /**
+     * Records the type of the message a listener method receives (#520): its {@code @Payload}
+     * parameter, else its first that is not a header, a channel or an acknowledgement.
+     */
+    private void listenerPayload(Member method, String broker, Location where) {
+      List<String> erased = parameterTypes(method.id());
+      List<ModuleStructure.Parameter> parameters = method.parameters();
+      int chosen = -1;
+      for (int n = 0; n < parameters.size() && n < erased.size(); n++) {
+        List<Annotation> annotations = parameters.get(n).annotations();
+        if (code.annotationPath(annotations, HANDLER_ANNOTATIONS + "Payload") != null) {
+          chosen = n;
+          break;
+        }
+        if (chosen < 0
+            && !NOT_PAYLOADS.contains(erased.get(n))
+            && code.annotationPath(annotations, HANDLER_ANNOTATIONS + "Header") == null
+            && code.annotationPath(annotations, HANDLER_ANNOTATIONS + "Headers") == null) {
+          chosen = n;
+        }
+      }
+      if (chosen >= 0) {
+        ModuleStructure.TypeUse type = parameters.get(chosen).type();
+        payload(
+            method.id(),
+            "receive",
+            type != null ? type : new ModuleStructure.TypeUse(erased.get(chosen), List.of()),
+            broker,
+            where);
+      }
+    }
+
+    private void payload(
+        EntityId subject,
+        String role,
+        ModuleStructure.TypeUse type,
+        String broker,
+        Location where) {
+      if (!code.declaresAny(type)) {
+        // A String or a library's type says nothing a lead can check; a type the code declares,
+        // such as a shared library's message class, does.
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("role", role);
+      if (broker != null) {
+        attributes.put("broker", broker);
+      }
+      if (!type.arguments().isEmpty()) {
+        ArrayNode arguments = attributes.putArray("typeArguments");
+        type.arguments().forEach(arguments::add);
+      }
+      fact(subject, PAYLOAD_TYPE, FactObject.string(type.type()), attributes, where);
+    }
+
+    /** The erased parameter types in a method's ID. */
+    private static List<String> parameterTypes(EntityId method) {
+      String key = method.key();
+      String inside = key.substring(key.indexOf('(') + 1, key.lastIndexOf(')'));
+      return inside.isEmpty() ? List.of() : List.of(inside.split(","));
     }
 
     /**
@@ -1329,6 +1430,7 @@ public final class MessagingExtractor implements Extractor {
               : call.arguments().size() >= 3;
       Text binder = named ? text(call.arguments().get(1), i.caller()) : null;
       streamOutput(i.caller(), i.where(), binding, binder, attributes);
+      payload(i.caller(), "send", i, named ? 2 : 1, STREAM);
     }
 
     /** A call to a legacy binding interface's {@code @Output} method: a send to that binding. */

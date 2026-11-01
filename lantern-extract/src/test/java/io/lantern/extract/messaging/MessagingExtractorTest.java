@@ -357,6 +357,20 @@ class MessagingExtractorTest {
     List<String> lines = withoutConfidence(compiled);
     assertThat(lines).isNotEmpty().isEqualTo(withoutConfidence(parsed));
     assertThat(Fixtures.render(compiled).lines()).allMatch(line -> line.endsWith(" 1.0"));
+    // The payload types javac gives are those parsing gives (#520).
+    List<String> payloads =
+        withoutConfidence(new MessagingExtractor().extract(code, SNAPSHOT)).stream()
+            .filter(l -> l.contains(" payload-type "))
+            .toList();
+    assertThat(payloads)
+        .hasSize(2)
+        .isEqualTo(
+            withoutConfidence(
+                    new MessagingExtractor()
+                        .extract(List.of(new RepoBuild(repo, commit, null)), SNAPSHOT))
+                .stream()
+                .filter(l -> l.contains(" payload-type "))
+                .toList());
   }
 
   @Test

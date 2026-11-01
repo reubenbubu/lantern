@@ -67,7 +67,7 @@ public final class SpringExtractor implements Extractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "6";
+  public static final String VERSION = "7";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -141,6 +141,21 @@ public final class SpringExtractor implements Extractor {
   /** Relationship: an aspect's advice selects the method (the aspect advises it). */
   public static final String ADVISES = "ADVISES";
 
+  /**
+   * Attribute: a method reads a value of the request it serves, a header, cookie or parameter, by
+   * binding it to a parameter or by a call on the request (#520).
+   */
+  public static final String READS_REQUEST_VALUE = "reads-request-value";
+
+  /**
+   * Attribute: a method or type runs in a transaction ({@code @Transactional}), or a method runs at
+   * a phase of one ({@code @TransactionalEventListener}) (#520).
+   */
+  public static final String TRANSACTIONAL = "transactional";
+
+  /** Attribute: a CORS policy, the origins a browser may call from (#520). */
+  public static final String CORS_POLICY = "cors-policy";
+
   /** Main class kinds. */
   public static final String SPRING_BOOT = "spring-boot";
 
@@ -202,6 +217,95 @@ public final class SpringExtractor implements Extractor {
               + ".EnableReactiveMethodSecurity",
           "org.springframework.security.config.annotation.method.configuration"
               + ".EnableGlobalMethodSecurity");
+
+  /** The annotations that bind a request value to a handler's parameter, and its source. */
+  private static final Map<String, String> REQUEST_BINDINGS =
+      Map.of(
+          WEB + "RequestHeader",
+          "header",
+          WEB + "CookieValue",
+          "cookie",
+          WEB + "RequestParam",
+          "parameter",
+          "jakarta.ws.rs.HeaderParam",
+          "header",
+          "jakarta.ws.rs.CookieParam",
+          "cookie",
+          "jakarta.ws.rs.QueryParam",
+          "parameter",
+          "javax.ws.rs.HeaderParam",
+          "header",
+          "javax.ws.rs.CookieParam",
+          "cookie",
+          "javax.ws.rs.QueryParam",
+          "parameter");
+
+  /** Parameter types a binding without a name fills with every value of its source. */
+  private static final Set<String> ALL_VALUES =
+      Set.of("java.util.Map", SPRING + "util.MultiValueMap", SPRING + "http.HttpHeaders");
+
+  /**
+   * The request types whose calls read a value of the request: servlet requests, a reactive
+   * exchange or request, and a functional endpoint's request.
+   */
+  private static final Set<String> REQUEST_TYPES =
+      Set.of(
+          "jakarta.servlet.http.HttpServletRequest",
+          "javax.servlet.http.HttpServletRequest",
+          SPRING + "http.server.reactive.ServerHttpRequest",
+          SPRING + "web.server.ServerWebExchange",
+          SPRING + "web.reactive.function.server.ServerRequest");
+
+  /** Calls on a request that read one named value, by name, and the value's source. */
+  private static final Map<String, String> REQUEST_READS =
+      Map.of(
+          "getHeader", "header",
+          "getHeaders", "header",
+          "getIntHeader", "header",
+          "getDateHeader", "header",
+          "getParameter", "parameter",
+          "getParameterValues", "parameter",
+          "queryParam", "parameter");
+
+  /** Calls on a request that give a collection of values, and their source. */
+  private static final Map<String, String> REQUEST_COLLECTIONS =
+      Map.of(
+          "getHeaders", "header",
+          "headers", "header",
+          "getQueryParams", "parameter",
+          "queryParams", "parameter",
+          "getCookies", "cookie",
+          "cookies", "cookie");
+
+  /** Calls on such a collection that read one named value. */
+  private static final Set<String> COLLECTION_READS =
+      Set.of("getFirst", "get", "getOrEmpty", "getValuesAsList", "firstHeader", "header");
+
+  /** The annotations that run a method or a type's methods in a transaction. */
+  private static final List<String> TRANSACTIONAL_ANNOTATIONS =
+      List.of(
+          SPRING + "transaction.annotation.Transactional",
+          "jakarta.transaction.Transactional",
+          "javax.transaction.Transactional");
+
+  private static final String TRANSACTIONAL_EVENT_LISTENER =
+      SPRING + "transaction.event.TransactionalEventListener";
+
+  private static final String CROSS_ORIGIN = WEB + "CrossOrigin";
+  private static final String CORS_CONFIGURATION = SPRING + "web.cors.CorsConfiguration";
+  private static final Set<String> CORS_REGISTRIES =
+      Set.of(
+          SPRING + "web.servlet.config.annotation.CorsRegistry",
+          SPRING + "web.reactive.config.CorsRegistry");
+
+  /** Calls of collection factories whose arguments are the items, as origins are often given. */
+  private static final Set<String> COLLECTION_FACTORIES =
+      Set.of(
+          "java.util.List#of",
+          "java.util.Set#of",
+          "java.util.Arrays#asList",
+          "java.util.Collections#singletonList",
+          "java.util.Collections#singleton");
 
   private static final String CONDITIONAL_ON_PROPERTY =
       "org.springframework.boot.autoconfigure.condition.ConditionalOnProperty";
@@ -339,7 +443,9 @@ public final class SpringExtractor implements Extractor {
           stereotype(type);
           endpoints(type);
           accessChecks(type.annotations(), typeId(type));
+          crossOrigin(type.annotations(), typeId(type));
         }
+        transactional(type.annotations(), typeId(type));
         profileGate(type.annotations(), typeId(type), type.where());
         propertyGate(type.annotations(), typeId(type), type.where());
         if (bean) {
@@ -353,16 +459,23 @@ public final class SpringExtractor implements Extractor {
           jobAnnotations(type, member);
           if (bean) {
             accessChecks(member.annotations(), member.id());
+            crossOrigin(member.annotations(), member.id());
           }
+          transactional(member.annotations(), member.id());
           if (beanMethod(member)) {
             profileGate(member.annotations(), member.id(), member.where());
             propertyGate(member.annotations(), member.id(), member.where());
           }
         }
       }
+      Map<EntityId, Cors> configured = new LinkedHashMap<>();
       for (ModuleStructure.Invocation i : m.structure().invocations()) {
         scheduling(i);
+        requestReads(i);
+        corsRegistry(i);
+        corsConfiguration(i, configured);
       }
+      configured.forEach(this::corsPolicy);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -505,6 +618,7 @@ public final class SpringExtractor implements Extractor {
         }
         Mapping mapping = mapped.mapping();
         Member method = e.getValue();
+        requestBindings(type, lineage, e.getKey(), method);
         List<String> paths = mapping.paths().isEmpty() ? List.of("") : mapping.paths();
         Set<String> methods = new LinkedHashSet<>();
         if (base != null && framework.equals(SPRING_MVC)) {
@@ -1174,6 +1288,273 @@ public final class SpringExtractor implements Extractor {
     }
 
     // -------------------------------------------------------------------------------------------
+    // Request values, transactions and CORS: what the Investigate leads start from (#520)
+
+    /**
+     * Records the request values a handler binds to its parameters: for each parameter, the binding
+     * written nearest along the lineage, as Spring and Jakarta REST inherit parameter annotations
+     * from overridden methods. A binding without a name takes the parameter's, or every value
+     * ({@code *}) for a map.
+     */
+    private void requestBindings(
+        TypeDecl type, List<TypeDecl> lineage, String signature, Member handler) {
+      List<String> parameterTypes = parameterTypes(handler.id());
+      Set<Integer> bound = new HashSet<>();
+      for (TypeDecl t : lineage) {
+        JavaAnalysis.Module source = declaring(type, t);
+        for (Member m : t.members()) {
+          if (!m.id().type().equals(ModuleStructure.METHOD)
+              || !signature(m.id()).equals(signature)) {
+            continue;
+          }
+          List<ModuleStructure.Parameter> parameters = m.parameters();
+          for (int i = 0; i < parameters.size(); i++) {
+            if (bound.contains(i)) {
+              continue;
+            }
+            for (Annotation a : parameters.get(i).annotations()) {
+              String from = REQUEST_BINDINGS.get(a.type());
+              if (from == null || a.where() == null) {
+                continue;
+              }
+              bound.add(i);
+              String name = firstOf(a, "value", "name");
+              if (name == null || name.isEmpty()) {
+                name =
+                    i < parameterTypes.size() && ALL_VALUES.contains(parameterTypes.get(i))
+                        ? "*"
+                        : parameters.get(i).name();
+              }
+              ObjectNode attributes = FactJson.newObject();
+              attributes.put("source", from);
+              attributes.put("via", "binding");
+              attributes.put("annotation", a.type());
+              attributes.put("parameter", parameters.get(i).name());
+              fact(handler.id(), READS_REQUEST_VALUE, name, attributes, a.where(), source);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    /**
+     * Records a value a call on the request reads by name, in any code (a filter, an aspect, an
+     * interceptor or a handler): a servlet request's {@code getHeader("X-User")}, or a reactive
+     * request's {@code getHeaders().getFirst("X-User")}. A chain that changes the request ({@code
+     * mutate()}) or turns to the response ({@code getResponse()}) reads nothing after that call.
+     */
+    private void requestReads(ModuleStructure.Invocation i) {
+      if (!REQUEST_TYPES.contains(i.rootType())) {
+        return;
+      }
+      String collection = null;
+      for (Expression.Invoke call : i.expression().chain()) {
+        if (call.method().equals("mutate") || call.method().equals("getResponse")) {
+          return;
+        }
+        String from = null;
+        if (call.arguments().size() == 1) {
+          from =
+              collection != null && COLLECTION_READS.contains(call.method())
+                  ? collection
+                  : REQUEST_READS.get(call.method());
+        }
+        collection = call.arguments().isEmpty() ? REQUEST_COLLECTIONS.get(call.method()) : null;
+        if (from == null) {
+          continue;
+        }
+        String name = code.values().follow(call.arguments().getFirst(), i.caller(), true).text();
+        if (name == null || name.isEmpty()) {
+          continue;
+        }
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("source", from);
+        attributes.put("via", "call");
+        attributes.put("call", call.method());
+        attributes.put("requestType", i.rootType());
+        fact(i.caller(), READS_REQUEST_VALUE, name, attributes, i.where());
+      }
+    }
+
+    /**
+     * Records that a method or type runs in a transaction, as {@code @Transactional} states
+     * (Spring's, or Jakarta's), or that a method runs at a transaction's phase, as
+     * {@code @TransactionalEventListener} states: the propagation or the phase as written, else the
+     * default.
+     */
+    private void transactional(List<Annotation> annotations, EntityId subject) {
+      if (subject == null) {
+        return;
+      }
+      for (String type : TRANSACTIONAL_ANNOTATIONS) {
+        List<Annotation> path = first(annotations, type);
+        if (path == null || path.getFirst().where() == null) {
+          continue;
+        }
+        Annotation on = path.getLast();
+        boolean spring = type.startsWith(SPRING);
+        String propagation = spring ? firstOf(on, "propagation") : firstOf(on, "value");
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("kind", "transaction");
+        attributes.put("annotation", path.getFirst().type());
+        String readOnly = spring ? firstOf(on, "readOnly") : null;
+        if (readOnly != null) {
+          attributes.put("readOnly", readOnly);
+        }
+        fact(
+            subject,
+            TRANSACTIONAL,
+            propagation == null ? "REQUIRED" : propagation,
+            attributes,
+            path.getFirst().where());
+        break;
+      }
+      List<Annotation> path = first(annotations, TRANSACTIONAL_EVENT_LISTENER);
+      if (path != null && path.getFirst().where() != null) {
+        String phase = firstOf(path.getLast(), "phase");
+        ObjectNode attributes = FactJson.newObject();
+        attributes.put("kind", "event-listener");
+        attributes.put("annotation", path.getFirst().type());
+        fact(
+            subject,
+            TRANSACTIONAL,
+            phase == null ? "AFTER_COMMIT" : phase,
+            attributes,
+            path.getFirst().where());
+      }
+    }
+
+    /** What a CORS configuration in code allows, as written. */
+    private static final class Cors {
+      final Set<String> origins = new LinkedHashSet<>();
+      String credentials;
+      String path;
+      Location where;
+      String source;
+    }
+
+    /**
+     * Records the origins a {@code @CrossOrigin} on a controller or handler allows: those written,
+     * else every origin, as Spring then allows.
+     */
+    private void crossOrigin(List<Annotation> annotations, EntityId subject) {
+      List<Annotation> path = subject == null ? null : first(annotations, CROSS_ORIGIN);
+      if (path == null || path.getFirst().where() == null) {
+        return;
+      }
+      Annotation on = path.getLast();
+      Cors cors = new Cors();
+      cors.source = "cross-origin";
+      cors.origins.addAll(on.values("origins"));
+      cors.origins.addAll(on.values("value"));
+      cors.origins.addAll(on.values("originPatterns"));
+      if (cors.origins.isEmpty()) {
+        cors.origins.add("*");
+      }
+      cors.credentials = firstOf(on, "allowCredentials");
+      cors.where = path.getFirst().where();
+      corsPolicy(subject, cors);
+    }
+
+    /**
+     * Records a CORS registration of a web configurer: {@code
+     * registry.addMapping("/api/**").allowedOrigins("*")}, one policy per chain.
+     */
+    private void corsRegistry(ModuleStructure.Invocation i) {
+      if (!CORS_REGISTRIES.contains(i.rootType())) {
+        return;
+      }
+      Cors cors = new Cors();
+      cors.source = "cors-registry";
+      for (Expression.Invoke call : i.expression().chain()) {
+        switch (call.method()) {
+          case "addMapping" ->
+              cors.path =
+                  call.arguments().isEmpty() ? null : written(call.arguments().getFirst(), i);
+          case "allowedOrigins", "allowedOriginPatterns" -> origins(call, i, cors);
+          case "allowCredentials" ->
+              cors.credentials =
+                  call.arguments().isEmpty() ? null : written(call.arguments().getFirst(), i);
+          default -> {}
+        }
+      }
+      if (cors.path != null) {
+        cors.where = i.where();
+        corsPolicy(i.caller(), cors);
+      }
+    }
+
+    /**
+     * Gathers what the calls on a {@code CorsConfiguration} made in a method set, one policy per
+     * method, at the first call that sets its origins.
+     */
+    private void corsConfiguration(ModuleStructure.Invocation i, Map<EntityId, Cors> configured) {
+      if (!CORS_CONFIGURATION.equals(i.rootType())) {
+        return;
+      }
+      Cors cors = configured.computeIfAbsent(i.caller(), c -> new Cors());
+      cors.source = "cors-configuration";
+      for (Expression.Invoke call : i.expression().chain()) {
+        switch (call.method()) {
+          case "setAllowedOrigins",
+              "addAllowedOrigin",
+              "setAllowedOriginPatterns",
+              "addAllowedOriginPattern" -> {
+            origins(call, i, cors);
+            if (cors.where == null) {
+              cors.where = i.where();
+            }
+          }
+          case "setAllowCredentials" ->
+              cors.credentials =
+                  call.arguments().isEmpty() ? null : written(call.arguments().getFirst(), i);
+          default -> {}
+        }
+      }
+    }
+
+    /** Adds the origins a call is given: its arguments, or the items of a collection factory's. */
+    private void origins(Expression.Invoke call, ModuleStructure.Invocation i, Cors cors) {
+      for (Expression argument : call.arguments()) {
+        List<Expression> items = List.of(argument);
+        if (argument instanceof Expression.Invoke made
+            && made.receiver() instanceof Expression.TypeRef t
+            && COLLECTION_FACTORIES.contains(t.binaryName() + "#" + made.method())) {
+          items = made.arguments();
+        }
+        for (Expression item : items) {
+          String origin = written(item, i);
+          if (origin != null) {
+            cors.origins.add(origin);
+          }
+        }
+      }
+    }
+
+    /** A value as written, its {@code @Value} placeholders kept, or null if it stays open. */
+    private String written(Expression e, ModuleStructure.Invocation i) {
+      return code.values().follow(e, i.caller(), true).text();
+    }
+
+    private void corsPolicy(EntityId subject, Cors cors) {
+      if (subject == null || cors.where == null || cors.origins.isEmpty()) {
+        return;
+      }
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("source", cors.source);
+      ArrayNode origins = attributes.putArray("origins");
+      cors.origins.forEach(origins::add);
+      if (cors.credentials != null) {
+        attributes.put("credentials", cors.credentials);
+      }
+      if (cors.path != null) {
+        attributes.put("path", cors.path);
+      }
+      fact(subject, CORS_POLICY, String.join(", ", cors.origins), attributes, cors.where);
+    }
+
+    // -------------------------------------------------------------------------------------------
     // Aspects
 
     /** One advice method of an aspect. */
@@ -1295,12 +1676,63 @@ public final class SpringExtractor implements Extractor {
                 JavaAnalysis.Module was = module;
                 module = m;
                 fact(method.id(), ADVISED_BY, aspect.type().binaryName(), at, selecting.where());
+                if (checksAccess(aspect, advice, selecting.type())) {
+                  ObjectNode check = FactJson.newObject();
+                  check.put("kind", "custom");
+                  check.put("via", "aspect");
+                  check.put("annotation", selecting.type());
+                  check.put("aspect", aspect.type().binaryName());
+                  check.put("advice", advice.method().id().toString());
+                  fact(method.id(), ACCESS_CHECK, written(selecting), check, selecting.where());
+                }
                 module = was;
               }
             }
           }
         }
       }
+    }
+
+    /**
+     * Whether an advice checks access by the annotation that selects a method (ADR 0079, #520): it
+     * runs before the method (before or around), and reads the annotation's attributes, by taking
+     * the annotation as a parameter ({@code @annotation(requires)}) or calling its methods.
+     */
+    private static boolean checksAccess(AspectOf aspect, Advice advice, String annotation) {
+      if (!advice.kind().equals("before") && !advice.kind().equals("around")) {
+        return false;
+      }
+      EntityId id = advice.method().id();
+      if (parameterTypes(id).contains(annotation)) {
+        return true;
+      }
+      for (ModuleStructure.Call call : aspect.module().structure().calls()) {
+        if (call.caller().equals(id) && call.callee().key().startsWith(annotation + "#")) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * An annotation's values as written, {@code name=value} in the order written ({@code
+     * resource=TASK, action=READ}); a lone {@code value} as itself; its simple name for none.
+     */
+    private static String written(Annotation a) {
+      List<String> parts = new ArrayList<>();
+      boolean lone = a.values().size() == 1 && a.values().containsKey("value");
+      a.values()
+          .forEach(
+              (name, values) -> {
+                String v =
+                    values.size() == 1 ? values.getFirst() : "[" + String.join(", ", values) + "]";
+                parts.add(lone ? v : name + "=" + v);
+              });
+      if (parts.isEmpty()) {
+        String type = a.type();
+        return type.substring(Math.max(type.lastIndexOf('.'), type.lastIndexOf('$')) + 1);
+      }
+      return String.join(", ", parts);
     }
 
     /** The annotation of the given type on the method, else on its class; null for none. */

@@ -250,5 +250,22 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "payload-type",
+    "kind": "attribute",
+    "keyAttributes": ["broker", "role", "typeArguments"],
+    "description": "The type of what the subject method passes or takes (#520), as the compiler types it: a message it sends (the payload argument of a Kafka, JMS or RabbitMQ template's or producer's send, or of StreamBridge.send) or receives (a listener's @Payload parameter, else its first that is not a header, channel or acknowledgement), or, from the HTTP client extractor, a request body a client method sends or the response it returns. The value is the type's erasure; typeArguments lists the named types its type arguments hold, so a List<OrderEvent> or ResponseEntity<OrderDto> names the type inside. Only a type that is, or holds as a type argument, a type declared in the analyzed sources (such as a shared library's message class) is recorded; a String or a library's type is not. Evidence is the send, the listener annotation or the client method.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["send", "receive", "request", "response"], "description": "send or receive for a message; request for a client's request body, response for what it returns." },
+        "broker": { "type": "string", "description": "For a message: the broker, as for message-send." },
+        "typeArguments": { "type": "array", "items": { "type": "string" }, "description": "The erasures of the named types the type's arguments hold, at any depth, depth first." }
+      },
+      "required": ["role"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

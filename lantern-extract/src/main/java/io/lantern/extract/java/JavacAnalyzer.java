@@ -67,6 +67,7 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
+import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic;
@@ -310,13 +311,17 @@ final class JavacAnalyzer {
                 ? describe(e.asType())
                 : null;
         TreePath path = e.getKind() == ElementKind.METHOD ? trees.getPath(e) : null;
-        String returns =
-            path != null && path.getLeaf() instanceof MethodTree
-                ? describe(((ExecutableElement) e).getReturnType())
-                : null;
+        boolean written = path != null && path.getLeaf() instanceof MethodTree;
+        String returns = written ? describe(((ExecutableElement) e).getReturnType()) : null;
         members.add(
             new Member(
-                id, where, annotations(e, where, file), type, parameters(e, where, file), returns));
+                id,
+                where,
+                annotations(e, where, file),
+                type,
+                parameters(e, where, file),
+                returns,
+                written ? typeUse(((ExecutableElement) e).getReturnType()) : null));
       }
     }
 
@@ -352,7 +357,8 @@ final class JavacAnalyzer {
                   : at;
           annotation(mirrors.get(j), own, annotations, null, file);
         }
-        parameters.add(new Parameter(p.getSimpleName().toString(), annotations));
+        parameters.add(
+            new Parameter(p.getSimpleName().toString(), annotations, typeUse(p.asType())));
       }
       return parameters;
     }
@@ -603,6 +609,56 @@ final class JavacAnalyzer {
     }
 
     /** A type's erasure as it appears in a member ID: binary names, arrays with {@code []}. */
+    /** A type with its type arguments, or null for none or one javac could not attribute. */
+    private ModuleStructure.TypeUse typeUse(TypeMirror type) {
+      if (type == null) {
+        return null;
+      }
+      switch (type.getKind()) {
+        case DECLARED,
+            ARRAY,
+            TYPEVAR,
+            VOID,
+            BOOLEAN,
+            BYTE,
+            SHORT,
+            INT,
+            LONG,
+            CHAR,
+            FLOAT,
+            DOUBLE -> {}
+        default -> {
+          return null;
+        }
+      }
+      List<String> arguments = new ArrayList<>();
+      typeArguments(type, arguments, 0);
+      return new ModuleStructure.TypeUse(describe(type), arguments);
+    }
+
+    private void typeArguments(TypeMirror type, List<String> into, int depth) {
+      if (depth > 4) {
+        return;
+      }
+      if (type.getKind() == TypeKind.ARRAY) {
+        typeArguments(((ArrayType) type).getComponentType(), into, depth);
+        return;
+      }
+      if (!(type instanceof DeclaredType declared)) {
+        return;
+      }
+      for (TypeMirror argument : declared.getTypeArguments()) {
+        TypeMirror t = argument;
+        if (t.getKind() == TypeKind.WILDCARD) {
+          t = ((WildcardType) t).getExtendsBound();
+        }
+        if (t != null && (t.getKind() == TypeKind.DECLARED || t.getKind() == TypeKind.ARRAY)) {
+          into.add(describe(t));
+          typeArguments(t, into, depth + 1);
+        }
+      }
+    }
+
     private String describe(TypeMirror type) {
       TypeMirror erased = types.erasure(type);
       return switch (erased.getKind()) {
@@ -787,7 +843,8 @@ final class JavacAnalyzer {
                     invoke,
                     lines(
                         unit, file, positions.getStartPosition(unit, leaf), end(unit, leaf), null),
-                    rootType));
+                    rootType,
+                    argumentTypes(path)));
           }
         }
         for (TreePath path : ownCalls) {
@@ -869,6 +926,41 @@ final class JavacAnalyzer {
             return typeName(p);
           }
         }
+      }
+
+      /**
+       * The static types of the arguments of the calls written in a chain, innermost first, as
+       * {@link #rootType} walks it.
+       */
+      private List<List<ModuleStructure.TypeUse>> argumentTypes(TreePath path) {
+        List<List<ModuleStructure.TypeUse>> calls = new ArrayList<>();
+        TreePath p = path;
+        while (true) {
+          Tree leaf = p.getLeaf();
+          if (leaf instanceof MethodInvocationTree call) {
+            calls.addFirst(types(p, call.getArguments()));
+            if (!(call.getMethodSelect() instanceof MemberSelectTree select)) {
+              return calls;
+            }
+            p = new TreePath(new TreePath(p, select), select.getExpression());
+          } else if (leaf instanceof ParenthesizedTree paren) {
+            p = new TreePath(p, paren.getExpression());
+          } else if (leaf instanceof NewClassTree created) {
+            calls.addFirst(types(p, created.getArguments()));
+            return calls;
+          } else {
+            return calls;
+          }
+        }
+      }
+
+      private List<ModuleStructure.TypeUse> types(
+          TreePath call, List<? extends ExpressionTree> arguments) {
+        List<ModuleStructure.TypeUse> types = new ArrayList<>();
+        for (ExpressionTree a : arguments) {
+          types.add(typeUse(trees.getTypeMirror(new TreePath(call, a))));
+        }
+        return types;
       }
 
       private String typeName(TreePath path) {
