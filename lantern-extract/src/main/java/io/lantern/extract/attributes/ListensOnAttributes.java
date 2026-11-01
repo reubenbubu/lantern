@@ -12,12 +12,24 @@ import tools.jackson.databind.node.ObjectNode;
  * &#64;RabbitListener, directly, through a meta-annotation, or on its class with &#64;KafkaHandler
  * or &#64;RabbitHandler; or a legacy &#64;StreamListener's binding). Its values are as written;
  * linking resolves them in each view against the config of configModule, and records the
- * message-listener facts (ADR 0094, #559).
+ * message-listener facts (ADR 0094, #559). Value resolution also gives the relation as each view
+ * resolves it (origin values, #597): to the literal destination, its values resolved, with profile
+ * where a profile's differ from the default view's; where a placeholder stays unresolved or names a
+ * secret, to the destination as written, with unresolved or masked. The messaging matcher reads
+ * only these.
  *
  * @param annotation Key. The binary name of the annotation written that makes the method a
  *     listener.
+ * @param anonymous Descriptive. Present and true for a Spring Cloud Stream RabbitMQ binding without
+ *     a group: the binder declares an anonymous queue, named here as the destination with
+ *     .anonymous, whose real name ends in a random suffix. Only on value resolution's relations
+ *     (origin values, #597).
  * @param binders Key. For a Spring Cloud Stream binding, the brokers of the binders on the module's
  *     build classpath (or declared in its POMs without a build), kafka or rabbitmq.
+ * @param binding Descriptive. The Spring Cloud Stream binding the method consumes, such as
+ *     process-in-0, whose config gives the destination (its own name when none is configured) and
+ *     group. Absent outside Spring Cloud Stream. Only on value resolution's relations (origin
+ *     values, #597).
  * @param broker Key. Which messaging API the listener uses; stream for a Spring Cloud Stream
  *     binding.
  * @param configModule Key. The entity ID of the module whose config resolves the values: the
@@ -29,18 +41,34 @@ import tools.jackson.databind.node.ObjectNode;
  * @param destinationKind Key. What the name names.
  * @param followed Descriptive. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave the name.
- * @param group Key. The Kafka consumer group as written: groupId, or else the listener's id. Absent
+ * @param group Key. The Kafka consumer group as written: groupId, or else the listener's id; in
+ *     value resolution's relations, as resolved, or a Spring Cloud Stream binding's group. Absent
  *     when none is written.
  * @param groupFollowed Key. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave group.
+ * @param masked Descriptive. Present and true when a placeholder named a secret, so the values are
+ *     recorded as written, not resolved. Only on value resolution's relations (origin values,
+ *     #597).
  * @param name Key. The destination's name as written: constants folded and a value followed one hop
- *     from a &#64;Value field or parameter, its placeholders kept.
+ *     from a &#64;Value field or parameter, its placeholders kept; in value resolution's relations,
+ *     as resolved.
+ * @param profile Descriptive. The profile active instead of the default one when the value was
+ *     resolved. Absent for the default view; present only where the value differs from it. Only on
+ *     value resolution's relations (origin values, #597).
  * @param streamOnClasspath Key. For a Spring Cloud Stream binding, present and true when Spring
  *     Cloud Stream is on the module's build classpath, or declared in its POMs without a build.
+ * @param unresolved Descriptive. The keys of the placeholders no config value resolved. Only on
+ *     value resolution's relations (origin values, #597).
+ * @param written Descriptive. The value as written in the code or the &#64;Value it was followed
+ *     from, or for a Spring Cloud Stream binding in the config property that sets its destination,
+ *     when it differs from the resolved value (it had placeholders). Only on value resolution's
+ *     relations (origin values, #597).
  */
 public record ListensOnAttributes(
     String annotation,
+    Boolean anonymous,
     List<String> binders,
+    String binding,
     String broker,
     String configModule,
     String configRepo,
@@ -49,8 +77,12 @@ public record ListensOnAttributes(
     List<String> followed,
     String group,
     List<String> groupFollowed,
+    Boolean masked,
     String name,
-    Boolean streamOnClasspath) {
+    String profile,
+    Boolean streamOnClasspath,
+    List<String> unresolved,
+    String written) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "LISTENS_ON";
@@ -62,7 +94,9 @@ public record ListensOnAttributes(
   public static ListensOnAttributes from(ObjectNode attributes) {
     return new ListensOnAttributes(
         AttributeValues.string(attributes, "annotation"),
+        AttributeValues.bool(attributes, "anonymous"),
         AttributeValues.strings(attributes, "binders"),
+        AttributeValues.string(attributes, "binding"),
         AttributeValues.string(attributes, "broker"),
         AttributeValues.string(attributes, "configModule"),
         AttributeValues.string(attributes, "configRepo"),
@@ -71,15 +105,21 @@ public record ListensOnAttributes(
         AttributeValues.strings(attributes, "followed"),
         AttributeValues.string(attributes, "group"),
         AttributeValues.strings(attributes, "groupFollowed"),
+        AttributeValues.bool(attributes, "masked"),
         AttributeValues.string(attributes, "name"),
-        AttributeValues.bool(attributes, "streamOnClasspath"));
+        AttributeValues.string(attributes, "profile"),
+        AttributeValues.bool(attributes, "streamOnClasspath"),
+        AttributeValues.strings(attributes, "unresolved"),
+        AttributeValues.string(attributes, "written"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
     AttributeValues.put(attributes, "annotation", annotation);
+    AttributeValues.put(attributes, "anonymous", anonymous);
     AttributeValues.put(attributes, "binders", binders);
+    AttributeValues.put(attributes, "binding", binding);
     AttributeValues.put(attributes, "broker", broker);
     AttributeValues.put(attributes, "configModule", configModule);
     AttributeValues.put(attributes, "configRepo", configRepo);
@@ -88,8 +128,12 @@ public record ListensOnAttributes(
     AttributeValues.put(attributes, "followed", followed);
     AttributeValues.put(attributes, "group", group);
     AttributeValues.put(attributes, "groupFollowed", groupFollowed);
+    AttributeValues.put(attributes, "masked", masked);
     AttributeValues.put(attributes, "name", name);
+    AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "streamOnClasspath", streamOnClasspath);
+    AttributeValues.put(attributes, "unresolved", unresolved);
+    AttributeValues.put(attributes, "written", written);
     return attributes;
   }
 }

@@ -111,6 +111,23 @@ class LinkRuleTest {
             ClaimChecks.NAME);
   }
 
+  @Test
+  void theMessagingMatcherReadsValueResolutionsRelationsNotItsMessageFacts() {
+    ProtocolLinks messaging = ProtocolLinks.messaging();
+
+    assertThat(messaging.reads())
+        .contains(
+            io.lantern.extract.messaging.MessagingExtractor.SENDS_TO,
+            io.lantern.extract.messaging.MessagingExtractor.LISTENS_ON,
+            io.lantern.extract.messaging.MessagingExtractor.BINDS)
+        .doesNotContain(
+            io.lantern.extract.messaging.MessagingExtractor.SEND,
+            io.lantern.extract.messaging.MessagingExtractor.LISTENER,
+            io.lantern.extract.messaging.MessagingExtractor.BINDING,
+            io.lantern.extract.messaging.MessagingExtractor.DESTINATION);
+    assertThat(RuleOrder.reads(messaging, new ValueResolution())).isTrue();
+  }
+
   private static Fact call(String predicate, String attributes) {
     return Fact.create(
         EntityId.parse("service:g:a"),

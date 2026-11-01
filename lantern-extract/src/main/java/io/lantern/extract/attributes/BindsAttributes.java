@@ -11,7 +11,16 @@ import tools.jackson.databind.node.ObjectNode;
  * destination, a RabbitMQ queue, to an exchange (BindingBuilder, new Binding, or &#64;QueueBinding
  * on a listener), as the code writes it. Its values are as written; linking resolves them in each
  * view against the config of configModule, and records the message-binding facts (ADR 0094, #559).
+ * Value resolution also gives the relation as each view resolves it (origin values, #597): to the
+ * literal destination, its values resolved, with profile where a profile's differ from the default
+ * view's; where a placeholder stays unresolved or names a secret, to the destination as written,
+ * with unresolved or masked. The messaging matcher reads only these.
  *
+ * @param anonymous Descriptive. Present and true when the queue is a Spring Cloud Stream binding's
+ *     anonymous one, named as the destination with .anonymous; its real name ends in a random
+ *     suffix. Only on value resolution's relations (origin values, #597).
+ * @param binding Key. The Spring Cloud Stream binding the queue is declared for. Absent outside
+ *     Spring Cloud Stream. Only on value resolution's relations (origin values, #597).
  * @param broker Key. Which broker the binding is for.
  * @param configModule Key. The entity ID of the module whose config resolves the values: the
  *     code's.
@@ -19,21 +28,39 @@ import tools.jackson.databind.node.ObjectNode;
  * @param configured Key. The values whose ${...} placeholders config resolves, by attribute name
  *     (name for the destination's): those written in an annotation, a &#64;Value or config. A
  *     string passed to a template is used as it is.
- * @param exchange Key. The exchange the queue is bound to, as written.
+ * @param exchange Key. The exchange the queue is bound to, as written; in value resolution's
+ *     relations, as resolved.
  * @param exchangeFollowed Key. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave exchange.
  * @param exchangeType Key. The exchange's type, such as topic, direct, fanout or headers, when
  *     known.
+ * @param exchangeWritten Descriptive. The exchange as written, when it differs from the resolved
+ *     one. Only on value resolution's relations (origin values, #597).
  * @param followed Descriptive. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave the name.
+ * @param masked Descriptive. Present and true when a placeholder named a secret, so the values are
+ *     recorded as written, not resolved. Only on value resolution's relations (origin values,
+ *     #597).
  * @param name Key. The destination's name as written: constants folded and a value followed one hop
- *     from a &#64;Value field or parameter, its placeholders kept.
- * @param routingKey Key. The binding's routing key or pattern as written. Absent for a fanout or
- *     headers exchange, or when not known.
+ *     from a &#64;Value field or parameter, its placeholders kept; in value resolution's relations,
+ *     as resolved.
+ * @param profile Descriptive. The profile active instead of the default one when the value was
+ *     resolved. Absent for the default view; present only where the value differs from it. Only on
+ *     value resolution's relations (origin values, #597).
+ * @param routingKey Key. The binding's routing key or pattern as written (in value resolution's
+ *     relations, as resolved). Absent for a fanout or headers exchange, or when not known.
  * @param routingKeyFollowed Key. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave routingKey.
+ * @param routingKeyWritten Descriptive. The routing key as written, when it differs from the
+ *     resolved one. Only on value resolution's relations (origin values, #597).
+ * @param unresolved Descriptive. The keys of the placeholders no config value resolved. Only on
+ *     value resolution's relations (origin values, #597).
+ * @param written Descriptive. The queue's name as written, when it differs from the resolved one
+ *     (it had placeholders). Only on value resolution's relations (origin values, #597).
  */
 public record BindsAttributes(
+    Boolean anonymous,
+    String binding,
     String broker,
     String configModule,
     String configRepo,
@@ -41,20 +68,28 @@ public record BindsAttributes(
     String exchange,
     List<String> exchangeFollowed,
     String exchangeType,
+    String exchangeWritten,
     List<String> followed,
+    Boolean masked,
     String name,
+    String profile,
     String routingKey,
-    List<String> routingKeyFollowed) {
+    List<String> routingKeyFollowed,
+    String routingKeyWritten,
+    List<String> unresolved,
+    String written) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "BINDS";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("broker", "configModule", "configRepo", "configured", "exchange", "exchangeFollowed", "exchangeType", "name", "routingKey", "routingKeyFollowed");
+  public static final List<String> KEY_ATTRIBUTES = List.of("binding", "broker", "configModule", "configRepo", "configured", "exchange", "exchangeFollowed", "exchangeType", "name", "routingKey", "routingKeyFollowed");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static BindsAttributes from(ObjectNode attributes) {
     return new BindsAttributes(
+        AttributeValues.bool(attributes, "anonymous"),
+        AttributeValues.string(attributes, "binding"),
         AttributeValues.string(attributes, "broker"),
         AttributeValues.string(attributes, "configModule"),
         AttributeValues.string(attributes, "configRepo"),
@@ -62,15 +97,23 @@ public record BindsAttributes(
         AttributeValues.string(attributes, "exchange"),
         AttributeValues.strings(attributes, "exchangeFollowed"),
         AttributeValues.string(attributes, "exchangeType"),
+        AttributeValues.string(attributes, "exchangeWritten"),
         AttributeValues.strings(attributes, "followed"),
+        AttributeValues.bool(attributes, "masked"),
         AttributeValues.string(attributes, "name"),
+        AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "routingKey"),
-        AttributeValues.strings(attributes, "routingKeyFollowed"));
+        AttributeValues.strings(attributes, "routingKeyFollowed"),
+        AttributeValues.string(attributes, "routingKeyWritten"),
+        AttributeValues.strings(attributes, "unresolved"),
+        AttributeValues.string(attributes, "written"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "anonymous", anonymous);
+    AttributeValues.put(attributes, "binding", binding);
     AttributeValues.put(attributes, "broker", broker);
     AttributeValues.put(attributes, "configModule", configModule);
     AttributeValues.put(attributes, "configRepo", configRepo);
@@ -78,10 +121,16 @@ public record BindsAttributes(
     AttributeValues.put(attributes, "exchange", exchange);
     AttributeValues.put(attributes, "exchangeFollowed", exchangeFollowed);
     AttributeValues.put(attributes, "exchangeType", exchangeType);
+    AttributeValues.put(attributes, "exchangeWritten", exchangeWritten);
     AttributeValues.put(attributes, "followed", followed);
+    AttributeValues.put(attributes, "masked", masked);
     AttributeValues.put(attributes, "name", name);
+    AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "routingKey", routingKey);
     AttributeValues.put(attributes, "routingKeyFollowed", routingKeyFollowed);
+    AttributeValues.put(attributes, "routingKeyWritten", routingKeyWritten);
+    AttributeValues.put(attributes, "unresolved", unresolved);
+    AttributeValues.put(attributes, "written", written);
     return attributes;
   }
 }

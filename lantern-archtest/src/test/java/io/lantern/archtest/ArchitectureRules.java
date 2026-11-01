@@ -141,6 +141,26 @@ final class ArchitectureRules {
                                   && access.getName().equals("place")))))
           .because("address resolution decides where addresses lead; matchers read its claims");
 
+  /**
+   * The messaging matcher reads value resolution's relations, not its message facts (#597): it uses
+   * none of their attribute records ({@code MessageSendAttributes} and the others). The predicates'
+   * names are constants the compiler inlines, so the records are what shows a read.
+   */
+  static final ArchRule MESSAGING_MATCHER_READS_RELATIONS =
+      noClasses()
+          .that()
+          .resideInAPackage("io.lantern.link..")
+          .and()
+          .haveSimpleName("MessageLinker")
+          .should()
+          .dependOnClassesThat(
+              DescribedPredicate.describe(
+                  "are the attribute records of message facts",
+                  (JavaClass c) ->
+                      c.getSimpleName()
+                          .matches("Message(Send|Listener|Binding|Destination)Attributes")))
+          .because("the messaging matcher joins on value resolution's relations (#597)");
+
   /** One stage and the classes in it. */
   record Stage(String name, DescribedPredicate<JavaClass> classes) {
 

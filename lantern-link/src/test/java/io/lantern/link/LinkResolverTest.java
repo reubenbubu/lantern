@@ -164,8 +164,9 @@ class LinkResolverTest {
 
   /** The facts with the deterministic linker's, as the resolver sees them after it. */
   private List<Fact> linked() {
-    List<Fact> all = new ArrayList<>(facts);
-    all.addAll(new CrossRepoLinks().derive(facts, 1));
+    // With the relations value resolution gives with the message facts written here (#597).
+    List<Fact> all = MessageRelationsFixture.withRelations(facts);
+    all.addAll(new CrossRepoLinks().derive(all, 1));
     return all;
   }
 

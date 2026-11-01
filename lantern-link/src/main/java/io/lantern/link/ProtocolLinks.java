@@ -32,7 +32,9 @@ final class ProtocolLinks implements LinkRule {
   /**
    * Every extracted fact and the values' and units' facts, but not {@code technology}: the units
    * give it and several of these rules do too (of brokers, databases, frontends), and no matcher
-   * reads it, so reading it would only make the rules wait on each other in a cycle.
+   * reads it, so reading it would only make the rules wait on each other in a cycle. Nor the
+   * values' message facts: the messaging matcher reads the relations value resolution writes
+   * instead (#597), and no other matcher reads them.
    */
   private static final Set<String> READS = readSet();
 
@@ -42,6 +44,13 @@ final class ProtocolLinks implements LinkRule {
             Rules.union(
                 Set.of(EXTRACTED), ValueResolution.WRITES, DeployableUnits.vocabularyPredicates()));
     reads.remove(DeployableUnits.TECHNOLOGY);
+    // The messaging matcher reads value resolution's relations, not its message facts (#597).
+    reads.removeAll(
+        Set.of(
+            io.lantern.extract.messaging.MessagingExtractor.SEND,
+            io.lantern.extract.messaging.MessagingExtractor.LISTENER,
+            io.lantern.extract.messaging.MessagingExtractor.BINDING,
+            io.lantern.extract.messaging.MessagingExtractor.DESTINATION));
     return Set.copyOf(reads);
   }
 

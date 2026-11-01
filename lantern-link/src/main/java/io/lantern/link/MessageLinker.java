@@ -4,10 +4,9 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.extract.attributes.MessageBindingAttributes;
-import io.lantern.extract.attributes.MessageDestinationAttributes;
-import io.lantern.extract.attributes.MessageListenerAttributes;
-import io.lantern.extract.attributes.MessageSendAttributes;
+import io.lantern.extract.attributes.BindsAttributes;
+import io.lantern.extract.attributes.ListensOnAttributes;
+import io.lantern.extract.attributes.SendsToAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.link.FoundLinks.Found;
@@ -27,6 +26,11 @@ import tools.jackson.databind.node.ObjectNode;
  * them to queues, routing keys matched as the exchange's type routes them, AMQP topic wildcards
  * included. Records the topics, queues and exchanges as entities with what each unit publishes to
  * and consumes from them, and one link from sender to listener for each match.
+ *
+ * <p>It joins the sends, listeners and bindings as value resolution resolves them in each view, its
+ * {@code SENDS_TO}, {@code LISTENS_ON} and {@code BINDS} relations to the literal destinations
+ * ({@link MessageRelations}, #597), not the relations written in code nor value resolution's
+ * message facts.
  */
 final class MessageLinker {
 
@@ -48,9 +52,9 @@ final class MessageLinker {
   }
 
   void link() {
-    Map<String, List<Fact>> sends = LinkIndex.codeSites(index.of(MessagingExtractor.SEND));
-    Map<String, List<Fact>> listeners = LinkIndex.codeSites(index.of(MessagingExtractor.LISTENER));
-    Map<String, List<Fact>> bindings = LinkIndex.codeSites(index.of(MessagingExtractor.BINDING));
+    Map<String, List<Fact>> sends = sites(MessagingExtractor.SENDS_TO);
+    Map<String, List<Fact>> listeners = sites(MessagingExtractor.LISTENS_ON);
+    Map<String, List<Fact>> bindings = sites(MessagingExtractor.BINDS);
     for (String view : index.views()) {
       List<Use> sent = uses(sends, view, true, true);
       List<Use> received = uses(listeners, view, true, false);
@@ -65,6 +69,42 @@ final class MessageLinker {
         consume(listener, view, sent);
       }
     }
+  }
+
+  /**
+   * Value resolution's relations of a predicate, by the place in the code they come from, a
+   * profile's joining the default one it differs from: as {@link LinkIndex#codeSites}, by the name
+   * resolved where nothing was written that config resolved.
+   */
+  private Map<String, List<Fact>> sites(String relation) {
+    Map<String, List<Fact>> sites = new java.util.TreeMap<>();
+    for (Fact f : index.of(relation)) {
+      if (!f.origin().name().equals(ValueResolution.NAME)) {
+        continue;
+      }
+      String written = Claims.written(f);
+      String key =
+          f.subject()
+              + "|"
+              + f.evidence().repo()
+              + "|"
+              + f.evidence().path()
+              + "|"
+              + (f.evidence().lines() == null ? "" : f.evidence().lines().start())
+              + "|"
+              + (written != null ? written : name(f));
+      sites.computeIfAbsent(key, k -> new ArrayList<>()).add(f);
+    }
+    return sites;
+  }
+
+  /** The destination's name a relation gives, as resolved. */
+  private static String name(Fact relation) {
+    return switch (relation.predicate()) {
+      case MessagingExtractor.SENDS_TO -> Claims.of(relation, SendsToAttributes.class).name();
+      case MessagingExtractor.LISTENS_ON -> Claims.of(relation, ListensOnAttributes.class).name();
+      default -> Claims.of(relation, BindsAttributes.class).name();
+    };
   }
 
   /**
@@ -91,13 +131,13 @@ final class MessageLinker {
       String kind = Message.of(fact).destinationKind();
       if (!perUnit) {
         if (!Claims.masked(fact)) {
-          uses.add(new Use(fact, null, broker, kind, fact.object().value(), List.of()));
+          uses.add(new Use(fact, null, broker, kind, name(fact), List.of()));
         }
         continue;
       }
       String written = Claims.written(fact);
       for (Unit unit : units) {
-        String destination = fact.object().value();
+        String destination = name(fact);
         List<Fact> used = List.of();
         boolean masked = Claims.masked(fact);
         Set<String> unresolved = new LinkedHashSet<>(Claims.unresolved(fact));
@@ -439,11 +479,7 @@ final class MessageLinker {
     attributes.put("reason", reason);
     attributes.put("source", fact.subject().toString());
     // One method may send to and listen on one destination: which use this is keeps them apart.
-    attributes.put(
-        "site",
-        fact.predicate()
-            + "|"
-            + (Claims.written(fact) != null ? Claims.written(fact) : fact.object().value()));
+    attributes.put("site", site(fact));
     if (!unresolved.isEmpty()) {
       ArrayNode keys = attributes.putArray("unresolved");
       unresolved.forEach(keys::add);
@@ -461,9 +497,7 @@ final class MessageLinker {
                 + "|"
                 + fact.subject()
                 + "|"
-                + fact.predicate()
-                + "|"
-                + (Claims.written(fact) != null ? Claims.written(fact) : fact.object().value()),
+                + site(fact),
             use.unit().id(),
             CrossRepoLinks.UNRESOLVED_LINK,
             FactObject.string(use.destination()),
@@ -471,6 +505,22 @@ final class MessageLinker {
             fact.evidence(),
             CrossRepoLinks.round(fact.confidence()),
             ids(use, null)));
+  }
+
+  /**
+   * Which use of a method an open link is, as the matcher named it when it read message facts: the
+   * kind of use ({@code message-send}, {@code message-listener}) and what was written, else the
+   * name, so the open links keep their keys.
+   */
+  private static String site(Fact fact) {
+    String kind =
+        switch (fact.predicate()) {
+          case MessagingExtractor.SENDS_TO -> "message-send";
+          case MessagingExtractor.LISTENS_ON -> "message-listener";
+          default -> "message-binding";
+        };
+    String written = Claims.written(fact);
+    return kind + "|" + (written != null ? written : name(fact));
   }
 
   private static Set<String> ids(Use a, Use b) {
@@ -484,7 +534,7 @@ final class MessageLinker {
     return ids;
   }
 
-  /** What the matching reads of a messaging fact, whatever its kind; null where it has none. */
+  /** What the matching reads of a messaging relation, whatever its kind; null where it has none. */
   private record Message(
       String broker,
       String destinationKind,
@@ -496,24 +546,19 @@ final class MessageLinker {
 
     static Message of(Fact f) {
       return switch (f.predicate()) {
-        case MessagingExtractor.SEND -> {
-          MessageSendAttributes a = Claims.of(f, MessageSendAttributes.class);
+        case MessagingExtractor.SENDS_TO -> {
+          SendsToAttributes a = Claims.of(f, SendsToAttributes.class);
           yield new Message(
               a.broker(), a.destinationKind(), null, a.routingKey(), null, a.unknown(), null);
         }
-        case MessagingExtractor.LISTENER -> {
-          MessageListenerAttributes a = Claims.of(f, MessageListenerAttributes.class);
+        case MessagingExtractor.LISTENS_ON -> {
+          ListensOnAttributes a = Claims.of(f, ListensOnAttributes.class);
           yield new Message(a.broker(), a.destinationKind(), null, null, null, null, a.group());
         }
-        case MessagingExtractor.BINDING -> {
-          MessageBindingAttributes a = Claims.of(f, MessageBindingAttributes.class);
+        case MessagingExtractor.BINDS -> {
+          BindsAttributes a = Claims.of(f, BindsAttributes.class);
           yield new Message(
               a.broker(), null, a.exchange(), a.routingKey(), a.exchangeType(), null, null);
-        }
-        case MessagingExtractor.DESTINATION -> {
-          MessageDestinationAttributes a = Claims.of(f, MessageDestinationAttributes.class);
-          yield new Message(
-              a.broker(), a.destinationKind(), null, null, a.exchangeType(), null, null);
         }
         default -> new Message(null, null, null, null, null, null, null);
       };

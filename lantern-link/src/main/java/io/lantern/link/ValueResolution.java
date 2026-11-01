@@ -41,6 +41,11 @@ import tools.jackson.databind.node.ObjectNode;
  * facts used (ADR 0094, amendment for #587). Where a placeholder stays unresolved or a secret is
  * used, it writes none.
  *
+ * <p>It writes each send, listener and binding as it resolves it in each view as a {@code
+ * SENDS_TO}, {@code LISTENS_ON} or {@code BINDS} relation to the literal destination ({@link
+ * MessageRelations}, #597), which the messaging matcher joins on: the relations written in code
+ * hold values as written, and a Spring Cloud Stream function's bindings exist only in config.
+ *
  * <p>Until the matchers read those claims (#589), it also gives the facts each extractor recorded
  * before it kept values as written (ADR 0094), so every later rule reads the facts it read before:
  *
@@ -56,7 +61,9 @@ import tools.jackson.databind.node.ObjectNode;
  *       LISTENS_ON}, {@code BINDS}, {@code DECLARES}) gives its {@code message-send}, {@code
  *       message-listener}, {@code message-binding} or {@code message-destination} facts, and each
  *       module's Spring Cloud Stream functions their bindings', through the messaging extractor's
- *       own resolving, and a STOMP send written in code its {@code stomp-send} fact (#559);
+ *       own resolving, and a STOMP send written in code its {@code stomp-send} fact (#559); the
+ *       messaging matcher reads the relations above instead (#597), the composer and summaries
+ *       still these;
  *   <li>an endpoint the code serves ({@code HANDLED_BY}) and a schedule ({@code scheduled-written})
  *       give their {@code endpoint} and {@code scheduled} facts (#519).
  * </ul>
@@ -94,6 +101,9 @@ public final class ValueResolution implements LinkRule.OverFacts {
           io.lantern.extract.redis.RedisExtractor.REDIS_USE,
           io.lantern.extract.spring.SpringExtractor.ENDPOINT,
           io.lantern.extract.spring.SpringExtractor.SCHEDULED,
+          MessagingExtractor.SENDS_TO,
+          MessagingExtractor.LISTENS_ON,
+          MessagingExtractor.BINDS,
           RESOLVES_TO);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
@@ -134,13 +144,18 @@ public final class ValueResolution implements LinkRule.OverFacts {
     }
     java.util.Set<String> known =
         ConfigExtractor.normalizedKeys(ConfigExtractor.jwtSecretKeys(facts));
-    for (Fact message :
+    List<Fact> messages =
         MessagingExtractor.resolve(
             facts,
             (module, repo) -> lookup(values.forModule(module, repo), known),
             ORIGIN,
-            snapshot)) {
+            snapshot);
+    for (Fact message : messages) {
       derived.putIfAbsent(message.id(), message);
+    }
+    // The same sends, listeners and bindings as relations to their destinations (#597).
+    for (Fact relation : MessageRelations.of(facts, messages)) {
+      derived.putIfAbsent(relation.id(), relation);
     }
     for (Fact spring :
         io.lantern.extract.spring.SpringExtractor.resolve(

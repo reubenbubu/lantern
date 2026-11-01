@@ -2,6 +2,7 @@ package io.lantern.link;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
@@ -243,6 +244,62 @@ class ValueResolutionTest {
 
     assertThat(sorted(render(messages))).isEqualTo(sorted(golden("stream-messages-parsed.txt")));
     assertThat(String.join("\n", render(messages))).doesNotContain("s3cret");
+  }
+
+  @Test
+  void eachSendListenerAndBindingResolvedIsARelationToItsDestination() throws IOException {
+    for (String[] fixture : new String[][] {{"messaging"}, {"messaging-stream", "stream"}}) {
+      List<RepoBuild> repos = List.of(fixture(fixture[0], fixture[fixture.length - 1]));
+      List<Fact> facts = new ArrayList<>(new ConfigExtractor().extract(repos, SNAPSHOT));
+      facts.addAll(new MessagingExtractor().extract(repos, SNAPSHOT));
+      List<Fact> derived = new ValueResolution().derive(facts, SNAPSHOT);
+      List<Fact> messages =
+          derived.stream()
+              .filter(f -> MessageRelations.RELATION.containsKey(f.predicate()))
+              .toList();
+      List<Fact> relations =
+          derived.stream()
+              .filter(f -> MessageRelations.RELATION.containsValue(f.predicate()))
+              .toList();
+
+      assertThat(relations).as(fixture[0]).hasSameSizeAs(messages).isNotEmpty();
+      for (Fact message : messages) {
+        Fact relation =
+            relations.stream()
+                .filter(r -> r.subject().equals(message.subject()))
+                .filter(
+                    r -> r.predicate().equals(MessageRelations.RELATION.get(message.predicate())))
+                .filter(r -> r.evidence().equals(message.evidence()))
+                .filter(
+                    r -> message.object().value().equals(r.attributes().path("name").asString()))
+                .filter(r -> java.util.Objects.equals(Claims.profile(r), Claims.profile(message)))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No relation for " + message));
+        assertThat(relation.origin()).isEqualTo(new ValueResolution().origin());
+        assertThat(relation.confidence()).isEqualTo(message.confidence());
+        String module = relation.attributes().path("configModule").asString();
+        String kind =
+            message.predicate().equals(MessagingExtractor.BINDING)
+                ? "queue"
+                : message.attributes().path("destinationKind").asString();
+        String name = message.attributes().path("broker").asString() + ":" + kind + ":";
+        boolean literal = !Claims.masked(message) && Claims.unresolved(message).isEmpty();
+        assertThat(relation.object().entityId().type())
+            .isEqualTo(MessagingExtractor.DESTINATION_ENTITY);
+        assertThat(relation.object().entityId().key())
+            .as(message.toString())
+            .isEqualTo(
+                literal
+                    ? name + message.object().value()
+                    : EntityId.parse(module).key()
+                        + ":"
+                        + name
+                        + (Claims.written(message) != null
+                            ? Claims.written(message)
+                            : message.object().value()));
+      }
+      assertThat(String.join("\n", render(relations))).doesNotContain("s3cret");
+    }
   }
 
   @Test
@@ -602,8 +659,12 @@ class ValueResolutionTest {
   }
 
   /** The facts the extractors recorded before they kept values as written: no resolutions. */
+  /** The facts the extractors gave before: not the claims and relations value resolution adds. */
   private static List<Fact> oldStyle(List<Fact> facts) {
-    return facts.stream().filter(f -> !f.predicate().equals(ValueResolution.RESOLVES_TO)).toList();
+    return facts.stream()
+        .filter(f -> !f.predicate().equals(ValueResolution.RESOLVES_TO))
+        .filter(f -> !MessageRelations.RELATION.containsValue(f.predicate()))
+        .toList();
   }
 
   private static List<String> sorted(List<String> lines) {

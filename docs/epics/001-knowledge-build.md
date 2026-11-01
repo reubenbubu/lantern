@@ -314,6 +314,7 @@ When in doubt, an attribute is key. Over-splitting yields two claims for one thi
 | `message-listener` | `annotation`, `binding`, `anonymous` |
 | `message-binding` | `exchangeWritten`, `routingKeyWritten`, `anonymous` |
 | `message-destination` | `exchangeType`, `durable`, `deadLetterExchange`, `deadLetterRoutingKey` |
+| `SENDS_TO`, `LISTENS_ON`, `BINDS` | as on the `message-send`, `message-listener` and `message-binding` facts they carry over, on value resolution's relations (#597): `routingKeyWritten` and `binding` of a send, `binding` and `anonymous` of a listener, `exchangeWritten`, `routingKeyWritten` and `anonymous` of a binding |
 | `deployment-container` | `image`, `product`, `version`, `build`, `hosts`, `aliases`, `env`, `ports`, `dependsOn`, `composeProfiles`, `replicas`, `properties`, `activeProfiles` |
 | `dockerfile` | `technology`, `exposes`, `env`, `properties`, `activeProfiles` |
 | `frontend-app` | `package`, `version`, `libraries`, `image`, `server`, `ports` |
