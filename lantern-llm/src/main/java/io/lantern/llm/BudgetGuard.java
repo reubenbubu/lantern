@@ -8,7 +8,8 @@ import java.util.Objects;
  * reserves the call's worst case (estimated input plus the most output tokens) and refuses the call
  * if that would go over; after the call the reservation is replaced by what the call really used.
  * The input estimate is rough, so spending can go slightly over the limit, but once it has, every
- * further call is refused.
+ * further call is refused. A guard made by {@link #stopOnceSpent} holds back no worst case: it
+ * refuses only once the limit is spent.
  *
  * <p>Thread-safe.
  */
@@ -17,6 +18,7 @@ public final class BudgetGuard {
   private final String name;
   private final Long maxTokens;
   private final BigDecimal maxCostUsd;
+  private final boolean stopOnceSpent;
 
   private long spentTokens;
   private BigDecimal spentCostUsd = BigDecimal.ZERO;
@@ -31,6 +33,11 @@ public final class BudgetGuard {
    * @param maxCostUsd the most US dollars, or {@code null} for no cost limit
    */
   public BudgetGuard(String name, Long maxTokens, BigDecimal maxCostUsd) {
+    this(name, maxTokens, maxCostUsd, false);
+  }
+
+  private BudgetGuard(String name, Long maxTokens, BigDecimal maxCostUsd, boolean stopOnceSpent) {
+    this.stopOnceSpent = stopOnceSpent;
     this.name = ModelConfig.nonBlank("Budget name", name);
     if (maxTokens != null && maxTokens < 0) {
       throw new IllegalArgumentException("Token limit must not be negative: " + maxTokens);
@@ -40,6 +47,19 @@ public final class BudgetGuard {
     }
     this.maxTokens = maxTokens;
     this.maxCostUsd = maxCostUsd;
+  }
+
+  /**
+   * A cost budget that refuses a call only once what finished calls spent has reached the limit,
+   * without holding back any call's worst case: for a share whose items were chosen by their
+   * estimates before any was asked, so which calls it refuses never depends on which thread asks
+   * first while the choice holds (#657). Spending passes the limit by at most what the calls
+   * running when it is reached cost.
+   *
+   * @param maxCostUsd the limit in US dollars, or {@code null} for none
+   */
+  public static BudgetGuard stopOnceSpent(String name, BigDecimal maxCostUsd) {
+    return new BudgetGuard(name, null, maxCostUsd, true);
   }
 
   /** A budget without limits, which only counts. */
@@ -76,6 +96,16 @@ public final class BudgetGuard {
       throw new BudgetExceededException(
           "Budget '%s': a call of up to %d tokens would exceed the limit of %d (%d used, %d reserved)"
               .formatted(name, tokens, maxTokens, spentTokens, reservedTokens));
+    }
+    if (stopOnceSpent) {
+      if (maxCostUsd != null && spentCostUsd.compareTo(maxCostUsd) >= 0) {
+        throw new BudgetExceededException(
+            "Budget '%s': $%s spent of $%s"
+                .formatted(name, spentCostUsd.toPlainString(), maxCostUsd.toPlainString()));
+      }
+      reservedTokens = saturatedAdd(reservedTokens, tokens);
+      reservedCostUsd = reservedCostUsd.add(costUsd);
+      return new Reservation(this, tokens, costUsd);
     }
     BigDecimal costAfter = spentCostUsd.add(reservedCostUsd).add(costUsd);
     if (maxCostUsd != null && costAfter.compareTo(maxCostUsd) > 0) {

@@ -40,6 +40,7 @@ public final class RoleRecord implements LlmCallLog {
   private BigDecimal usd = BigDecimal.ZERO;
   private BigDecimal batchUsd = BigDecimal.ZERO;
   private Estimate estimate;
+  private String warmUp;
   private final List<String> asked = new ArrayList<>();
 
   RoleRecord(String role, String provider, String model) {
@@ -167,6 +168,18 @@ public final class RoleRecord implements LlmCallLog {
     return estimate;
   }
 
+  /** Records the item that went first and warmed the prompt cache. */
+  synchronized void warmUp(String subject) {
+    if (warmUp == null) {
+      warmUp = subject;
+    }
+  }
+
+  /** The item that went first and warmed the prompt cache, or null if none did. */
+  public synchronized String warmUp() {
+    return warmUp;
+  }
+
   /** The record as the run record writes it. */
   public synchronized ObjectNode toJson() {
     ObjectNode node = JSON.createObjectNode();
@@ -183,6 +196,9 @@ public final class RoleRecord implements LlmCallLog {
     items.put("dropped", dropped);
     items.put("notAsked", notAsked);
     items.put("failed", failed);
+    if (warmUp != null) {
+      node.put("warmUp", warmUp);
+    }
     node.put("calls", calls);
     node.put("batchCalls", batchCalls);
     node.put("conversations", conversations);

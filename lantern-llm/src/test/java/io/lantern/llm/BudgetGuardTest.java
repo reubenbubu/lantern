@@ -9,6 +9,23 @@ import org.junit.jupiter.api.Test;
 class BudgetGuardTest {
 
   @Test
+  void aStopOnceSpentGuardHoldsNoWorstCaseAndRefusesOnlyOnceTheLimitIsSpent() {
+    BudgetGuard share = BudgetGuard.stopOnceSpent("share", new BigDecimal("1"));
+    // Worst cases far above the limit, all at once: none is refused while nothing is spent.
+    BudgetGuard.Reservation a = share.reserve(10, new BigDecimal("5"));
+    BudgetGuard.Reservation b = share.reserve(10, new BigDecimal("5"));
+    a.settle(10, new BigDecimal("0.6"));
+    BudgetGuard.Reservation c = share.reserve(10, new BigDecimal("5"));
+    b.settle(10, new BigDecimal("0.6"));
+    c.settle(10, new BigDecimal("0.1"));
+
+    assertThat(share.spentCostUsd()).isEqualByComparingTo("1.3");
+    assertThatThrownBy(() -> share.reserve(1, BigDecimal.ZERO))
+        .isInstanceOf(BudgetExceededException.class)
+        .hasMessageContaining("spent of $1");
+  }
+
+  @Test
   void reservationsCountUntilSettledOrReleased() {
     BudgetGuard budget = new BudgetGuard("run", 100L, new BigDecimal("1.00"));
 

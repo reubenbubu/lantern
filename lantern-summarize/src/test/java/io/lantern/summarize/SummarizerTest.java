@@ -154,6 +154,49 @@ class SummarizerTest {
   }
 
   @Test
+  void aRerunAfterABudgetPlansEveryUnitAsItWillBeAskedAndDecidesItInOrder() {
+    ModelConfig priced =
+        new ModelConfig(
+            FakeLlmProvider.NAME,
+            "priced",
+            EnumSet.complementOf(EnumSet.of(Capability.BATCH)),
+            1_000_000,
+            new Pricing(
+                new java.math.BigDecimal("1000"),
+                new java.math.BigDecimal("1000"),
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO));
+    for (String usd : List.of("0.5", "2", "5", "20")) {
+      InMemoryAnswerStore store = new InMemoryAnswerStore();
+      java.util.function.Supplier<Harness> harness =
+          () ->
+              new Harness(
+                  new LlmClient(
+                      ModelSettings.single(priced),
+                      List.of(fake),
+                      BudgetGuard.unlimited("test"),
+                      new InMemoryLlmCallLog(),
+                      Clock.systemUTC()),
+                  store,
+                  new RunBudget(new java.math.BigDecimal(usd), java.util.Map.of("summarize", 100)),
+                  BlobLookup.NONE,
+                  Set.of());
+      Harness first = harness.get();
+      new Summarizer(first).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+      int stored = first.records().getFirst().toJson().get("items").get("accepted").asInt();
+
+      Harness again = harness.get();
+      new Summarizer(again).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+      // A unit whose parts are all cached but which was not asked itself is planned as a miss,
+      // not counted as cached: only the units whose own summaries are stored are.
+      io.lantern.harness.RoleRecord record = again.records().getFirst();
+      assertThat(record.estimate().cached()).as("$" + usd).isEqualTo(stored);
+      assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+    }
+  }
+
+  @Test
   void aBatchedRunStoresTheSameSummariesAsAnInteractiveOne() {
     // Interactive: the default threshold of 50 misses is not reached.
     Summarizer.Result interactive =

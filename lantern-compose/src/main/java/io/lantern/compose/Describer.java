@@ -826,6 +826,15 @@ public final class Describer {
   private Asked answer(Question question) {
     RoleSession session = harness.session(spec(question));
     Item item = item(question);
+    try {
+      return answer(question, session, item);
+    } finally {
+      // Whatever ended it, the items waiting for the warm-up item go on.
+      session.releaseWarmUp(item);
+    }
+  }
+
+  private Asked answer(Question question, RoleSession session, Item item) {
     String key = session.fingerprint(item);
     String purpose =
         switch (question.about()) {

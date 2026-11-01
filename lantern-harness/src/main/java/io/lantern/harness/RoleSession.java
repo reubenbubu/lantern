@@ -60,6 +60,13 @@ public final class RoleSession {
   private volatile BatchCollector batch;
   private volatile long prefixTokens;
   private volatile double requestsPerItem;
+  // Under a budget share, whether each planned item fits, decided by the plan in the role's order
+  // before anything is asked, so thread timing never picks the items (#657).
+  private final Map<String, Boolean> admitted = new java.util.concurrent.ConcurrentHashMap<>();
+  // The item that goes first and warms the cache: the plan's first miss in the role's order, by its
+  // key (see key) and its subject.
+  private volatile String warmUpKey;
+  private volatile String warmUpSubject;
   private final java.util.concurrent.atomic.AtomicBoolean prefixSent =
       new java.util.concurrent.atomic.AtomicBoolean();
   private volatile Thread warmer;
@@ -118,19 +125,74 @@ public final class RoleSession {
       int predictedMisses,
       long predictedTokens,
       long prefixTokens) {
+    List<Planned> planned = new ArrayList<>();
+    items.forEach(item -> planned.add(Planned.of(item)));
+    for (int i = 0; i < predictedMisses; i++) {
+      long tokens =
+          predictedTokens / predictedMisses + (i == 0 ? predictedTokens % predictedMisses : 0);
+      planned.add(Planned.predicted(null, tokens));
+    }
+    return plan(planned, predictedHits, prefixTokens);
+  }
+
+  /**
+   * An item of a role's plan: one whose input is known now, or one expected to be asked whose input
+   * is not known yet, such as the summary of a unit whose parts are still to be summarized.
+   *
+   * @param subject the item's subject, as it will be asked; {@code null} if not known yet
+   * @param item the item, or {@code null} for one expected to be asked
+   * @param tokens the input tokens an item expected to be asked is expected to take
+   */
+  public record Planned(String subject, Item item, long tokens) {
+
+    /** An item whose input is known now. */
+    public static Planned of(Item item) {
+      return new Planned(item.subject(), item, 0);
+    }
+
+    /** An item expected to be asked, of the given subject and input tokens. */
+    public static Planned predicted(String subject, long tokens) {
+      return new Planned(subject, null, tokens);
+    }
+  }
+
+  /**
+   * Plans the role's items, in the role's order, before any is asked (knowledge-build epic, section
+   * 10, Plan): counts the cache hits, estimates the misses, logs the estimate and adds it to the
+   * run record. Under a budget share it also decides, walking the items in that order, which fit
+   * the share by their estimates; the first that does not fit and every item after it are not
+   * asked. The first miss that is asked warms the cache. Neither depends on which thread asks first
+   * (#657).
+   *
+   * @param planned the role's items in its order, known and expected
+   * @param predictedHits items not yet known that are expected to be cached
+   * @param prefixTokens the tokens of the prompt every request of the role starts with (see {@link
+   *     #plan(Collection, int, int, long, long)})
+   */
+  public Estimate plan(List<Planned> planned, int predictedHits, long prefixTokens) {
     this.prefixTokens = prefixTokens;
     int cached = predictedHits;
-    long input = predictedTokens;
+    long input = 0;
+    int known = 0;
+    int predictedMisses = 0;
     List<Item> misses = new ArrayList<>();
-    for (Item item : items) {
-      if (harness.answers().find(fingerprint(item)).isPresent()) {
-        cached++;
+    List<Planned> toAskInOrder = new ArrayList<>();
+    for (Planned entry : planned) {
+      if (entry.item() != null) {
+        known++;
+        if (cached(entry.item())) {
+          cached++;
+          continue;
+        }
+        input += Tokens.estimate(entry.item().rendering());
+        misses.add(entry.item());
       } else {
-        input += Tokens.estimate(item.rendering());
-        misses.add(item);
+        predictedMisses++;
+        input += entry.tokens();
       }
+      toAskInOrder.add(entry);
     }
-    int toAsk = items.size() + predictedHits - cached + predictedMisses;
+    int toAsk = misses.size() + predictedMisses;
     long write = 0;
     long read = 0;
     if (spec.packetSize() > 1) {
@@ -168,7 +230,7 @@ public final class RoleSession {
     }
     Estimate estimate =
         new Estimate(
-            items.size() + predictedHits + predictedMisses,
+            known + predictedHits + predictedMisses,
             cached,
             toAsk,
             input,
@@ -179,7 +241,65 @@ public final class RoleSession {
             share);
     record.planned(estimate);
     LOG.info("Plan {}", estimate.line(spec.name()));
+    decide(toAskInOrder);
     return estimate;
+  }
+
+  /**
+   * Decides, in the role's order, which of its misses fit its share and which goes first. An item
+   * of unknown subject is decided when it is asked.
+   */
+  private synchronized void decide(List<Planned> inOrder) {
+    boolean full = false;
+    Planned first = null;
+    for (Planned entry : inOrder) {
+      if (entry.subject() == null || admitted.containsKey(key(entry))) {
+        continue;
+      }
+      boolean fits = true;
+      if (share != null) {
+        fits =
+            !full
+                && harness.admit(
+                    spec.budgetGroup(),
+                    entry.item() != null ? itemCost(entry.item()) : cost(entry.tokens()));
+        full = !fits;
+        admitted.put(key(entry), fits);
+      }
+      if (fits && first == null) {
+        first = entry;
+      }
+    }
+    if (warmUpKey == null && !warming.get() && first != null) {
+      warmUpSubject = first.subject();
+      warmUpKey = key(first);
+    }
+  }
+
+  /**
+   * What the plan's decisions are kept under: a known item's fingerprint, since a role may ask
+   * several items of one subject (a flow shown in two documents), or the subject of an item
+   * expected to be asked, whose fingerprint is not known yet.
+   */
+  private String key(Planned entry) {
+    return entry.item() != null ? fingerprint(entry.item()) : "subject " + entry.subject();
+  }
+
+  /** The item that goes first and warms the cache, if the plan named one. */
+  public Optional<String> warmUpItem() {
+    return Optional.ofNullable(warmUpSubject);
+  }
+
+  /**
+   * Waits, unless the subject is the role's warm-up item, until the warm-up item is settled. A role
+   * that bounds how many items it asks at once calls this before taking a slot, so the items
+   * waiting for the warm-up never hold the slots it needs.
+   */
+  public void awaitWarmUp(String subject) {
+    String first = warmUpSubject;
+    if (first != null && !first.equals(subject)) {
+      awaitWarmed();
+    }
   }
 
   /**
@@ -216,6 +336,32 @@ public final class RoleSession {
   }
 
   /**
+   * The answer the cache holds for the item and would answer it with, if any: an omitted answer has
+   * none.
+   */
+  public Optional<String> cachedAnswer(Item item) {
+    return harness
+        .answers()
+        .find(fingerprint(item))
+        .filter(this::revalidated)
+        .map(StoredAnswer::answer);
+  }
+
+  /**
+   * Opens the gate the other items wait at, if the subject is the warm-up item's: for a role whose
+   * warm-up item ended before it was asked, such as a unit whose files could not be read, so a
+   * failure fails the run instead of leaving the others waiting.
+   */
+  public void releaseWarmUp(String subject) {
+    settledWithoutAsking(subject);
+  }
+
+  /** As {@link #releaseWarmUp(String)}, for the item itself. */
+  public void releaseWarmUp(Item item) {
+    settledWithoutAsking(item);
+  }
+
+  /**
    * Answers an item: from the cache when it holds the item's fingerprint and every file the answer
    * read still has its blob; otherwise, within the role's budget share, by asking the model.
    */
@@ -238,10 +384,10 @@ public final class RoleSession {
               ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
               : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null);
       record.outcome(item.subject(), outcome, false);
+      settledWithoutAsking(item);
       return outcome;
     }
-    BigDecimal estimate = planItem(item);
-    if (estimate == null) {
+    if (!admitted(item)) {
       Outcome outcome =
           Outcome.of(
               Outcome.Kind.NOT_ASKED,
@@ -250,17 +396,17 @@ public final class RoleSession {
               "the " + spec.budgetGroup() + " share of the run budget is spent");
       LOG.warn("Not asked about {} for {}: {}", item.subject(), spec.name(), outcome.reason());
       record.outcome(item.subject(), outcome, false);
+      settledWithoutAsking(item);
       return outcome;
     }
-    try {
-      return askPlanned(item, asker, fingerprint);
-    } finally {
-      unplan(estimate);
-    }
+    return askAdmitted(item, asker, fingerprint);
   }
 
-  private Outcome askPlanned(Item item, Asker asker, String fingerprint) {
-    boolean first = warmUp();
+  private Outcome askAdmitted(Item item, Asker asker, String fingerprint) {
+    boolean first = warmUp(item);
+    if (first) {
+      record.warmUp(item.subject());
+    }
     Calls calls = new Calls(this, client);
     Outcome outcome;
     try {
@@ -291,10 +437,16 @@ public final class RoleSession {
    * is answered (or has failed), so the requests that share its prompt prefix read it from the
    * provider's cache instead of all writing it at once (#357).
    */
-  private boolean warmUp() {
-    if (warming.compareAndSet(false, true)) {
+  private boolean warmUp(Item item) {
+    String first = warmUpKey;
+    if ((first == null || isWarmUp(item)) && warming.compareAndSet(false, true)) {
       return true;
     }
+    awaitWarmed();
+    return false;
+  }
+
+  private void awaitWarmed() {
     try {
       warmed.get();
     } catch (InterruptedException e) {
@@ -303,7 +455,29 @@ public final class RoleSession {
     } catch (java.util.concurrent.ExecutionException e) {
       throw new IllegalStateException(e.getCause());
     }
-    return false;
+  }
+
+  /** Whether the item is the one the plan named to go first. */
+  private boolean isWarmUp(Item item) {
+    String first = warmUpKey;
+    return first != null
+        && (first.equals(fingerprint(item)) || first.equals("subject " + item.subject()));
+  }
+
+  /** Lets the others go when the warm-up item is settled without being asked. */
+  private void settledWithoutAsking(Item item) {
+    if (isWarmUp(item)) {
+      warming.set(true);
+      warmed.complete(null);
+    }
+  }
+
+  /** As {@link #settledWithoutAsking(Item)}, for an item known only by its subject. */
+  private void settledWithoutAsking(String subject) {
+    if (subject.equals(warmUpSubject)) {
+      warming.set(true);
+      warmed.complete(null);
+    }
   }
 
   /**
@@ -320,8 +494,6 @@ public final class RoleSession {
     Map<String, Outcome> outcomes = new LinkedHashMap<>();
     items.forEach(item -> outcomes.put(item.subject(), null));
     List<Item> misses = new ArrayList<>();
-    BigDecimal planned = BigDecimal.ZERO;
-    BigDecimal estimate;
     for (Item item : items) {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
@@ -333,7 +505,7 @@ public final class RoleSession {
                 ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
                 : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
             false);
-      } else if ((estimate = planItem(item)) == null) {
+      } else if (!admitted(item)) {
         settle(
             outcomes,
             item,
@@ -345,14 +517,9 @@ public final class RoleSession {
             false);
       } else {
         misses.add(item);
-        planned = planned.add(estimate);
       }
     }
-    try {
-      askPlannedPackets(misses, role, outcomes);
-    } finally {
-      unplan(planned);
-    }
+    askPlannedPackets(misses, role, outcomes);
     return outcomes;
   }
 
@@ -546,8 +713,6 @@ public final class RoleSession {
       java.util.function.Supplier<List<FileRead>> filesRead) {
     Map<String, Outcome> outcomes = new LinkedHashMap<>();
     List<Item> packet = new ArrayList<>();
-    BigDecimal planned = BigDecimal.ZERO;
-    BigDecimal estimate;
     for (Item item : items) {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
@@ -559,7 +724,7 @@ public final class RoleSession {
                 ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
                 : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
             false);
-      } else if ((estimate = planItem(item)) == null) {
+      } else if (!admitted(item)) {
         settle(
             outcomes,
             item,
@@ -571,17 +736,12 @@ public final class RoleSession {
             false);
       } else {
         packet.add(item);
-        planned = planned.add(estimate);
       }
     }
     if (packet.isEmpty()) {
       return outcomes;
     }
-    try {
-      conversePlanned(packet, role, tools, filesRead, outcomes);
-    } finally {
-      unplan(planned);
-    }
+    conversePlanned(packet, role, tools, filesRead, outcomes);
     return outcomes;
   }
 
@@ -705,21 +865,19 @@ public final class RoleSession {
   }
 
   /**
-   * Adds the item's estimated cost to its group's plan if it fits the group's share: a role that
-   * would pass its share stops planning new items (knowledge-build epic, section 10).
+   * Whether the item fits its role's share: as the plan decided, or for an item the plan did not
+   * know by subject, decided now against what the group has planned.
    */
-  private BigDecimal planItem(Item item) {
+  private boolean admitted(Item item) {
     if (share == null) {
-      return BigDecimal.ZERO;
+      return true;
     }
-    BigDecimal cost = itemCost(item);
-    return harness.planWithinShare(spec.budgetGroup(), cost) ? cost : null;
-  }
-
-  private void unplan(BigDecimal estimate) {
-    if (share != null) {
-      harness.unplan(spec.budgetGroup(), estimate);
+    Boolean expected = admitted.get("subject " + item.subject());
+    if (expected != null) {
+      return expected;
     }
+    return admitted.computeIfAbsent(
+        fingerprint(item), key -> harness.admit(spec.budgetGroup(), itemCost(item)));
   }
 
   /**
@@ -728,7 +886,12 @@ public final class RoleSession {
    * paying its share of each request's start, and the batch price when the role batches.
    */
   BigDecimal itemCost(Item item) {
-    long input = Tokens.estimate(item.rendering());
+    return cost(Tokens.estimate(item.rendering()));
+  }
+
+  /** What an item of the given input tokens is expected to cost (see {@link #itemCost}). */
+  private BigDecimal cost(long tokens) {
+    long input = tokens;
     long prefix = prefixTokens;
     long read = 0;
     int packet = spec.packetSize();
@@ -786,6 +949,7 @@ public final class RoleSession {
   public void notAsked(String subject, String reason) {
     LOG.info("Not asked about {} for {}: {}", subject, spec.name(), reason);
     record.outcome(subject, Outcome.of(Outcome.Kind.NOT_ASKED, null, null, reason), false);
+    settledWithoutAsking(subject);
   }
 
   /** The role's run record. */
