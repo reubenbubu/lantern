@@ -11,7 +11,9 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
+import io.lantern.derive.DeploymentInstances;
 import io.lantern.derive.Knowledge;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
@@ -20,7 +22,6 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,8 +72,6 @@ final class C4Views {
   static final String PERSON = "person";
   static final String PERSON_BASIS = "person-basis";
   static final String USES = "USES";
-  static final String DEPLOYMENT_CONTAINER = "deployment-container";
-  static final String DEPLOYED_IN = "deployed-in";
   static final String FRONTEND = "frontend";
   static final String FRONTEND_APP = "frontend-app";
   static final String ROUTE = "route";
@@ -104,8 +103,6 @@ final class C4Views {
 
   private static final String HTTP_CLIENT = "http-client";
   private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
-  private static final String READS_TABLE = "READS_TABLE";
-  private static final String WRITES_TABLE = "WRITES_TABLE";
   private static final String ASPECT = "aspect";
   private static final String ADVISES = "ADVISES";
 
@@ -1076,6 +1073,18 @@ final class C4Views {
     return result;
   }
 
+  /** The facts a derived fact was made from, named by its {@code facts} attribute. */
+  private List<Fact> basis(Fact derived) {
+    List<Fact> facts = new ArrayList<>();
+    for (String id : strings(derived, "facts")) {
+      Fact fact = knowledge.fact(id);
+      if (fact != null) {
+        facts.add(fact);
+      }
+    }
+    return facts;
+  }
+
   /** The facts a person rests on, with its own. */
   private List<Fact> cited(Fact basis) {
     List<Fact> facts = new ArrayList<>(List.of(basis));
@@ -1321,19 +1330,31 @@ final class C4Views {
    * and data stores the linker found running in it, and its ports. Absent when there are none.
    */
   Optional<Table> deployment(String section) {
+    // The stored instances (#617), one row per descriptor entry each rests on, with what runs in
+    // it.
     Map<String, SortedSet<EntityId>> running = new TreeMap<>();
     Map<String, List<Fact>> runningFacts = new TreeMap<>();
-    for (Fact fact : knowledge.withPredicate(DEPLOYED_IN)) {
-      String container = attribute(fact, "fact");
-      if (container != null) {
-        running.computeIfAbsent(container, c -> new TreeSet<>(Knowledge.BY_ID)).add(fact.subject());
-        runningFacts.computeIfAbsent(container, c -> new ArrayList<>()).add(fact);
-      }
-    }
     List<Fact> containers = new ArrayList<>();
-    for (Fact fact : knowledge.withPredicate(DEPLOYMENT_CONTAINER)) {
-      if (repos.isEmpty() || repos.contains(fact.evidence().repo())) {
-        containers.add(fact);
+    Set<EntityId> instances = new HashSet<>();
+    for (Fact instance : knowledge.withPredicate(DeploymentInstances.DEPLOYED_AS)) {
+      for (Fact container : basis(instance)) {
+        if (repos.isEmpty() || repos.contains(container.evidence().repo())) {
+          containers.add(container);
+        }
+      }
+      if (!instances.add(instance.subject())) {
+        continue;
+      }
+      for (Fact runs : knowledge.relations(instance.subject(), DeploymentInstances.RUNS)) {
+        for (Fact fact : basis(runs)) {
+          String container = attribute(fact, "fact");
+          if (container != null) {
+            running
+                .computeIfAbsent(container, c -> new TreeSet<>(Knowledge.BY_ID))
+                .add(Knowledge.object(runs));
+            runningFacts.computeIfAbsent(container, c -> new ArrayList<>()).add(fact);
+          }
+        }
       }
     }
     if (containers.isEmpty()) {
@@ -1750,7 +1771,6 @@ final class C4Views {
   private Diagram componentDiagram(String id, EntityId unit, List<Component> components) {
     Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
     nodes.put(unit, node(unit, technology(unit), null, containerFacts(unit)));
-    Map<EntityId, EntityId> componentOf = new TreeMap<>(Knowledge.BY_ID);
     for (Component component : components) {
       Diagram.Node node =
           node(component.main, component.technology, unit, componentFacts(component));
@@ -1764,56 +1784,42 @@ final class C4Views {
               node.style(),
               node.position(),
               node.facts()));
-      component.types.forEach(t -> componentOf.put(t, component.main));
     }
     Edges edges = new Edges();
-    // Routes to the filters they apply.
+    // The stored lines between the unit's components (#617), and where the code end of each of
+    // its links to other containers is.
+    Map<EntityId, EntityId> mainOf = new TreeMap<>(Knowledge.BY_ID);
+    components.forEach(c -> mainOf.put(Components.id(unit, c.main), c.main));
+    Map<String, EntityId> codeEnds = new HashMap<>();
     for (Component component : components) {
-      for (EntityId member : withMethods(component.main)) {
-        for (Fact route : knowledge.attributes(member)) {
-          if (!route.predicate().equals(GATEWAY_ROUTE)) {
-            continue;
-          }
-          for (String filter : strings(route, "filterTypes")) {
-            EntityId to = componentOf.get(new EntityId(BuiltInTypes.TYPE, filter));
-            if (to != null && !to.equals(component.main)) {
-              EdgeBuilder edge = edges.get(component.main, BuiltInTypes.CALLS, to);
-              edge.add("Applies", "Applies on routes", route.object().value(), null, null);
-              edge.facts.add(route);
-              edge.phrased(null);
-            }
-          }
+      for (Fact line :
+          knowledge.relations(
+              Components.id(unit, component.main), ComponentInteractions.COMPONENT_LINK)) {
+        String kind = attribute(line, "kind");
+        String detail = attribute(line, "detail");
+        if (ComponentInteractions.CODE_END.equals(kind)) {
+          // The side the code is on, then each link it places, by the fact it cites.
+          String side = attribute(line, "target").split(" ", 2)[0];
+          strings(line, "facts").forEach(link -> codeEnds.put(side + " " + link, component.main));
+          continue;
         }
-      }
-    }
-    // Calls between components, labelled with the methods called.
-    for (Component component : components) {
-      for (EntityId type : component.types) {
-        for (EntityId member : withMethods(type)) {
-          for (Fact fact : knowledge.relations(member, BuiltInTypes.CALLS)) {
-            EntityId called = Knowledge.object(fact);
-            for (EntityId target : implementers(PackageDependencies.ownerType(knowledge, called))) {
-              EntityId to = componentOf.get(target);
-              if (to != null && !to.equals(component.main)) {
-                EdgeBuilder edge = edges.get(component.main, BuiltInTypes.CALLS, to);
-                edge.add("Calls", "Calls", methodName(called), null, null);
-                edge.facts.add(fact);
-                edge.phrased(null);
-              }
-            }
-          }
+        EntityId to = mainOf.get(Knowledge.object(line));
+        if (to == null) {
+          continue;
         }
-      }
-    }
-    // An aspect to the components whose entry points it advises.
-    for (Component component : components) {
-      for (Fact fact : knowledge.relations(component.main, ADVISES)) {
-        EntityId advised = Knowledge.object(fact);
-        EntityId to = componentOf.get(PackageDependencies.ownerType(knowledge, advised));
-        if (to != null && !to.equals(component.main)) {
-          EdgeBuilder edge = edges.get(component.main, ADVISES, to);
-          edge.add("Advises", "Advises", advisedBy(component.main), null, null);
-          edge.facts.add(fact);
+        String relationship =
+            ComponentInteractions.ADVISES_KIND.equals(kind) ? ADVISES : BuiltInTypes.CALLS;
+        String plain =
+            switch (kind) {
+              case ComponentInteractions.APPLIES -> "Applies";
+              case ComponentInteractions.ADVISES_KIND -> "Advises";
+              default -> "Calls";
+            };
+        String prefix = ComponentInteractions.APPLIES.equals(kind) ? "Applies on routes" : plain;
+        EdgeBuilder edge = edges.get(component.main, relationship, to);
+        for (Fact cited : basis(line)) {
+          edge.add(plain, prefix, detail, null, null);
+          edge.facts.add(cited);
           edge.phrased(null);
         }
       }
@@ -1822,7 +1828,7 @@ final class C4Views {
     for (Link link : links) {
       if (link.from.equals(unit)) {
         for (Fact fact : link.facts) {
-          EntityId from = componentAt(componentOf, attribute(fact, "source"));
+          EntityId from = codeEnds.get("source " + fact.id());
           if (from != null && fact.subject().equals(unit)) {
             container(nodes, link.to);
             edges.add(link.from(from));
@@ -1830,9 +1836,8 @@ final class C4Views {
         }
       } else if (link.to.equals(unit)) {
         for (Fact fact : link.facts) {
-          String code =
-              fact.subject().equals(unit) ? attribute(fact, "source") : attribute(fact, "target");
-          EntityId to = componentAt(componentOf, code);
+          String side = fact.subject().equals(unit) ? "source" : "target";
+          EntityId to = codeEnds.get(side + " " + fact.id());
           if (to != null && link.relationship.equals(CONSUMES) == fact.subject().equals(unit)) {
             container(nodes, link.from);
             edges.add(link.to(to));
@@ -1842,7 +1847,10 @@ final class C4Views {
     }
     // Data access, to the databases the unit's datasources point to.
     for (Component component : components) {
-      String access = dataAccess(component);
+      String access =
+          knowledge
+              .attribute(Components.id(unit, component.main), ComponentInteractions.DATA_ACCESS)
+              .orElse(null);
       if (access == null) {
         continue;
       }
@@ -1863,64 +1871,6 @@ final class C4Views {
         List.copyOf(nodes.values()),
         edges.build(assembler, true),
         List.of());
-  }
-
-  /** The annotations an aspect's pointcuts select by, as written in code: {@code @Name}. */
-  private String advisedBy(EntityId aspect) {
-    List<String> names = new ArrayList<>();
-    for (Fact fact : knowledge.attributes(aspect)) {
-      if (fact.predicate().equals(ASPECT)) {
-        for (String type : strings(fact, "annotations")) {
-          names.add(
-              "@" + type.substring(Math.max(type.lastIndexOf('.'), type.lastIndexOf('$')) + 1));
-        }
-      }
-    }
-    return names.isEmpty() ? null : String.join(", ", names);
-  }
-
-  /** The type and the types of the unit's code implementing it, if it is an interface. */
-  private Set<EntityId> implementers(EntityId type) {
-    Set<EntityId> result = new LinkedHashSet<>(List.of(type));
-    for (Fact fact : knowledge.withPredicate(BuiltInTypes.IMPLEMENTS)) {
-      if (Knowledge.isEntity(fact) && Knowledge.object(fact).equals(type)) {
-        result.add(fact.subject());
-      }
-    }
-    return result;
-  }
-
-  /** The component holding the code a link's end names, if any. */
-  private EntityId componentAt(Map<EntityId, EntityId> componentOf, String code) {
-    if (code == null) {
-      return null;
-    }
-    EntityId entity;
-    try {
-      entity = EntityId.parse(code);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
-    return componentOf.get(PackageDependencies.ownerType(knowledge, entity));
-  }
-
-  /** How a component reaches its unit's databases, or null if it does not. */
-  private String dataAccess(Component component) {
-    boolean reads = false;
-    boolean writes = false;
-    for (EntityId type : component.types) {
-      if (!knowledge.relations(type, REPOSITORY_FOR).isEmpty()) {
-        return "Reads and writes";
-      }
-      for (EntityId member : withMethods(type)) {
-        reads |= !knowledge.relations(member, READS_TABLE).isEmpty();
-        writes |= !knowledge.relations(member, WRITES_TABLE).isEmpty();
-      }
-    }
-    if (reads && writes) {
-      return "Reads and writes";
-    }
-    return reads ? "Reads" : writes ? "Writes" : null;
   }
 
   /** The facts that make the component's main type what it is: its stereotype and entry points. */
@@ -1951,14 +1901,6 @@ final class C4Views {
     SortedSet<EntityId> set = new TreeSet<>(Knowledge.BY_ID);
     set.add(entity);
     return set;
-  }
-
-  /** A method's name without its parameters. */
-  private static String methodName(EntityId method) {
-    String key = method.key();
-    String name = key.substring(key.indexOf('#') + 1);
-    int paren = name.indexOf('(');
-    return paren < 0 ? name : name.substring(0, paren);
   }
 
   private Diagram.Node node(EntityId entity, String technology, EntityId parent, List<Fact> facts) {

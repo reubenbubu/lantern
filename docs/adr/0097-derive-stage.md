@@ -54,3 +54,25 @@ store the rest. The agent decided the points below under the owner's standing go
   project-4 and project-8 this changed no document.
 - Composing without stored components draws no component diagrams: a caller must give the composer
   the model, as the run and `Derivation.withModel` do.
+
+## Amendment for #617: component interactions and deployment instances
+
+The agent decided these under the owner's standing go-ahead for 1D.
+
+- **Interactions are the component diagram's lines, stored.** `ComponentInteractions` reads the
+  stored components and the linked graph and writes one `COMPONENT_LINK` per line the diagram drew
+  (applies, calls, advises), keyed on the code it rests on (`at`), what it reaches (`target`) and
+  its label (`detail`), so two calls from different methods stay two lines, as the diagram's phrase
+  counts need. Facts that make one such line merge and cite all they rest on. A component's
+  `data-access` is a fact of its own.
+- **Where a link's code end is, is stored too.** The composer placed a link between containers at
+  the component holding its `source` or `target` code. That is now a `COMPONENT_LINK` of kind
+  `code-end` to the link's other end, keyed on the side; the link itself is named only by the line's
+  lineage (its `facts`), since no key attribute may hold a fact ID. The composer finds the line by
+  the link fact it cites.
+- **Instances merge same-named entries; the table does not.** An instance is keyed on its
+  environment and name (#615), so two descriptors naming the same container in the same environment
+  give one instance citing both. The deployment table keeps one row per descriptor entry, reading
+  the entries from the instance's lineage, so its rows and their evidence are unchanged; whether it
+  should show one row per instance is a question for the deployment view, not this change.
+- **No document changes.** The composer draws the same lines and rows from the stored facts.
