@@ -187,9 +187,9 @@ Decided by the agent under the owner's delegation of 2026-11-01, finishing #522.
 
 - **Architecture rule.** `PLACEHOLDERS_RESOLVED_BY_VALUE_RESOLUTION` (`lantern-archtest`) fails any
   class but value resolution's (`ValueResolution`, `CodeValues`, `Literals`, `EnvironmentValues`),
-  the config extractor's package and the SQL extractor that calls what resolves placeholders
+  the config extractor's package and the SQL extractor (with its `Settings`) that calls what resolves placeholders
   against config or reads config to resolve with (`Placeholders.resolve`,
-  `ConfigExtractor.resolve`, `resolveWithoutConfig` and `read`, `ModuleConfig.resolve`,
+  `ConfigExtractor.resolve`, `resolveWithoutConfig` and `read`, `ModuleConfig.resolve` and `values`, `ModuleValues.of`,
   `CodeConfig.forModule`, `CodeConfig.View.resolve`), or that implements `ValueLookup` or
   `GatewayExtractor.Resolver`, the config the extractors' resolving functions are given. Those
   functions stay in the extractors, next to the code they read, but only value resolution can give
@@ -204,5 +204,7 @@ Decided by the agent under the owner's delegation of 2026-11-01, finishing #522.
   whether to run the rule again. The units depend on a `config-value` only for
   `spring.application.name` and for which module has config of which family, so a change to any
   other setting runs value resolution and the rules that read config or what value resolution
-  writes again, and neither the units nor the people (`LinkRulesIT`). A rule's facts must cite only
+  writes again, and neither the units nor the people (`LinkRulesIT`). The units are the rule this
+  narrows: the others that read config read every extracted fact and run again on any change, until
+  1B's narrower reads. A rule's facts must cite only
   facts whose whole it depends on; the units cite only the name settings.

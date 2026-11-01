@@ -178,7 +178,8 @@ final class ArchitectureRules {
                         "io.lantern.link.CodeValues",
                         "io.lantern.link.Literals",
                         "io.lantern.link.EnvironmentValues",
-                        "io.lantern.extract.sql.SqlExtractor")
+                        "io.lantern.extract.sql.SqlExtractor",
+                        "io.lantern.extract.sql.Settings")
                     .contains(name);
           });
 
@@ -190,6 +191,8 @@ final class ArchitectureRules {
           "io.lantern.extract.config.ConfigExtractor.resolveWithoutConfig",
           "io.lantern.extract.config.ConfigExtractor.read",
           "io.lantern.extract.config.ModuleConfig.resolve",
+          "io.lantern.extract.config.ModuleConfig.values",
+          "io.lantern.extract.config.ModuleValues.of",
           "io.lantern.extract.config.CodeConfig.forModule",
           "io.lantern.extract.config.CodeConfig$View.resolve");
 
