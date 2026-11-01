@@ -86,3 +86,19 @@ than asked.
 - project-4's Helm Ingress renders `cors-allow-origin: *` unquoted, which is not valid YAML, so that
   Ingress (and its CORS policy) is not read; the chart would fail the same way when applied. Its
   gateway's CORS policy comes from config.
+
+## Amendment (#612)
+
+- **A custom access check needs more than a name.** The advice must also be able to refuse the call:
+  its code, or that of the aspect's own methods it calls, makes an exception or error to throw
+  (a constructor of a type named `...Exception` or `...Error`), as a check does when it denies
+  access. The name is matched on the whole words of its camel-case form, so `AuthorAuditAspect` no
+  longer counts for "auth", and `PolicyLogging`, whose name is about a policy but which refuses
+  nothing, no longer counts either. Every access-check aspect of the development sets throws its
+  own exception in the advice.
+- **A JMS send's payload is chosen by the overload.** `JmsTemplate.convertAndSend` takes a
+  destination first when its first parameter is a `String` or a `Destination`; otherwise the first
+  argument is the message, so `convertAndSend(message, postProcessor)` records the message, not the
+  post-processor. Without the overload (degraded mode), two arguments whose second is typed as a
+  `MessagePostProcessor` read the same way.
+- The Spring and messaging extractors' versions rise to 9.

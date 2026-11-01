@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 public class PermissionAspect {
 
   @Before("@annotation(secured)")
-  public void check(Secured secured) {}
+  public void check(Secured secured) { if (secured == null) throw new SecurityException(); }
 
   @Pointcut("execution(* com.example.shop.web.api.CatalogController.*(..))")
   void catalog() {}

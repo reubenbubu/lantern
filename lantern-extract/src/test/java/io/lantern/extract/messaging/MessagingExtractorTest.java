@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import javax.tools.JavaCompiler;
 import javax.tools.StandardJavaFileManager;
@@ -371,6 +372,104 @@ class MessagingExtractorTest {
                 .stream()
                 .filter(l -> l.contains(" payload-type "))
                 .toList());
+  }
+
+  @Test
+  void aJmsSendsPayloadIsChosenByTheOverload() throws IOException {
+    // JmsTemplate.convertAndSend(message, postProcessor) sends the first argument; with a
+    // destination first, the second is the message (#612).
+    Map<String, String> files = new java.util.TreeMap<>();
+    files.put(
+        "pom.xml",
+        """
+        <project xmlns="http://maven.apache.org/POM/4.0.0">
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>com.example</groupId>
+          <artifactId>shop</artifactId>
+          <version>1.0.0</version>
+        </project>
+        """);
+    files.put(
+        "src/main/java/org/springframework/jms/core/JmsTemplate.java",
+        """
+        package org.springframework.jms.core;
+
+        public class JmsTemplate {
+          public void convertAndSend(Object message) {}
+          public void convertAndSend(String destinationName, Object message) {}
+          public void convertAndSend(jakarta.jms.Destination destination, Object message) {}
+          public void convertAndSend(Object message, MessagePostProcessor processor) {}
+          public void convertAndSend(
+              String destinationName, Object message, MessagePostProcessor processor) {}
+        }
+        """);
+    files.put(
+        "src/main/java/org/springframework/jms/core/MessagePostProcessor.java",
+        """
+        package org.springframework.jms.core;
+
+        public interface MessagePostProcessor {}
+        """);
+    files.put(
+        "src/main/java/jakarta/jms/Destination.java",
+        """
+        package jakarta.jms;
+
+        public interface Destination {}
+        """);
+    files.put(
+        "src/main/java/com/example/OrderPlaced.java",
+        """
+        package com.example;
+
+        public record OrderPlaced(long id) {}
+        """);
+    files.put(
+        "src/main/java/com/example/Sender.java",
+        """
+        package com.example;
+
+        import jakarta.jms.Destination;
+        import org.springframework.jms.core.JmsTemplate;
+        import org.springframework.jms.core.MessagePostProcessor;
+
+        public class Sender {
+          private JmsTemplate jms;
+          private MessagePostProcessor stamp;
+          private Destination audit;
+
+          public void byDefault(OrderPlaced event) {
+            jms.convertAndSend(event, stamp);
+          }
+
+          public void named(OrderPlaced event) {
+            jms.convertAndSend("orders", event, stamp);
+          }
+
+          public void toDestination(OrderPlaced event) {
+            jms.convertAndSend(audit, event);
+          }
+        }
+        """);
+    Repo repo = Fixtures.repo(temp.resolve("jms-overloads"), "shop", files);
+
+    List<String> payloads =
+        withoutConfidence(
+                new MessagingExtractor()
+                    .extract(List.of(new RepoBuild(repo, Fixtures.head(repo), null)), SNAPSHOT))
+            .stream()
+            .filter(l -> l.contains(" payload-type "))
+            .map(l -> l.substring(0, l.indexOf(" {")))
+            .toList();
+
+    assertThat(payloads)
+        .containsExactlyInAnyOrder(
+            "method:com.example.Sender#byDefault(com.example.OrderPlaced) payload-type"
+                + " com.example.OrderPlaced",
+            "method:com.example.Sender#named(com.example.OrderPlaced) payload-type"
+                + " com.example.OrderPlaced",
+            "method:com.example.Sender#toDestination(com.example.OrderPlaced) payload-type"
+                + " com.example.OrderPlaced");
   }
 
   @Test

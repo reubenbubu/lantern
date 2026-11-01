@@ -787,10 +787,72 @@ public class PermissionAspect {
   @Before("@annotation(requires)")
   public void check(RequiresPermission requires) {
     String granted = request.getHeader(Headers.PERMISSIONS);
+    if (granted == null) throw new ForbiddenException();
   }
 
   @After("@annotation(com.example.Logged)")
   public void log() {}
+}
+""");
+    files.put(
+        "src/main/java/com/example/ForbiddenException.java",
+"""
+package com.example;
+
+public class ForbiddenException extends RuntimeException {}
+""");
+    // Aspects that read their annotation but are not access checks (#612): one whose name has
+    // "auth" only inside a word, one named for a policy that logs and refuses nothing.
+    files.put(
+        "src/main/java/com/example/AuthorAuditAspect.java",
+"""
+package com.example;
+
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class AuthorAuditAspect {
+  @Before("@annotation(audited)")
+  public void audit(Audited audited) {
+    if (audited == null) throw new IllegalStateException();
+  }
+}
+""");
+    files.put(
+        "src/main/java/com/example/PolicyLogging.java",
+"""
+package com.example;
+
+import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.annotation.Aspect;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class PolicyLogging {
+  @Before("@annotation(traced)")
+  public void log(Traced traced) {
+    String level = traced.level();
+  }
+}
+""");
+    files.put(
+        "src/main/java/com/example/Audited.java",
+"""
+package com.example;
+
+public @interface Audited {}
+""");
+    files.put(
+        "src/main/java/com/example/Traced.java",
+"""
+package com.example;
+
+public @interface Traced {
+  String level() default "INFO";
 }
 """);
     files.put(
@@ -832,7 +894,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @org.springframework.stereotype.Service
 @Transactional(readOnly = true)
 public class Service {
-  @Logged
+  @Logged @Audited @Traced
   public void read() {}
 
   @TransactionalEventListener(phase = TransactionPhase.AFTER_ROLLBACK)
@@ -900,7 +962,8 @@ public class Web {
             .toList();
     // Header reads bound or called, in a handler, a gateway filter and an aspect; transactions
     // and transactional listeners; the aspect's permission checks, but not the after-advice of
-    // Logged nor the rate limiter; and CORS from an annotation, a registry (every origin where it
+    // Logged, the rate limiter, the author audit nor the policy logging; and CORS from an
+    // annotation, a registry (every origin where it
     // names none) and a configuration, a @Value kept.
     assertThat(facts)
         .containsExactly(

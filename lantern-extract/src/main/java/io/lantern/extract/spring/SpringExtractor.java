@@ -64,7 +64,7 @@ public final class SpringExtractor implements Extractor {
   public static final String NAME = "spring";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "8";
+  public static final String VERSION = "9";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
@@ -294,10 +294,42 @@ public final class SpringExtractor implements Extractor {
   private static final String TRANSACTIONAL_EVENT_LISTENER =
       SPRING + "transaction.event.TransactionalEventListener";
 
-  /** Words in the name of an annotation or aspect that checks access. */
-  private static final java.util.regex.Pattern ACCESS_NAMES =
-      java.util.regex.Pattern.compile(
-          "(?i)permi|role|access|auth|secur|privilege|grant|polic|guard|entitle");
+  /**
+   * Words of the name of an annotation or aspect that checks access, matched against the whole
+   * words of its camel-case name, so AuthorAuditAspect is not about access (#612).
+   */
+  private static final Set<String> ACCESS_WORDS =
+      Set.of(
+          "permission",
+          "permissions",
+          "permit",
+          "permitted",
+          "role",
+          "roles",
+          "access",
+          "auth",
+          "authz",
+          "authorize",
+          "authorise",
+          "authorization",
+          "authorisation",
+          "authority",
+          "authorities",
+          "authorized",
+          "authorised",
+          "secure",
+          "secured",
+          "security",
+          "privilege",
+          "privileges",
+          "grant",
+          "granted",
+          "policy",
+          "policies",
+          "guard",
+          "entitlement",
+          "entitlements",
+          "entitled");
 
   private static final String CROSS_ORIGIN = WEB + "CrossOrigin";
   private static final String CORS_CONFIGURATION = SPRING + "web.cors.CorsConfiguration";
@@ -1749,17 +1781,56 @@ public final class SpringExtractor implements Extractor {
         return false;
       }
       // An aspect that reads its annotation may as well log, lock or limit; one about access says
-      // so in its own or its annotation's name.
-      if (!ACCESS_NAMES.matcher(simpleName(annotation)).find()
-          && !ACCESS_NAMES.matcher(simpleName(aspect.type().binaryName())).find()) {
+      // so in its own or its annotation's name, and can refuse the call. The name alone is not
+      // enough (#612).
+      if (!aboutAccess(simpleName(annotation))
+          && !aboutAccess(simpleName(aspect.type().binaryName()))) {
         return false;
       }
       EntityId id = advice.method().id();
-      if (parameterTypes(id).contains(annotation)) {
-        return true;
-      }
+      boolean reads = parameterTypes(id).contains(annotation);
       for (ModuleStructure.Call call : aspect.module().structure().calls()) {
         if (call.caller().equals(id) && call.callee().key().startsWith(annotation + "#")) {
+          reads = true;
+        }
+      }
+      return reads && refuses(aspect, id);
+    }
+
+    /** Whether one of the whole words of a camel-case name is about access. */
+    private static boolean aboutAccess(String name) {
+      for (String word : name.split("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|[_$\\d]+")) {
+        if (ACCESS_WORDS.contains(word.toLowerCase(java.util.Locale.ROOT))) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * Whether an advice can refuse the call it runs before: its code, or that of the aspect's own
+     * methods it calls, makes an exception or error to throw (a constructor of a type named {@code
+     * ...Exception} or {@code ...Error}), as an access check does when access is denied.
+     */
+    private static boolean refuses(AspectOf aspect, EntityId advice) {
+      String own = aspect.type().binaryName() + "#";
+      Set<EntityId> methods = new HashSet<>(List.of(advice));
+      List<ModuleStructure.Call> calls = aspect.module().structure().calls();
+      for (ModuleStructure.Call call : calls) {
+        if (call.caller().equals(advice) && call.callee().key().startsWith(own)) {
+          methods.add(call.callee());
+        }
+      }
+      for (ModuleStructure.Call call : calls) {
+        String callee = call.callee().key();
+        int hash = callee.indexOf('#');
+        if (!methods.contains(call.caller())
+            || hash < 0
+            || !callee.startsWith(ModuleStructure.CONSTRUCTOR + "(", hash + 1)) {
+          continue;
+        }
+        String type = simpleName(callee.substring(0, hash));
+        if (type.endsWith("Exception") || type.endsWith("Error")) {
           return true;
         }
       }

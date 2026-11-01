@@ -68,7 +68,7 @@ public final class MessagingExtractor implements Extractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "8";
+  public static final String VERSION = "9";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
@@ -289,6 +289,9 @@ public final class MessagingExtractor implements Extractor {
           "x-dead-letter-routing-key", "deadLetterRoutingKey");
 
   private static final String STRING = "java.lang.String";
+
+  private static final Set<String> JMS_POST_PROCESSORS =
+      Set.of("org.springframework.jms.core.MessagePostProcessor");
 
   private static final Pattern SPEL_LITERAL = Pattern.compile("'([^']*)'");
 
@@ -768,7 +771,10 @@ public final class MessagingExtractor implements Extractor {
         return;
       }
       if (JMS_TEMPLATES.contains(type) && JMS_METHODS.contains(call.method())) {
-        boolean named = typed ? parameters.getFirst().equals(STRING) : arguments.size() >= 2;
+        // (destination name or Destination, payload[, post-processor]), or (payload[,
+        // post-processor]): the overload says which, by its first parameter's type (#612).
+        boolean addressed = jmsAddressed(typed ? parameters : List.of(), i, arguments.size());
+        boolean named = typed ? parameters.getFirst().equals(STRING) : addressed;
         Text destination = named ? text(first, caller) : null;
         if (destination != null) {
           attributes.put("broker", JMS);
@@ -776,8 +782,7 @@ public final class MessagingExtractor implements Extractor {
           emit(caller, SEND, destination, Map.of(), attributes, i.where());
         }
         if (call.method().startsWith("convertAndSend")) {
-          // (destination name or Destination, payload[, post-processor]), or (payload).
-          payload(caller, "send", i, arguments.size() >= 2 ? 1 : 0, JMS);
+          payload(caller, "send", i, addressed ? 1 : 0, JMS);
         }
         return;
       }
@@ -805,6 +810,27 @@ public final class MessagingExtractor implements Extractor {
         }
         payload(caller, "send", i, names, RABBITMQ);
       }
+    }
+
+    /**
+     * Whether a JmsTemplate call names its destination first: its first parameter, as the overload
+     * declares it, is a String or a Destination; without the overload, it has three arguments, or
+     * two of which the second is not a MessagePostProcessor as the compiler typed it (#612).
+     */
+    private static boolean jmsAddressed(List<String> parameters, Invocation i, int arguments) {
+      if (!parameters.isEmpty()) {
+        // A String, or jakarta.jms.Destination (javax.jms.Destination before Jakarta EE).
+        String first = parameters.getFirst();
+        return first.equals(STRING)
+            || first.endsWith(".Destination")
+            || first.endsWith("$Destination");
+      }
+      if (arguments != 2) {
+        return arguments > 2;
+      }
+      List<ModuleStructure.TypeUse> types = i.argumentTypes(0);
+      ModuleStructure.TypeUse second = types.size() == 2 ? types.get(1) : null;
+      return second == null || !JMS_POST_PROCESSORS.contains(second.type());
     }
 
     /**
