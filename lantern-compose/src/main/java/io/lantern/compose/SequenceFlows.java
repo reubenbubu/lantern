@@ -927,11 +927,11 @@ final class SequenceFlows {
     }
   }
 
-  /** Something a method does, in the order of the code: a call, or a step out of its unit. */
   /**
-   * A step of a method's code: where in the code, which kind first (calls, then links, then reads,
-   * then writes), then what it reaches, written as the fact says it; the fact's ID only between
-   * steps that are the same in all of these (#545).
+   * Something a method does, in the order of the code: a call, or a step out of its unit. Ordered
+   * by line, then kind (calls; then links, STOMP pushes and jobs; then reads; then writes), then
+   * what it reaches as its fact says it; the fact's ID only between steps the same in all of these
+   * (#545).
    */
   private record Event(int line, int order, String reaches, String id, Runnable action) {
 
@@ -1048,7 +1048,7 @@ final class SequenceFlows {
     events.forEach(e -> e.action().run());
   }
 
-  /** What a step reaches, as its fact says: the predicate, the object and the value. */
+  /** What a step reaches, as its fact says: its predicate and its object's value. */
   private static String reaches(Fact fact) {
     return fact.predicate() + " " + fact.object().value();
   }

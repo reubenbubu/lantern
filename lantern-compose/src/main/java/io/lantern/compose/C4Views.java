@@ -1533,8 +1533,9 @@ final class C4Views {
     List<Inline> content = new ArrayList<>();
     List<Fact> facts = new ArrayList<>();
     for (EntityId unit : units) {
-      // By what the code calls or sends to, then the code that does it, so the box reads the same
-      // on every run whatever the facts' IDs (#605).
+      // By what the code calls or sends to, then the code that does it, the reason, the keys left
+      // unresolved, the call site and the profile, so the box reads the same on every run whatever
+      // the facts' IDs (#605).
       List<Fact> open =
           knowledge.attributes(unit).stream()
               .filter(f -> f.predicate().equals(UNRESOLVED_LINK) && !knowledge.resolved(f))
@@ -1542,6 +1543,9 @@ final class C4Views {
                   Comparator.comparing((Fact f) -> f.object().value())
                       .thenComparing(f -> Objects.toString(attribute(f, "source"), ""))
                       .thenComparing(f -> Objects.toString(attribute(f, "reason"), ""))
+                      .thenComparing(f -> String.join(",", strings(f, "unresolved")))
+                      .thenComparing(f -> Objects.toString(attribute(f, "site"), ""))
+                      .thenComparing(f -> Objects.toString(attribute(f, "view"), ""))
                       .thenComparing(Fact::id))
               .toList();
       for (Fact fact : open) {
