@@ -106,6 +106,20 @@ class ClaimIdentityTest {
           // Since #518: references to the facts a claim comes from are lineage, like facts.
           Map.entry("deployed-in", Set.of("fact")),
           Map.entry("claim-contradiction", Set.of("claim", "contradictedBy")),
+          // Since #618, the flows: the facts a flow starts from are lineage; a step's order is
+          // descriptive (epic, section 9); what a flow's shape sums up is descriptive.
+          Map.entry("TRIGGERED_BY", Set.of("trigger", "link", "route", "routed")),
+          Map.entry("STEP_OF", Set.of("order")),
+          Map.entry(
+              "flow-shape",
+              Set.of(
+                  "containers",
+                  "asyncDestinations",
+                  "asyncJobs",
+                  "reaches",
+                  "unresolved",
+                  "pushes",
+                  "messages")),
           // Since #587: the text config resolved an expression to; URLs that differ only in their
           // path are one address.
           Map.entry(

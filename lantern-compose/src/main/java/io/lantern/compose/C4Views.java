@@ -15,6 +15,7 @@ import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
 import io.lantern.derive.DeploymentInstances;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.Screens;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -75,7 +76,6 @@ final class C4Views {
   static final String FRONTEND = "frontend";
   static final String FRONTEND_APP = "frontend-app";
   static final String ROUTE = "route";
-  private static final String PERSON_EVIDENCE = "person-evidence";
 
   /** The kinds of container that are not deployable units: data stores and destinations. */
   static final Set<String> DESTINATIONS = Set.of(DATABASE, TOPIC, QUEUE, EXCHANGE, EXTERNAL_SYSTEM);
@@ -355,61 +355,12 @@ final class C4Views {
     }
   }
 
-  /** The relationships whose profile-only links may replace a default link of their unit. */
-  private static final List<String> REPLACEABLE =
-      List.of(
-          CALLS_HTTP,
-          SENDS_MAIL,
-          USES_IDENTITY_PROVIDER,
-          PUBLISHES,
-          CONSUMES,
-          USES_DATABASE,
-          ACCESSES_DATA_OF);
-
   /**
-   * The profile-only links that stand in for a default link of the same unit, relationship and code
-   * or config (the same calling method, listener or datasource key, or a linked alternate host),
-   * the default one not holding under that profile: a datasource the {@code local} profile points
-   * at {@code localhost}, PayGate's production host. They are left out of the diagrams and counts,
-   * which show the default, and are listed in a note instead. A profile-only link without such a
-   * default, such as a send only the {@code audit} profile makes, stays a line of its own.
+   * The profile-only links that stand in for a default link of the same unit (ADR 0090): left out
+   * of the diagrams and counts, which show the default, and listed in a note instead.
    */
   private Map<Fact, Fact> alternatives() {
-    Map<Fact, Fact> result = new java.util.LinkedHashMap<>();
-    for (EntityId unit : units(knowledge)) {
-      for (String relationship : REPLACEABLE) {
-        List<Fact> facts = knowledge.relations(unit, relationship);
-        for (Fact profiled : facts) {
-          String profile = Knowledge.view(profiled);
-          if (profile == null) {
-            continue;
-          }
-          for (Fact fallback : facts) {
-            if (Knowledge.view(fallback) == null
-                && strings(fallback, "absentIn").contains(profile)
-                && sameOrigin(profiled, fallback)) {
-              result.put(profiled, fallback);
-              break;
-            }
-          }
-        }
-      }
-    }
-    return result;
-  }
-
-  /** Whether two links come from the same code or config, or name each other as alternates. */
-  private static boolean sameOrigin(Fact a, Fact b) {
-    if (strings(a, "alternates").contains(Knowledge.object(b).toString())) {
-      return true;
-    }
-    for (String anchor : List.of("source", "key")) {
-      String x = attribute(a, anchor);
-      if (x != null) {
-        return x.equals(attribute(b, anchor));
-      }
-    }
-    return false;
+    return Screens.alternatives(knowledge);
   }
 
   /**
@@ -676,62 +627,17 @@ final class C4Views {
     return result;
   }
 
-  /**
-   * The screens a person has, by frontend: the {@code route} evidence its {@code person-basis}
-   * cites, among the repositories it names as {@code frontends}, each under the frontend whose
-   * folder holds the route's file.
-   */
+  /** The screens a person has, by frontend ({@link Screens#screens}). */
   private Map<EntityId, List<Fact>> screens(Fact basis) {
-    List<String> named = strings(basis, "frontends");
-    Map<EntityId, List<Fact>> screens = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact route : cited(basis)) {
-      if (!route.predicate().equals(PERSON_EVIDENCE)
-          || !route.object().value().equals(ROUTE)
-          || !named.contains(route.evidence().repo())) {
-        continue;
-      }
-      EntityId frontend = frontendOf(route);
-      if (frontend != null) {
-        screens.computeIfAbsent(frontend, f -> new ArrayList<>()).add(route);
-      }
-    }
-    return screens;
+    return Screens.screens(knowledge, basis);
   }
 
   /**
-   * The people who have screens on a frontend, each with its {@code person-basis} fact and the
-   * routes of those screens, by person ID.
+   * The people of the scope who have screens on a frontend, each with its {@code person-basis} fact
+   * and the routes of those screens, by person ID.
    */
   SortedMap<EntityId, List<Fact>> screensOn(EntityId frontend) {
-    SortedMap<EntityId, List<Fact>> result = new TreeMap<>(Knowledge.BY_ID);
-    for (Map.Entry<EntityId, Fact> person : people().entrySet()) {
-      List<Fact> routes = screens(person.getValue()).get(frontend);
-      if (routes != null) {
-        List<Fact> facts = new ArrayList<>(List.of(person.getValue()));
-        facts.addAll(routes);
-        result.put(person.getKey(), facts);
-      }
-    }
-    return result;
-  }
-
-  /** The frontend whose folder holds a fact's file, the deepest one; null if none does. */
-  private EntityId frontendOf(Fact fact) {
-    EntityId found = null;
-    int depth = -1;
-    for (EntityId frontend : frontends(knowledge)) {
-      Fact app = frontendApp(frontend).orElse(null);
-      if (app == null || !app.evidence().repo().equals(fact.evidence().repo())) {
-        continue;
-      }
-      String directory = RepoSections.attribute(app, "directory", "");
-      if ((directory.isEmpty() || fact.evidence().path().startsWith(directory + "/"))
-          && directory.length() > depth) {
-        found = frontend;
-        depth = directory.length();
-      }
-    }
-    return found;
+    return Screens.screensOn(knowledge, frontend, repos);
   }
 
   private static Link link(
@@ -1060,17 +966,7 @@ final class C4Views {
    * each with its {@code person-basis} fact.
    */
   SortedMap<EntityId, Fact> people() {
-    SortedMap<EntityId, Fact> result = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact basis : knowledge.withPredicate(PERSON_BASIS)) {
-      if (!basis.subject().type().equals(PERSON)) {
-        continue;
-      }
-      List<String> shownBy = strings(basis, "repos");
-      if (repos.isEmpty() || shownBy.stream().anyMatch(repos::contains)) {
-        result.putIfAbsent(basis.subject(), basis);
-      }
-    }
-    return result;
+    return Screens.people(knowledge, repos);
   }
 
   /** The facts a derived fact was made from, named by its {@code facts} attribute. */

@@ -232,12 +232,19 @@ class SequenceFlowsTest {
   private Document system(List<Fact> facts) {
     return new Composer("1")
         .compose(
-            ViewDefinition.c4System("system:c4", "System", TEMPLATE), SNAPSHOT, facts, Map.of());
+            ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+            SNAPSHOT,
+            io.lantern.derive.Derivation.withModel(facts, 1),
+            Map.of());
   }
 
   private Document repo(String repo) {
     return new Composer("1")
-        .compose(ViewDefinition.c4Report(repo + ".c4", repo, TEMPLATE), SNAPSHOT, facts, Map.of());
+        .compose(
+            ViewDefinition.c4Report(repo + ".c4", repo, TEMPLATE),
+            SNAPSHOT,
+            io.lantern.derive.Derivation.withModel(facts, 1),
+            Map.of());
   }
 
   private static Section flows(Document document) {

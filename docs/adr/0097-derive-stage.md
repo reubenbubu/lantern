@@ -1,6 +1,6 @@
 # 0097: The derive stage stores the architecture model
 
-Status: accepted (#523), amended (#617, #271)
+Status: accepted (#523), amended (#617, #271, #618)
 
 ## Context
 
@@ -105,3 +105,33 @@ entry points share is its own component).
 - **Intent phrases are Describe's.** Lines between components keep their static label (ADR 0050)
   until Describe words every interaction in the stored model (#528); the issue's intent criterion
   moved there.
+
+## Amendment for #618: every candidate flow, stored
+
+The agent decided these under the owner's standing go-ahead for 1D.
+
+- **The trace moves whole; the wording stays.** `FlowTracer` in `lantern-derive` is the composer's
+  trace, moved unchanged: the same entry points, call following, alternatives frames, data-access
+  runs, deliveries, jobs and the 40-message (80-step) bound. It records what each step is (its
+  action, ends, kind, profiles, the frame operand it sits in) and the facts it rests on; the
+  composer words and draws the stored steps (labels, intent phrases, notes, the LLM's outline) as
+  it did, and still chooses which flows a scope shows (ADR 0047) until flow significance (#272).
+  Only flows the composer could show are stored: those whose code reaches another container,
+  pushes to STOMP subscribers or calls what Lantern could not link.
+- **A flow's key holds its unit.** `flow:<unit>/<entry-point claim>`, since a library's entry
+  point runs in each unit that bundles it and is a flow in each.
+- **A step's link is its first fact.** A claim is no entity, so a step cannot point at its link
+  through a relation as the epic's `VIA` reads; the step cites it first, so it is its first lineage
+  claim and names the step's key. A note is keyed on the fact it is about (`none` for the note
+  that the trace stopped).
+- **Who uses the screens is the scope's.** The stored flow names the person the whole system
+  shows; a repository's document draws the person its own people give, as before.
+- **A flow is drawn whole or not at all.** A document composed from part of the snapshot's facts
+  (a repository's, in a run that carries other repositories forward) leaves out a flow resting on
+  a fact it does not hold, since it could not cite it; before, it traced the flow from the facts
+  it held. In a run of every repository, as the test sets are run, every flow holds.
+- **The shape is the epic's, the composer's check is not yet.** `flow-shape` hashes how a flow
+  starts and the ordered sender, receiver, kind and link of its messages (#615), and
+  `SAME_SHAPE_AS` links each flow to the one of its shape whose key sorts first. The composer
+  still hides a flow of the same start and lifelines as one shown (ADR 0070), so documents do not
+  change; flow significance (#272) will read the stored shapes.

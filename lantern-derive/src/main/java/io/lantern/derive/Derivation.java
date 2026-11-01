@@ -34,6 +34,9 @@ public final class Derivation {
   /** The vocabulary source of the deployment instances' types. */
   public static final String DEPLOYMENT_SOURCE = "derive-deployment-instances";
 
+  /** The vocabulary source of the flows' types. */
+  public static final String FLOWS_SOURCE = "derive-flows";
+
   /** The source of the leads' vocabulary types. */
   public static final String LEADS_SOURCE = "derive-leads";
 
@@ -43,7 +46,11 @@ public final class Derivation {
   public static List<LinkRule> rules() {
     List<LinkRule> rules =
         new java.util.ArrayList<>(
-            List.of(new Components(), new ComponentInteractions(), new DeploymentInstances()));
+            List.of(
+                new Components(),
+                new ComponentInteractions(),
+                new DeploymentInstances(),
+                new Flows()));
     rules.addAll(LeadRules.all());
     return List.copyOf(rules);
   }
@@ -54,6 +61,7 @@ public final class Derivation {
     sources.put(COMPONENTS_SOURCE, Components.vocabulary());
     sources.put(INTERACTIONS_SOURCE, ComponentInteractions.vocabulary());
     sources.put(DEPLOYMENT_SOURCE, DeploymentInstances.vocabulary());
+    sources.put(FLOWS_SOURCE, Flows.vocabulary());
     sources.put(LEADS_SOURCE, LeadRule.vocabulary());
     return sources;
   }

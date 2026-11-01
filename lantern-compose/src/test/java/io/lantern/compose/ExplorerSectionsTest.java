@@ -193,12 +193,14 @@ class ExplorerSectionsTest {
   void startHereListsTheFirstEntryPointsWhenNoFlowIsDrawn() {
     // Without the data access, send and HTTP call, no entry point reaches another container.
     List<Fact> facts =
-        TestFacts.runtime().list().stream()
-            .filter(
-                f ->
-                    !List.of("READS_TABLE", "PUBLISHES", "CALLS_HTTP", "SENDS_MESSAGES_TO")
-                        .contains(f.predicate()))
-            .toList();
+        io.lantern.derive.Derivation.withModel(
+            TestFacts.runtime().raw().stream()
+                .filter(
+                    f ->
+                        !List.of("READS_TABLE", "PUBLISHES", "CALLS_HTTP", "SENDS_MESSAGES_TO")
+                            .contains(f.predicate()))
+                .toList(),
+            1);
 
     assertThat(items(section(explorer(facts), "start_here")))
         .containsExactly(
