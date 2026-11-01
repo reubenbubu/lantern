@@ -71,6 +71,24 @@ go-ahead for milestone 1E.
   AI. The screen's test flags the four and not the fifth, from scripted model answers. Whether a
   real model's roles ignore them can only be shown on a real recording, which comes with #529.
 
+- **Other departures from epic 11.7**, each until the step named:
+  - The screen reads whole files a prompt showed, not the ranges that facts and tool results bring
+    into prompts. Text that reaches a prompt only as a fact, such as a config value or a README
+    claim, is not screened yet (#651).
+  - An unsupported text gets the note but not the LLM badge. The C4 report badges what rests only
+    on LLM facts (ADR 0086), and these sentences cite static facts. The note marks them in every
+    template.
+  - The run record counts the judge's items, not its verdicts per role. The log counts the
+    sentences checked and found unsupported. Verdicts per role come with the 1F roles that store
+    their texts as observations.
+  - A judge packet may mix the Describe roles' sentences and the purpose, up to 10 texts. They are
+    all responsibility sentences of one kind.
+  - The claim list is kept in the judge's cached answer, not beside the text, which is not stored
+    as an observation until 1F/1G.
+  - Findings are shown as a repository risk. There is no separate findings page.
+  - A complete screen ends only the findings of files it read in that run. A finding on a file no
+    prompt showed this time, such as one only a cached Resolve answer read, still holds.
+
 ## Consequences
 
 - A cold run makes the judge's and the screen's calls on top of the roles'. A warm run makes

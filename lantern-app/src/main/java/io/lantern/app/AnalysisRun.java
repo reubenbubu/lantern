@@ -523,6 +523,15 @@ public final class AnalysisRun {
     // One finding per file: the first flagged chunk.
     Map<String, Fact> byFile = new LinkedHashMap<>();
     found.forEach(f -> byFile.putIfAbsent(f.subject().toString(), f));
+    // A screen speaks only for the files it read this run: an earlier finding on a file no prompt
+    // showed this time, such as one only a cached Resolve answer read, still holds.
+    Set<String> screenedFiles = new java.util.HashSet<>();
+    harness.shown().forEach(f -> screenedFiles.add(f.repo() + "\u0000" + f.path()));
+    stillHolding(
+            facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+            screenedFiles,
+            snapshot.number())
+        .forEach(f -> byFile.putIfAbsent(f.subject().toString(), f));
     if (!result.suspected().isEmpty()) {
       LOG.warn("Injection screen: text addressed to an AI in {} files", byFile.size());
     }
@@ -538,6 +547,35 @@ public final class AnalysisRun {
                 snapshot.commits().keySet(),
                 byFile.values()));
     return List.copyOf(byFile.values());
+  }
+
+  /**
+   * The injection screen's earlier findings on files the run's screen did not read, as findings of
+   * the snapshot: a screen speaks only for the files it read (ADR 0101).
+   *
+   * @param earlier facts that hold in the snapshot
+   * @param screened the files screened this run, as repository and path joined by a NUL
+   */
+  static List<Fact> stillHolding(Collection<Fact> earlier, Set<String> screened, long snapshot) {
+    List<Fact> kept = new ArrayList<>();
+    for (Fact fact : earlier) {
+      if (fact.origin().kind() != Findings.SCREEN_ORIGIN.kind()
+          || !fact.origin().name().equals(Findings.SCREEN_ORIGIN.name())
+          || screened.contains(fact.evidence().repo() + "\u0000" + fact.evidence().path())) {
+        continue;
+      }
+      String[] lines = Findings.attribute(fact, "lines").split("-");
+      kept.add(
+          Findings.injectionSuspected(
+              fact.evidence().repo(),
+              fact.evidence().path(),
+              fact.evidence().blob(),
+              Integer.parseInt(lines[0]),
+              Integer.parseInt(lines[1]),
+              Findings.attribute(fact, "quote"),
+              snapshot));
+    }
+    return kept;
   }
 
   /**

@@ -403,7 +403,7 @@ public final class Findings implements LinkRule.OverFacts {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("about", "file:" + repo + ":" + path);
     attributes.put("repo", repo);
-    attributes.put("rule", "injection-screen/" + INJECTION_SUSPECTED);
+    attributes.put("rule", NAME + "/" + INJECTION_SUSPECTED);
     attributes.put("lines", from + "-" + to);
     attributes.put("quote", quote);
     return Fact.create(
