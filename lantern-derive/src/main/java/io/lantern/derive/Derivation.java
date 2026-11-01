@@ -41,6 +41,9 @@ public final class Derivation {
   /** The vocabulary source of the findings' types. */
   public static final String FINDINGS_SOURCE = "derive-findings";
 
+  /** The vocabulary source of the groups' types. */
+  public static final String GROUPS_SOURCE = "derive-groups";
+
   /** The source of the leads' vocabulary types. */
   public static final String LEADS_SOURCE = "derive-leads";
 
@@ -56,7 +59,8 @@ public final class Derivation {
                 new DeploymentInstances(),
                 new Flows(),
                 new ClaimChecks(),
-                new Findings()));
+                new Findings(),
+                new Groups()));
     rules.addAll(LeadRules.all());
     return List.copyOf(rules);
   }
@@ -69,6 +73,7 @@ public final class Derivation {
     sources.put(DEPLOYMENT_SOURCE, DeploymentInstances.vocabulary());
     sources.put(FLOWS_SOURCE, Flows.vocabulary());
     sources.put(FINDINGS_SOURCE, Findings.vocabulary());
+    sources.put(GROUPS_SOURCE, Groups.vocabulary());
     sources.put(LEADS_SOURCE, LeadRule.vocabulary());
     return sources;
   }
