@@ -45,8 +45,9 @@ Options:
   --held-out                Allow the held-out sets project-5 to project-7. Nobody analyzes
                             them before Phase 2's real-model acceptance (docs/design.md, Test
                             sets); without this option they are refused.
-  --score-only              Do not analyze: score each set's newest report as it is. The
-                            sets need not be set up.
+  --score-only              Do not analyze: score each set's newest report as it is, the
+                            one whose run.json was written last (the highest-numbered folder
+                            when none has a run.json). The sets need not be set up.
   -y, --yes                 Do not ask before analyzing (a real model costs money).
   -h, --help                Show this help.
 
@@ -153,11 +154,18 @@ reference_dir() {
   fi
 }
 
+# Temporary files, removed however the script ends.
+temporary=()
+cleanup() {
+  [[ ${#temporary[@]} -eq 0 ]] || rm -f "${temporary[@]}"
+}
+trap cleanup EXIT
+
 if $fake_llm && ! $score_only; then
   [[ -z "$llm_file" ]] || die "--fake-llm and --llm-properties exclude each other"
   # The settings of the fake models, outside the repository as launch.sh requires.
   llm_file="$(mktemp "${TMPDIR:-/tmp}/lantern-fake-llm-XXXXXX.properties")"
-  trap 'rm -f "$llm_file"' EXIT
+  temporary+=("$llm_file")
   cat > "$llm_file" <<'PROPERTIES'
 lantern.llm.models.fake.provider=fake
 lantern.llm.models.fake.id=fake-model
@@ -183,13 +191,41 @@ if ! $score_only && ! $assume_yes; then
   [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || die "cancelled"
 fi
 
-# The newest snapshot folder of a system's documents, or nothing.
-newest_documents() {
-  local dir="$workspace/documents/$1" newest=""
+# The snapshot folders of a system's documents whose run.json was written after the file given,
+# or all of them without one, newest run.json first. A folder's number is the snapshot's, which
+# starts from 1 again after the database is purged (scripts/teardown.sh --purge), so the highest
+# number need not be the latest run (#610).
+written_documents() {
+  local dir="$workspace/documents/$1" since="${2:-}"
   [[ -d "$dir" ]] || return 0
-  newest="$(find "$dir" -mindepth 1 -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' | sort -n | tail -n 1)"
-  [[ -n "$newest" ]] && echo "$dir/$newest"
+  local newer=()
+  [[ -n "$since" ]] && newer=(-newer "$since")
+  find "$dir" -mindepth 2 -maxdepth 2 -name run.json -regex '.*/[0-9]+/run\.json' \
+    ${newer[@]+"${newer[@]}"} -printf '%T@ %h\n' | sort -rn | cut -d' ' -f2-
+}
+
+# The newest documents of a system without analyzing: the folder whose run.json was written last,
+# else, where no folder has one (documents from before run.json), the highest-numbered folder.
+newest_documents() {
+  local dir="$workspace/documents/$1" folders
+  mapfile -t folders < <(written_documents "$1")
+  if [[ ${#folders[@]} -gt 0 ]]; then
+    echo "${folders[0]}"
+  elif [[ -d "$dir" ]]; then
+    local newest
+    newest="$(find "$dir" -mindepth 1 -maxdepth 1 -type d -regex '.*/[0-9]+' -printf '%f\n' | sort -n | tail -n 1)"
+    [[ -z "$newest" ]] || echo "$dir/$newest"
+  fi
   return 0
+}
+
+# The folder of documents the run just made, which must be the only one written since it started.
+run_documents() {
+  local set="$1" since="$2" folders
+  mapfile -t folders < <(written_documents "$set" "$since")
+  [[ ${#folders[@]} -eq 1 ]] ||
+    die "$set: expected the analysis to write one folder of documents under $workspace/documents/$set, found ${#folders[@]}${folders[*]:+: ${folders[*]}}"
+  echo "${folders[0]}"
 }
 
 mkdir -p "$scores"
@@ -215,11 +251,16 @@ for set in "${sets[@]}"; do
     [[ -n "$llm_file" ]] && launch+=(--llm-properties "$llm_file")
     [[ -n "$mirror_file" ]] && launch+=(--mirror-properties "$mirror_file")
     info "$set: analyzing ${#repos[@]} repositories"
+    started="$(mktemp "${TMPDIR:-/tmp}/lantern-score-started-XXXXXX")"
+    temporary+=("$started")
     LANTERN_WORKSPACE="$workspace" "${launch[@]}" ${overrides[@]+"${overrides[@]}"} -- "${repos[@]}" ||
       die "$set: the analysis failed"
+    documents="$(run_documents "$set" "$started")" || exit 1
+  else
+    documents="$(newest_documents "$set")"
   fi
-  documents="$(newest_documents "$set")"
   [[ -n "$documents" && -f "$documents/_system.c4.html" ]] || die "$set: no system report under $workspace/documents/$set"
+  info "$set: scoring the documents in $documents"
   mkdir -p "$scores/$set"
   cp "$documents/_system.c4.html" "$scores/$set/"
   run_args=()
