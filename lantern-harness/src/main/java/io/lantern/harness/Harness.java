@@ -25,7 +25,7 @@ public final class Harness {
   private final Set<String> secrets;
   private final Map<String, RoleSession> sessions = new LinkedHashMap<>();
   private final Map<String, io.lantern.llm.BudgetGuard> guards = new LinkedHashMap<>();
-  private final Map<String, java.math.BigDecimal> planned = new LinkedHashMap<>();
+  private final Map<String, ShareRounds> rounds = new LinkedHashMap<>();
   private final Map<String, Shown> shown = new LinkedHashMap<>();
   private volatile int batchAbove = BATCH_ABOVE;
 
@@ -144,21 +144,15 @@ public final class Harness {
   }
 
   /**
-   * Adds an item's estimated cost to its group's plan if the plan stays within the group's share.
-   * Roles decide their items in their plans, in their own order, so what fits depends on the order
-   * the roles plan in, never on thread timing (#657).
+   * The rounds that decide which items of a role group fit its share, shared by the group's roles;
+   * {@code null} for a group without a share.
    */
-  synchronized boolean admit(String group, java.math.BigDecimal cost) {
+  synchronized ShareRounds rounds(String group) {
     java.math.BigDecimal share = budget.share(group);
     if (share == null) {
-      return true;
+      return null;
     }
-    java.math.BigDecimal sofar = planned.getOrDefault(group, java.math.BigDecimal.ZERO);
-    if (sofar.add(cost).compareTo(share) > 0) {
-      return false;
-    }
-    planned.put(group, sofar.add(cost));
-    return true;
+    return rounds.computeIfAbsent(group, g -> new ShareRounds(g, share, guard(g)));
   }
 
   AnswerStore answers() {

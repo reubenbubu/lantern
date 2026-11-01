@@ -37,7 +37,7 @@ final class Packer {
   }
 
   /** The repository part of a locality ({@code repo/unit}). */
-  private static String repo(String locality) {
+  static String repo(String locality) {
     int slash = locality.indexOf('/');
     return slash < 0 ? locality : locality.substring(0, slash);
   }

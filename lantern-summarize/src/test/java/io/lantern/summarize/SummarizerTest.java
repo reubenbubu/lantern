@@ -197,6 +197,119 @@ class SummarizerTest {
   }
 
   @Test
+  void aWarmUpUnitWhosePartFailsReleasesTheOthersAndTheRunEnds() {
+    // A rerun after a budget-limited run: the first unit to ask, which goes first, is one whose
+    // parts are cached. The store fails when the units ask it for their stored summaries, so a part
+    // of the warm-up unit fails and the warm-up unit never runs. The units waiting for it must go
+    // on, record why they were not asked, and the run end with the failure (#658).
+    ModelConfig priced =
+        new ModelConfig(
+            FakeLlmProvider.NAME,
+            "priced",
+            EnumSet.complementOf(EnumSet.of(Capability.BATCH)),
+            1_000_000,
+            new Pricing(
+                new java.math.BigDecimal("1000"),
+                new java.math.BigDecimal("1000"),
+                java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO));
+    int scenarios = 0;
+    for (String usd : List.of("0.5", "0.8", "1", "1.5")) {
+      InMemoryAnswerStore store = new InMemoryAnswerStore();
+      io.lantern.harness.AnswerStore failing =
+          new io.lantern.harness.AnswerStore() {
+            @Override
+            public java.util.Optional<io.lantern.harness.StoredAnswer> find(String fingerprint) {
+              java.util.Optional<io.lantern.harness.StoredAnswer> found = store.find(fingerprint);
+              // The plan reads the store on the caller's thread; units ask it on virtual threads.
+              if (found.isPresent() && Thread.currentThread().isVirtual()) {
+                throw new IllegalStateException("The answer store is unreachable");
+              }
+              return found;
+            }
+
+            @Override
+            public java.util.Optional<io.lantern.harness.StoredAnswer> latest(
+                String role, String subject) {
+              return store.latest(role, subject);
+            }
+
+            @Override
+            public void save(io.lantern.harness.StoredAnswer answer) {
+              store.save(answer);
+            }
+          };
+      java.util.function.Function<io.lantern.harness.AnswerStore, Harness> harness =
+          answers ->
+              new Harness(
+                  new LlmClient(
+                      ModelSettings.single(priced),
+                      List.of(fake),
+                      BudgetGuard.unlimited("test"),
+                      new InMemoryLlmCallLog(),
+                      Clock.systemUTC()),
+                  answers,
+                  new RunBudget(new java.math.BigDecimal(usd), java.util.Map.of("summarize", 100)),
+                  BlobLookup.NONE,
+                  Set.of());
+      new Summarizer(harness.apply(store))
+          .summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+      Harness again = harness.apply(failing);
+      List<SummaryNode> roots = SummaryTree.fromFacts(TestFacts.shop().list());
+      org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(
+          java.time.Duration.ofSeconds(30),
+          () ->
+              org.assertj.core.api.Assertions.assertThatThrownBy(
+                      () -> new Summarizer(again).summarize(roots))
+                  .hasMessageContaining("unreachable"));
+
+      // A budget that let the first run summarize everything leaves nothing to ask.
+      String warmUp = again.session(Summarizer.ROLE).warmUpItem().orElse(null);
+      if (warmUp == null || !hasParts(roots, warmUp)) {
+        continue;
+      }
+      // Only the warm-up unit and the units that contain it never run (and the cached unit that
+      // failed has no outcome): every other unit to ask, the ones that waited for the warm-up unit,
+      // was let go and has its outcome.
+      io.lantern.harness.RoleRecord record = again.records().getFirst();
+      int waiting = record.estimate().toAsk() - pathTo(roots, warmUp);
+      if (waiting > 0) {
+        scenarios++;
+        assertThat(record.settled()).as("$" + usd).isGreaterThanOrEqualTo(waiting);
+      }
+      assertThat(record.asked()).as("$" + usd).doesNotContain(warmUp);
+    }
+    assertThat(scenarios).isPositive();
+  }
+
+  /** How many units the path from a root to the unit holds, the unit included; 0 if none. */
+  private static int pathTo(List<SummaryNode> nodes, String entity) {
+    for (SummaryNode node : nodes) {
+      if (node.entity().toString().equals(entity)) {
+        return 1;
+      }
+      int below = pathTo(node.children(), entity);
+      if (below > 0) {
+        return below + 1;
+      }
+    }
+    return 0;
+  }
+
+  private static boolean hasParts(List<SummaryNode> nodes, String entity) {
+    for (SummaryNode node : nodes) {
+      if (node.entity().toString().equals(entity)) {
+        return !node.children().isEmpty();
+      }
+      if (hasParts(node.children(), entity)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Test
   void aBatchedRunStoresTheSameSummariesAsAnInteractiveOne() {
     // Interactive: the default threshold of 50 misses is not reached.
     Summarizer.Result interactive =

@@ -60,9 +60,19 @@ public final class RoleSession {
   private volatile BatchCollector batch;
   private volatile long prefixTokens;
   private volatile double requestsPerItem;
-  // Under a budget share, whether each planned item fits, decided by the plan in the role's order
-  // before anything is asked, so thread timing never picks the items (#657).
+  // Under a budget share, whether each planned item fits, decided in rounds in the group's order,
+  // so thread timing never picks the items (#657, #659); the keys of items not decided yet; and the
+  // keys of each subject's items.
   private final Map<String, Boolean> admitted = new java.util.concurrent.ConcurrentHashMap<>();
+  private final java.util.Set<String> undecided =
+      java.util.concurrent.ConcurrentHashMap.newKeySet();
+  private final Map<String, List<String>> keysBySubject =
+      new java.util.concurrent.ConcurrentHashMap<>();
+  private final ShareRounds rounds;
+  // Whether the role has asked the model anything yet: until it has, its first request writes the
+  // prompt's start to the cache.
+  private final java.util.concurrent.atomic.AtomicBoolean asking =
+      new java.util.concurrent.atomic.AtomicBoolean();
   // The item that goes first and warms the cache: the plan's first miss in the role's order, by its
   // key (see key) and its subject.
   private volatile String warmUpKey;
@@ -78,6 +88,7 @@ public final class RoleSession {
     this.spec = spec;
     this.model = client.model(spec.modelRole());
     this.share = harness.budget().share(spec.budgetGroup());
+    this.rounds = harness.rounds(spec.budgetGroup());
     // The roles of one group share its guard, so together they never spend past its share.
     LlmClient budgeted =
         share == null ? client : client.withBudget(harness.guard(spec.budgetGroup()));
@@ -170,6 +181,31 @@ public final class RoleSession {
    *     #plan(Collection, int, int, long, long)})
    */
   public Estimate plan(List<Planned> planned, int predictedHits, long prefixTokens) {
+    return plan(planned, predictedHits, prefixTokens, false);
+  }
+
+  /**
+   * Plans one item expected to be asked, and gives it first claim on its group's share: it is
+   * admitted at once if its estimate fits, ahead of every item the group plans after it, and the
+   * group's rounds do not wait for it (#659). For an item asked after the rest of its group, such
+   * as the system's purpose, which rests on the units' sentences. Without a share it is planned as
+   * any other item.
+   *
+   * @param subject the item's subject, as it will be asked
+   * @param tokens the input tokens it is expected to take
+   * @param prefixTokens the tokens of the prompt every request of the role starts with
+   */
+  public Estimate claim(String subject, long tokens, long prefixTokens) {
+    return plan(List.of(Planned.predicted(subject, tokens)), 0, prefixTokens, true);
+  }
+
+  /** Whether the role counts against a share of the run budget. */
+  public boolean underShare() {
+    return share != null;
+  }
+
+  private Estimate plan(
+      List<Planned> planned, int predictedHits, long prefixTokens, boolean claim) {
     this.prefixTokens = prefixTokens;
     int cached = predictedHits;
     long input = 0;
@@ -241,38 +277,100 @@ public final class RoleSession {
             share);
     record.planned(estimate);
     LOG.info("Plan {}", estimate.line(spec.name()));
-    decide(toAskInOrder);
+    decide(toAskInOrder, claim);
     return estimate;
   }
 
   /**
-   * Decides, in the role's order, which of its misses fit its share and which goes first. An item
-   * of unknown subject is decided when it is asked.
+   * Queues the role's misses, in its order, for its group's rounds to decide, or claims them;
+   * without a share, every item is asked and the first goes first. An item of unknown subject is
+   * decided when it is asked.
    */
-  private synchronized void decide(List<Planned> inOrder) {
-    boolean full = false;
-    Planned first = null;
+  private synchronized void decide(List<Planned> inOrder, boolean claim) {
+    List<ShareRounds.Entry> entries = new ArrayList<>();
     for (Planned entry : inOrder) {
-      if (entry.subject() == null || admitted.containsKey(key(entry))) {
+      if (entry.subject() == null) {
         continue;
       }
-      boolean fits = true;
-      if (share != null) {
-        fits =
-            !full
-                && harness.admit(
-                    spec.budgetGroup(),
-                    entry.item() != null ? itemCost(entry.item()) : cost(entry.tokens()));
-        full = !fits;
-        admitted.put(key(entry), fits);
+      String key = key(entry);
+      if (admitted.containsKey(key) || undecided.contains(key)) {
+        continue;
       }
-      if (fits && first == null) {
-        first = entry;
+      if (share == null) {
+        if (warmUpKey == null && !warming.get()) {
+          warmUpSubject = entry.subject();
+          warmUpKey = key;
+        }
+        continue;
       }
+      keysBySubject
+          .computeIfAbsent(entry.subject(), s -> new java.util.concurrent.CopyOnWriteArrayList<>())
+          .add(key);
+      entries.add(
+          new ShareRounds.Entry(
+              this,
+              key,
+              entry.subject(),
+              entry.item(),
+              entry.item() != null ? itemCost(entry.item()) : cost(entry.tokens())));
     }
-    if (warmUpKey == null && !warming.get() && first != null) {
-      warmUpSubject = first.subject();
-      warmUpKey = key(first);
+    if (claim) {
+      entries.forEach(entry -> decided(entry, rounds.claim(entry)));
+    } else if (!entries.isEmpty()) {
+      entries.forEach(entry -> undecided.add(entry.key()));
+      rounds.queue(entries);
+    }
+  }
+
+  /**
+   * Records the group's decision on an item; the first item admitted goes first and warms the
+   * cache. Called by the group's rounds, which hold their own lock, never this session's.
+   */
+  void decided(ShareRounds.Entry entry, boolean fits) {
+    admitted.put(entry.key(), fits);
+    undecided.remove(entry.key());
+    if (fits && warmUpKey == null && !warming.get()) {
+      warmUpSubject = entry.subject();
+      warmUpKey = entry.key();
+    }
+  }
+
+  /** Whether the item kept under the key waits for its group's next round. */
+  boolean undecided(String key) {
+    return undecided.contains(key);
+  }
+
+  /**
+   * Waits until the group has decided whether the subject's items fit its share. A role that bounds
+   * how many items it asks at once calls this before taking a slot, so items waiting for a later
+   * round never hold the slots the current round needs.
+   */
+  public void awaitTurn(String subject) {
+    if (rounds == null) {
+      return;
+    }
+    for (String key : keysBySubject.getOrDefault(subject, List.of())) {
+      rounds.await(this, key);
+    }
+  }
+
+  /**
+   * Tells the group's rounds that the item has an outcome, or ended without one, so the next round
+   * can be decided once the current one is settled.
+   */
+  private void ended(Item item) {
+    if (rounds != null) {
+      rounds.settle(this, fingerprint(item));
+      rounds.settle(this, "subject " + item.subject());
+    }
+  }
+
+  /** As {@link #ended(Item)}, for every item of a subject. */
+  private void ended(String subject) {
+    if (rounds != null) {
+      for (String key : keysBySubject.getOrDefault(subject, List.of())) {
+        rounds.settle(this, key);
+      }
     }
   }
 
@@ -354,11 +452,13 @@ public final class RoleSession {
    */
   public void releaseWarmUp(String subject) {
     settledWithoutAsking(subject);
+    ended(subject);
   }
 
   /** As {@link #releaseWarmUp(String)}, for the item itself. */
   public void releaseWarmUp(Item item) {
     settledWithoutAsking(item);
+    ended(item);
   }
 
   /**
@@ -376,6 +476,15 @@ public final class RoleSession {
   public Outcome ask(Item item, Asker asker, java.util.function.Predicate<StoredAnswer> holds) {
     Objects.requireNonNull(item, "item");
     Objects.requireNonNull(asker, "asker");
+    try {
+      return askOrReuse(item, asker, holds);
+    } finally {
+      ended(item);
+    }
+  }
+
+  private Outcome askOrReuse(
+      Item item, Asker asker, java.util.function.Predicate<StoredAnswer> holds) {
     String fingerprint = fingerprint(item);
     Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
     if (stored.isPresent() && revalidated(stored.get()) && holds.test(stored.get())) {
@@ -403,6 +512,10 @@ public final class RoleSession {
   }
 
   private Outcome askAdmitted(Item item, Asker asker, String fingerprint) {
+    if (rounds != null) {
+      rounds.started();
+    }
+    asking.set(true);
     boolean first = warmUp(item);
     if (first) {
       record.warmUp(item.subject());
@@ -505,22 +618,59 @@ public final class RoleSession {
                 ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
                 : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
             false);
-      } else if (!admitted(item)) {
-        settle(
-            outcomes,
-            item,
-            Outcome.of(
-                Outcome.Kind.NOT_ASKED,
-                fingerprint,
-                null,
-                "the " + spec.budgetGroup() + " share of the run budget is spent"),
-            false);
       } else {
         misses.add(item);
       }
     }
-    askPlannedPackets(misses, role, outcomes);
+    inRounds(
+        misses,
+        admittedNow -> askPlannedPackets(admittedNow, role, outcomes),
+        item -> settle(outcomes, item, notAdmitted(item), false));
     return outcomes;
+  }
+
+  /**
+   * Asks items that share requests round by round: those the group has admitted now, then, once
+   * they are settled and the group decides its next round, those it admits then, until every item
+   * is asked or not admitted.
+   */
+  private void inRounds(
+      List<Item> items,
+      java.util.function.Consumer<List<Item>> ask,
+      java.util.function.Consumer<Item> notAdmitted) {
+    List<Item> pending = items;
+    while (!pending.isEmpty()) {
+      List<Item> now = new ArrayList<>();
+      List<Item> later = new ArrayList<>();
+      for (Item item : pending) {
+        Optional<Boolean> fits = decision(item);
+        if (fits.isEmpty()) {
+          later.add(item);
+        } else if (fits.get()) {
+          now.add(item);
+        } else {
+          notAdmitted.accept(item);
+        }
+      }
+      if (!now.isEmpty()) {
+        if (rounds != null) {
+          rounds.started();
+        }
+        asking.set(true);
+        ask.accept(now);
+      } else if (!later.isEmpty()) {
+        awaitDecision(later.getFirst());
+      }
+      pending = later;
+    }
+  }
+
+  private Outcome notAdmitted(Item item) {
+    return Outcome.of(
+        Outcome.Kind.NOT_ASKED,
+        fingerprint(item),
+        null,
+        "the " + spec.budgetGroup() + " share of the run budget is spent");
   }
 
   private void askPlannedPackets(
@@ -724,24 +874,14 @@ public final class RoleSession {
                 ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
                 : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
             false);
-      } else if (!admitted(item)) {
-        settle(
-            outcomes,
-            item,
-            Outcome.of(
-                Outcome.Kind.NOT_ASKED,
-                fingerprint,
-                null,
-                "the " + spec.budgetGroup() + " share of the run budget is spent"),
-            false);
       } else {
         packet.add(item);
       }
     }
-    if (packet.isEmpty()) {
-      return outcomes;
-    }
-    conversePlanned(packet, role, tools, filesRead, outcomes);
+    inRounds(
+        packet,
+        admittedNow -> conversePlanned(admittedNow, role, tools, filesRead, outcomes),
+        item -> settle(outcomes, item, notAdmitted(item), false));
     return outcomes;
   }
 
@@ -842,10 +982,12 @@ public final class RoleSession {
                 item.inputs()));
   }
 
-  private synchronized void settle(
-      Map<String, Outcome> outcomes, Item item, Outcome outcome, boolean repaired) {
-    outcomes.put(item.subject(), outcome);
-    record.outcome(item.subject(), outcome, repaired);
+  private void settle(Map<String, Outcome> outcomes, Item item, Outcome outcome, boolean repaired) {
+    synchronized (this) {
+      outcomes.put(item.subject(), outcome);
+      record.outcome(item.subject(), outcome, repaired);
+    }
+    ended(item);
   }
 
   /** The answer stored last for the subject by this role, whatever its fingerprint. */
@@ -865,19 +1007,49 @@ public final class RoleSession {
   }
 
   /**
-   * Whether the item fits its role's share: as the plan decided, or for an item the plan did not
-   * know by subject, decided now against what the group has planned.
+   * Whether the item fits its role's share, waiting for its group's round if it is not decided yet.
    */
   private boolean admitted(Item item) {
+    while (true) {
+      Optional<Boolean> fits = decision(item);
+      if (fits.isPresent()) {
+        return fits.get();
+      }
+      awaitDecision(item);
+    }
+  }
+
+  /**
+   * Whether the item fits its role's share: as its group decided, nothing yet if it waits for a
+   * later round, or for an item no plan knew, decided now as a claim on what is left.
+   */
+  private Optional<Boolean> decision(Item item) {
     if (share == null) {
-      return true;
+      return Optional.of(true);
     }
-    Boolean expected = admitted.get("subject " + item.subject());
-    if (expected != null) {
-      return expected;
+    for (String key : List.of("subject " + item.subject(), fingerprint(item))) {
+      Boolean fits = admitted.get(key);
+      if (fits != null) {
+        return Optional.of(fits);
+      }
+      if (undecided.contains(key)) {
+        return Optional.empty();
+      }
     }
-    return admitted.computeIfAbsent(
-        fingerprint(item), key -> harness.admit(spec.budgetGroup(), itemCost(item)));
+    String key = fingerprint(item);
+    synchronized (this) {
+      Boolean fits = admitted.get(key);
+      if (fits == null) {
+        fits = rounds.claim(new ShareRounds.Entry(this, key, item.subject(), item, itemCost(item)));
+        admitted.put(key, fits);
+      }
+      return Optional.of(fits);
+    }
+  }
+
+  private void awaitDecision(Item item) {
+    String key = "subject " + item.subject();
+    rounds.await(this, undecided.contains(key) ? key : fingerprint(item));
   }
 
   /**
@@ -887,6 +1059,51 @@ public final class RoleSession {
    */
   BigDecimal itemCost(Item item) {
     return cost(Tokens.estimate(item.rendering()));
+  }
+
+  /**
+   * What a round's items of this role are expected to cost, priced as the role will ask them. A
+   * role that groups items into requests asks the round's items together, packed as they will be
+   * sent (a new request at every change of repository), so each request reads the prompt's start
+   * from the cache, or the first of the role's writes it; a small round packs fewer items a request
+   * than the plan's average. Other roles' items cost what each is expected to cost alone.
+   */
+  BigDecimal roundCost(List<ShareRounds.Entry> entries) {
+    int packet = spec.packetSize();
+    if (packet <= 1 || entries.stream().anyMatch(entry -> entry.item() == null)) {
+      BigDecimal cost = BigDecimal.ZERO;
+      for (ShareRounds.Entry entry : entries) {
+        cost = cost.add(entry.cost());
+      }
+      return cost;
+    }
+    Map<String, Integer> byRepo = new LinkedHashMap<>();
+    long input = 0;
+    for (ShareRounds.Entry entry : entries) {
+      byRepo.merge(Packer.repo(entry.item().locality()), 1, Integer::sum);
+      input += Tokens.estimate(entry.item().rendering());
+    }
+    long requests = 0;
+    for (int count : byRepo.values()) {
+      requests += (count + packet - 1) / packet;
+    }
+    long output = (long) spec.expectedOutputTokens() * entries.size();
+    long prefix = prefixTokens;
+    long write = 0;
+    long read = 0;
+    if (model.supports(Capability.PROMPT_CACHING) && prefix > 0) {
+      write = asking.get() ? 0 : prefix;
+      read = prefix * (requests - (asking.get() ? 0 : 1));
+    } else {
+      input += prefix * requests;
+    }
+    if (batching()) {
+      return model
+          .pricing()
+          .batchCost(new TokenUsage(input, output, 0, read))
+          .add(model.pricing().cost(new TokenUsage(0, 0, 0, 0, write)));
+    }
+    return model.pricing().cost(new TokenUsage(input, output, write, read));
   }
 
   /** What an item of the given input tokens is expected to cost (see {@link #itemCost}). */
@@ -950,6 +1167,7 @@ public final class RoleSession {
     LOG.info("Not asked about {} for {}: {}", subject, spec.name(), reason);
     record.outcome(subject, Outcome.of(Outcome.Kind.NOT_ASKED, null, null, reason), false);
     settledWithoutAsking(subject);
+    ended(subject);
   }
 
   /** The role's run record. */

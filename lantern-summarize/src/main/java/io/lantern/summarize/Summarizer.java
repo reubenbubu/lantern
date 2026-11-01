@@ -529,6 +529,8 @@ public final class Summarizer {
         // The warm-up unit goes first; the others to be asked wait for it before taking a slot,
         // so they never hold the slot it needs.
         if (toAsk.contains(node.entity())) {
+          // Under a budget, a unit of a later round waits for it before taking a slot too.
+          session.awaitTurn(node.entity().toString());
           session.awaitWarmUp(node.entity().toString());
         }
         running.acquire();

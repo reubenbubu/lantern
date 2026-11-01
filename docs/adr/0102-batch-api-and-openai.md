@@ -52,7 +52,8 @@ No real call was made: every test answers from a fake through a stub of the prov
     expectedOutputTokens)`). Its real cost replaces the estimate when its result comes back.
   - A budget that holds back estimates, such as the monthly one, refuses the requests whose
     estimates no longer fit, which cuts the batch to what is left. A role group's share holds back
-    nothing: the plan chose the items that fit it (ADR 0100, amendment for #42, as changed by #657).
+    nothing: the group's rounds chose the items that fit it (ADR 0100, amendment for #42, as changed
+    by #657 and #659). Each round's items go as their own batch.
 - **A one-hour write has its own price and count** (#654). A long-lived cache write costs twice the
   input price on Anthropic, not the five-minute write's 1.25 times.
   - Token usage counts it apart (`TokenUsage.cacheWriteLong`), from the lifetime breakdown
