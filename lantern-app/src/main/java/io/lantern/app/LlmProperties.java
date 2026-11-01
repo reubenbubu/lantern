@@ -54,6 +54,10 @@ public record LlmProperties(
     roles = roles == null ? Map.of() : Map.copyOf(roles);
     anthropic = anthropic == null ? new Anthropic(null, null) : anthropic;
     retry = retry == null ? new Retry(null, null, null) : retry;
+    if (runBudgetUsd != null && runBudgetUsd.signum() < 0) {
+      throw new IllegalArgumentException(
+          "lantern.llm.run-budget-usd must not be negative: " + runBudgetUsd);
+    }
     runBudgetShares = runBudgetShares == null ? Map.of() : Map.copyOf(runBudgetShares);
     for (String group : runBudgetShares.keySet()) {
       if (!RunBudget.DEFAULT_SHARES.containsKey(group)) {
