@@ -303,6 +303,10 @@ public final class FakeLlmProvider implements LlmProvider {
     read = Math.min(read, input);
     written = Math.min(written, input - read);
     prefixes.forEach(prefix -> cachedPrefixes.add(digest(prefix)));
+    // Like Anthropic, a write through a long-lived breakpoint is counted apart.
+    if (!prefixes.isEmpty() && request.cacheBreaks().stream().anyMatch(CacheBreak::longLived)) {
+      return new TokenUsage(input - read - written, output, 0, read, written);
+    }
     return new TokenUsage(input - read - written, output, written, read);
   }
 

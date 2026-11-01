@@ -44,6 +44,9 @@ public record ConversationLimits(
 
   /** The input a call used in fresh-token equivalents, rounded up. */
   public static long freshEquivalent(TokenUsage usage) {
-    return usage.input() + (usage.cacheWrite() * 5 + 3) / 4 + (usage.cacheRead() + 9) / 10;
+    return usage.input()
+        + (usage.cacheWrite() * 5 + 3) / 4
+        + usage.cacheWriteLong() * 2
+        + (usage.cacheRead() + 9) / 10;
   }
 }

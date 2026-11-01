@@ -10,7 +10,8 @@ import java.math.BigDecimal;
  * @param cached how many the answer cache holds
  * @param toAsk how many will be asked
  * @param inputTokens the uncached input tokens expected
- * @param cacheWriteTokens the tokens expected to be written to the prompt cache
+ * @param cacheWriteTokens the tokens expected to be written to the prompt cache, for an hour when
+ *     the role batches
  * @param cacheReadTokens the tokens expected to be read from it
  * @param outputTokens the output tokens expected
  * @param usd the expected cost

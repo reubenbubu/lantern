@@ -21,7 +21,7 @@ public final class Slf4jLlmCallLog implements LlmCallLog {
     if (call.outcome() == LlmCall.Outcome.TRUNCATED) {
       LOG.warn(
           "LLM call {} role={} provider={} model={} purpose=\"{}\" tokens(in={}, out={}, cacheWrite={},"
-              + " cacheRead={}) cost=${} duration={}ms error=\"{}\"{}",
+              + " cacheWriteLong={}, cacheRead={}) cost=${} duration={}ms error=\"{}\"{}",
           call.outcome(),
           call.role(),
           call.provider(),
@@ -30,6 +30,7 @@ public final class Slf4jLlmCallLog implements LlmCallLog {
           call.usage().input(),
           call.usage().output(),
           call.usage().cacheWrite(),
+          call.usage().cacheWriteLong(),
           call.usage().cacheRead(),
           call.costUsd().toPlainString(),
           call.duration().toMillis(),
@@ -38,7 +39,7 @@ public final class Slf4jLlmCallLog implements LlmCallLog {
     } else if (call.outcome() == LlmCall.Outcome.SUCCEEDED) {
       LOG.info(
           "LLM call {} role={} provider={} model={} purpose=\"{}\" tokens(in={}, out={}, cacheWrite={},"
-              + " cacheRead={}) cost=${} duration={}ms{}",
+              + " cacheWriteLong={}, cacheRead={}) cost=${} duration={}ms{}",
           call.outcome(),
           call.role(),
           call.provider(),
@@ -47,6 +48,7 @@ public final class Slf4jLlmCallLog implements LlmCallLog {
           call.usage().input(),
           call.usage().output(),
           call.usage().cacheWrite(),
+          call.usage().cacheWriteLong(),
           call.usage().cacheRead(),
           call.costUsd().toPlainString(),
           call.duration().toMillis(),

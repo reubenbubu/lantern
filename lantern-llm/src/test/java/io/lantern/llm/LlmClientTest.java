@@ -177,6 +177,49 @@ class LlmClientTest {
   }
 
   @Test
+  void aLongLivedRequestIsReservedAndRecordedAtTheOneHourWritePrice() {
+    Pricing pricing =
+        new Pricing(
+            BigDecimal.ONE,
+            BigDecimal.ZERO,
+            new BigDecimal("1.25"),
+            BigDecimal.ZERO,
+            BigDecimal.TWO);
+    ModelConfig model =
+        new ModelConfig("fake", "m", Set.of(Capability.PROMPT_CACHING), 10_000, pricing);
+    fake.simulatingPromptCache();
+    // System "s".repeat(400) = 100 tokens; user 400 characters = 100 tokens.
+    // Worst case: 100 * $2 + 100 * $1 per million = $0.0003, which $0.000299 does not hold.
+    BudgetGuard tight = new BudgetGuard("run", null, new BigDecimal("0.000299"));
+    LlmRequest request =
+        new LlmRequest(
+                Role.SUMMARIZE,
+                "warm-up",
+                "s".repeat(400),
+                List.of(LlmMessage.user("u".repeat(400))),
+                1,
+                true)
+            .withLongLivedCache();
+    assertThatThrownBy(
+            () ->
+                new LlmClient(ModelSettings.single(model), List.of(fake), tight, log, clock)
+                    .call(request))
+        .isInstanceOf(BudgetExceededException.class);
+
+    LlmResponse response =
+        new LlmClient(
+                ModelSettings.single(model),
+                List.of(fake),
+                BudgetGuard.unlimited("run"),
+                log,
+                clock)
+            .call(request);
+
+    assertThat(response.usage().cacheWriteLong()).isEqualTo(100);
+    assertThat(response.usage().cacheWrite()).isZero();
+  }
+
+  @Test
   void onlyTheSystemPromptIsReservedAtTheCacheWritePrice() {
     // Cache writes cheaper than input, so pricing all input as cache writes would under-reserve.
     Pricing cheapCache =

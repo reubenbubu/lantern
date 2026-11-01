@@ -589,7 +589,12 @@ public final class LlmClient {
     // With caching, the system prompt may be written to the cache; the rest is normal input.
     long cached =
         model.cachesSystem(request) ? Math.min(input, Tokens.estimate(request.system())) : 0;
-    TokenUsage worstCase = new TokenUsage(input - cached, request.maxOutputTokens(), cached, 0);
+    // A long-lived breakpoint writes for an hour, at its own price.
+    boolean longLived = request.cacheBreaks().stream().anyMatch(CacheBreak::longLived);
+    TokenUsage worstCase =
+        longLived
+            ? new TokenUsage(input - cached, request.maxOutputTokens(), 0, 0, cached)
+            : new TokenUsage(input - cached, request.maxOutputTokens(), cached, 0);
     BigDecimal cost =
         batch ? model.pricing().batchCost(worstCase) : model.pricing().cost(worstCase);
     List<BudgetGuard.Reservation> reservations = new ArrayList<>();

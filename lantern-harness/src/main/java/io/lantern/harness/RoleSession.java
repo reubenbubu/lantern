@@ -145,11 +145,18 @@ public final class RoleSession {
       input = Math.max(0, input - prefixTokens * toAsk);
     }
     long output = (long) toAsk * spec.expectedOutputTokens();
-    // A role that batches pays the batch price; its warm-up request, at the full price and with
-    // the one-hour cache write, is not told apart (ADR 0102).
-    TokenUsage planned = new TokenUsage(input, output, write, read);
-    BigDecimal usd =
-        batchIfBulk(toAsk) ? model.pricing().batchCost(planned) : model.pricing().cost(planned);
+    BigDecimal usd;
+    if (batchIfBulk(toAsk)) {
+      // A role that batches pays the batch price, except for its warm-up request's one-hour cache
+      // write, which goes interactively at the long-lived write's price (ADR 0102).
+      usd =
+          model
+              .pricing()
+              .batchCost(new TokenUsage(input, output, 0, read))
+              .add(model.pricing().cost(new TokenUsage(0, 0, 0, 0, write)));
+    } else {
+      usd = model.pricing().cost(new TokenUsage(input, output, write, read));
+    }
     Estimate estimate =
         new Estimate(
             items.size() + predictedHits + predictedMisses,

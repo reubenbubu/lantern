@@ -35,6 +35,7 @@ public final class RoleRecord implements LlmCallLog {
   private long input;
   private long output;
   private long cacheWrite;
+  private long cacheWriteLong;
   private long cacheRead;
   private BigDecimal usd = BigDecimal.ZERO;
   private BigDecimal batchUsd = BigDecimal.ZERO;
@@ -62,6 +63,7 @@ public final class RoleRecord implements LlmCallLog {
         call.usage().output(),
         call.usage().cacheWrite(),
         call.usage().cacheRead());
+    cacheWriteLong += call.usage().cacheWriteLong();
     usd = usd.add(call.costUsd());
     if (call.batch()) {
       batchCalls++;
@@ -188,6 +190,7 @@ public final class RoleRecord implements LlmCallLog {
     tokens.put("input", input);
     tokens.put("output", output);
     tokens.put("cacheWrite", cacheWrite);
+    tokens.put("cacheWriteLong", cacheWriteLong);
     tokens.put("cacheRead", cacheRead);
     node.put("costUsd", usd.toPlainString());
     node.put("batchCostUsd", batchUsd.toPlainString());

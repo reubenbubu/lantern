@@ -260,10 +260,15 @@ public record LlmProperties(
 
   /**
    * A model's prices in US dollars per million tokens. Cache prices may be left out for a model
-   * without prompt caching.
+   * without prompt caching. {@code cache-write} is the five-minute write's price and {@code
+   * cache-write-long} the one-hour write's, twice the input price when left out, as on Anthropic.
    */
   public record Prices(
-      BigDecimal input, BigDecimal output, BigDecimal cacheWrite, BigDecimal cacheRead) {
+      BigDecimal input,
+      BigDecimal output,
+      BigDecimal cacheWrite,
+      BigDecimal cacheRead,
+      BigDecimal cacheWriteLong) {
 
     Pricing toPricing(String property, boolean caching) {
       require(property + ".input", input);
@@ -276,7 +281,8 @@ public record LlmProperties(
           input,
           output,
           cacheWrite == null ? BigDecimal.ZERO : cacheWrite,
-          cacheRead == null ? BigDecimal.ZERO : cacheRead);
+          cacheRead == null ? BigDecimal.ZERO : cacheRead,
+          cacheWriteLong == null ? input.multiply(Pricing.LONG_WRITE_MULTIPLE) : cacheWriteLong);
     }
   }
 

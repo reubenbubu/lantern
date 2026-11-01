@@ -206,12 +206,16 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     } else {
       answer.put("stopReason", response.stopReason());
     }
-    answer
-        .putObject("usage")
-        .put("input", response.usage().input())
-        .put("output", response.usage().output())
-        .put("cacheWrite", response.usage().cacheWrite())
-        .put("cacheRead", response.usage().cacheRead());
+    ObjectNode usage =
+        answer
+            .putObject("usage")
+            .put("input", response.usage().input())
+            .put("output", response.usage().output())
+            .put("cacheWrite", response.usage().cacheWrite())
+            .put("cacheRead", response.usage().cacheRead());
+    if (response.usage().cacheWriteLong() > 0) {
+      usage.put("cacheWriteLong", response.usage().cacheWriteLong());
+    }
     if (!response.toolCalls().isEmpty()) {
       answer.set("toolCalls", toolCalls(response.toolCalls()));
     }
@@ -266,7 +270,8 @@ public final class RecordReplayLlmProvider implements LlmProvider {
             usage.required("input").asLong(),
             usage.required("output").asLong(),
             usage.required("cacheWrite").asLong(),
-            usage.required("cacheRead").asLong()),
+            usage.required("cacheRead").asLong(),
+            usage.path("cacheWriteLong").asLong(0)),
         calls,
         thought);
   }

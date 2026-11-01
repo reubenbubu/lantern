@@ -53,7 +53,13 @@ class BatchPlanTest {
             .session(TestHarness.role());
     Estimate same = interactive.plan(items(51), 100);
     assertThat(interactive.batching()).isFalse();
-    assertThat(past.usd()).isEqualByComparingTo(same.usd().multiply(new BigDecimal("0.5")));
+    // Everything at half price but the warm-up's cache write of the 100-token prompt start, which
+    // goes at the full one-hour write price ($2 a million) instead of the five-minute one ($1.25).
+    BigDecimal write = new BigDecimal("0.000125");
+    BigDecimal writeLong = new BigDecimal("0.0002");
+    assertThat(past.usd())
+        .isEqualByComparingTo(
+            same.usd().subtract(write).multiply(new BigDecimal("0.5")).add(writeLong));
     assertThat(atFifty.usd()).isPositive();
   }
 

@@ -323,7 +323,7 @@ The LLM handles understanding that static analysis can't provide, and finds what
 
 **Provider interface**
 
-- A thin Java interface over the official Anthropic and OpenAI SDKs, with an OpenAI-compatible endpoint option for gateways. The roles send the same requests to either; the OpenAI provider maps cache hints to a stable prefix and `prompt_cache_key`, and both record usage in one form: uncached input, cache write, cache read, output (ADR 0102).
+- A thin Java interface over the official Anthropic and OpenAI SDKs, with an OpenAI-compatible endpoint option for gateways. The roles send the same requests to either; the OpenAI provider maps cache hints to a stable prefix and `prompt_cache_key`, and both record usage in one form: uncached input, cache write (five-minute and one-hour, each at its own price), cache read, output (ADR 0102).
 - **Capability flags** per configured model: tool use, structured output, prompt caching, batch, context window, cost per token. Callers check capabilities instead of assuming them.
 - Different models can be set per role, for example a cheaper model for leaf summaries and a stronger one for composition.
 

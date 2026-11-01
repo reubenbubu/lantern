@@ -213,12 +213,7 @@ public final class Conversation {
         end(LlmConversation.Ending.FAILED, e.getMessage());
         throw e;
       }
-      usage =
-          new TokenUsage(
-              usage.input() + response.usage().input(),
-              usage.output() + response.usage().output(),
-              usage.cacheWrite() + response.usage().cacheWrite(),
-              usage.cacheRead() + response.usage().cacheRead());
+      usage = usage.plus(response.usage());
       cost = cost.add(model.pricing().cost(response.usage()));
       freshInput += ConversationLimits.freshEquivalent(response.usage());
       last = response;

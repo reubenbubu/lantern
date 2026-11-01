@@ -72,7 +72,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   for a model without prompt caching. They are part of the replay key only when a request sets any,
   so existing recordings still replay.
 - **The agent loop's caps.** `ConversationLimits` caps tool turns, input in fresh-token equivalents
-  (input + 1.25 × cache write + 0.1 × cache read) and output per turn. At 75% of a cap a note after
+  (input + 1.25 × five-minute cache write + 2 × one-hour cache write + 0.1 × cache read) and output per turn. At 75% of a cap a note after
   the tool results asks the model to submit what it has; at the cap the conversation ends as
   `CAPPED`. A reply the caller sends after the model's answer, such as a repair, is not held to the
   caps. Resolve keeps its tools and gets the epic's 6 tool turns and 4,000 output tokens a turn, but
@@ -90,7 +90,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   answers as observations comes with the roles that 1F rebuilds and the composer of 1G, which read
   them.
 - **The run record shows each role**: items planned, cached, asked, answered, omitted, dropped, not
-  asked and failed; calls and batch calls; tokens (fresh, cache write, cache read); cost; and the
+  asked and failed; calls and batch calls; tokens (fresh, five-minute and one-hour cache write, cache read); cost; and the
   estimate. It also lists the subjects asked, which the incrementality test reads.
 
 ## Consequences
@@ -137,7 +137,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
 - **The fake profile simulates the prompt cache.** The fake provider of the `fake-llm` profile
   reports cache writes and reads as a provider with prompt caching would, and the fake models of
   `scripts/score-testsets.sh` declare `prompt-caching` (with zero cache prices for `fake`, and
-  1.25x and 0.1x the input price for `fake-priced`). Fake runs then show in their run record what a
+  1.25x, 2x for a one-hour write, and 0.1x the input price for `fake-priced`). Fake runs then show in their run record what a
   warmed cache saves. The documents do not change: only the reported token split does.
 - **Bulk runs.** Writing the prefix with a one-hour lifetime before a batch is submitted comes with
   the batch path (#527).
