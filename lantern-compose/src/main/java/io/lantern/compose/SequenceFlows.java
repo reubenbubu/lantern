@@ -282,11 +282,17 @@ final class SequenceFlows {
           Start start = starts.get(unit + " " + method);
           String reached = start == null ? null : attribute(start.link, "reachesEndpoint");
           knowledge.attributes(method).stream()
-              // Of a handler's endpoints, the one the browser's call reaches.
+              // Of a handler's endpoints, the one the browser's call reaches; else by the kind of
+              // trigger, then its text, so the trigger that names a method's flow does not depend
+              // on the facts' IDs (#545).
               .sorted(
                   Comparator.comparing(
-                      (Fact f) ->
-                          !(f.predicate().equals(ENDPOINT) && f.object().value().equals(reached))))
+                          (Fact f) ->
+                              !(f.predicate().equals(ENDPOINT)
+                                  && f.object().value().equals(reached)))
+                      .thenComparingInt(SequenceFlows::triggerRank)
+                      .thenComparing(f -> f.object().value())
+                      .thenComparing(Fact::id))
               .filter(
                   f ->
                       f.predicate().equals(ENDPOINT)
@@ -303,6 +309,23 @@ final class SequenceFlows {
       }
     }
     return result;
+  }
+
+  /**
+   * Which trigger names a flow when one method has several: a request (an endpoint, a WebSocket
+   * endpoint, a STOMP message), then a message, then a schedule or a background job, as {@link
+   * #tier} ranks flows.
+   */
+  private static int triggerRank(Fact trigger) {
+    return switch (trigger.predicate()) {
+      case ENDPOINT -> 0;
+      case WEBSOCKET_ENDPOINT -> 1;
+      case STOMP_MAPPING -> 2;
+      case MESSAGE_LISTENER -> 3;
+      case SCHEDULED -> 4;
+      case BACKGROUND_JOB -> 5;
+      default -> 6;
+    };
   }
 
   // Tracing.
@@ -904,8 +927,20 @@ final class SequenceFlows {
     }
   }
 
-  /** Something a method does, in the order of the code: a call, or a step out of its unit. */
-  private record Event(int line, int order, String id, Runnable action) {}
+  /**
+   * Something a method does, in the order of the code: a call, or a step out of its unit. Ordered
+   * by line, then kind (calls; then links, STOMP pushes and jobs; then reads; then writes), then
+   * what it reaches as its fact says it; the fact's ID only between steps the same in all of these
+   * (#545).
+   */
+  private record Event(int line, int order, String reaches, String id, Runnable action) {
+
+    static final Comparator<Event> ORDER =
+        Comparator.comparingInt(Event::line)
+            .thenComparingInt(Event::order)
+            .thenComparing(Event::reaches)
+            .thenComparing(Event::id);
+  }
 
   /**
    * Follows the method's code inside the unit, adding the steps that leave it. A method is traced
@@ -942,9 +977,16 @@ final class SequenceFlows {
       EntityId owner = PackageDependencies.ownerType(knowledge, callee);
       if (!knowledge.relations(owner, REPOSITORY_FOR).isEmpty()) {
         events.add(
-            new Event(line(call), 0, call.id(), () -> repositoryCall(trace, unit, call, profiles)));
+            new Event(
+                line(call),
+                0,
+                reaches(call),
+                call.id(),
+                () -> repositoryCall(trace, unit, call, profiles)));
       } else {
-        events.add(new Event(line(call), 0, call.id(), () -> call(trace, unit, call, profiles)));
+        events.add(
+            new Event(
+                line(call), 0, reaches(call), call.id(), () -> call(trace, unit, call, profiles)));
       }
     }
     for (Fact link : linksBySource.getOrDefault(unit + " " + method, List.of())) {
@@ -957,13 +999,18 @@ final class SequenceFlows {
             default -> null;
           };
       if (action != null) {
-        events.add(new Event(line(link), 1, link.id(), action));
+        events.add(new Event(line(link), 1, reaches(link), link.id(), action));
       }
     }
     for (Fact push : knowledge.attributes(method)) {
       if (push.predicate().equals(STOMP_SEND)) {
         events.add(
-            new Event(line(push), 1, push.id(), () -> stompPush(trace, unit, push, profiles)));
+            new Event(
+                line(push),
+                1,
+                reaches(push),
+                push.id(),
+                () -> stompPush(trace, unit, push, profiles)));
       }
     }
     List<Entry> jobs = jobsByScheduler.getOrDefault(method.toString(), List.of());
@@ -973,6 +1020,7 @@ final class SequenceFlows {
           new Event(
               schedulingLine(method),
               1,
+              job.method + " " + job.fact.object().value(),
               job.fact.id(),
               () -> schedule(trace, unit, job, profiles)));
     }
@@ -982,6 +1030,7 @@ final class SequenceFlows {
           new Event(
               reads.stream().mapToInt(SequenceFlows::line).min().orElseThrow(),
               2,
+              "",
               reads.getFirst().id(),
               () -> dataAccess(trace, unit, "Reads", reads, profiles)));
     }
@@ -991,14 +1040,17 @@ final class SequenceFlows {
           new Event(
               writes.stream().mapToInt(SequenceFlows::line).min().orElseThrow(),
               3,
+              "",
               writes.getFirst().id(),
               () -> dataAccess(trace, unit, "Writes", writes, profiles)));
     }
-    events.sort(
-        Comparator.comparingInt(Event::line)
-            .thenComparingInt(Event::order)
-            .thenComparing(Event::id));
+    events.sort(Event.ORDER);
     events.forEach(e -> e.action().run());
+  }
+
+  /** What a step reaches, as its fact says: its predicate and its object's value. */
+  private static String reaches(Fact fact) {
+    return fact.predicate() + " " + fact.object().value();
   }
 
   /**
