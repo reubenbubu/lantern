@@ -117,29 +117,44 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   wins. A share of an unknown group, or shares adding up to more than 100%, stop the app at start.
 - **A share belongs to a group, not a role.** The roles of one group (the describe roles; flow
   narrative and purpose) plan against, and spend from, one share.
-  - **The plan decides which items fit, before anything is asked** (#657). It walks the role's
-    items in the role's own order (Summarize's tree, parts before the units that contain them;
-    Describe's questions; the screen's chunks), adds each miss's estimate to the group's plan, and
-    stops at the first that does not fit: it and every item after it are not asked. So which items
-    are asked never depends on which thread asks first, and two runs at the same budget ask the
-    same items. Decisions are kept by each item's fingerprint, since a role may ask several items
-    of one subject (a flow shown in two documents), each counted against the share. Summarize
-    plans a unit whose parts are all in the cache as the very item it will ask, built from its
-    parts' stored summaries, so a rerun after a budget-limited run decides its units in order too.
-    An item counts as cached only if its stored answer passes the role's own check; an item the
-    plan did not know (a stored answer a role rejects when asked, as Resolve's) is decided when
-    asked.
+  - **Which items fit is decided in rounds, in a fixed order** (#657, #659). Each role queues its
+    misses in its own order (Summarize's tree, parts before the units that contain them;
+    Describe's questions; the screen's chunks) on its group's queue, the roles in the order they
+    plan. A round admits items from the head of the queue while their estimates fit what is left
+    of the share: what the group has spent, less the estimates of what it has admitted and not
+    settled. Once every item of the round has an outcome (or has ended without one), the next
+    round admits from what is really left, until the first item that does not fit even then: it
+    and every item after it are not asked. A round is decided only when nothing of the group is in
+    flight, so which items are asked never depends on which thread asks first, and two runs at the
+    same budget ask the same items and spend the same. Answers shorter than estimated leave room
+    that the next round takes, so a role spends most of its share; the rounds end within a few
+    when estimates are near the real cost, more the shorter the answers. A role waits for an
+    item's round when it asks it; Summarize waits before taking one of its slots, and roles that
+    group items into requests ask each round's items together.
+  - Decisions are kept by each item's fingerprint, since a role may ask several items of one
+    subject (a flow shown in two documents), each counted against the share. Summarize plans a
+    unit whose parts are all in the cache as the very item it will ask, built from its parts'
+    stored summaries, so a rerun after a budget-limited run decides its units in order too. An
+    item counts as cached only if its stored answer passes the role's own check; an item the plan
+    did not know (a stored answer a role rejects when asked, as Resolve's) is decided when asked,
+    as a claim.
+  - **A claim is admitted at once, ahead of the queue, if its estimate fits** (#659), and the
+    group's rounds do not wait for it; it counts at its estimate until it settles. The system's
+    purpose has first claim on the flows-and-purpose share: one cheap call that writes the
+    report's first paragraph, asked after the flows on the units' sentences, so its claim is
+    planned before the flows on a prompt of the expected size (each unit with a sentence of the
+    expected length and the first facts it may cite). Without a share it is planned when asked, as
+    before.
   - An item's estimate is priced as the plan prices it: the prompt's start read from the cache, a
     role that groups items paying its share of each request's start, and the batch price when the
     role batches (#654).
-  - The plan also names the warm-up item: its first miss that is asked. It goes first; the others
-    wait for it to settle. Summarize's units to be asked wait for it before taking one of their
+  - The warm-up item is the role's first item admitted. It goes first; the others wait for it to
+    settle. Summarize's units to be asked wait for it before taking one of their
     slots, so waiting units never hold the slot the warm-up needs; units answered from the cache
     do not wait, since they may be parts of the warm-up unit. However the warm-up item ends (a
     failure, an unreadable file, a run stopped), its role releases the others.
   - The group's guard holds back no worst case: it refuses a call only once the group has spent its
-    share (`BudgetGuard.stopOnceSpent`). Estimates above the real cost leave part of the share
-    unspent, as on the fakes, whose answers are short. Estimates below it let the group pass its
+    share (`BudgetGuard.stopOnceSpent`). Estimates below the real cost let the group pass its
     share by at most the calls running when it is reached; the calls after are refused and their
     items not asked. The share is "very close", not "never over".
   - Nothing not asked is cached, so a later run with room asks it.

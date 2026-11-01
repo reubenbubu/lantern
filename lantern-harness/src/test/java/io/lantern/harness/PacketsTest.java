@@ -137,6 +137,60 @@ class PacketsTest {
   }
 
   @Test
+  void underABudgetPacketsGoInRoundsUntilTheShareIsSpentAndTheSameItemsAreAnsweredEveryTime() {
+    // Items grouped five to a request, as the injection screen's: a share decided once on estimates
+    // would stop well short of it, as answers are shorter than expected. Round after round, each
+    // from what is really left, the role spends most of it, the same items every time (#659).
+    List<Item> items = new ArrayList<>();
+    for (int i = 0; i < 200; i++) {
+      items.add(item(String.format("item%03d", i)));
+    }
+    java.util.Set<java.util.Set<String>> answeredSets = new java.util.HashSet<>();
+    java.util.Set<java.math.BigDecimal> spent = new java.util.HashSet<>();
+    java.math.BigDecimal share = new java.math.BigDecimal("0.01");
+    for (int run = 0; run < 5; run++) {
+      FakeLlmProvider fake =
+          answering(
+              request -> {
+                List<String> entries = new ArrayList<>();
+                for (String id : ids(request)) {
+                  entries.add(
+                      "\"" + id.substring(0, id.indexOf('=')) + "\": " + good("Keeps records"));
+                }
+                return "{\"items\": {" + String.join(", ", entries) + "}}";
+              });
+      Harness harness =
+          new Harness(
+              TestHarness.client(fake, TestHarness.priced(fake)),
+              new InMemoryAnswerStore(),
+              new RunBudget(
+                  new java.math.BigDecimal("0.02"), Map.of("describe", 50, "summarize", 50)),
+              BlobLookup.NONE,
+              Set.of());
+      RoleSession session = harness.session(ROLE);
+      session.plan(items, 300);
+      Map<String, Outcome> outcomes = session.askPackets(items, SENTENCES);
+      java.util.Set<String> answered = new java.util.TreeSet<>();
+      outcomes.forEach(
+          (subject, outcome) -> {
+            if (outcome.kind() == Outcome.Kind.ANSWERED) {
+              answered.add(subject);
+            }
+          });
+      answeredSets.add(answered);
+      spent.add(session.record().costUsd());
+      assertThat(outcomes.values()).doesNotContainNull();
+      assertThat(session.record().settled()).isEqualTo(200);
+    }
+    assertThat(answeredSets).hasSize(1);
+    assertThat(spent).hasSize(1);
+    java.math.BigDecimal cost = spent.iterator().next();
+    assertThat(cost).isLessThanOrEqualTo(share);
+    assertThat(cost).isGreaterThan(share.multiply(new java.math.BigDecimal("0.8")));
+    assertThat(answeredSets.iterator().next()).hasSizeLessThan(200);
+  }
+
+  @Test
   void aPacketWithOneBadItemKeepsTheOthers() {
     FakeLlmProvider fake =
         answering(

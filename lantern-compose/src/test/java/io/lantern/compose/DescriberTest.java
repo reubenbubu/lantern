@@ -151,6 +151,74 @@ class DescriberTest {
         Clock.systemUTC());
   }
 
+  /** A client of a priced model, $1,000 a million tokens, in and out. */
+  private static LlmClient priced(FakeLlmProvider fake) {
+    io.lantern.llm.ModelConfig free = fake.model("priced");
+    return new LlmClient(
+        ModelSettings.single(
+            new io.lantern.llm.ModelConfig(
+                free.provider(),
+                free.model(),
+                free.capabilities(),
+                free.contextWindow(),
+                new io.lantern.llm.Pricing(
+                    new java.math.BigDecimal("1000"),
+                    new java.math.BigDecimal("1000"),
+                    java.math.BigDecimal.ZERO,
+                    java.math.BigDecimal.ZERO))),
+        List.of(fake),
+        BudgetGuard.unlimited("test"),
+        new InMemoryLlmCallLog(),
+        Clock.systemUTC());
+  }
+
+  /** Shares that give the flows and the purpose 1% of the budget, and the other groups plenty. */
+  private static Map<String, Integer> shares() {
+    return Map.of("describe", 90, "flows-and-purpose", 1, "model-checks", 9);
+  }
+
+  private static io.lantern.harness.RoleRecord record(Harness harness, String role) {
+    return harness.records().stream().filter(r -> r.role().equals(role)).findFirst().orElseThrow();
+  }
+
+  @Test
+  void underABudgetThePurposeHasFirstClaimOnItsShareAheadOfTheFlows() {
+    // With room for everything: what the purpose and one flow are expected to cost.
+    Harness room =
+        new Harness(
+            priced(new FakeLlmProvider().answering(DescriberTest::answer)),
+            new InMemoryAnswerStore(),
+            new RunBudget(new java.math.BigDecimal("1000000"), shares()),
+            BlobLookup.NONE,
+            Set.of());
+    new Describer(room).describe(facts.list());
+    java.math.BigDecimal purpose = record(room, "purpose").estimate().usd();
+    io.lantern.harness.Estimate flows = record(room, "flow-narrative").estimate();
+    java.math.BigDecimal flow =
+        flows
+            .usd()
+            .divide(java.math.BigDecimal.valueOf(flows.toAsk()), java.math.MathContext.DECIMAL64);
+    assertThat(flows.toAsk()).isEqualTo(2);
+    assertThat(flow).isGreaterThan(purpose);
+
+    // A share that holds one flow and half the purpose: in the flows' order a flow would take it
+    // and leave the purpose nothing; claimed first, the purpose is asked and no flow fits after.
+    Harness budget =
+        new Harness(
+            priced(new FakeLlmProvider().answering(DescriberTest::answer)),
+            new InMemoryAnswerStore(),
+            new RunBudget(
+                flow.add(purpose.divide(java.math.BigDecimal.TWO))
+                    .multiply(java.math.BigDecimal.valueOf(100)),
+                shares()),
+            BlobLookup.NONE,
+            Set.of());
+    new Describer(budget).describe(facts.list());
+    assertThat(record(budget, "purpose").asked()).hasSize(1);
+    assertThat(record(budget, "flow-narrative").asked()).isEmpty();
+    assertThat(record(budget, "flow-narrative").settled()).isEqualTo(2);
+  }
+
   private Describer.Result describe(FakeLlmProvider fake) {
     return new Describer(harness(client(fake))).describe(facts.list());
   }

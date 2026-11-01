@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelConfig;
+import io.lantern.llm.Role;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -155,6 +156,97 @@ class BatchPlanTest {
     java.util.Collections.sort(expected);
     assertThat(asked).isEqualTo(expected);
     assertThat(firstSent).containsExactly("describe unit-0");
+  }
+
+  @Test
+  void underABudgetRoundsSpendMostOfTheShareAndAskTheSameItemsEveryTime() throws Exception {
+    // 300 items each estimated at about $0.0005, mostly the 100 output tokens expected, whose
+    // answers are about 40 tokens: a share of $0.0075 decided once on estimates would ask about 14
+    // and spend 40% of it. In rounds, each from what is really left, the role spends most of it,
+    // and the same items every time, whatever order the threads ask them in (#659).
+    List<Item> items = items(300);
+    java.util.Set<List<String>> askedSets = new java.util.HashSet<>();
+    java.util.Set<BigDecimal> spent = new java.util.HashSet<>();
+    BigDecimal share = new BigDecimal("0.0075");
+    for (int run = 0; run < 10; run++) {
+      FakeLlmProvider fake = new FakeLlmProvider().answering("\"" + "x".repeat(160) + "\"");
+      Harness harness =
+          new Harness(
+              TestHarness.client(fake, TestHarness.priced(fake)),
+              new InMemoryAnswerStore(),
+              new RunBudget(new BigDecimal("0.015"), Map.of("summarize", 50, "describe", 50)),
+              BlobLookup.NONE,
+              Set.of());
+      RoleSession session = harness.session(TestHarness.role());
+      session.plan(items, 0);
+      List<Item> shuffled = new ArrayList<>(items);
+      java.util.Collections.shuffle(shuffled, new java.util.Random(run));
+      try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        List<Future<Outcome>> asked = new ArrayList<>();
+        for (Item item : shuffled) {
+          asked.add(executor.submit(() -> session.ask(item, TestHarness.asking(item))));
+        }
+        for (Future<Outcome> outcome : asked) {
+          outcome.get(30, java.util.concurrent.TimeUnit.SECONDS);
+        }
+      }
+      List<String> subjects = new ArrayList<>(session.record().asked());
+      java.util.Collections.sort(subjects);
+      askedSets.add(subjects);
+      spent.add(session.record().costUsd());
+      assertThat(session.record().settled()).isEqualTo(300);
+      assertThat(session.record().warmUp()).isEqualTo("unit-0");
+    }
+
+    assertThat(askedSets).hasSize(1);
+    assertThat(spent).hasSize(1);
+    BigDecimal cost = spent.iterator().next();
+    assertThat(cost).isLessThanOrEqualTo(share);
+    assertThat(cost).isGreaterThan(share.multiply(new BigDecimal("0.8")));
+    List<String> asked = askedSets.iterator().next();
+    assertThat(asked.size()).isGreaterThan(25).isLessThan(300);
+    List<String> expected = new ArrayList<>();
+    items.subList(0, asked.size()).forEach(item -> expected.add(item.subject()));
+    java.util.Collections.sort(expected);
+    assertThat(asked).isEqualTo(expected);
+  }
+
+  @Test
+  void anItemWithFirstClaimIsAdmittedAheadOfTheGroupsOthersAndTheirRoundsDoNotWaitForIt()
+      throws Exception {
+    // The purpose has first claim on its group's share and is asked last, after the flows: the
+    // flows take what is left, round after round, without waiting for it (#659).
+    FakeLlmProvider fake = new FakeLlmProvider().answering("\"ok\"");
+    Harness harness =
+        new Harness(
+            TestHarness.client(fake, TestHarness.priced(fake)),
+            new InMemoryAnswerStore(),
+            new RunBudget(new BigDecimal("0.004"), Map.of("summarize", 50, "describe", 50)),
+            BlobLookup.NONE,
+            Set.of());
+    RoleSpec flows =
+        RoleSpec.single("flows", Role.SUMMARIZE, "1", "describe", RunMode.INTERACTIVE, 100);
+    RoleSpec purpose =
+        RoleSpec.single("purpose", Role.SUMMARIZE, "1", "describe", RunMode.INTERACTIVE, 100);
+    RoleSession first = harness.session(purpose);
+    RoleSession others = harness.session(flows);
+    first.claim("system", 500, 0);
+    List<Item> items = items(100);
+    others.plan(items, 0);
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<Future<Outcome>> asked = new ArrayList<>();
+      for (Item item : items) {
+        asked.add(executor.submit(() -> others.ask(item, TestHarness.asking(item))));
+      }
+      for (Future<Outcome> outcome : asked) {
+        outcome.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      }
+    }
+    Item system = item("system", "README.md");
+    assertThat(first.ask(system, TestHarness.asking(system)).kind())
+        .isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(others.record().asked()).isNotEmpty().hasSizeLessThan(100);
+    assertThat(others.record().settled()).isEqualTo(100);
   }
 
   @Test

@@ -301,6 +301,18 @@ public final class Describer {
       questions.add(question(element, knowledge, assembler, c4));
     }
     questions.addAll(flows(repoFacts, knowledge, assembler, c4));
+    // Under a budget, the system's purpose has first claim on its group's share, ahead of the flows
+    // (#659): one cheap call that writes the report's first paragraph. It is asked last, on the
+    // units' sentences, so its claim is planned now on a prompt of their expected size.
+    RoleSession purposeSession = harness.session(PURPOSE);
+    Optional<Question> expected =
+        purposeSession.underShare() ? expectedPurpose(knowledge, questions) : Optional.empty();
+    expected.ifPresent(
+        q ->
+            purposeSession.claim(
+                q.element().toString(),
+                Tokens.estimate(item(q).rendering()),
+                Tokens.estimate(q.system())));
     plan(questions);
     List<Asked> outcomes = new ArrayList<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -328,9 +340,17 @@ public final class Describer {
     Optional<Question> purpose = purpose(knowledge, questions, outcomes);
     purpose.ifPresent(
         q -> {
-          plan(List.of(q));
+          if (expected.isEmpty()) {
+            plan(List.of(q));
+          }
           tally.add(q, answer(q));
         });
+    if (purpose.isEmpty()) {
+      expected.ifPresent(
+          q ->
+              purposeSession.notAsked(
+                  q.element().toString(), "no unit was worded and no README states a claim"));
+    }
     LOG.info(
         "Wordings: {} units, data stores, destinations, flows and the system asked, {} cached,"
             + " {} rejected, {} skipped",
@@ -564,6 +584,36 @@ public final class Describer {
    */
   private static Optional<Question> purpose(
       Knowledge knowledge, List<Question> questions, List<Asked> outcomes) {
+    return purpose(knowledge, unitSentences(questions, outcomes));
+  }
+
+  /** A sentence of the length a unit's responsibility sentence is expected to have. */
+  private static final String EXPECTED_SENTENCE =
+      "Handles the requests of its domain, stores their records and calls the services it"
+          + " depends on, publishing the events other units consume.";
+
+  /**
+   * The prompt about the system's purpose as it is expected to be once every unit is worded: each
+   * unit with a sentence of the expected length and the first facts it may cite. Its size is what
+   * the purpose's claim on its share is planned on.
+   */
+  private static Optional<Question> expectedPurpose(Knowledge knowledge, List<Question> questions) {
+    List<WordingPrompt.UnitSentence> units = new ArrayList<>();
+    for (Question question : questions) {
+      if (question.about().equals(WordingAnswer.UNIT)) {
+        List<Fact> facts = byLine(new ArrayList<>(question.facts().values()));
+        units.add(
+            new WordingPrompt.UnitSentence(
+                question.name(),
+                EXPECTED_SENTENCE,
+                facts.subList(0, Math.min(MAX_PURPOSE_UNIT_FACTS, facts.size()))));
+      }
+    }
+    return purpose(knowledge, units);
+  }
+
+  private static List<WordingPrompt.UnitSentence> unitSentences(
+      List<Question> questions, List<Asked> outcomes) {
     List<WordingPrompt.UnitSentence> units = new ArrayList<>();
     for (int i = 0; i < questions.size(); i++) {
       Question question = questions.get(i);
@@ -589,6 +639,12 @@ public final class Describer {
               item.text(),
               cited.subList(0, Math.min(MAX_PURPOSE_UNIT_FACTS, cited.size()))));
     }
+    return units;
+  }
+
+  private static Optional<Question> purpose(
+      Knowledge knowledge, List<WordingPrompt.UnitSentence> sentences) {
+    List<WordingPrompt.UnitSentence> units = new ArrayList<>(sentences);
     units.sort(
         Comparator.comparing(WordingPrompt.UnitSentence::name)
             .thenComparing(WordingPrompt.UnitSentence::sentence));
