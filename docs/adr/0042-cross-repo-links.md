@@ -367,3 +367,28 @@ deployments give it only which Redis containers run next to the unit, for the te
 where the store is deployed, as the identity matcher takes identity provider containers. The
 architecture rule covers both, and now also forbids `Deployments.place`. On project-0 to project-4
 and project-8 every link is unchanged; only the new placement claims are added (#596's PR).
+
+## Amendment (#597): messaging joins on value resolution's relations
+
+`MessageLinker` asked no address of `Addresses`; it read value resolution's `message-send`,
+`message-listener` and `message-binding` facts. It now reads value resolution's `SENDS_TO`,
+`LISTENS_ON` and `BINDS` relations instead (ADR 0094, amendment for #597), and only those of
+origin `values`: the relations written in code hold values as written. It matches as before, on
+each relation's `name`, broker, kind, routing key, exchange and group in each view, and still
+resolves a library's destination again with the config of each unit bundling it.
+
+- The messaging rule, like every protocol rule, no longer reads the message facts; it reads the
+  relations, which value resolution writes, so it still runs after it. An architecture rule keeps
+  `MessageLinker` from using the message facts' attribute records.
+- An open link keeps its `site` (`message-send|<written or name>`), so its key is unchanged.
+- Each link cites the relations on its ends where it cited the message facts, one for one; the
+  facts it cites change, its claim does not. The LLM resolver takes an open link's send from the
+  `SENDS_TO` relation it cites as from a `message-send`, for the broker of the listeners it offers
+  and the protocol of the link it writes.
+- The rules that read value resolution's facts (address resolution, the LLM resolver, the claim
+  checks) now also get the relations. What the resolver and the summaries show of a messaging
+  link's cited facts changes, so their prompts change and miss the LLM cache once; flows order
+  parallel steps that tie by the facts they cite, so such steps may swap.
+
+On project-0 to project-4 and project-8 every link is unchanged apart from the facts it cites;
+only value resolution's relations are added, and fake-model scorecards are unchanged (#597's PR).

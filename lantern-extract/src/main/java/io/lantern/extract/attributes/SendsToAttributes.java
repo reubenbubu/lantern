@@ -14,13 +14,21 @@ import tools.jackson.databind.node.ObjectNode;
  * linking resolves them in each view against the config of configModule, and records the
  * message-send facts, or for STOMP the stomp-send fact (ADR 0094, #559). A send through the
  * RabbitMQ default exchange is to the queue its routing key names; one whose exchange config gives
- * is to that exchange, which linking may find is the default one.
+ * is to that exchange, which linking may find is the default one. Value resolution also gives the
+ * relation as each view resolves it (origin values, #597): to the literal destination, its values
+ * resolved, with profile where a profile's differ from the default view's; where a placeholder
+ * stays unresolved or names a secret, to the destination as written, with unresolved or masked. The
+ * messaging matcher reads only these.
  *
  * @param binder Key. The binder StreamBridge.send names, as written.
  * @param binderFollowed Key. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave binder.
  * @param binders Key. For a Spring Cloud Stream binding, the brokers of the binders on the module's
  *     build classpath (or declared in its POMs without a build), kafka or rabbitmq.
+ * @param binding Descriptive. The Spring Cloud Stream binding sent through, such as supply-out-0,
+ *     or the name given to StreamBridge.send; its config gives the destination, else the name is
+ *     the destination. Absent outside Spring Cloud Stream. Only on value resolution's relations
+ *     (origin values, #597).
  * @param broker Key. Which messaging API the send uses; stream for a Spring Cloud Stream binding,
  *     whose binder config tells; stomp for a STOMP send to WebSocket subscribers.
  * @param configModule Key. The entity ID of the module whose config resolves the values: the
@@ -34,13 +42,22 @@ import tools.jackson.databind.node.ObjectNode;
  *     written as {}; the destination is then the module's own.
  * @param followed Descriptive. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave the name.
+ * @param masked Descriptive. Present and true when a placeholder named a secret, so the values are
+ *     recorded as written, not resolved. Only on value resolution's relations (origin values,
+ *     #597).
  * @param method Key. The name of the method called, such as convertAndSend. Absent for &#64;SendTo.
  * @param name Key. The destination's name as written: constants folded and a value followed one hop
- *     from a &#64;Value field or parameter, its placeholders kept.
- * @param routingKey Key. The routing key of a send to a RabbitMQ exchange, as written. Absent when
- *     it is not known.
+ *     from a &#64;Value field or parameter, its placeholders kept; in value resolution's relations,
+ *     as resolved.
+ * @param profile Descriptive. The profile active instead of the default one when the value was
+ *     resolved. Absent for the default view; present only where the value differs from it. Only on
+ *     value resolution's relations (origin values, #597).
+ * @param routingKey Key. The routing key of a send to a RabbitMQ exchange, as written (in value
+ *     resolution's relations, as resolved). Absent when it is not known.
  * @param routingKeyFollowed Key. The entity IDs of the fields or parameters whose &#64;Value or
  *     assignment gave routingKey.
+ * @param routingKeyWritten Descriptive. The routing key as written in the code, when it differs
+ *     from the resolved one. Only on value resolution's relations (origin values, #597).
  * @param streamOnClasspath Key. For a Spring Cloud Stream binding, present and true when Spring
  *     Cloud Stream is on the module's build classpath, or declared in its POMs without a build.
  * @param template Key. The binary name of the type whose method sends, the legacy binding interface
@@ -49,11 +66,18 @@ import tools.jackson.databind.node.ObjectNode;
  *     (convertAndSendToUser).
  * @param unknown Key. The values the send has that could not be told, exchange or routingKey, when
  *     the code passes one that cannot be followed.
+ * @param unresolved Descriptive. The keys of the placeholders no config value resolved. Only on
+ *     value resolution's relations (origin values, #597).
+ * @param written Descriptive. The value as written in the code or the &#64;Value it was followed
+ *     from, or for a Spring Cloud Stream binding in the config property that sets its destination,
+ *     when it differs from the resolved value (it had placeholders). Only on value resolution's
+ *     relations (origin values, #597).
  */
 public record SendsToAttributes(
     String binder,
     List<String> binderFollowed,
     List<String> binders,
+    String binding,
     String broker,
     String configModule,
     String configRepo,
@@ -61,14 +85,19 @@ public record SendsToAttributes(
     String destinationKind,
     Boolean dynamic,
     List<String> followed,
+    Boolean masked,
     String method,
     String name,
+    String profile,
     String routingKey,
     List<String> routingKeyFollowed,
+    String routingKeyWritten,
     Boolean streamOnClasspath,
     String template,
     Boolean toUser,
-    List<String> unknown) {
+    List<String> unknown,
+    List<String> unresolved,
+    String written) {
 
   /** The vocabulary type these are the attributes of. */
   public static final String TYPE = "SENDS_TO";
@@ -82,6 +111,7 @@ public record SendsToAttributes(
         AttributeValues.string(attributes, "binder"),
         AttributeValues.strings(attributes, "binderFollowed"),
         AttributeValues.strings(attributes, "binders"),
+        AttributeValues.string(attributes, "binding"),
         AttributeValues.string(attributes, "broker"),
         AttributeValues.string(attributes, "configModule"),
         AttributeValues.string(attributes, "configRepo"),
@@ -89,14 +119,19 @@ public record SendsToAttributes(
         AttributeValues.string(attributes, "destinationKind"),
         AttributeValues.bool(attributes, "dynamic"),
         AttributeValues.strings(attributes, "followed"),
+        AttributeValues.bool(attributes, "masked"),
         AttributeValues.string(attributes, "method"),
         AttributeValues.string(attributes, "name"),
+        AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "routingKey"),
         AttributeValues.strings(attributes, "routingKeyFollowed"),
+        AttributeValues.string(attributes, "routingKeyWritten"),
         AttributeValues.bool(attributes, "streamOnClasspath"),
         AttributeValues.string(attributes, "template"),
         AttributeValues.bool(attributes, "toUser"),
-        AttributeValues.strings(attributes, "unknown"));
+        AttributeValues.strings(attributes, "unknown"),
+        AttributeValues.strings(attributes, "unresolved"),
+        AttributeValues.string(attributes, "written"));
   }
 
   /** The attributes as a fact holds them; absent ones are left out. */
@@ -105,6 +140,7 @@ public record SendsToAttributes(
     AttributeValues.put(attributes, "binder", binder);
     AttributeValues.put(attributes, "binderFollowed", binderFollowed);
     AttributeValues.put(attributes, "binders", binders);
+    AttributeValues.put(attributes, "binding", binding);
     AttributeValues.put(attributes, "broker", broker);
     AttributeValues.put(attributes, "configModule", configModule);
     AttributeValues.put(attributes, "configRepo", configRepo);
@@ -112,14 +148,19 @@ public record SendsToAttributes(
     AttributeValues.put(attributes, "destinationKind", destinationKind);
     AttributeValues.put(attributes, "dynamic", dynamic);
     AttributeValues.put(attributes, "followed", followed);
+    AttributeValues.put(attributes, "masked", masked);
     AttributeValues.put(attributes, "method", method);
     AttributeValues.put(attributes, "name", name);
+    AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "routingKey", routingKey);
     AttributeValues.put(attributes, "routingKeyFollowed", routingKeyFollowed);
+    AttributeValues.put(attributes, "routingKeyWritten", routingKeyWritten);
     AttributeValues.put(attributes, "streamOnClasspath", streamOnClasspath);
     AttributeValues.put(attributes, "template", template);
     AttributeValues.put(attributes, "toUser", toUser);
     AttributeValues.put(attributes, "unknown", unknown);
+    AttributeValues.put(attributes, "unresolved", unresolved);
+    AttributeValues.put(attributes, "written", written);
     return attributes;
   }
 }

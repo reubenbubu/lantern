@@ -25,4 +25,8 @@ class ArchitectureTest {
 
   @ArchTest
   static final ArchRule matchersReadAddressClaims = ArchitectureRules.MATCHERS_READ_ADDRESS_CLAIMS;
+
+  @ArchTest
+  static final ArchRule messagingMatcherReadsRelations =
+      ArchitectureRules.MESSAGING_MATCHER_READS_RELATIONS;
 }

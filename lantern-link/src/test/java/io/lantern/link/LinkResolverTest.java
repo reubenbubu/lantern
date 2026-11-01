@@ -164,8 +164,9 @@ class LinkResolverTest {
 
   /** The facts with the deterministic linker's, as the resolver sees them after it. */
   private List<Fact> linked() {
-    List<Fact> all = new ArrayList<>(facts);
-    all.addAll(new CrossRepoLinks().derive(facts, 1));
+    // With the relations value resolution gives with the message facts written here (#597).
+    List<Fact> all = MessageRelationsFixture.withRelations(facts);
+    all.addAll(new CrossRepoLinks().derive(all, 1));
     return all;
   }
 
@@ -644,6 +645,29 @@ class LinkResolverTest {
               assertThat(f.attributes().get("target").asString())
                   .isEqualTo("method:w.Listener#direct()");
             });
+  }
+
+  @Test
+  void anOpenSendCitesValueResolutionsRelationWhoseBrokerNamesTheProtocol() {
+    unit("s", "shop");
+    type("s", "shop", "s.Publisher");
+    add(
+        MessagingExtractor.NAME,
+        "method:s.Publisher#send()",
+        MessagingExtractor.SEND,
+        FactObject.string("orders"),
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        "s:src/main/java/s/Publisher.java#7");
+    Fact relation =
+        linked().stream()
+            .filter(f -> f.predicate().equals(MessagingExtractor.SENDS_TO))
+            .findFirst()
+            .orElseThrow();
+
+    // The messaging matcher cites the relation, not the message fact (#597).
+    assertThat(LinkResolver.isSend(relation)).isTrue();
+    assertThat(LinkResolver.brokerOf(relation)).isEqualTo("kafka");
+    assertThat(LinkResolver.protocol(LinkResolver.brokerOf(relation))).isEqualTo("Kafka");
   }
 
   @Test

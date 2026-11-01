@@ -188,3 +188,37 @@ placeholder's default.
   datasources in every view; the generated client of item 8 exists only after a build, and the
   real run's facts show its call unchanged in every view (#588's PR).
 
+
+## Amendment (#597): sends, listeners and bindings as resolved relations
+
+`RESOLVES_TO` says which literal destination an expression-keyed one is in a view, but the
+messaging matcher needs more than the destination's name: a listener's consumer group or a
+routing key written as a placeholder, and Spring Cloud Stream bindings, whose broker, destination
+and group only config gives (a function bean's bindings have no relation written in code at all).
+So, decided with the owner, value resolution also writes each send, listener and binding as it
+resolves them, as relations to the destinations they join on (`MessageRelations`):
+
+- Each `message-send`, `message-listener` and `message-binding` fact it gives becomes a
+  `SENDS_TO`, `LISTENS_ON` or `BINDS` relation of origin `values` from the same method, with the
+  same attributes, evidence and confidence, plus `name` (the destination's name as resolved) and
+  `configModule` and `configRepo` (the module whose config resolved it, as on the relation
+  written in code).
+- Its object is the literal destination, `destination:<broker>:<kind>:<name>` (a binding's is its
+  queue), the entity the messaging extractor gives a name written out and `RESOLVES_TO` names one
+  resolved. Where a placeholder stays unresolved or names a secret, it is the destination as
+  written, keyed by the module (`destination:<module>:<broker>:<kind>:<written>`), so no literal
+  destination is named that config does not give.
+- One relation per view as for the message facts: the default view's, and one per profile whose
+  values differ, with `profile`. Where nothing needs config and the extractor's relation has no
+  key attribute the message fact lacks (`configured`, `binders`, `streamOnClasspath`, `binder` or
+  a `...Followed` list), it is the same claim as the extractor's relation, observed by value
+  resolution too (ADR 0091 allows several origins); otherwise a claim of its own.
+- The relations gain the attributes the message facts carry: `profile`, `binding`, `written`,
+  `unresolved`, `masked`, and `routingKeyWritten`, `exchangeWritten`, `anonymous` as each type
+  has them, descriptive as on the message facts (`profile` as for every extractor type, `binding`
+  key of `BINDS` as of `message-binding`). Their `name`, `group`, `routingKey` and `exchange` are
+  as written on the extractor's relations and as resolved on value resolution's.
+
+The message facts stay, for the composer and the summaries, which still read them; dropping them
+is left until those readers move. On project-0 to project-4 and project-8 there is one relation
+per message fact (#597's PR).

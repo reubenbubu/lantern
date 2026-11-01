@@ -288,7 +288,10 @@ class CrossRepoLinksTest {
 
   private List<Fact> linked() {
     sameAnswersAsAddresses();
-    List<Fact> derived = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
+    // The relations value resolution gives with the message facts written here (#597).
+    List<Fact> derived =
+        new ArrayList<>(
+            new CrossRepoLinks().derive(MessageRelationsFixture.withRelations(facts), 1));
     // People are a link rule of their own (#574), read with the links here.
     derived.addAll(new People().derive(facts, 1));
     Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
@@ -601,6 +604,33 @@ class CrossRepoLinksTest {
         .singleElement()
         .asString()
         .contains("\"exceptProfiles\":[\"local\"]");
+  }
+
+  @Test
+  void messageFactsWithoutValueResolutionsRelationsLinkNothing() {
+    unit("s", "shop", "shop");
+    type("s", "shop", "s.Publisher");
+    messaging(
+        "s",
+        "s.Publisher#send()",
+        MessagingExtractor.SEND,
+        "orders",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        4);
+    unit("f", "fulfilment", "fulfilment");
+    type("f", "fulfilment", "f.Listener");
+    messaging(
+        "f",
+        "f.Listener#on()",
+        MessagingExtractor.LISTENER,
+        "orders",
+        "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
+        3);
+
+    // The matcher reads the relations (#597), not the message facts.
+    assertThat(new CrossRepoLinks().derive(facts, 1))
+        .noneMatch(f -> f.predicate().equals(CrossRepoLinks.SENDS_MESSAGES_TO));
+    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO)).hasSize(1);
   }
 
   @Test

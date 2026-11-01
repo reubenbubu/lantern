@@ -66,6 +66,10 @@ class ClaimIdentityTest {
           Map.entry("message-send", Set.of("template", "method", "routingKeyWritten", "binding")),
           Map.entry("message-listener", Set.of("annotation", "binding", "anonymous")),
           Map.entry("message-binding", Set.of("exchangeWritten", "routingKeyWritten", "anonymous")),
+          // Since #597, on value resolution's relations: as on the message facts they replace.
+          Map.entry("SENDS_TO", Set.of("routingKeyWritten", "binding")),
+          Map.entry("LISTENS_ON", Set.of("binding", "anonymous")),
+          Map.entry("BINDS", Set.of("exchangeWritten", "routingKeyWritten", "anonymous")),
           Map.entry(
               "message-destination",
               Set.of("exchangeType", "durable", "deadLetterExchange", "deadLetterRoutingKey")),

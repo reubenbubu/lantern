@@ -107,4 +107,17 @@ class ArchitectureRulesTest {
         .hasMessageContaining("(1 times)")
         .hasMessageNotContaining("RedisLinker.link");
   }
+
+  @Test
+  void aMessagingMatcherReadingMessageFactsIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(
+                io.lantern.link.archfixture.matchers.MessageLinker.class,
+                io.lantern.link.archfixture.matchers.MessageSendAttributes.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.MESSAGING_MATCHER_READS_RELATIONS.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("MessageLinker");
+  }
 }
