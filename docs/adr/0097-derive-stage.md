@@ -164,4 +164,9 @@ The agent decided these under the owner's standing go-ahead for 1D.
   but `Derivation.rules()` runs it, after the linker's rules and before `Findings`, which reads its
   facts; its facts and vocabulary are unchanged. The linker's own facts that are candidate risks
   (`version-skew`, `shared-secret`, `unrouted-endpoint`) stay where they are and each gets a
-  finding as it stands; documents keep reading them where they did.
+  finding as it stands, keyed on the fact's subject and claim, so such a finding is a new one
+  when its fact's claim changes (a version skew between other versions); documents keep reading
+  them where they did. The entity key leaving the versions out holds for the dependency findings.
+- **A finding is shown only whole.** A document composed from part of the snapshot's facts (a
+  repository's, in a run that carries others forward) leaves out a finding resting on a fact it
+  does not hold, as it does a flow (#631).

@@ -13,7 +13,6 @@ import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,11 +74,12 @@ public final class Findings implements LinkRule.OverFacts {
 
   /** The linker's (and the README claim checks') facts that are findings as they stand. */
   private static final Map<String, String> RECORDED =
-      Map.of(
-          "version-skew", VERSION_SKEW,
-          "shared-secret", SHARED_JWT_SECRET,
-          "unrouted-endpoint", UNROUTED_ENDPOINT,
-          "claim-contradiction", README_CONTRADICTION);
+      new TreeMap<>(
+          Map.of(
+              "version-skew", VERSION_SKEW,
+              "shared-secret", SHARED_JWT_SECRET,
+              "unrouted-endpoint", UNROUTED_ENDPOINT,
+              "claim-contradiction", README_CONTRADICTION));
 
   private static final String BUILD_DEPENDS_ON = "BUILD_DEPENDS_ON";
   private static final String JAVA_RELEASE = "java-release";
@@ -429,12 +429,5 @@ public final class Findings implements LinkRule.OverFacts {
   /** A text attribute of a finding, or null. */
   public static String attribute(Fact finding, String name) {
     return Screens.attribute(finding, name, null);
-  }
-
-  /** The findings by kind, for counting. */
-  public static Map<String, Integer> counts(Knowledge knowledge) {
-    Map<String, Integer> counts = new LinkedHashMap<>();
-    knowledge.withPredicate(RAISED).forEach(f -> counts.merge(f.object().value(), 1, Integer::sum));
-    return counts;
   }
 }
