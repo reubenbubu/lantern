@@ -95,6 +95,7 @@ public final class RoleSession {
         share == null ? client : client.withBudget(harness.guard(spec.budgetGroup()));
     this.client = budgeted.alsoLogging(record);
     this.record = record;
+    record.packetSize(spec.packetSize());
   }
 
   /** The role. */
@@ -113,7 +114,26 @@ public final class RoleSession {
 
   /** The item's fingerprint for this role and model. */
   public String fingerprint(Item item) {
+    return Fingerprints.of(spec, cacheVersion(), model.provider(), model.model(), item);
+  }
+
+  /**
+   * The item's fingerprint as the role's own, whatever calibration it runs under: what a sample
+   * drawn by fingerprint reads, so a calibration asks the same items as the role's usual size.
+   */
+  public String sampleFingerprint(Item item) {
     return Fingerprints.of(spec, model, item);
+  }
+
+  /**
+   * The prompt version the role's answers are cached under: its own, with a calibration's size and
+   * trial beside it when it runs under one.
+   */
+  String cacheVersion() {
+    return harness
+        .calibration(spec.name())
+        .map(c -> spec.promptVersion() + " " + c.tag())
+        .orElse(spec.promptVersion());
   }
 
   /**
@@ -1036,7 +1056,7 @@ public final class RoleSession {
                 fingerprint(item),
                 spec.name(),
                 item.subject(),
-                spec.promptVersion(),
+                cacheVersion(),
                 model.provider(),
                 model.model(),
                 json == null,

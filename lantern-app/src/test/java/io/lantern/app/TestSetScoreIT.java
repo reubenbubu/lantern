@@ -217,7 +217,9 @@ class TestSetScoreIT {
             context.getBean(io.lantern.link.JdbcRuleRuns.class),
             context.getEnvironment().getRequiredProperty("lantern.version"),
             WORKSPACE,
-            false);
+            false,
+            "",
+            "1");
   }
 
   /**

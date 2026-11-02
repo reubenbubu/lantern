@@ -288,6 +288,8 @@ class OpenAiBatchParityIT {
             context.getBean(io.lantern.link.JdbcRuleRuns.class),
             context.getEnvironment().getRequiredProperty("lantern.version"),
             Path.of(context.getEnvironment().getRequiredProperty("lantern.workspace")),
-            false);
+            false,
+            "",
+            "1");
   }
 }

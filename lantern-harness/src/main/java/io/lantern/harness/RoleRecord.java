@@ -22,6 +22,7 @@ public final class RoleRecord implements LlmCallLog {
   private final String provider;
   private final String model;
   private int planned;
+  private int packetSize = 1;
   private int cached;
   private int answered;
   private int omitted;
@@ -200,12 +201,18 @@ public final class RoleRecord implements LlmCallLog {
     return warmUp;
   }
 
+  /** Records how many items the role sent a request. */
+  synchronized void packetSize(int packetSize) {
+    this.packetSize = packetSize;
+  }
+
   /** The record as the run record writes it. */
   public synchronized ObjectNode toJson() {
     ObjectNode node = JSON.createObjectNode();
     node.put("role", role);
     node.put("provider", provider);
     node.put("model", model);
+    node.put("packetSize", packetSize);
     ObjectNode items = node.putObject("items");
     items.put("planned", planned);
     items.put("cached", cached);

@@ -35,6 +35,9 @@ Options:
                             propose-rules, compose, translate, judge, screen, wording-judge) with the model named MODEL
                             under lantern.llm.models, for this run. Repeatable.
   --tier TIER=MODEL         The same for a tier (high-volume, reasoning). Repeatable.
+  --set PROPERTY=VALUE      Set an app property for each run (scripts/launch.sh --set), such as
+                            lantern.harness.calibrate=investigate-leads:1 for packet-size
+                            calibration (docs/adr/0112-packet-size-calibration.md). Repeatable.
   --label NAME              Names this run's folder of scorecards. Default: the date and
                             time, e.g. 20261029-1830.
   --compare-with LABEL      Also write each set's scorecard side by side with the one of
@@ -105,6 +108,8 @@ while [[ $# -gt 0 ]]; do
     --role=*) override roles "${1#*=}"; shift ;;
     --tier) [[ $# -ge 2 ]] || die "--tier needs TIER=MODEL"; override tiers "$2"; shift 2 ;;
     --tier=*) override tiers "${1#*=}"; shift ;;
+    --set) [[ $# -ge 2 && "$2" == ?*=* ]] || die "--set needs PROPERTY=VALUE"; overrides+=("--set" "$2"); shift 2 ;;
+    --set=?*=*) overrides+=("--set" "${1#--set=}"); shift ;;
     --label) [[ $# -ge 2 ]] || die "--label needs a name"; label="$2"; shift 2 ;;
     --label=*) label="${1#*=}"; shift ;;
     --compare-with) [[ $# -ge 2 ]] || die "--compare-with needs a label"; compare_with="$2"; shift 2 ;;
