@@ -161,4 +161,66 @@ class PurposeRoleTest {
                     .toList()))
         .containsExactly(CALL);
   }
+
+  @Test
+  void aClaimShownBeforeIsWrittenByItsReferenceAlone() {
+    String text =
+        plain(
+            PurposeRole.item(
+                    List.of(said("service:com.example:app", "app", CLAIM)),
+                    List.of(),
+                    Map.of(),
+                    List.of(),
+                    Map.of("shop README.md", List.of(CLAIM)))
+                .orElseThrow());
+    assertThat(text).containsOnlyOnce("Shop sells books online.").contains("(as above)");
+  }
+
+  @Test
+  void aSentenceStandsForTheFactsShownUnderIt() {
+    Fact[] many = new Fact[PurposeRole.MAX_CITED + 2];
+    for (int i = 0; i < many.length; i++) {
+      many[i] =
+          TestFacts.fact(
+              "shop",
+              "service:com.example:app",
+              "CALLS_HTTP",
+              FactObject.string("https://host" + i + ".example.com"),
+              FactJson.newObject(),
+              Validity.from(1));
+    }
+    PurposeRole.Asked asked =
+        PurposeRole.item(
+                List.of(said("service:com.example:app", "app", many)),
+                List.of(),
+                Map.of(),
+                List.of(),
+                Map.of())
+            .orElseThrow();
+    String a = ref(plain(asked), "app");
+    PurposeRole.Worded worded =
+        PurposeRole.worded(asked, "{\"purpose\":{\"text\":\"Calls.\",\"cites\":[\"" + a + "\"]}}")
+            .get(PurposeRole.PURPOSE);
+    assertThat(worded.cited()).hasSize(PurposeRole.MAX_CITED);
+    // Only the facts shown are cited through it, one line each.
+    assertThat(Pattern.compile("CALLS_HTTP").matcher(plain(asked)).results().count())
+        .isEqualTo(PurposeRole.MAX_CITED);
+  }
+
+  @Test
+  void aClaimCitedDirectlyMakesTheTextEvidenced() {
+    PurposeRole.Asked asked =
+        PurposeRole.item(
+                List.of(), List.of(), Map.of(), List.of(), Map.of("shop README.md", List.of(CLAIM)))
+            .orElseThrow();
+    Matcher f = Pattern.compile("\\[(F\\d+)\\]").matcher(plain(asked));
+    assertThat(f.find()).as(plain(asked)).isTrue();
+    PurposeRole.Worded worded =
+        PurposeRole.worded(
+                asked,
+                "{\"purpose\":{\"text\":\"Sells books.\",\"cites\":[\"" + f.group(1) + "\"]}}")
+            .get(PurposeRole.PURPOSE);
+    assertThat(worded.evidenced()).isTrue();
+    assertThat(worded.cited()).containsExactly(CLAIM);
+  }
 }

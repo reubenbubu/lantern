@@ -979,7 +979,8 @@ public final class Describer {
       }
     }
     // Each person with a sentence of the expected length, each external system with a fact of
-    // the size of a call to it (the first unit fact stands in for its size), and as many flow
+    // the size of a call to it (the first unit fact, about it, stands in for its size), and as many
+    // flow
     // titles as a scope draws by rank.
     Fact sample =
         units.stream().flatMap(u -> u.answered().cited().stream()).findFirst().orElse(null);
@@ -991,7 +992,18 @@ public final class Describer {
                 element.toString(),
                 new DescribeRole.Answered(EXPECTED_SENTENCE, List.of())));
       } else if (element.type().equals(C4Views.EXTERNAL_SYSTEM) && sample != null) {
-        externals.put(element.toString(), sample);
+        // Its own fact, the size of the sample, so none is shown "as above".
+        externals.put(
+            element.toString(),
+            Fact.create(
+                element,
+                sample.predicate(),
+                sample.object(),
+                sample.attributes(),
+                sample.origin(),
+                sample.evidence(),
+                sample.confidence(),
+                sample.validity()));
       }
     }
     List<String> flows = java.util.Collections.nCopies(7, "Customer places an order");

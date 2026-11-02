@@ -1130,6 +1130,30 @@ class DescriberTest {
   }
 
   @Test
+  void withNoSentenceAndNoClaimThePurposeIsNotAsked() {
+    List<String> systems = new java.util.ArrayList<>();
+    FakeLlmProvider omitsAll =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  systems.add(request.system());
+                  List<String> entries =
+                      java.util.regex.Pattern.compile("<item id=\"(I[0-9]+)\">")
+                          .matcher(request.messages().getFirst().text())
+                          .results()
+                          .map(m -> "\"" + m.group(1) + "\": {\"omitted\": true}")
+                          .toList();
+                  return "{\"items\": {" + String.join(", ", entries) + "}}";
+                });
+
+    Describer.Result result = describe(omitsAll);
+
+    assertThat(systems).noneMatch(system -> system.contains(PurposeRole.TASK));
+    Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
+    assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
+  }
+
+  @Test
   void withoutAPurposeTheSystemsOverviewStatesItAsUnknown() {
     FakeLlmProvider leavesItOut =
         new FakeLlmProvider()

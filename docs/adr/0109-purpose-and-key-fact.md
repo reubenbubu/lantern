@@ -26,7 +26,8 @@ under the owner's standing go-ahead for milestone 1F.
     it cites as `[F..]`, at most 8, so the key fact can cite the facts behind a sentence (rule 4
     of the common prompt wants a cited input for every name); citing the sentence stands for
     those shown facts;
-  - each external system by name, with the fact that shows it;
+  - each external system by name, with the fact that shows it; two of one name, which the
+    documents cannot tell apart either, are shown once;
   - the titles of the flows the system's report draws, in order, which are not citable;
   - each repository's README claims, of its README with the fewest folders, at most 8.
   A fact shown before is written by its reference alone. With no sentence and no README claim it
