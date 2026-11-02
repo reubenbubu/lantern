@@ -1,6 +1,6 @@
 # 0057: A fact sheet in module and repository prompts
 
-Status: accepted (#197), amends ADR 0010
+Status: accepted (#197), amends ADR 0010, amended by ADR 0104 (#665: fifteen facts a group)
 
 ## Context
 

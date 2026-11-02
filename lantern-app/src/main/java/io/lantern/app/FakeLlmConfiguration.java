@@ -16,12 +16,12 @@ import org.springframework.context.annotation.Profile;
  * 0072). Only with the Spring profile {@value #PROFILE}; models then name the provider {@value
  * FakeLlmProvider#NAME} in the LLM settings (ADR 0009), which uses any {@code LlmProvider} bean.
  *
- * <p>It never calls out. A summary cites the first part's summary and the first fact it is given;
- * Describe gets a placeholder responsibility for every unit, component and element and a
- * placeholder intent for every interaction, each citing the item's first fact; it narrates no flow
- * and words no purpose, so those keep their static prose, except a flow's title, a placeholder in
- * place of the scenario a model would name; and it answers "unknown" to a link left open, so such
- * links stay open.
+ * <p>It never calls out. A summary cites the first part's summary and the first fact or excerpt it
+ * is given, in the answer form of the knowledge-build epic (section 11.3); Describe gets a
+ * placeholder responsibility for every unit, component and element and a placeholder intent for
+ * every interaction, each citing the item's first fact; it narrates no flow and words no purpose,
+ * so those keep their static prose, except a flow's title, a placeholder in place of the scenario a
+ * model would name; and it answers "unknown" to a link left open, so such links stay open.
  *
  * <p>Every text it words is wrapped in {@code {{ }}} with a hint of what a real model would write
  * there, such as {@code {{placeholder: summary of class Order}}}, so a reader of a document made
@@ -34,9 +34,11 @@ class FakeLlmConfiguration {
   /** The profile that turns the fake on. */
   static final String PROFILE = "fake-llm";
 
-  private static final Pattern SUBJECT =
-      Pattern.compile(
-          "^Summarize the (.+?) in \\d+ to \\d+ sentences|^What is known about the (.+?) is too long");
+  private static final Pattern SUBJECT = Pattern.compile("(?m)^Unit: (.+)$");
+
+  /** A reference a summarize request shows, such as {@code [F1]} or {@code ref="E1"}. */
+  private static final Pattern SUMMARY_REF =
+      Pattern.compile("\\[([FS][0-9]+)\\]|ref=\"(E[0-9]+)\"|[\\[ ]([FES][0-9]+)[\\],]");
 
   @Bean
   FakeLlmProvider fakeLlmProvider() {
@@ -64,18 +66,64 @@ class FakeLlmConfiguration {
               if (request.role() == Role.RESOLVE) {
                 return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
               }
-              String prompt = request.messages().getFirst().text();
-              String subject = subject(prompt);
-              List<String> sentences = new ArrayList<>();
-              if (prompt.contains("[S1]")) {
-                sentences.add("{{placeholder: summary of " + subject + " from its parts}}. [S1]");
-              }
-              if (prompt.contains("[F1]")) {
-                sentences.add(
-                    "{{placeholder: description of " + subject + " from its facts}}. [F1]");
-              }
-              return String.join(" ", sentences);
+              String summary = summarize(request);
+              return summary != null ? summary : "{}";
             });
+  }
+
+  /**
+   * The fake's answer to a Summarize request (knowledge-build epic, section 11.3), or null for
+   * another: a placeholder sentence citing the first contained summary, if the item shows one, and
+   * one citing its first fact or excerpt; a merge cites the first reference its parts cite.
+   */
+  static String summarize(LlmRequest request) {
+    String subject = subject(request.messages().getFirst().text());
+    return summarize(
+        request,
+        "{{placeholder: summary of " + subject + " from its parts}}.",
+        "{{placeholder: description of " + subject + " from its facts}}.");
+  }
+
+  /**
+   * A Summarize answer as {@link #summarize(LlmRequest)} gives, with the given sentences, or null
+   * for another request.
+   */
+  static String summarize(LlmRequest request, String fromParts, String fromFacts) {
+    if (!request.system().contains("Task: summarise code units.")) {
+      return null;
+    }
+    String prompt = request.messages().getFirst().text();
+    List<String> sentences = new ArrayList<>();
+    if (prompt.contains("[S1]")) {
+      sentences.add(sentence(fromParts, "S1"));
+    }
+    Matcher ref = SUMMARY_REF.matcher(prompt);
+    while (ref.find()) {
+      String found =
+          ref.group(1) != null ? ref.group(1) : ref.group(2) != null ? ref.group(2) : ref.group(3);
+      if (!found.startsWith("S")) {
+        sentences.add(sentence(fromFacts, found));
+        break;
+      }
+    }
+    if (sentences.isEmpty()) {
+      return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+    }
+    return "{\"items\": {\"I1\": {\"sentences\": [" + String.join(", ", sentences) + "]}}}";
+  }
+
+  /** What the summary prompt says is summarized, such as "type Order in package a.b". */
+  private static String subject(String prompt) {
+    Matcher unit = SUBJECT.matcher(prompt);
+    return unit.find() ? unit.group(1) : "the unit";
+  }
+
+  private static String sentence(String text, String cite) {
+    return "{\"text\": \""
+        + text.replace("\\", "\\\\").replace("\"", "\\\"")
+        + "\", \"cites\": [\""
+        + cite
+        + "\"]}";
   }
 
   /**
@@ -194,14 +242,5 @@ class FakeLlmConfiguration {
     return prompt.startsWith("The flow \"")
         && prompt.contains("\nIts steps, in order:\n")
         && prompt.contains("[F1]");
-  }
-
-  /** What the summary prompt says is summarized, such as "class Order in package a.b". */
-  private static String subject(String prompt) {
-    Matcher m = SUBJECT.matcher(prompt);
-    if (!m.find()) {
-      return "the unit";
-    }
-    return m.group(1) != null ? m.group(1) : m.group(2);
   }
 }

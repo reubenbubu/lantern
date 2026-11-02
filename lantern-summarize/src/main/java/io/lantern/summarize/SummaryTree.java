@@ -29,6 +29,12 @@ import java.util.TreeMap;
  * unit itself does. A module's or repository's prompt also shows some facts of its parts, its
  * {@link FactSheet}, which is worked out from the tree when it is summarized.
  *
+ * <p>Built for the architecture model, the tree holds only the types it needs (knowledge-build
+ * epic, section 11.3): each type that is an entry point, a component anchor or a component member,
+ * the types that declare them and the packages that hold them, and every module and repository. The
+ * model leaves out the types derivation tags as domain, DTO, mapper, configuration or util, so they
+ * are not summarized.
+ *
  * <p>A repository's facts are the first {@value #README_CLAIMS} claims, as written, of its README
  * with the fewest folders in its path (listed in the prompt in its usual fact order), so its
  * summary can take its purpose from what people wrote about it.
@@ -42,8 +48,12 @@ public final class SummaryTree {
   private final Map<EntityId, Set<EntityId>> contains = new HashMap<>();
   private final Map<EntityId, Set<EntityId>> containedBy = new HashMap<>();
   private final Map<EntityId, SummaryNode> built = new HashMap<>();
+  // The types to summarize, or null for all.
+  private final Set<EntityId> types;
+  private final Map<EntityId, Boolean> needed = new HashMap<>();
 
-  private SummaryTree(Collection<Fact> facts) {
+  private SummaryTree(Collection<Fact> facts, Set<EntityId> types) {
+    this.types = types;
     for (Fact fact : facts) {
       bySubject.computeIfAbsent(fact.subject(), s -> new ArrayList<>()).add(fact);
       if (fact.predicate().equals(BuiltInTypes.CONTAINS)
@@ -62,7 +72,22 @@ public final class SummaryTree {
    * @throws IllegalArgumentException if the {@code CONTAINS} facts form a cycle
    */
   public static List<SummaryNode> fromFacts(Collection<Fact> facts) {
-    SummaryTree tree = new SummaryTree(facts);
+    return build(facts, null);
+  }
+
+  /**
+   * One tree per repository, as {@link #fromFacts(Collection)}, holding only the given types, the
+   * types that declare them and the packages that hold them, and every module.
+   *
+   * @param types the types the architecture model needs: its entry points, component anchors and
+   *     component members
+   */
+  public static List<SummaryNode> fromFacts(Collection<Fact> facts, Set<EntityId> types) {
+    return build(facts, Set.copyOf(types));
+  }
+
+  private static List<SummaryNode> build(Collection<Fact> facts, Set<EntityId> types) {
+    SummaryTree tree = new SummaryTree(facts, types);
     Map<String, Set<EntityId>> modulesByRepo = new TreeMap<>();
     for (Fact fact : facts) {
       if (fact.subject().type().equals(BuiltInTypes.MODULE)) {
@@ -122,6 +147,35 @@ public final class SummaryTree {
         .toList();
   }
 
+  /**
+   * Whether the unit is summarized: every module is; a type or package only if it is one of the
+   * needed types or contains one, at any depth.
+   */
+  private boolean needed(EntityId entity, Set<EntityId> visiting) {
+    SummaryLevel level = SummaryLevel.of(entity);
+    if (types == null || (level != SummaryLevel.TYPE && level != SummaryLevel.PACKAGE)) {
+      return true;
+    }
+    Boolean known = needed.get(entity);
+    if (known != null) {
+      return known;
+    }
+    boolean result = level == SummaryLevel.TYPE && types.contains(entity);
+    if (!result && visiting.add(entity)) {
+      for (EntityId part : contains.getOrDefault(entity, Set.of())) {
+        SummaryLevel partLevel = SummaryLevel.of(part);
+        if ((partLevel == SummaryLevel.TYPE || partLevel == SummaryLevel.PACKAGE)
+            && needed(part, visiting)) {
+          result = true;
+          break;
+        }
+      }
+      visiting.remove(entity);
+    }
+    needed.put(entity, result);
+    return result;
+  }
+
   private SummaryNode node(EntityId entity, Set<EntityId> visiting) {
     SummaryNode done = built.get(entity);
     if (done != null) {
@@ -136,7 +190,7 @@ public final class SummaryTree {
       SummaryLevel level = SummaryLevel.of(part);
       if (level == null) {
         facts.addAll(bySubject.getOrDefault(part, List.of()));
-      } else if (level != SummaryLevel.REPO) {
+      } else if (level != SummaryLevel.REPO && needed(part, new HashSet<>())) {
         children.add(node(part, visiting));
       }
     }

@@ -70,7 +70,7 @@ class ExcerptsTest {
         Excerpts.of(order(List.of(KIND, TOTAL)), e -> Optional.of(ORDER));
 
     assertThat(excerpts)
-        .containsExactly(new Excerpts.Excerpt(KIND.id(), PATH, ORDER.stripTrailing()));
+        .containsExactly(new Excerpts.Excerpt(KIND.id(), "r", PATH, ORDER.stripTrailing()));
   }
 
   @Test
@@ -86,8 +86,8 @@ class ExcerptsTest {
         KIND.id().compareTo(sameFileOtherKind.id()) < 0 ? KIND.id() : sameFileOtherKind.id();
     assertThat(excerpts)
         .containsExactly(
-            new Excerpts.Excerpt(other.id(), "other/" + PATH, "other/" + PATH + " text"),
-            new Excerpts.Excerpt(first, PATH, PATH + " text"));
+            new Excerpts.Excerpt(other.id(), "r", "other/" + PATH, "other/" + PATH + " text"),
+            new Excerpts.Excerpt(first, "r", PATH, PATH + " text"));
   }
 
   @Test

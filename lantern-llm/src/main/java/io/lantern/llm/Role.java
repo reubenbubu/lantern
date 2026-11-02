@@ -2,7 +2,10 @@ package io.lantern.llm;
 
 /** What an LLM call is for, as listed in the design (LLM integration, Roles). */
 public enum Role {
+  /** Summarizing packages, modules and repositories (knowledge-build epic, section 11.3). */
   SUMMARIZE(Tier.HIGH_VOLUME),
+  /** Summarizing types, the most numerous units: the bulk tier. */
+  SUMMARIZE_TYPES(Tier.BULK),
   RESOLVE(Tier.REASONING),
   INFER_INTENT(Tier.REASONING),
   /**

@@ -52,10 +52,12 @@ import org.slf4j.LoggerFactory;
 
 class SummarizerTest {
 
-  private static final Pattern REF = Pattern.compile("^\\[([FES]\\d+)\\]", Pattern.MULTILINE);
+  private static final Pattern REF =
+      Pattern.compile("^\\[([FES]\\d+)\\]|<code ref=\"(E\\d+)\"", Pattern.MULTILINE);
   private static final Pattern UNIT = Pattern.compile("^summarize \\S+ (\\S+:\\S+)");
 
-  private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+  private final FakeLlmProvider fake =
+      new FakeLlmProvider().answering(Answers.epic(SummarizerTest::citingAll));
   private final InMemoryAnswerStore store = new InMemoryAnswerStore();
 
   /** A harness with the test's answer cache, so later runs reuse earlier answers. */
@@ -88,7 +90,7 @@ class SummarizerTest {
     List<String> refs = new ArrayList<>();
     Matcher ref = REF.matcher(prompt);
     while (ref.find()) {
-      refs.add(ref.group(1));
+      refs.add(ref.group(1) != null ? ref.group(1) : ref.group(2));
     }
     return "Summary of %s (%08x). [%s]"
         .formatted(unit(request), prompt.hashCode(), String.join(", ", refs));
@@ -148,8 +150,11 @@ class SummarizerTest {
               Set.of());
       new Summarizer(harness).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
-      io.lantern.harness.RoleRecord record = harness.records().getFirst();
-      assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+      // Types and the units above them are two roles of one budget group.
+      assertThat(harness.records()).hasSize(2);
+      for (io.lantern.harness.RoleRecord record : harness.records()) {
+        assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+      }
     }
   }
 
@@ -188,8 +193,8 @@ class SummarizerTest {
       org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(
           java.time.Duration.ofSeconds(30), () -> new Summarizer(harness).summarize(roots));
 
-      io.lantern.harness.RoleRecord record = harness.records().getFirst();
-      Set<String> asked = new java.util.HashSet<>(record.asked());
+      Set<String> asked = new java.util.HashSet<>();
+      harness.records().forEach(record -> asked.addAll(record.asked()));
       List<String> order = new ArrayList<>();
       postOrder(roots, order);
       List<String> planned = order.stream().filter(e -> anything(roots, e)).toList();
@@ -216,7 +221,9 @@ class SummarizerTest {
           && planned.subList(firstNotAsked, planned.size()).stream().anyMatch(asked::contains)) {
         skippedPast++;
       }
-      assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+      for (io.lantern.harness.RoleRecord record : harness.records()) {
+        assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+      }
     }
     assertThat(skippedPast)
         .as("budgets where a smaller unit was asked past a larger one")
@@ -280,16 +287,19 @@ class SummarizerTest {
                   Set.of());
       Harness first = harness.get();
       new Summarizer(first).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
-      int stored = first.records().getFirst().toJson().get("items").get("accepted").asInt();
+      int stored = accepted(first);
 
       Harness again = harness.get();
       new Summarizer(again).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
       // A unit whose parts are all cached but which was not asked itself is planned as a miss,
       // not counted as cached: only the units whose own summaries are stored are.
-      io.lantern.harness.RoleRecord record = again.records().getFirst();
-      assertThat(record.estimate().cached()).as("$" + usd).isEqualTo(stored);
-      assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+      assertThat(again.records().stream().mapToInt(r -> r.estimate().cached()).sum())
+          .as("$" + usd)
+          .isEqualTo(stored);
+      for (io.lantern.harness.RoleRecord record : again.records()) {
+        assertThat(record.settled()).as("$" + usd).isEqualTo(record.planned());
+      }
     }
   }
 
@@ -358,7 +368,7 @@ class SummarizerTest {
                   Set.of());
       Harness first = harness.apply(store, firstUsd);
       new Summarizer(first).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
-      if (first.records().getFirst().toJson().get("items").get("accepted").asInt() == 0) {
+      if (accepted(first) == 0) {
         // Nothing stored, nothing for the store to fail on.
         continue;
       }
@@ -373,36 +383,59 @@ class SummarizerTest {
                   .hasMessageContaining("unreachable"));
 
       // A budget that let the first run summarize everything leaves nothing to ask.
-      String warmUp = again.session(Summarizer.ROLE).warmUpItem().orElse(null);
-      if (warmUp == null || !hasParts(roots, warmUp)) {
-        continue;
+      // Each role, types and the units above them, has its own warm-up unit.
+      for (io.lantern.harness.RoleSpec spec : List.of(Summarizer.TYPES, Summarizer.ROLE)) {
+        String warmUp = again.session(spec).warmUpItem().orElse(null);
+        if (warmUp == null || !hasParts(roots, warmUp)) {
+          continue;
+        }
+        // Only the warm-up unit and the units that contain it never run (and the cached unit that
+        // failed has no outcome): every other unit of its role to ask, the ones that waited for
+        // the warm-up unit, was let go and has its outcome.
+        io.lantern.harness.RoleRecord record =
+            again.records().stream()
+                .filter(r -> r.role().equals(spec.name()))
+                .findFirst()
+                .orElseThrow();
+        int waiting = record.estimate().toAsk() - pathTo(roots, warmUp, spec);
+        if (waiting > 0) {
+          scenarios++;
+          assertThat(record.settled()).as("$" + usd).isGreaterThanOrEqualTo(waiting);
+        }
+        assertThat(record.asked()).as("$" + usd).doesNotContain(warmUp);
       }
-      // Only the warm-up unit and the units that contain it never run (and the cached unit that
-      // failed has no outcome): every other unit to ask, the ones that waited for the warm-up unit,
-      // was let go and has its outcome.
-      io.lantern.harness.RoleRecord record = again.records().getFirst();
-      int waiting = record.estimate().toAsk() - pathTo(roots, warmUp);
-      if (waiting > 0) {
-        scenarios++;
-        assertThat(record.settled()).as("$" + usd).isGreaterThanOrEqualTo(waiting);
-      }
-      assertThat(record.asked()).as("$" + usd).doesNotContain(warmUp);
     }
     assertThat(scenarios).isPositive();
   }
 
-  /** How many units the path from a root to the unit holds, the unit included; 0 if none. */
-  private static int pathTo(List<SummaryNode> nodes, String entity) {
+  /** How many answers the run's roles accepted. */
+  private static int accepted(Harness harness) {
+    return harness.records().stream()
+        .mapToInt(r -> r.toJson().get("items").get("accepted").asInt())
+        .sum();
+  }
+
+  /**
+   * How many units of the role the path from a root to the unit holds, the unit included; 0 if
+   * none.
+   */
+  private static int pathTo(
+      List<SummaryNode> nodes, String entity, io.lantern.harness.RoleSpec role) {
     for (SummaryNode node : nodes) {
+      int own = Summarizer.role(node.level()).equals(role) ? 1 : 0;
       if (node.entity().toString().equals(entity)) {
-        return 1;
+        return own;
       }
-      int below = pathTo(node.children(), entity);
-      if (below > 0) {
-        return below + 1;
+      if (contains(node.children(), entity)) {
+        return pathTo(node.children(), entity, role) + own;
       }
     }
     return 0;
+  }
+
+  private static boolean contains(List<SummaryNode> nodes, String entity) {
+    return nodes.stream()
+        .anyMatch(n -> n.entity().toString().equals(entity) || contains(n.children(), entity));
   }
 
   private static boolean hasParts(List<SummaryNode> nodes, String entity) {
@@ -426,7 +459,8 @@ class SummarizerTest {
 
     // The same tree on a fresh cache, batching every miss: the first unit warms the prefix on its
     // own, every other one goes through the batch API, level by level.
-    FakeLlmProvider batching = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+    FakeLlmProvider batching =
+        new FakeLlmProvider().answering(Answers.epic(SummarizerTest::citingAll));
     Harness harness =
         new Harness(
                 new LlmClient(
@@ -445,9 +479,11 @@ class SummarizerTest {
 
     assertThat(batched.summaries()).isEqualTo(interactive.summaries());
     assertThat(batching.batchSizes()).isNotEmpty();
+    // Each of the two roles, types and the units above them, warms its own prefix.
     assertThat(batching.batchSizes().stream().mapToInt(Integer::intValue).sum())
-        .isEqualTo(batching.sent().size() - 1);
-    assertThat(harness.records().getFirst().batchCalls()).isEqualTo(batching.sent().size() - 1);
+        .isEqualTo(batching.sent().size() - 2);
+    assertThat(harness.records().stream().mapToInt(r -> r.batchCalls()).sum())
+        .isEqualTo(batching.sent().size() - 2);
     // Every request carries a long-lived cache, the warm-up's included.
     assertThat(batching.sent())
         .allSatisfy(
@@ -502,7 +538,7 @@ class SummarizerTest {
             .text();
     assertThat(packagePrompt)
         .contains(
-            "[S1] type Order in package com.example.shop (purpose inferred): Summary of"
+            "[S1] type Order in package com.example.shop: Summary of"
                 + " type:com.example.shop.Order")
         .doesNotContain("[fact:");
   }
@@ -657,7 +693,9 @@ class SummarizerTest {
   void aModuleCitesItsFactSheetAndARerunAtAnotherCommitCitesTheSheetsNewFacts() {
     List<Fact> earlier = FactSheetTest.service(2).list();
     EntityId module = EntityId.parse("module:com.example:orders");
-    String endpoint = "method:com.example.orders.OrderController#get0() endpoint \"GET /orders/0\"";
+    String endpoint =
+        "method:com.example.orders.OrderController#get0() endpoint \"GET /orders/0\""
+            + " (orders:pom.xml)";
 
     Summary first = summarizer().summarize(SummaryTree.fromFacts(earlier)).summaries().get(module);
     int calls = fake.sent().size();
@@ -673,12 +711,14 @@ class SummarizerTest {
     assertThat(ids).containsAll(rebound.inputFacts()).containsAll(rebound.citedFacts());
     Summary repo = second.summaries().get(new EntityId("repo", "orders"));
     assertThat(repo.citedFacts().stream().map(id -> content(id, later)))
-        .contains("service:com.example:orders USES_DATABASE database:orders-db:5432/orders");
+        .contains(
+            "service:com.example:orders USES_DATABASE database:orders-db:5432/orders"
+                + " (orders:pom.xml)");
   }
 
   @Test
   void aChangedEntryPointSummarizesItsModuleAgainThoughNoSummaryTextChanges() {
-    fake.answering(request -> "Same words. [F1]");
+    fake.answering(Answers.epic(request -> "Same words. [F1]"));
     summarizer().summarize(SummaryTree.fromFacts(FactSheetTest.service(1).list()));
     int before = fake.sent().size();
 
@@ -718,10 +758,11 @@ class SummarizerTest {
   void aChangedChildWhoseSummaryIsUnchangedLeavesItsParentAlone() {
     // The model writes the same text for PriceService whatever its facts.
     fake.answering(
-        request ->
-            unit(request).equals("type:com.example.shop.PriceService")
-                ? "Prices orders. [F1]"
-                : citingAll(request));
+        Answers.epic(
+            request ->
+                unit(request).equals("type:com.example.shop.PriceService")
+                    ? "Prices orders. [F1]"
+                    : citingAll(request)));
     summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
     int calls = fake.sent().size();
     List<Fact> changed =
@@ -875,7 +916,7 @@ class SummarizerTest {
 
   @Test
   void uncitedAnswerIsSentBackOnceThenTheUnitHasNoSummary() {
-    fake.answering("Order holds the lines of an order.");
+    fake.answering(Answers.epic("Order holds the lines of an order."));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.Line"),
@@ -892,16 +933,22 @@ class SummarizerTest {
     assertThat(fake.sent()).hasSize(2);
     List<LlmMessage> retry = fake.sent().get(1).request().messages();
     assertThat(retry).hasSize(3);
-    assertThat(retry.get(1)).isEqualTo(LlmMessage.assistant("Order holds the lines of an order."));
+    assertThat(retry.get(1))
+        .isEqualTo(LlmMessage.assistant(Answers.of("Order holds the lines of an order.")));
     assertThat(retry.get(2).text())
-        .startsWith("Your summary was rejected: it cites no references.");
+        .startsWith("Some parts of your answer were rejected.")
+        .contains(
+            "<rejection item=\"I1\" field=\"sentences.1\">Cites nothing; every sentence cites"
+                + " the references it rests on.</rejection>");
     assertThat(fake.sent().get(1).request().purpose()).endsWith("(retry)");
     assertThat(store.size()).isZero();
   }
 
   @Test
   void sentencesWithoutCitationsAreLeftOutWithoutAskingAgain() {
-    fake.answering("Line is part of an order. Line holds a quantity. [F1] It is very important.");
+    fake.answering(
+        Answers.epic(
+            "Line is part of an order. Line holds a quantity. [F1] It is very important."));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.Line"),
@@ -922,8 +969,9 @@ class SummarizerTest {
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
         .contains(
-            "Left out 2 sentences without references from the answer to summarize type"
-                + " type:p.Line: Line is part of an order. | It is very important.");
+            "Left out 2 sentences from the answer to summarize type type:p.Line: sentences.1:"
+                + " Cites nothing; every sentence cites the references it rests on. | sentences.3:"
+                + " Cites nothing; every sentence cites the references it rests on.");
     // What is stored, and so reused, is the summary without them.
     assertThat(SummaryJson.read(store.find(summary.key()).orElseThrow().answer()).text())
         .isEqualTo(summary.text());
@@ -935,7 +983,9 @@ class SummarizerTest {
 
   @Test
   void sentencesNamingWhatTheirCitationsDoNotMentionAreLeftOutWithoutAskingAgain() {
-    fake.answering("OrderLine holds a quantity. [F1] It is saved with JPA by LineRepository. [F1]");
+    fake.answering(
+        Answers.epic(
+            "OrderLine holds a quantity. [F1] It is saved with JPA by LineRepository. [F1]"));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.OrderLine"),
@@ -956,9 +1006,8 @@ class SummarizerTest {
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
         .contains(
-            "Left out 1 sentences naming what their references do not mention from the answer to"
-                + " summarize type type:p.OrderLine: It is saved with JPA by LineRepository. [F1]"
-                + " (JPA, LineRepository)");
+            "Left out 1 sentences from the answer to summarize type type:p.OrderLine: sentences.2:"
+                + " Names JPA, LineRepository, which none of its citations show.");
   }
 
   @Test
@@ -969,10 +1018,9 @@ class SummarizerTest {
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     assertThat(retried().messages().get(2).text())
-        .startsWith(
-            "Your summary was rejected: every sentence names something that the references it"
-                + " cites do not mention: Redis, LineCache; name only what the input you cite"
-                + " shows.");
+        .contains(
+            "<rejection item=\"I1\" field=\"sentences.1\">Names Redis, LineCache, which none of"
+                + " its citations show.</rejection>");
     assertThat(result.rejected()).isEmpty();
   }
 
@@ -992,36 +1040,44 @@ class SummarizerTest {
   }
 
   @Test
-  void anUnknownReferenceNextToAnUncitedSentenceIsStillSentBack() {
+  void anAnswerWhoseEverySentenceFailsIsSentBackWithEveryReason() {
     firstLineAnswer("It is a line. It is a record [F99].");
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     assertThat(retried().messages().get(2).text())
-        .startsWith("Your summary was rejected: it cites references that are not in the input:");
+        .startsWith("Some parts of your answer were rejected.")
+        .contains("<rejection item=\"I1\" field=\"sentences.1\">Cites nothing;")
+        .contains(
+            "<rejection item=\"I1\" field=\"sentences.2\">Cites F99, which is not in your"
+                + " input.</rejection>");
     assertThat(result.rejected()).isEmpty();
   }
 
   @Test
-  void aMarkerInASentenceThatWouldBeLeftOutIsStillSentBack() {
+  void aSentenceCitingAStoredFormMarkerIsLeftOut() {
     firstLineAnswer("It is a line [fact:abc]. It is a record [F1].");
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
-    assertThat(retried().messages().get(2).text())
-        .startsWith("Your summary was rejected: it contains [fact:...] or [summary:...] markers");
-    assertThat(result.rejected()).isEmpty();
+    Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
+    assertThat(line.text()).startsWith("It is a record [fact:").doesNotContain("abc");
+    assertThat(fake.sent()).noneMatch(s -> s.request().purpose().endsWith("(retry)"));
+    assertThat(log.list)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .anyMatch(m -> m.contains("sentences.1: Cites fact:abc, which is not a reference."));
   }
 
   /** Answers the first prompt for {@code Order$Line} with the given text, and others well. */
   private void firstLineAnswer(String text) {
     fake.answering(
-        request ->
-            request.purpose().endsWith("type:com.example.shop.Order$Line")
-                ? text
-                : citingAll(request));
+        Answers.epic(
+            request ->
+                request.purpose().endsWith("type:com.example.shop.Order$Line")
+                    ? text
+                    : citingAll(request)));
   }
 
   /** The one request sent again with the reason its answer was rejected. */
@@ -1038,10 +1094,11 @@ class SummarizerTest {
   @Test
   void aUnitRejectedTwiceHasNoSummaryAndItsParentIsSummarizedWithoutIt() {
     fake.answering(
-        request ->
-            request.purpose().contains("type:com.example.shop.Order$Line")
-                ? "Line is a line of an order."
-                : citingAll(request));
+        Answers.epic(
+            request ->
+                request.purpose().contains("type:com.example.shop.Order$Line")
+                    ? "Line is a line of an order."
+                    : citingAll(request)));
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
@@ -1067,12 +1124,12 @@ class SummarizerTest {
             m ->
                 assertThat(m)
                     .contains("type:com.example.shop.Order$Line")
-                    .contains("it cites no references.")
-                    .contains("The answer: Line is a line of an order."));
+                    .contains("Cites nothing; every sentence cites the references it rests on.")
+                    .contains("Line is a line of an order."));
     assertThat(rejections.get(1)).contains("(retry)");
 
     // A rerun tries the unit again, and summarizes again what its new summary changes.
-    fake.answering(SummarizerTest::citingAll);
+    fake.answering(Answers.epic(SummarizerTest::citingAll));
     int before = fake.sent().size();
     Summarizer.Result rerun =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
@@ -1104,7 +1161,7 @@ class SummarizerTest {
 
   @Test
   void theRunFailsIfItsFirstUnitsAreAllRejected() {
-    fake.answering("It is a class.");
+    fake.answering(Answers.epic("It is a class."));
     List<SummaryNode> types = new ArrayList<>();
     for (int i = 0; i < Summarizer.EARLY_STOP; i++) {
       types.add(type("T" + i, List.of()));
@@ -1113,15 +1170,16 @@ class SummarizerTest {
     assertThatThrownBy(() -> summarizer().summarize(types))
         .isInstanceOf(SummaryRejectedException.class)
         .hasMessageStartingWith("The first " + Summarizer.EARLY_STOP + " units were all rejected.")
-        .hasMessageContaining("cites no references");
+        .hasMessageContaining("Cites nothing");
     assertThat(store.size()).isZero();
   }
 
   @Test
   void unitsRejectedAfterOneWasSummarizedDoNotStopTheRun() {
     fake.answering(
-        request ->
-            request.purpose().endsWith("type:p.Good") ? citingAll(request) : "It is a class.");
+        Answers.epic(
+            request ->
+                request.purpose().endsWith("type:p.Good") ? citingAll(request) : "It is a class."));
     // Each type contains the good one, so the good one is done before any of them starts.
     SummaryNode good = type("Good", List.of());
     List<SummaryNode> types = new ArrayList<>();
@@ -1138,14 +1196,15 @@ class SummarizerTest {
   @Test
   void aProviderErrorStillFailsTheRunWhenAnotherUnitIsRejected() {
     fake.answering(
-        request -> {
-          if (request.purpose().endsWith("type:com.example.shop.PriceService")) {
-            throw new LlmException("HTTP 400 bad request");
-          }
-          return request.purpose().contains("type:com.example.shop.Order$Line")
-              ? "Line is a line of an order."
-              : citingAll(request);
-        });
+        Answers.epic(
+            request -> {
+              if (request.purpose().endsWith("type:com.example.shop.PriceService")) {
+                throw new LlmException("HTTP 400 bad request");
+              }
+              return request.purpose().contains("type:com.example.shop.Order$Line")
+                  ? "Line is a line of an order."
+                  : citingAll(request);
+            }));
 
     assertThatThrownBy(() -> summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list())))
         .isInstanceOf(LlmException.class)
@@ -1156,7 +1215,7 @@ class SummarizerTest {
   void aLongRejectedAnswerIsLoggedTruncated() {
     // Short enough that the fake does not cut it off at the type's output limit.
     String answer = "x".repeat(1200);
-    fake.answering(answer);
+    fake.answering(Answers.epic(answer));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.Line"),
@@ -1168,6 +1227,7 @@ class SummarizerTest {
 
     summarizer().summarize(List.of(line));
 
+    String sent = Answers.of(answer);
     assertThat(log.list)
         .filteredOn(e -> e.getFormattedMessage().startsWith("Rejected the answer"))
         .hasSize(2)
@@ -1175,7 +1235,7 @@ class SummarizerTest {
             e ->
                 assertThat(e.getFormattedMessage())
                     .doesNotContain(answer)
-                    .contains("x".repeat(1000) + "... (1200 characters)"));
+                    .contains(sent.substring(0, 1000) + "... (" + sent.length() + " characters)"));
   }
 
   @Test
@@ -1186,7 +1246,8 @@ class SummarizerTest {
 
     List<LlmMessage> retry = retried().messages();
     assertThat(retry).hasSize(1);
-    assertThat(retry.getFirst().text()).contains("Your summary was rejected: it is empty.");
+    assertThat(retry.getFirst().text())
+        .contains("Your answer is not one JSON object with an entry for I1 under \"items\".");
   }
 
   @Test
@@ -1215,7 +1276,9 @@ class SummarizerTest {
 
     assertThat(result.generated()).isEqualTo(7);
     assertThat(retried().messages().get(2).text())
-        .contains("it cites references that are not in the input: [F7].");
+        .contains(
+            "<rejection item=\"I1\" field=\"sentences.1\">Cites F7, which is not in your"
+                + " input.</rejection>");
     assertThat(store.size()).isEqualTo(7);
   }
 
@@ -1284,12 +1347,22 @@ class SummarizerTest {
   }
 
   @Test
-  void requestsUseTheSummarizeRole() {
+  void typesAreSummarizedOnTheBulkTierAndTheUnitsAboveThemOnHighVolume() {
     summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     assertThat(fake.sent())
-        .allSatisfy(s -> assertThat(s.request().role()).isEqualTo(Role.SUMMARIZE));
-    assertThat(fake.sent().getFirst().request().system()).isEqualTo(Prompt.SYSTEM);
+        .allSatisfy(
+            s ->
+                assertThat(s.request().role())
+                    .isEqualTo(
+                        s.request().purpose().startsWith("summarize type ")
+                            ? Role.SUMMARIZE_TYPES
+                            : Role.SUMMARIZE));
+    assertThat(fake.sent()).extracting(s -> s.request().role()).contains(Role.SUMMARIZE);
+    assertThat(Role.SUMMARIZE_TYPES.tier()).isEqualTo(io.lantern.llm.Tier.BULK);
+    assertThat(Role.SUMMARIZE.tier()).isEqualTo(io.lantern.llm.Tier.HIGH_VOLUME);
+    assertThat(fake.sent())
+        .allSatisfy(s -> assertThat(s.request().system()).isEqualTo(Prompt.SYSTEM));
   }
 
   /** Facts about {@code type:p.Order} whose evidence is {@link ExcerptsTest#ORDER}. */
@@ -1345,9 +1418,9 @@ class SummarizerTest {
     String prompt = fake.sent().getFirst().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
-            "\nSource files:\n[E1] src/main/java/p/Order.java:\n```java\n"
-                + ExcerptsTest.ORDER.stripTrailing()
-                + "\n```\n");
+            "\nIts source code:\n<code ref=\"E1\" repo=\"r\" path=\"src/main/java/p/Order.java\""
+                + " lines=\"1-")
+        .contains("\n 1  " + ExcerptsTest.ORDER.lines().findFirst().orElseThrow() + "\n");
     // The fake cites [F1, F2, E1]; the file is cited as the fact it comes from.
     Fact kind = order.facts().stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
     assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
@@ -1365,7 +1438,9 @@ class SummarizerTest {
 
   /** Answers the repository with the given text, and other units well, without a purpose line. */
   private void repoAnswer(String text) {
-    fake.answering(request -> request.purpose().endsWith(" repo:shop") ? text : citingAll(request));
+    fake.answering(
+        Answers.epic(
+            request -> request.purpose().endsWith(" repo:shop") ? text : citingAll(request)));
   }
 
   @Test
@@ -1380,8 +1455,10 @@ class SummarizerTest {
     assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
     String prompt = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(prompt)
-        .contains("\nFacts:\n[F1] readme:shop:README.md claim \"Shop sells books to readers.\"\n");
-    // Answers without a purpose line count as inferred.
+        .contains(
+            "\nIts facts:\n<facts>\n[F1] readme:shop:README.md claim \"Shop sells books to"
+                + " readers.\" (shop:README.md)\n");
+    // A summary that cites nothing people wrote is inferred.
     assertThat(result.summaries().get(EntityId.parse("module:com.example:shop")))
         .extracting(Summary::purpose, Summary::confidence)
         .containsExactly(Summary.Purpose.INFERRED, Confidence.INFERRED);
@@ -1432,7 +1509,8 @@ class SummarizerTest {
   }
 
   @Test
-  void anInferredPurposeIsInferredThoughItCitesTheReadme() {
+  void aFirstSentenceCitingTheReadmeIsEvidencedWhateverTheModelWrites() {
+    // The basis is worked out from what the first sentence cites, never asked (epic, 11.0).
     repoAnswer("Purpose: inferred\nShop sells books to readers. [F1]");
 
     Summary repo =
@@ -1441,7 +1519,7 @@ class SummarizerTest {
             .summaries()
             .get(EntityId.parse("repo:shop"));
 
-    assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
+    assertThat(repo.purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
   }
 
   @Test
@@ -1451,10 +1529,11 @@ class SummarizerTest {
         new SummaryNode(
             EntityId.parse("package:g:a:p"), SummaryLevel.PACKAGE, List.of(), List.of(order));
     fake.answering(
-        request ->
-            request.purpose().endsWith("type:p.Order")
-                ? "Purpose: evidenced\nAn order a customer placed. [E1]"
-                : "**Purpose: evidenced** Orders customers place. [S1]");
+        Answers.epic(
+            request ->
+                request.purpose().endsWith("type:p.Order")
+                    ? "Purpose: evidenced\nAn order a customer placed. [E1]"
+                    : "**Purpose: evidenced** Orders customers place. [S1]"));
 
     Summarizer.Result result =
         new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE).summarize(List.of(pkg));
@@ -1465,13 +1544,13 @@ class SummarizerTest {
     assertThat(result.summaries().get(pkg.entity()).text())
         .isEqualTo("Orders customers place. [summary:type:p.Order]");
     assertThat(fake.sent().getLast().request().messages().getFirst().text())
-        .contains("[S1] type Order in package p (purpose evidenced): An order a customer placed.");
+        .contains("[S1] type Order in package p: An order a customer placed.");
   }
 
   @Test
   void anEvidencedPurposeCitingOnlyCodeIsInferred() throws Exception {
     SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
-    fake.answering(request -> "Purpose: evidenced\nAn order. [F1]");
+    fake.answering(Answers.epic(request -> "Purpose: evidenced\nAn order. [F1]"));
 
     Summary summary =
         new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE)
@@ -1538,16 +1617,26 @@ class SummarizerTest {
   private static String citingWhatItSees(LlmRequest request, int filler) {
     String prompt = request.messages().getFirst().text();
     List<String> refs = new ArrayList<>();
-    if (prompt.contains("Summaries of the parts:")) {
+    if (prompt.contains("Part 1: ")) {
       refs.addAll(Citations.references(prompt));
     } else {
       Matcher ref = REF.matcher(prompt);
       while (ref.find()) {
-        refs.add(ref.group(1));
+        refs.add(ref.group(1) != null ? ref.group(1) : ref.group(2));
       }
     }
     List<String> cited = refs.size() <= 2 ? refs : List.of(refs.getFirst(), refs.getLast());
-    return "Part of it%s. [%s]".formatted("x".repeat(filler), String.join(", ", cited));
+    // A sentence holds at most 300 characters: a long filler takes up to three.
+    StringBuilder answer = new StringBuilder();
+    int left = filler;
+    do {
+      int chunk = Math.min(left, 250);
+      answer
+          .append(answer.isEmpty() ? "" : " ")
+          .append("Part of it%s. [%s]".formatted("x".repeat(chunk), String.join(", ", cited)));
+      left -= chunk;
+    } while (left > 0 && answer.length() < 900);
+    return answer.toString();
   }
 
   @Test
@@ -1556,7 +1645,7 @@ class SummarizerTest {
     List<Fact> facts = new ArrayList<>(large.facts());
     facts.add(TestFacts.claim("r", "README.md", 1, "Big does everything."));
     SummaryNode big = new SummaryNode(large.entity(), large.level(), facts, List.of());
-    fake.answering(request -> "Purpose: evidenced\n" + citingWhatItSees(request, 0));
+    fake.answering(Answers.epic(request -> "Purpose: evidenced\n" + citingWhatItSees(request, 0)));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)))
@@ -1567,14 +1656,14 @@ class SummarizerTest {
     // Only the first part cites the README claim [F1] in its first sentence.
     String merge = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(fake.sent().getLast().request().purpose()).endsWith("(merge)");
-    assertThat(merge).contains("\nPart 1 (purpose evidenced): ", "\nPart 2 (purpose inferred): ");
+    assertThat(merge).contains("\nPart 1: ", "\nPart 2: ");
     assertThat(summary.purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
   }
 
   @Test
   void partsAndTheMergeLeaveOutSentencesWithoutCitations() {
     SummaryNode big = largeType(400);
-    fake.answering(request -> "It is big. " + citingWhatItSees(request, 0));
+    fake.answering(Answers.epic(request -> "It is big. " + citingWhatItSees(request, 0)));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)))
@@ -1625,19 +1714,20 @@ class SummarizerTest {
         new SummaryNode(
             EntityId.parse("module:g:m"), SummaryLevel.MODULE, own.list(), List.of(api));
     fake.answering(
-        request -> {
-          String prompt = request.messages().getFirst().text();
-          List<String> refs = new ArrayList<>();
-          if (prompt.contains("Summaries of the parts:")) {
-            refs.addAll(Citations.references(prompt));
-          } else {
-            Matcher ref = REF.matcher(prompt);
-            while (ref.find()) {
-              refs.add(ref.group(1));
-            }
-          }
-          return "Part of it. [" + String.join(", ", refs) + "]";
-        });
+        Answers.epic(
+            request -> {
+              String prompt = request.messages().getFirst().text();
+              List<String> refs = new ArrayList<>();
+              if (prompt.contains("Part 1: ")) {
+                refs.addAll(Citations.references(prompt));
+              } else {
+                Matcher ref = REF.matcher(prompt);
+                while (ref.find()) {
+                  refs.add(ref.group(1) != null ? ref.group(1) : ref.group(2));
+                }
+              }
+              return "Part of it. [" + String.join(", ", refs) + "]";
+            }));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)))
@@ -1651,12 +1741,13 @@ class SummarizerTest {
             .map(s -> s.request().messages().getFirst().text())
             .toList();
     assertThat(prompts.stream().filter(p -> p.contains("This is part "))).hasSizeGreaterThan(1);
-    assertThat(prompts).anyMatch(p -> p.contains("\nEntry points (10 of 12):\n[F201] "));
+    assertThat(prompts)
+        .anyMatch(p -> p.contains("\nOf the units it contains, entry points:\n<facts>\n[F201] "));
     for (String prompt : prompts) {
       assertThat(Tokens.estimate(Prompt.SYSTEM + prompt)).isLessThanOrEqualTo(4_000);
     }
     List<String> sheet = FactSheet.facts(FactSheet.of(module)).stream().map(Fact::id).toList();
-    assertThat(sheet).hasSize(10);
+    assertThat(sheet).hasSize(12);
     assertThat(summary.citedFacts()).containsAll(sheet);
     assertThat(summary.inputFacts()).endsWith(sheet.toArray(String[]::new));
   }
@@ -1665,7 +1756,7 @@ class SummarizerTest {
   void aUnitLargerThanTheContextWindowIsSummarizedInPartsAndMerged() {
     SummaryNode big = largeType(400);
     LlmClient client = smallWindowClient(4_000);
-    fake.answering(request -> citingWhatItSees(request, 0));
+    fake.answering(Answers.epic(request -> citingWhatItSees(request, 0)));
     assertThat(Tokens.estimate(Prompt.SYSTEM + Prompt.user(big, List.of(), List.of())))
         .as("the whole prompt does not fit")
         .isGreaterThan(4_000);
@@ -1685,7 +1776,9 @@ class SummarizerTest {
                     .isLessThanOrEqualTo(4_000));
     // Each part shows its own facts under the references of the whole unit.
     assertThat(fake.sent().get(1).request().messages().getFirst().text())
-        .startsWith("What is known about the type Big in package p is too long for one request")
+        .startsWith(
+            "<items>\n<item id=\"I1\">\nUnit: type Big in package p\nWhat is known about this"
+                + " unit is too long for one request")
         .doesNotContain("[F1] ");
     // The merge keeps the citations of the first and the last part.
     assertThat(summary.citedFacts())
@@ -1698,10 +1791,11 @@ class SummarizerTest {
   void aSplitUnitWhosePartIsRejectedTwiceHasNoSummary() {
     SummaryNode big = largeType(400);
     fake.answering(
-        request ->
-            request.purpose().contains("(part 1 of ")
-                ? "It has many methods."
-                : citingWhatItSees(request, 0));
+        Answers.epic(
+            request ->
+                request.purpose().contains("(part 1 of ")
+                    ? "It has many methods."
+                    : citingWhatItSees(request, 0)));
 
     Summarizer.Result result =
         new Summarizer(harness(smallWindowClient(4_000))).summarize(List.of(big));
@@ -1714,7 +1808,7 @@ class SummarizerTest {
   @Test
   void partsThatDoNotFitOneMergeAreMergedInRounds() {
     SummaryNode big = largeType(1_500);
-    fake.answering(request -> citingWhatItSees(request, 1_400));
+    fake.answering(Answers.epic(request -> citingWhatItSees(request, 1_400)));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)))
@@ -1734,23 +1828,24 @@ class SummarizerTest {
     SummaryNode big = largeType(400);
     Pattern range = Pattern.compile("\\[(F\\d+-F\\d+)\\]");
     fake.answering(
-        request -> {
-          String prompt = request.messages().getFirst().text();
-          if (prompt.contains("Summaries of the parts:")) {
-            List<String> ranges = new ArrayList<>();
-            Matcher matcher = range.matcher(prompt);
-            while (matcher.find()) {
-              ranges.add(matcher.group(1));
-            }
-            return "All of it. [" + String.join(", ", ranges) + "]";
-          }
-          List<String> refs = new ArrayList<>();
-          Matcher ref = REF.matcher(prompt);
-          while (ref.find()) {
-            refs.add(ref.group(1));
-          }
-          return "Part of it. [" + refs.getFirst() + "-" + refs.getLast() + "]";
-        });
+        Answers.epic(
+            request -> {
+              String prompt = request.messages().getFirst().text();
+              if (prompt.contains("Part 1: ")) {
+                List<String> ranges = new ArrayList<>();
+                Matcher matcher = range.matcher(prompt);
+                while (matcher.find()) {
+                  ranges.add(matcher.group(1));
+                }
+                return "All of it. [" + String.join(", ", ranges) + "]";
+              }
+              List<String> refs = new ArrayList<>();
+              Matcher ref = REF.matcher(prompt);
+              while (ref.find()) {
+                refs.add(ref.group(1) != null ? ref.group(1) : ref.group(2));
+              }
+              return "Part of it. [" + refs.getFirst() + "-" + refs.getLast() + "]";
+            }));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)))
@@ -1770,10 +1865,11 @@ class SummarizerTest {
     SummaryNode big = largeType(400);
     AtomicInteger calls = new AtomicInteger();
     fake.answering(
-        request ->
-            calls.getAndIncrement() == 0
-                ? "It has many methods. [F400]"
-                : citingWhatItSees(request, 0));
+        Answers.epic(
+            request ->
+                calls.getAndIncrement() == 0
+                    ? "It has many methods. [F400]"
+                    : citingWhatItSees(request, 0)));
 
     new Summarizer(harness(smallWindowClient(4_000))).summarize(List.of(big));
 
@@ -1781,7 +1877,7 @@ class SummarizerTest {
         .startsWith("summarize type type:p.Big (part 1 of ")
         .endsWith(") (retry)");
     assertThat(fake.sent().get(1).request().messages().get(2).text())
-        .contains("it cites references that are not in the input: [F400].");
+        .contains("Cites F400, which is not in your input.");
   }
 
   @Test
@@ -1800,7 +1896,7 @@ class SummarizerTest {
     }
     SummaryNode pkg =
         new SummaryNode(EntityId.parse("package:g:a:p"), SummaryLevel.PACKAGE, facts.list(), types);
-    fake.answering(request -> citingWhatItSees(request, 0));
+    fake.answering(Answers.epic(request -> citingWhatItSees(request, 0)));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)))
@@ -1815,7 +1911,7 @@ class SummarizerTest {
             .toList();
     assertThat(partPrompts.size()).isGreaterThan(1);
     assertThat(partPrompts.getLast())
-        .contains("Summaries of the parts it contains:\n[S")
+        .contains("Summaries of the units it contains:\n<summaries>\n[S")
         .doesNotContain("[S1] ");
     assertThat(summary.citedFacts()).contains(summary.inputFacts().getFirst());
     assertThat(summary.citedSummaries()).contains(summary.inputSummaries().getLast());
@@ -1833,7 +1929,7 @@ class SummarizerTest {
     SummaryNode order =
         new SummaryNode(EntityId.parse("type:p.Order"), SummaryLevel.TYPE, facts, List.of());
     SourceFiles files = TestFacts.files((repo, path) -> Optional.of(source));
-    fake.answering(request -> citingWhatItSees(request, 0));
+    fake.answering(Answers.epic(request -> citingWhatItSees(request, 0)));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)), files)
@@ -1845,9 +1941,10 @@ class SummarizerTest {
         fake.sent().stream().map(s -> s.request().messages().getFirst().text()).toList();
     assertThat(prompts.size()).isGreaterThan(2);
     assertThat(prompts)
-        .filteredOn(p -> p.contains("\n[E1] src/main/java/p/Order.java:"))
+        .filteredOn(
+            p -> p.contains("\n<code ref=\"E1\" repo=\"r\" path=\"src/main/java/p/Order.java\""))
         .hasSize(1);
-    assertThat(prompts.getLast()).contains("Summaries of the parts:").contains("E1");
+    assertThat(prompts.getLast()).contains("Part 1: ").contains("E1");
     Fact kind = facts.stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
     assertThat(summary.citedFacts()).contains(kind.id());
   }
@@ -1890,5 +1987,126 @@ class SummarizerTest {
 
     String prompt = fake.sent().getFirst().request().messages().getFirst().text();
     assertThat(prompt).contains("${jwt.key:******}").doesNotContain("literal-secret-default");
+  }
+
+  @Test
+  void everySummaryIsStoredAsAClaimOfItsLevelWithItsSentencesAndTheirFacts() {
+    List<Fact> facts = TestFacts.shop().list();
+    Summarizer.Result result = summarizer().summarize(SummaryTree.fromFacts(facts));
+
+    java.util.Map<io.lantern.core.fact.Origin, List<Fact>> claims =
+        Summarizer.facts(result, facts, 7);
+
+    // Types by the bulk role, the units above them by the other.
+    assertThat(claims.keySet())
+        .containsExactly(
+            io.lantern.harness.LlmFacts.origin(Summarizer.TYPES),
+            io.lantern.harness.LlmFacts.origin(Summarizer.ROLE));
+    List<Fact> all = claims.values().stream().flatMap(List::stream).toList();
+    assertThat(all).hasSize(result.summaries().size());
+    assertThat(all)
+        .allSatisfy(
+            fact -> {
+              assertThat(fact.predicate()).isEqualTo("summary");
+              assertThat(fact.origin().kind()).isEqualTo(io.lantern.core.fact.Origin.Kind.LLM);
+              assertThat(fact.validity().from()).isEqualTo(7);
+              assertThat(fact.attributes().get("sentences")).isNotEmpty();
+            });
+    Fact pkg =
+        all.stream()
+            .filter(
+                f ->
+                    f.subject().toString().equals("package:com.example:shop-core:com.example.shop"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(pkg.object().value()).isEqualTo("package");
+    assertThat(pkg.attributes().get("basis").asString()).isEqualTo("inferred");
+    assertThat(pkg.confidence()).isEqualTo(result.summaries().get(pkg.subject()).confidence());
+    // A citation of a type's summary resolves to the facts that summary cites.
+    Summary order = result.summaries().get(EntityId.parse("type:com.example.shop.Order"));
+    List<String> cited = new ArrayList<>();
+    pkg.attributes()
+        .get("sentences")
+        .forEach(sentence -> sentence.get("cites").forEach(c -> cited.add(c.asString())));
+    assertThat(cited).containsAll(order.citedFacts());
+    assertThat(
+            all.stream()
+                .filter(f -> f.subject().toString().equals("repo:shop"))
+                .findFirst()
+                .orElseThrow()
+                .object()
+                .value())
+        .isEqualTo("repo");
+  }
+
+  @Test
+  void aUnitTheModelOmitsHasNoSummaryAndIsNotAskedAgain() {
+    fake.answering(
+        Answers.epic(
+            request ->
+                request.purpose().endsWith("type:com.example.shop.Order$Line")
+                    ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
+                    : citingAll(request)));
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    EntityId line = EntityId.parse("type:com.example.shop.Order$Line");
+    assertThat(result.omitted()).containsExactly(line);
+    assertThat(result.rejected()).isEmpty();
+    assertThat(result.summaries()).doesNotContainKey(line).hasSize(6);
+    int calls = fake.sent().size();
+
+    Summarizer.Result again =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(fake.sent()).hasSize(calls);
+    assertThat(again.omitted()).containsExactly(line);
+    assertThat(again.summaries()).isEqualTo(result.summaries());
+  }
+
+  @Test
+  void sentencesPastTheCountTheItemAsksForAreLeftOut() {
+    fake.answering(Answers.epic("One [F1]. Two [F1]. Three [F1]. Four [F1]. Five [F1]."));
+    SummaryNode line =
+        new SummaryNode(
+            EntityId.parse("type:p.Line"),
+            SummaryLevel.TYPE,
+            List.of(
+                TestFacts.fact(
+                    "r", "type:p.Line", "kind", FactObject.string("record"), "Line.java")),
+            List.of());
+
+    Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
+
+    // A type keeps at most four sentences.
+    assertThat(summary.text().split("\\[fact:")).hasSize(5);
+    assertThat(summary.text()).doesNotContain("Five");
+    assertThat(fake.sent()).hasSize(1);
+  }
+
+  @Test
+  void anAnswerWithOmittedFalseKeepsItsSentencesAndBracketedCitesAreRead() {
+    fake.answering(
+        "{\"items\": {\"I1\": {\"omitted\": false, \"sentences\": [{\"text\": \"Line holds a"
+            + " quantity.\", \"cites\": [\"[F1]\"]}, {\"text\": \"It is a record.\", \"cites\":"
+            + " [\"F1\"]}, {\"text\": \"Three.\", \"cites\": [\"F1\"]}, {\"text\": \"Four.\","
+            + " \"cites\": [\"F1\"]}, {\"text\": \"Five.\", \"cites\": [\"F1\"]}]}}}");
+    SummaryNode line =
+        new SummaryNode(
+            EntityId.parse("type:p.Line"),
+            SummaryLevel.TYPE,
+            List.of(
+                TestFacts.fact(
+                    "r", "type:p.Line", "kind", FactObject.string("record"), "Line.java")),
+            List.of());
+    String fact = line.facts().getFirst().id();
+
+    Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
+
+    assertThat(summary.text()).startsWith("Line holds a quantity. [fact:" + fact + "] It is a");
+    assertThat(summary.text()).doesNotContain("[[").doesNotContain("Five");
+    // The fifth sentence is past the four a type asks for: left out, without lowering confidence.
+    assertThat(summary.confidence()).isEqualTo(Confidence.INFERRED);
   }
 }

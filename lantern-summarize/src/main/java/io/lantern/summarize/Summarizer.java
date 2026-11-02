@@ -3,6 +3,7 @@ package io.lantern.summarize;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.Origin;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.harness.Calls;
 import io.lantern.harness.FingerprintInput;
@@ -10,15 +11,21 @@ import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
 import io.lantern.harness.ItemDropped;
+import io.lantern.harness.LlmFacts;
 import io.lantern.harness.Outcome;
 import io.lantern.harness.Rejected;
 import io.lantern.harness.Repair;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
-import io.lantern.harness.verify.Grounding;
+import io.lantern.harness.verify.CheckInputs;
+import io.lantern.harness.verify.CheckedText;
+import io.lantern.harness.verify.Checks;
+import io.lantern.harness.verify.ItemAnswer;
+import io.lantern.harness.verify.JsonSchema;
+import io.lantern.harness.verify.Pipeline;
+import io.lantern.harness.verify.Rejection;
 import io.lantern.llm.LlmException;
-import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmResponse;
 import io.lantern.llm.ModelConfig;
@@ -30,7 +37,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,6 +56,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Summarizes units bottom-up: a unit's summary is written from its facts and the summaries of the
@@ -121,9 +131,25 @@ public final class Summarizer {
   /** A fact citation in a stored summary's text. */
   private static final Pattern FACT_MARKER = Pattern.compile("\\[fact:([0-9a-f]{64})\\]");
 
-  /** The role as the harness runs it (ADR 0100). */
+  /**
+   * The role that summarizes packages, modules and repositories, as the harness runs it (ADR 0100):
+   * on the high-volume tier (knowledge-build epic, section 11.0, Default models).
+   */
   public static final RoleSpec ROLE =
       RoleSpec.single("summarize", Role.SUMMARIZE, Prompt.VERSION, "summarize", RunMode.BULK, 300);
+
+  /** The role that summarizes types, the most numerous units: on the bulk tier. */
+  public static final RoleSpec TYPES =
+      RoleSpec.single(
+          "summarize-type", Role.SUMMARIZE_TYPES, Prompt.VERSION, "summarize", RunMode.BULK, 300);
+
+  /** The role that summarizes units of the level. */
+  public static RoleSpec role(SummaryLevel level) {
+    return level == SummaryLevel.TYPE ? TYPES : ROLE;
+  }
+
+  /** The tokens a repair turn may take: the rejections of up to six sentences. */
+  private static final long REPAIR_TOKENS = 400;
 
   /** The tokens a contained unit's summary is expected to add to its parent's prompt. */
   private static final long CHILD_TOKENS = 120;
@@ -160,17 +186,31 @@ public final class Summarizer {
    *     in the order {@link #summaries} lists units in
    * @param notAsked the units that have no summary because the role's share of the run budget was
    *     spent, in the same order
+   * @param omitted the units that have no summary because the model answered that their inputs show
+   *     nothing to summarize, in the same order
    */
   public record Result(
       Map<EntityId, Summary> summaries,
       int generated,
       int reused,
       List<EntityId> rejected,
-      List<EntityId> notAsked) {
+      List<EntityId> notAsked,
+      List<EntityId> omitted) {
     public Result {
       summaries = Collections.unmodifiableMap(new LinkedHashMap<>(summaries));
       rejected = List.copyOf(rejected);
       notAsked = List.copyOf(notAsked);
+      omitted = List.copyOf(omitted);
+    }
+
+    /** A result with nothing omitted. */
+    public Result(
+        Map<EntityId, Summary> summaries,
+        int generated,
+        int reused,
+        List<EntityId> rejected,
+        List<EntityId> notAsked) {
+      this(summaries, generated, reused, rejected, notAsked, List.of());
     }
 
     /** A result with nothing left unasked. */
@@ -189,19 +229,12 @@ public final class Summarizer {
    * @throws io.lantern.llm.LlmException if a call fails or is refused, for example over budget
    */
   public Result summarize(Collection<SummaryNode> roots) {
-    RoleSession session = harness.session(ROLE);
-    ModelConfig model = session.model();
-    Run run = new Run(session, model.limits().maxConcurrency());
+    Run run = new Run(harness.session(TYPES), harness.session(ROLE));
     Map<EntityId, SummaryNode> units = new LinkedHashMap<>();
     for (SummaryNode root : roots) {
       collect(root, units, new HashSet<>());
     }
     run.plan(units.values());
-    if (session.batching()) {
-      // A batched request waits for its batch, not a slot of the model's lane: every unit whose
-      // parts are done joins the next batch.
-      run.unbounded();
-    }
     Map<EntityId, CompletableFuture<Optional<Summary>>> futures = new LinkedHashMap<>();
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       for (SummaryNode node : units.values()) {
@@ -215,7 +248,7 @@ public final class Summarizer {
         unit.whenComplete(
             (summary, failure) -> {
               if (failure != null) {
-                run.session.releaseWarmUp(node.entity().toString());
+                run.session(node).releaseWarmUp(node.entity().toString());
               }
             });
         futures.put(node.entity(), unit);
@@ -238,7 +271,70 @@ public final class Summarizer {
     futures.forEach((entity, future) -> future.join().ifPresent(s -> summaries.put(entity, s)));
     List<EntityId> rejected = units.keySet().stream().filter(run.rejected::contains).toList();
     List<EntityId> notAsked = units.keySet().stream().filter(run.notAsked::contains).toList();
-    return new Result(summaries, run.generated.get(), run.reused.get(), rejected, notAsked);
+    List<EntityId> omitted = units.keySet().stream().filter(run.omitted::contains).toList();
+    return new Result(
+        summaries, run.generated.get(), run.reused.get(), rejected, notAsked, omitted);
+  }
+
+  /** A sentence of a stored summary's text and the citation markers that end it. */
+  private static final Pattern SENTENCE =
+      Pattern.compile("(.+?)((?:\\s*\\[(?:fact|summary):[^\\]\\s]+\\])+)", Pattern.DOTALL);
+
+  private static final Pattern ANY_MARKER = Pattern.compile("\\[(fact|summary):([^\\]\\s]+)\\]");
+
+  /**
+   * The run's summaries as claims of origin llm (knowledge-build epic, section 11.3, Stored): one
+   * {@code (unit, summary, "<level>")} per unit, each sentence with the facts it cites, a contained
+   * summary's citation resolved to the facts that summary cites, by the role of its level.
+   *
+   * @param facts the facts the units were summarized from, which the summaries cite
+   * @param snapshot the snapshot they hold from
+   */
+  public static Map<Origin, List<Fact>> facts(
+      Result result, Collection<Fact> facts, long snapshot) {
+    Map<String, Fact> byId = new HashMap<>();
+    facts.forEach(fact -> byId.putIfAbsent(fact.id(), fact));
+    Map<String, List<Fact>> citedBy = new HashMap<>();
+    Map<Origin, List<Fact>> out = new LinkedHashMap<>();
+    // Parts come before the units that contain them, so a part's citations are resolved first.
+    for (Summary summary : result.summaries().values()) {
+      List<LlmFacts.Sentence> sentences = new ArrayList<>();
+      List<Fact> all = new ArrayList<>();
+      Matcher sentence = SENTENCE.matcher(summary.text());
+      while (sentence.find()) {
+        List<Fact> cites = new ArrayList<>();
+        Matcher marker = ANY_MARKER.matcher(sentence.group(2));
+        while (marker.find()) {
+          if (marker.group(1).equals("fact")) {
+            Optional.ofNullable(byId.get(marker.group(2))).ifPresent(cites::add);
+          } else {
+            cites.addAll(citedBy.getOrDefault(marker.group(2), List.of()));
+          }
+        }
+        List<Fact> distinct = cites.stream().distinct().toList();
+        all.addAll(distinct);
+        sentences.add(new LlmFacts.Sentence(sentence.group(1).strip(), distinct));
+      }
+      citedBy.put(summary.entity().toString(), all.stream().distinct().toList());
+      if (all.isEmpty()) {
+        continue;
+      }
+      RoleSpec role = role(summary.level());
+      out.computeIfAbsent(LlmFacts.origin(role), o -> new ArrayList<>())
+          .add(
+              LlmFacts.summary(
+                  role,
+                  summary.provider() + "/" + summary.model(),
+                  summary.entity(),
+                  summary.level().name().toLowerCase(Locale.ROOT),
+                  sentences,
+                  summary.purpose() == Summary.Purpose.EVIDENCED
+                      ? LlmFacts.Basis.EVIDENCED
+                      : LlmFacts.Basis.INFERRED,
+                  summary.confidence(),
+                  snapshot));
+    }
+    return out;
   }
 
   /**
@@ -331,7 +427,7 @@ public final class Summarizer {
       List<Excerpts.Excerpt> excerpts,
       List<Summary> children,
       ModelConfig model) {
-    return Fingerprints.of(ROLE, model, item(node, excerpts, children));
+    return Fingerprints.of(role(node.level()), model, item(node, excerpts, children));
   }
 
   /**
@@ -381,6 +477,16 @@ public final class Summarizer {
         stored.model());
   }
 
+  /**
+   * The most sentences a unit's summary keeps, as its prompt asks: fewer for a package, module or
+   * repository with a single part, which would otherwise restate it.
+   */
+  static int maxSentences(SummaryNode node, int children) {
+    return children == 1 && node.level() != SummaryLevel.TYPE
+        ? SummaryLevel.ONE_PART_SENTENCE_COUNT
+        : node.level().maxSentences();
+  }
+
   /** The facts a unit's prompt lists, its own and then its fact sheet's, {@code F1} first. */
   static List<Fact> promptFacts(SummaryNode node) {
     List<Fact> facts = new ArrayList<>(node.facts());
@@ -400,7 +506,7 @@ public final class Summarizer {
         - Tokens.estimate(Prompt.SYSTEM)
         - output
         - output * 3 / 2
-        - Tokens.estimate(Prompt.RETRY)
+        - REPAIR_TOKENS
         - 100;
   }
 
@@ -429,9 +535,10 @@ public final class Summarizer {
   }
 
   private final class Run {
-    private final RoleSession session;
-    private final ModelConfig model;
+    private final RoleSession types;
+    private final RoleSession others;
     private final Set<EntityId> notAsked = ConcurrentHashMap.newKeySet();
+    private final Set<EntityId> omitted = ConcurrentHashMap.newKeySet();
     private final AtomicInteger generated = new AtomicInteger();
     private final AtomicInteger reused = new AtomicInteger();
     private final AtomicBoolean failed = new AtomicBoolean();
@@ -443,7 +550,9 @@ public final class Summarizer {
     // cannot start before its parts are done.
     private final Set<EntityId> toAsk = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean accepted = new AtomicBoolean();
-    private volatile Semaphore running;
+    // Each role's units take slots of its own model's lane; a batched role's units wait for their
+    // batch instead, so every unit whose parts are done joins the next batch.
+    private final Map<RoleSession, Semaphore> running = new HashMap<>();
     private final Map<String, Optional<String>> files =
         new LinkedHashMap<>(16, 0.75f, true) {
           @Override
@@ -452,10 +561,14 @@ public final class Summarizer {
           }
         };
 
-    Run(RoleSession session, int maxRunning) {
-      this.session = session;
-      this.model = session.model();
-      this.running = new Semaphore(maxRunning, true);
+    Run(RoleSession types, RoleSession others) {
+      this.types = types;
+      this.others = others;
+    }
+
+    /** The session of the role that summarizes the unit. */
+    RoleSession session(SummaryNode node) {
+      return node.level() == SummaryLevel.TYPE ? types : others;
     }
 
     /**
@@ -466,7 +579,9 @@ public final class Summarizer {
     void plan(Collection<SummaryNode> units) {
       // In tree order, parts before the units that contain them: under a budget, the plan takes
       // the units that fit in this order (#657).
-      List<RoleSession.Planned> inOrder = new ArrayList<>();
+      Map<RoleSession, List<RoleSession.Planned>> inOrder = new LinkedHashMap<>();
+      inOrder.put(types, new ArrayList<>());
+      inOrder.put(others, new ArrayList<>());
       Map<EntityId, Boolean> missing = new HashMap<>();
       // The summaries the cache holds, so a unit whose parts are all cached is planned as the very
       // item it will be asked as, and its own cache entry checked.
@@ -499,7 +614,8 @@ public final class Summarizer {
                   .filter(java.util.Objects::nonNull)
                   .toList();
           Item item = Summarizer.item(node, Excerpts.of(node, this::text), children);
-          inOrder.add(RoleSession.Planned.of(item).after(parts));
+          RoleSession session = session(node);
+          inOrder.get(session).add(RoleSession.Planned.of(item).after(parts));
           Optional<String> answer = session.cachedAnswer(item);
           answer.ifPresent(
               json -> stored.put(node.entity(), rebind(SummaryJson.read(json), node, children)));
@@ -509,23 +625,35 @@ public final class Summarizer {
             toAsk.add(node.entity());
           }
         } else {
-          inOrder.add(
-              RoleSession.Planned.predicted(
-                      node.entity().toString(),
-                      Tokens.estimate(Prompt.SYSTEM)
-                          + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
-                          + CHILD_TOKENS * node.children().size())
-                  .after(parts));
+          inOrder
+              .get(session(node))
+              .add(
+                  RoleSession.Planned.predicted(
+                          node.entity().toString(),
+                          Tokens.estimate(Prompt.SYSTEM)
+                              + Tokens.estimate(Prompt.user(node, List.of(), List.of()))
+                              + CHILD_TOKENS * node.children().size())
+                      .after(parts));
           missing.put(node.entity(), true);
           toAsk.add(node.entity());
         }
       }
-      session.plan(inOrder, 0, Tokens.estimate(Prompt.SYSTEM));
-    }
-
-    /** Lets every unit run at once, as batching does; called before any unit runs. */
-    void unbounded() {
-      running = new Semaphore(Integer.MAX_VALUE, true);
+      // Types first: the group's queue holds each role's items in the order the roles plan, and a
+      // package rests on its types.
+      inOrder.forEach((session, items) -> session.plan(items, 0, Tokens.estimate(Prompt.SYSTEM)));
+      // Whether a role batches is known once it is planned. Roles on the same model share its
+      // slots, so the model's limit holds across both.
+      Map<String, Semaphore> lanes = new HashMap<>();
+      for (RoleSession session : inOrder.keySet()) {
+        ModelConfig model = session.model();
+        running.put(
+            session,
+            session.batching()
+                ? new Semaphore(Integer.MAX_VALUE, true)
+                : lanes.computeIfAbsent(
+                    model.provider() + '\u0000' + model.model(),
+                    lane -> new Semaphore(model.limits().maxConcurrency(), true)));
+      }
     }
 
     /**
@@ -533,6 +661,8 @@ public final class Summarizer {
      * is rejected twice gets none.
      */
     Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
+      RoleSession session = session(node);
+      Semaphore running = this.running.get(session);
       try {
         // The warm-up unit goes first; the others to be asked wait for it before taking a slot,
         // so they never hold the slot it needs.
@@ -560,14 +690,20 @@ public final class Summarizer {
         }
         if (node.facts().isEmpty() && children.isEmpty()) {
           if (planned.contains(node.entity())) {
-            // It was planned for its parts' summaries, and none came: they were not asked.
-            notAsked.add(node.entity());
-            session.notAsked(node.entity().toString(), "none of its parts was summarized");
+            // It was planned for its parts' summaries, and none came. If a part was not asked under
+            // the budget, neither is it; if its parts were omitted or rejected, nothing is left to
+            // summarize, which is an omission, not a unit the budget left out.
+            boolean budget =
+                node.children().stream().anyMatch(child -> notAsked.contains(child.entity()));
+            (budget ? notAsked : omitted).add(node.entity());
+            session.notAsked(
+                node.entity().toString(),
+                budget ? "none of its parts was summarized" : "none of its parts has a summary");
           }
           return Optional.empty();
         }
         try {
-          Optional<Summary> summary = Optional.of(summary(node, children));
+          Optional<Summary> summary = summary(node, children);
           accepted.set(true);
           return summary;
         } catch (NotAsked e) {
@@ -602,7 +738,9 @@ public final class Summarizer {
       }
     }
 
-    private Summary summary(SummaryNode node, List<Summary> children) {
+    /** The unit's summary; empty if the model answered that its inputs show nothing. */
+    private Optional<Summary> summary(SummaryNode node, List<Summary> children) {
+      RoleSession session = session(node);
       List<Excerpts.Excerpt> excerpts = Excerpts.of(node, this::text);
       Item item = item(node, excerpts, children);
       String key = session.fingerprint(item);
@@ -610,22 +748,33 @@ public final class Summarizer {
           session.ask(
               item,
               calls ->
-                  io.lantern.harness.Answer.of(
-                      SummaryJson.write(generate(calls, key, node, excerpts, children))));
+                  generate(calls, key, node, excerpts, children)
+                      .map(summary -> io.lantern.harness.Answer.of(SummaryJson.write(summary)))
+                      .orElseGet(io.lantern.harness.Answer::omitted));
       return switch (outcome.kind()) {
         case CACHED -> {
           reused.incrementAndGet();
-          yield rebind(SummaryJson.read(outcome.answer()), node, children);
+          if (outcome.answer() == null) {
+            omitted.add(node.entity());
+            yield Optional.empty();
+          }
+          yield Optional.of(rebind(SummaryJson.read(outcome.answer()), node, children));
         }
         case ANSWERED -> {
           generated.incrementAndGet();
-          yield SummaryJson.read(outcome.answer());
+          yield Optional.of(SummaryJson.read(outcome.answer()));
+        }
+        case OMITTED -> {
+          generated.incrementAndGet();
+          omitted.add(node.entity());
+          LOG.info("The model found nothing to summarize in {}", node.entity());
+          yield Optional.empty();
         }
         case DROPPED ->
             throw new SummaryRejectedException(
                 "The summary of " + node.entity() + " was " + lowerFirst(outcome.reason()));
         case NOT_ASKED -> throw new NotAsked();
-        case OMITTED, FAILED -> throw new LlmException(outcome.reason());
+        case FAILED -> throw new LlmException(outcome.reason());
       };
     }
 
@@ -655,7 +804,11 @@ public final class Summarizer {
       return read;
     }
 
-    private Summary generate(
+    /**
+     * The unit's summary, from one request or, when its inputs do not fit one, from its parts
+     * merged; empty if the model answered that its inputs show nothing to summarize.
+     */
+    private Optional<Summary> generate(
         Calls calls,
         String key,
         SummaryNode node,
@@ -665,16 +818,17 @@ public final class Summarizer {
       Inputs inputs = new Inputs(node, excerpts, children);
       String purpose =
           "summarize " + node.level().name().toLowerCase(Locale.ROOT) + " " + node.entity();
-      long budget = promptBudget(node, model);
+      long budget = promptBudget(node, session(node).model());
       String whole =
           Prompt.user(node, inputs.facts, inputs.sheet, inputs.excerpts, inputs.children, null);
+      int sentences = maxSentences(node, children.size());
       Answer answer;
       List<List<Prompt.Item>> parts =
           Tokens.estimate(whole) <= budget ? List.of() : inputs.parts(budget);
       if (parts.size() < 2) {
-        answer = answer(calls, purpose, node, whole, inputs, null);
+        answer = answer(calls, purpose, node, whole, inputs, null, sentences);
       } else {
-        List<Prompt.Tagged> texts = new ArrayList<>();
+        List<String> texts = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
           List<Prompt.Item> part = parts.get(i);
           String prompt =
@@ -688,25 +842,42 @@ public final class Summarizer {
           Set<String> shown = new HashSet<>();
           part.forEach(item -> shown.add(item.ref()));
           String label = " (part " + (i + 1) + " of " + parts.size() + ")";
-          texts.add(answer(calls, purpose + label, node, prompt, inputs, shown).tagged());
+          Answer partAnswer =
+              answer(
+                  calls,
+                  purpose + label,
+                  node,
+                  prompt,
+                  inputs,
+                  shown,
+                  SummaryLevel.ONE_PART_SENTENCE_COUNT);
+          if (!partAnswer.omitted()) {
+            texts.add(partAnswer.text());
+          }
         }
-        answer = merge(calls, purpose, node, inputs, texts, budget);
+        answer =
+            texts.isEmpty() ? Answer.OMITTED : merge(calls, purpose, node, inputs, texts, budget);
+      }
+      if (answer.omitted()) {
+        return Optional.empty();
       }
       Citations.Checked checked = answer.checked();
-      return new Summary(
-          key,
-          node.entity(),
-          node.level(),
-          checked.text(),
-          answer.purpose(),
-          answer.confidence(),
-          checked.facts(),
-          checked.summaries(),
-          inputs.factIds,
-          children.stream().map(Summary::key).toList(),
-          Prompt.VERSION,
-          model.provider(),
-          model.model());
+      ModelConfig model = session(node).model();
+      return Optional.of(
+          new Summary(
+              key,
+              node.entity(),
+              node.level(),
+              checked.text(),
+              answer.purpose(),
+              answer.confidence(),
+              checked.facts(),
+              checked.summaries(),
+              inputs.factIds,
+              children.stream().map(Summary::key).toList(),
+              Prompt.VERSION,
+              model.provider(),
+              model.model()));
     }
 
     /**
@@ -718,45 +889,62 @@ public final class Summarizer {
         String purpose,
         SummaryNode node,
         Inputs inputs,
-        List<Prompt.Tagged> texts,
+        List<String> texts,
         long budget)
         throws ItemDropped {
+      int sentences = node.level().maxSentences();
       for (int round = 1; ; round++) {
         String prompt = Prompt.merge(node, texts);
-        List<List<Prompt.Tagged>> groups =
+        List<List<String>> groups =
             Tokens.estimate(prompt) <= budget
                 ? List.of(texts)
                 : pack(
                     texts,
-                    text -> Tokens.estimate(text.text()) + 10,
+                    text -> Tokens.estimate(text) + 10,
                     Tokens.estimate(Prompt.merge(node, List.of())),
                     budget);
         if (groups.size() == 1 || groups.size() == texts.size()) {
-          return answer(calls, purpose + " (merge)", node, prompt, inputs, cited(texts));
+          Answer merged =
+              answer(calls, purpose + " (merge)", node, prompt, inputs, cited(texts), sentences);
+          return merged;
         }
-        List<Prompt.Tagged> merged = new ArrayList<>();
+        List<String> merged = new ArrayList<>();
         for (int i = 0; i < groups.size(); i++) {
           String label = " (merge " + round + "." + (i + 1) + " of " + groups.size() + ")";
-          List<Prompt.Tagged> group = groups.get(i);
-          merged.add(
-              answer(calls, purpose + label, node, Prompt.merge(node, group), inputs, cited(group))
-                  .tagged());
+          List<String> group = groups.get(i);
+          Answer answer =
+              answer(
+                  calls,
+                  purpose + label,
+                  node,
+                  Prompt.merge(node, group),
+                  inputs,
+                  cited(group),
+                  sentences);
+          if (!answer.omitted()) {
+            merged.add(answer.text());
+          }
+        }
+        if (merged.isEmpty()) {
+          return Answer.OMITTED;
         }
         texts = merged;
       }
     }
 
-    private static Set<String> cited(List<Prompt.Tagged> texts) {
+    private static Set<String> cited(List<String> texts) {
       Set<String> refs = new HashSet<>();
-      texts.forEach(text -> refs.addAll(Citations.references(text.text())));
+      texts.forEach(text -> refs.addAll(Citations.references(text)));
       return refs;
     }
 
     /**
-     * Asks the model and checks its answer through the harness, which sends it back once with the
-     * reason if it is rejected.
+     * Asks the model and checks its answer sentence by sentence: a sentence the checks reject is
+     * left out; an answer the schema rejects, or one left with no sentence, goes back once with
+     * every reason.
      *
      * @param allowed the references the prompt shows, or {@code null} for all of the unit's
+     * @param sentences the most sentences kept, as the prompt asks
      * @throws ItemDropped if the second answer is rejected too, which {@link #visit} turns into a
      *     unit without a summary
      */
@@ -766,28 +954,20 @@ public final class Summarizer {
         SummaryNode node,
         String prompt,
         Inputs inputs,
-        Set<String> allowed)
+        Set<String> allowed,
+        int sentences)
         throws ItemDropped {
       stopIfFailed();
       LlmRequest request =
-          new LlmRequest(
-              Role.SUMMARIZE,
-              purpose,
-              Prompt.SYSTEM,
-              List.of(LlmMessage.user(prompt)),
-              node.level().maxOutputTokens(),
-              false);
+          Prompt.request(
+              role(node.level()).modelRole(), purpose, prompt, node.level().maxOutputTokens());
       return calls.answer(
           request,
           response -> {
             stopIfFailed();
-            try {
-              return answer(purpose, response, inputs, allowed);
-            } catch (Citations.Rejected rejected) {
-              throw new Rejected(rejected.getMessage());
-            }
+            return answer(purpose, response, inputs, allowed, sentences);
           },
-          Repair.withMessage(rejected -> Prompt.RETRY.formatted(rejected.getMessage())));
+          Repair.withMessage(rejected -> rejected.reasons().getFirst()));
     }
 
     /** A model's text on one line, cut to its first {@value #LOGGED_ANSWER} characters. */
@@ -799,87 +979,207 @@ public final class Summarizer {
     }
 
     /**
-     * The answer without its purpose line and its sentences that cite nothing, checked. The whole
-     * answer is checked first, so what is left out cannot hide a reason to reject it. It keeps an
-     * evidenced purpose only if its first sentence is kept and cites what can show one; otherwise
-     * its purpose counts as inferred.
+     * The answer's sentences that pass the checks, joined in the form {@link Citations} reads: each
+     * sentence followed by the references it cites. Its purpose counts as evidenced only if its
+     * first sentence is kept and cites what people wrote.
+     *
+     * @throws Rejected with the repair turn, if the answer is not one object in the schema, or no
+     *     sentence passes
      */
     private static Answer answer(
-        String purpose, LlmResponse response, Inputs inputs, Set<String> allowed) {
+        String purpose, LlmResponse response, Inputs inputs, Set<String> allowed, int most)
+        throws Rejected {
       if (response.cutOff()) {
-        throw new Citations.Rejected("it was cut off at the length limit; write a shorter one.");
+        throw rejected("", "It was cut off at the length limit; write shorter sentences.");
       }
-      Prompt.Tagged tagged = Prompt.tagged(response.text());
-      Citations.check(
-          tagged.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
-      Citations.Sentences sentences = Citations.cited(tagged.text(), inputs::unsupported);
-      if (sentences.text().isEmpty() && !sentences.unsupported().isEmpty()) {
-        throw new Citations.Rejected(
-            "every sentence names something that the references it cites do not mention: "
-                + names(sentences.unsupported())
-                + "; name only what the input you cite shows.");
+      JsonNode entry = entry(response.text());
+      if (entry == null) {
+        throw rejected(
+            "",
+            "Your answer is not one JSON object with an entry for "
+                + Prompt.ITEM
+                + " under \"items\".");
       }
-      if (sentences.text().isEmpty()) {
-        // Only a citation split by a blank line inside its brackets gets here.
-        throw new Citations.Rejected(
-            "none of its sentences ends with the references it is based on.");
+      CheckInputs checks = inputs.checks(allowed);
+      // A sentence outside the schema, such as one that cites nothing, or past the count the item
+      // asks for, is left out as a sentence the checks reject is; the rest must fit the schema.
+      List<Rejection> dropped = new ArrayList<>();
+      List<Integer> positions = new ArrayList<>();
+      // Sentences past the count the item asks for: left out, but nothing wrong was written.
+      int beyond = 0;
+      JsonNode written = entry.get("sentences");
+      int total = written != null && written.isArray() ? written.size() : 0;
+      if (total > 0 && entry.isObject()) {
+        ArrayNode fitting = JSON.createArrayNode();
+        for (int i = 0; i < total; i++) {
+          JsonNode sentence = written.get(i);
+          String field = "sentences." + (i + 1);
+          List<String> violations = JsonSchema.violations(SENTENCE_SCHEMA, sentence);
+          if (!violations.isEmpty()) {
+            JsonNode cites = sentence.path("cites");
+            String reason =
+                cites.isArray() && cites.isEmpty() && violations.size() == 1
+                    ? "Cites nothing; every sentence cites the references it rests on."
+                    : "Does not match the schema: " + String.join("; ", violations) + ".";
+            dropped.add(new Rejection(Prompt.ITEM, field, "Schema", reason));
+          } else if (fitting.size() >= most) {
+            beyond++;
+            dropped.add(
+                new Rejection(
+                    Prompt.ITEM,
+                    field,
+                    "Form",
+                    "The item asks for at most " + most + " sentences."));
+          } else {
+            fitting.add(sentence);
+            positions.add(i);
+          }
+        }
+        ObjectNode copy = (ObjectNode) entry.deepCopy();
+        copy.set("sentences", fitting);
+        entry = copy;
       }
-      if (!sentences.uncited().isEmpty()) {
+      List<Rejection> schema =
+          new Checks.Schema()
+              .check(new ItemAnswer(Prompt.ITEM, entry, List.of(), List.of()), checks);
+      if (!schema.isEmpty()) {
+        // With every sentence left out, the reasons they were are what the model must correct.
+        boolean noneLeft = !dropped.isEmpty() && positions.isEmpty();
+        List<Rejection> all = new ArrayList<>(dropped);
+        if (!noneLeft) {
+          all.addAll(schema);
+        }
+        throw new Rejected(Pipeline.repairTurn(all));
+      }
+      if (new ItemAnswer(Prompt.ITEM, entry, List.of(), List.of()).omitted()) {
+        return Answer.OMITTED;
+      }
+      List<String> kept = new ArrayList<>();
+      boolean firstKept = false;
+      Set<String> firstCites = Set.of();
+      JsonNode sentences = entry.get("sentences");
+      for (int n = 0; n < sentences.size(); n++) {
+        JsonNode sentence = sentences.get(n);
+        int i = positions.get(n);
+        String field = "sentences." + (i + 1);
+        String text = Citations.withoutCitations(sentence.get("text").asString()).strip();
+        // A range such as F1-F3 cites each reference in it; the text keeps it as written.
+        List<String> asWritten = new ArrayList<>();
+        // A cite written in brackets, such as "[F1]", is the reference inside them.
+        sentence
+            .get("cites")
+            .forEach(cite -> asWritten.add(cite.asString().replaceAll("[\\[\\]]", "").strip()));
+        List<String> cites = new ArrayList<>();
+        for (String cite : asWritten) {
+          Set<String> expanded = Citations.references("[" + cite + "]");
+          // What is no reference at all is checked as written, and rejected.
+          cites.addAll(expanded.isEmpty() ? Set.of(cite) : expanded);
+        }
+        CheckedText checked =
+            new CheckedText(
+                field,
+                CheckedText.Kind.PROSE,
+                text,
+                cites,
+                Prompt.SENTENCE_WORDS,
+                inputs.subject,
+                Set.of());
+        List<Rejection> found =
+            SENTENCE_CHECKS.check(
+                new ItemAnswer(Prompt.ITEM, entry, List.of(checked), List.of()), checks);
+        if (text.isEmpty()) {
+          found = List.of(new Rejection(Prompt.ITEM, field, "Form", "The sentence is empty."));
+        }
+        if (!found.isEmpty()) {
+          dropped.addAll(found);
+          continue;
+        }
+        if (i == 0) {
+          firstKept = true;
+          firstCites = new HashSet<>(cites);
+        }
+        kept.add(text + " [" + String.join(", ", asWritten) + "]");
+      }
+      if (kept.isEmpty()) {
+        throw new Rejected(Pipeline.repairTurn(dropped));
+      }
+      if (!dropped.isEmpty()) {
         LOG.info(
-            "Left out {} sentences without references from the answer to {}: {}",
-            sentences.uncited().size(),
-            purpose,
-            logged(String.join(" | ", sentences.uncited())));
-      }
-      if (!sentences.unsupported().isEmpty()) {
-        LOG.info(
-            "Left out {} sentences naming what their references do not mention from the answer"
-                + " to {}: {}",
-            sentences.unsupported().size(),
+            "Left out {} sentences from the answer to {}: {}",
+            total - kept.size(),
             purpose,
             logged(
                 String.join(
-                    " | ",
-                    sentences.unsupported().stream()
-                        .map(u -> u.sentence() + " (" + String.join(", ", u.names()) + ")")
-                        .toList())));
+                    " | ", dropped.stream().map(r -> r.field() + ": " + r.reason()).toList())));
       }
-      Citations.Checked checked =
-          Citations.check(
-              sentences.text(), inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
-      boolean evidenced =
-          tagged.purpose() == Summary.Purpose.EVIDENCED
-              && !sentences.firstLeftOut()
-              && Citations.firstReferences(sentences.text()).stream()
-                  .anyMatch(inputs.evidence::contains);
+      String text = String.join(" ", kept);
+      Citations.Checked checked;
+      try {
+        checked =
+            Citations.check(text, inputs.factIds, inputs.excerptFacts, inputs.summaries, allowed);
+      } catch (Citations.Rejected e) {
+        throw rejected("", "Your answer " + e.getMessage());
+      }
+      boolean evidenced = firstKept && firstCites.stream().anyMatch(inputs.evidence::contains);
       return new Answer(
-          sentences.text(),
+          text,
           checked,
           evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED,
-          Confidence.of(
-              evidenced,
-              sentences.kept(),
-              (int) sentences.uncited().stream().filter(t -> !t.isBlank()).count()
-                  + sentences.unsupported().size()));
+          Confidence.of(evidenced, kept.size(), total - beyond - kept.size()));
     }
 
-    /** The names the sentences left out name without support, each once, at most some. */
-    private static String names(List<Citations.Unsupported> unsupported) {
-      Set<String> names = new LinkedHashSet<>();
-      unsupported.forEach(u -> names.addAll(u.names()));
-      List<String> listed = names.stream().limit(10).toList();
-      return String.join(", ", listed)
-          + (names.size() > listed.size()
-              ? " and " + (names.size() - listed.size()) + " more"
-              : "");
+    /** A rejection of the whole answer, as the repair turn sends it. */
+    private static Rejected rejected(String field, String reason) {
+      return new Rejected(
+          Pipeline.repairTurn(List.of(new Rejection(Prompt.ITEM, field, "Schema", reason))));
+    }
+
+    /** The item's entry of an answer envelope, or {@code null} if the answer has none. */
+    private static JsonNode entry(String text) {
+      JsonNode root;
+      try {
+        root = JSON.readTree(stripFence(text));
+      } catch (RuntimeException e) {
+        return null;
+      }
+      if (root == null || !root.isObject()) {
+        return null;
+      }
+      JsonNode entry = root.path("items").get(Prompt.ITEM);
+      return entry == null || entry.isNull() ? null : entry;
+    }
+
+    /** The answer without a Markdown code fence around it. */
+    private static String stripFence(String text) {
+      String stripped = text == null ? "" : text.strip();
+      if (stripped.startsWith("```")) {
+        int start = stripped.indexOf('\n');
+        int end = stripped.lastIndexOf("```");
+        if (start > 0 && end > start) {
+          return stripped.substring(start + 1, end);
+        }
+      }
+      return stripped;
     }
   }
+
+  /** The checks each sentence passes: every check but the schema's, which the whole answer does. */
+  private static final Pipeline SENTENCE_CHECKS =
+      new Pipeline(Checks.STANDARD.stream().filter(c -> !(c instanceof Checks.Schema)).toList());
+
+  private static final JsonMapper JSON = JsonMapper.builder().build();
+
+  /** The schema of one item's answer, as the epic writes it. */
+  private static final JsonNode ITEM_SCHEMA = JsonSchema.itemSchema(JSON.readTree(Prompt.SCHEMA));
+
+  /** The schema of one sentence of an item's answer. */
+  private static final JsonNode SENTENCE_SCHEMA = ITEM_SCHEMA.at("/properties/sentences/items");
 
   /**
    * A checked answer.
    *
-   * @param text the answer as the model wrote it, with its references, without its purpose line and
-   *     its sentences that cite nothing
+   * @param text the kept sentences, each followed by the references it cites, as the model wrote
+   *     them; {@code null} if the model answered that its inputs show nothing
    * @param checked the answer with references rewritten to stable IDs
    * @param purpose where its first sentence takes the unit's purpose from, as checked
    * @param confidence how far it can be trusted, from its purpose and the share of its sentences
@@ -888,9 +1188,10 @@ public final class Summarizer {
   private record Answer(
       String text, Citations.Checked checked, Summary.Purpose purpose, double confidence) {
 
-    /** The answer's text with its checked purpose mark, as a merge prompt shows it. */
-    Prompt.Tagged tagged() {
-      return new Prompt.Tagged(purpose, text);
+    static final Answer OMITTED = new Answer(null, null, Summary.Purpose.INFERRED, 0);
+
+    boolean omitted() {
+      return text == null;
     }
   }
 
@@ -913,8 +1214,8 @@ public final class Summarizer {
     /** What each reference stands for, as the prompt writes it. */
     private final Map<String, String> texts = new HashMap<>();
 
-    /** The unit as the prompt names it. */
-    private final String subject;
+    /** The unit as the prompt names it, which a sentence may name without citing it. */
+    final String subject;
 
     private final SummaryNode node;
 
@@ -952,19 +1253,22 @@ public final class Summarizer {
     }
 
     /**
-     * What a sentence names that neither the inputs it cites nor the unit's name mention (ADR
-     * 0068).
+     * What the checks compare a sentence with: the references the request showed, or all of the
+     * unit's.
      */
-    List<String> unsupported(String sentence) {
-      List<String> support = new ArrayList<>();
-      support.add(subject);
-      for (String ref : Citations.references(sentence)) {
-        String text = texts.get(ref);
-        if (text != null) {
-          support.add(text);
-        }
+    CheckInputs checks(Set<String> allowed) {
+      Map<String, String> references = new HashMap<>(texts);
+      if (allowed != null) {
+        references.keySet().retainAll(allowed);
       }
-      return Grounding.unsupported(sentence, support);
+      return new CheckInputs(
+          ITEM_SCHEMA,
+          references,
+          Set.of('F', 'E', 'S'),
+          false,
+          (repo, path) -> Optional.empty(),
+          Map.of(),
+          Set.of());
     }
 
     /** All items split into parts that each fit the budget with a part prompt's own text. */

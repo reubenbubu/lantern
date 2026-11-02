@@ -383,12 +383,28 @@ public final class AnalysisRun {
       List<Fact> resolved = new ValueResolution().derive(extracted, snapshot.number());
       List<Fact> summarizable = new ArrayList<>(extracted);
       summarizable.addAll(resolved);
-      Summarizer.Result summarized =
-          new Summarizer(harness, sources).summarize(SummaryTree.fromFacts(summarizable));
+      // Only the types the architecture model needs are summarized: its entry points, component
+      // anchors and members, which leave out domain, DTO, mapper, configuration and util classes
+      // (knowledge-build epic, section 11.3).
+      List<io.lantern.summarize.SummaryNode> units =
+          SummaryTree.fromFacts(summarizable, modelTypes(stored.linkerFacts()));
+      LOG.info(
+          "Summarize: units per level {}, of {} the facts hold",
+          levels(units),
+          levels(SummaryTree.fromFacts(summarizable)));
+      Summarizer.Result summarized = new Summarizer(harness, sources).summarize(units);
       LOG.info(
           "Summaries: {} written by the LLM, {} reused",
           summarized.generated(),
           summarized.reused());
+      // Stored as claims of origin llm, which later roles read (knowledge-build epic, section 6).
+      Map<Origin, List<Fact>> summaryFacts =
+          Summarizer.facts(summarized, summarizable, snapshot.number());
+      recordLlmFacts(snapshot, summaryFacts);
+      LOG.info(
+          "Summarize stored {} summaries as claims of {} summaries",
+          summaryFacts.values().stream().mapToInt(List::size).sum(),
+          summarized.summaries().size());
       if (!summarized.rejected().isEmpty()) {
         LOG.warn(
             "Units without a summary, their answer rejected twice: {}",
@@ -547,6 +563,39 @@ public final class AnalysisRun {
                 (origin, found) ->
                     facts.recordDerived(
                         snapshot.number(), origin, snapshot.commits().keySet(), found)));
+  }
+
+  /** How many units of each level the trees hold, each unit once. */
+  private static Map<io.lantern.summarize.SummaryLevel, Integer> levels(
+      List<io.lantern.summarize.SummaryNode> roots) {
+    Map<io.lantern.summarize.SummaryLevel, Integer> counts =
+        new java.util.EnumMap<>(io.lantern.summarize.SummaryLevel.class);
+    Set<EntityId> seen = new java.util.HashSet<>();
+    java.util.ArrayDeque<io.lantern.summarize.SummaryNode> todo = new java.util.ArrayDeque<>(roots);
+    while (!todo.isEmpty()) {
+      io.lantern.summarize.SummaryNode node = todo.pop();
+      if (seen.add(node.entity())) {
+        counts.merge(node.level(), 1, Integer::sum);
+        todo.addAll(node.children());
+      }
+    }
+    return counts;
+  }
+
+  /** The types the architecture model's components are anchored on or hold as members. */
+  static Set<EntityId> modelTypes(Collection<Fact> linkerFacts) {
+    Set<EntityId> types = new java.util.HashSet<>();
+    for (Fact fact : linkerFacts) {
+      if ((fact.predicate().equals(io.lantern.derive.Components.ANCHORED_ON)
+              || fact.predicate().equals(io.lantern.derive.Components.HAS_MEMBER))
+          && fact.object().kind() == io.lantern.core.fact.FactObject.Kind.ENTITY) {
+        EntityId type = EntityId.parse(fact.object().value());
+        if (type.type().equals(io.lantern.core.vocabulary.BuiltInTypes.TYPE)) {
+          types.add(type);
+        }
+      }
+    }
+    return types;
   }
 
   /** The records, after warning of a role whose items did not each land in one count (#654). */

@@ -171,15 +171,31 @@ record FixtureSnapshot(
         .answering(
             request -> {
               String prompt = request.messages().getFirst().text();
+              boolean summarize = request.system().contains("Task: summarise code units.");
               List<String> sentences = new ArrayList<>();
               if (prompt.contains("[S1]")) {
-                sentences.add("It builds on its parts. [S1]");
+                sentences.add(sentence(summarize, "It builds on its parts.", "S1"));
               }
               if (prompt.contains("[F1]")) {
-                sentences.add("It is described by its facts. [F1]");
+                sentences.add(sentence(summarize, "It is described by its facts.", "F1"));
               }
-              return String.join(" ", sentences);
+              if (!summarize) {
+                return String.join(" ", sentences);
+              }
+              // Summarize answers in its envelope (knowledge-build epic, section 11.3).
+              return sentences.isEmpty()
+                  ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
+                  : "{\"items\": {\"I1\": {\"sentences\": ["
+                      + String.join(", ", sentences)
+                      + "]}}}";
             });
+  }
+
+  /** A sentence citing one reference, as Summarize's schema or as prose. */
+  private static String sentence(boolean summarize, String text, String cite) {
+    return summarize
+        ? "{\"text\": \"" + text + "\", \"cites\": [\"" + cite + "\"]}"
+        : text + " [" + cite + "]";
   }
 
   private static void copy(Path source, Path target) throws IOException {
