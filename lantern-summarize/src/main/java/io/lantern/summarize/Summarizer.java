@@ -248,6 +248,7 @@ public final class Summarizer {
         unit.whenComplete(
             (summary, failure) -> {
               if (failure != null) {
+                run.neverRan(node);
                 run.session(node).releaseWarmUp(node.entity().toString());
               }
             });
@@ -550,6 +551,9 @@ public final class Summarizer {
     // cannot start before its parts are done.
     private final Set<EntityId> toAsk = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean accepted = new AtomicBoolean();
+    // The units that started: a planned unit that never did, since a part failed, is recorded as
+    // not asked, so each planned unit still gets its outcome.
+    private final Set<EntityId> started = ConcurrentHashMap.newKeySet();
     // Each role's units take slots of its own model's lane; a batched role's units wait for their
     // batch instead, so every unit whose parts are done joins the next batch.
     private final Map<RoleSession, Semaphore> running = new HashMap<>();
@@ -661,6 +665,7 @@ public final class Summarizer {
      * is rejected twice gets none.
      */
     Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
+      started.add(node.entity());
       RoleSession session = session(node);
       Semaphore running = this.running.get(session);
       try {
@@ -729,6 +734,13 @@ public final class Summarizer {
         running.release();
         // Whatever ended it, the units waiting for the warm-up unit go on.
         session.releaseWarmUp(node.entity().toString());
+      }
+    }
+
+    /** Records a planned unit that never started, because one of its parts failed. */
+    void neverRan(SummaryNode node) {
+      if (planned.contains(node.entity()) && !started.contains(node.entity())) {
+        session(node).notAsked(node.entity().toString(), "another unit failed first");
       }
     }
 
