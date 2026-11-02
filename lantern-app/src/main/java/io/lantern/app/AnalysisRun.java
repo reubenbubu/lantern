@@ -398,7 +398,13 @@ public final class AnalysisRun {
           summarized.generated(),
           summarized.reused());
       // Stored as claims of origin llm, which later roles read (knowledge-build epic, section 6).
-      recordLlmFacts(snapshot, Summarizer.facts(summarized, summarizable, snapshot.number()));
+      Map<Origin, List<Fact>> summaryFacts =
+          Summarizer.facts(summarized, summarizable, snapshot.number());
+      recordLlmFacts(snapshot, summaryFacts);
+      LOG.info(
+          "Summarize stored {} summaries as claims of {} summaries",
+          summaryFacts.values().stream().mapToInt(List::size).sum(),
+          summarized.summaries().size());
       if (!summarized.rejected().isEmpty()) {
         LOG.warn(
             "Units without a summary, their answer rejected twice: {}",
