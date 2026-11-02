@@ -111,8 +111,8 @@ Option 1, with two limits learned from the experiment: ask for about 90% of a wo
 35, 22 of 25, 7 of 8, 18 of 20, 75 of 80), not less; word each rule as narrowly as its check: "do
 not open by echoing its name", not "never use its words", with the code's own terms encouraged; and
 judge every change for quality against the old answers, since rejections alone rewarded thinner
-texts. The experiment cost about $14 of real calls: the lab $0.72, the judge about $8.70, the runs
-about $4.60.
+texts. The experiment cost about $14 of real calls: the lab $0.72, the judge about $8.80, the runs
+about $4.20.
 
 ## What it changes
 
