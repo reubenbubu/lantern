@@ -3,17 +3,42 @@
 // report spec (report-specs/c4-model-sequence-diagrams). Free: no LLM, only names and structure.
 //
 //   node scripts/score.mjs <report .html or .json> <set folder> [--run <run.json>] [--out <prefix>]
+//       [--answer-key <file>] [--warm <run.json>] [--change <run.json>]
 //     writes <prefix>.scorecard.json and <prefix>.scorecard.md; the prefix defaults to the report's
-//     path without .html or .json.
+//     path without .html or .json. It also scores each LLM role (roles.mjs) from the run's facts beside run.json (linked.jsonl.gz,
+//     llm.jsonl.gz) against the set's answer key (default <set folder>/answer-key.json).
 //   node scripts/score.mjs compare <a.scorecard.json> <b.scorecard.json> [--labels <a>,<b>]
 //       [--out <file.md>]
-//     prints (or writes) the two scorecards side by side; the labels head their columns.
+//     prints (or writes) the two scorecards side by side; the labels head their columns; with the
+//     paired difference of each role's item scores.
+//   node scripts/score.mjs check-key <answer-key.json> <reference.c4.json> <checkout>
+//     checks a set's answer key: its form, and that every citation holds at its commit.
+//   node scripts/score.mjs paired <scores folder a> <scores folder b> [--labels <a>,<b>] [--out <file.md>]
+//     the paired difference per role over every set both folders scored, with its direction per
+//     set and whether it is an improvement (docs/epics/001-knowledge-build.md, section 13).
 //
 // The set folder is testsets/<set>: its reference/reference.c4.json is the reference and its
 // reference/aliases.json, if there is one, the set's alias table.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  SCORED_ROWS,
+  answerKeyCodeIssues,
+  answerKeyIssues,
+  describeRow,
+  flowsRow,
+  harnessRow,
+  investigateRow,
+  itemPairs,
+  nameGroupsRow,
+  notMeasured,
+  pairedDifference,
+  readAnswerKey,
+  readFacts,
+  reportId,
+  resolveRow,
+} from './roles.mjs';
 
 /** Element kinds scored with recall and precision, as the scorecard names them. */
 export const ELEMENT_CATEGORIES = [
@@ -524,7 +549,11 @@ function selfReportedGaps(data) {
  *     eitherKind: { "<reference id>": ["<other kind it may also be matched in>"] },
  *     triggers: { "<trigger>": "<trigger written the reference's way>" } }
  */
-export function score(report, reference, aliases = {}) {
+/**
+ * @param inputs what the rows per role read beside the report (roles.mjs): `answerKey`, `linked`
+ *     and `llm` (the run's facts), `run`, `warm` and `change` (run records); each may be missing
+ */
+export function score(report, reference, aliases = {}, inputs = {}) {
   const matched = matchElements(report, reference, aliases);
   const scope = inScope(report, matched);
   const refName = (id) => reference.elements[id]?.name ?? id;
@@ -678,7 +707,37 @@ export function score(report, reference, aliases = {}) {
     .filter((c) => !c.pass)
     .map((c) => c.id);
   result.selfReportedGaps = selfReportedGaps(report);
+  result.roles = roleRows(report, reference, matched, repFlows, inputs);
   return result;
+}
+
+/** The rows per LLM role (roles.mjs; ADR 0072, amendment for #667). */
+function roleRows(report, reference, matched, repFlows, inputs) {
+  const { answerKey = null, linked = null, llm = null, run = null, warm = null, change = null } = inputs;
+  const subjectOf = (entity) => {
+    const id = reportId(entity);
+    if (matched.has(id)) return matched.get(id);
+    return report.elements[id] ? `report:${id}` : null;
+  };
+  const roleFlows = repFlows.map((f) => ({
+    ...f,
+    participants: f.participants.map((p) => matched.get(p) ?? `report:${p}`),
+  }));
+  return {
+    resolve: resolveRow(answerKey, linked, llm, run),
+    describe: describeRow(report, linked, llm),
+    flows: flowsRow(flowsOf(reference), roleFlows),
+    investigate: investigateRow(
+      answerKey,
+      llm,
+      subjectOf,
+      (a, b) => subjectOverlap(subjectWords(a), subjectWords(b)),
+      SUBJECT_THRESHOLD,
+    ),
+    nameGroups: nameGroupsRow(run),
+    purpose: notMeasured('the key-fact judge comes with #668'),
+    harness: harnessRow(run, warm, change),
+  };
 }
 
 /** "6/7" with the percentage, or "-" when there is nothing to count. */
@@ -701,6 +760,44 @@ function conversations(c) {
       .join(', ');
   const tools = counts(c.toolCalls);
   return `; ${c.count} conversations, ${c.turns} turns (at most ${c.mostTurns}), tool calls: ${tools || 'none'}; ended: ${counts(c.endings)}`;
+}
+
+/** A share as a percentage, or "-" when there was nothing to count. */
+const percent = (x) => (x === null || x === undefined ? '-' : `${Math.round(x * 100)}%`);
+
+/** Each row per role as one line of text: what it measured, or why it could not. */
+export function roleCells(roles) {
+  if (!roles) return {};
+  const why = (r) => `not measured (${r.why})`;
+  const cell = {};
+  const r = roles.resolve;
+  cell.Resolve = !r.measured
+    ? why(r)
+    : r.items === 0
+      ? `no items${r.notAsked ? `; ${r.notAsked} not asked` : ''}${r.note ? ` (${r.note})` : ''}`
+      : `${r.items} links: coverage ${percent(r.coverage)}, accuracy ${percent(r.accuracy)}, penalized ${percent(r.penalized)} (p = ${r.penalty}), over-abstention ${percent(r.overAbstention)}; ${r.notAsked} not asked`;
+  const d = roles.describe;
+  cell.Describe = !d.measured
+    ? why(d)
+    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}), interactions ${d.interactionsIntended}/${d.interactions} (${percent(d.interactionCoverage)}); judge ${why(d.judge)}`;
+  const f = roles.flows;
+  cell.Flows = !f.measured
+    ? why(f)
+    : `${f.matched}/${f.reference} recall (${percent(f.recall)}), ${f.matched}/${f.report} precision (${percent(f.precision)})`;
+  const i = roles.investigate;
+  cell.Investigate = !i.measured
+    ? why(i)
+    : `${i.matched}/${i.reference} recall (${percent(i.recall)}), precision ${percent(i.precision)} over judged, decoys flagged ${i.decoysFlagged}/${i.decoys}, TPR − FPR ${percent(i.tprMinusFpr)}; ${i.unjudged.length} unjudged of ${i.found} found`;
+  const n = roles.nameGroups;
+  cell['Name groups'] = !n.measured ? why(n) : `${n.named}/${n.groups} named (${percent(n.coverage)}); judge ${why(n.judge)}`;
+  cell.Purpose = why(roles.purpose);
+  const h = roles.harness;
+  cell.Harness = !h.measured
+    ? why(h)
+    : `$${h.costUsd}, ${h.calls} calls, tokens in ${h.tokens.input} / out ${h.tokens.output} / cache read ${h.tokens.cacheRead} / cache write ${h.tokens.cacheWrite}; cache hit rate ${percent(h.cacheHitRate)} of ${h.items} items; warm ${
+        h.warm.measured === false ? why(h.warm) : `${h.warm.calls} calls${h.warm.gate ? ' (gate passed)' : ' (gate FAILED: not zero)'}`
+      }; one-file change ${h.oneFileChange.measured === false ? why(h.oneFileChange) : `${h.oneFileChange.calls} calls`}`;
+  return cell;
 }
 
 /** The scorecard as Markdown: counts first, then what is missing and extra, then the checks. */
@@ -744,6 +841,18 @@ export function scorecardMarkdown(card) {
       .map((c) => `${c.container} ${c.report}/${c.reference}`)
       .join(', ')}.`,
   );
+  if (s.roles) {
+    lines.push('', '## Rows per role', '', '| Role | Result |', '| --- | --- |');
+    for (const [role, text] of Object.entries(roleCells(s.roles))) lines.push(`| ${role} | ${text} |`);
+    if (card.answerKey) lines.push('', `Answer key: \`${card.answerKey}\` (prepared from the code and the references; see its header).`);
+    const inv = s.roles.investigate;
+    if (inv.measured && inv.unjudged.length > 0) {
+      lines.push('', `Unjudged risks (${inv.unjudged.length}, matching no reference risk or decoy): ${inv.unjudged.join('; ')}.`);
+    }
+    if (s.roles.resolve.wrongItems?.length > 0) {
+      lines.push('', `Resolve's wrong picks: ${s.roles.resolve.wrongItems.join('; ')}.`);
+    }
+  }
   if (s.flows.matches.length > 0) {
     lines.push('', '## Flows found', '');
     for (const m of s.flows.matches) {
@@ -794,18 +903,36 @@ export function readRun(path) {
 }
 
 /** Scores the report file against the set's reference and returns the scorecard. */
-export function scoreFiles(reportPath, setDir, runPath = null) {
+/**
+ * Scores the report file against the set's reference and returns the scorecard.
+ *
+ * @param options `answerKey` (default `<set>/answer-key.json`), `warm` and `change` (run records
+ *     of a warm rerun and of a one-file change); the run's facts (linked.jsonl.gz, llm.jsonl.gz)
+ *     are read beside run.json, or beside the report without one
+ */
+export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
   const referencePath = `${setDir}/reference/reference.c4.json`;
   const report = readReport(reportPath);
   const reference = JSON.parse(readFileSync(referencePath, 'utf8'));
+  const beside = dirname(runPath ?? reportPath);
+  const keyPath = options.answerKey ?? `${setDir}/answer-key.json`;
+  const inputs = {
+    answerKey: readAnswerKey(keyPath),
+    linked: readFacts(join(beside, 'linked.jsonl.gz')),
+    llm: readFacts(join(beside, 'llm.jsonl.gz')),
+    run: runPath ? readRun(runPath) : null,
+    warm: options.warm ? readRun(options.warm) : null,
+    change: options.change ? readRun(options.change) : null,
+  };
   return {
+    answerKey: inputs.answerKey ? keyPath : null,
     // A synthetic set's expected answers sit in <checkout>/expected: the set is the checkout.
     set: basename(resolve(setDir)) === 'expected' ? basename(resolve(setDir, '..')) : basename(resolve(setDir)),
     report: reportPath,
     reportTitle: report.document.title,
     reference: referencePath,
     run: runPath ? readRun(runPath) : null,
-    scores: score(report, reference, readAliases(setDir)),
+    scores: score(report, reference, readAliases(setDir), inputs),
   };
 }
 
@@ -831,6 +958,56 @@ export function compareMarkdown(a, b, labelA = 'A', labelB = 'B') {
   }
   const passed = (card) => `${card.scores.checks.filter((c) => c.pass).length}/${card.scores.checks.length}`;
   lines.push(`| Checks passed | ${passed(a)} | ${passed(b)} |`);
+  const cellsA = roleCells(a.scores.roles);
+  const cellsB = roleCells(b.scores.roles);
+  for (const role of new Set([...Object.keys(cellsA), ...Object.keys(cellsB)])) {
+    lines.push(`| ${role} (role) | ${cellsA[role] ?? '-'} | ${cellsB[role] ?? '-'} |`);
+  }
+  const paired = pairedRows([[a, b]]);
+  if (paired.length > 0) {
+    lines.push('', `## Paired difference (${labelB} − ${labelA}, on the same items)`, '');
+    lines.push(...pairedLines(paired));
+  }
+  return `${lines.join('\n')}\n`;
+}
+
+/** Per scored row, the paired difference of item scores over every pair of scorecards given. */
+export function pairedRows(cards) {
+  const rows = [];
+  for (const row of SCORED_ROWS) {
+    const pairs = cards.flatMap(([a, b]) => itemPairs(a, b, row));
+    if (pairs.length > 0) rows.push({ row, ...pairedDifference(pairs) });
+  }
+  return rows;
+}
+
+/** The paired rows as a Markdown table. */
+function pairedLines(rows) {
+  const lines = ['| Row | Items | Mean difference | 95% interval | Direction per set | Verdict |', '| --- | --- | --- | --- | --- | --- |'];
+  for (const r of rows) {
+    const verdict = r.improves ? 'improves' : r.regresses ? 'may regress (lower bound at or below −7 points)' : 'no claim';
+    const dirs = Object.entries(r.bySet).map(([set, d]) => `${set} ${d}`).join(', ');
+    lines.push(`| ${r.row} | ${r.items} | ${r.mean} points | ${r.low} to ${r.high} | ${dirs} | ${verdict} |`);
+  }
+  return lines;
+}
+
+/**
+ * Two folders of scorecards (as score-testsets.sh writes them) compared on the same items, every
+ * set they share pooled: the claim the epic's section 13 allows, row by row.
+ */
+export function pairedMarkdown(dirA, dirB, labelA = 'A', labelB = 'B') {
+  const cards = (dir) =>
+    new Map(
+      readdirSync(dir)
+        .filter((f) => f.endsWith('.scorecard.json'))
+        .map((f) => [f.replace(/\.scorecard\.json$/, ''), JSON.parse(readFileSync(join(dir, f), 'utf8'))]),
+    );
+  const a = cards(dirA);
+  const b = cards(dirB);
+  const sets = [...a.keys()].filter((set) => b.has(set)).sort();
+  const lines = [`# Paired comparison: ${labelB} − ${labelA}`, '', `Sets: ${sets.join(', ') || 'none in common'}.`, ''];
+  lines.push(...pairedLines(pairedRows(sets.map((set) => [a.get(set), b.get(set)]))));
   return `${lines.join('\n')}\n`;
 }
 
@@ -847,7 +1024,35 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
   const args = process.argv.slice(2);
   try {
     const out = option(args, '--out');
-    if (args[0] === 'compare') {
+    if (args[0] === 'check-key') {
+      const [, keyPath, referencePath, checkout] = args;
+      if (!keyPath || !referencePath || !checkout) {
+        throw new Error('usage: score.mjs check-key <answer-key.json> <reference.c4.json> <checkout>');
+      }
+      const key = readAnswerKey(keyPath);
+      if (!key) throw new Error(`no answer key at ${keyPath}`);
+      const reference = JSON.parse(readFileSync(referencePath, 'utf8'));
+      const issues = [...answerKeyIssues(key, reference), ...answerKeyCodeIssues(key, checkout)];
+      for (const issue of issues) console.log(issue);
+      console.log(
+        `${issues.length === 0 ? 'ok' : `${issues.length} issues`}: ${(key.resolve ?? []).length} links, ${(key.risks ?? []).length} risks, ${(key.decoys ?? []).length} decoys`,
+      );
+      if (issues.length > 0) process.exit(1);
+    } else if (args[0] === 'paired') {
+      const labels = option(args, '--labels');
+      const [, dirA, dirB] = args;
+      if (!dirA || !dirB) {
+        throw new Error('usage: score.mjs paired <scores folder a> <scores folder b> [--labels <a>,<b>] [--out <file.md>]');
+      }
+      const [labelA, labelB] = labels ? labels.split(',') : [basename(dirA), basename(dirB)];
+      const text = pairedMarkdown(dirA, dirB, labelA, labelB);
+      if (out) {
+        writeFileSync(out, text);
+        console.log(`wrote ${out}`);
+      } else {
+        process.stdout.write(text);
+      }
+    } else if (args[0] === 'compare') {
       const labels = option(args, '--labels');
       const [, aPath, bPath] = args;
       if (!aPath || !bPath) {
@@ -871,11 +1076,20 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       }
     } else {
       const run = option(args, '--run');
+      const answerKey = option(args, '--answer-key');
+      const warm = option(args, '--warm');
+      const change = option(args, '--change');
       const [reportPath, setDir] = args;
       if (!reportPath || !setDir) {
-        throw new Error('usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--out <prefix>]');
+        throw new Error(
+          'usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--answer-key <file>] [--warm <run.json>] [--change <run.json>] [--out <prefix>]',
+        );
       }
-      const card = scoreFiles(reportPath, setDir, run);
+      const card = scoreFiles(reportPath, setDir, run, {
+        answerKey: answerKey ?? undefined,
+        warm,
+        change,
+      });
       const prefix = out ?? reportPath.replace(/\.(html|json)$/, '');
       writeFileSync(`${prefix}.scorecard.json`, `${JSON.stringify(card, null, 2)}\n`);
       writeFileSync(`${prefix}.scorecard.md`, scorecardMarkdown(card));

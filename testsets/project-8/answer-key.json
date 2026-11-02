@@ -1,0 +1,567 @@
+{
+  "set": "project-8",
+  "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
+  "status": "awaiting the owner's check at the 1F test drop",
+  "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
+  "commits": {
+    "billing-service": "79446bfa58100fac4150b3389b4aa364bf53d78e",
+    "customer-portal-bff": "57389cce13def3a48839f9fbaec967d6a41e5f49",
+    "edge-gateway": "13612bcddfc322bbd12846a55682630a4a8efaec",
+    "fleetcare-commons": "1c1cccfaae06ab3bbed9571630f9514a1cf8c6a4",
+    "fleetcare-deploy": "673dc5f2692425af1f57586d09378dcd269040a4",
+    "fleetcare-parent": "08831db0fad0df9b873ff83eb65a282ee70f7250",
+    "fleetcare-web": "8fdbce7c6615f4d3ae06f2307456bcafb6a838d1",
+    "notification-service": "49aa150b9dc7a7c4f73ef995cd82d0af169e53e0",
+    "parts-inventory": "6315de02727dc40f5de7bf11a4beecca3bb1c1a7",
+    "parts-inventory-lib": "563b9a9cf4c87b46a0c38d258081124dc1365d10",
+    "platform-config": "18b5202dbd5725896f9ec7c476f6e362d50c052f",
+    "platform-discovery": "2045e8bf6455b97d7c283bfaabd4d166725dfe27",
+    "technician-service": "d24180e34ede76534aff446a4f7ea76b9fae8c5c",
+    "telematics-ingest": "3675f543435472ccbb97137603f1b607b3fbda78",
+    "workorder-service": "9d25c3d01dcc9e752e3bd6ed4fc5c838640c933d"
+  },
+  "resolve": [
+    {
+      "link": "2f5d6cdaa99763c2e225ace27ab3ebce7dcebde858bc59ee5caa27c0783fb46c",
+      "unit": "service:io.fleetcare:billing-service",
+      "call": "fleet.workorder.events, routing key payment.<state>",
+      "candidates": [
+        "service:io.fleetcare:notification-service",
+        "service:io.fleetcare:workorder-service"
+      ],
+      "answer": [
+        "service:io.fleetcare:workorder-service",
+        "service:io.fleetcare:notification-service"
+      ],
+      "because": "Billing publishes payment.<state> to fleet.workorder.events; both work-order's workorder.payment.audit queue and notification's notification.payment.events queue bind payment.# there, so both receive it.",
+      "cites": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PaymentService.java:49-49",
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/RabbitTopology.java:31-31",
+        "notification-service:src/main/java/io/fleetcare/notification/delivery/NotificationRabbitConfiguration.java:54-56"
+      ],
+      "names": [
+        "fleet.workorder.events",
+        "payment.#"
+      ]
+    },
+    {
+      "link": "d02d3fce1b95ae1eb0929c2371e355a2e36f5341f70550b4377b770b261e2219",
+      "unit": "service:io.fleetcare:billing-service",
+      "call": "GET https://${accounting.status-host}/${accounting.status-api-version}/{region}/status",
+      "candidates": [
+        "service:io.fleetcare:notification-service",
+        "service:io.fleetcare:parts-inventory-app",
+        "service:io.fleetcare:technician-service",
+        "service:io.fleetcare:workorder-service"
+      ],
+      "answer": "unknown",
+      "because": "The status host is a property no configuration of the set defines (billing's application.yml sets only the accounting lookup, legacy and SFTP addresses), and the region comes from an environment variable; nothing shows it is one of the internal units.",
+      "cites": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PartnerStatusClient.java:16-20",
+        "billing-service:src/main/resources/application.yml:33-41"
+      ],
+      "names": [
+        "accounting.status-host",
+        "accounting:"
+      ]
+    },
+    {
+      "link": "68534b7eb271be23e4d98e6aa50cbee4cd1ee250caea277fb87b57cb7d9c095a",
+      "unit": "service:io.fleetcare:workorder-service",
+      "call": "rabbit.convertAndSend(event.getExchangeName(), event.getRoutingKey(), body)",
+      "candidates": [
+        "service:io.fleetcare:notification-service",
+        "service:io.fleetcare:workorder-service"
+      ],
+      "answer": [
+        "service:io.fleetcare:notification-service",
+        "service:io.fleetcare:workorder-service"
+      ],
+      "because": "The outbox rows are written with the exchange fleet.workorder.events and the keys workorder.created, workorder.<id>.completed, workorder.<id>.cancelled and maintenance.reminder; notification-service binds all four, and work-order's own read-model queue binds workorder.created.",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/OutboxPoller.java:30-30",
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/WorkOrderEventOutbox.java:25-50",
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/RabbitTopology.java:27-30",
+        "notification-service:src/main/java/io/fleetcare/notification/delivery/NotificationRabbitConfiguration.java:42-53"
+      ],
+      "names": [
+        "getExchangeName",
+        "WORK_ORDER_EXCHANGE",
+        "workorder.created"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "id": "r1",
+      "reference": "Workorder and billing both verify HMAC JWTs with the same secret placeholder under the internal profile; the secret",
+      "subjects": [
+        "workorder-service",
+        "billing-service"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/config/InternalTokenConfiguration.java:12-17",
+        "billing-service:src/main/resources/application.yml:52-54",
+        "workorder-service:src/main/resources/application.yml:39-41"
+      ],
+      "names": [
+        "shared-secret",
+        "InternalTokenConfiguration",
+        "FLEET_JWT_SECRET"
+      ],
+      "how": "Both services build an HMAC JWT decoder from the same shared-secret property, defaulted to a placeholder value in config."
+    },
+    {
+      "id": "r2",
+      "reference": "The gateway composite calls `/api/technicians/{id}/skils`; technician-service serves `/api/technicians/{id}/skills`",
+      "subjects": [
+        "edge-gateway",
+        "technician-service"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "edge-gateway:src/main/java/io/fleetcare/gateway/routing/FleetOverviewController.java:25-25",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianController.java:36-36"
+      ],
+      "names": [
+        "/api/technicians/{id}/skils",
+        "/{id}/skills"
+      ],
+      "how": "Gateway calls the misspelled /skils path while technician-service maps /skills."
+    },
+    {
+      "id": "r3",
+      "reference": "The customer BFF requests technician availability without the serviceCode query parameter required by",
+      "subjects": [
+        "customer-portal-bff",
+        "technician-service"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/client/TechnicianAvailabilityWebClient.java:12-15",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianController.java:35-35"
+      ],
+      "names": [
+        "/api/technicians/{id}/availability",
+        "serviceCode"
+      ],
+      "how": "BFF calls availability with no query parameter while technician-service requires a serviceCode request parameter."
+    },
+    {
+      "id": "r4",
+      "reference": "The work-order Feign client declares GET for `/api/technicians/{id}/shifts/{shiftId}/reschedule`, while",
+      "subjects": [
+        "workorder-service",
+        "technician-service"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/integration/TechnicianShiftClient.java:12-14",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianController.java:49-50"
+      ],
+      "names": [
+        "readRescheduledShift",
+        "reschedule"
+      ],
+      "how": "Feign client uses GET for the reschedule path that technician-service maps only as POST."
+    },
+    {
+      "id": "r5",
+      "reference": "PaymentService publishes RabbitMQ and JMS messages from a transactional method without a shared transactional outbox; a",
+      "subjects": [
+        "billing-service",
+        "billing-events",
+        "fleet-workorder-events"
+      ],
+      "category": "send-before-commit",
+      "cites": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PaymentService.java:32-33",
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PaymentService.java:43-50"
+      ],
+      "names": [
+        "@Transactional",
+        "convertAndSend"
+      ],
+      "how": "pay() is @Transactional and sends Rabbit and JMS messages before the transaction commits, with no outbox."
+    },
+    {
+      "id": "r6",
+      "reference": "The shared permission aspect checks whether the forwarded role string contains the required role text; a longer role",
+      "subjects": [
+        "workorder-service",
+        "billing-service",
+        "technician-service"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "fleetcare-commons:commons-security/src/main/java/io/fleetcare/commons/security/PermissionAspect.java:11-16"
+      ],
+      "names": [
+        "roles.contains(required.value())",
+        "verifyRole"
+      ],
+      "how": "The aspect uses String.contains on the forwarded roles string, so a longer role value passes."
+    },
+    {
+      "id": "r7",
+      "reference": "Work-order binds identity headers",
+      "subjects": [
+        "workorder-service",
+        "edge-gateway"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/security/ForwardedIdentityFilter.java:15-20",
+        "edge-gateway:src/main/java/io/fleetcare/gateway/security/IdentityHeadersFilter.java:16-23"
+      ],
+      "names": [
+        "X-User-Id",
+        "X-Roles",
+        "headers.add"
+      ],
+      "how": "Work-order binds X-User-Id and X-Roles from the request while the gateway adds (not replaces) those headers."
+    },
+    {
+      "id": "r8",
+      "reference": "Billing declares Spring Boot 3.2.12 and uses the older `openjdk:17.0.2-jdk-slim` image; review support and security",
+      "subjects": [
+        "billing-service"
+      ],
+      "category": "version-skew",
+      "cites": [
+        "billing-service:pom.xml:6-6",
+        "billing-service:Dockerfile:1-1"
+      ],
+      "names": [
+        "spring-boot.version",
+        "openjdk:17.0.2-jdk-slim"
+      ],
+      "how": "Billing pins Spring Boot 3.2.12 and an older openjdk 17.0.2 base image."
+    },
+    {
+      "id": "r9",
+      "reference": "The Commons repository HEAD declares 2.3.0 while notification and work-order pin 1.9.4 and 2.1.0; both consumers are",
+      "subjects": [
+        "workorder-service",
+        "notification-service"
+      ],
+      "category": "shared-type-skew",
+      "cites": [
+        "notification-service:pom.xml:6-6",
+        "workorder-service:pom.xml:4-6",
+        "fleetcare-commons:pom.xml:5-5"
+      ],
+      "names": [
+        "fleetcare-commons.version",
+        "1.4.0-SNAPSHOT",
+        "2.3.0"
+      ],
+      "how": "Notification pins commons 1.9.4 and work-order 2.1.0 (and parent 1.4.0-SNAPSHOT) while commons HEAD is 2.3.0."
+    },
+    {
+      "id": "r10",
+      "reference": "The staff app calls GET /api/staff/operations/summary, while the gateway declares only customer and work-order route",
+      "subjects": [
+        "staff-web-app",
+        "edge-gateway"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "fleetcare-web:staff-angular/src/staff-operations.service.ts:10-14",
+        "edge-gateway:src/main/resources/application.yml:13-29"
+      ],
+      "names": [
+        "/staff/operations/summary",
+        "Path=/customer/**",
+        "Path=/api/work-orders/**"
+      ],
+      "how": "Staff app calls /staff/operations/summary but the gateway routes only /customer/** and /api/work-orders/**."
+    },
+    {
+      "id": "r11",
+      "reference": "VehicleHistoryController and VehicleMaintenanceController declare the same GET /api/vehicles/{vin}/history handler",
+      "subjects": [
+        "workorder-service"
+      ],
+      "category": "other",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/vehicle/VehicleMaintenanceController.java:15-25",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/vehicle/VehicleHistoryController.java:15-24"
+      ],
+      "names": [
+        "@GetMapping(\"/{vin}/history\")",
+        "/api/vehicles"
+      ],
+      "how": "Two controllers under /api/vehicles both map GET /{vin}/history."
+    },
+    {
+      "id": "r12",
+      "reference": "Compose provides predictable local fallback credentials for databases and brokers",
+      "subjects": [
+        "postgresql-server",
+        "mongodb",
+        "redis",
+        "minio"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "fleetcare-deploy:docker-compose.yml:6-8",
+        "fleetcare-deploy:docker-compose.yml:23-24",
+        "fleetcare-deploy:docker-compose.yml:79-80",
+        "fleetcare-deploy:docker-compose.yml:102-103"
+      ],
+      "names": [
+        "POSTGRES_PASSWORD",
+        "not-a-real-password",
+        "RABBITMQ_DEFAULT_PASS"
+      ],
+      "how": "Compose supplies predictable fallback passwords via ${VAR:-not-a-real-password}."
+    },
+    {
+      "id": "r13",
+      "reference": "The production Helm infrastructure template declares one replica for each stateful workload; this does not provide an",
+      "subjects": [
+        "postgresql-server",
+        "mongodb",
+        "redis"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "fleetcare-deploy:helm/fleetcare/templates/infrastructure-statefulsets.yaml:1-11"
+      ],
+      "names": [
+        "StatefulSet",
+        "replicas: 1"
+      ],
+      "how": "The infrastructure StatefulSet template hardcodes replicas: 1 for every stateful workload."
+    },
+    {
+      "id": "r14",
+      "reference": "The export selects completed work orders by creation time within the last 24 hours, not completion time; a job",
+      "subjects": [
+        "billing-service",
+        "workorder-database"
+      ],
+      "category": "other",
+      "cites": [
+        "billing-service:src/main/java/io/fleetcare/billing/reconciliation/ReconciliationService.java:20-21",
+        "billing-service:src/main/java/io/fleetcare/billing/data/WorkOrderAccountingReader.java:15-21"
+      ],
+      "names": [
+        "completedSince",
+        "w.created_at >= :since",
+        "86_400"
+      ],
+      "how": "The export filters completed orders by w.created_at over the last 86400 seconds, not by completion time."
+    },
+    {
+      "id": "r15",
+      "reference": "Billing selects completed work-order rows and accepted estimates through a second JDBC connection to the workorder",
+      "subjects": [
+        "billing-service",
+        "workorder-database"
+      ],
+      "category": "other",
+      "cites": [
+        "billing-service:src/main/resources/application.yml:44-49",
+        "billing-service:src/main/java/io/fleetcare/billing/data/WorkOrderAccountingReader.java:12-20"
+      ],
+      "names": [
+        "workorders",
+        "workOrderReadJdbcClient",
+        "jdbc:postgresql://${DB_HOST}:5432/workorder"
+      ],
+      "how": "Billing opens a second datasource to the workorder database and selects from work_orders and estimates."
+    },
+    {
+      "id": "r16",
+      "reference": "The payment audit queue has a listener, but its handler is empty and does not persist an audit record.",
+      "subjects": [
+        "workorder-service",
+        "workorder-payment-audit"
+      ],
+      "category": "other",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/WorkOrderPaymentAuditListener.java:8-11"
+      ],
+      "names": [
+        "workorder.payment.audit",
+        "recordPaymentState"
+      ],
+      "how": "The listener method body is empty, so nothing is recorded."
+    },
+    {
+      "id": "r17",
+      "reference": "The work-order read-model listener splits a pipe-delimited string; the outbox publishes created events as structured",
+      "subjects": [
+        "workorder-service",
+        "workorder-read-model"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/WorkOrderReadModelListener.java:12-16",
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/OutboxPoller.java:29-30"
+      ],
+      "names": [
+        "workorder.read-model",
+        "split(\"\\\\|\", 2)",
+        "json.readValue"
+      ],
+      "how": "Listener expects a pipe-delimited string while the poller publishes decoded JSON bodies."
+    },
+    {
+      "id": "r18",
+      "reference": "The customer mutation requests BookingReceipt.workOrderId, which the BFF GraphQL schema does not expose; GraphQL",
+      "subjects": [
+        "customer-web-app",
+        "customer-portal-bff"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "fleetcare-web:customer-react/src/portal.tsx:14-14",
+        "customer-portal-bff:src/main/resources/graphql/schema.graphqls:23-23"
+      ],
+      "names": [
+        "bookRepair(input: $input) { workOrderId vehicleVin }",
+        "type BookingReceipt"
+      ],
+      "how": "The query selects workOrderId, which the BookingReceipt GraphQL type does not declare."
+    },
+    {
+      "id": "r19",
+      "reference": "The staff STOMP client sets only a broker URL and does not explicitly provide a token",
+      "subjects": [
+        "staff-web-app",
+        "notification-service",
+        "edge-gateway"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "fleetcare-web:staff-angular/src/work-order-events.service.ts:7-13",
+        "notification-service:src/main/java/io/fleetcare/notification/push/PushWebSocketConfiguration.java:20-28"
+      ],
+      "names": [
+        "brokerURL",
+        "Authenticated session required"
+      ],
+      "how": "STOMP client passes no token while the server rejects CONNECT/SUBSCRIBE without a user, so connection success is unproven."
+    },
+    {
+      "id": "r20",
+      "reference": "The customer fetch and BFF work-order client do not explicitly attach a bearer token, while work-order creation",
+      "subjects": [
+        "customer-web-app",
+        "customer-portal-bff",
+        "workorder-service"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "fleetcare-web:customer-react/src/portal.tsx:11-16",
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/client/WorkOrderClient.java:11-14",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/creation/WorkOrderController.java:18-21"
+      ],
+      "names": [
+        "Content-Type",
+        "@PostExchange",
+        "hasRole('FLEET_CUSTOMER')"
+      ],
+      "how": "Fetch sends no Authorization header and the BFF client adds none, while create requires the FLEET_CUSTOMER role."
+    },
+    {
+      "id": "r21",
+      "reference": "No committed test sources exist for notification-service, edge-gateway, platform-config, platform-discovery,",
+      "subjects": [
+        "notification-service",
+        "edge-gateway",
+        "platform-config",
+        "platform-discovery",
+        "fleet-audit",
+        "staff-web-app",
+        "customer-web-app"
+      ],
+      "category": "other",
+      "cites": [
+        "notification-service:pom.xml:6-6",
+        "workorder-service:pom.xml:6-6"
+      ],
+      "names": [
+        "jacoco.skip",
+        "fleetcare-commons.version"
+      ],
+      "how": "Absence: these units have no src/test folder (notification and edge-gateway contain only src/main); the cited pom shows notification opts out of JaCoCo."
+    },
+    {
+      "id": "r22",
+      "reference": "The work-order production profile enables SQL bind TRACE logging; sensitive bound values may be written to logs.",
+      "subjects": [
+        "workorder-service"
+      ],
+      "category": "other",
+      "cites": [
+        "workorder-service:src/main/resources/application-prod.yml:1-7"
+      ],
+      "names": [
+        "org.hibernate.orm.jdbc.bind",
+        "org.hibernate.SQL"
+      ],
+      "how": "The prod profile turns on show-sql and TRACE logging of SQL bind values."
+    }
+  ],
+  "decoys": [
+    {
+      "id": "d1",
+      "looksLike": "Technician-service trusts role values for @PreAuthorize checks that might come from a request.",
+      "safeBecause": "Roles are read from the realm_access claim of a JWT validated by oauth2ResourceServer and every exchange except health requires authentication; no identity header is read.",
+      "subjects": [
+        "technician-service"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "technician-service:src/main/java/io/fleetcare/technician/config/FleetSecurityConfiguration.java:20-27",
+        "technician-service:src/main/java/io/fleetcare/technician/config/FleetSecurityConfiguration.java:35-39"
+      ],
+      "names": [
+        "realm_access",
+        "anyExchange().authenticated()",
+        "oauth2ResourceServer"
+      ]
+    },
+    {
+      "id": "d2",
+      "looksLike": "Database passwords appear in service configuration, like a hardcoded secret.",
+      "safeBecause": "They are bare environment placeholders with no default value, so no secret is in the code.",
+      "subjects": [
+        "billing-service",
+        "workorder-service"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "billing-service:src/main/resources/application.yml:6-9",
+        "workorder-service:src/main/resources/application.yml:6-9"
+      ],
+      "names": [
+        "password: ${DB_PASSWORD}",
+        "username: ${DB_USER}"
+      ]
+    },
+    {
+      "id": "d3",
+      "looksLike": "Work-order service has JPA and a database but may let Hibernate manage the schema.",
+      "safeBecause": "ddl-auto is validate and Flyway is enabled, so schema changes come only from migrations.",
+      "subjects": [
+        "workorder-service",
+        "workorder-database"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "workorder-service:src/main/resources/application.yml:11-15"
+      ],
+      "names": [
+        "ddl-auto: validate",
+        "flyway"
+      ]
+    }
+  ],
+  "source": "lantern-test-fleetcare@8e0425b23c81cf5513a72b0714dc03fc5ec6a153 (testsets/project-8/pins.txt); its setup.sh makes the repositories at the commits above"
+}

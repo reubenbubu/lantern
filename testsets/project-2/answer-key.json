@@ -1,0 +1,453 @@
+{
+  "set": "project-2",
+  "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
+  "status": "awaiting the owner's check at the 1F test drop",
+  "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
+  "commits": {
+    "Event-Management-platform": "462516947458d4a161dfa0aef482865d9940e241"
+  },
+  "resolve": [],
+  "risks": [
+    {
+      "id": "r1",
+      "reference": "event-service's inventory endpoints are reachable through the gateway by any attendee: the gateway routes all of",
+      "subjects": [
+        "gateway",
+        "event"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Event-Management-platform:api-gateway/src/main/resources/application.yml:24-27",
+        "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/GatewaySecurityConfiguration.java:57-58",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/api/InventoryController.java:26-27",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryService.java:250-255"
+      ],
+      "names": [
+        "/api/v1/events/**",
+        "hasAnyRole('ATTENDEE','ORGANIZER','ADMIN')"
+      ],
+      "how": "Gateway only requires authentication for /api/v1/**, and the inventory controller admits ATTENDEE; confirm checks only that the caller is the requester."
+    },
+    {
+      "id": "r2",
+      "reference": "Cancelling an event cancels its bookings and tickets in attendee-service but requests no refund; no service reacts to",
+      "subjects": [
+        "attendee",
+        "payment",
+        "event"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingPersistenceService.java:185-199",
+        "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/integration/EventLifecycleConsumer.java:68-69",
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundStateService.java:13-13"
+      ],
+      "names": [
+        "cancelEvent",
+        "EVENT_CANCELLED",
+        "REFUND_WINDOW_CLOSED"
+      ],
+      "how": "cancelEvent only cancels bookings and tickets with no refund request, and refunds are refused once the event has started."
+    },
+    {
+      "id": "r3",
+      "reference": "Default configuration is local-only: the JWT signing key and the QR signing key are generated at startup when none is",
+      "subjects": [
+        "auth",
+        "attendee",
+        "payment",
+        "auth-db",
+        "event-db",
+        "venue-db",
+        "attendee-db",
+        "payment-db",
+        "notification-db"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Event-Management-platform:auth-service/src/main/java/com/eventplatform/auth/config/JwtKeyConfiguration.java:66-74",
+        "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/QrTokenService.java:36-48",
+        "Event-Management-platform:compose.yaml:303-305",
+        "Event-Management-platform:docker/postgres/init-databases.sql:1-6"
+      ],
+      "names": [
+        "isAllowEphemeralKey",
+        "TICKET_QR_SIGNING_SECRET",
+        "PAYMENT_WEBHOOK_SECRET",
+        "local_dev_only"
+      ],
+      "how": "Keys are generated at startup when unset, the webhook secret has a known compose default, and all DB users have the password local_dev_only."
+    },
+    {
+      "id": "r4",
+      "reference": "Redis is on event-service's write path: business transactions evict the cache by calling `Cache.evict` directly, which",
+      "subjects": [
+        "event",
+        "redis"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventCache.java:19-24",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/EventManagementService.java:128-128",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryService.java:151-151",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/PublicEventQueryService.java:94-96"
+      ],
+      "names": [
+        "cache.evict",
+        "@Cacheable"
+      ],
+      "how": "Cache eviction and cached reads run in the request path with no error handler, so a Redis failure fails the request."
+    },
+    {
+      "id": "r5",
+      "reference": "Publishing and cancelling an event call venue-service over HTTP inside the event database transaction.",
+      "subjects": [
+        "event",
+        "venue"
+      ],
+      "category": "send-before-commit",
+      "cites": [
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/EventManagementService.java:221-229",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/EventManagementService.java:287-291",
+        "Event-Management-platform:venue-service/src/main/java/com/eventplatform/venue/application/VenueAvailabilityService.java:86-87"
+      ],
+      "names": [
+        "venueAvailabilityPort.reserve",
+        "venueAvailabilityPort.release",
+        "ownerReference"
+      ],
+      "how": "publish and cancel call venue-service over HTTP while the event row changes inside the open transaction; the owner reference makes reserve idempotent."
+    },
+    {
+      "id": "r6",
+      "reference": "Personal data and ticket credentials travel through Kafka and are copied: `booking.created`, `ticket.issued` and",
+      "subjects": [
+        "attendee",
+        "notification",
+        "t-attendee",
+        "t-payment",
+        "notification-db"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaService.java:214-219",
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/PaymentLifecycleEvents.java:9-10",
+        "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventHandler.java:117-121"
+      ],
+      "names": [
+        "TICKET_ISSUED",
+        "qrTokenService.issue",
+        "qrToken"
+      ],
+      "how": "ticket.issued carries email, phone and the signed QR token, which notification-service copies into its variables."
+    },
+    {
+      "id": "r7",
+      "reference": "Single points of failure in the only deployment: one Kafka node with replication factor 1 and auto-created topics, one",
+      "subjects": [
+        "redis",
+        "t-event",
+        "t-attendee",
+        "t-payment",
+        "auth-db"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "Event-Management-platform:compose.yaml:14-24",
+        "Event-Management-platform:compose.yaml:33-35",
+        "Event-Management-platform:compose.yaml:47-63"
+      ],
+      "names": [
+        "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR",
+        "redis-server",
+        "postgres:17.6-alpine"
+      ],
+      "how": "One postgres, one redis and one single-node kafka with replication factor 1 are the whole deployment."
+    },
+    {
+      "id": "r8",
+      "reference": "The payment provider is an in-process fake that keeps payment state in memory.",
+      "subjects": [
+        "payment"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/FakePaymentProvider.java:22-23",
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/provider/FakePaymentProvider.java:32-32",
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentReconciliationJob.java:9-9"
+      ],
+      "names": [
+        "behaviorByPayment",
+        "PROVIDER_PAYMENT_NOT_FOUND"
+      ],
+      "how": "The fake provider keeps payment behaviour in a ConcurrentHashMap and reports an unknown id as failed after a restart."
+    },
+    {
+      "id": "r9",
+      "reference": "Compensation refunds call the provider inside the Kafka consumer's database transaction.",
+      "subjects": [
+        "payment",
+        "t-attendee"
+      ],
+      "category": "send-before-commit",
+      "cites": [
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:59-60",
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/AttendeeLifecycleConsumer.java:74-76",
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/RefundApplicationService.java:10-10"
+      ],
+      "names": [
+        "@Transactional",
+        "refundApplication.compensate",
+        "compensate"
+      ],
+      "how": "The Kafka listener is transactional and calls the refund service, which calls the provider, inside that transaction."
+    },
+    {
+      "id": "r10",
+      "reference": "Any EVENT_STAFF user may validate and check in tickets for every event; staff are not tied to events.",
+      "subjects": [
+        "attendee"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/security/AuthenticatedActor.java:32-36"
+      ],
+      "names": [
+        "mayScan",
+        "isEventStaff"
+      ],
+      "how": "mayScan lets any EVENT_STAFF scan any event's tickets."
+    },
+    {
+      "id": "r11",
+      "reference": "Cancelling an event does not stop bookings still awaiting payment: payment-service never hears of the cancellation,",
+      "subjects": [
+        "payment",
+        "event",
+        "attendee"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingPersistenceService.java:185-199",
+        "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/application/PaymentStateService.java:17-21",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryService.java:223-230",
+        "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaService.java:90-93"
+      ],
+      "names": [
+        "cancelEvent",
+        "claim",
+        "confirm",
+        "finalizeConfirmation"
+      ],
+      "how": "None of the payment, inventory-confirm or booking-confirm steps check the event's cancelled status."
+    },
+    {
+      "id": "r12",
+      "reference": "Reminders and cancellation alerts are not withdrawn for bookings that end without tickets: notification-service plans",
+      "subjects": [
+        "notification"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventHandler.java:57-67",
+        "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventHandler.java:82-85",
+        "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/integration/NotificationEventHandler.java:130-138"
+      ],
+      "names": [
+        "BOOKING_CREATED",
+        "EVENT_REMINDER",
+        "eventCancelled"
+      ],
+      "how": "Reminders are planned on booking.created, the switch has no case for failed, expired or refunded bookings, and cancellation alerts go to all seen bookings."
+    },
+    {
+      "id": "r13",
+      "reference": "The gateway rate-limits by the TCP peer address and ignores `X-Forwarded-For`, while the frontend's nginx proxies",
+      "subjects": [
+        "gateway",
+        "frontend"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/AuthenticationRateLimitWebFilter.java:64-69",
+        "Event-Management-platform:frontend/nginx.conf:8-14"
+      ],
+      "names": [
+        "getRemoteAddress",
+        "X-Forwarded-For"
+      ],
+      "how": "The limiter keys on the peer address while nginx proxies every request to the gateway."
+    },
+    {
+      "id": "r14",
+      "reference": "Every service port (8081-8086) is published on the host next to the gateway.",
+      "subjects": [
+        "auth",
+        "event",
+        "venue",
+        "attendee",
+        "payment",
+        "notification"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:compose.yaml:175-176",
+        "Event-Management-platform:compose.yaml:209-210",
+        "Event-Management-platform:compose.yaml:240-241",
+        "Event-Management-platform:compose.yaml:346-347"
+      ],
+      "names": [
+        "8081:8081",
+        "8082:8082",
+        "8086:8086"
+      ],
+      "how": "Each service publishes its port on the host next to the gateway."
+    },
+    {
+      "id": "r15",
+      "reference": "Reschedule alerts cannot fire: event details can change only while an event is a draft, and bookings exist only once",
+      "subjects": [
+        "event",
+        "notification"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/EventManagementService.java:96-101",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/application/InventoryService.java:111-116",
+        "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/application/NotificationPlanner.java:110-126"
+      ],
+      "names": [
+        "EVENT_DETAILS_LOCKED",
+        "EVENT_SALES_NOT_OPEN",
+        "rescheduleEvent"
+      ],
+      "how": "Details are locked after draft and bookings need open sales, so rescheduleEvent never has a booking to alert."
+    },
+    {
+      "id": "r16",
+      "reference": "Setting the email or SMS provider to anything but `local` leaves no sender bean, since no other adapter exists.",
+      "subjects": [
+        "notification"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalEmailAdapter.java:14-15",
+        "Event-Management-platform:notification-service/src/main/java/com/eventplatform/notification/provider/LocalSmsAdapter.java:14-15"
+      ],
+      "names": [
+        "email-provider",
+        "sms-provider"
+      ],
+      "how": "The only email and SMS senders are conditional on provider 'local'; any other value leaves no bean."
+    },
+    {
+      "id": "r17",
+      "reference": "Observability gaps: Grafana has a Loki data source but nothing ships logs to Loki.",
+      "subjects": [
+        "notification"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:observability/grafana/provisioning/datasources/datasources.yml:11-15",
+        "Event-Management-platform:observability/otel-collector/config.yml:23-28"
+      ],
+      "names": [
+        "loki",
+        "pipelines"
+      ],
+      "how": "Grafana points at Loki but the collector only has a traces pipeline (absence of a logs pipeline)."
+    },
+    {
+      "id": "r18",
+      "reference": "Documentation and UI are behind the code: the front end says \"Phase 3\" and that booking is deferred, and",
+      "subjects": [
+        "frontend",
+        "emp"
+      ],
+      "category": "other",
+      "cites": [
+        "Event-Management-platform:frontend/src/App.tsx:24-26",
+        "Event-Management-platform:frontend/src/App.tsx:53-53",
+        "Event-Management-platform:docs/architecture/system-context.md:5-5",
+        "Event-Management-platform:docs/architecture/system-context.md:9-10"
+      ],
+      "names": [
+        "Phase 3",
+        "Booking and payment remain deferred",
+        "Frontend"
+      ],
+      "how": "UI text and the system-context doc say things the code no longer matches."
+    }
+  ],
+  "decoys": [
+    {
+      "id": "d1",
+      "looksLike": "Identity headers like X-User-Id and X-User-Roles could be trusted from the request.",
+      "safeBecause": "The gateway's highest-precedence filter removes all six identity headers from every incoming request, and services read identity from the JWT.",
+      "subjects": [
+        "gateway"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/UntrustedIdentityHeadersFilter.java:14-30"
+      ],
+      "names": [
+        "UNTRUSTED_HEADERS",
+        "X-User-Roles"
+      ]
+    },
+    {
+      "id": "d2",
+      "looksLike": "The gateway handles CORS by hand and might allow any origin.",
+      "safeBecause": "The filter rejects any Origin not in the configured allowed-origins list (default http://localhost:3000) with 403.",
+      "subjects": [
+        "gateway"
+      ],
+      "category": "open-cors",
+      "cites": [
+        "Event-Management-platform:api-gateway/src/main/java/com/eventplatform/gateway/CorsOriginValidationWebFilter.java:28-36",
+        "Event-Management-platform:api-gateway/src/main/resources/application.yml:50-50"
+      ],
+      "names": [
+        "CORS_ORIGIN_DENIED",
+        "allowed-origins"
+      ]
+    },
+    {
+      "id": "d3",
+      "looksLike": "event-service sends to Kafka from inside a @Transactional method.",
+      "safeBecause": "The relay only sends rows already committed to the outbox table by earlier business transactions, and marks them published afterwards.",
+      "subjects": [
+        "event",
+        "t-event"
+      ],
+      "category": "send-before-commit",
+      "cites": [
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:57-59",
+        "Event-Management-platform:event-service/src/main/java/com/eventplatform/event/outbox/OutboxRelay.java:70-71"
+      ],
+      "names": [
+        "publishPending",
+        "kafkaTemplate.send",
+        "markPublished"
+      ]
+    },
+    {
+      "id": "d4",
+      "looksLike": "No schema migrations: JPA could create the schema.",
+      "safeBecause": "Hibernate runs with ddl-auto validate and Flyway applies versioned scripts from db/migration.",
+      "subjects": [
+        "event",
+        "event-db"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "Event-Management-platform:event-service/src/main/resources/application.yml:14-17"
+      ],
+      "names": [
+        "ddl-auto: validate",
+        "flyway"
+      ]
+    }
+  ]
+}

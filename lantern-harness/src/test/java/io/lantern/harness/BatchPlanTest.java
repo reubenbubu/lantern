@@ -105,6 +105,11 @@ class BatchPlanTest {
     assertThat(spent).isGreaterThan(new BigDecimal("0.008")).isLessThan(new BigDecimal("0.0105"));
     assertThat(record.toJson().get("items").get("notAsked").asInt()).isBetween(15, 25);
     assertThat(record.settled()).isEqualTo(record.planned()).isEqualTo(60);
+    // The scorer counts the items left unasked apart (ADR 0072, amendment for #667): each is named.
+    assertThat(record.unasked())
+        .hasSize(record.toJson().get("items").get("notAsked").asInt())
+        .doesNotContainAnyElementsOf(record.asked());
+    assertThat(record.reused()).isEmpty();
   }
 
   @Test

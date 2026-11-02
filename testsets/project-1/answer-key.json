@@ -1,0 +1,414 @@
+{
+  "set": "project-1",
+  "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
+  "status": "awaiting the owner's check at the 1F test drop",
+  "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
+  "commits": {
+    "Enterprise-Spring-Microservices-Template": "8f5cb6873691f8b67353c4924fb06f469c2ef4e4"
+  },
+  "resolve": [
+    {
+      "link": "7acecafbfc0fcbb10c8d30aa8b532cedd7a0d8c429457736489bce16aafcfd89",
+      "unit": "service:com.example:bff",
+      "call": "POST {clientRegistrationRepository.findByRegistrationId(keycloak).getProviderDetails().getTokenUri()}",
+      "candidates": [],
+      "answer": "external-system:keycloak",
+      "because": "The BFF refreshes tokens at the token URI of its keycloak client registration, whose provider is the Keycloak realm named by its issuer URI.",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/filter/TokenRefreshFilter.java:201-218",
+        "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:18-18"
+      ],
+      "names": [
+        "getTokenUri",
+        "provider.keycloak.issuer-uri"
+      ]
+    }
+  ],
+  "risks": [
+    {
+      "id": "r1",
+      "reference": "Default credentials are live: the realm export, imported when Keycloak first starts on an empty database, holds the",
+      "subjects": [
+        "keycloak",
+        "kc-admin"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:36-47",
+        "Enterprise-Spring-Microservices-Template:keycloak/realm-config/realm-export.json:163-172",
+        "Enterprise-Spring-Microservices-Template:compose.yaml:107-118"
+      ],
+      "names": [
+        "admin-secret",
+        "\"password\"",
+        "KC_BOOTSTRAP_ADMIN_PASSWORD"
+      ],
+      "how": "Realm export holds client secrets and password/password users; compose defaults the bootstrap admin to admin/admin and runs start-dev."
+    },
+    {
+      "id": "r2",
+      "reference": "Self-registered users probably cannot set a password: the realm configures no SMTP server, and keycloak-admin-service",
+      "subjects": [
+        "kc-admin",
+        "keycloak"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:118-127",
+        "Enterprise-Spring-Microservices-Template:docs/PRODUCTION_CHECKLIST.md:76-81"
+      ],
+      "names": [
+        "executeActionsEmail",
+        "UPDATE_PASSWORD"
+      ],
+      "how": "The password email failure is only logged and 201 is still returned; the checklist says realm SMTP must be configured (the realm export has no smtpServer)."
+    },
+    {
+      "id": "r3",
+      "reference": "No email sender exists for confirmation links: the only EmailService logs the link and is disabled under `prod`",
+      "subjects": [
+        "profile"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/LoggingEmailService.java:15-27",
+        "Enterprise-Spring-Microservices-Template:docs/PRODUCTION_CHECKLIST.md:41-51"
+      ],
+      "names": [
+        "LoggingEmailService",
+        "@Profile(\"!prod\")"
+      ],
+      "how": "The only EmailService logs the confirmation URL and is not registered under prod."
+    },
+    {
+      "id": "r4",
+      "reference": "An unconfirmed or expired registration blocks its email for good: register silently does nothing when any profile has",
+      "subjects": [
+        "profile",
+        "profile-db"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationService.java:51-53",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationService.java:100-106"
+      ],
+      "names": [
+        "findByEmail",
+        "Implement cleanup job"
+      ],
+      "how": "register returns early when any profile has the email; the cleanup job is only a TODO."
+    },
+    {
+      "id": "r5",
+      "reference": "Confirmation is not atomic across Keycloak and profile_db: the Keycloak user is created inside the database transaction",
+      "subjects": [
+        "profile",
+        "kc-admin",
+        "keycloak",
+        "profile-db"
+      ],
+      "category": "send-before-commit",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationService.java:133-168",
+        "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:114-116"
+      ],
+      "names": [
+        "@Transactional",
+        "createUserWithPasswordAction"
+      ],
+      "how": "confirm calls Keycloak to create the user inside a database transaction, so a later failure leaves the Keycloak user."
+    },
+    {
+      "id": "r6",
+      "reference": "Anonymous web traffic shares one rate-limit bucket: public calls reach the gateway from the BFF without a token or",
+      "subjects": [
+        "gateway",
+        "bff",
+        "redis"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:407-430",
+        "Enterprise-Spring-Microservices-Template:gateway/src/main/java/com/example/gateway/config/RateLimiterConfig.java:32-52",
+        "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:20-23",
+        "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:120-120"
+      ],
+      "names": [
+        "callGateway",
+        "userKeyResolver",
+        "TRUSTED_PROXY_HOPS"
+      ],
+      "how": "BFF forwards public calls with no token or X-Forwarded-For, so the key resolver falls back to the BFF IP for all visitors."
+    },
+    {
+      "id": "r7",
+      "reference": "Single instances: one Redis holds BFF sessions, Spring sessions, refresh locks and rate-limit state; one Keycloak in",
+      "subjects": [
+        "redis",
+        "keycloak",
+        "keycloak-db"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:compose.yaml:24-29",
+        "Enterprise-Spring-Microservices-Template:compose.yaml:104-107",
+        "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:128-128"
+      ],
+      "names": [
+        "redis-server",
+        "start-dev",
+        "readiness.include"
+      ],
+      "how": "One Redis and one dev-mode Keycloak with no replicas; the gateway readiness includes redis."
+    },
+    {
+      "id": "r8",
+      "reference": "BFF_SESSION expires 30 minutes after login whatever the activity: it is issued only at login, and refresh renews only",
+      "subjects": [
+        "bff"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:102-118",
+        "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:141-145",
+        "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/controller/BffController.java:184-187"
+      ],
+      "names": [
+        "issueSessionJwt",
+        "expirationTime",
+        "COOKIE_BFF_SESSION"
+      ],
+      "how": "The session JWT gets a fixed expiry at login and is issued nowhere else."
+    },
+    {
+      "id": "r9",
+      "reference": "Order numbers are made in the browser (`ORD-` + random below 10000) but must be unique across all users",
+      "subjects": [
+        "angular-ui",
+        "order",
+        "order-db"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:angular-ui/src/app/features/orders/orders.service.ts:37-38",
+        "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/db/migration/V1__init.sql:13-13",
+        "Enterprise-Spring-Microservices-Template:common-web/src/main/java/com/example/common/web/exception/GlobalExceptionHandler.java:100-104"
+      ],
+      "names": [
+        "Math.random",
+        "uk_orders_order_number",
+        "DataIntegrityViolationException"
+      ],
+      "how": "The browser makes a random order number below 10000 and the database requires it unique, so collisions become 409."
+    },
+    {
+      "id": "r10",
+      "reference": "The profile `enabled` flag is inconsistent and unused: admin-created profiles stay false, self-registered ones become",
+      "subjects": [
+        "profile",
+        "profile-db"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/ProfileService.java:61-61",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/ProfileService.java:86-93",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/model/UserProfileEntity.java:61-64"
+      ],
+      "names": [
+        ".enabled(true)",
+        "Boolean enabled = false"
+      ],
+      "how": "createProfile sets enabled true, createAdminUser leaves the default false."
+    },
+    {
+      "id": "r11",
+      "reference": "Confirmation tokens are stored in plain text, while admin-service Javadoc says a BCrypt hash is stored; confirmation is",
+      "subjects": [
+        "profile",
+        "profile-db"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationPersistenceService.java:59-65",
+        "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:92-93",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/RegistrationController.java:71-78"
+      ],
+      "names": [
+        "confirmationToken",
+        "BCrypt",
+        "@GetMapping(\"/confirm\")"
+      ],
+      "how": "The token is stored as given, the Javadoc says BCrypt hash, and confirm is a GET that changes state."
+    },
+    {
+      "id": "r12",
+      "reference": "Every container publishes its port on the host, including PostgreSQL, Redis and the services",
+      "subjects": [
+        "redis",
+        "profile-db",
+        "order-db",
+        "keycloak-db",
+        "gateway",
+        "profile",
+        "order",
+        "kc-admin",
+        "bff",
+        "angular-ui",
+        "keycloak"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:compose.yaml:28-29",
+        "Enterprise-Spring-Microservices-Template:compose.yaml:48-49",
+        "Enterprise-Spring-Microservices-Template:compose.yaml:228-230",
+        "Enterprise-Spring-Microservices-Template:compose.yaml:267-269"
+      ],
+      "names": [
+        "6379:6379",
+        "5432:5432",
+        "8888:8888"
+      ],
+      "how": "Compose publishes host ports for Redis, PostgreSQL and the services."
+    },
+    {
+      "id": "r13",
+      "reference": "A profile's email is whatever the client sends: `POST /api` takes the email from the request body and never compares it",
+      "subjects": [
+        "profile",
+        "profile-db",
+        "angular-ui"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/ProfileService.java:49-64",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/dto/UserProfileRequest.java:19-20",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/db/migration/V1__init.sql:16-16",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/service/RegistrationService.java:103-106"
+      ],
+      "names": [
+        "request.email()",
+        "uk_user_profiles_email",
+        "findByEmail"
+      ],
+      "how": "The profile email comes from the request body, not the token, and registration skips emails already stored."
+    },
+    {
+      "id": "r14",
+      "reference": "No transport security by default: every hop is plain HTTP (nginx on 4200, Keycloak with `KC_HTTP_ENABLED`, the",
+      "subjects": [
+        "angular-ui",
+        "bff",
+        "keycloak",
+        "redis"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:angular-ui/nginx.conf:2-2",
+        "Enterprise-Spring-Microservices-Template:compose.yaml:114-115",
+        "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:36-36",
+        "Enterprise-Spring-Microservices-Template:.env.example:42-42"
+      ],
+      "names": [
+        "listen 4200",
+        "KC_HTTP_ENABLED",
+        "BFF_COOKIE_SECURE"
+      ],
+      "how": "Everything serves plain HTTP and the cookie is not Secure by default."
+    },
+    {
+      "id": "r15",
+      "reference": "Stale or missing documentation: the README diagram puts the order database on 5433 (it is 5434); the admin profile",
+      "subjects": [
+        "template",
+        "keycloak",
+        "order-db",
+        "profile"
+      ],
+      "category": "other",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:README.md:75-78",
+        "Enterprise-Spring-Microservices-Template:compose.yaml:91-92",
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/java/com/example/profileservice/controller/AdminProfileController.java:12-13",
+        "Enterprise-Spring-Microservices-Template:.env.example:7-7",
+        "Enterprise-Spring-Microservices-Template:.env.example:31-31"
+      ],
+      "names": [
+        "(5433)",
+        "5434:5432",
+        "/api/profile/admin"
+      ],
+      "how": "README says 5433 where compose uses 5434; the admin path has a doubled profile segment; .env.example claims defaults work but uses changeme."
+    }
+  ],
+  "decoys": [
+    {
+      "id": "d1",
+      "looksLike": "A signing key property with an empty default looks like a missing or hard-coded secret.",
+      "safeBecause": "The key comes from env var BFF_JWT_SIGNING_KEY with no value in code; unset uses an ephemeral generated key in dev, and prod refuses to start.",
+      "subjects": [
+        "bff"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/util/JwtUtils.java:81-89",
+        "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:32-32"
+      ],
+      "names": [
+        "BFF_JWT_SIGNING_KEY",
+        "refusing to start"
+      ]
+    },
+    {
+      "id": "d2",
+      "looksLike": "Credentialed CORS on the BFF looks like an open-cors setting.",
+      "safeBecause": "Allowed origins are an explicit list from bff.cors.allowed-origins (default http://localhost:4200), never a wildcard.",
+      "subjects": [
+        "bff"
+      ],
+      "category": "open-cors",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:bff/src/main/java/com/example/bff/config/SecurityConfig.java:186-198",
+        "Enterprise-Spring-Microservices-Template:bff/src/main/resources/application.properties:51-51"
+      ],
+      "names": [
+        "setAllowedOrigins",
+        "bff.cors.allowed-origins"
+      ]
+    },
+    {
+      "id": "d3",
+      "looksLike": "The orders list takes a user id and could trust a caller-supplied identity.",
+      "safeBecause": "The user id is jwt.getSubject() from the validated token, not a header or parameter.",
+      "subjects": [
+        "order",
+        "order-db"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:order-service/src/main/java/com/example/orderservice/controller/OrdersController.java:38-41"
+      ],
+      "names": [
+        "getOrdersByUserId",
+        "jwt.getSubject()"
+      ]
+    },
+    {
+      "id": "d4",
+      "looksLike": "The internal registration endpoint creates users and might be callable by anyone.",
+      "safeBecause": "It requires the INTERNAL_SERVICE role via @PreAuthorize, and the gateway also answers 403 for that path.",
+      "subjects": [
+        "kc-admin",
+        "gateway"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:keycloak-admin-service/src/main/java/com/example/adminservice/controller/AdminController.java:100-102",
+        "Enterprise-Spring-Microservices-Template:gateway/src/main/resources/application.properties:62-66"
+      ],
+      "names": [
+        "hasRole('INTERNAL_SERVICE')",
+        "block-internal-registration"
+      ]
+    }
+  ]
+}
