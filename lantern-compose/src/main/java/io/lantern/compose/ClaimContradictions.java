@@ -10,6 +10,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -25,9 +26,6 @@ import tools.jackson.databind.JsonNode;
  */
 final class ClaimContradictions {
 
-  /** The attribute the claim checks record on a README entity (ADR 0043). */
-  static final String CLAIM_CONTRADICTION = "claim-contradiction";
-
   /** The title of the callout showing a contradicted claim. */
   static final String TITLE = "Claim the code contradicts";
 
@@ -40,21 +38,21 @@ final class ClaimContradictions {
   /** How a relationship between entities reads, by predicate; others read as their words. */
   private static final Map<String, String> VERBS =
       Map.of(
-          C4Views.CALLS_HTTP,
+          Types.CALLS_HTTP,
           "calls",
-          C4Views.SENDS_MAIL,
+          Types.SENDS_MAIL,
           "sends mail through",
-          C4Views.USES_IDENTITY_PROVIDER,
+          Types.USES_IDENTITY_PROVIDER,
           "uses as its identity provider",
-          C4Views.ACCESSES_DATA_OF,
+          Types.ACCESSES_DATA_OF,
           "accesses the data of",
-          C4Views.USES_DATABASE,
+          Types.USES_DATABASE,
           "uses",
-          C4Views.PUBLISHES,
+          Types.PUBLISHES,
           "publishes to",
-          C4Views.CONSUMES,
+          Types.CONSUMES,
           "consumes from",
-          "USES_BROKER",
+          Types.USES_BROKER,
           "uses");
 
   private final Knowledge knowledge;
@@ -89,7 +87,7 @@ final class ClaimContradictions {
   ClaimContradictions(Knowledge knowledge, Assembler assembler, SortedSet<String> repos) {
     this.knowledge = knowledge;
     this.assembler = assembler;
-    for (Fact fact : knowledge.withPredicate(CLAIM_CONTRADICTION)) {
+    for (Fact fact : knowledge.withPredicate(Types.CLAIM_CONTRADICTION)) {
       if (Knowledge.isEntity(fact) || !repos.contains(fact.evidence().repo())) {
         continue;
       }
@@ -100,7 +98,7 @@ final class ClaimContradictions {
         for (JsonNode entry : entries) {
           JsonNode id = entry.get("fact");
           Fact found = id == null ? null : knowledge.fact(id.asString());
-          if (found != null && found.predicate().equals(C4Views.UNRESOLVED_LINK)) {
+          if (found != null && found.predicate().equals(Types.UNRESOLVED_LINK)) {
             // A call the resolver linked is shown as the link it picked.
             Fact resolution = knowledge.resolution(found);
             found = resolution == null ? found : resolution;
@@ -208,7 +206,7 @@ final class ClaimContradictions {
       String verb = VERBS.getOrDefault(fact.predicate(), words(fact.predicate()));
       content.add(TextRun.of(" " + verb + " "));
       content.add(reference(Knowledge.object(fact)));
-    } else if (fact.predicate().equals(C4Views.UNRESOLVED_LINK)) {
+    } else if (fact.predicate().equals(Types.UNRESOLVED_LINK)) {
       content.add(TextRun.of(" makes a call Lantern could not link: " + fact.object().value()));
     } else {
       content.add(TextRun.of("'s " + words(fact.predicate()) + " is " + fact.object().value()));

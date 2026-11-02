@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
 import io.lantern.harness.Outcome;
@@ -40,18 +41,18 @@ import org.slf4j.LoggerFactory;
  * Has the LLM word what extraction found in the C4 views (ADR 0050, docs/design.md: LLM
  * integration, Grounding): a responsibility sentence for each deployable unit and each of its
  * components, and an intent phrase for each of its links to other containers. One call per unit
- * shows what extraction found: the facts that make it a unit, its README's claims, its components
- * (when it has more than one, as the component diagram draws them) with their facts and the start
- * of their main type's code (ADR 0069), or else its entry points, and its links; the answer cites
- * them. Nothing is added: a unit, component or link the model leaves out keeps its summary or
- * static label. One call per data store, topic, queue, exchange and external system the container
- * diagrams draw asks for its responsibility sentence from its facts, the tables built in it and how
- * the units use it (ADR 0056); one the model leaves out has no description, as before. One call per
- * main flow the documents show asks for its walkthrough and pre- and post-conditions from what
- * starts it and the facts behind its steps (ADR 0058); what the model leaves out keeps its static
- * prose or "Not known from the code.". Last, one call asks for the system's purpose from the units'
- * sentences, with the facts they cite, and the README claims of its repositories (ADR 0060);
- * without a purpose the system's report states it as unknown.
+ * shows what extraction found: the facts that make it a unit, its Types.README's claims, its
+ * components (when it has more than one, as the component diagram draws them) with their facts and
+ * the start of their main type's code (ADR 0069), or else its entry points, and its links; the
+ * answer cites them. Nothing is added: a unit, component or link the model leaves out keeps its
+ * summary or static label. One call per data store, topic, queue, exchange and external system the
+ * container diagrams draw asks for its responsibility sentence from its facts, the tables built in
+ * it and how the units use it (ADR 0056); one the model leaves out has no description, as before.
+ * One call per main flow the documents show asks for its walkthrough and pre- and post-conditions
+ * from what starts it and the facts behind its steps (ADR 0058); what the model leaves out keeps
+ * its static prose or "Not known from the code.". Last, one call asks for the system's purpose from
+ * the units' sentences, with the facts they cite, and the Types.README claims of its repositories
+ * (ADR 0060); without a purpose the system's report states it as unknown.
  *
  * <p>Each question is an item of the LLM harness (ADR 0100), under one of four roles: units, data
  * stores and destinations, flows, and the system's purpose. Its answer is cached under the item's
@@ -68,33 +69,28 @@ public final class Describer {
   /** The most entry points of a unit without components the prompt shows. */
   static final int MAX_ENTRY_POINTS = 15;
 
-  /** The most README claims the prompt shows per repository. */
+  /** The most Types.README claims the prompt shows per repository. */
   static final int MAX_CLAIMS = 8;
 
   /** The links a unit's relationships are drawn from, as the container diagram draws them. */
   static final List<String> LINKS =
       List.of(
-          C4Views.CALLS_HTTP,
-          C4Views.SENDS_MAIL,
-          C4Views.USES_IDENTITY_PROVIDER,
-          C4Views.PUBLISHES,
-          C4Views.CONSUMES,
-          C4Views.USES_DATABASE,
-          C4Views.ACCESSES_DATA_OF);
+          Types.CALLS_HTTP,
+          Types.SENDS_MAIL,
+          Types.USES_IDENTITY_PROVIDER,
+          Types.PUBLISHES,
+          Types.CONSUMES,
+          Types.USES_DATABASE,
+          Types.ACCESSES_DATA_OF);
 
-  private static final String METHOD = "method";
-  private static final String CLAIM = "claim";
-  private static final String README = "readme";
-  private static final String KIND = "kind";
-  private static final String TABLE = "table";
   private static final Set<String> ENTRY_POINTS =
       Set.of(
-          "endpoint",
-          "message-listener",
-          "stomp-mapping",
-          "websocket-endpoint",
-          "scheduled",
-          "background-job");
+          Types.ENDPOINT,
+          Types.MESSAGE_LISTENER,
+          Types.STOMP_MAPPING,
+          Types.WEBSOCKET_ENDPOINT,
+          Types.SCHEDULED,
+          Types.BACKGROUND_JOB);
 
   private static final Logger LOG = LoggerFactory.getLogger(Describer.class);
 
@@ -453,9 +449,9 @@ public final class Describer {
               DescribeRole.ELEMENTS,
               elementSession,
               summaryFacts);
-      if (described.element().type().equals(C4Views.PERSON)) {
+      if (described.element().type().equals(Types.PERSON)) {
         worded.stream()
-            .filter(t -> t.field().equals(DescribeRole.RESPONSIBILITY))
+            .filter(t -> t.field().equals(Types.RESPONSIBILITY))
             .forEach(
                 t ->
                     people.add(
@@ -463,7 +459,7 @@ public final class Describer {
                             described.element(),
                             described.name(),
                             new DescribeRole.Answered(t.text(), t.cited()))));
-      } else if (described.element().type().equals(C4Views.EXTERNAL_SYSTEM)) {
+      } else if (described.element().type().equals(Types.EXTERNAL_SYSTEM)) {
         firstFact(described).ifPresent(f -> externals.putIfAbsent(described.name(), f));
       }
     }
@@ -480,7 +476,8 @@ public final class Describer {
       expected.ifPresent(
           a ->
               purposeSession.notAsked(
-                  a.item().subject(), "no unit or person was worded and no README states a claim"));
+                  a.item().subject(),
+                  "no unit or person was worded and no Types.README states a claim"));
     }
     purpose.ifPresent(
         asked -> {
@@ -500,7 +497,7 @@ public final class Describer {
             return;
           }
           Map<String, PurposeRole.Worded> worded = PurposeRole.worded(asked, outcome.answer());
-          PurposeRole.Worded said = worded.get(PurposeRole.PURPOSE);
+          PurposeRole.Worded said = worded.get(Types.PURPOSE);
           if (said != null) {
             tally.responsibilities.put(RepoSections.SYSTEM, said.marked());
             tally.judgeable.put(
@@ -654,7 +651,7 @@ public final class Describer {
                   .interactions()
                   .get(text.field().substring(DescribeRole.INTERACTIONS.length() + 1));
           // A person's lines keep their labels: one fact stands for all of a person's uses.
-          if (!text.about().type().equals(C4Views.PERSON)) {
+          if (!text.about().type().equals(Types.PERSON)) {
             phrases.put(
                 interaction.id(),
                 new Wordings.Phrase(text.text(), text.cited().stream().map(Fact::id).toList()));
@@ -673,14 +670,14 @@ public final class Describer {
           }
           if (text.basis() == io.lantern.harness.LlmFacts.Basis.EVIDENCED) {
             text.cited().stream()
-                .filter(f -> f.predicate().equals("kind"))
+                .filter(f -> f.predicate().equals(Types.KIND))
                 .forEach(f -> documented.add(f.id()));
           }
         }
       }
       if (described.asksUnit()
           && !said.contains(DescribeRole.UNIT)
-          && !said.contains(DescribeRole.RESPONSIBILITY)) {
+          && !said.contains(Types.RESPONSIBILITY)) {
         unknown.add(element.toString());
       }
       described
@@ -730,7 +727,7 @@ public final class Describer {
     List<Scope> scopes = new ArrayList<>();
     scopes.add(
         new Scope(
-            Wordings.SYSTEM_SCOPE,
+            ArchitectureModel.SYSTEM_SCOPE,
             "the system",
             knowledge,
             assembler,
@@ -873,7 +870,7 @@ public final class Describer {
     Map<String, Scope> scopeOf = new LinkedHashMap<>();
     for (Scope scope : scopes) {
       for (SequenceFlows.Narrated flow : scope.flows(chosen.get(scope.key())).narrated()) {
-        if (scope.key().equals(Wordings.SYSTEM_SCOPE)) {
+        if (scope.key().equals(ArchitectureModel.SYSTEM_SCOPE)) {
           tally.systemFlows.add(flow.key());
         }
         if (narrated.putIfAbsent(flow.key(), flow) == null) {
@@ -1051,13 +1048,13 @@ public final class Describer {
     Fact sample =
         units.stream().flatMap(u -> u.answered().cited().stream()).findFirst().orElse(null);
     for (EntityId element : elements) {
-      if (element.type().equals(C4Views.PERSON)) {
+      if (element.type().equals(Types.PERSON)) {
         people.add(
             new PurposeRole.Said(
                 element,
                 element.toString(),
                 new DescribeRole.Answered(EXPECTED_SENTENCE, List.of())));
-      } else if (element.type().equals(C4Views.EXTERNAL_SYSTEM) && sample != null) {
+      } else if (element.type().equals(Types.EXTERNAL_SYSTEM) && sample != null) {
         // Its own fact, the size of the sample, so none is shown "as above".
         externals.put(
             element.toString(),
@@ -1077,12 +1074,12 @@ public final class Describer {
   }
 
   /**
-   * Each repository's README claims, of its README with the fewest folders, by repository and path,
-   * repositories in order (ADR 0060).
+   * Each repository's Types.README claims, of its Types.README with the fewest folders, by
+   * repository and path, repositories in order (ADR 0060).
    */
   private static Map<String, List<Fact>> claims(Knowledge knowledge) {
     SortedSet<String> repos = new TreeSet<>();
-    knowledge.withPredicate(CLAIM).forEach(f -> repos.add(f.evidence().repo()));
+    knowledge.withPredicate(Types.CLAIM).forEach(f -> repos.add(f.evidence().repo()));
     Map<String, List<Fact>> claims = new LinkedHashMap<>();
     for (String repo : repos) {
       List<Fact> readme = readmeClaims(repo, knowledge);
@@ -1119,22 +1116,22 @@ public final class Describer {
   static String use(C4Views.Neighbour neighbour) {
     if (!neighbour.incoming()) {
       return switch (neighbour.relationship()) {
-        case C4Views.CONSUMES ->
+        case Types.CONSUMES ->
             neighbour.via() == null
                 ? "receives messages from it"
                 : "receives messages from it through " + neighbour.via();
-        case C4Views.ROUTES_TO -> "receives messages it routes";
+        case Types.ROUTES_TO -> "receives messages it routes";
         default -> "is reached from it";
       };
     }
     return switch (neighbour.relationship()) {
-      case C4Views.CALLS_HTTP -> "calls it";
-      case C4Views.SENDS_MAIL -> "sends mail through it";
-      case C4Views.USES_IDENTITY_PROVIDER -> "uses it as its identity provider";
-      case C4Views.PUBLISHES -> "sends messages to it";
-      case C4Views.USES_DATABASE -> "connects to it";
-      case C4Views.ACCESSES_DATA_OF -> "reads or writes tables of it";
-      case C4Views.ROUTES_TO -> "routes messages to it";
+      case Types.CALLS_HTTP -> "calls it";
+      case Types.SENDS_MAIL -> "sends mail through it";
+      case Types.USES_IDENTITY_PROVIDER -> "uses it as its identity provider";
+      case Types.PUBLISHES -> "sends messages to it";
+      case Types.USES_DATABASE -> "connects to it";
+      case Types.ACCESSES_DATA_OF -> "reads or writes tables of it";
+      case Types.ROUTES_TO -> "routes messages to it";
       default -> "reaches it";
     };
   }
@@ -1160,7 +1157,7 @@ public final class Describer {
     }
     List<Fact> result = new ArrayList<>();
     for (EntityId type : code) {
-      for (EntityId method : knowledge.parts(type, METHOD)) {
+      for (EntityId method : knowledge.parts(type, Types.METHOD)) {
         for (Fact fact : byLine(knowledge.attributes(method))) {
           if (ENTRY_POINTS.contains(fact.predicate()) && result.size() < MAX_ENTRY_POINTS) {
             result.add(fact);
@@ -1172,8 +1169,8 @@ public final class Describer {
   }
 
   /**
-   * The claims of the README with the fewest folders in its path in each repository holding the
-   * unit's own module, in the order written, at most some.
+   * The claims of the Types.README with the fewest folders in its path in each repository holding
+   * the unit's own module, in the order written, at most some.
    */
   static List<Fact> claims(EntityId unit, Knowledge knowledge) {
     SortedSet<String> repos = new TreeSet<>();
@@ -1186,15 +1183,15 @@ public final class Describer {
   }
 
   /**
-   * The claims of the repository's README with the fewest folders in its path, in the order
+   * The claims of the repository's Types.README with the fewest folders in its path, in the order
    * written, at most some.
    */
   private static List<Fact> readmeClaims(String repo, Knowledge knowledge) {
     List<Fact> claims =
-        knowledge.withPredicate(CLAIM).stream()
+        knowledge.withPredicate(Types.CLAIM).stream()
             .filter(
                 f ->
-                    f.subject().type().equals(README)
+                    f.subject().type().equals(Types.README)
                         && f.evidence().repo().equals(repo)
                         && f.evidence().path() != null)
             .toList();
@@ -1217,12 +1214,12 @@ public final class Describer {
 
   static String verb(String predicate) {
     return switch (predicate) {
-      case C4Views.CALLS_HTTP -> "calls";
-      case C4Views.SENDS_MAIL -> "sends mail through";
-      case C4Views.USES_IDENTITY_PROVIDER -> "uses as its identity provider";
-      case C4Views.PUBLISHES -> "sends messages to";
-      case C4Views.CONSUMES -> "receives messages from";
-      case C4Views.USES_DATABASE -> "connects to";
+      case Types.CALLS_HTTP -> "calls";
+      case Types.SENDS_MAIL -> "sends mail through";
+      case Types.USES_IDENTITY_PROVIDER -> "uses as its identity provider";
+      case Types.PUBLISHES -> "sends messages to";
+      case Types.CONSUMES -> "receives messages from";
+      case Types.USES_DATABASE -> "connects to";
       default -> "reads or writes tables of";
     };
   }

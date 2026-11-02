@@ -21,6 +21,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -129,21 +130,21 @@ final class QualityBar {
 
   /** The entity types each diagram kind may show, besides the boundaries it draws others in. */
   private static final Set<String> CONTEXT_TYPES =
-      Set.of(BuiltInTypes.SYSTEM, C4Views.EXTERNAL_SYSTEM, "person");
+      Set.of(BuiltInTypes.SYSTEM, Types.EXTERNAL_SYSTEM, Types.PERSON);
 
   private static final Set<String> CONTAINER_TYPES =
       Set.of(
           BuiltInTypes.SERVICE,
-          C4Views.FRONTEND,
-          C4Views.DATABASE,
-          C4Views.TOPIC,
-          C4Views.QUEUE,
-          C4Views.EXCHANGE,
-          C4Views.EXTERNAL_SYSTEM,
-          "person");
+          Types.FRONTEND,
+          Types.DATABASE,
+          Types.TOPIC,
+          Types.QUEUE,
+          Types.EXCHANGE,
+          Types.EXTERNAL_SYSTEM,
+          Types.PERSON);
 
   /** Element types that are not containers, so need no technology and draw no protocol. */
-  private static final Set<String> OUTSIDE = Set.of(C4Views.EXTERNAL_SYSTEM, "person");
+  private static final Set<String> OUTSIDE = Set.of(Types.EXTERNAL_SYSTEM, Types.PERSON);
 
   /**
    * Two or more capitals, digits between them, and a plural s: AMQP, JDBC, APIs, B2B; not part of a
@@ -625,7 +626,7 @@ final class QualityBar {
     // The roles the code checks, such as the enum constant ADMIN, are identifiers, not acronyms.
     Set<String> roles = new HashSet<>();
     for (Fact fact : document.facts()) {
-      if (fact.predicate().equals("person-evidence") && fact.object().value().equals("role")) {
+      if (fact.predicate().equals(Types.PERSON_EVIDENCE) && fact.object().value().equals("role")) {
         roles.add(fact.attributes().path("name").asString(""));
       }
     }

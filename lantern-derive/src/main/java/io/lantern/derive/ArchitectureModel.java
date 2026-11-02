@@ -29,6 +29,9 @@ import tools.jackson.databind.JsonNode;
  */
 public final class ArchitectureModel {
 
+  /** The scope of the system's documents among the flows' significance facts. */
+  public static final String SYSTEM_SCOPE = "system";
+
   /** The ordering of texts: the most confident first, then by fact ID. */
   private static final Comparator<Fact> PREFERRED =
       Comparator.comparingDouble(Fact::confidence).reversed().thenComparing(Fact::id);

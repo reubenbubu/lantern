@@ -27,8 +27,9 @@ import java.util.Set;
  * @param unsupported the elements, and {@code RepoSections.SYSTEM} for the purpose, whose sentence
  *     the support judge found a claim of supported by none of its cited facts (ADR 0101)
  * @param chosen the flows the model judged significant for each scope it judged, in its order, by
- *     flow ID: {@link #SYSTEM_SCOPE} for the system's documents, else a repository's name
- *     (knowledge-build epic, section 11.5; ADR 0108); a scope it did not judge is absent
+ *     flow ID: {@link io.lantern.derive.ArchitectureModel#SYSTEM_SCOPE} for the system's documents,
+ *     else a repository's name (knowledge-build epic, section 11.5; ADR 0108); a scope it did not
+ *     judge is absent
  * @param keyFact the single fact about how the system is built that a new reader most needs, with
  *     citation markers, or {@code null} if the model wrote none (section 11.6; ADR 0109)
  */
@@ -40,9 +41,6 @@ public record Wordings(
     Set<EntityId> unsupported,
     Map<String, List<String>> chosen,
     String keyFact) {
-
-  /** The scope of the system's documents among {@link #chosen}. */
-  public static final String SYSTEM_SCOPE = "system";
 
   /** No wording: documents keep summaries as descriptions and static labels. */
   public static final Wordings NONE = new Wordings(Map.of(), Map.of());

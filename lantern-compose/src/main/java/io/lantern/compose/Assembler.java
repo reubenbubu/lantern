@@ -10,6 +10,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import io.lantern.summarize.SummaryLevel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -34,9 +35,6 @@ import java.util.regex.Pattern;
 final class Assembler {
 
   private static final Pattern MARKER = Pattern.compile("\\[(fact|summary):([^\\]\\s]+)\\]");
-
-  /** The predicate of a README claim (ADR 0033). */
-  private static final String CLAIM = "claim";
 
   /** What opens a summary whose purpose is inferred from the code (ADR 0059). */
   static final String INFERRED = "Purpose inferred from the code:";
@@ -124,10 +122,10 @@ final class Assembler {
         // it, by its responsibility sentence (ADR 0056).
         || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
         // A person is described by what the code shows of them (ADR 0074).
-        || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)
+        || (id.type().equals(Types.PERSON) && personBasis(id) != null)
         // A frontend by its responsibility sentence, or else by what its manifest and Dockerfile
         // say (ADR 0083).
-        || id.type().equals(C4Views.FRONTEND)
+        || id.type().equals(Types.FRONTEND)
         // An element only Investigate found, by the connections it found (ADR 0110).
         || (responsibility(id) == null && foundOnlyByTheInvestigator(id))) {
       undescribed.add(id);
@@ -148,7 +146,7 @@ final class Assembler {
     if (!id.type().equals(BuiltInTypes.SERVICE)) {
       return id;
     }
-    for (Fact fact : knowledge.relations(id, C4Views.BUNDLES)) {
+    for (Fact fact : knowledge.relations(id, Types.BUNDLES)) {
       if (RepoSections.attribute(fact, "main", "false").equals("true")) {
         SortedSet<EntityId> modules = knowledge.parts(Knowledge.object(fact), BuiltInTypes.MODULE);
         if (!modules.isEmpty()) {
@@ -169,8 +167,8 @@ final class Assembler {
         yield name.orElse(key.substring(key.lastIndexOf(':') + 1));
       }
       case BuiltInTypes.SYSTEM -> systemName;
-      case C4Views.DATABASE -> {
-        Optional<String> display = knowledge.attribute(id, "display-name");
+      case Types.DATABASE -> {
+        Optional<String> display = knowledge.attribute(id, Types.DISPLAY_NAME);
         if (display.isPresent()) {
           // A unit's own database is named by the linker (#291).
           yield display.get();
@@ -188,27 +186,27 @@ final class Assembler {
                 : server;
         yield key.substring(slash + 1) + " on " + host;
       }
-      case C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE -> key.substring(key.indexOf(':') + 1);
-      case C4Views.EXTERNAL_SYSTEM ->
+      case Types.TOPIC, Types.QUEUE, Types.EXCHANGE -> key.substring(key.indexOf(':') + 1);
+      case Types.EXTERNAL_SYSTEM ->
           knowledge
-              .attribute(id, "display-name")
+              .attribute(id, Types.DISPLAY_NAME)
               .or(() -> MailProviders.name(key))
               .or(() -> IdentityProviders.name(key))
               .orElse(key);
-      case C4Views.DECISION -> knowledge.attribute(id, "title").orElse(key);
-      case C4Views.PERSON -> knowledge.attribute(id, "display-name").orElse(key);
-      case C4Views.FRONTEND ->
+      case Types.DECISION -> knowledge.attribute(id, Types.TITLE).orElse(key);
+      case Types.PERSON -> knowledge.attribute(id, Types.DISPLAY_NAME).orElse(key);
+      case Types.FRONTEND ->
           knowledge
-              .attribute(id, "display-name")
+              .attribute(id, Types.DISPLAY_NAME)
               .or(
                   () ->
                       C4Views.frontendApp(knowledge, id)
                           .map(f -> RepoSections.attribute(f, "name", key)))
               .orElse(key);
-      case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, "artifact" ->
+      case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, Types.ARTIFACT ->
           key.substring(key.lastIndexOf(':') + 1);
       case BuiltInTypes.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
-      case "method", "field" -> key.substring(key.indexOf('#') + 1);
+      case Types.METHOD, Types.FIELD -> key.substring(key.indexOf('#') + 1);
       default -> key;
     };
   }
@@ -216,7 +214,7 @@ final class Assembler {
   /** The entity the given one belongs under in the navigation tree, or {@code null}. */
   private EntityId parent(EntityId id) {
     return switch (id.type()) {
-      case SummaryLevel.REPO_ENTITY_TYPE, "artifact" -> null;
+      case SummaryLevel.REPO_ENTITY_TYPE, Types.ARTIFACT -> null;
       case BuiltInTypes.MODULE -> {
         SortedSet<EntityId> aggregators = knowledge.wholes(id, BuiltInTypes.MODULE);
         if (!aggregators.isEmpty()) {
@@ -239,7 +237,7 @@ final class Assembler {
         }
         yield wholes.isEmpty() ? null : wholes.first();
       }
-      case C4Views.FRONTEND ->
+      case Types.FRONTEND ->
           C4Views.frontendApp(knowledge, id)
               .map(f -> repoOf(new TreeSet<>(Set.of(f.evidence().repo()))))
               .orElse(null);
@@ -384,7 +382,7 @@ final class Assembler {
         .anyMatch(
             f ->
                 f != null
-                    && (f.predicate().equals(CLAIM)
+                    && (f.predicate().equals(Types.CLAIM)
                         || code && model.documented().contains(f.id())));
   }
 
@@ -604,9 +602,9 @@ final class Assembler {
       DocumentEntity entity = entities.get(undescribed.removeFirst());
       String responsibility = responsibility(entity.id());
       List<Inline> description =
-          entity.id().type().equals(C4Views.PERSON) && personBasis(entity.id()) != null
+          entity.id().type().equals(Types.PERSON) && personBasis(entity.id()) != null
               ? person(entity.id()).content()
-              : entity.id().type().equals(C4Views.FRONTEND) && responsibility == null
+              : entity.id().type().equals(Types.FRONTEND) && responsibility == null
                   ? frontend(entity.id()).content()
                   : responsibility == null && foundOnlyByTheInvestigator(entity.id())
                       ? investigated(entity.id()).content()
@@ -625,7 +623,7 @@ final class Assembler {
 
   /** The connections Investigate found to an entity (ADR 0110). */
   private List<Fact> investigatedTo(EntityId id) {
-    return knowledge.withPredicate(InvestigatedFindings.CONNECTION).stream()
+    return knowledge.withPredicate(Types.INVESTIGATED_CONNECTION).stream()
         .filter(f -> Knowledge.isEntity(f) && Knowledge.object(f).equals(id))
         .toList();
   }
@@ -679,7 +677,7 @@ final class Assembler {
     }
     List<Fact> cited = new ArrayList<>(List.of(app));
     SortedSet<String> called = new TreeSet<>();
-    for (Fact call : knowledge.relations(id, C4Views.CALLS_HTTP)) {
+    for (Fact call : knowledge.relations(id, Types.CALLS_HTTP)) {
       called.add(name(Knowledge.object(call)));
       if (cited.size() < 6) {
         cited.add(call);
@@ -693,15 +691,12 @@ final class Assembler {
     return new Text(List.of(TextRun.of(text.toString()), new Citation(ids)), ids);
   }
 
-  /** The people extractor's evidence that people use the system, and its kind for a role. */
-  private static final String PERSON_EVIDENCE = "person-evidence";
-
   private static final String ROLE = "role";
 
   /** The fact saying what a person rests on, or {@code null}. */
   private Fact personBasis(EntityId id) {
     return knowledge.attributes(id).stream()
-        .filter(f -> f.predicate().equals(C4Views.PERSON_BASIS))
+        .filter(f -> f.predicate().equals(Types.PERSON_BASIS))
         .findFirst()
         .orElse(null);
   }
@@ -734,7 +729,7 @@ final class Assembler {
   private static Set<String> roles(List<Fact> facts) {
     Set<String> roles = new HashSet<>();
     for (Fact fact : facts) {
-      if (fact.predicate().equals(PERSON_EVIDENCE) && fact.object().value().equals(ROLE)) {
+      if (fact.predicate().equals(Types.PERSON_EVIDENCE) && fact.object().value().equals(ROLE)) {
         String name = fact.attributes().path("name").asString("");
         if (!name.isBlank()) {
           roles.add(name);

@@ -5,6 +5,7 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.attributes.Types;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -214,11 +215,11 @@ final class WordingPrompt {
   static String kind(EntityId element) {
     return switch (element.type()) {
       case BuiltInTypes.SERVICE -> "a deployable unit";
-      case C4Views.DATABASE -> "a database";
-      case C4Views.TOPIC -> "a topic";
-      case C4Views.QUEUE -> "a queue";
-      case C4Views.EXCHANGE -> "an exchange";
-      case C4Views.EXTERNAL_SYSTEM -> "an external system";
+      case Types.DATABASE -> "a database";
+      case Types.TOPIC -> "a topic";
+      case Types.QUEUE -> "a queue";
+      case Types.EXCHANGE -> "an exchange";
+      case Types.EXTERNAL_SYSTEM -> "an external system";
       default -> "a " + element.type();
     };
   }

@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Item;
@@ -797,7 +798,7 @@ final class FlowJudgements {
   /** The content hash of the flow's steps a judgement holds for (epic, section 9; #615). */
   static Optional<String> content(Knowledge knowledge, EntityId flow) {
     return knowledge.about(flow).stream()
-        .filter(f -> f.predicate().equals("flow-shape"))
+        .filter(f -> f.predicate().equals(Types.FLOW_SHAPE))
         .map(f -> f.attributes().path("content").asString(""))
         .filter(c -> !c.isEmpty())
         .findFirst();

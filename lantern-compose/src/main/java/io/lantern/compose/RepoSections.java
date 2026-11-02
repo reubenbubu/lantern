@@ -21,6 +21,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -45,9 +46,6 @@ import tools.jackson.databind.JsonNode;
  */
 final class RepoSections {
 
-  static final String BUILD_DEPENDS_ON = "BUILD_DEPENDS_ON";
-  private static final String PACKAGING = "packaging";
-  private static final String ARTIFACT = "artifact";
   private static final Set<String> TRANSITIVE_SCOPES = Set.of("compile", "runtime");
 
   /** The software system all repositories of a snapshot form, the system scope's subject. */
@@ -248,7 +246,7 @@ final class RepoSections {
               assembler,
               c4,
               units,
-              assembler.chosenFlows(repo == null ? Wordings.SYSTEM_SCOPE : repo));
+              assembler.chosenFlows(repo == null ? ArchitectureModel.SYSTEM_SCOPE : repo));
     }
     return flows;
   }
@@ -412,7 +410,7 @@ final class RepoSections {
    */
   private Map<EntityId, Map<EntityId, List<Fact>>> repoEdges() {
     Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(BUILD_DEPENDS_ON)) {
+    for (Fact fact : knowledge.withPredicate(Types.BUILD_DEPENDS_ON)) {
       if (!Knowledge.isEntity(fact)
           || !fact.subject().type().equals(BuiltInTypes.MODULE)
           || isTestScope(fact)) {
@@ -438,7 +436,7 @@ final class RepoSections {
     for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
       facts.addAll(knowledge.containsFacts(container, module));
       knowledge.attributes(module).stream()
-          .filter(f -> f.predicate().equals(PACKAGING))
+          .filter(f -> f.predicate().equals(Types.PACKAGING))
           .forEach(facts::add);
     }
     return facts;
@@ -466,14 +464,14 @@ final class RepoSections {
     List<Fact> thirdPartyFacts = new ArrayList<>();
     for (EntityId module : modules) {
       knowledge.attributes(module).stream()
-          .filter(f -> f.predicate().equals(PACKAGING))
+          .filter(f -> f.predicate().equals(Types.PACKAGING))
           .forEach(moduleFacts::add);
       types.addAll(knowledge.typesWithin(module));
       for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
         types.addAll(knowledge.typesWithin(pkg));
       }
-      for (Fact fact : knowledge.relations(module, BUILD_DEPENDS_ON)) {
-        if (!isTestScope(fact) && Knowledge.object(fact).type().equals(ARTIFACT)) {
+      for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
+        if (!isTestScope(fact) && Knowledge.object(fact).type().equals(Types.ARTIFACT)) {
           thirdParty.add(Knowledge.object(fact));
           thirdPartyFacts.add(fact);
         }
@@ -523,7 +521,7 @@ final class RepoSections {
   private void dependencies(String section, List<Block> blocks) {
     List<Tree.Node> roots = new ArrayList<>();
     for (EntityId module : modules) {
-      if (knowledge.relations(module, BUILD_DEPENDS_ON).isEmpty()) {
+      if (knowledge.relations(module, Types.BUILD_DEPENDS_ON).isEmpty()) {
         continue;
       }
       Set<EntityId> expanded = new HashSet<>();
@@ -546,7 +544,7 @@ final class RepoSections {
    * appears in a tree. Dependencies are sorted by their coordinates.
    */
   private List<Tree.Node> dependencyNodes(EntityId module, Set<EntityId> expanded, boolean direct) {
-    List<Fact> facts = new ArrayList<>(knowledge.relations(module, BUILD_DEPENDS_ON));
+    List<Fact> facts = new ArrayList<>(knowledge.relations(module, Types.BUILD_DEPENDS_ON));
     facts.sort(
         Comparator.comparing((Fact f) -> Knowledge.object(f).key())
             .thenComparing(f -> f.object().value())

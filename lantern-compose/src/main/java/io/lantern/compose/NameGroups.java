@@ -11,6 +11,7 @@ import io.lantern.derive.Components;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Groups;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;
@@ -113,7 +114,6 @@ public final class NameGroups {
           .withPacketSize(PACKET);
 
   static final String NAME = "name";
-  static final String RESPONSIBILITY = "responsibility";
   static final String LINES = "lines";
   static final String MERGE = "merge";
 
@@ -264,7 +264,7 @@ public final class NameGroups {
 
   /** The predicates whose values name a technology: a product or framework. */
   static final List<String> TECHNOLOGY_PREDICATES =
-      List.of("technology", "broker-technology", "database-technology");
+      List.of(Types.TECHNOLOGY, "broker-technology", "database-technology");
 
   /**
    * The products and frameworks the snapshot's technology facts name, without versions: "Spring
@@ -512,7 +512,7 @@ public final class NameGroups {
       List<Fact> findings) {
     EntityId group = n.group().id();
     boolean hasName = false;
-    for (String field : List.of(NAME, RESPONSIBILITY)) {
+    for (String field : List.of(NAME, Types.RESPONSIBILITY)) {
       Optional<Cited> text = cited(n, answer.get(field));
       if (text.isPresent()) {
         written.add(
@@ -727,12 +727,12 @@ public final class NameGroups {
         String signal = signal(n.group().id());
         text(entry.get(NAME))
             .ifPresent(t -> texts.add(checked(NAME, CheckedText.Kind.PROSE, t, NAME_WORDS, "")));
-        text(entry.get(RESPONSIBILITY))
+        text(entry.get(Types.RESPONSIBILITY))
             .ifPresent(
                 t ->
                     texts.add(
                         checked(
-                            RESPONSIBILITY,
+                            Types.RESPONSIBILITY,
                             CheckedText.Kind.RESPONSIBILITY,
                             t,
                             SENTENCE_WORDS,

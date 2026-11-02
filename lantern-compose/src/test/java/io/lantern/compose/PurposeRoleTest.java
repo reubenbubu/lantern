@@ -9,6 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.derive.attributes.Types;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -111,8 +112,8 @@ class PurposeRoleTest {
     Map<String, PurposeRole.Worded> worded =
         PurposeRole.worded(
             asked, "{\"purpose\":{\"text\":\"Sells books.\",\"cites\":[\"" + a + "\"]}}");
-    assertThat(worded.get(PurposeRole.PURPOSE).evidenced()).isTrue();
-    assertThat(worded.get(PurposeRole.PURPOSE).cited()).containsExactly(CLAIM);
+    assertThat(worded.get(Types.PURPOSE).evidenced()).isTrue();
+    assertThat(worded.get(Types.PURPOSE).cited()).containsExactly(CLAIM);
   }
 
   @Test
@@ -200,7 +201,7 @@ class PurposeRoleTest {
     String a = ref(plain(asked), "app");
     PurposeRole.Worded worded =
         PurposeRole.worded(asked, "{\"purpose\":{\"text\":\"Calls.\",\"cites\":[\"" + a + "\"]}}")
-            .get(PurposeRole.PURPOSE);
+            .get(Types.PURPOSE);
     assertThat(worded.cited()).hasSize(PurposeRole.MAX_CITED);
     // Only the facts shown are cited through it, one line each.
     assertThat(Pattern.compile("CALLS_HTTP").matcher(plain(asked)).results().count())
@@ -219,7 +220,7 @@ class PurposeRoleTest {
         PurposeRole.worded(
                 asked,
                 "{\"purpose\":{\"text\":\"Sells books.\",\"cites\":[\"" + f.group(1) + "\"]}}")
-            .get(PurposeRole.PURPOSE);
+            .get(Types.PURPOSE);
     assertThat(worded.evidenced()).isTrue();
     assertThat(worded.cited()).containsExactly(CLAIM);
   }

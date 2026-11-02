@@ -14,6 +14,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -54,8 +55,6 @@ final class BriefSections {
   private static final DateTimeFormatter DATE =
       DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
 
-  private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
-  private static final String JAVA_RELEASE = "java-release";
   private static final String SPRING_GROUP = "org.springframework:spring-";
 
   private final Knowledge knowledge;
@@ -154,16 +153,16 @@ final class BriefSections {
     SortedMap<EntityId, Row> dependencies = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId unit : units) {
       String name = assembler.name(unit);
-      for (Fact fact : links(unit, C4Views.CALLS_HTTP)) {
+      for (Fact fact : links(unit, Types.CALLS_HTTP)) {
         add(dependencies, Knowledge.object(fact), name + " calls it", fact);
       }
-      for (Fact fact : links(unit, SENDS_MESSAGES_TO)) {
+      for (Fact fact : links(unit, Types.SENDS_MESSAGES_TO)) {
         add(dependents, Knowledge.object(fact), "receives messages from " + name, fact);
       }
-      for (Fact fact : links(unit, C4Views.ACCESSES_DATA_OF)) {
+      for (Fact fact : links(unit, Types.ACCESSES_DATA_OF)) {
         add(dependencies, Knowledge.object(fact), name + " " + tables(fact, "its"), fact);
       }
-      for (Fact fact : links(unit, C4Views.USES_DATABASE)) {
+      for (Fact fact : links(unit, Types.USES_DATABASE)) {
         boolean owns = !C4Views.strings(fact, "schemas").isEmpty();
         add(
             dependencies,
@@ -176,12 +175,12 @@ final class BriefSections {
       if (units.contains(other)) {
         continue;
       }
-      for (Fact fact : links(other, C4Views.CALLS_HTTP)) {
+      for (Fact fact : links(other, Types.CALLS_HTTP)) {
         if (units.contains(Knowledge.object(fact))) {
           add(dependents, other, "calls " + assembler.name(Knowledge.object(fact)), fact);
         }
       }
-      for (Fact fact : links(other, SENDS_MESSAGES_TO)) {
+      for (Fact fact : links(other, Types.SENDS_MESSAGES_TO)) {
         if (units.contains(Knowledge.object(fact))) {
           add(
               dependencies,
@@ -190,7 +189,7 @@ final class BriefSections {
               fact);
         }
       }
-      for (Fact fact : links(other, C4Views.ACCESSES_DATA_OF)) {
+      for (Fact fact : links(other, Types.ACCESSES_DATA_OF)) {
         if (units.contains(Knowledge.object(fact))) {
           add(
               dependents,
@@ -236,7 +235,7 @@ final class BriefSections {
           (int)
               knowledge.attributes(unit).stream()
                   .filter(
-                      f -> f.predicate().equals(C4Views.UNRESOLVED_LINK) && !knowledge.resolved(f))
+                      f -> f.predicate().equals(Types.UNRESOLVED_LINK) && !knowledge.resolved(f))
                   .count();
     }
     if (unresolved > 0) {
@@ -297,7 +296,7 @@ final class BriefSections {
         continue;
       }
       List<Fact> facts = new ArrayList<>();
-      for (Fact fact : knowledge.relations(unit, C4Views.BUNDLES)) {
+      for (Fact fact : knowledge.relations(unit, Types.BUNDLES)) {
         if (knowledge.parts(Knowledge.object(fact), BuiltInTypes.MODULE).stream()
             .anyMatch(modules::contains)) {
           facts.add(fact);
@@ -353,8 +352,8 @@ final class BriefSections {
     for (EntityId entity : dependencies.keySet()) {
       String kind =
           switch (entity.type()) {
-            case C4Views.EXTERNAL_SYSTEM -> "external system";
-            case C4Views.DATABASE -> "database";
+            case Types.EXTERNAL_SYSTEM -> "external system";
+            case Types.DATABASE -> "database";
             default -> "container";
           };
       kinds.merge(kind, 1, Integer::sum);
@@ -406,10 +405,10 @@ final class BriefSections {
 
   private String kind(EntityId entity) {
     return switch (entity.type()) {
-      case C4Views.EXTERNAL_SYSTEM -> "External system";
-      case C4Views.DATABASE ->
+      case Types.EXTERNAL_SYSTEM -> "External system";
+      case Types.DATABASE ->
           knowledge
-              .attribute(entity, C4Views.TECHNOLOGY)
+              .attribute(entity, Types.TECHNOLOGY)
               .map(t -> t + " database")
               .orElse("Database");
       default -> {
@@ -441,7 +440,7 @@ final class BriefSections {
     Map<String, Version> found = new TreeMap<>();
     for (EntityId unit : units) {
       for (Fact fact : knowledge.attributes(unit)) {
-        if (!fact.predicate().equals(C4Views.TECHNOLOGY)) {
+        if (!fact.predicate().equals(Types.TECHNOLOGY)) {
           continue;
         }
         if ("Spring Boot".equals(RepoSections.attribute(fact, "framework", null))) {
@@ -462,10 +461,10 @@ final class BriefSections {
     code.addAll(modules);
     units.forEach(u -> code.addAll(C4Views.codeModules(knowledge, u)));
     for (EntityId module : code) {
-      for (Fact fact : knowledge.relations(module, RepoSections.BUILD_DEPENDS_ON)) {
+      for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
         EntityId target = Knowledge.object(fact);
         String version = RepoSections.attribute(fact, "version", null);
-        if (target.type().equals("artifact")
+        if (target.type().equals(Types.ARTIFACT)
             && target.key().startsWith(SPRING_GROUP)
             && version != null
             && !RepoSections.isTestScope(fact)) {
@@ -477,8 +476,8 @@ final class BriefSections {
       for (EntityId module : modules) {
         for (Fact fact : knowledge.attributes(module)) {
           // A pom module (a parent or aggregator) builds no code.
-          if (fact.predicate().equals(JAVA_RELEASE)
-              && !knowledge.attribute(module, "packaging").orElse("jar").equals("pom")) {
+          if (fact.predicate().equals(Types.JAVA_RELEASE)
+              && !knowledge.attribute(module, Types.PACKAGING).orElse("jar").equals("pom")) {
             version(found, EndOfLife.Product.JAVA, fact.object().value(), user(module), fact);
           }
         }
@@ -902,12 +901,6 @@ final class BriefSections {
   /** A test library in use: where it is declared and the facts saying so. */
   private record UsedLibrary(TestLibrary library, SortedSet<EntityId> usedBy, List<Fact> facts) {}
 
-  /** The relationship from a test class to the module whose test sources hold it. */
-  static final String TESTS = "TESTS";
-
-  /** The attribute naming a coverage tool a module's build runs. */
-  static final String COVERAGE_TOOL = "coverage-tool";
-
   /** The coverage tools Lantern names, by their Maven plugin's {@code groupId:artifactId}. */
   static final Map<String, String> COVERAGE_TOOLS =
       Map.of(
@@ -947,7 +940,7 @@ final class BriefSections {
     List<Block> blocks = new ArrayList<>();
     List<EntityId> code =
         modules.stream()
-            .filter(m -> !knowledge.attribute(m, "packaging").orElse("jar").equals("pom"))
+            .filter(m -> !knowledge.attribute(m, Types.PACKAGING).orElse("jar").equals("pom"))
             .toList();
     if (code.isEmpty()) {
       blocks.add(
@@ -961,7 +954,7 @@ final class BriefSections {
       SortedSet<EntityId> with = new TreeSet<>(Knowledge.BY_ID);
       Map<EntityId, Tested> tested = new TreeMap<>(Knowledge.BY_ID);
       Map<EntityId, List<Fact>> testClasses = new LinkedHashMap<>();
-      for (Fact fact : knowledge.withPredicate(TESTS)) {
+      for (Fact fact : knowledge.withPredicate(Types.TESTS)) {
         if (Knowledge.isEntity(fact)) {
           testClasses.computeIfAbsent(Knowledge.object(fact), m -> new ArrayList<>()).add(fact);
         }
@@ -982,7 +975,7 @@ final class BriefSections {
         }
         for (Fact fact : knowledge.attributes(module)) {
           String tool =
-              fact.predicate().equals(COVERAGE_TOOL)
+              fact.predicate().equals(Types.COVERAGE_TOOL)
                   ? COVERAGE_TOOLS.get(fact.object().value())
                   : null;
           if (tool != null) {
@@ -992,10 +985,10 @@ final class BriefSections {
             t.facts.add(fact);
           }
         }
-        for (Fact fact : knowledge.relations(module, RepoSections.BUILD_DEPENDS_ON)) {
+        for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
           EntityId target = Knowledge.object(fact);
           if (!Knowledge.isEntity(fact)
-              || !target.type().equals("artifact")
+              || !target.type().equals(Types.ARTIFACT)
               || !RepoSections.isTestScope(fact)) {
             continue;
           }
@@ -1166,7 +1159,10 @@ final class BriefSections {
     tested
         .values()
         .forEach(
-            t -> t.facts.stream().filter(f -> f.predicate().equals(TESTS)).forEach(facts::add));
+            t ->
+                t.facts.stream()
+                    .filter(f -> f.predicate().equals(Types.TESTS))
+                    .forEach(facts::add));
     return new Paragraph(id, List.of(TextRun.of(text.toString())), assembler.facts(facts));
   }
 
@@ -1191,7 +1187,7 @@ final class BriefSections {
       if (!t.minimums.isEmpty()) {
         checks.add(assembler.name(builder) + " (" + join(List.copyOf(t.minimums)) + ")");
       }
-      t.facts.stream().filter(f -> f.predicate().equals(COVERAGE_TOOL)).forEach(facts::add);
+      t.facts.stream().filter(f -> f.predicate().equals(Types.COVERAGE_TOOL)).forEach(facts::add);
     }
     StringBuilder text = new StringBuilder();
     text.append(join(List.copyOf(tools)))

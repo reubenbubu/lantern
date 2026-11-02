@@ -11,6 +11,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -35,26 +36,15 @@ final class ExplorerSections {
   /** How many entry points the start-here list names when there are no main flows. */
   static final int START_ENTRIES = 5;
 
-  private static final String METHOD = "method";
-  private static final String ENDPOINT = "endpoint";
-  private static final String MESSAGE_LISTENER = "message-listener";
-  private static final String SCHEDULED = "scheduled";
-  private static final String STOMP_MAPPING = "stomp-mapping";
-  private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
-  private static final String BACKGROUND_JOB = "background-job";
-  private static final String MAIN_CLASS = "main-class";
-  private static final String CONFIG_VALUE = "config-value";
-  private static final String READS_TABLE = "READS_TABLE";
-  private static final String WRITES_TABLE = "WRITES_TABLE";
-  private static final String SCHEMA = "schema";
-  private static final String TABLE = "table";
-  private static final String README = "readme";
-  private static final String CLAIM = "claim";
   private static final List<String> ENTRY_KINDS =
       List.of(
-          ENDPOINT, MESSAGE_LISTENER, STOMP_MAPPING, WEBSOCKET_ENDPOINT, SCHEDULED, BACKGROUND_JOB);
-  private static final Set<String> DESTINATIONS =
-      Set.of(C4Views.TOPIC, C4Views.QUEUE, C4Views.EXCHANGE);
+          Types.ENDPOINT,
+          Types.MESSAGE_LISTENER,
+          Types.STOMP_MAPPING,
+          Types.WEBSOCKET_ENDPOINT,
+          Types.SCHEDULED,
+          Types.BACKGROUND_JOB);
+  private static final Set<String> DESTINATIONS = Set.of(Types.TOPIC, Types.QUEUE, Types.EXCHANGE);
 
   private final Knowledge knowledge;
   private final Assembler assembler;
@@ -92,7 +82,7 @@ final class ExplorerSections {
     List<Entry> result = new ArrayList<>();
     for (EntityId unit : units) {
       for (EntityId type : code(unit)) {
-        for (EntityId method : knowledge.parts(type, METHOD)) {
+        for (EntityId method : knowledge.parts(type, Types.METHOD)) {
           for (Fact fact : knowledge.attributes(method)) {
             if (ENTRY_KINDS.contains(fact.predicate())) {
               result.add(new Entry(unit, method, fact));
@@ -138,7 +128,7 @@ final class ExplorerSections {
     for (EntityId unit : units) {
       for (EntityId type : code(unit)) {
         for (Fact fact : knowledge.attributes(type)) {
-          if (fact.predicate().equals(MAIN_CLASS)) {
+          if (fact.predicate().equals(Types.MAIN_CLASS)) {
             List<Inline> content = new ArrayList<>();
             content.add(entity(unit));
             content.add(TextRun.of(" starts in "));
@@ -187,21 +177,21 @@ final class ExplorerSections {
   private static String entryLabel(Fact fact) {
     String value = fact.object().value();
     return switch (fact.predicate()) {
-      case ENDPOINT -> value;
-      case MESSAGE_LISTENER -> "Messages on " + value;
-      case STOMP_MAPPING -> "STOMP messages to " + value;
-      case WEBSOCKET_ENDPOINT -> "WebSocket " + value;
+      case Types.ENDPOINT -> value;
+      case Types.MESSAGE_LISTENER -> "Messages on " + value;
+      case Types.STOMP_MAPPING -> "STOMP messages to " + value;
+      case Types.WEBSOCKET_ENDPOINT -> "WebSocket " + value;
       default -> jobKind(fact) + " (" + value + ")";
     };
   }
 
-  /** The repository's top-level README, else its first by path. */
+  /** The repository's top-level Types.README, else its first by path. */
   private Optional<ListBlock.Item> readme(String repo) {
     SortedMap<String, List<Fact>> byPath = new TreeMap<>(README_ORDER);
-    for (Fact fact : knowledge.withPredicate(CLAIM)) {
+    for (Fact fact : knowledge.withPredicate(Types.CLAIM)) {
       EntityId subject = fact.subject();
       String key = subject.key();
-      if (subject.type().equals(README) && key.startsWith(repo + ":")) {
+      if (subject.type().equals(Types.README) && key.startsWith(repo + ":")) {
         byPath.computeIfAbsent(path(subject), p -> new ArrayList<>()).add(fact);
       }
     }
@@ -226,9 +216,9 @@ final class ExplorerSections {
   /** Where the repository's decision records are: the folder holding most of them. */
   private Optional<ListBlock.Item> decisionRecords(String repo) {
     Map<String, List<Fact>> byFolder = new TreeMap<>();
-    for (Fact fact : knowledge.withPredicate("title")) {
+    for (Fact fact : knowledge.withPredicate(Types.TITLE)) {
       EntityId subject = fact.subject();
-      if (subject.type().equals(C4Views.DECISION) && subject.key().startsWith(repo + ":")) {
+      if (subject.type().equals(Types.DECISION) && subject.key().startsWith(repo + ":")) {
         String path = path(subject);
         String folder = path.contains("/") ? path.substring(0, path.lastIndexOf('/') + 1) : "";
         byFolder.computeIfAbsent(folder, f -> new ArrayList<>()).add(fact);
@@ -296,7 +286,7 @@ final class ExplorerSections {
                   text(c4.technology(unit)),
                   List.of()),
               c4.containerFacts(unit)));
-      for (Fact fact : knowledge.relations(unit, C4Views.USES_DATABASE)) {
+      for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
         if (!alternatives.contains(fact)) {
           EntityId database = Knowledge.object(fact);
           databases.computeIfAbsent(database, d -> new ArrayList<>()).add(fact);
@@ -346,10 +336,10 @@ final class ExplorerSections {
     for (Entry entry : entries()) {
       String kind =
           switch (entry.fact.predicate()) {
-            case ENDPOINT -> "HTTP endpoint";
-            case MESSAGE_LISTENER -> "Message listener";
-            case STOMP_MAPPING -> "STOMP message handler";
-            case WEBSOCKET_ENDPOINT ->
+            case Types.ENDPOINT -> "HTTP endpoint";
+            case Types.MESSAGE_LISTENER -> "Message listener";
+            case Types.STOMP_MAPPING -> "STOMP message handler";
+            case Types.WEBSOCKET_ENDPOINT ->
                 "stomp".equals(RepoSections.attribute(entry.fact, "protocol", ""))
                     ? "STOMP WebSocket endpoint"
                     : "WebSocket endpoint";
@@ -388,13 +378,13 @@ final class ExplorerSections {
     SortedMap<EntityId, SortedSet<EntityId>> receivers = new TreeMap<>(Knowledge.BY_ID);
     SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId unit : units) {
-      for (String predicate : List.of(C4Views.PUBLISHES, C4Views.CONSUMES)) {
+      for (String predicate : List.of(Types.PUBLISHES, Types.CONSUMES)) {
         for (Fact fact : knowledge.relations(unit, predicate)) {
           EntityId destination = Knowledge.object(fact);
           if (alternatives.contains(fact) || !DESTINATIONS.contains(destination.type())) {
             continue;
           }
-          (predicate.equals(C4Views.PUBLISHES) ? senders : receivers)
+          (predicate.equals(Types.PUBLISHES) ? senders : receivers)
               .computeIfAbsent(destination, d -> new TreeSet<>(Knowledge.BY_ID))
               .add(unit);
           facts.computeIfAbsent(destination, d -> new ArrayList<>()).add(fact);
@@ -433,8 +423,8 @@ final class ExplorerSections {
     SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId unit : units) {
       for (EntityId module : C4Views.codeModules(knowledge, unit)) {
-        for (EntityId schema : knowledge.parts(module, SCHEMA)) {
-          for (EntityId table : knowledge.parts(schema, TABLE)) {
+        for (EntityId schema : knowledge.parts(module, Types.SCHEMA)) {
+          for (EntityId table : knowledge.parts(schema, Types.TABLE)) {
             containers.computeIfAbsent(table, t -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
             facts
                 .computeIfAbsent(table, t -> new ArrayList<>())
@@ -443,8 +433,8 @@ final class ExplorerSections {
         }
       }
       for (EntityId type : code(unit)) {
-        for (EntityId method : knowledge.parts(type, METHOD)) {
-          for (String predicate : List.of(READS_TABLE, WRITES_TABLE)) {
+        for (EntityId method : knowledge.parts(type, Types.METHOD)) {
+          for (String predicate : List.of(Types.READS_TABLE, Types.WRITES_TABLE)) {
             for (Fact fact : knowledge.relations(method, predicate)) {
               EntityId table = Knowledge.object(fact);
               containers.computeIfAbsent(table, t -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
@@ -488,7 +478,7 @@ final class ExplorerSections {
     List<Fact> values = new ArrayList<>();
     for (EntityId module : unitsOf.keySet()) {
       for (Fact fact : knowledge.attributes(module)) {
-        if (fact.predicate().equals(CONFIG_VALUE)) {
+        if (fact.predicate().equals(Types.CONFIG_VALUE)) {
           values.add(fact);
         }
       }
@@ -531,9 +521,9 @@ final class ExplorerSections {
   List<Block> changeGuidance(String section) {
     List<ListBlock.Item> items = new ArrayList<>();
     List<Entry> entries = entries();
-    example(entries, ENDPOINT)
+    example(entries, Types.ENDPOINT)
         .ifPresent(e -> items.add(follow("To add an endpoint, follow ", e.method, e.fact, null)));
-    example(entries, MESSAGE_LISTENER)
+    example(entries, Types.MESSAGE_LISTENER)
         .ifPresent(
             e ->
                 items.add(
@@ -542,10 +532,10 @@ final class ExplorerSections {
                         e.method,
                         e.fact,
                         ", which receives from " + e.fact.object().value())));
-    example(entries, SCHEDULED)
+    example(entries, Types.SCHEDULED)
         .ifPresent(
             e -> items.add(follow("To add a scheduled job, follow ", e.method, e.fact, null)));
-    linkExample(C4Views.PUBLISHES)
+    linkExample(Types.PUBLISHES)
         .ifPresent(
             f ->
                 items.add(
@@ -554,7 +544,7 @@ final class ExplorerSections {
                         parse(RepoSections.attribute(f, "source", null)),
                         f,
                         ", which sends to " + assembler.name(Knowledge.object(f)))));
-    linkExample(C4Views.CALLS_HTTP)
+    linkExample(Types.CALLS_HTTP)
         .ifPresent(
             f ->
                 items.add(
@@ -612,7 +602,9 @@ final class ExplorerSections {
     content.add(TextRun.of(lead));
     assembler.entity(method);
     String name =
-        method.type().equals(METHOD) ? SequenceFlows.methodName(method) : assembler.name(method);
+        method.type().equals(Types.METHOD)
+            ? SequenceFlows.methodName(method)
+            : assembler.name(method);
     content.add(new CrossReference(name, CrossReference.Target.entity(method)));
     file(fact).ifPresent(path -> content.addAll(inFile(path)));
     if (which != null) {
@@ -633,10 +625,10 @@ final class ExplorerSections {
   private Optional<ListBlock.Item> migrationExample() {
     for (EntityId unit : units) {
       for (EntityId module : C4Views.codeModules(knowledge, unit)) {
-        for (EntityId schema : knowledge.parts(module, SCHEMA)) {
+        for (EntityId schema : knowledge.parts(module, Types.SCHEMA)) {
           Optional<Fact> kind =
               knowledge.attributes(schema).stream()
-                  .filter(f -> f.predicate().equals("kind") && f.evidence().path() != null)
+                  .filter(f -> f.predicate().equals(Types.KIND) && f.evidence().path() != null)
                   .filter(f -> MIGRATION_KINDS.contains(f.object().value()))
                   .min(
                       Comparator.comparingInt(
@@ -674,7 +666,7 @@ final class ExplorerSections {
     for (EntityId unit : units) {
       for (EntityId module : C4Views.codeModules(knowledge, unit)) {
         for (Fact fact : knowledge.attributes(module)) {
-          if (fact.predicate().equals(CONFIG_VALUE)
+          if (fact.predicate().equals(Types.CONFIG_VALUE)
               && !fact.attributes().has("profile")
               && fact.evidence().path() != null) {
             byFile.computeIfAbsent(fact.evidence().path(), p -> new ArrayList<>()).add(fact);
@@ -748,8 +740,8 @@ final class ExplorerSections {
   }
 
   /**
-   * The file a README or decision record entity is about, from its key {@code <repo>:<path>}, whose
-   * whitespace and {@code %} are percent-encoded (ADR 0033).
+   * The file a Types.README or decision record entity is about, from its key {@code <repo>:<path>},
+   * whose whitespace and {@code %} are percent-encoded (ADR 0033).
    */
   private static String path(EntityId entity) {
     String key = entity.key();

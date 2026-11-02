@@ -20,6 +20,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.attributes.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,7 +76,7 @@ class InvestigatedFindingsTest {
     Fact fact =
         Fact.create(
             EntityId.parse(APP),
-            InvestigatedFindings.CONNECTION,
+            Types.INVESTIGATED_CONNECTION,
             FactObject.entity(EntityId.parse("external-system:s3")),
             attributes,
             INVESTIGATE,
@@ -107,7 +108,7 @@ class InvestigatedFindingsTest {
 
   @Test
   void theBriefShowsARiskItFoundAsARiskCalloutMarkedFoundByTheLlm() {
-    risk(InvestigatedFindings.RISK, APP, "Orders trust the caller's user header");
+    risk(Types.INVESTIGATED_RISK, APP, "Orders trust the caller's user header");
 
     Document brief = compose(ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE));
 
@@ -127,7 +128,7 @@ class InvestigatedFindingsTest {
 
   @Test
   void theExplorerAndTheSystemReportListItInTheirRisksAndFindings() {
-    Fact risk = risk(InvestigatedFindings.RISK, APP, "Orders trust the caller's user header");
+    Fact risk = risk(Types.INVESTIGATED_RISK, APP, "Orders trust the caller's user header");
 
     for (Document document :
         List.of(
@@ -164,10 +165,7 @@ class InvestigatedFindingsTest {
             1.0,
             Validity.from(1));
     facts.add(finding);
-    risk(
-        InvestigatedFindings.WORDING,
-        finding.subject().toString(),
-        "Every unit signs with one key");
+    risk(Types.FINDING_WORDING, finding.subject().toString(), "Every unit signs with one key");
 
     Document explorer = compose(ViewDefinition.perRepo("shop", "shop", TEMPLATE));
 
@@ -187,7 +185,7 @@ class InvestigatedFindingsTest {
     facts.add(
         Fact.create(
             EntityId.parse(APP),
-            InvestigatedFindings.NOT_INVESTIGATED,
+            Types.NOT_INVESTIGATED,
             FactObject.string("investigate"),
             FactJson.newObject(),
             INVESTIGATE,
