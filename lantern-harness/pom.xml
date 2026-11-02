@@ -32,4 +32,36 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <!-- Every role's prompt, from the repository's prompts/ folder, as the built-in copies a run
+             falls back to (docs/adr/0113-prompts-folder.md). -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>prompts</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.outputDirectory}/prompts</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.basedir}/../prompts</directory>
+                  <includes>
+                    <include>*.txt</include>
+                    <include>*.json</include>
+                  </includes>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

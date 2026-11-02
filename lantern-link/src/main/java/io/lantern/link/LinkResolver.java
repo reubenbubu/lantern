@@ -21,6 +21,7 @@ import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
 import io.lantern.harness.Outcome;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
@@ -150,7 +151,16 @@ public final class LinkResolver implements LinkRule.OverFacts {
   /** The role as the harness runs it, before its tools are known (ADR 0100). */
   public static final RoleSpec ROLE =
       RoleSpec.single(
-              "resolve", Role.RESOLVE, ResolvePrompt.VERSION, "resolve", RunMode.INTERACTIVE, 300)
+              "resolve",
+              Role.RESOLVE,
+              Prompts.version(
+                  ResolvePrompt.VERSION,
+                  "common.system.txt",
+                  "resolve.task.txt",
+                  "resolve.schema.json"),
+              "resolve",
+              RunMode.INTERACTIVE,
+              300)
           .withPacketSize(PACKET_SIZE)
           .withTools(List.of(), LIMITS);
 

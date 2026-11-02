@@ -7,6 +7,7 @@ import io.lantern.harness.Item;
 import io.lantern.harness.Outcome;
 import io.lantern.harness.PacketRole;
 import io.lantern.harness.PromptLayout;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
@@ -38,45 +39,26 @@ public final class WordingJudge {
   /** What a text is judged on, one dimension a call. */
   public enum Dimension {
     /** Whether it says what the element does for the system, not its name, kind or technology. */
-    ROLE(
-        "role",
-        """
-        Task: judge one dimension of wording. Each item in <items> is a short text written about \
-        an element of a software system, with what kind of text it is and the element it is \
-        about. Decide whether the text says what the element does for the system: a job it does, \
-        what it gives or keeps for other parts or for people, or why one part calls another. \
-        Answer "fail" when the text only restates the element's name, kind or technology (such \
-        as "The orders service is a Spring Boot service" or "Calls the payment API"), and "pass" \
-        when a reader learns its job from it. Answer "unknown" only when the text cannot be \
-        judged, such as one that is not a sentence or phrase about the element. First give your \
-        reasoning in one or two sentences, then the verdict. Judge the text alone; do not reward \
-        length."""),
+    ROLE("role"),
     /** Whether it says something of this system, not what is true of any Spring application. */
-    SPECIFIC(
-        "specific",
-        """
-        Task: judge one dimension of wording. Each item in <items> is a short text written about \
-        an element of a software system, with what kind of text it is and the element it is \
-        about. Decide whether the text would be true of almost any Spring application. Answer \
-        "fail" when it would (such as "Handles HTTP requests and stores data in a database" or \
-        "Provides business logic"), and "pass" when it says something only this system's \
-        element does: the domain it serves, what it decides, which data or which other part it \
-        is about. Answer "unknown" only when the text cannot be judged, such as one that is not \
-        a sentence or phrase about the element. First give your reasoning in one or two \
-        sentences, then the verdict. Judge the text alone; do not reward length.""");
+    SPECIFIC("specific");
 
     private final String key;
     private final String task;
     private final RoleSpec role;
 
-    Dimension(String key, String task) {
+    Dimension(String key) {
       this.key = key;
-      this.task = task;
+      this.task = Prompts.text("wording-judge-" + key + ".task.txt");
       this.role =
           RoleSpec.single(
                   "wording-judge-" + key,
                   Role.WORDING_JUDGE,
-                  "1",
+                  Prompts.version(
+                      "1",
+                      "common.system.txt",
+                      "wording-judge-" + key + ".task.txt",
+                      "wording-judge.schema.json"),
                   "model-checks",
                   RunMode.BULK,
                   120)
@@ -99,11 +81,7 @@ public final class WordingJudge {
     }
   }
 
-  static final String ITEM_SCHEMA =
-      """
-      {"type": "object", "required": ["reasoning", "verdict"], "additionalProperties": false, \
-      "properties": {"reasoning": {"type": "string", "maxLength": 400}, \
-      "verdict": {"enum": ["pass", "fail", "unknown"]}}}""";
+  static final String ITEM_SCHEMA = Prompts.text("wording-judge.schema.json");
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final JsonNode SCHEMA = JSON.readTree(ITEM_SCHEMA);

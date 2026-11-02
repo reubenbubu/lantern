@@ -14,6 +14,7 @@ import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
 import io.lantern.harness.LlmFacts;
 import io.lantern.harness.Outcome;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
@@ -136,7 +137,11 @@ public final class Investigator {
       RoleSpec.single(
               "investigate-leads",
               Role.INVESTIGATE,
-              InvestigatePrompt.VERSION,
+              Prompts.version(
+                  InvestigatePrompt.VERSION,
+                  "common.system.txt",
+                  "investigate-leads.task.txt",
+                  "investigate.schema.json"),
               NAME,
               RunMode.INTERACTIVE,
               1_500)
@@ -148,7 +153,11 @@ public final class Investigator {
       RoleSpec.single(
               "investigate-units",
               Role.INVESTIGATE,
-              InvestigatePrompt.VERSION,
+              Prompts.version(
+                  InvestigatePrompt.VERSION,
+                  "common.system.txt",
+                  "investigate-explore.task.txt",
+                  "investigate.schema.json"),
               NAME,
               RunMode.INTERACTIVE,
               3_000)
@@ -159,7 +168,11 @@ public final class Investigator {
       RoleSpec.single(
               "investigate-system",
               Role.INVESTIGATE,
-              InvestigatePrompt.VERSION,
+              Prompts.version(
+                  InvestigatePrompt.VERSION,
+                  "common.system.txt",
+                  "investigate-explore.task.txt",
+                  "investigate.schema.json"),
               NAME,
               RunMode.INTERACTIVE,
               3_000)

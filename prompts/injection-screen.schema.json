@@ -1,0 +1,1 @@
+{"type": "object", "required": ["suspected"], "additionalProperties": false, "properties": {"suspected": {"type": "boolean"}, "lines": {"type": "string", "pattern": "^[0-9]+-[0-9]+$"}, "quote": {"type": "string", "maxLength": 160}}}

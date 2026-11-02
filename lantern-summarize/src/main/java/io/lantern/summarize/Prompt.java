@@ -3,15 +3,12 @@ package io.lantern.summarize;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.harness.PromptLayout;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.checks.CommonPrompt;
 import io.lantern.harness.render.Blocks;
 import io.lantern.harness.render.FactLines;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -40,6 +37,18 @@ final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
   static final String VERSION = "17";
+
+  /**
+   * The version answers are keyed by: {@link #VERSION}, with a digest of the prompt files when one
+   * is edited in the prompts folder (ADR 0113).
+   */
+  static final String KEY =
+      Prompts.version(
+          VERSION,
+          "common.system.txt",
+          "summarize.task.txt",
+          "summarize.schema.json",
+          "summarize.closing.txt");
 
   /** Block 2's instructions, as the epic writes them. */
   static final String TASK = resource("summarize.task.txt");
@@ -334,14 +343,6 @@ final class Prompt {
 
   /** Reads a prompt resource as written. */
   private static String resource(String name) {
-    String path = "/prompts/" + name;
-    try (InputStream in = Prompt.class.getResourceAsStream(path)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + path);
-      }
-      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + path, e);
-    }
+    return Prompts.text(name);
   }
 }

@@ -3,13 +3,10 @@ package io.lantern.link;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.render.Blocks;
 import io.lantern.harness.render.FactLines;
 import io.lantern.harness.render.Refs;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -270,14 +267,6 @@ final class InvestigatePrompt {
 
   /** Reads a prompt resource as written. */
   private static String resource(String name) {
-    String path = "/prompts/" + name;
-    try (InputStream in = InvestigatePrompt.class.getResourceAsStream(path)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + path);
-      }
-      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + path, e);
-    }
+    return Prompts.text(name);
   }
 }

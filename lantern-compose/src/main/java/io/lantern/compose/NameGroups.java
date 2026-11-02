@@ -19,6 +19,7 @@ import io.lantern.harness.LlmFacts;
 import io.lantern.harness.Outcome;
 import io.lantern.harness.PacketRole;
 import io.lantern.harness.PromptLayout;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
@@ -102,7 +103,13 @@ public final class NameGroups {
   /** The role. */
   public static final RoleSpec ROLE =
       RoleSpec.single(
-              "name-groups", Role.NAME_GROUPS, VERSION, "name-groups", RunMode.INTERACTIVE, 250)
+              "name-groups",
+              Role.NAME_GROUPS,
+              Prompts.version(
+                  VERSION, "common.system.txt", "name-groups.task.txt", "name-groups.schema.json"),
+              "name-groups",
+              RunMode.INTERACTIVE,
+              250)
           .withPacketSize(PACKET);
 
   static final String NAME = "name";
