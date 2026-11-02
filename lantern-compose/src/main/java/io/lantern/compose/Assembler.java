@@ -8,6 +8,8 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.C4Level;
+import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
@@ -19,6 +21,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -114,13 +117,14 @@ final class Assembler {
       entity(parent);
       facts.addAll(knowledge.containsFacts(parent, id));
     }
-    entities.put(id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts)));
+    entities.put(
+        id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts), kind(id), tag(id)));
     adding.remove(id);
     if (described.contains(id)
             && (model.summary(summarized(id)).isPresent() || responsibility(id) != null)
         // A data store or destination has no summary; it is described wherever a diagram draws
         // it, by its responsibility sentence (ADR 0056).
-        || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
+        || (destination(id) && responsibility(id) != null)
         // A person is described by what the code shows of them (ADR 0074).
         || (id.type().equals(Types.PERSON) && personBasis(id) != null)
         // A frontend by its responsibility sentence, or else by what its manifest and Dockerfile
@@ -616,10 +620,107 @@ final class Assembler {
       entities.put(
           entity.id(),
           new DocumentEntity(
-              entity.id(), entity.name(), entity.parent(), description, entity.facts()));
+              entity.id(),
+              entity.name(),
+              entity.parent(),
+              description,
+              entity.facts(),
+              entity.kind(),
+              entity.tag()));
     }
     return List.copyOf(entities.values());
   }
+
+  /** The vocabulary the model was recorded with. */
+  Vocabulary vocabulary() {
+    return model.vocabulary();
+  }
+
+  /**
+   * Whether the entity is a data store, destination or system outside the scope: an element the
+   * container diagrams draw that runs none of the system's code, at the container or context level
+   * by its type or the nearest ancestor that has one (ADR 0114).
+   */
+  boolean destination(EntityId id) {
+    Vocabulary vocabulary = model.vocabulary();
+    String type = id.type();
+    if (vocabulary.find(type).isEmpty()
+        || type.equals(BuiltInTypes.SYSTEM)
+        || vocabulary.isA(type, BuiltInTypes.ACTOR)
+        || C4Views.runsCode(id)) {
+      return false;
+    }
+    C4Level level = vocabulary.c4Level(type).orElse(null);
+    return level == C4Level.CONTAINER || level == C4Level.CONTEXT;
+  }
+
+  /**
+   * What the entity's type makes it, whatever diagram shows it (ADR 0114): a data store or a queue
+   * by the shape its type is drawn with, a person by descending from {@code actor}, a system
+   * outside the one documented by descending from {@code system}, and a decision record; else
+   * {@code null}, for what the diagram's level makes it.
+   */
+  DocumentEntity.Kind kind(EntityId id) {
+    Vocabulary vocabulary = model.vocabulary();
+    String type = id.type();
+    if (type.equals(Types.DECISION)) {
+      return DocumentEntity.Kind.DECISION;
+    }
+    if (vocabulary.find(type).isEmpty()) {
+      return null;
+    }
+    String shape = vocabulary.shape(type).orElse("");
+    if (shape.equals(CYLINDER)) {
+      return DocumentEntity.Kind.DATABASE;
+    }
+    if (shape.equals(QUEUE_SHAPE)) {
+      return DocumentEntity.Kind.QUEUE;
+    }
+    if (vocabulary.isA(type, BuiltInTypes.ACTOR)) {
+      return DocumentEntity.Kind.PERSON;
+    }
+    if (!type.equals(BuiltInTypes.SYSTEM) && vocabulary.isA(type, BuiltInTypes.SYSTEM)) {
+      return DocumentEntity.Kind.EXTERNAL;
+    }
+    return null;
+  }
+
+  /**
+   * The name of the entity's type a reader sees beside its name: none for a component's main Java
+   * type, a system outside the one documented, or a type named as what it is drawn as; a topic,
+   * queue or exchange says which it is.
+   */
+  static String tag(EntityId id) {
+    String type = id.type();
+    if (UNTAGGED.contains(type)) {
+      return null;
+    }
+    if (type.equals(BuiltInTypes.REPO)) {
+      return "Repository";
+    }
+    if (type.equals(Types.FRONTEND)) {
+      return "Single-Page App";
+    }
+    String words = type.replace('-', ' ');
+    return words.substring(0, 1).toUpperCase(Locale.ROOT) + words.substring(1);
+  }
+
+  /** The types {@link #tag} names no type for. */
+  private static final Set<String> UNTAGGED =
+      Set.of(
+          BuiltInTypes.TYPE,
+          Types.EXTERNAL_SYSTEM,
+          BuiltInTypes.SYSTEM,
+          BuiltInTypes.CONTAINER,
+          BuiltInTypes.COMPONENT,
+          Types.DATABASE,
+          Types.PERSON);
+
+  /** The shape the vocabulary draws data stores with. */
+  private static final String CYLINDER = "cylinder";
+
+  /** The shape the vocabulary draws topics, queues and exchanges with. */
+  private static final String QUEUE_SHAPE = "queue";
 
   /** The connections Investigate found to an entity (ADR 0110). */
   private List<Fact> investigatedTo(EntityId id) {
@@ -630,9 +731,7 @@ final class Assembler {
 
   /** Whether only Investigate's connections know the entity: no fact is about it. */
   private boolean foundOnlyByTheInvestigator(EntityId id) {
-    return C4Views.DESTINATIONS.contains(id.type())
-        && knowledge.about(id).isEmpty()
-        && !investigatedTo(id).isEmpty();
+    return destination(id) && knowledge.about(id).isEmpty() && !investigatedTo(id).isEmpty();
   }
 
   /**

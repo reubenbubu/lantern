@@ -20,7 +20,8 @@
     "id" : "module:com.example.greeting:greeting-lib",
     "name" : "greeting-lib",
     "parent" : "repo:greeting-lib",
-    "facts" : [ "1b5c3e6ebffb3756c635d5d977b2d4867fc30bb695f3f4c730d68e99d9c8c085", "68e92d22d4c30fc2bfadba47271d9b5091103e071b5a4d4f2497b36c59f48b1f", "a2487d78f234fc8a0dcb84a2fa080128c8a942bb44bfd134295df2571f7472e9" ]
+    "facts" : [ "1b5c3e6ebffb3756c635d5d977b2d4867fc30bb695f3f4c730d68e99d9c8c085", "68e92d22d4c30fc2bfadba47271d9b5091103e071b5a4d4f2497b36c59f48b1f", "a2487d78f234fc8a0dcb84a2fa080128c8a942bb44bfd134295df2571f7472e9" ],
+    "tag" : "Module"
   }, {
     "id" : "module:com.example.greeting:greeting-service",
     "name" : "greeting-service",
@@ -45,7 +46,8 @@
       "kind" : "citation",
       "facts" : [ "35197b6d2c53fa32112518e0dc19e3312280803a0156bd1272d1e64f2e91cc14" ]
     } ],
-    "facts" : [ "50c39e56ecfd441f8ad38e838a7b4e50c2bd7151bbe0244cdad9d67a54a0b517", "5f796e4a32177df322d73ce065b450c9f5dde4af2aa991b8fda31f9cad90cab1", "9839e7fc1136d2eed2779922b041ddfe8de05d81f39d8b7a15b651cc115d8035", "e787e5194c9255b5869aee2754132af8a76436ef621683764652712db2e3ed47" ]
+    "facts" : [ "50c39e56ecfd441f8ad38e838a7b4e50c2bd7151bbe0244cdad9d67a54a0b517", "5f796e4a32177df322d73ce065b450c9f5dde4af2aa991b8fda31f9cad90cab1", "9839e7fc1136d2eed2779922b041ddfe8de05d81f39d8b7a15b651cc115d8035", "e787e5194c9255b5869aee2754132af8a76436ef621683764652712db2e3ed47" ],
+    "tag" : "Module"
   }, {
     "id" : "package:com.example.greeting:greeting-service:com.example.greeting.service",
     "name" : "com.example.greeting.service",
@@ -70,11 +72,13 @@
       "kind" : "citation",
       "facts" : [ "be9d05f2581e4c1190b99aed08beaeb72f262c5301c4c8054df9b4b87bab052a" ]
     } ],
-    "facts" : [ "d728ada768ba081679f8ec2ea561ef2e6f69effec4a9a92329a195c202ae25dd" ]
+    "facts" : [ "d728ada768ba081679f8ec2ea561ef2e6f69effec4a9a92329a195c202ae25dd" ],
+    "tag" : "Package"
   }, {
     "id" : "repo:greeting-lib",
     "name" : "greeting-lib",
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "repo:greeting-service",
     "name" : "greeting-service",
@@ -98,7 +102,8 @@
       "kind" : "citation",
       "facts" : [ "e787e5194c9255b5869aee2754132af8a76436ef621683764652712db2e3ed47" ]
     } ],
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "service:com.example.greeting:greeting-service",
     "name" : "greeting-service",
@@ -123,7 +128,8 @@
       "kind" : "citation",
       "facts" : [ "573617e48c5b15a141fd18dc754815fa97a97484b8a952fd81d772d2274950f4" ]
     } ],
-    "facts" : [ "083ee0dc6500b2f8bf405917bca902d439fe0c0c35f5f9bddb991080c31a69d6", "185b02f3e85e276c866909a15350d19bd8ebe9909ba2038b7ce9b05275e0af5a", "34381bde28739bec318089cb4e6be0a177986481d1d0352ed631daf201fefc60", "994a00cf82e8dbfb4eacd614badc70f0f34cca2b1f982c5b3b49a3511e0d6a6f" ]
+    "facts" : [ "083ee0dc6500b2f8bf405917bca902d439fe0c0c35f5f9bddb991080c31a69d6", "185b02f3e85e276c866909a15350d19bd8ebe9909ba2038b7ce9b05275e0af5a", "34381bde28739bec318089cb4e6be0a177986481d1d0352ed631daf201fefc60", "994a00cf82e8dbfb4eacd614badc70f0f34cca2b1f982c5b3b49a3511e0d6a6f" ],
+    "tag" : "Service"
   }, {
     "id" : "system:snapshot",
     "name" : "greeting-lib, greeting-service, orders and shop",

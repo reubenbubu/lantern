@@ -33,8 +33,17 @@ public final class Vocabularies {
 
   /** All of them as one vocabulary, at revision 1. */
   public static Vocabulary standard() {
-    List<VocabularyType> types = new ArrayList<>();
-    bySource().values().forEach(types::addAll);
-    return new Vocabulary(1, types);
+    return Standard.VOCABULARY;
+  }
+
+  /** Read once, when first asked for. */
+  private static final class Standard {
+    static final Vocabulary VOCABULARY = read();
+
+    private static Vocabulary read() {
+      List<VocabularyType> types = new ArrayList<>();
+      bySource().values().forEach(types::addAll);
+      return new Vocabulary(1, types);
+    }
   }
 }

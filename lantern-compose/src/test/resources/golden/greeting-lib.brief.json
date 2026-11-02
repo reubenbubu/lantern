@@ -20,7 +20,8 @@
     "id" : "library:com.example.greeting:greeting-lib",
     "name" : "greeting-lib",
     "parent" : "repo:greeting-lib",
-    "facts" : [ "573617e48c5b15a141fd18dc754815fa97a97484b8a952fd81d772d2274950f4" ]
+    "facts" : [ "573617e48c5b15a141fd18dc754815fa97a97484b8a952fd81d772d2274950f4" ],
+    "tag" : "Library"
   }, {
     "id" : "module:com.example.greeting:greeting-lib",
     "name" : "greeting-lib",
@@ -45,7 +46,8 @@
       "kind" : "citation",
       "facts" : [ "573617e48c5b15a141fd18dc754815fa97a97484b8a952fd81d772d2274950f4" ]
     } ],
-    "facts" : [ "1b5c3e6ebffb3756c635d5d977b2d4867fc30bb695f3f4c730d68e99d9c8c085", "68e92d22d4c30fc2bfadba47271d9b5091103e071b5a4d4f2497b36c59f48b1f", "a2487d78f234fc8a0dcb84a2fa080128c8a942bb44bfd134295df2571f7472e9" ]
+    "facts" : [ "1b5c3e6ebffb3756c635d5d977b2d4867fc30bb695f3f4c730d68e99d9c8c085", "68e92d22d4c30fc2bfadba47271d9b5091103e071b5a4d4f2497b36c59f48b1f", "a2487d78f234fc8a0dcb84a2fa080128c8a942bb44bfd134295df2571f7472e9" ],
+    "tag" : "Module"
   }, {
     "id" : "package:com.example.greeting:greeting-lib:com.example.greeting.lib",
     "name" : "com.example.greeting.lib",
@@ -70,7 +72,8 @@
       "kind" : "citation",
       "facts" : [ "9529541987bf914281f83580270c724c886029ebbfe296e9f30c2ac85830e941" ]
     } ],
-    "facts" : [ "06422b619e48a9596e5c8b3edb5e4397a63f9df2d19e6a8de74700050c9d28b3" ]
+    "facts" : [ "06422b619e48a9596e5c8b3edb5e4397a63f9df2d19e6a8de74700050c9d28b3" ],
+    "tag" : "Package"
   }, {
     "id" : "repo:greeting-lib",
     "name" : "greeting-lib",
@@ -94,11 +97,13 @@
       "kind" : "citation",
       "facts" : [ "1b5c3e6ebffb3756c635d5d977b2d4867fc30bb695f3f4c730d68e99d9c8c085" ]
     } ],
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "repo:greeting-service",
     "name" : "greeting-service",
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "service:com.example.greeting:greeting-service",
     "name" : "greeting-service",
@@ -123,7 +128,8 @@
       "kind" : "citation",
       "facts" : [ "573617e48c5b15a141fd18dc754815fa97a97484b8a952fd81d772d2274950f4" ]
     } ],
-    "facts" : [ "083ee0dc6500b2f8bf405917bca902d439fe0c0c35f5f9bddb991080c31a69d6", "185b02f3e85e276c866909a15350d19bd8ebe9909ba2038b7ce9b05275e0af5a", "34381bde28739bec318089cb4e6be0a177986481d1d0352ed631daf201fefc60", "994a00cf82e8dbfb4eacd614badc70f0f34cca2b1f982c5b3b49a3511e0d6a6f" ]
+    "facts" : [ "083ee0dc6500b2f8bf405917bca902d439fe0c0c35f5f9bddb991080c31a69d6", "185b02f3e85e276c866909a15350d19bd8ebe9909ba2038b7ce9b05275e0af5a", "34381bde28739bec318089cb4e6be0a177986481d1d0352ed631daf201fefc60", "994a00cf82e8dbfb4eacd614badc70f0f34cca2b1f982c5b3b49a3511e0d6a6f" ],
+    "tag" : "Service"
   }, {
     "id" : "system:snapshot",
     "name" : "greeting-lib, greeting-service, orders and shop",

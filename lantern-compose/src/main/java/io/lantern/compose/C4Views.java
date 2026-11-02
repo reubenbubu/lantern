@@ -11,6 +11,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
 import io.lantern.derive.DeploymentInstances;
@@ -54,10 +55,6 @@ final class C4Views {
 
   static final String USES = "USES";
   static final String ROUTE = "route";
-
-  /** The kinds of container that are not deployable units: data stores and destinations. */
-  static final Set<String> DESTINATIONS =
-      Set.of(Types.DATABASE, Types.TOPIC, Types.QUEUE, Types.EXCHANGE, Types.EXTERNAL_SYSTEM);
 
   /** A decision record's rationale when it has no context section. */
   static final String NOT_RECORDED = "Not recorded.";
@@ -145,7 +142,7 @@ final class C4Views {
         continue;
       }
       for (EntityId end : List.of(link.from, link.to)) {
-        if (DESTINATIONS.contains(end.type())) {
+        if (assembler.destination(end)) {
           result.add(end);
         }
       }
@@ -175,7 +172,7 @@ final class C4Views {
   }
 
   /** Whether an element is a container that runs code: a deployable unit or a frontend. */
-  private static boolean runsCode(EntityId element) {
+  static boolean runsCode(EntityId element) {
     return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(Types.FRONTEND);
   }
 
@@ -535,6 +532,7 @@ final class C4Views {
                 fact));
       }
     }
+    result.addAll(otherLinks());
     result.addAll(peopleLinks());
     // What Investigate found, marked as such on every line that draws it (ADR 0110).
     for (EntityId unit : units(knowledge)) {
@@ -565,6 +563,53 @@ final class C4Views {
                 attribute(route, "bindingKey"),
                 protocol(route),
                 route));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * The interactions the lines above draw their own way, and a unit's use of its message broker,
+   * whose topics, queues and exchanges the diagrams draw instead of one broker box.
+   */
+  private static final Set<String> DRAWN_OTHERWISE =
+      Set.of(
+          Types.CALLS_HTTP,
+          Types.SENDS_MAIL,
+          Types.USES_IDENTITY_PROVIDER,
+          Types.PUBLISHES,
+          Types.CONSUMES,
+          Types.ROUTES_TO,
+          Types.USES_DATABASE,
+          Types.ACCESSES_DATA_OF,
+          Types.INVESTIGATED_CONNECTION,
+          Types.USES_BROKER);
+
+  /**
+   * Every other interaction of a unit with an element at the container or context level, drawn as
+   * what it is a kind of, a line from the unit (ADR 0114): the vocabulary, not this class, decides
+   * what a type is, so a type that extends {@code container} is drawn as one.
+   */
+  private List<Link> otherLinks() {
+    Vocabulary vocabulary = assembler.vocabulary();
+    List<Link> result = new ArrayList<>();
+    for (EntityId unit : units(knowledge)) {
+      for (Fact fact : knowledge.about(unit)) {
+        if (Knowledge.isEntity(fact)
+            && !DRAWN_OTHERWISE.contains(fact.predicate())
+            && vocabulary.isA(fact.predicate(), BuiltInTypes.INTERACTS_WITH)
+            && assembler.destination(Knowledge.object(fact))) {
+          result.add(
+              link(
+                  unit,
+                  fact.predicate(),
+                  Knowledge.object(fact),
+                  "Uses",
+                  "Uses",
+                  null,
+                  protocol(fact),
+                  fact));
+        }
       }
     }
     return result;

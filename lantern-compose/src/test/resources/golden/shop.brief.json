@@ -20,12 +20,14 @@
     "id" : "library:com.example.shop:shop-api",
     "name" : "shop-api",
     "parent" : "repo:shop",
-    "facts" : [ "03a3e832dc284ee54e69fc339c21e89f114971ea314719785768096a94539704" ]
+    "facts" : [ "03a3e832dc284ee54e69fc339c21e89f114971ea314719785768096a94539704" ],
+    "tag" : "Library"
   }, {
     "id" : "library:com.example.shop:shop-core",
     "name" : "shop-core",
     "parent" : "repo:shop",
-    "facts" : [ "a022cbe60efc4b0607ef458dee01092ffab4ef7c56b228b17f96c676efb0d821" ]
+    "facts" : [ "a022cbe60efc4b0607ef458dee01092ffab4ef7c56b228b17f96c676efb0d821" ],
+    "tag" : "Library"
   }, {
     "id" : "module:com.example.shop:shop-api",
     "name" : "shop-api",
@@ -50,7 +52,8 @@
       "kind" : "citation",
       "facts" : [ "03a3e832dc284ee54e69fc339c21e89f114971ea314719785768096a94539704" ]
     } ],
-    "facts" : [ "40bfe3922fbe6253ffdd170c0ec4cac4d163bf856e295ef0af822e3bded4717e", "43b145c44c7f77b5e72adb95cf765f24bb31c819cb28307298eda1ad0ed85713", "71158aa5551d49a980bb00c4c37a8b4fa85c35c7cf420d6486557daa8d431e56", "9f6abc0ee58260a475e9d3186201b880248e57d187ac5c6f461b537f762999a2", "e03924967af4d54258ed41ac9303927501484c96ccaa4feafa04df91906516ff" ]
+    "facts" : [ "40bfe3922fbe6253ffdd170c0ec4cac4d163bf856e295ef0af822e3bded4717e", "43b145c44c7f77b5e72adb95cf765f24bb31c819cb28307298eda1ad0ed85713", "71158aa5551d49a980bb00c4c37a8b4fa85c35c7cf420d6486557daa8d431e56", "9f6abc0ee58260a475e9d3186201b880248e57d187ac5c6f461b537f762999a2", "e03924967af4d54258ed41ac9303927501484c96ccaa4feafa04df91906516ff" ],
+    "tag" : "Module"
   }, {
     "id" : "module:com.example.shop:shop-core",
     "name" : "shop-core",
@@ -75,7 +78,8 @@
       "kind" : "citation",
       "facts" : [ "a022cbe60efc4b0607ef458dee01092ffab4ef7c56b228b17f96c676efb0d821" ]
     } ],
-    "facts" : [ "2fd2fcdb543452524c3607f0f70a2b2b76f06442e273bb9eb39646750d8b4042", "5b11791025248e9b7b1efd6d3de7ed7b6996a84b5424a1700fc5ae42b90ec650", "5e75cfc71ca9a7e28848c7eb90e2860fafc72b0355baf92769625b78b5447f17", "8490da37dcfbed7ce0ec16be423c4a11debc32fa6703289f743c1e250292c740", "ee6af0e172161081b603ac0ec783a09de62efc2f9860e76abca5bc33b03ae22b" ]
+    "facts" : [ "2fd2fcdb543452524c3607f0f70a2b2b76f06442e273bb9eb39646750d8b4042", "5b11791025248e9b7b1efd6d3de7ed7b6996a84b5424a1700fc5ae42b90ec650", "5e75cfc71ca9a7e28848c7eb90e2860fafc72b0355baf92769625b78b5447f17", "8490da37dcfbed7ce0ec16be423c4a11debc32fa6703289f743c1e250292c740", "ee6af0e172161081b603ac0ec783a09de62efc2f9860e76abca5bc33b03ae22b" ],
+    "tag" : "Module"
   }, {
     "id" : "module:com.example.shop:shop-parent",
     "name" : "shop-parent",
@@ -100,7 +104,8 @@
       "kind" : "citation",
       "facts" : [ "40bfe3922fbe6253ffdd170c0ec4cac4d163bf856e295ef0af822e3bded4717e" ]
     } ],
-    "facts" : [ "3fbb1727f85fc4e24cba342822d07210e3e527f71e5693a38f5e828508f9a9fe", "b555814779fde5cc752e51b9619e9ecbb43aa68ff92217d88b6fb7002db9345d", "b6272195accfa4fe22dc51c90d90b4ba7977a2b960af3eeb97fbd5279719f17f" ]
+    "facts" : [ "3fbb1727f85fc4e24cba342822d07210e3e527f71e5693a38f5e828508f9a9fe", "b555814779fde5cc752e51b9619e9ecbb43aa68ff92217d88b6fb7002db9345d", "b6272195accfa4fe22dc51c90d90b4ba7977a2b960af3eeb97fbd5279719f17f" ],
+    "tag" : "Module"
   }, {
     "id" : "package:com.example.shop:shop-api:com.example.shop.api",
     "name" : "com.example.shop.api",
@@ -125,7 +130,8 @@
       "kind" : "citation",
       "facts" : [ "c902da593b6fc8eaa837df6b95cf658f7340f26107ae023d0e064766ff39e4f2" ]
     } ],
-    "facts" : [ "41a36b8acb7327217f1f00bfcd7f3f1eb1844ad061dac29b949c9e456016f559" ]
+    "facts" : [ "41a36b8acb7327217f1f00bfcd7f3f1eb1844ad061dac29b949c9e456016f559" ],
+    "tag" : "Package"
   }, {
     "id" : "package:com.example.shop:shop-core:com.example.shop.core",
     "name" : "com.example.shop.core",
@@ -150,7 +156,8 @@
       "kind" : "citation",
       "facts" : [ "2c4afc7f5f236d762e6d8bf3ae2be58dd93dcc62fedcdc5be7abfa045a57a18b" ]
     } ],
-    "facts" : [ "2dd4faf855ff3f840a141559110b2ce0b1599b00afe5a8e3975ca1960bc4484d" ]
+    "facts" : [ "2dd4faf855ff3f840a141559110b2ce0b1599b00afe5a8e3975ca1960bc4484d" ],
+    "tag" : "Package"
   }, {
     "id" : "repo:shop",
     "name" : "shop",
@@ -174,7 +181,8 @@
       "kind" : "citation",
       "facts" : [ "e03924967af4d54258ed41ac9303927501484c96ccaa4feafa04df91906516ff" ]
     } ],
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "system:snapshot",
     "name" : "greeting-lib, greeting-service, orders and shop",

@@ -1,11 +1,8 @@
 package io.lantern.app;
 
 import io.lantern.core.fact.FactRepository;
-import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyRegistry;
-import io.lantern.derive.Derivation;
-import io.lantern.extract.Extractors;
-import io.lantern.link.LinkVocabularies;
+import io.lantern.derive.Vocabularies;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -34,11 +31,7 @@ class FactStoreConfiguration {
    * roles. Unchanged ones add no revision.
    */
   static void loadVocabulary(VocabularyRegistry registry) {
-    registry.apply(BuiltInTypes.SOURCE, BuiltInTypes.definitions());
-    Extractors.vocabularies().forEach(registry::apply);
-    LinkVocabularies.bySource().forEach(registry::apply);
-    Derivation.vocabularies().forEach(registry::apply);
-    registry.apply(io.lantern.harness.LlmFacts.SOURCE, io.lantern.harness.LlmFacts.vocabulary());
+    Vocabularies.bySource().forEach(registry::apply);
   }
 
   @Bean
