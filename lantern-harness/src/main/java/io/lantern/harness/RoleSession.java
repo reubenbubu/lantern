@@ -154,8 +154,8 @@ public final class RoleSession {
    * @param subject the item's subject, as it will be asked; {@code null} if not known yet
    * @param item the item, or {@code null} for one expected to be asked
    * @param tokens the input tokens an item expected to be asked is expected to take
-   * @param after the subjects of the role's items this one rests on, such as a unit's parts: under
-   *     a budget, it is not admitted while one of them waits for a later round (#661)
+   * @param after the subjects of the items of its budget group this one rests on, such as a unit's
+   *     parts: under a budget, it is not admitted while one of them waits for a later round (#661)
    */
   public record Planned(String subject, Item item, long tokens, Set<String> after) {
 
@@ -173,7 +173,7 @@ public final class RoleSession {
       return new Planned(subject, null, tokens, Set.of());
     }
 
-    /** This item, resting on the role's items of the given subjects. */
+    /** This item, resting on the items of its budget group of the given subjects. */
     public Planned after(Collection<String> subjects) {
       return new Planned(subject, item, tokens, Set.copyOf(subjects));
     }

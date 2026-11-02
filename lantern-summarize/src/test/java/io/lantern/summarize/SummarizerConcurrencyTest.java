@@ -44,7 +44,8 @@ class SummarizerConcurrencyTest {
   private static final RetryPolicy FAST =
       new RetryPolicy(3, Duration.ofMillis(1), Duration.ofMillis(5));
 
-  private final FakeLlmProvider fake = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+  private final FakeLlmProvider fake =
+      new FakeLlmProvider().answering(Answers.epic(SummarizerTest::citingAll));
   private final InMemoryLlmCallLog log = new InMemoryLlmCallLog();
   private final CallLimiter limiter = limiterAllowing(64);
   private final AtomicBoolean joinTimedOut = new AtomicBoolean();
@@ -77,7 +78,8 @@ class SummarizerConcurrencyTest {
    */
   private static CallLimiter limiterAllowing(int calls) {
     CallLimiter limiter = new CallLimiter(FAST);
-    FakeLlmProvider warmUp = new FakeLlmProvider().answering(SummarizerTest::citingAll);
+    FakeLlmProvider warmUp =
+        new FakeLlmProvider().answering(Answers.epic(SummarizerTest::citingAll));
     String type = "type:com.example.WarmUp";
     new Summarizer(
             Harness.inMemory(
@@ -143,14 +145,15 @@ class SummarizerConcurrencyTest {
     java.util.concurrent.atomic.AtomicBoolean first =
         new java.util.concurrent.atomic.AtomicBoolean();
     fake.answering(
-        request -> {
-          if (first.compareAndSet(false, true)) {
-            return SummarizerTest.citingAll(request);
-          }
-          eightInFlight.countDown();
-          awaitEightInFlight(eightInFlight);
-          return SummarizerTest.citingAll(request);
-        });
+        Answers.epic(
+            request -> {
+              if (first.compareAndSet(false, true)) {
+                return SummarizerTest.citingAll(request);
+              }
+              eightInFlight.countDown();
+              awaitEightInFlight(eightInFlight);
+              return SummarizerTest.citingAll(request);
+            }));
     Summarizer.Result parallel = summarizer(8).summarize(tree);
 
     assertThat(sequential.generated()).isEqualTo(57);
@@ -220,22 +223,25 @@ class SummarizerConcurrencyTest {
     List<String> calls = new ArrayList<>();
     Thread[] failingThread = new Thread[1];
     fake.answering(
-        request -> {
-          Thread failing;
-          synchronized (calls) {
-            calls.add(request.purpose());
-            if (failingThread[0] == null) {
-              failingThread[0] = Thread.currentThread();
-              throw new LlmException("HTTP 400 bad request");
-            }
-            failing = failingThread[0];
-          }
-          // Every later call is held until the failed unit is done, which it only is once the run
-          // knows it failed: each unit runs on its own virtual thread, which then ends. So no call
-          // frees its place for another unit before the run has failed.
-          join(failing);
-          return SummarizerTest.citingAll(request);
-        });
+        Answers.epic(
+            request -> {
+              Thread failing;
+              synchronized (calls) {
+                calls.add(request.purpose());
+                if (failingThread[0] == null) {
+                  failingThread[0] = Thread.currentThread();
+                  throw new LlmException("HTTP 400 bad request");
+                }
+                failing = failingThread[0];
+              }
+              // Every later call is held until the failed unit is done, which it only is once the
+              // run
+              // knows it failed: each unit runs on its own virtual thread, which then ends. So no
+              // call
+              // frees its place for another unit before the run has failed.
+              join(failing);
+              return SummarizerTest.citingAll(request);
+            }));
 
     assertThatThrownBy(() -> summarizer(8).summarize(wideRepo()))
         .isInstanceOf(LlmException.class)

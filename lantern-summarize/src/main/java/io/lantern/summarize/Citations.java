@@ -259,6 +259,11 @@ final class Citations {
         kept.toString().strip(), uncited, unsupportedSentences, firstLeftOut, keptSentences);
   }
 
+  /** The text without the citations it writes in square brackets, such as {@code [F1, E2]}. */
+  static String withoutCitations(String text) {
+    return GROUP.matcher(text).replaceAll("").replaceAll("\\s+([.,;:!?])", "$1").strip();
+  }
+
   /**
    * The references a text cites, such as {@code F3} and {@code S1}, in order of first citation,
    * with a range listed as every reference in it. A range that cannot be expanded is listed as

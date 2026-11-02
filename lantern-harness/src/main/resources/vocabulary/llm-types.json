@@ -32,5 +32,28 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "summary",
+    "kind": "attribute",
+    "description": "What a type, package, Maven module or repository is for and how it works, in a few sentences the LLM wrote from its facts, source code and the summaries of the units it contains (knowledge-build epic, section 11.3). The value is the unit's level: type, package, module or repo. Later roles read it in place of whole files; its confidence comes from the share of sentences the checks kept. Of origin llm, the role that wrote it; a reworded summary is a new observation of the same claim.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "sentences": {
+          "type": "array",
+          "description": "The kept sentences, in order, each with the facts it cites (a contained summary's citation resolved to the facts that summary cites).",
+          "items": {
+            "type": "object",
+            "description": "One sentence: its text, without citations, and cites, the IDs of the facts it cites."
+          }
+        },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Of the first sentence, on what the unit is for: evidenced when it cites what people wrote (a README claim, Javadoc in a cited excerpt, or an evidenced summary); else inferred." },
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+      },
+      "required": ["sentences", "basis"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

@@ -1,6 +1,6 @@
 # 0024: Source files in type summaries, and units too large for one prompt
 
-Status: accepted (#43), amended by ADR 0055 (#190) and ADR 0057 (#197)
+Status: accepted (#43), amended by ADR 0055 (#190) and ADR 0057 (#197), amended by ADR 0104 (#665: part and merge prompts)
 
 ## Context
 

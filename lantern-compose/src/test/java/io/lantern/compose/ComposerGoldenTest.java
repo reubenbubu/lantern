@@ -125,8 +125,8 @@ class ComposerGoldenTest {
     // Entity IDs reach the model only in fact lines (and in the code of source files).
     boolean inCode = false;
     for (String line : prompts.toString().lines().toList()) {
-      if (line.startsWith("```")) {
-        inCode = !inCode;
+      if (line.startsWith("<code ") || line.equals("</code>")) {
+        inCode = line.startsWith("<code ");
       } else if (!inCode && !line.startsWith("[F") && !line.startsWith("##### ")) {
         assertThat(line)
             .as("a prompt line outside facts")

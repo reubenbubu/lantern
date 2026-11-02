@@ -62,8 +62,11 @@ class FactSheetTest {
     return SummaryTree.fromFacts(facts).getFirst();
   }
 
+  /** The sheet's facts under their headings, each line without where it was observed. */
   private static List<String> lines(List<FactSheet.Entry> sheet) {
-    return sheet.stream().map(e -> e.heading() + ": " + Prompt.fact(e.fact())).toList();
+    return sheet.stream()
+        .map(e -> e.heading() + ": " + Prompt.fact(e.fact()).replaceFirst(" \\([^()]*\\)$", ""))
+        .toList();
   }
 
   @Test
@@ -113,7 +116,7 @@ class FactSheetTest {
 
   @Test
   void aLongGroupIsCutShortTheSameWayWhateverOrderTheFactsComeIn() {
-    List<Fact> facts = new ArrayList<>(service(12).list());
+    List<Fact> facts = new ArrayList<>(service(17).list());
     List<Fact> shuffled = new ArrayList<>(facts);
     Collections.shuffle(shuffled, new Random(197));
 
@@ -121,7 +124,7 @@ class FactSheetTest {
 
     assertThat(sheet.stream().filter(e -> e.heading().startsWith("Entry points")))
         .hasSize(FactSheet.MAX_PER_GROUP)
-        .allSatisfy(e -> assertThat(e.heading()).isEqualTo("Entry points (10 of 12)"));
+        .allSatisfy(e -> assertThat(e.heading()).isEqualTo("Entry points (15 of 17)"));
     assertThat(FactSheet.of(repo(shuffled).children().getFirst())).isEqualTo(sheet);
   }
 
@@ -135,16 +138,22 @@ class FactSheetTest {
     assertThat(prompt)
         .contains(
             """
-
-            Fact sheet: entry points, links, data stores and technology of the parts it contains:
-            Entry points:
-            [F%d] method:com.example.orders.OrderController#get0() endpoint "GET /orders/0"
-            Links:
+            </facts>
+            Of the units it contains, entry points:
+            <facts>
+            [F%d] method:com.example.orders.OrderController#get0() endpoint "GET /orders/0" \
+            (orders:pom.xml)
+            </facts>
+            Of the units it contains, links:
+            <facts>
             [F%d] method:com.example.orders.PaymentClient#pay() http-call \
-            "POST http://payments/api/payments"
-            Data stores:
+            "POST http://payments/api/payments" (orders:pom.xml)
+            </facts>
+            Of the units it contains, data stores:
+            <facts>
             [F%d] type:com.example.orders.OrderRepository READS_TABLE \
-            table:com.example:orders:orders
+            table:com.example:orders:orders (orders:pom.xml)
+            </facts>
             """
                 .formatted(facts + 1, facts + 2, facts + 3));
     assertThat(Summarizer.promptFacts(module))

@@ -99,9 +99,74 @@ class LlmFactsTest {
   }
 
   @Test
-  void theVocabularyHoldsResponsibilityAndIntent() {
+  void theVocabularyHoldsResponsibilityIntentAndSummary() {
     assertThat(LlmFacts.vocabulary())
         .extracting(VocabularyType::name)
-        .containsExactlyInAnyOrder("responsibility", "intent");
+        .containsExactlyInAnyOrder("responsibility", "intent", "summary");
+  }
+
+  @Test
+  void aSummaryIsAFactOfItsLevelWithItsSentencesAndTheFactsEachCites() {
+    Fact one = cited("a".repeat(64), "pom.xml");
+    Fact two = cited("b".repeat(64), "README.md");
+    RoleSpec role =
+        RoleSpec.single("summarize", Role.SUMMARIZE, "16", "summarize", RunMode.BULK, 300);
+
+    Fact summary =
+        LlmFacts.summary(
+            role,
+            "fake/fake-model",
+            EntityId.parse("module:com.example:app"),
+            "module",
+            List.of(
+                new LlmFacts.Sentence("Takes the shop's orders.", List.of(two)),
+                new LlmFacts.Sentence("It stores them.", List.of(one, two))),
+            LlmFacts.Basis.EVIDENCED,
+            0.25,
+            7);
+
+    assertThat(summary.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "summarize", "16"));
+    assertThat(summary.predicate()).isEqualTo(LlmFacts.SUMMARY);
+    assertThat(summary.object()).isEqualTo(FactObject.string("module"));
+    assertThat(summary.attributes().get("sentences").get(1).get("text").asString())
+        .isEqualTo("It stores them.");
+    assertThat(
+            summary
+                .attributes()
+                .get("sentences")
+                .get(1)
+                .get("cites")
+                .valueStream()
+                .map(n -> n.asString()))
+        .containsExactly(one.id(), two.id());
+    assertThat(summary.attributes().get("basis").asString()).isEqualTo("evidenced");
+    assertThat(summary.confidence()).isEqualTo(0.25);
+    assertThat(summary.lineage()).containsExactly("b".repeat(64), "a".repeat(64));
+    // Its attributes are those its vocabulary type allows.
+    LlmFacts.vocabulary().stream()
+        .filter(type -> type.name().equals(LlmFacts.SUMMARY))
+        .findFirst()
+        .orElseThrow()
+        .attributeSchema()
+        .validate(summary.attributes());
+  }
+
+  @Test
+  void aSummaryCitingNothingIsNotAFact() {
+    RoleSpec role =
+        RoleSpec.single("summarize", Role.SUMMARIZE, "16", "summarize", RunMode.BULK, 300);
+
+    assertThatThrownBy(
+            () ->
+                LlmFacts.summary(
+                    role,
+                    "fake/fake-model",
+                    EntityId.parse("module:com.example:app"),
+                    "module",
+                    List.of(new LlmFacts.Sentence("Takes orders.", List.of())),
+                    LlmFacts.Basis.INFERRED,
+                    0.35,
+                    1))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }

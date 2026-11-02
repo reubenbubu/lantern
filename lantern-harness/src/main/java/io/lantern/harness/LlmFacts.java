@@ -39,6 +39,9 @@ public final class LlmFacts {
   /** An intent phrase: {@code (source, intent, "<interaction claim ID>")}. */
   public static final String INTENT = "intent";
 
+  /** A unit's summary: {@code (unit, summary, "<level>")}. */
+  public static final String SUMMARY = "summary";
+
   /** The document kind texts are worded for. */
   public static final String C4 = "c4";
 
@@ -132,6 +135,74 @@ public final class LlmFacts {
             origin(role),
             evidence(cited),
             CONFIDENCE,
+            Validity.from(snapshot));
+    return lineage.isEmpty() ? fact : fact.withLineage(lineage);
+  }
+
+  /**
+   * One sentence of a summary.
+   *
+   * @param text the sentence, without citations
+   * @param cites the facts it cites, its contained summaries' resolved to the facts they cite
+   */
+  public record Sentence(String text, List<Fact> cites) {
+    public Sentence {
+      Objects.requireNonNull(text, "text");
+      cites = List.copyOf(cites);
+    }
+  }
+
+  /**
+   * A unit's summary as a fact (knowledge-build epic, section 11.3, Stored): {@code (unit, summary,
+   * "<level>")}, its attributes holding the sentences with the facts each cites, the basis of the
+   * first and the model, its confidence from the share of sentences the checks kept.
+   *
+   * @param level the unit's level, such as {@code type}
+   * @param sentences the kept sentences, at least one citing a fact
+   * @param confidence above 0 and at most 1
+   */
+  public static Fact summary(
+      RoleSpec role,
+      String model,
+      EntityId subject,
+      String level,
+      List<Sentence> sentences,
+      Basis basis,
+      double confidence,
+      long snapshot) {
+    List<Fact> cited = new ArrayList<>();
+    sentences.forEach(sentence -> cited.addAll(sentence.cites()));
+    if (cited.isEmpty()) {
+      throw new IllegalArgumentException("A summary of " + subject + " cites no fact");
+    }
+    ObjectNode attributes = FactJson.newObject();
+    ArrayNode texts = attributes.putArray("sentences");
+    for (Sentence sentence : sentences) {
+      ObjectNode one = texts.addObject();
+      one.put("text", sentence.text());
+      ArrayNode cites = one.putArray("cites");
+      Set<String> ids = new LinkedHashSet<>();
+      sentence.cites().forEach(f -> ids.add(f.id()));
+      ids.forEach(cites::add);
+    }
+    attributes.put("basis", basis.jsonName());
+    attributes.put("model", model);
+    List<String> lineage = new ArrayList<>();
+    cited.forEach(
+        f -> {
+          if (f.claimId() != null && !lineage.contains(f.claimId())) {
+            lineage.add(f.claimId());
+          }
+        });
+    Fact fact =
+        Fact.create(
+            subject,
+            SUMMARY,
+            FactObject.string(level),
+            attributes,
+            origin(role),
+            evidence(cited),
+            confidence,
             Validity.from(snapshot));
     return lineage.isEmpty() ? fact : fact.withLineage(lineage);
   }

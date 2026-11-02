@@ -1,6 +1,6 @@
 # 0025: Summary prompt wording and length
 
-Status: accepted (#71), amended by ADR 0059 (#193), ADR 0061 (#77) and ADR 0067 (#200)
+Status: accepted (#71), amended by ADR 0059 (#193), ADR 0061 (#77) and ADR 0067 (#200); its prompt wording superseded by ADR 0104 (#665)
 
 ## Context
 

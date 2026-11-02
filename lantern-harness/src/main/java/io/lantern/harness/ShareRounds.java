@@ -34,7 +34,7 @@ final class ShareRounds {
    *
    * @param item the item, or {@code null} for one whose input is not known yet
    * @param cost what it is expected to cost alone
-   * @param after the subjects of its role's items it rests on
+   * @param after the subjects of the group's items it rests on, of its own role or another
    */
   record Entry(
       RoleSession session,
@@ -169,17 +169,16 @@ final class ShareRounds {
     }
     int admitted = 0;
     List<Entry> still = new ArrayList<>();
-    // The subjects, per role, of the items that wait: an item resting on one of them waits too.
-    Map<RoleSession, java.util.Set<String>> held = new LinkedHashMap<>();
+    // The subjects of the group's items that wait: an item resting on one of them, of its own
+    // role or another of the group (a package on its types), waits too.
+    java.util.Set<String> held = new java.util.HashSet<>();
     for (Entry entry : waiting) {
       if (ended.contains(entry.id())) {
         entry.session().decided(entry, false);
         continue;
       }
-      java.util.Set<String> heldOfRole =
-          held.computeIfAbsent(entry.session(), s -> new java.util.HashSet<>());
-      if (entry.after().stream().anyMatch(heldOfRole::contains)) {
-        heldOfRole.add(entry.subject());
+      if (entry.after().stream().anyMatch(held::contains)) {
+        held.add(entry.subject());
         still.add(entry);
         continue;
       }
@@ -189,7 +188,7 @@ final class ShareRounds {
       BigDecimal after =
           committed.subtract(costs.getOrDefault(entry.session(), BigDecimal.ZERO)).add(cost);
       if (after.compareTo(share) > 0) {
-        heldOfRole.add(entry.subject());
+        held.add(entry.subject());
         still.add(entry);
         continue;
       }

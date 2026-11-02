@@ -25,7 +25,7 @@ import java.util.Set;
 final class FactSheet {
 
   /** The most facts a group of the sheet lists. */
-  static final int MAX_PER_GROUP = 10;
+  static final int MAX_PER_GROUP = 15;
 
   /** The groups of a fact sheet, in the order the prompt lists them. */
   enum Group {

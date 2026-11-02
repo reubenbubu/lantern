@@ -18,17 +18,18 @@ class FakeLlmConfigurationTest {
   @Test
   void citesWhatItIsGivenAndWordsNothing() {
     assertThat(fake.name()).isEqualTo(FakeLlmProvider.NAME);
-    assertThat(answer(Role.SUMMARIZE, "[S1] part [F1] fact"))
+    assertThat(summarize("Unit: package a.b\n<summaries>\n[S1] part\n</summaries>\n[F1] fact"))
         .isEqualTo(
-            "{{placeholder: summary of the unit from its parts}}. [S1]"
-                + " {{placeholder: description of the unit from its facts}}. [F1]");
-    assertThat(
-            answer(
-                Role.SUMMARIZE,
-                "Summarize the class Order in package a.b in 1 to 3 sentences and at most 50 words,"
-                    + " covering x.\n[F1] fact"))
-        .isEqualTo(
-            "{{placeholder: description of class Order in package a.b from its facts}}. [F1]");
+            "{\"items\": {\"I1\": {\"sentences\": [{\"text\": \"{{placeholder: summary of package"
+                + " a.b from its parts}}.\", \"cites\": [\"S1\"]}, {\"text\": \"{{placeholder:"
+                + " description of package a.b from its facts}}.\", \"cites\": [\"F1\"]}]}}}");
+    // A type's source code is cited when it has no fact before it; a merge cites what its parts do.
+    assertThat(summarize("Unit: type Order in package a.b\n<code ref=\"E1\" repo=\"r\">"))
+        .contains("\"cites\": [\"E1\"]");
+    assertThat(summarize("Unit: type Order\n<summaries>\nPart 1: It is. [F3, E1]\n</summaries>"))
+        .contains("\"cites\": [\"F3\"]");
+    assertThat(summarize("Unit: type Order\n"))
+        .isEqualTo("{\"items\": {\"I1\": {\"omitted\": true}}}");
     assertThat(answer(Role.INFER_INTENT, "[F1]")).isEqualTo("{}");
     assertThat(answer(Role.COMPOSE, "[F1]")).isEqualTo("{}");
     assertThat(
@@ -39,6 +40,19 @@ class FakeLlmConfigurationTest {
         .isEqualTo(
             "{\"title\": {\"text\": \"{{placeholder: scenario title}}\", \"cites\": [\"F1\"]}}");
     assertThat(answer(Role.RESOLVE, "[C1]")).contains("\"target\": \"unknown\"");
+  }
+
+  /** The fake's answer to a Summarize request whose item holds the text. */
+  private String summarize(String item) {
+    return fake.complete(
+            "fake-model",
+            LlmRequest.of(
+                Role.SUMMARIZE_TYPES,
+                "summarize",
+                "Rules.\n\nTask: summarise code units.",
+                "<items>\n<item id=\"I1\">\n" + item + "\n</item>\n</items>",
+                500))
+        .text();
   }
 
   private String describe(String task, String items) {

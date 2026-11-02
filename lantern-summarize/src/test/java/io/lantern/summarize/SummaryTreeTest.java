@@ -136,4 +136,32 @@ class SummaryTreeTest {
     // Modules and the rest of the tree do not get README claims.
     assertThat(repo.children().getFirst().facts()).noneMatch(f -> f.predicate().equals("claim"));
   }
+
+  @Test
+  void builtForTheModelItHoldsOnlyTheTypesItNeedsTheirPackagesAndEveryModule() {
+    // The model needs Order$Line (a component member): its declaring type and package are kept to
+    // reach it; PriceService, which the model does not name, is not summarized.
+    SummaryNode repo =
+        only(
+            SummaryTree.fromFacts(
+                TestFacts.shop().list(),
+                java.util.Set.of(EntityId.parse("type:com.example.shop.Order$Line"))));
+
+    SummaryNode core = only(only(repo.children()).children());
+    SummaryNode pkg = only(core.children());
+    SummaryNode order = only(pkg.children());
+    assertThat(order.entity().toString()).isEqualTo("type:com.example.shop.Order");
+    assertThat(only(order.children()).entity().toString())
+        .isEqualTo("type:com.example.shop.Order$Line");
+
+    // With no type the model needs, packages go too; every module stays.
+    SummaryNode bare = only(SummaryTree.fromFacts(TestFacts.shop().list(), java.util.Set.of()));
+    SummaryNode bareCore = only(only(bare.children()).children());
+    assertThat(bareCore.entity().toString()).isEqualTo("module:com.example:shop-core");
+    assertThat(bareCore.children()).isEmpty();
+    // The CONTAINS fact naming the left-out package is still a fact of the module.
+    assertThat(facts(bareCore))
+        .contains(
+            "module:com.example:shop-core CONTAINS package:com.example:shop-core:com.example.shop");
+  }
 }

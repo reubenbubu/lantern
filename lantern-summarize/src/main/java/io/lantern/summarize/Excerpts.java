@@ -23,10 +23,11 @@ final class Excerpts {
    * An excerpt of a source file.
    *
    * @param fact the ID of the fact whose evidence it comes from, which citing it cites
+   * @param repo the file's repository
    * @param path the file, relative to its repository
    * @param code the file's text, without trailing blank space
    */
-  record Excerpt(String fact, String path, String code) {}
+  record Excerpt(String fact, String repo, String path, String code) {}
 
   /**
    * The excerpts for a unit, in path order; none unless it is a type.
@@ -62,7 +63,7 @@ final class Excerpts {
       String text = files.apply(evidence).map(String::stripTrailing).orElse("");
       if (!text.isEmpty()) {
         shown.add(file);
-        excerpts.add(new Excerpt(fact.id(), evidence.path(), text));
+        excerpts.add(new Excerpt(fact.id(), evidence.repo(), evidence.path(), text));
       }
     }
     return List.copyOf(excerpts);
