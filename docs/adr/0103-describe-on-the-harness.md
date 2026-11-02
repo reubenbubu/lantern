@@ -118,7 +118,7 @@ Measured on DeepSeek V4.1 Flash on project-1 to project-4 (2026-11-02); how, the
 
 | Size | Mean difference | Lower bound | Changed (limit 5%) | Worst set | Elements' cost, four sets | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1, trial b | 0.0 | 0.0 | 0% of 216 | 0.0 | $0.008 | the noise |
+| 1, trial b | 0.0 | 0.0 | 0% of 216 (one element is not in trial b) | 0.0 | $0.008 | the noise |
 | 5 | 0.0 | 0.0 | 0% | 0.0 | $0.005 | passes |
 | 10 | 0.0 | 0.0 | 0% | 0.0 | $0.004 | passes |
 | 20 | 0.0 | 0.0 | 0% | 0.0 | $0.002 (two sets cached) | passes, capped |
