@@ -1,6 +1,6 @@
 # 0103: Describe on the harness, and the conventions every role shares
 
-Status: accepted (#528), supersedes the unit and element prompts of ADRs 0050, 0056 and 0069 and
+Status: accepted (#528), amends ADR 0083 (frontends), supersedes the unit and element prompts of ADRs 0050, 0056 and 0069 and
 the wording of their answers' checks in ADRs 0065, 0066 and 0068; amends ADR 0100 (repair turn) and
 ADR 0101 (tiers)
 
@@ -66,7 +66,16 @@ owner's standing go-ahead for milestone 1F.
   - *Counts.* An item the model leaves out counts as asked; one left out in an earlier run counts
     as reused.
   - *The report.* Documents still take the run's texts from Describe directly, as before; the
-    stored facts are what later roles and documents read.
+    stored facts are what later roles and documents read. A frontend with a responsibility
+    sentence is described by it, and by what its manifest says only without one (amends ADR
+    0083). A person keeps the description of what the code shows of them (ADR 0074).
+  - *Its own output is not its input.* Describe leaves out the `responsibility` and `intent` facts
+    of origin `llm` from what it reads, so a rerun does not show the model its earlier words and
+    re-ask every item they are about.
+  - *Unknown.* A unit whose facts show nothing to word from is not asked about and is counted
+    unknown, with every unit, component, element and interaction the model left out.
+  - *Summaries.* A summary an item shows is a fingerprint input by the hash of its text, as
+    Summarize keys a part's summary, so a summary written again to the same text re-asks nothing.
 - **The fake model** (`fake-llm`) answers Describe in the epic's form: a placeholder
   responsibility for every unit, component and element and a placeholder intent for every
   interaction, each citing the item's first fact, and `{"omitted": true}` for an item with none.
