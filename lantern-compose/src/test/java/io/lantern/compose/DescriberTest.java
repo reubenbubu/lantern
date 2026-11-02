@@ -89,10 +89,19 @@ class DescriberTest {
    */
   private static String answer(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
-    if (prompt.startsWith("The software system")) {
+    if (request.system().contains(PurposeRole.TASK)) {
       return """
-          {"purpose": {"text": "Runs an online shop's orders.", "cites": ["F%s"]}}"""
-          .formatted(prompt.contains(" claim ") ? ref(prompt, "claim") : "1");
+          {"items": {"I1": {"purpose": {"text": "Runs an online shop's orders.", "cites": ["%s"]},
+           "keyFact": {"text": "Card payments go to pay.example.com.", "cites": ["F%s"]}}}}"""
+          .formatted(
+              prompt.contains(" claim ") ? "F" + ref(prompt, "claim") : "A1",
+              // The external system's line: "- pay.example.com: [F4] ... CALLS_HTTP ...".
+              java.util.regex.Pattern.compile("\\[F([0-9]+)\\] [^\\n]* CALLS_HTTP ")
+                  .matcher(prompt)
+                  .results()
+                  .findFirst()
+                  .orElseThrow()
+                  .group(1));
     }
     java.util.regex.Matcher flows =
         java.util.regex.Pattern.compile(
@@ -388,7 +397,7 @@ class DescriberTest {
             "FLOW_SIGNIFICANCE flow-significance 1 items: shop",
             "COMPOSE flow-narrative 1 items: F",
             "COMPOSE flow-narrative 1 items: F",
-            "INFER_INTENT word the system's purpose");
+            "INFER_INTENT purpose 1 items: " + RepoSections.SYSTEM);
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
@@ -811,28 +820,36 @@ class DescriberTest {
     LlmRequest purpose =
         fake.sent().stream()
             .map(FakeLlmProvider.Sent::request)
-            .filter(r -> r.purpose().equals("word the system's purpose"))
+            .filter(r -> r.purpose().startsWith("purpose 1 items"))
             .findFirst()
             .orElseThrow();
     assertThat(purpose.role()).isEqualTo(io.lantern.llm.Role.INFER_INTENT);
-    assertThat(purpose.system()).isEqualTo(WordingPrompt.PURPOSE_SYSTEM);
-    assertThat(purpose.maxOutputTokens()).isEqualTo(Describer.MAX_PURPOSE_OUTPUT_TOKENS);
+    assertThat(purpose.system()).contains(PurposeRole.TASK);
+    assertThat(purpose.maxOutputTokens()).isEqualTo(1_000);
     assertThat(purpose.messages().getFirst().text())
         .isEqualTo(
             """
+            <items>
+            <item id="I1">
             The software system.
-
-            Its deployable units, each with what it does as worded from its facts:
-            - shop-app: Takes and lists the shop's orders.
+            Its deployable units, each with what it does:
+            - shop-app: [A1] Takes and lists the shop's orders.
               [F1] service:com.example:app application-name "shop-app" (shop:pom.xml)
               [F2] service:com.example:app deployable-unit "spring-boot" (shop:pom.xml)
-            - worker: Processes orders in the background.
+            - worker: [A2] Processes orders in the background.
               [F3] service:com.example:worker deployable-unit "spring-boot" (base:pom.xml)
-
+            The external systems it uses:
+            - pay.example.com: [F4] service:com.example:app CALLS_HTTP\
+             external-system:pay.example.com {"httpMethod":"POST","path":"/charges",\
+            "profile":"prod","protocol":"HTTPS","source":"method:com.example.web.Controller#list()"}\
+             (shop:pom.xml)
+            Its main flows:
+            - Shop lists its orders
             What the READMEs of its repositories claim:
             shop (README.md):
-              [F4] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
-            """);
+              [F5] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
+            </item>
+            </items>""");
     assertThat(result.wordings().responsibilities().get(RepoSections.SYSTEM))
         .isEqualTo(
             "Runs an online shop's orders. [fact:"
@@ -851,12 +868,11 @@ class DescriberTest {
         new FakeLlmProvider()
             .answering(
                 request -> {
-                  String prompt = request.messages().getFirst().text();
-                  if (prompt.startsWith("The software system")) {
+                  if (request.system().contains(PurposeRole.TASK)) {
                     return answer(request);
                   }
-                  // Units, data stores and destinations left out; flows as usual.
-                  return prompt.startsWith("The flow") ? answer(request) : "{}";
+                  // Units, data stores, destinations and flows left out.
+                  return "{\"items\": {\"I1\": {\"omitted\": true}}}";
                 });
 
     Describer.Result result = new Describer(harness(client(fake))).describe(withClaim);
@@ -864,7 +880,7 @@ class DescriberTest {
     assertThat(
             fake.sent().stream()
                 .map(FakeLlmProvider.Sent::request)
-                .filter(r -> r.purpose().equals("word the system's purpose"))
+                .filter(r -> r.purpose().startsWith("purpose 1 items"))
                 .findFirst()
                 .orElseThrow()
                 .messages()
@@ -872,12 +888,19 @@ class DescriberTest {
                 .text())
         .isEqualTo(
             """
+            <items>
+            <item id="I1">
             The software system.
-
+            The external systems it uses:
+            - pay.example.com: [F1] service:com.example:app CALLS_HTTP\
+             external-system:pay.example.com {"httpMethod":"POST","path":"/charges",\
+            "profile":"prod","protocol":"HTTPS","source":"method:com.example.web.Controller#list()"}\
+             (shop:pom.xml)
             What the READMEs of its repositories claim:
             shop (README.md):
-              [F1] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
-            """);
+              [F2] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
+            </item>
+            </items>""");
     assertThat(result.wordings().responsibilities()).containsKey(RepoSections.SYSTEM);
   }
 
@@ -887,8 +910,9 @@ class DescriberTest {
         new FakeLlmProvider()
             .answering(
                 request ->
-                    request.messages().getFirst().text().startsWith("The software system")
-                        ? "{\"purpose\": {\"text\": \"Sells things.\", \"cites\": [\"F99\"]}}"
+                    request.system().contains(PurposeRole.TASK)
+                        ? "{\"items\": {\"I1\": {\"purpose\": {\"text\": \"Sells things.\","
+                            + " \"cites\": [\"F99\"]}}}}"
                         : answer(request));
 
     Describer.Result result = describe(fake);
@@ -896,7 +920,7 @@ class DescriberTest {
     assertThat(result.rejected()).containsExactly(RepoSections.SYSTEM);
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
-        .contains("word the system's purpose (retry)");
+        .contains("purpose 1 items: " + RepoSections.SYSTEM + " (repair)");
     assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
     assertThat(store.size()).isEqualTo(10);
     Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
@@ -1003,9 +1027,12 @@ class DescriberTest {
                 Map.of(),
                 wordings);
 
+    // The purpose, then the key fact, in one paragraph, each cited.
     Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
-    assertThat(text(first.content())).isEqualTo("Runs an online shop's orders.");
+    assertThat(text(first.content()))
+        .isEqualTo("Runs an online shop's orders. Card payments go to pay.example.com.");
     assertThat(first.content().getLast()).isInstanceOf(Citation.class);
+    assertThat(first.content()).filteredOn(Citation.class::isInstance).hasSizeGreaterThan(1);
     DocumentEntity system =
         document.entities().stream()
             .filter(e -> e.id().equals(RepoSections.SYSTEM))
@@ -1025,7 +1052,9 @@ class DescriberTest {
     assertThat(first.content().getFirst())
         .isEqualTo(new TextRun(Assembler.INFERRED, TextRun.Style.EMPHASIS));
     assertThat(text(first.content()))
-        .isEqualTo(Assembler.INFERRED + " Runs an online shop's orders.");
+        .isEqualTo(
+            Assembler.INFERRED
+                + " Runs an online shop's orders. Card payments go to pay.example.com.");
     assertThat(
             text(
                 document.entities().stream()
@@ -1034,7 +1063,94 @@ class DescriberTest {
                     .orElseThrow()
                     .description()))
         .isEqualTo(Assembler.INFERRED + " Runs an online shop's orders.");
-    assertThat(first.facts()).containsExactly(facts.find(APP.toString(), "application-name").id());
+    assertThat(first.facts())
+        .contains(
+            facts.find(APP.toString(), "application-name").id(),
+            facts.find(APP.toString(), "CALLS_HTTP").id());
+  }
+
+  /** The purpose and key-fact role's prompt is the epic's, character for character (11.6). */
+  @Test
+  void thePurposePromptIsTheEpics() throws Exception {
+    String epic =
+        java.nio.file.Files.readString(
+            java.nio.file.Path.of("../docs/epics/001-knowledge-build.md"));
+
+    assertThat(epic).contains(PurposeRole.TASK.strip()).contains(PurposeRole.SCHEMA.strip());
+  }
+
+  @Test
+  void thePurposeAndKeyFactAreClaimsOfTheSystem() {
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    Describer.Result result =
+        new Describer(harness(client(new FakeLlmProvider().answering(DescriberTest::answer))))
+            .describe(withClaim);
+
+    List<Fact> claims = result.facts(2).get(io.lantern.harness.LlmFacts.origin(Describer.PURPOSE));
+    assertThat(claims)
+        .extracting(f -> f.subject() + " " + f.predicate() + " " + f.object().value())
+        .containsExactly(RepoSections.SYSTEM + " purpose c4", RepoSections.SYSTEM + " key-fact c4");
+    // The purpose cites the README's claim, so it is evidenced; the key fact cites code.
+    assertThat(claims)
+        .extracting(f -> f.attributes().path("basis").asString())
+        .containsExactly("evidenced", "inferred");
+    assertThat(claims.get(1).attributes().path("text").asString())
+        .isEqualTo("Card payments go to pay.example.com.");
+    assertThat(result.wordings().keyFact())
+        .isEqualTo(
+            "Card payments go to pay.example.com. [fact:"
+                + facts.find(APP.toString(), "CALLS_HTTP").id()
+                + "]");
+    for (Fact claim : claims) {
+      io.lantern.harness.LlmFacts.vocabulary().stream()
+          .filter(type -> type.name().equals(claim.predicate()))
+          .findFirst()
+          .orElseThrow()
+          .attributeSchema()
+          .validate(claim.attributes());
+    }
+  }
+
+  @Test
+  void aKeyFactWithoutAPurposeFollowsTheUnknownPurpose() {
+    FakeLlmProvider keyFactOnly =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.system().contains(PurposeRole.TASK)
+                        ? answer(request).replaceFirst("\"purpose\": \\{[^}]*\\},\\s*", "")
+                        : answer(request));
+
+    Document document = system(describe(keyFactOnly).wordings());
+
+    List<io.lantern.core.document.Block> blocks = document.sections().getFirst().blocks();
+    assertThat(text(((Callout) blocks.get(0)).content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
+    assertThat(text(((Paragraph) blocks.get(1)).content()))
+        .isEqualTo("Card payments go to pay.example.com.");
+  }
+
+  @Test
+  void withNoSentenceAndNoClaimThePurposeIsNotAsked() {
+    List<String> systems = new java.util.ArrayList<>();
+    FakeLlmProvider omitsAll =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  systems.add(request.system());
+                  List<String> entries =
+                      java.util.regex.Pattern.compile("<item id=\"(I[0-9]+)\">")
+                          .matcher(request.messages().getFirst().text())
+                          .results()
+                          .map(m -> "\"" + m.group(1) + "\": {\"omitted\": true}")
+                          .toList();
+                  return "{\"items\": {" + String.join(", ", entries) + "}}";
+                });
+
+    Describer.Result result = describe(omitsAll);
+
+    assertThat(systems).noneMatch(system -> system.contains(PurposeRole.TASK));
+    Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
+    assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
   }
 
   @Test
@@ -1043,8 +1159,8 @@ class DescriberTest {
         new FakeLlmProvider()
             .answering(
                 request ->
-                    request.messages().getFirst().text().startsWith("The software system")
-                        ? "{}"
+                    request.system().contains(PurposeRole.TASK)
+                        ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
                         : answer(request));
     Describer.Result result = describe(leavesItOut);
 

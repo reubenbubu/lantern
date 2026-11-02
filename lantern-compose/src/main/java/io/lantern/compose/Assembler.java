@@ -340,6 +340,16 @@ final class Assembler {
     return kept == null ? null : purpose(rich(RepoSections.SYSTEM, kept));
   }
 
+  /**
+   * The system's key fact (knowledge-build epic, section 11.6; ADR 0109) as rich text citing the
+   * facts that are in the snapshot, or {@code null} if the LLM wrote none or none of its citations
+   * is in the snapshot.
+   */
+  Text keyFact() {
+    String kept = known(wordings.keyFact());
+    return kept == null ? null : rich(RepoSections.SYSTEM, kept);
+  }
+
   private Text purpose(Text text) {
     return unsupported(RepoSections.SYSTEM, evidenced(text, false) ? text : inferred(text));
   }

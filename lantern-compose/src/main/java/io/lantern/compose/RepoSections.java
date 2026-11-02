@@ -305,11 +305,11 @@ final class RepoSections {
   }
 
   /**
-   * The system's purpose (ADR 0060), then its repositories, each with the deployable units whose
-   * own code it holds.
+   * The system's purpose (ADR 0060) and key fact (ADR 0109), then its repositories, each with the
+   * deployable units whose own code it holds.
    */
   private void systemOverview(String section, List<Block> blocks) {
-    blocks.add(purpose(section));
+    blocks.addAll(purpose(section));
     List<ListBlock.Item> items = new ArrayList<>();
     for (String name : repos) {
       EntityId id = Assembler.repo(name);
@@ -347,16 +347,39 @@ final class RepoSections {
   /**
    * The system's purpose as the LLM worded it, marked as inferred when it cites no README claim
    * (ADR 0059), or stated plainly as unknown in a note, which cites nothing (docs/design.md, LLM
-   * integration, Grounding).
+   * integration, Grounding); followed by the key fact, in the same paragraph when there is a
+   * purpose (ADR 0109).
    */
-  private Block purpose(String section) {
+  private List<Block> purpose(String section) {
     String id = assembler.id(section, "purpose");
     Assembler.Text purpose = assembler.purpose();
+    Assembler.Text keyFact = assembler.keyFact();
     if (purpose == null) {
-      return new Callout(
-          id, Callout.Variant.NOTE, null, null, List.of(TextRun.of(UNKNOWN_PURPOSE)), List.of());
+      List<Block> blocks = new ArrayList<>();
+      blocks.add(
+          new Callout(
+              id,
+              Callout.Variant.NOTE,
+              null,
+              null,
+              List.of(TextRun.of(UNKNOWN_PURPOSE)),
+              List.of()));
+      if (keyFact != null) {
+        blocks.add(
+            new Paragraph(assembler.id(section, "key-fact"), keyFact.content(), keyFact.facts()));
+      }
+      return blocks;
     }
-    return new Paragraph(id, purpose.content(), purpose.facts());
+    if (keyFact == null) {
+      return List.of(new Paragraph(id, purpose.content(), purpose.facts()));
+    }
+    // The purpose, then the key fact, as one paragraph (docs/quality-bar.md, Rubric, C4 report).
+    List<Inline> content = new ArrayList<>(purpose.content());
+    content.add(TextRun.of(" "));
+    content.addAll(keyFact.content());
+    List<String> facts = new ArrayList<>(purpose.facts());
+    keyFact.facts().stream().filter(f -> !facts.contains(f)).forEach(facts::add);
+    return List.of(new Paragraph(id, content, facts));
   }
 
   private Optional<Paragraph> paragraph(String section, EntityId entity) {

@@ -144,6 +144,17 @@ class EndToEndIT {
                   return "{\"items\": {\"I1\": {\"walkthrough\": {\"text\": \"It answers a"
                       + " greeting.\", \"cites\": [\"F1\"]}}}}";
                 }
+                // The system's purpose, citing the item's first reference (ADR 0109).
+                if (request.system().contains(FakeLlmConfiguration.PURPOSE_TASK)) {
+                  java.util.regex.Matcher ref =
+                      java.util.regex.Pattern.compile("\\[([FA][0-9]+)\\]").matcher(prompt);
+                  return ref.find()
+                      ? "{\"items\": {\"I1\": {\"purpose\": {\"text\": \"Greets people.\","
+                          + " \"cites\": [\""
+                          + ref.group(1)
+                          + "\"]}}}}"
+                      : "{\"items\": {\"I1\": {\"omitted\": true}}}";
+                }
                 if (request.role() == Role.INFER_INTENT) {
                   String cite = "{\"text\": \"%s\", \"cites\": [\"F1\"]}";
                   String answer =
