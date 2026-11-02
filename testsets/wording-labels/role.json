@@ -1,7 +1,7 @@
 {
   "dimension": "role",
   "question": "says what the element does for the system",
-  "status": "labelled by Claude (Opus 5.5) at the owner's request on 2026-11-02, without the judge's verdicts; the owner's spot-check of 20 labels decides whether they stand",
+  "status": "labelled by Claude (Opus 5.5) at the owner's request on 2026-11-02, without the judge's verdicts; the owner checked 20 of the first 60 and changed 2 (18 of 20 agreed), and the rest follow the owner's two corrections",
   "how": "Set each item's \"label\" to \"pass\" or \"fail\" for the question, judging the text alone; leave null when it cannot be judged. Items marked \"tune\" may be used to improve the judge's prompt; \"test\" items are held out and validate it.",
   "drawnFrom": [
     "project-1",
@@ -12,12 +12,62 @@
   ],
   "items": [
     {
+      "id": "0279b6b528a6",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:io.fleetcare:workorder-service",
+      "text": "Receives payment audit messages",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "032e62b0f2e9",
+      "set": "project-4",
+      "role": "describe-element",
+      "kind": "responsibility of a queue",
+      "about": "queue:rabbitmq:notification-service.send-message",
+      "text": "Carries requests for emails and live WebSocket notifications from other services to the service that sends them.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "037b80f37d19",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.eventplatform:attendee-service/type:com.eventplatform.attendee.integration.EventLifecycleConsumer",
+      "text": "Records the handled message",
+      "split": "test",
+      "label": "fail"
+    },
+    {
       "id": "0b91fe828ea2",
       "set": "project-4",
       "role": "purpose",
       "kind": "the most important fact about the system",
       "about": "system:snapshot",
       "text": "All client traffic enters through an API gateway that routes requests to separate services, while main-service stores CRM data in PostgreSQL and auth-service uses Redis.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "0dd73a315850",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a frontend",
+      "about": "frontend:fleetcare-web/customer-react",
+      "text": "Submits GraphQL requests for the customer portal",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "0e262ba48688",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.provider.FakePaymentProvider",
+      "text": "Simulates a payment provider, choosing payment outcomes from sandbox tokens and checking webhook signatures.",
       "split": "test",
       "label": "pass"
     },
@@ -42,12 +92,52 @@
       "label": "pass"
     },
     {
+      "id": "108235c80dac",
+      "set": "project-1",
+      "role": "describe-element",
+      "kind": "responsibility of a person",
+      "about": "person:admin",
+      "text": "Reaches protected administrative operations because the code checks for a privileged role.",
+      "split": "test",
+      "label": "fail"
+    },
+    {
+      "id": "10d95a43349b",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:io.fleetcare:edge-gateway",
+      "text": "Validates access tokens for the fleetcare realm",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "111bc0ef0603",
+      "set": "project-1",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:localhost:5434/order_db",
+      "text": "Keeps the orders placed through the system so they can be listed back.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "12ca617217a0",
       "set": "project-2",
       "role": "name-groups",
       "kind": "name of a group of components",
       "about": "group:service:com.eventplatform:attendee-service/area/path-bookings",
       "text": "Booking and ticketing",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "138002f00a23",
+      "set": "project-1",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:com.example:profile-service/area/path-public",
+      "text": "Public sign-up",
       "split": "test",
       "label": "pass"
     },
@@ -68,6 +158,16 @@
       "kind": "intent of a line drawn from a component",
       "about": "component:service:com.example:profile-service/type:com.example.profileservice.service.ProfileService",
       "text": "Finds the profile before deleting it",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "16a3d39330a5",
+      "set": "project-4",
+      "role": "describe-element",
+      "kind": "responsibility of a exchange",
+      "about": "exchange:rabbitmq:file-service.events",
+      "text": "Announces that an organization's root directory has been created so main-service can record it.",
       "split": "test",
       "label": "pass"
     },
@@ -78,6 +178,26 @@
       "kind": "responsibility of a group of components",
       "about": "group:service:com.crm.auth:auth-service/area/path-auth",
       "text": "Authenticates people, registers accounts and issues the access and refresh tokens that keep their sessions going.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "1709dcd134ba",
+      "set": "project-1",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:localhost:6379/redis",
+      "text": "Keeps browser sign-in sessions and request counts used to limit how often each user may call.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "1712a4e33f87",
+      "set": "project-4",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:${redis.host}:${redis.port}/redis",
+      "text": "Provides shared locks and stored values used while authenticating users and checking API access.",
       "split": "test",
       "label": "pass"
     },
@@ -88,6 +208,16 @@
       "kind": "responsibility of a person",
       "about": "person:invited-user",
       "text": "Receives an invitation to an organization and opens the matching invitation screen.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "191c44f10814",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:com.eventplatform:event-service",
+      "text": "Validates incoming tokens against auth-service keys",
       "split": "test",
       "label": "pass"
     },
@@ -102,6 +232,16 @@
       "label": "fail"
     },
     {
+      "id": "1c8a67b9f48e",
+      "set": "project-2",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.eventplatform:event-service/area/path-events",
+      "text": "Serves event discovery and organizer event management while keeping ticket stock, reservations and outgoing event announcements correct.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "1d43cf12f10b",
       "set": "project-2",
       "role": "purpose",
@@ -109,6 +249,16 @@
       "about": "system:snapshot",
       "text": "Each service keeps its own PostgreSQL database and shares changes with the others by publishing events through Kafka using transactional outboxes.",
       "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "20f4ce81f543",
+      "set": "project-4",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:main-service/area/path-internal",
+      "text": "Internal organization lookups",
+      "split": "test",
       "label": "pass"
     },
     {
@@ -128,7 +278,7 @@
       "kind": "the most important fact about the system",
       "about": "system:snapshot",
       "text": "The browser client sends requests through an API gateway, which routes media, subscription and user paths to the backend service for each.",
-      "split": "test",
+      "split": "tune",
       "label": "pass"
     },
     {
@@ -139,6 +289,26 @@
       "about": "component:service:main-service/type:com.crm.main.service.assignments.OrganizationUserAssignmentService",
       "text": "Looks up an organization role",
       "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "2558100a9100",
+      "set": "project-8",
+      "role": "describe-element",
+      "kind": "responsibility of a exchange",
+      "about": "exchange:rabbitmq:notification.broadcast",
+      "text": "Fans live dispatcher updates out to every subscribing listener at once.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "2629c367e875",
+      "set": "project-3",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a frontend",
+      "about": "frontend:mediahub-frontend-ui",
+      "text": "Fetches one media item's details",
+      "split": "test",
       "label": "pass"
     },
     {
@@ -158,6 +328,16 @@
       "kind": "intent of a line drawn from a component",
       "about": "component:service:main-service/type:com.crm.main.controller.TaskController",
       "text": "Fetches the organization before creating a task",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "2c4a7070a360",
+      "set": "project-4",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:main-service/area/path-organizations",
+      "text": "Runs organizations end to end: their members, roles, invitations, files and the tasks, priorities and statuses belonging to them, after permission checks.",
       "split": "test",
       "label": "pass"
     },
@@ -179,7 +359,7 @@
       "about": "component:service:com.eventplatform:notification-service/type:com.eventplatform.notification.domain.NotificationRecipientRepository",
       "text": "Stores and retrieves notification recipient records through standard persistence operations.",
       "split": "tune",
-      "label": "pass"
+      "label": "fail"
     },
     {
       "id": "3165014c7663",
@@ -188,6 +368,16 @@
       "kind": "intent of a line drawn from a component",
       "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.PaymentStateService",
       "text": "Loads a payment attempt",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "3525a22ba3bc",
+      "set": "project-8",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:io.fleetcare:billing-service/postgresql:workorder@billing.datasource.workorders.url",
+      "text": "Holds the billing ledger tables, reached by billing-service through a second, work-order datasource address.",
       "split": "test",
       "label": "pass"
     },
@@ -198,6 +388,46 @@
       "kind": "responsibility of a exchange",
       "about": "exchange:rabbitmq:billing.dead.letters",
       "text": "Carries declined-payment notices raised when the payment provider is unreachable, so a clerk is alerted.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "37426ac1117b",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:localhost:5432/payment_service",
+      "text": "Records payments, attempts, transactions and refunds, plus provider webhook events and messages waiting to be published.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "38811800e918",
+      "set": "project-1",
+      "role": "describe-element",
+      "kind": "responsibility of a external system",
+      "about": "external-system:keycloak",
+      "text": "Confirms who each user is, validates their tokens and manages user accounts across the platform.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "38d7571bddbd",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.example:profile-service/type:com.example.profileservice.controller.RegistrationController",
+      "text": "Checks whether the email is already registered",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "3a582ec00200",
+      "set": "project-2",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.eventplatform:attendee-service/area/path-check-ins",
+      "text": "Checks in issued tickets by verifying signed ticket codes and queues attendee lifecycle messages for reliable delivery.",
       "split": "test",
       "label": "pass"
     },
@@ -218,6 +448,116 @@
       "kind": "responsibility of a external system",
       "about": "external-system:loki",
       "text": "Stores structured log entries pushed by the gateway so they can be aggregated in one place.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "3bf498c60b3b",
+      "set": "project-4",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:com.crm:file/postgresql:com.crm:file",
+      "text": "Keeps files and directories with their content so uploads, downloads, changes and deletions can be served.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "3d55d1fa92e1",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.eventplatform:event-service/type:com.eventplatform.event.api.EventController",
+      "text": "Loads an event by its identifier",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "3ee0d8e86fd1",
+      "set": "project-3",
+      "role": "describe-unit",
+      "kind": "responsibility of a service",
+      "about": "service:com.mediahub:media-service",
+      "text": "Manages the streaming platform's core catalogue of movies, TV shows, genres, categories and their metadata.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "41d50c0f5f1d",
+      "set": "project-1",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.example:profile-service/area/path-public",
+      "text": "Takes public sign-up and email confirmation without revealing whether an account exists, creating and removing the matching user accounts and stored profiles.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "42cd315c5b5c",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:com.eventplatform:attendee-service/type:com.eventplatform.attendee.domain.RegistrationRepository",
+      "text": "Stores and retrieves registration records by their identifier.",
+      "split": "test",
+      "label": "fail"
+    },
+    {
+      "id": "437f5fc1f888",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:io.fleetcare:technician-service/area/path-shifts",
+      "text": "Shifts and rosters",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "4433160600b5",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:main-service/type:com.crm.main.service.consumer.CreateTaskDefaultPrioritiesConsumer",
+      "text": "Creates default task priorities when a new organization's event arrives, using configured names and colours.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "446ac346ed04",
+      "set": "project-4",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:com.crm.auth:auth-service/area/path-users",
+      "text": "User accounts and sessions",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "446f4e6fa012",
+      "set": "project-4",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.crm.auth:auth-service/area/path-internal",
+      "text": "Serves other services' requests about users, roles and permissions, and keeps stored permissions aligned whenever roles change.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "44f30c352df9",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:com.example:profile-service/type:com.example.profileservice.controller.AdminProfileController",
+      "text": "Creates a user in Keycloak plus a matching profile for administrators, rejecting callers without the ADMIN role.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "4514b4307508",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:com.example:profile-service/type:com.example.profileservice.service.ProfileService",
+      "text": "Keeps profiles in step with Keycloak accounts, deleting a new account when saving its profile fails.",
       "split": "test",
       "label": "pass"
     },
@@ -229,6 +569,16 @@
       "about": "database:localhost:5433/profile_db",
       "text": "Holds user profiles alongside registrations still awaiting email confirmation.",
       "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "472b6e38bac2",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:main-service/type:com.crm.sharedlib.rbac.aspectj.PermissionControlAspect",
+      "text": "Guards priority listing with permission check",
+      "split": "test",
       "label": "pass"
     },
     {
@@ -252,6 +602,26 @@
       "label": "pass"
     },
     {
+      "id": "4d54e14984c7",
+      "set": "project-2",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.eventplatform:attendee-service/area/path-attendees",
+      "text": "Maintains each signed-in attendee's own profile, letting them read and change their details.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "512aac6049b7",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.crm.auth:auth-service/type:com.crm.auth.service.consumer.UpdateOrganizationUserPermission",
+      "text": "Saves new roles as organization-user permissions",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "52ae005a3d13",
       "set": "project-4",
       "role": "describe-unit",
@@ -262,13 +632,63 @@
       "label": "pass"
     },
     {
+      "id": "536daa08238a",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:main-service/type:com.crm.main.service.consumer.CreateTaskDefaultPrioritiesConsumer",
+      "text": "Creates the organization's default task priorities",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "539b4a880c54",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a topic",
+      "about": "topic:kafka:event-platform.event-lifecycle.v1",
+      "text": "Carries event lifecycle changes from event-service to attendee-service and notification-service.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "539f9f2363f7",
+      "set": "project-8",
+      "role": "describe-element",
+      "kind": "responsibility of a person",
+      "about": "person:fleet-customer",
+      "text": "Arranges payment plans for amounts owed.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "53b8ab50e78a",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a person",
+      "about": "person:user",
+      "text": "Signs up and signs in through the authentication endpoints to get an account.",
+      "split": "test",
+      "label": "fail"
+    },
+    {
       "id": "551f5f97d837",
       "set": "project-8",
       "role": "describe-unit",
       "kind": "intent of a line drawn from a service",
       "about": "service:io.fleetcare:workorder-service",
       "text": "Reads a parts reservation",
-      "split": "test",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "56cbbdb05f8e",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:com.eventplatform:api-gateway/type:com.eventplatform.gateway.AuthenticationRateLimitWebFilter",
+      "text": "Throttles repeated registration, login and refresh attempts, rejecting over-limit clients by IP address.",
+      "split": "tune",
       "label": "pass"
     },
     {
@@ -288,7 +708,7 @@
       "kind": "responsibility of a group of components",
       "about": "group:service:main-service/area/path-internal",
       "text": "Answers internal questions about an organization's files and about a user's roles and membership, turning away callers who are not members.",
-      "split": "test",
+      "split": "tune",
       "label": "pass"
     },
     {
@@ -300,6 +720,86 @@
       "text": "Formats the booking marked completed",
       "split": "test",
       "label": "fail"
+    },
+    {
+      "id": "5b92497fe8d0",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.example:profile-service/type:com.example.profileservice.service.ProfileService",
+      "text": "Removes the stored profile record",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "5b9bfa887636",
+      "set": "project-4",
+      "role": "describe-element",
+      "kind": "responsibility of a person",
+      "about": "person:organization-member",
+      "text": "Signs up and signs in, and is checked for membership in an organization.",
+      "split": "test",
+      "label": "fail"
+    },
+    {
+      "id": "5d67b89c72d8",
+      "set": "project-2",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:com.eventplatform:attendee-service/area/path-check-ins",
+      "text": "Ticket check-in",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "5f3312fea684",
+      "set": "project-1",
+      "role": "describe-element",
+      "kind": "responsibility of a person",
+      "about": "person:user",
+      "text": "Registers and signs in through the public screens as a standard account holder.",
+      "split": "test",
+      "label": "fail"
+    },
+    {
+      "id": "62ee94f1ad2b",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a frontend",
+      "about": "frontend:Event-Management-platform/frontend",
+      "text": "Passes API requests to the gateway",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "659c6d3088ff",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:io.fleetcare:workorder-service/area/pkg-maintenance",
+      "text": "Keeps customers' maintenance plans, follows odometer readings and raises reminders once a plan falls due.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "6666c20d2be7",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:io.fleetcare:billing-service/area/pkg-invoice",
+      "text": "Invoices and credits",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "6751edcbb596",
+      "set": "project-8",
+      "role": "describe-element",
+      "kind": "responsibility of a external system",
+      "about": "external-system:api.textnow.example",
+      "text": "Delivers text messages to customers on behalf of the notification service.",
+      "split": "test",
+      "label": "pass"
     },
     {
       "id": "6a351fd9ed41",
@@ -318,8 +818,128 @@
       "kind": "intent of a line drawn from a service",
       "about": "service:com.example:bff",
       "text": "Falls back through the gateway",
-      "split": "test",
+      "split": "tune",
       "label": "fail"
+    },
+    {
+      "id": "6c27e5243250",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:com.crm:api-gateway",
+      "text": "Retrieves a single task",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "745f948f7555",
+      "set": "project-3",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:com.mediahub:subscription-service/type:com.mediahub.subscription_service.controller.SubscriptionController",
+      "text": "Serves subscription requests to create, retrieve, list, cancel, and check active status, and answers media-info lookups.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "762ef957dc03",
+      "set": "project-3",
+      "role": "describe-unit",
+      "kind": "responsibility of a service",
+      "about": "service:com.mediahub:subscription-service",
+      "text": "Manages user billing plans and payment status, and decides whether an active subscription permits viewing premium media.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "7911ef35e9dc",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a person",
+      "about": "person:organizer",
+      "text": "Holds the role the event endpoints require before letting someone manage events.",
+      "split": "tune",
+      "label": "fail"
+    },
+    {
+      "id": "7f6579e1b9cb",
+      "set": "project-4",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.crm.auth:auth-service/area/path-users",
+      "text": "Manages user profiles and passwords, and lets people see and end their own active sessions.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "807a29559664",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:io.fleetcare:workorder-service/area/pkg-inspection",
+      "text": "Inspection checklists",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "81b4a4cbf677",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:io.fleetcare:billing-service",
+      "text": "Reads work-order accounting figures",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "8286d67e5af4",
+      "set": "project-4",
+      "role": "name-groups",
+      "kind": "name of a group of components",
+      "about": "group:service:main-service/area/path-organizations",
+      "text": "Organizations and tasks",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "851f9f5ae3cd",
+      "set": "project-3",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:localhost:5432/user_db",
+      "text": "Holds user accounts, roles and viewing-history records, and is the authoritative source of user data.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "890a78c1f7a1",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:io.fleetcare:workorder-service/area/pkg-vehicle",
+      "text": "Tracks a vehicle's intake, release and service history and books maintenance visits as work orders.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "8943b3dfd411",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.RefundApplicationService",
+      "text": "Loads a refund for application",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "8a4117aba2b2",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "responsibility of a service",
+      "about": "service:io.fleetcare:technician-service",
+      "text": "Keeps technician records, schedules, absences and certifications, answering HTTP requests and rotating depot shifts on schedule.",
+      "split": "test",
+      "label": "pass"
     },
     {
       "id": "8c15eb1e550e",
@@ -349,7 +969,7 @@
       "about": "component:service:com.eventplatform:notification-service/type:com.eventplatform.notification.domain.NotificationPreferenceRepository",
       "text": "Stores and retrieves notification preference records through standard save, find and delete operations.",
       "split": "test",
-      "label": "pass"
+      "label": "fail"
     },
     {
       "id": "92a94df021a9",
@@ -358,6 +978,16 @@
       "kind": "responsibility of a database",
       "about": "database:media-db",
       "text": "Stores the movies, TV shows, genres, categories and metadata that make up the streaming catalogue.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "949b9f2da323",
+      "set": "project-4",
+      "role": "describe-element",
+      "kind": "responsibility of a external system",
+      "about": "external-system:smtp.gmail.com",
+      "text": "Delivers outgoing email messages to recipients on behalf of the notification service.",
       "split": "test",
       "label": "pass"
     },
@@ -368,6 +998,66 @@
       "kind": "intent of a line drawn from a component",
       "about": "component:service:io.fleetcare:technician-service/type:io.fleetcare.technician.adapter.inbound.TechnicianCertificationController",
       "text": "Saves issued or renewed certifications",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "96be961a0119",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.PaymentStateService",
+      "text": "Records a payment transaction",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "96bf8c8d962c",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:io.fleetcare:edge-gateway",
+      "text": "Forwards customer portal requests",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "983285dae435",
+      "set": "project-3",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a frontend",
+      "about": "frontend:mediahub-frontend-ui",
+      "text": "Reads the viewer's subscription history",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "9e8d06883c24",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:localhost:5432/event_service",
+      "text": "Keeps managed events, their categories, ticket types and inventory reservations, along with messages awaiting publication.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "9eec5e71973b",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:io.fleetcare:billing-service/type:io.fleetcare.billing.payment.PaymentService",
+      "text": "Looks up a payment record",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "9fbfebb80ea7",
+      "set": "project-3",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a frontend",
+      "about": "frontend:mediahub-frontend-ui",
+      "text": "Loads the catalogue of all media",
       "split": "test",
       "label": "pass"
     },
@@ -382,13 +1072,23 @@
       "label": "pass"
     },
     {
+      "id": "a1526674766a",
+      "set": "project-3",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:com.mediahub:api-gateway",
+      "text": "Forwards subscription requests to subscription service",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "a27dda5b36e7",
       "set": "project-4",
       "role": "describe-unit",
       "kind": "intent of a line drawn from a component",
       "about": "component:service:main-service/type:com.crm.main.service.wrapper.UserClientWrapper",
       "text": "Reads a user through the auth client",
-      "split": "test",
+      "split": "tune",
       "label": "pass"
     },
     {
@@ -399,6 +1099,16 @@
       "about": "component:service:com.example:gateway/type:com.example.gateway.controller.FallbackController",
       "text": "Answers failed downstream calls with a 503 problem detail naming the path the caller originally requested.",
       "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "a51fb4081a32",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.RefundApplicationService",
+      "text": "Saves a claimed refund",
+      "split": "test",
       "label": "pass"
     },
     {
@@ -422,12 +1132,42 @@
       "label": "pass"
     },
     {
+      "id": "a8a97343c507",
+      "set": "project-2",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.eventplatform:attendee-service/area/path-bookings",
+      "text": "Runs bookings from hold through payment, confirmation and ticket issue, and keeps them aligned with event and payment messages.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "b099dfce6c69",
       "set": "project-8",
       "role": "describe-unit",
       "kind": "intent of a line drawn from a service",
       "about": "service:io.fleetcare:edge-gateway",
       "text": "Forwards technician events to notification-service",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "b09fc51aa68b",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.PaymentStateService",
+      "text": "Loads a payment for claiming",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "b1c1bf074e51",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:io.fleetcare:workorder-service/area/pkg-telemetry",
+      "text": "Accepts requests for vehicle diagnostic snapshots and queues them for the vehicle side.",
       "split": "test",
       "label": "pass"
     },
@@ -442,13 +1182,53 @@
       "label": "pass"
     },
     {
+      "id": "b20d64fbf9df",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:io.fleetcare:workorder-service/area/pkg-events",
+      "text": "Cancels work orders at a customer's request and closes them after checking surrounding records, recording each change for publication.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "b35c329751f3",
+      "set": "project-3",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:subscription-db:5432/mediahub_subscription",
+      "text": "Holds subscription records, billing plans and payment status, and shows whether a user may view premium media.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "b39757474552",
+      "set": "project-2",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:com.eventplatform:event-service/area/path-event-categories",
+      "text": "Keeps event categories consistent, enforces unique identifiers and refuses to archive a category that events still use.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "b41dec8b0329",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:io.fleetcare:notification-service",
+      "text": "Consumes urgent alerts for operations",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "b5342a03da3a",
       "set": "project-8",
       "role": "describe-element",
       "kind": "responsibility of a external system",
       "about": "external-system:registry.fleetcare.example",
       "text": "Tells billing which capabilities and what status the payment registry currently reports.",
-      "split": "test",
+      "split": "tune",
       "label": "pass"
     },
     {
@@ -458,6 +1238,66 @@
       "kind": "name of a group of components",
       "about": "group:service:io.fleetcare:workorder-service/area/pkg-creation",
       "text": "Work order intake",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "b866b710788c",
+      "set": "project-8",
+      "role": "describe-element",
+      "kind": "responsibility of a queue",
+      "about": "queue:jms:billing.payment.confirmations",
+      "text": "Carries payment confirmations so billing can reconcile provider outcomes against payment attempts.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "bb2c29dba70b",
+      "set": "project-2",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.eventplatform:event-service/type:com.eventplatform.event.api.EventController",
+      "text": "Records an updated event for later sending",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "bd8616a05693",
+      "set": "project-8",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:io.fleetcare:workorder-service/postgresql:workorder",
+      "text": "Keeps work orders with their estimates, inspections, labor entries, warranty claims and closeouts.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "bdb4c2339af7",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:com.crm:api-gateway",
+      "text": "Fetches users by their identifiers",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "c143eb725191",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:main-service/type:com.crm.main.controller.TaskPriorityController",
+      "text": "Fetches one task priority",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "c1a5c45d0d56",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:com.example:profile-service/type:com.example.profileservice.controller.ProfileController",
+      "text": "Creates a profile for the token subject",
       "split": "test",
       "label": "pass"
     },
@@ -469,6 +1309,26 @@
       "about": "component:service:com.eventplatform:attendee-service/type:com.eventplatform.attendee.domain.AttendeeProfileRepository",
       "text": "Stores and retrieves attendee profile records by their identifier.",
       "split": "test",
+      "label": "fail"
+    },
+    {
+      "id": "cb2431cb3b37",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:main-service/type:com.crm.main.controller.OrganizationController",
+      "text": "Lists the organizations a user belongs to",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "cd140779b283",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:localhost:6379/redis",
+      "text": "Holds request-rate-limiter counters for the gateway and cached public event details for five minutes.",
+      "split": "test",
       "label": "pass"
     },
     {
@@ -478,7 +1338,7 @@
       "kind": "name of a group of components",
       "about": "group:service:com.example:profile-service/area/path-profile",
       "text": "Profile management",
-      "split": "test",
+      "split": "tune",
       "label": "pass"
     },
     {
@@ -490,6 +1350,26 @@
       "text": "Signs up and logs in through the application's registration and login screens.",
       "split": "tune",
       "label": "fail"
+    },
+    {
+      "id": "cfc7ca0657f9",
+      "set": "project-1",
+      "role": "describe-element",
+      "kind": "responsibility of a external system",
+      "about": "external-system:zipkin",
+      "text": "Collects tracing spans from services so individual requests can be followed as they travel.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "d21e890d3488",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:main-service/type:com.crm.main.controller.OrganizationFileController",
+      "text": "Attaches a stored file to an organization",
+      "split": "test",
+      "label": "pass"
     },
     {
       "id": "d41589e97984",
@@ -508,6 +1388,16 @@
       "kind": "intent of a line drawn from a component",
       "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.RefundApplicationService",
       "text": "Locks a payment for refund claiming",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "d53029d82ae7",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:io.fleetcare:billing-service",
+      "text": "Publishes work-order events after payment",
       "split": "test",
       "label": "pass"
     },
@@ -522,12 +1412,32 @@
       "label": "pass"
     },
     {
+      "id": "d9f31b3073a7",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:com.example:profile-service",
+      "text": "Obtains client tokens for outgoing calls",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "db98e3bc5d87",
       "set": "project-3",
       "role": "describe-unit",
       "kind": "responsibility of a component",
       "about": "component:service:com.mediahub:media-service/type:com.mediahub.media_service.controller.MediaController",
       "text": "Exposes HTTP operations to create, search, read, update and delete media entries in a standard response envelope.",
+      "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "dc121a729daa",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:com.example:profile-service",
+      "text": "Stores user profiles in PostgreSQL",
       "split": "test",
       "label": "pass"
     },
@@ -538,6 +1448,26 @@
       "kind": "responsibility of a person",
       "about": "person:admin",
       "text": "Holds the role the authentication endpoints require before granting privileged access.",
+      "split": "tune",
+      "label": "fail"
+    },
+    {
+      "id": "dddf379edcc0",
+      "set": "project-4",
+      "role": "describe-element",
+      "kind": "responsibility of a exchange",
+      "about": "exchange:rabbitmq:main-service.events",
+      "text": "Announces organization invitations, role changes, new organizations and task reminders so other services can react.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "e842e01277e6",
+      "set": "project-4",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a service",
+      "about": "service:main-service",
+      "text": "Keeps the service's own records in PostgreSQL",
       "split": "test",
       "label": "fail"
     },
@@ -548,6 +1478,26 @@
       "kind": "intent of a line drawn from a frontend",
       "about": "frontend:CRM-Frontend",
       "text": "Loads one task status",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "ee1d6f2ea531",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a topic",
+      "about": "topic:kafka:event-platform.payment-lifecycle.v1",
+      "text": "Carries payment lifecycle changes from payment-service to attendee-service and notification-service.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "f05a4a8eeb7f",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:io.fleetcare:parts-inventory-app/type:io.fleetcare.parts.api.PartReturnController",
+      "text": "Saves updated stock after inspection",
       "split": "test",
       "label": "pass"
     },
@@ -568,7 +1518,7 @@
       "kind": "responsibility of a database",
       "about": "database:com.crm.auth:auth-service/postgresql:com.crm.auth:auth-service",
       "text": "Holds users, tokens, roles, permissions and password-reset information used to verify access.",
-      "split": "test",
+      "split": "tune",
       "label": "pass"
     },
     {
@@ -582,6 +1532,16 @@
       "label": "pass"
     },
     {
+      "id": "f8004a1f78e5",
+      "set": "project-1",
+      "role": "describe-unit",
+      "kind": "responsibility of a component",
+      "about": "component:service:com.example:bff/type:com.example.bff.filter.TokenRefreshFilter",
+      "text": "Refreshes access tokens before they expire on proxied API calls, preventing mid-flight expiration downstream.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
       "id": "f81bf8b2a0f9",
       "set": "project-1",
       "role": "name-groups",
@@ -589,6 +1549,46 @@
       "about": "group:service:com.example:profile-service/area/path-profile",
       "text": "Keeps each person's profile record aligned with their user account, creating, reading and removing profiles for administrators and for the people themselves.",
       "split": "tune",
+      "label": "pass"
+    },
+    {
+      "id": "f8bedabe7e39",
+      "set": "project-8",
+      "role": "name-groups",
+      "kind": "responsibility of a group of components",
+      "about": "group:service:io.fleetcare:technician-service/area/path-shifts",
+      "text": "Runs scheduled shift rotations and serves technician profiles, skills, availability, roster summaries and shift records, limiting shift changes to dispatchers.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "fbae36251230",
+      "set": "project-8",
+      "role": "describe-element",
+      "kind": "responsibility of a person",
+      "about": "person:billing-clerk",
+      "text": "Works collections cases to recover unpaid balances.",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "fbce2badecc2",
+      "set": "project-8",
+      "role": "describe-unit",
+      "kind": "intent of a line drawn from a component",
+      "about": "component:service:io.fleetcare:telematics-ingest/type:io.fleetcare.telematics.ingress.TelemetryController",
+      "text": "Looks up newest readings for vehicle history",
+      "split": "test",
+      "label": "pass"
+    },
+    {
+      "id": "fd2d6faafa3f",
+      "set": "project-2",
+      "role": "describe-element",
+      "kind": "responsibility of a database",
+      "about": "database:localhost:5432/attendee_service",
+      "text": "Keeps attendee profiles, bookings, held seats, tickets, entry checks and the saga state that ties bookings to payments.",
+      "split": "test",
       "label": "pass"
     },
     {
@@ -608,7 +1608,7 @@
       "kind": "intent of a line drawn from a component",
       "about": "component:service:main-service/type:com.crm.main.controller.OrganizationRolesController",
       "text": "Deletes the role from the auth service",
-      "split": "test",
+      "split": "tune",
       "label": "pass"
     }
   ]

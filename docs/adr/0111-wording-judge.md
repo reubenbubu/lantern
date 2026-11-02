@@ -86,3 +86,26 @@ already checks whether a text's citations support it; that stays its job.
   labels and validation.
 - Ten-item requests of one dimension are a starting size, not calibrated; the note's packet-size
   calibration applies to the judge like any bulk role if its score comes to matter.
+
+## Amendment for #668: the first labels
+
+- **Who labelled.** At the owner's request (2026-11-02), Claude (Opus 5.5) labelled the drawn
+  texts without opening the judge's verdicts, and the owner checked 20 of the first 60, chosen
+  mostly where the label was in doubt. The owner changed 2 of the 20: a responsibility padded with
+  "through standard persistence operations" fails, since the padding says nothing; a plain
+  description of a standard tool (Zipkin collects tracing spans) is specific enough. The rest
+  were relabelled by those two rules. The labels stand as the owner's, with that provenance in each
+  file's `status`. Short line labels that name an action and its object ("Sends a charge to
+  PayGrid") pass both questions; the owner kept them.
+- **A larger draw.** At 60 texts per question the held-out labels held 3 and 8 failing texts, below
+  the 10 each class needs. The set was drawn again at 160 per question from the same recordings
+  (#529's Sonnet pass), which keeps the first 60 (the draw is seeded and fills each stratum in
+  order); the held-out labels now hold 96 passing and 10 failing for "says what it does for the
+  system", 92 and 14 for "specific".
+- **Result: not validated.** Sonnet 5.5 as the judge: "says what it does" TPR 98%, TNR 8%;
+  "specific" TPR 91%, TNR 44%. The judge passes what the labels fail where it matters most: people
+  described only by signing in or by the role an endpoint checks, and generic group names. The
+  rates are weighted by the strata, and the judge's pass stratum is 35 times its fail stratum for
+  the first question, so each of those misses weighs heavily. It also fails short line labels that
+  the labels pass, which weighs little. The judged rows stay "not validated" until the prompts are
+  tuned on the `tune` items and the labelled texts judged again.
