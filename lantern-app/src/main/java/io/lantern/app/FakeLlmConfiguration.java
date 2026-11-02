@@ -77,22 +77,32 @@ class FakeLlmConfiguration {
    * one citing its first fact or excerpt; a merge cites the first reference its parts cite.
    */
   static String summarize(LlmRequest request) {
+    String subject = subject(request.messages().getFirst().text());
+    return summarize(
+        request,
+        "{{placeholder: summary of " + subject + " from its parts}}.",
+        "{{placeholder: description of " + subject + " from its facts}}.");
+  }
+
+  /**
+   * A Summarize answer as {@link #summarize(LlmRequest)} gives, with the given sentences, or null
+   * for another request.
+   */
+  static String summarize(LlmRequest request, String fromParts, String fromFacts) {
     if (!request.system().contains("Task: summarise code units.")) {
       return null;
     }
     String prompt = request.messages().getFirst().text();
-    String subject = subject(prompt);
     List<String> sentences = new ArrayList<>();
     if (prompt.contains("[S1]")) {
-      sentences.add(sentence("{{placeholder: summary of " + subject + " from its parts}}.", "S1"));
+      sentences.add(sentence(fromParts, "S1"));
     }
     Matcher ref = SUMMARY_REF.matcher(prompt);
     while (ref.find()) {
       String found =
           ref.group(1) != null ? ref.group(1) : ref.group(2) != null ? ref.group(2) : ref.group(3);
       if (!found.startsWith("S")) {
-        sentences.add(
-            sentence("{{placeholder: description of " + subject + " from its facts}}.", found));
+        sentences.add(sentence(fromFacts, found));
         break;
       }
     }

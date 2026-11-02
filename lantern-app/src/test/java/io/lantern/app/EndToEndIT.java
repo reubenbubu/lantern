@@ -159,14 +159,11 @@ class EndToEndIT {
                   }
                   return answer + "}";
                 }
-                List<String> sentences = new ArrayList<>();
-                if (prompt.contains("[S1]")) {
-                  sentences.add("It builds on its parts. [S1]");
-                }
-                if (prompt.contains("[F1]")) {
-                  sentences.add("It is described by its facts. [F1]");
-                }
-                return String.join(" ", sentences);
+                // Summarize in the epic's form (ADR 0104).
+                String summary =
+                    FakeLlmConfiguration.summarize(
+                        request, "It builds on its parts.", "It is described by its facts.");
+                return summary != null ? summary : "{}";
               });
     }
 
@@ -710,10 +707,14 @@ class EndToEndIT {
     return validIn(result.snapshot().number(), repo);
   }
 
-  /** The stored facts of the repository that hold in the snapshot. */
+  /**
+   * The stored facts of the repository that hold in the snapshot, without what the LLM roles wrote
+   * about them, such as its summaries (ADR 0104).
+   */
   private List<Fact> validIn(long snapshot, String repo) {
     return facts.findValidAt(snapshot).stream()
         .filter(fact -> fact.evidence().repo().equals(repo))
+        .filter(fact -> fact.origin().kind() != Origin.Kind.LLM)
         .toList();
   }
 
@@ -754,7 +755,9 @@ class EndToEndIT {
     assertThat(byRole.values().stream().mapToLong(Long::longValue).sum())
         .as("LLM calls logged under a role: " + byRole)
         .isEqualTo(calls);
-    assertThat(byRole.getOrDefault(Role.SUMMARIZE, 0L))
+    // Types are summarized on the bulk role, the units above them on the other (ADR 0104).
+    assertThat(
+            byRole.getOrDefault(Role.SUMMARIZE, 0L) + byRole.getOrDefault(Role.SUMMARIZE_TYPES, 0L))
         .as("summaries")
         .isEqualTo(run.summariesGenerated());
     assertThat(byRole.getOrDefault(Role.RESOLVE, 0L))

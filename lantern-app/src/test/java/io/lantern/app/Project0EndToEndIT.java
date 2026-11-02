@@ -138,14 +138,11 @@ class Project0EndToEndIT {
                 if (request.role() == Role.RESOLVE) {
                   return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
                 }
-                List<String> sentences = new ArrayList<>();
-                if (prompt.contains("[S1]")) {
-                  sentences.add("It builds on its parts. [S1]");
-                }
-                if (prompt.contains("[F1]")) {
-                  sentences.add("It is described by its facts. [F1]");
-                }
-                return String.join(" ", sentences);
+                // Summarize in the epic's form (ADR 0104).
+                String summary =
+                    FakeLlmConfiguration.summarize(
+                        request, "It builds on its parts.", "It is described by its facts.");
+                return summary != null ? summary : "{}";
               });
     }
 
@@ -401,9 +398,7 @@ class Project0EndToEndIT {
     assertThat(askedByRecord).anySatisfy(item -> assertThat(item).startsWith(screened));
     assertThat(askedByRecord.stream().filter(item -> !item.startsWith(screened)))
         .containsExactlyInAnyOrder(
-            "summarize type:com.acme.shop.payments.PaymentController",
-            "summarize type:com.acme.shop.payments.PaymentController$Charge",
-            "summarize type:com.acme.shop.payments.PaymentController$Receipt",
+            "summarize-type type:com.acme.shop.payments.PaymentController",
             "describe-unit service:com.acme.shop:payments");
     assertThat(asked.stream().map(row -> row.get("role") + " " + row.get("subject")))
         .containsExactlyInAnyOrderElementsOf(askedByRecord);
@@ -551,16 +546,15 @@ class Project0EndToEndIT {
 
   /**
    * What renaming the payments path asks again, besides the screen of the changed file: the
-   * controller's types, whose file changed; the payments module, repository and unit, which show
-   * the endpoint fact; the storefront's modules, repository and unit, whose call to {@code
+   * controller, whose file changed (its request and response records are no component's, so they
+   * are not summarized, ADR 0104); the payments module, repository and unit, which show the
+   * endpoint fact; the storefront's modules, repository and unit, whose call to {@code
    * /api/payments} no longer meets an endpoint; the order flow, which loses its payment steps; and
    * the charge endpoint, which nothing calls now, as a flow of its own.
    */
   private static final List<String> FACT_CHANGE_REASKS =
       List.of(
-          "summarize type:com.acme.shop.payments.PaymentController",
-          "summarize type:com.acme.shop.payments.PaymentController$Charge",
-          "summarize type:com.acme.shop.payments.PaymentController$Receipt",
+          "summarize-type type:com.acme.shop.payments.PaymentController",
           "summarize module:com.acme.shop:payments",
           "summarize repo:payments",
           "describe-unit service:com.acme.shop:payments",
