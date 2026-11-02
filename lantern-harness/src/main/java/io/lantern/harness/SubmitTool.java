@@ -36,6 +36,7 @@ final class SubmitTool implements ToolBox {
   private final List<String> ids;
   private final PacketRole role;
   private final java.util.function.IntFunction<CheckInputs> inputs;
+  private final RejectedAnswer.Sink sink;
   private final Map<String, ItemAnswer> accepted = new LinkedHashMap<>();
   private final Set<String> failedOnce = new LinkedHashSet<>();
   private final Set<String> dropped = new LinkedHashSet<>();
@@ -50,8 +51,10 @@ final class SubmitTool implements ToolBox {
       List<Item> packet,
       List<String> ids,
       PacketRole role,
-      java.util.function.IntFunction<CheckInputs> inputs) {
+      java.util.function.IntFunction<CheckInputs> inputs,
+      RejectedAnswer.Sink sink) {
     this.tools = tools;
+    this.sink = sink;
     this.packet = List.copyOf(packet);
     this.ids = List.copyOf(ids);
     this.role = role;
@@ -110,6 +113,13 @@ final class SubmitTool implements ToolBox {
         ItemAnswer answer = role.read(id, packet.get(index), entry.getValue());
         List<Rejection> found =
             answer.omitted() ? List.of() : role.pipeline().check(answer, inputs.apply(index));
+        if (!found.isEmpty()) {
+          sink.rejected(
+              packet.get(index).subject(),
+              failedOnce.contains(id) ? 2 : 1,
+              entry.getValue().toString(),
+              RoleSession.reasons(found));
+        }
         if (role.partial() && partly(id, index, answer, found, verdicts)) {
           continue;
         }
@@ -178,6 +188,11 @@ final class SubmitTool implements ToolBox {
     }
     verdicts.put(id, text.append(" Submit corrected ones again, or leave them out.").toString());
     return true;
+  }
+
+  /** Whether the item was submitted wrongly twice. */
+  synchronized boolean rejectedTwice(String id) {
+    return dropped.contains(id);
   }
 
   synchronized Map<String, ItemAnswer> accepted() {

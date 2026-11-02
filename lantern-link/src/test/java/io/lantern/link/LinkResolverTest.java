@@ -483,7 +483,8 @@ class LinkResolverTest {
 
     assertThat(result.facts()).isEmpty();
     assertThat(result.rejected()).hasSize(1);
-    assertThat(store.size()).isZero();
+    // The drop is stored, so a rerun repeats it without a call (#682).
+    assertThat(store.size()).isEqualTo(1);
     assertThat(verdicts(fake.sent().get(1).request()))
         .contains("Picks K7, which is not one of this item's candidates (K1, K2)");
     assertThat(verdicts(fake.sent().get(2).request())).contains("rejected again and dropped");

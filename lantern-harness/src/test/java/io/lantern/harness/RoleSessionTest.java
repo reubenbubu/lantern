@@ -115,7 +115,7 @@ class RoleSessionTest {
   }
 
   @Test
-  void anOmittedAnswerIsCachedAndADroppedOneIsNot() {
+  void anOmittedAnswerAndADropAreBothRepeatedWithoutACall() {
     RoleSession session = harness(client(fake), store).session(role());
     Item omitted = item("omitted");
     Item dropped = item("dropped");
@@ -132,9 +132,15 @@ class RoleSessionTest {
                 .kind())
         .isEqualTo(Outcome.Kind.DROPPED);
 
+    // A rerun on the same inputs repeats both without a call (#682).
+    int sent = fake.sent().size();
     RoleSession again = harness(client(fake), store).session(role());
     assertThat(again.ask(omitted, asking(omitted)).kind()).isEqualTo(Outcome.Kind.CACHED);
-    assertThat(again.ask(dropped, asking(dropped)).kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    Outcome repeated = again.ask(dropped, asking(dropped));
+    assertThat(repeated.kind()).isEqualTo(Outcome.Kind.DROPPED);
+    assertThat(repeated.reason()).isEqualTo("dropped when last asked: rejected twice");
+    assertThat(fake.sent()).hasSize(sent);
+    assertThat(again.record().cached()).isEqualTo(2);
   }
 
   @Test
@@ -190,7 +196,13 @@ class RoleSessionTest {
     assertThat(rejecting.sent()).hasSize(2);
     LlmRequest repair = rejecting.sent().get(1).request();
     assertThat(repair.messages().getLast().text()).isEqualTo("Fix: It cites F9. It is too long.");
-    assertThat(store.size()).isZero();
+    // The drop is stored with why, and both rejected answers are noted for the run (#682).
+    assertThat(store.size()).isEqualTo(1);
+    assertThat(store.find(outcome.fingerprint()).orElseThrow().dropped())
+        .startsWith("Rejected twice");
+    assertThat(harness.rejections()).extracting(RejectedAnswer::attempt).containsExactly(1, 2, 0);
+    assertThat(harness.rejections().getFirst().reasons())
+        .containsExactly("It cites F9. It is too long.");
   }
 
   @Test

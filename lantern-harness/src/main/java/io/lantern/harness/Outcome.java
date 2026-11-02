@@ -19,7 +19,10 @@ public record Outcome(Kind kind, String fingerprint, String answer, String reaso
     ANSWERED,
     /** The model answered that its inputs show nothing for it, a correct answer, now cached. */
     OMITTED,
-    /** Its answer failed the checks twice; nothing is stored. */
+    /**
+     * Its answer failed the checks twice. The drop is stored with why, so a rerun on the same
+     * inputs repeats it without a call (#682).
+     */
     DROPPED,
     /**
      * It was not asked, or got no answer: its role's share of the run budget was spent, a budget

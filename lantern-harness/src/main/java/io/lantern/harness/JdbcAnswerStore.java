@@ -19,7 +19,7 @@ public final class JdbcAnswerStore implements AnswerStore {
   private static final String COLUMNS =
       """
       fingerprint, role, subject, prompt_version, provider, model, omitted, answer::text AS answer,
-      files_read::text AS files_read, inputs::text AS inputs
+      dropped, files_read::text AS files_read, inputs::text AS inputs
       """;
 
   private final JdbcClient jdbc;
@@ -42,7 +42,7 @@ public final class JdbcAnswerStore implements AnswerStore {
     return jdbc.sql(
             "SELECT "
                 + COLUMNS
-                + " FROM llm_answers WHERE role = :role AND subject = :subject"
+                + " FROM llm_answers WHERE role = :role AND subject = :subject AND dropped IS NULL"
                 + " ORDER BY seq DESC LIMIT 1")
         .param("role", role)
         .param("subject", subject)
@@ -77,13 +77,14 @@ public final class JdbcAnswerStore implements AnswerStore {
     jdbc.sql(
             """
             INSERT INTO llm_answers (fingerprint, role, subject, prompt_version, provider, model,
-                                     omitted, answer, files_read, inputs)
+                                     omitted, answer, dropped, files_read, inputs)
             VALUES (:fingerprint, :role, :subject, :promptVersion, :provider, :model, :omitted,
-                    CAST(:answer AS jsonb), CAST(:files AS jsonb), CAST(:inputs AS jsonb))
+                    CAST(:answer AS jsonb), :dropped, CAST(:files AS jsonb),
+                    CAST(:inputs AS jsonb))
             ON CONFLICT (fingerprint) DO UPDATE
               SET seq = nextval(pg_get_serial_sequence('llm_answers', 'seq')),
                   role = EXCLUDED.role, subject = EXCLUDED.subject,
-                  omitted = EXCLUDED.omitted, answer = EXCLUDED.answer,
+                  omitted = EXCLUDED.omitted, answer = EXCLUDED.answer, dropped = EXCLUDED.dropped,
                   files_read = EXCLUDED.files_read, inputs = EXCLUDED.inputs,
                   created_at = now()
             """)
@@ -95,6 +96,7 @@ public final class JdbcAnswerStore implements AnswerStore {
         .param("model", answer.model())
         .param("omitted", answer.omitted())
         .param("answer", answer.answer())
+        .param("dropped", answer.dropped())
         .param("files", JSON.writeValueAsString(files))
         .param("inputs", JSON.writeValueAsString(inputs))
         .update();
@@ -127,6 +129,7 @@ public final class JdbcAnswerStore implements AnswerStore {
         row.getString("model"),
         row.getBoolean("omitted"),
         row.getString("answer"),
+        row.getString("dropped"),
         files,
         inputs);
   }

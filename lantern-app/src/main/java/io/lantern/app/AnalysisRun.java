@@ -614,6 +614,7 @@ public final class AnalysisRun {
                   callLog.conversationsSince(started),
                   harness.records()));
       LOG.info("Wrote {}", runRecord);
+      LOG.info("Wrote {}", Rejections.write(out, harness.rejections()));
       // With the first link step's facts, the facts extractors recorded before they kept values as
       // written, which extraction coverage counts as theirs (ADR 0094).
       List<Fact> written = new ArrayList<>(found);

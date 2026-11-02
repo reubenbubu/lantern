@@ -110,8 +110,9 @@ public final class LeadRules {
    * unit and sending method.
    */
   static final class SendBeforeCommit extends LeadRule {
-    private static final Set<String> SENDS =
-        Set.of("message-send", "http-call", "mail-send", "stomp-send");
+    // A list, not a set: each method's sends are kept in this order, the same in every run (#682).
+    private static final List<String> SENDS =
+        List.of("message-send", "http-call", "mail-send", "stomp-send");
 
     /** Propagations that run the method outside a transaction, or join one only if it exists. */
     private static final Set<String> NO_TRANSACTION = Set.of("NOT_SUPPORTED", "NEVER", "SUPPORTS");
@@ -587,8 +588,10 @@ public final class LeadRules {
    * relay.
    */
   static final class SingleInstance extends LeadRule {
-    private static final Set<String> RUNTIME =
-        Set.of(
+    // A list, not a set: the first link of a unit to a container is the one cited, so the order
+    // must be the same in every run (#682); Set.of iterates in an order that changes per JVM.
+    private static final List<String> RUNTIME =
+        List.of(
             "CALLS_HTTP",
             "USES_DATABASE",
             "PUBLISHES",

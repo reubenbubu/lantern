@@ -941,7 +941,7 @@ class SummarizerTest {
             "<rejection item=\"I1\" field=\"sentences.1\">Cites nothing; every sentence cites"
                 + " the references it rests on.</rejection>");
     assertThat(fake.sent().get(1).request().purpose()).endsWith("(retry)");
-    assertThat(store.size()).isZero();
+    assertThat(store.size()).isEqualTo(1); // the drop, repeated by a rerun (#682)
   }
 
   @Test
@@ -1176,7 +1176,7 @@ class SummarizerTest {
     assertThat(result.rejected()).containsExactly(line);
     assertThat(result.summaries()).doesNotContainKey(line).hasSize(6);
     assertThat(result.generated()).isEqualTo(6);
-    assertThat(store.size()).isEqualTo(6);
+    assertThat(store.size()).isEqualTo(7);
     Summary order = result.summaries().get(EntityId.parse("type:com.example.shop.Order"));
     assertThat(order.inputSummaries()).isEmpty();
     assertThat(result.summaries().get(EntityId.parse("repo:shop"))).isNotNull();
@@ -1197,24 +1197,16 @@ class SummarizerTest {
                     .contains("Line is a line of an order."));
     assertThat(rejections.get(1)).contains("(retry)");
 
-    // A rerun tries the unit again, and summarizes again what its new summary changes.
+    // A rerun on the same inputs repeats the drop without a call, even with a model that would
+    // now answer, so the document stays the same (#682).
     fake.answering(Answers.epic(SummarizerTest::citingAll));
     int before = fake.sent().size();
     Summarizer.Result rerun =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
-    assertThat(rerun.rejected()).isEmpty();
-    assertThat(rerun.summaries()).hasSize(7);
-    assertThat(fake.sent().subList(before, fake.sent().size()))
-        .extracting(s -> unit(s.request()))
-        .containsExactly(
-            "type:com.example.shop.Order$Line",
-            "type:com.example.shop.Order",
-            "package:com.example:shop-core:com.example.shop",
-            "module:com.example:shop-core",
-            "module:com.example:shop",
-            "repo:shop");
-    assertThat(rerun.reused()).isEqualTo(1);
+    assertThat(rerun.rejected()).containsExactly(line);
+    assertThat(rerun.summaries()).hasSize(6);
+    assertThat(fake.sent()).hasSize(before);
   }
 
   /** A type with one fact and the given member types. */
@@ -1240,7 +1232,7 @@ class SummarizerTest {
         .isInstanceOf(SummaryRejectedException.class)
         .hasMessageStartingWith("The first " + Summarizer.EARLY_STOP + " units were all rejected.")
         .hasMessageContaining("Cites nothing");
-    assertThat(store.size()).isZero();
+    assertThat(store.size()).isEqualTo(Summarizer.EARLY_STOP); // the drops (#682)
   }
 
   @Test
@@ -1881,7 +1873,7 @@ class SummarizerTest {
 
     assertThat(result.summaries()).isEmpty();
     assertThat(result.rejected()).containsExactly(big.entity());
-    assertThat(store.size()).isZero();
+    assertThat(store.size()).isEqualTo(1); // the drop (#682)
   }
 
   @Test

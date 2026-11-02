@@ -105,6 +105,15 @@ public final class RoleRecord implements LlmCallLog {
         b.shareUsd());
   }
 
+  /**
+   * Counts an item the cache settled without a call: its answer, an omission, or a drop it repeats
+   * (#682); each counts as cached.
+   */
+  synchronized void reused(String subject, Outcome outcome) {
+    cached++;
+    reused.add(subject);
+  }
+
   synchronized void outcome(String subject, Outcome outcome, boolean wasRepaired) {
     switch (outcome.kind()) {
       case CACHED -> cached++;

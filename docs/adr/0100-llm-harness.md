@@ -211,3 +211,27 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   before that ends at an earlier turn within 20 blocks, as a provider does, and simulates the cache on tool-call
   answers as well. The recorded Resolve tool loop in `LinkResolverTest` was re-recorded from its
   scripted fake model, since its requests now carry breakpoints, which are part of the replay key.
+
+## Amendment for #682
+
+A rerun on the same inputs makes no call, drops included. Before, an item whose answer failed the
+checks twice was not stored, so every rerun asked it again; when the retry passed, everything
+resting on it changed too, and a warm rerun of project-4 made 241 calls.
+
+- **A drop is stored.** `llm_answers` gets a `dropped` column holding why (V25). Such a row has no
+  answer and is not omitted. A rerun on the same fingerprint repeats the drop without a call; the
+  run record counts it as cached, and the role sees it as dropped, as before. It is asked again
+  when its fingerprint changes: its inputs, the prompt version or the model. Resolve's fallback to
+  the last answer for a subject skips drops.
+- **Not every drop is stored.** These still ask again on a rerun:
+  - an answer whose repair was cut off at its length limit, which a larger limit may let through;
+  - an item a conversation's cap ended before the model could correct it;
+  - provider errors and items the budget left unasked, as before.
+- **Every rejection is written down.** Each answer the checks rejected is listed with the run's
+  documents as `rejections.jsonl.gz`: the role, the subject, the attempt (1 the first answer, 2
+  after the repair turn), the text rejected and the reasons. It covers the first answer rejected
+  then repaired as well as each drop (attempt 0, with why), in every path: single items, packets
+  and agent conversations. `scripts/score-testsets.sh` copies it beside `run.json`.
+- **Fixed orders.** Two lead rules looped over a `Set.of`, whose order changes from one JVM to the
+  next, and kept the first match, so a rerun could cite another link and ask its lead again. They
+  loop over lists.

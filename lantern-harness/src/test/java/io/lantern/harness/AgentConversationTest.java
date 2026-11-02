@@ -117,7 +117,8 @@ class AgentConversationTest {
     assertThat(fake.sent().getFirst().request().tools())
         .extracting(LlmTool::name)
         .containsExactly("look", "submit");
-    assertThat(store.size()).isEqualTo(2);
+    assertThat(store.size()).isEqualTo(3);
+    assertThat(store.find(outcomes.get("c").fingerprint()).orElseThrow().isDropped()).isTrue();
   }
 
   /**

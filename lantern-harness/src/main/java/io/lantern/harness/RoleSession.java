@@ -521,11 +521,8 @@ public final class RoleSession {
     String fingerprint = fingerprint(item);
     Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
     if (stored.isPresent() && revalidated(stored.get()) && holds.test(stored.get())) {
-      Outcome outcome =
-          stored.get().omitted()
-              ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
-              : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null);
-      record.outcome(item.subject(), outcome, false);
+      Outcome outcome = reused(stored.get());
+      record.reused(item.subject(), outcome);
       settledWithoutAsking(item);
       return outcome;
     }
@@ -553,7 +550,7 @@ public final class RoleSession {
     if (first) {
       record.warmUp(item.subject());
     }
-    Calls calls = new Calls(this, client);
+    Calls calls = new Calls(this, client, item.subject());
     Outcome outcome;
     try {
       Answer answer = asker.ask(calls);
@@ -563,7 +560,7 @@ public final class RoleSession {
               ? Outcome.of(Outcome.Kind.OMITTED, fingerprint, null, "omitted")
               : Outcome.of(Outcome.Kind.ANSWERED, fingerprint, answer.json(), null);
     } catch (ItemDropped e) {
-      outcome = Outcome.of(Outcome.Kind.DROPPED, fingerprint, null, e.getMessage());
+      outcome = dropped(item, e.getMessage(), List.of(), e.kept());
     } catch (BudgetExceededException e) {
       outcome = Outcome.of(Outcome.Kind.NOT_ASKED, fingerprint, null, e.getMessage());
       LOG.warn("Not asked about {} for {}: {}", item.subject(), spec.name(), e.getMessage());
@@ -644,13 +641,7 @@ public final class RoleSession {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
       if (stored.isPresent() && revalidated(stored.get())) {
-        settle(
-            outcomes,
-            item,
-            stored.get().omitted()
-                ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
-                : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
-            false);
+        settleReused(outcomes, item, reused(stored.get()));
       } else {
         misses.add(item);
       }
@@ -795,6 +786,14 @@ public final class RoleSession {
         }
         check(id, packet.get(i), entry, role, inputs.get(i), accepted, rejected);
       }
+      for (Map.Entry<String, List<Rejection>> each : rejected.entrySet()) {
+        JsonNode entry = firstEntries.get(each.getKey());
+        rejected(
+            packet.get(ids.indexOf(each.getKey())).subject(),
+            1,
+            entry == null ? first.text() : entry.toString(),
+            reasons(each.getValue()));
+      }
       Map<String, Boolean> repairedIds = new LinkedHashMap<>();
       if (!rejected.isEmpty()) {
         List<Rejection> all = rejected.values().stream().flatMap(List::stream).toList();
@@ -813,6 +812,9 @@ public final class RoleSession {
           Map<String, List<Rejection>> again = new LinkedHashMap<>();
           if (entry != null) {
             check(id, item, entry, role, inputs.get(ids.indexOf(id)), accepted, again);
+            if (again.containsKey(id)) {
+              rejected(item.subject(), 2, entry.toString(), reasons(again.get(id)));
+            }
             // A field rejected again is left out, and the rest of the item kept.
             if (again.containsKey(id) && !Entries.whole(again.get(id))) {
               JsonNode kept = Entries.without(entry, again.get(id));
@@ -828,11 +830,15 @@ public final class RoleSession {
             settle(
                 outcomes,
                 item,
-                Outcome.of(
-                    Outcome.Kind.DROPPED,
-                    fingerprint(item),
-                    null,
-                    entry == null ? "rejected and not corrected" : "rejected twice"),
+                dropped(
+                    item,
+                    entry == null
+                        ? "rejected and not corrected: "
+                            + String.join(" ", reasons(rejected.get(id)))
+                        : "rejected twice: " + String.join(" ", reasons(again.get(id))),
+                    List.of(),
+                    // Not stored when the repair was cut off: a larger limit may let it through.
+                    !second.cutOff()),
                 false);
           } else {
             repairedIds.put(id, true);
@@ -947,13 +953,7 @@ public final class RoleSession {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
       if (stored.isPresent() && revalidated(stored.get()) && holds.test(stored.get())) {
-        settle(
-            outcomes,
-            item,
-            stored.get().omitted()
-                ? Outcome.of(Outcome.Kind.CACHED, fingerprint, null, "omitted")
-                : Outcome.of(Outcome.Kind.CACHED, fingerprint, stored.get().answer(), null),
-            false);
+        settleReused(outcomes, item, reused(stored.get()));
       } else {
         packet.add(item);
       }
@@ -981,7 +981,8 @@ public final class RoleSession {
             packet,
             ids,
             role,
-            index -> role.inputs(packet, ids, index).withSecrets(harness.secrets()));
+            index -> role.inputs(packet, ids, index).withSecrets(harness.secrets()),
+            this::rejected);
     LlmRequest request =
         role.layout(packet, ids)
             .request(
@@ -991,10 +992,12 @@ public final class RoleSession {
                 submit.tools());
     io.lantern.llm.Conversation conversation = client.converse(request, submit, spec.limits());
     LlmException failure = null;
+    boolean capped = false;
     try {
       conversation.answer();
       conversation.end(io.lantern.llm.LlmConversation.Ending.ANSWERED);
     } catch (io.lantern.llm.ConversationCappedException e) {
+      capped = true;
       LOG.info("{} kept what was submitted before: {}", request.purpose(), e.getMessage());
     } catch (BudgetExceededException e) {
       failure = e;
@@ -1019,10 +1022,12 @@ public final class RoleSession {
                 : Outcome.of(Outcome.Kind.ANSWERED, fingerprint, json, null),
             submit.repaired(id));
       } else if (submit.dropped().contains(id)) {
+        // Stored when the model got it wrong twice, or left it uncorrected in a conversation that
+        // ended on its own; not when a cap ended the conversation before it could correct it.
         settle(
             outcomes,
             item,
-            Outcome.of(Outcome.Kind.DROPPED, fingerprint, null, "rejected twice"),
+            dropped(item, "rejected twice", read, submit.rejectedTwice(id) || !capped),
             false);
       } else if (failure instanceof BudgetExceededException) {
         settle(
@@ -1046,6 +1051,77 @@ public final class RoleSession {
             false);
       }
     }
+  }
+
+  /**
+   * What a stored answer gives a rerun: the answer, an omission, or the drop it repeats without a
+   * call (#682).
+   */
+  private static Outcome reused(StoredAnswer stored) {
+    if (stored.isDropped()) {
+      return Outcome.of(
+          Outcome.Kind.DROPPED,
+          stored.fingerprint(),
+          null,
+          "dropped when last asked: " + stored.dropped());
+    }
+    return stored.omitted()
+        ? Outcome.of(Outcome.Kind.CACHED, stored.fingerprint(), null, "omitted")
+        : Outcome.of(Outcome.Kind.CACHED, stored.fingerprint(), stored.answer(), null);
+  }
+
+  private void settleReused(Map<String, Outcome> outcomes, Item item, Outcome outcome) {
+    synchronized (this) {
+      outcomes.put(item.subject(), outcome);
+      record.reused(item.subject(), outcome);
+    }
+    ended(item);
+  }
+
+  /**
+   * Drops an item whose answer failed the checks twice: stores the drop under its fingerprint, so a
+   * rerun on the same inputs repeats it without a call (#682), and notes it for the run's list of
+   * rejections.
+   */
+  private Outcome dropped(Item item, String reason, List<FileRead> filesRead, boolean kept) {
+    String fingerprint = fingerprint(item);
+    harness.rejected(
+        new RejectedAnswer(spec.name(), item.subject(), 0, null, List.of(String.valueOf(reason))));
+    if (!kept) {
+      return Outcome.of(Outcome.Kind.DROPPED, fingerprint, null, reason);
+    }
+    harness
+        .answers()
+        .save(
+            new StoredAnswer(
+                fingerprint,
+                spec.name(),
+                item.subject(),
+                cacheVersion(),
+                model.provider(),
+                model.model(),
+                false,
+                null,
+                reason == null || reason.isBlank() ? "rejected twice" : reason,
+                filesRead,
+                item.inputs()));
+    return Outcome.of(Outcome.Kind.DROPPED, fingerprint, null, reason);
+  }
+
+  /** Notes an answer the checks rejected, for the run's list of rejections (#682). */
+  void rejected(String subject, int attempt, String answer, List<String> reasons) {
+    harness.rejected(new RejectedAnswer(spec.name(), subject, attempt, answer, reasons));
+  }
+
+  /** The checks' rejections as readable reasons, each with the field it names. */
+  static List<String> reasons(List<Rejection> rejections) {
+    List<String> reasons = new ArrayList<>();
+    for (Rejection rejection : rejections) {
+      String field =
+          rejection.field() == null || rejection.field().isEmpty() ? "" : rejection.field() + ": ";
+      reasons.add(field + rejection.reason());
+    }
+    return reasons;
   }
 
   /** Stores an accepted answer under the item's fingerprint. */
