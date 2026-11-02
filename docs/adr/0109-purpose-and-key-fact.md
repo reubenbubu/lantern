@@ -16,12 +16,16 @@ under the owner's standing go-ahead for milestone 1F.
 
 - **Where it runs.** Last in Describe, after the units, elements and flows: its item shows what
   they wrote. Under a budget it keeps the first claim on the `flows-and-purpose` share (#659),
-  planned on an item of the expected size before anything is asked.
+  planned before anything is asked on an item of the expected size: each unit and person with a
+  sentence of typical length, each external system, seven flow titles, the README claims, and the
+  prompt with its schema.
 - **The item.** One, its subject `system:snapshot`, asked alone on the reasoning tier
   (`Role.INFER_INTENT`), interactive. It shows:
-  - each unit's and person's responsibility as `[A..]`, by name, at most 30 each, and under each
-    the facts it cites as `[F..]`, at most 8, so the key fact can cite the facts behind a
-    sentence (rule 4 of the common prompt wants a cited input for every name);
+  - each unit's and person's responsibility as `[A..]`, by name (its reference keyed by the
+    element, so two of one name are two references), at most 30 each, and under each the facts
+    it cites as `[F..]`, at most 8, so the key fact can cite the facts behind a sentence (rule 4
+    of the common prompt wants a cited input for every name); citing the sentence stands for
+    those shown facts;
   - each external system by name, with the fact that shows it;
   - the titles of the flows the system's report draws, in order, which are not citable;
   - each repository's README claims, of its README with the fewest folders, at most 8.
@@ -32,7 +36,8 @@ under the owner's standing go-ahead for milestone 1F.
   cites.
 - **Claims.** `(system, purpose, "c4")` and `(system, key-fact, "c4")`, each with its text, cites,
   basis and model, new vocabulary types of the roles (`llm-types.json`). A text is evidenced when
-  it cites a README claim, else inferred (ADR 0060). Both are left out of the roles' inputs
+  it cites a README claim, directly or through a sentence that cites one, as the documents mark
+  it, else inferred (ADR 0060). Both are left out of the roles' inputs
   (`Describer.withoutTexts`).
 - **The first paragraph.** The purpose, marked "Purpose inferred from the code:" when it cites no
   README claim (ADR 0059), then the key fact in the same paragraph, each with its citations; then

@@ -335,9 +335,15 @@ public final class Describer {
     // units' sentences, so its claim is planned now on a prompt of their expected size.
     RoleSession purposeSession = harness.session(PURPOSE);
     long purposePrefix =
-        Tokens.estimate(io.lantern.harness.checks.CommonPrompt.SYSTEM + PurposeRole.TASK);
+        Tokens.estimate(
+            io.lantern.harness.checks.CommonPrompt.SYSTEM
+                + PurposeRole.TASK
+                + DescribeRole.SCHEMA_HEADING
+                + PurposeRole.SCHEMA);
     Optional<PurposeRole.Asked> expected =
-        purposeSession.underShare() ? expectedPurpose(knowledge, unitItems) : Optional.empty();
+        purposeSession.underShare()
+            ? expectedPurpose(knowledge, unitItems, describeItems.elements())
+            : Optional.empty();
     expected.ifPresent(
         a ->
             purposeSession.claim(
@@ -368,7 +374,9 @@ public final class Describer {
               described.element(), new DescribeRole.Answered(text.text(), text.cited()));
           sentences.add(
               new PurposeRole.Said(
-                  described.name(), new DescribeRole.Answered(text.text(), text.cited())));
+                  described.element(),
+                  described.name(),
+                  new DescribeRole.Answered(text.text(), text.cited())));
         }
       }
     }
@@ -403,7 +411,9 @@ public final class Describer {
                 t ->
                     people.add(
                         new PurposeRole.Said(
-                            described.name(), new DescribeRole.Answered(t.text(), t.cited()))));
+                            described.element(),
+                            described.name(),
+                            new DescribeRole.Answered(t.text(), t.cited()))));
       } else if (described.element().type().equals(C4Views.EXTERNAL_SYSTEM)) {
         firstFact(described).ifPresent(f -> externals.putIfAbsent(described.name(), f));
       }
@@ -948,8 +958,10 @@ public final class Describer {
    * the READMEs' claims. Its size is what the purpose's claim on its share is planned on.
    */
   private static Optional<PurposeRole.Asked> expectedPurpose(
-      Knowledge knowledge, List<DescribeRole.Described> items) {
+      Knowledge knowledge, List<DescribeRole.Described> items, Collection<EntityId> elements) {
     List<PurposeRole.Said> units = new ArrayList<>();
+    List<PurposeRole.Said> people = new ArrayList<>();
+    Map<String, Fact> externals = new java.util.TreeMap<>();
     for (DescribeRole.Described described : items) {
       if (described.asksUnit()) {
         List<Fact> facts = new ArrayList<>();
@@ -959,13 +971,31 @@ public final class Describer {
         List<Fact> sorted = byLine(facts);
         units.add(
             new PurposeRole.Said(
+                described.element(),
                 described.name(),
                 new DescribeRole.Answered(
                     EXPECTED_SENTENCE,
                     sorted.subList(0, Math.min(EXPECTED_CITES, sorted.size())))));
       }
     }
-    return PurposeRole.item(units, List.of(), Map.of(), List.of(), claims(knowledge));
+    // Each person with a sentence of the expected length, each external system with a fact of
+    // the size of a call to it (the first unit fact stands in for its size), and as many flow
+    // titles as a scope draws by rank.
+    Fact sample =
+        units.stream().flatMap(u -> u.answered().cited().stream()).findFirst().orElse(null);
+    for (EntityId element : elements) {
+      if (element.type().equals(C4Views.PERSON)) {
+        people.add(
+            new PurposeRole.Said(
+                element,
+                element.toString(),
+                new DescribeRole.Answered(EXPECTED_SENTENCE, List.of())));
+      } else if (element.type().equals(C4Views.EXTERNAL_SYSTEM) && sample != null) {
+        externals.put(element.toString(), sample);
+      }
+    }
+    List<String> flows = java.util.Collections.nCopies(7, "Customer places an order");
+    return PurposeRole.item(units, people, externals, flows, claims(knowledge));
   }
 
   /**

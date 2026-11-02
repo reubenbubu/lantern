@@ -88,10 +88,11 @@ final class PurposeRole {
   /**
    * A sentence Describe wrote, with what it is about.
    *
+   * @param about the element it is about, which keys its reference
    * @param name the element's name, as documents give it
    * @param answered the sentence and the facts it cites
    */
-  record Said(String name, DescribeRole.Answered answered) {}
+  record Said(EntityId about, String name, DescribeRole.Answered answered) {}
 
   /** An item with what its references stand for. */
   record Asked(Item item, Refs refs) {}
@@ -149,13 +150,16 @@ final class PurposeRole {
           (readme, facts) -> {
             text.append(FactLines.oneLine(readme)).append(":\n");
             for (Fact fact : facts.subList(0, Math.min(MAX_CLAIMS, facts.size()))) {
+              boolean shown = refs.shown('F', key(fact));
               String line = FactLines.line(fact);
               text.append("  [")
                   .append(refs.add('F', key(fact), fact, line))
                   .append("] ")
-                  .append(line)
+                  .append(shown ? "(as above)" : line)
                   .append('\n');
-              inputs.add(DescribeRole.input(fact));
+              if (!shown) {
+                inputs.add(DescribeRole.input(fact));
+              }
             }
           });
     }
@@ -173,22 +177,32 @@ final class PurposeRole {
       return;
     }
     List<Said> sorted = new ArrayList<>(said);
-    sorted.sort(java.util.Comparator.comparing(Said::name).thenComparing(s -> s.answered().text()));
+    sorted.sort(
+        java.util.Comparator.comparing(Said::name)
+            .thenComparing(s -> s.about().toString())
+            .thenComparing(s -> s.answered().text()));
     text.append(heading).append('\n');
     for (Said one : sorted.subList(0, Math.min(MAX_SENTENCES, sorted.size()))) {
       String sentence = FactLines.oneLine(one.answered().text());
+      // The facts it cites, so the purpose and key fact can cite them too, at most MAX_CITED: a
+      // citation of the sentence stands for those shown only.
+      List<Fact> cited = FactLines.sorted(one.answered().cited());
+      List<Fact> shownFacts = List.copyOf(cited.subList(0, Math.min(MAX_CITED, cited.size())));
       text.append("- ")
           .append(FactLines.oneLine(one.name()))
           .append(": [")
-          .append(refs.add('A', one.name(), one.answered(), sentence))
+          .append(
+              refs.add(
+                  'A',
+                  one.about().toString(),
+                  new DescribeRole.Answered(one.answered().text(), shownFacts),
+                  sentence))
           .append("] ")
           .append(sentence)
           .append('\n');
       inputs.add(FingerprintInput.answer(Fingerprints.sha256(sentence)));
-      // The facts it cites, so the purpose and key fact can cite them too; one shown before is
-      // written by its reference alone.
-      List<Fact> cited = FactLines.sorted(one.answered().cited());
-      for (Fact fact : cited.subList(0, Math.min(MAX_CITED, cited.size()))) {
+      // One shown before is written by its reference alone.
+      for (Fact fact : shownFacts) {
         boolean shown = refs.shown('F', key(fact));
         String line = FactLines.line(fact);
         text.append("  [")
@@ -337,7 +351,14 @@ final class PurposeRole {
           }
           evidenced |= fact.predicate().equals("claim");
         } else if (thing.isPresent() && thing.get() instanceof DescribeRole.Answered answered) {
-          answered.cited().stream().filter(f -> !facts.contains(f)).forEach(facts::add);
+          // A sentence stands for the facts it cites, a README claim among them too, as the
+          // documents read it (ADR 0060).
+          for (Fact fact : answered.cited()) {
+            if (!facts.contains(fact)) {
+              facts.add(fact);
+            }
+            evidenced |= fact.predicate().equals("claim");
+          }
         }
       }
       if (!facts.isEmpty()) {
@@ -379,10 +400,5 @@ final class PurposeRole {
           facts.add(lineage.isEmpty() ? fact : fact.withLineage(lineage));
         });
     return facts;
-  }
-
-  /** The entity of a fact's subject. */
-  static EntityId system() {
-    return RepoSections.SYSTEM;
   }
 }
