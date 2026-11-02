@@ -94,6 +94,42 @@ class ArchitectureModelTest {
   }
 
   @Test
+  void aNarrativeForTheStepsAsTheyAreIsReadThoughAStaleOneIsMoreConfident() {
+    Fact stale = narrative("Old steps.", "c0", 0.6);
+    Fact current = narrative("New steps.", "c1", 0.3);
+
+    ArchitectureModel read = new ArchitectureModel(with(stale, current));
+
+    assertThat(read.narrative(FLOW, "c1").orElseThrow().walkthrough().text())
+        .isEqualTo("New steps.");
+  }
+
+  @Test
+  void twoGroupsWithALineToTheSameEndKeepTheirOwnIntents() {
+    EntityId orders = EntityId.parse("group:system/domain/orders");
+    EntityId billing = EntityId.parse("group:system/domain/billing");
+    String end = "database:postgres:main JDBC";
+
+    ArchitectureModel read =
+        new ArchitectureModel(
+            with(
+                text(orders, LlmFacts.INTENT, end, "Stores orders", 0.6),
+                text(billing, LlmFacts.INTENT, end, "Stores invoices", 0.6)));
+
+    assertThat(read.groupIntent(orders, end).orElseThrow().text()).isEqualTo("Stores orders");
+    assertThat(read.groupIntent(billing, end).orElseThrow().text()).isEqualTo("Stores invoices");
+  }
+
+  private Fact narrative(String walkthrough, String content, double confidence) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("walkthrough", walkthrough);
+    attributes.putArray("cites").add(unit.id());
+    attributes.put("basis", "inferred");
+    attributes.put("content", content);
+    return llm(FLOW, LlmFacts.FLOW_NARRATIVE, LlmFacts.C4, attributes, confidence);
+  }
+
+  @Test
   void aScopesSignificantFlowsAreReadInRankOrder() {
     EntityId second = EntityId.parse("flow:service:g:shop/def");
     EntityId notShown = EntityId.parse("flow:service:g:shop/ghi");

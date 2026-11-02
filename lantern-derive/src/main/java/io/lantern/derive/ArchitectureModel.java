@@ -37,7 +37,8 @@ public final class ArchitectureModel {
   private final Map<EntityId, Fact> responsibilities = new HashMap<>();
   private final Map<String, Fact> intents = new HashMap<>();
   private final Map<EntityId, Fact> summaries = new HashMap<>();
-  private final Map<EntityId, Fact> narratives = new HashMap<>();
+  private final Map<EntityId, List<Fact>> narratives = new HashMap<>();
+  private final Map<String, Fact> groupIntents = new HashMap<>();
   private final Map<String, List<Fact>> significance = new HashMap<>();
   private final List<Fact> purposes = new ArrayList<>();
   private final List<Fact> keyFacts = new ArrayList<>();
@@ -85,9 +86,18 @@ public final class ArchitectureModel {
             }
           }
         }
-        case LlmFacts.INTENT -> intents.putIfAbsent(text.object().value(), text);
+        case LlmFacts.INTENT -> {
+          // A group's intent is keyed by its other end and protocol, which another group's may
+          // share (ADR 0107): it is kept by the group as well.
+          if (text.subject().type().equals(Groups.GROUP)) {
+            groupIntents.putIfAbsent(text.subject() + " " + text.object().value(), text);
+          } else {
+            intents.putIfAbsent(text.object().value(), text);
+          }
+        }
         case LlmFacts.SUMMARY -> summaries.putIfAbsent(text.subject(), text);
-        case LlmFacts.FLOW_NARRATIVE -> narratives.putIfAbsent(text.subject(), text);
+        case LlmFacts.FLOW_NARRATIVE ->
+            narratives.computeIfAbsent(text.subject(), f -> new ArrayList<>()).add(text);
         case LlmFacts.FLOW_SIGNIFICANCE ->
             significance.computeIfAbsent(text.object().value(), s -> new ArrayList<>()).add(text);
         case LlmFacts.PURPOSE -> purposes.add(text);
@@ -124,6 +134,17 @@ public final class ArchitectureModel {
         .map(ArchitectureModel::text);
   }
 
+  /**
+   * The intent Name groups stored for a line leaving a group (section 11.8; ADR 0107).
+   *
+   * @param group the group
+   * @param otherEnd what the line leads to, with its protocol: {@code "<other end> <protocol>"}
+   */
+  public Optional<Text> groupIntent(EntityId group, String otherEnd) {
+    return Optional.ofNullable(groupIntents.get(group + " " + otherEnd))
+        .map(ArchitectureModel::text);
+  }
+
   /** The summary of a unit of code (section 11.3): its sentences, each with what it cites. */
   public Optional<Summary> summary(EntityId unit) {
     Fact fact = summaries.get(unit);
@@ -133,25 +154,38 @@ public final class ArchitectureModel {
     List<Text> sentences = new ArrayList<>();
     LlmFacts.Basis basis = basis(fact);
     for (JsonNode sentence : fact.attributes().path("sentences")) {
-      sentences.add(
-          new Text(sentence.path("text").asString(""), cites(sentence.get("cites")), basis, null));
+      // A citation of a fact that no longer holds, such as one of a repository carried forward, is
+      // left out, as a sentence's is; a sentence left citing nothing is left out with it.
+      List<String> held =
+          cites(sentence.get("cites")).stream().filter(c -> knowledge.fact(c) != null).toList();
+      if (!held.isEmpty()) {
+        sentences.add(new Text(sentence.path("text").asString(""), held, basis, null));
+      }
+    }
+    if (sentences.isEmpty()) {
+      return Optional.empty();
     }
     return Optional.of(new Summary(fact.subject(), sentences, basis, fact.confidence()));
   }
 
   /**
-   * A flow's narrative (section 11.5), if one holds for its steps as they are: one written for
-   * another content of its steps is not read.
+   * A flow's narrative (section 11.5), the most confident of those that hold for its steps as they
+   * are: one written for another content of its steps is not read.
    *
    * @param content the content hash of the flow's steps, or {@code null} to take any
    */
   public Optional<Narrative> narrative(EntityId flow, String content) {
-    Fact fact = narratives.get(flow);
+    // The most confident of those written for the steps as they are.
+    Fact fact =
+        narratives.getOrDefault(flow, List.of()).stream()
+            .filter(
+                f -> {
+                  String held = f.attributes().path("content").asString("");
+                  return content == null || held.isEmpty() || held.equals(content);
+                })
+            .findFirst()
+            .orElse(null);
     if (fact == null) {
-      return Optional.empty();
-    }
-    String held = fact.attributes().path("content").asString("");
-    if (content != null && !held.isEmpty() && !held.equals(content)) {
       return Optional.empty();
     }
     JsonNode fieldCites = fact.attributes().get("fieldCites");

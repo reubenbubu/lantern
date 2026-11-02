@@ -232,20 +232,33 @@ class ComposerTest {
   }
 
   @Test
-  void refusesASummaryCitingAFactNotInTheSnapshot() {
+  void aSummaryCitationOfAFactThatNoLongerHoldsIsLeftOut() {
+    // A stored summary of a repository carried forward may cite a fact that no longer holds: the
+    // citation is left out, as a sentence's is, and a sentence left citing nothing with it.
     Fact packaging = facts.find("module:com.example:app", "packaging");
+    Fact contains = facts.find("service:com.example:app", "CONTAINS");
     EntityId module = EntityId.parse("repo:shop");
     List<Fact> stored =
         TestTexts.with(
             facts.list(),
             Map.of(
                 module,
-                summary(module, "Text. [fact:" + packaging.id() + "]", List.of(packaging.id()))));
+                summary(
+                    module,
+                    "The app module. [fact:"
+                        + packaging.id()
+                        + "] [fact:"
+                        + contains.id()
+                        + "] It packages a jar. [fact:"
+                        + packaging.id()
+                        + "]",
+                    List.of(packaging.id(), contains.id()))));
     List<Fact> without = stored.stream().filter(f -> !f.id().equals(packaging.id())).toList();
 
-    assertThatThrownBy(() -> compose(without, Map.of()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(packaging.id());
+    Paragraph paragraph = block(section(compose(without, Map.of()), "overview"), Paragraph.class);
+
+    assertThat(paragraph.content())
+        .containsExactly(TextRun.of("The app module."), new Citation(List.of(contains.id())));
   }
 
   @Test

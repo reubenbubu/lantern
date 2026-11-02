@@ -29,8 +29,6 @@ import tools.jackson.databind.node.ObjectNode;
 final class TestTexts {
 
   private static final RoleSpec ROLE = DescribeRole.UNITS;
-  private static final Pattern SENTENCE =
-      Pattern.compile("(.+?)((?:\\s*\\[(?:fact|summary):[^\\]\\s]+\\])+)", Pattern.DOTALL);
   private static final Pattern MARKER = Pattern.compile("\\[(fact|summary):([^\\]\\s]+)\\]");
 
   private TestTexts() {}
@@ -56,81 +54,39 @@ final class TestTexts {
     return all;
   }
 
+  /**
+   * The summaries as the summarizer stores them ({@link io.lantern.summarize.Summarizer#facts}),
+   * given to it as it gives them: every summary after the summaries it cites.
+   */
   private static List<Fact> summaries(Map<EntityId, Summary> summaries, Map<String, Fact> byId) {
-    Map<String, Summary> byEntity = new HashMap<>();
+    Map<String, Summary> byEntity = new java.util.TreeMap<>();
     summaries.values().forEach(sm -> byEntity.put(sm.entity().toString(), sm));
-    Map<String, List<Fact>> citedBy = new HashMap<>();
+    Map<EntityId, Summary> ordered = new java.util.LinkedHashMap<>();
+    byEntity.keySet().forEach(e -> after(e, byEntity, ordered, new java.util.HashSet<>()));
+    io.lantern.summarize.Summarizer.Result result =
+        new io.lantern.summarize.Summarizer.Result(
+            ordered, ordered.size(), 0, List.of(), List.of(), List.of());
     List<Fact> out = new ArrayList<>();
-    List<Summary> ordered = new ArrayList<>(summaries.values());
-    ordered.sort(java.util.Comparator.comparing(sm -> sm.entity().toString()));
-    for (Summary summary : ordered) {
-      List<LlmFacts.Sentence> sentences = new ArrayList<>();
-      List<Fact> every = sentences(summary, byEntity, byId, citedBy, sentences);
-      if (every.isEmpty()) {
-        continue;
-      }
-      out.add(
-          LlmFacts.summary(
-              ROLE,
-              "test/test",
-              summary.entity(),
-              summary.level().name().toLowerCase(java.util.Locale.ROOT),
-              sentences,
-              summary.purpose() == Summary.Purpose.EVIDENCED
-                  ? LlmFacts.Basis.EVIDENCED
-                  : LlmFacts.Basis.INFERRED,
-              summary.confidence(),
-              1));
-    }
+    io.lantern.summarize.Summarizer.facts(result, byId.values(), 1).values().forEach(out::addAll);
     return out;
   }
 
-  /** The summary's sentences, a cited summary standing for the facts it cites, resolved first. */
-  private static List<Fact> sentences(
-      Summary summary,
-      Map<String, Summary> byEntity,
-      Map<String, Fact> byId,
-      Map<String, List<Fact>> citedBy,
-      List<LlmFacts.Sentence> sentences) {
-    List<Fact> every = new ArrayList<>();
-    Matcher sentence = SENTENCE.matcher(summary.text());
-    while (sentence.find()) {
-      List<Fact> cites = new ArrayList<>();
-      Matcher marker = MARKER.matcher(sentence.group(2));
-      while (marker.find()) {
-        if (marker.group(1).equals("fact")) {
-          Fact fact = byId.get(marker.group(2));
-          if (fact != null) {
-            cites.add(fact);
-          }
-        } else {
-          cites.addAll(resolved(marker.group(2), byEntity, byId, citedBy));
-        }
-      }
-      List<Fact> distinct = cites.stream().distinct().toList();
-      every.addAll(distinct);
-      sentences.add(new LlmFacts.Sentence(sentence.group(1).strip(), distinct));
-    }
-    return every.stream().distinct().toList();
-  }
-
-  private static List<Fact> resolved(
+  private static void after(
       String entity,
       Map<String, Summary> byEntity,
-      Map<String, Fact> byId,
-      Map<String, List<Fact>> citedBy) {
-    List<Fact> known = citedBy.get(entity);
-    if (known != null) {
-      return known;
-    }
+      Map<EntityId, Summary> ordered,
+      Set<String> visiting) {
     Summary summary = byEntity.get(entity);
-    citedBy.put(entity, List.of());
-    List<Fact> facts =
-        summary == null
-            ? List.of()
-            : sentences(summary, byEntity, byId, citedBy, new ArrayList<>());
-    citedBy.put(entity, facts);
-    return facts;
+    if (summary == null || ordered.containsKey(summary.entity()) || !visiting.add(entity)) {
+      return;
+    }
+    Matcher marker = MARKER.matcher(summary.text());
+    while (marker.find()) {
+      if (marker.group(1).equals("summary")) {
+        after(marker.group(2), byEntity, ordered, visiting);
+      }
+    }
+    ordered.put(summary.entity(), summary);
   }
 
   private static List<Fact> wordings(Wordings wordings, Map<String, Fact> byId) {

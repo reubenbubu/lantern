@@ -543,15 +543,12 @@ public final class AnalysisRun {
       }
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
-      List<Fact> screened = screen(harness, snapshot);
+      screen(harness, snapshot);
       // Knowledge is complete before composition (knowledge-build epic, section 12): the documents
       // are composed from what the store holds now, the roles' texts included, and from nothing
       // the run kept in memory.
       List<Fact> complete = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
-      List<Fact> composed = new ArrayList<>(extracted);
-      composed.addAll(screened);
-      composed.addAll(investigated.facts());
-      complete.stream().filter(io.lantern.harness.LlmFacts::isText).forEach(composed::add);
+      List<Fact> composed = repositoryFacts(complete, registered.keySet());
 
       String systemTitle =
           systems
@@ -684,6 +681,26 @@ public final class AnalysisRun {
       }
     }
     return counts;
+  }
+
+  /**
+   * The stored facts the analyzed repositories' documents are composed from: those observed in
+   * them, the linker's about them included, the texts the LLM roles stored, and Investigate's and
+   * the injection screen's findings.
+   *
+   * @param held the facts that hold in the snapshot, once every role has run
+   * @param analyzed the repositories the run analyzed
+   */
+  static List<Fact> repositoryFacts(Collection<Fact> held, Set<String> analyzed) {
+    return held.stream()
+        .filter(
+            f ->
+                analyzed.contains(f.evidence().repo())
+                    || io.lantern.harness.LlmFacts.isText(f)
+                    || f.origin().equals(io.lantern.derive.Findings.SCREEN_ORIGIN)
+                    || f.origin().kind() == Origin.Kind.LLM
+                        && f.origin().name().equals(io.lantern.link.Investigator.NAME))
+        .toList();
   }
 
   /** The types the architecture model's components are anchored on or hold as members. */
