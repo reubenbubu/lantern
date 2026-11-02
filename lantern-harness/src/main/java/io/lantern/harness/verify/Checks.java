@@ -202,14 +202,48 @@ public final class Checks {
                           + "; this task cites only references of its input."));
             }
           } else {
-            found.add(
-                reject(
-                    answer, text.field(), this, "Cites " + cite + ", which is not a reference."));
+            found.add(reject(answer, text.field(), this, notAReference(cite)));
           }
         }
       }
       return found;
     }
+  }
+
+  /** A single line the model wrote as {@code repo:path:line}, not as a range. */
+  static final Pattern ONE_LINE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)$");
+
+  /**
+   * Why a citation is not a reference, saying how to write it where it looks like a file range
+   * written another way: with the word {@code repo} for the repository (#703), or one line alone.
+   */
+  static String notAReference(String cite) {
+    String example = "such as orders:src/main/java/Orders.java:3-9";
+    if (cite.startsWith("repo:") && RANGE.matcher(cite.substring(5)).matches()) {
+      return "Cites "
+          + cite
+          + ", which is not a reference: write the repository's name before the first colon, not"
+          + " the word repo, "
+          + example
+          + ".";
+    }
+    String rest = cite.startsWith("repo:") ? cite.substring(5) : cite;
+    Matcher line = ONE_LINE.matcher(rest);
+    if (line.matches()) {
+      return "Cites "
+          + cite
+          + ", which is not a reference: write a file range as <repository>:<path>:<from>-<to>,"
+          + " one line as "
+          + line.group(1)
+          + ":"
+          + line.group(2)
+          + ":"
+          + line.group(3)
+          + "-"
+          + line.group(3)
+          + ".";
+    }
+    return "Cites " + cite + ", which is not a reference.";
   }
 
   /** A file range the model wrote must be in a file of the snapshot and at most 40 lines. */
