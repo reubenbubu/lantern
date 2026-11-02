@@ -15,8 +15,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * Every role's prompt text (ADR 0113): read from the repository's {@code prompts/} folder, so the
  * owner can tune a prompt by editing its file, or from the copy built into Lantern when the folder
  * or the file is missing. A role's prompt version takes a digest of the files it uses whenever one
- * of them differs from its built-in copy, so an edit re-asks that role's items and nothing else,
- * and an unedited folder keeps every answer stored before.
+ * of them differs from the text pinned for it in {@code prompts.sha256}, so an edit re-asks that
+ * role's items and nothing else, also after a rebuild, and an unedited folder keeps every answer
+ * stored before. Whoever changes a prompt for good raises the role's version and the file's pin
+ * together; {@code PromptsTest} fails until the pin matches.
  *
  * <p>The folder is the system property {@value #FOLDER_PROPERTY}, or {@value #DEFAULT_FOLDER} in
  * the working directory if it exists. It is read once per file and kept for the life of the
@@ -37,6 +39,8 @@ public final class Prompts {
   private static volatile boolean resolved;
 
   private static volatile Path folder;
+
+  private static volatile Map<String, String> PINS;
 
   private Prompts() {}
 
@@ -95,14 +99,47 @@ public final class Prompts {
     }
   }
 
-  /** Whether the folder's copy of the prompt file differs from the built-in one. */
+  /**
+   * Whether the prompt file's text differs from the text its role's version stands for: the SHA-256
+   * pinned for it in {@code prompts.sha256}, not the built-in copy, which is built from the same
+   * folder and so would match an edit once Lantern is rebuilt.
+   */
   public static boolean edited(String name) {
-    return !text(name).equals(builtIn(name));
+    String pinned = pins().get(name);
+    if (pinned == null) {
+      throw new IllegalStateException("No pinned SHA-256 for the prompt " + name);
+    }
+    return !Fingerprints.sha256(text(name)).equals(pinned);
+  }
+
+  /** The SHA-256 each prompt file's text had when its role's version was last set, by file name. */
+  public static Map<String, String> pins() {
+    Map<String, String> pins = PINS;
+    if (pins == null) {
+      try (InputStream in = Prompts.class.getResourceAsStream("/prompts.sha256")) {
+        if (in == null) {
+          throw new IllegalStateException("Missing /prompts.sha256");
+        }
+        Map<String, String> read = new java.util.TreeMap<>();
+        for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+          String[] parts = line.strip().split("\\s+");
+          if (parts.length == 2) {
+            read.put(parts[0], parts[1]);
+          }
+        }
+        pins = Map.copyOf(read);
+        PINS = pins;
+      } catch (IOException e) {
+        throw new UncheckedIOException("Cannot read /prompts.sha256", e);
+      }
+    }
+    return pins;
   }
 
   /**
-   * A role's prompt version: {@code version} while every file it uses is as built, otherwise {@code
-   * version} with a digest of the edited files' names and texts, such as {@code 5+3fa2c91b0e4d}.
+   * A role's prompt version: {@code version} while every file it uses has its pinned text,
+   * otherwise {@code version} with a digest of the edited files' names and texts, such as {@code
+   * 5+3fa2c91b0e4d}.
    */
   public static String version(String version, String... names) {
     List<String> edited = new ArrayList<>();
@@ -122,8 +159,8 @@ public final class Prompts {
   }
 
   /**
-   * A line saying where prompts come from and which files of the folder differ from their built-in
-   * copies, for the start of a run.
+   * A line saying where prompts come from and which files of the folder differ from their pinned
+   * text, for the start of a run.
    */
   public static String describe() {
     Path dir = folder();

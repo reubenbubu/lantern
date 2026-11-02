@@ -60,6 +60,30 @@ class PromptsTest {
   }
 
   @Test
+  void everyCommittedPromptHasItsPin() throws IOException {
+    Map<String, String> files = new java.util.TreeMap<>();
+    for (Path file : files(FOLDER)) {
+      files.put(file.getFileName().toString(), Fingerprints.sha256(Files.readString(file)));
+    }
+    assertThat(Prompts.pins())
+        .as(
+            "prompts.sha256 pins the committed prompts; after changing a prompt for good, raise"
+                + " its role's version and update its pin")
+        .isEqualTo(files);
+  }
+
+  @Test
+  void anEditStaysEditedWhenTheBuiltInCopyIsRebuiltFromIt() throws IOException {
+    String edited = Prompts.builtIn("support-judge.task.txt") + " Judge more strictly.";
+    Files.writeString(temp.resolve("support-judge.task.txt"), edited);
+    Prompts.useFolder(temp);
+    // A rebuild makes the built-in copy equal the edit; the pin still tells them apart.
+    assertThat(Fingerprints.sha256(Prompts.text("support-judge.task.txt")))
+        .isNotEqualTo(Prompts.pins().get("support-judge.task.txt"));
+    assertThat(Prompts.edited("support-judge.task.txt")).isTrue();
+  }
+
+  @Test
   void theTextsMovedOutOfTheCodeAreUnchanged() {
     MOVED.forEach(
         (name, sha) ->
