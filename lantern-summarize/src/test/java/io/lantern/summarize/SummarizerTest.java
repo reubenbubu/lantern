@@ -948,7 +948,7 @@ class SummarizerTest {
   void sentencesWithoutCitationsAreLeftOutWithoutAskingAgain() {
     fake.answering(
         Answers.epic(
-            "Line is part of an order. Line holds a quantity. [F1] It is very important."));
+            "Line holds a quantity. [F1] Line is part of an order. It is very important."));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.Line"),
@@ -969,7 +969,7 @@ class SummarizerTest {
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
         .contains(
-            "Left out 2 sentences from the answer to summarize type type:p.Line: sentences.1:"
+            "Left out 2 sentences from the answer to summarize type type:p.Line: sentences.2:"
                 + " Cites nothing; every sentence cites the references it rests on. | sentences.3:"
                 + " Cites nothing; every sentence cites the references it rests on.");
     // What is stored, and so reused, is the summary without them.
@@ -1026,7 +1026,7 @@ class SummarizerTest {
 
   @Test
   void anEvidencedPurposeWhoseFirstSentenceNamesWhatItsCitationDoesNotMentionIsInferred() {
-    repoAnswer(
+    repoAnswerAgain(
         "Purpose: evidenced\nShop sells books with Kafka. [F1] Shop sells books to readers. [F1]");
 
     Summary repo =
@@ -1056,18 +1056,70 @@ class SummarizerTest {
   }
 
   @Test
-  void aSentenceCitingAStoredFormMarkerIsLeftOut() {
-    firstLineAnswer("It is a line [fact:abc]. It is a record [F1].");
+  void aSummaryThatLosesItsFirstSentenceIsAskedAgainOnce() {
+    // A first sentence opening with a pronoun is left out, which would leave a fragment (#275).
+    firstLineAnswer("It holds a quantity [F1]. Lines belong to an order [F1].");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(retried().messages().get(2).text())
+        .contains(
+            "<rejection item=\"I1\" field=\"sentences.1\">\"It holds a quantity\" opens with a"
+                + " pronoun or restates what kind of part it is;")
+        .contains(
+            "The first sentence was left out, so the others would stand without it; write the"
+                + " whole summary again, opening with what the unit is for.");
+    Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
+    assertThat(line.text()).startsWith("Summary of ");
+  }
+
+  @Test
+  void aRepairedAnswerThatStillLosesItsFirstSentenceIsTakenAsItIs() {
+    fake.answering(
+        Answers.epic(
+            request ->
+                request.purpose().contains("type:com.example.shop.Order$Line")
+                    ? "The class is a Spring bean [F1]. Lines belong to an order [F1]."
+                    : citingAll(request)));
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
-    assertThat(line.text()).startsWith("It is a record [fact:").doesNotContain("abc");
+    assertThat(line.text()).startsWith("Lines belong to an order [fact:");
+    assertThat(fake.sent()).filteredOn(s -> s.request().purpose().endsWith("(retry)")).hasSize(1);
+  }
+
+  @Test
+  void aLaterSentenceTrueOfAnySpringApplicationIsLeftOutWithoutAskingAgain() {
+    firstLineAnswer(
+        "Lines hold the quantity of one book in an order [F1]. It is available for injection"
+            + " [F1].");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
+    assertThat(line.text())
+        .startsWith("Lines hold the quantity of one book in an order [fact:")
+        .doesNotContain("injection");
+    assertThat(fake.sent()).noneMatch(s -> s.request().purpose().endsWith("(retry)"));
+  }
+
+  @Test
+  void aSentenceCitingAStoredFormMarkerIsLeftOut() {
+    firstLineAnswer("Line is a record [F1]. Line is a line [fact:abc].");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
+    assertThat(line.text()).startsWith("Line is a record [fact:").doesNotContain("abc");
     assertThat(fake.sent()).noneMatch(s -> s.request().purpose().endsWith("(retry)"));
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
-        .anyMatch(m -> m.contains("sentences.1: Cites fact:abc, which is not a reference."));
+        .anyMatch(m -> m.contains("sentences.2: Cites fact:abc, which is not a reference."));
   }
 
   /** Answers the first prompt for {@code Order$Line} with the given text, and others well. */
@@ -1437,6 +1489,16 @@ class SummarizerTest {
   }
 
   /** Answers the repository with the given text, and other units well, without a purpose line. */
+  /**
+   * Answers the prompt for {@code repo:shop} with the given text, and its repair turn with the same
+   * text again; others well.
+   */
+  private void repoAnswerAgain(String text) {
+    fake.answering(
+        Answers.epic(
+            request -> request.purpose().contains(" repo:shop") ? text : citingAll(request)));
+  }
+
   private void repoAnswer(String text) {
     fake.answering(
         Answers.epic(
@@ -1496,7 +1558,7 @@ class SummarizerTest {
   @Test
   void anEvidencedPurposeWhoseFirstSentenceIsLeftOutIsInferred() {
     // The first sentence cites nothing, so the one now first is not the one the mark is about.
-    repoAnswer("Purpose: evidenced\nShop is the best shop. Shop sells books to readers. [F1]");
+    repoAnswerAgain("Purpose: evidenced\nShop is the best shop. Shop sells books to readers. [F1]");
 
     Summary repo =
         summarizer()
@@ -1663,7 +1725,7 @@ class SummarizerTest {
   @Test
   void partsAndTheMergeLeaveOutSentencesWithoutCitations() {
     SummaryNode big = largeType(400);
-    fake.answering(Answers.epic(request -> "It is big. " + citingWhatItSees(request, 0)));
+    fake.answering(Answers.epic(request -> citingWhatItSees(request, 0) + " It is big."));
 
     Summary summary =
         new Summarizer(harness(smallWindowClient(4_000)))

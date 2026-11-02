@@ -1,5 +1,11 @@
 package io.lantern.harness.verify;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -9,8 +15,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The eight checks of the verification pipeline (knowledge-build epic, section 10): Schema,
- * References, Ranges, Names, Coverage, Form, Conflict and Secrets, in that order.
+ * The checks of the verification pipeline (knowledge-build epic, section 10): Schema, References,
+ * Ranges, Names, Coverage, Form, Generic, Conflict and Secrets, in that order.
  */
 public final class Checks {
 
@@ -25,6 +31,7 @@ public final class Checks {
           new Names(),
           new Coverage(),
           new Form(),
+          new Generic(),
           new Conflict(),
           new Secrets());
 
@@ -373,6 +380,85 @@ public final class Checks {
         }
       }
       return tokens;
+    }
+  }
+
+  /**
+   * A description sentence must say something about the system (#275): no text may be a sentence
+   * true of any Spring application ({@code checks/generic-sentences.txt}), and a sentence shown
+   * alone as a description, a responsibility or the lead of a summary, may not open with a pronoun
+   * or restate what kind of part it is ({@code checks/weak-openings.txt}).
+   */
+  public static final class Generic implements Check {
+
+    /** The sentences true of any Spring application. */
+    static final List<Pattern> GENERIC = patterns("checks/generic-sentences.txt");
+
+    /** The openings a sentence shown alone may not have. */
+    static final List<Pattern> WEAK_OPENINGS = patterns("checks/weak-openings.txt");
+
+    @Override
+    public String name() {
+      return "Generic";
+    }
+
+    @Override
+    public List<Rejection> check(ItemAnswer answer, CheckInputs inputs) {
+      List<Rejection> found = new ArrayList<>();
+      for (CheckedText text : answer.texts()) {
+        if (text.kind() == CheckedText.Kind.INTENT) {
+          continue;
+        }
+        String sentence = text.text().strip();
+        if (GENERIC.stream().anyMatch(p -> p.matcher(sentence).find())) {
+          found.add(
+              reject(
+                  answer,
+                  text.field(),
+                  this,
+                  "\""
+                      + sentence
+                      + "\" would be true of any Spring application; say what this part decides,"
+                      + " owns or protects."));
+        } else if (text.kind() != CheckedText.Kind.PROSE && weakOpening(sentence)) {
+          found.add(
+              reject(
+                  answer,
+                  text.field(),
+                  this,
+                  "\""
+                      + sentence
+                      + "\" opens with a pronoun or restates what kind of part it is; it is shown"
+                      + " alone, so open with what the part does."));
+        }
+      }
+      return found;
+    }
+
+    /** Whether a sentence opens with a pronoun or with the kind of part it is about. */
+    static boolean weakOpening(String sentence) {
+      return WEAK_OPENINGS.stream().anyMatch(p -> p.matcher(sentence).lookingAt());
+    }
+
+    /** The patterns of a resource, one a line, case-insensitive; {@code #} starts a comment. */
+    private static List<Pattern> patterns(String resource) {
+      List<Pattern> patterns = new ArrayList<>();
+      try (InputStream in = Checks.class.getClassLoader().getResourceAsStream(resource)) {
+        if (in == null) {
+          throw new IllegalStateException("Missing resource " + resource);
+        }
+        BufferedReader lines =
+            new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        for (String line = lines.readLine(); line != null; line = lines.readLine()) {
+          String pattern = line.strip();
+          if (!pattern.isEmpty() && !pattern.startsWith("#")) {
+            patterns.add(Pattern.compile(pattern, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE));
+          }
+        }
+      } catch (IOException e) {
+        throw new UncheckedIOException("Cannot read " + resource, e);
+      }
+      return List.copyOf(patterns);
     }
   }
 

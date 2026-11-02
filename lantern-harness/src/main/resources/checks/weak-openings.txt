@@ -1,0 +1,10 @@
+# Openings a description sentence may not start with: a sentence shown alone as a part's
+# description must say what the part decides, owns or protects, not refer back to a sentence the
+# reader does not see, nor restate what kind of part it is (docs/quality-bar.md, Words say what
+# the diagram cannot). One Java regular expression a line, matched case-insensitively at the start
+# of the sentence by the Generic check. Lines starting with # and empty lines are ignored.
+
+# A pronoun: the sentence was written to follow another one.
+(it|its|it's|they|their|them|these|those|this|that|he|she|his|her)\b
+# The kind of part, said again: "The class is …", "A Spring service that …", "This controller …".
+((the|this|a|an)\s+)?(spring\s+)?(boot\s+)?(java\s+)?(class|type|interface|enum|record|service|component|controller|bean|module|package|repository|configuration|unit|application)\s+(is|was|that|which|provides|contains|defines|implements|serves|acts)\b

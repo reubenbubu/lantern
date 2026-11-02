@@ -961,11 +961,15 @@ public final class Summarizer {
       LlmRequest request =
           Prompt.request(
               role(node.level()).modelRole(), purpose, prompt, node.level().maxOutputTokens());
+      // The first answer is sent back if it lost its first sentence; the retry is taken as it is.
+      boolean[] retry = {false};
       return calls.answer(
           request,
           response -> {
             stopIfFailed();
-            return answer(purpose, response, inputs, allowed, sentences);
+            boolean first = !retry[0];
+            retry[0] = true;
+            return answer(purpose, response, inputs, allowed, sentences, first);
           },
           Repair.withMessage(rejected -> rejected.reasons().getFirst()));
     }
@@ -983,11 +987,18 @@ public final class Summarizer {
      * sentence followed by the references it cites. Its purpose counts as evidenced only if its
      * first sentence is kept and cites what people wrote.
      *
-     * @throws Rejected with the repair turn, if the answer is not one object in the schema, or no
-     *     sentence passes
+     * @param first whether this is the first answer, not the one to a repair turn
+     * @throws Rejected with the repair turn, if the answer is not one object in the schema, no
+     *     sentence passes, or, in the first answer, the first sentence does not pass while others
+     *     do: what is left is a fragment, which a description must never show (#275)
      */
     private static Answer answer(
-        String purpose, LlmResponse response, Inputs inputs, Set<String> allowed, int most)
+        String purpose,
+        LlmResponse response,
+        Inputs inputs,
+        Set<String> allowed,
+        int most,
+        boolean first)
         throws Rejected {
       if (response.cutOff()) {
         throw rejected("", "It was cut off at the length limit; write shorter sentences.");
@@ -1078,7 +1089,8 @@ public final class Summarizer {
         CheckedText checked =
             new CheckedText(
                 field,
-                CheckedText.Kind.PROSE,
+                // The first sentence is what a part without a responsibility shows alone.
+                i == 0 ? CheckedText.Kind.LEAD : CheckedText.Kind.PROSE,
                 text,
                 cites,
                 Prompt.SENTENCE_WORDS,
@@ -1102,6 +1114,17 @@ public final class Summarizer {
       }
       if (kept.isEmpty()) {
         throw new Rejected(Pipeline.repairTurn(dropped));
+      }
+      if (first && !firstKept) {
+        List<Rejection> lead = new ArrayList<>(dropped);
+        lead.add(
+            new Rejection(
+                Prompt.ITEM,
+                "sentences.1",
+                "Form",
+                "The first sentence was left out, so the others would stand without it; write the"
+                    + " whole summary again, opening with what the unit is for."));
+        throw new Rejected(Pipeline.repairTurn(lead));
       }
       if (!dropped.isEmpty()) {
         LOG.info(
