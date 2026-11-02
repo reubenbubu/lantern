@@ -1,6 +1,6 @@
 # How long a run takes, and how to make it short
 
-This is the research for #688, which asks how to bring a cold run on a mid-size system from about 9.5 minutes down to something people will wait for. **Depth: high.** It is an open question that means choosing between several approaches (scheduling, concurrency, hedging, progressive output, model choice, incremental reruns), and the answer brings in a new pattern: one scheduler for all roles. Pages read in full: 22. Read in part: 6. Looked for and not opened: 12. The research is generic and uses only web sources; the only test-set evidence is the timings measured in #688 (project-4, 8 repositories, Claude Haiku 5.5 through OpenRouter, cold cache) and the model benchmark of #689.
+This is the research for #688, which asks how to bring a cold run on a mid-size system from about 9.5 minutes down to something people will wait for. **Depth: high.** It is an open question that means choosing between several approaches (scheduling, concurrency, hedging, progressive output, model choice, incremental reruns), and the answer brings in a new pattern: one scheduler for all roles. Pages read in full: 22. Read in part: 6. Looked for and not opened: 14. The research is generic and uses only web sources; the only test-set evidence is the timings measured in #688 (project-4, 8 repositories, Claude Haiku 5.5 through OpenRouter, cold cache) and the model benchmark of #689. That run was interactive: OpenRouter has no batch API, so no call went through one.
 
 The owner has not set a target yet. This note designs for a first document under 2 minutes on a system of that size and under 30 seconds after a one-file change, and says under "Under other targets" what changes for other targets. The per-role request settings are being changed by #529 while this is written, so the per-call times below may move; the reasoning does not depend on them.
 
@@ -46,7 +46,7 @@ The fan-out effect from Dean and Barroso [11] explains why every barrier pays th
 
 - type summary → package → module → repository: 4 × 4.3 ≈ 17 s
 - a lead, if the unit has one: about 5 s
-- one investigate-units conversation: 53 calls over about 8 units ≈ 6–7 turns × 4 s ≈ 27 s
+- one investigate-units conversation: 53 calls over 8 to 14 units ≈ 4–7 turns × 4 s ≈ 15–27 s (the upper end is used below)
 - investigate-system, 15 turns in sequence: 36 s
 - describe-unit: 18 s
 - name-groups: about 6 s
@@ -55,13 +55,13 @@ The fan-out effect from Dean and Barroso [11] explains why every barrier pays th
 - purpose: about 6 s
 - judge: about 6 s
 
-Total: about 17 + 5 + 27 + 36 + 18 + 6 + 19 + 10 + 6 + 6 ≈ 150 s.
+Total: about 17 + 5 + 27 + 36 + 18 + 6 + 19 + 10 + 6 + 6 ≈ 150 s, or about 138 s if a unit's conversation is 4 turns.
 
 So with the current chain, even unlimited concurrency and no tails gives about 2.5 minutes of LLM time on Haiku. A chain of about 12 steps has a 1 − 0.9^12 ≈ 72% chance that at least one call goes over 10 s, which adds another 10–30 s. Scheduling alone does not reach 2 minutes. The chain itself has to get shorter.
 
 **Throughput is not the limit once the barriers go.** Little's law gives the concurrency needed: total call time / target wall time. For 2,880 s of call time in 90 s, that is 32 calls in flight on average. The graph is narrow at the start and the end, so the peak would be about 2× that, around 64.
 
-**Slower models.** Total LLM time is 8 min on Haiku, 16 on Ling (2×), 31 on GLM (3.9×) and 37 on DeepSeek (4.6×) (#689). Their slowest calls are 127 s, 93 s and 281 s, against Haiku's 37 s. The critical path grows by roughly the same factor, because these models write 2–3× more output and output dominates latency [6, 20]. So the 150 s chain becomes about 300 s on Ling and 580–690 s on GLM or DeepSeek. The call-time sum becomes about 10,000–13,000 s; at 64 in flight that is 160–210 s, still below the chain. On slower models the chain decides the run time, and the tail (single calls of 100–280 s) decides it even more.
+**Slower models.** Total LLM time is 8 min on Haiku, 16 on Ling (2×), 31 on GLM (3.9×) and 37 on DeepSeek (4.6×) (#689). Their slowest calls are 127 s, 93 s and 281 s, against Haiku's 37 s. The critical path grows by roughly the same factor, because these models write 2–3× more output and output dominates latency [6, 20]. So the 150 s chain becomes about 300 s on Ling and 580–690 s on GLM or DeepSeek. The call-time sum becomes about 5,800 s on Ling and 11,000–13,000 s on GLM or DeepSeek; at 64 in flight that is 90–210 s, still below the chain. On slower models the chain decides the run time, and the tail (single calls of 100–280 s) decides it even more.
 
 ## Summary of findings
 
@@ -70,7 +70,7 @@ So with the current chain, even unlimited concurrency and no tails gives about 2
 - OpenRouter has no platform request cap for paid models. Its limits are an in-flight spending budget, a fraction of the account balance held against the estimated cost of open requests, and the upstream providers' own limits. It can sort providers by latency or throughput, and prefer them by p50–p99 cut-offs [9, 10].
 - Output length dominates latency. "Cutting 50% of your output tokens may cut ~50% of your latency," while cutting 50% of the prompt gains 1–5% [6]. In Splitwise's traces, a conversational answer of 129 tokens spent about 97% of its time generating and about 3% before the first token [20]. Anthropic's advice is a faster model, a lower `effort`, shorter outputs and streaming [2].
 - Hedging: send a second copy only after the first has waited past the 95th percentile. That adds about 5% load; in Google's BigTable test it cut the 99.9th percentile from 1,800 ms to 74 ms with 2% more requests. It works when slowness is not inherent in the request [11]. gRPC allows at most 5 attempts, with a token-bucket throttle, and only for idempotent methods; the first answer wins and the rest are cancelled [12].
-- LLM practice reports suggest a hedge budget of 5–10% of traffic, timed on the first body byte rather than the headers, to a different provider. During a provider-wide slowdown every hedge fires, so the budget must cut them off [14, 15].
+- Practitioner posts (unverified, little weight) suggest a hedge budget of 5–10% of traffic, timed on the first body byte rather than the headers, to a different provider. During a provider-wide slowdown every hedge fires, so the budget must cut them off [14, 15].
 - Scheduling LLM calls as a graph rather than one after another: LLMCompiler dispatches each call as soon as its inputs are ready, with speed-ups of 1.8–3.7× [16]. Parrot cut end-to-end latency 2.4× by batching map tasks and prioritising the reduce step, and reports up to 11.7× overall [17]. Autellix prioritises calls by a program's critical path and reports 4–15× throughput at equal latency [19].
 - Build and dataflow tools: Dask runs critical-path children first [25]. Bazel reports the critical path and says to shorten it [24]. Greedy list scheduling is within 2 − 1/m of optimal, and longest-path-first ordering improves it [27]. LangGraph runs in Pregel-style super-steps [23], the barrier pattern Lantern has today.
 - Salsa "backdates" a recomputed value that equals the old one, so its dependents do not run again [26].
@@ -134,7 +134,7 @@ So with the current chain, even unlimited concurrency and no tails gives about 2
 
 **3. Hedge the tail.** Re-send a call that is well past the role's p95, to another provider where possible, with a budget [11, 12, 14].
 - Gain: on a 12-step chain with a 72% chance of at least one slow call, it cuts a 20–37 s outlier to about p95 plus a typical call (an estimate of 10–20 s on Haiku), so about 10–25 s saved on the critical path. On slow models, where single calls reach 127–281 s, it saves minutes.
-- Cost: about 5% more calls if fired at p95 [11]; about 10% at p90 or 2× p50 [15].
+- Cost: about 5% more calls if fired at p95 [11]; about 10% at p90 or 2× p50, by a practitioner's figure [15].
 - Risks: hedging helps only when slowness is not inherent in the request [11]. A long LLM answer is inherently slow, so a hedge on elapsed time just pays twice. Hedge on lack of progress instead (no first token by the p95 time to first token, or an output rate far below the model's usual), which streaming makes visible. During a provider-wide slowdown the budget must stop hedging [14].
 - Reproducibility: a race picks which of two valid answers is stored. A first run's answer is already one sample, so this is no worse than today; once cached, a rerun is identical.
 
@@ -181,7 +181,7 @@ Build one scheduler for all LLM work, and shape the slow roles so the critical p
 2. **Critical path first.** Among ready items, run first the one with the longest remaining chain below it, each step weighted by its role's measured median call time, as Dask and Autellix do [19, 25] and list scheduling's longest-path rule says [27]. Long-output roles on the chain (describe-unit, flow-significance) go first; bulk leaves off the chain (the injection screen, type summaries whose parents are not on it) fill the gaps.
 3. **Concurrency per model, sized from limits.** For a model with typical call time L, average output tokens o and uncached input tokens i, measured per role:
    `cap = 0.8 × min(RPM × L/60, OTPM × L/(60 × o), ITPM × L/(60 × i))`
-   For example, Haiku 4.5 at the Start tier with L = 4.3 s and an assumed o = 500: by requests 1,000 × 4.3/60 ≈ 72, by output tokens 400,000 × 4.3/(60 × 500) ≈ 57, so a cap of about 46 calls in flight.
+   For example, with L = 4.3 s and the measured output of Haiku 5.5 in #689, about 0.6M tokens over 517 calls, so o ≈ 1,160: at Anthropic's Start-tier output limit of 400,000 OTPM (the figure source [1] gives for Haiku 4.5), 400,000 × 4.3/(60 × 1,160) ≈ 25, so a cap of about 20, while requests (4,000 RPM for Haiku 5.5) would allow about 290. That is below the 32 calls in flight the target needs: on a direct Anthropic account the Start tier cannot reach it, and the Build tier's 1M OTPM (cap about 49) can. Output tokens, not requests, are the limit, and a model that writes 2–3× more needs 2–3× the output limit for the same cap. Through OpenRouter the limits are those of OpenRouter's upstream accounts and its spending budget [9], not Lantern's own.
    Read the `anthropic-ratelimit-*-remaining` headers where the provider sends them [1]. On OpenRouter, which does not [9], start at the configured cap and halve it on a 429 or 402. Ramp up over the first seconds rather than bursting [1, 7]. The cap stays a setting, because through a gateway the upstream limits and the spending budget are not visible. Keep the existing retry with backoff, jitter and `Retry-After` (ADR 0021).
 4. **Hedge only the tail.** Only calls on the critical path, all of which are read-only and cached under their fingerprint.
    - Stream responses, and hedge when no first token has arrived by the role's p95 time to first token, or when the output rate stays far below the model's median. Never on total elapsed time, because a long answer is inherently slow [11].
@@ -208,7 +208,7 @@ Build one scheduler for all LLM work, and shape the slow roles so the critical p
 - A prompt's inputs are sorted by item identity, not by arrival.
 - Packets are formed from the full, fixed list of items, so their fingerprints do not depend on timing.
 - A hedged duplicate is discarded.
-- The budget is reserved per call before dispatch, so concurrency cannot overspend it, and the same budget still asks the same items.
+- The budget's choice of items stays as the design has it: each role group decides in rounds, in a fixed order, which of its items fit its share. In a graph a group's round is settled when the previous round's items have finished, and only the items it chose are dispatched; the rest wait or are skipped. So the same budget still asks the same items, at the cost of some waiting inside a group. Each call's estimate is reserved before dispatch, so calls in flight cannot overspend the share.
 - A rerun with an unchanged cache makes no calls, as today.
 
 **Estimated times. These are estimates from the numbers above, not measurements.**
@@ -216,7 +216,7 @@ Build one scheduler for all LLM work, and shape the slow roles so the critical p
 - Haiku, cold cache:
   - Options 1 and 2 (graph, cap of about 46–64): the chain of about 150 s plus about 15 s of tail, about 2.75 min of LLM time. The build overlaps by some tens of seconds, so about 3.3 min end to end.
   - Plus hedging on the chain: about 2.5 min of LLM time.
-  - Plus a shorter chain (system 36 → 10 s, describe 18 → 9 s, flow-significance 19 → 9 s, judge off the critical path): 17 + 5 + 27 + 10 + 9 + 6 + 9 + 10 + 6 ≈ 99 s, plus about 10 s of tail, about 1.8 min of LLM time.
+  - Plus a shorter chain (system 36 → 10 s, describe 18 → 9 s, flow-significance 19 → 9 s): 17 + 5 + 27 + 10 + 9 + 6 + 9 + 10 + 6 ≈ 99 s to the purpose, about 1.8 min of LLM time with about 10 s of tail. The judge runs after the document is shown and adds about 6 s more before it is final, about 1.9 min.
   - End to end with the build overlapped: about 2.3–2.8 min for the complete, judged document; a first view of the fact-based parts at about 1 min, and most text in by about 2 min.
   - So "first document under 2 minutes" is reachable on Haiku if "first document" means the view after extraction filling in. A fully finished document in 2 minutes also needs the build under about 30 s, or the summaries of early repositories finished during the build.
 - A 3–4× slower model: the shorter chain is about 99 × 3.5 ≈ 350 s, about 6 min. Throughput, 2,880 × 3.5 / 64 ≈ 160 s, is not the limit. 2 minutes is out of reach; the progressive view still appears at about 1 minute.
@@ -237,7 +237,7 @@ Nothing changes yet: the owner sets the target first, and the issues that build 
   - Replace the role-by-role order and the fixed cap with one item-level scheduler, critical-path-first priority and per-model concurrency computed from limits and headers.
   - Add the hedging rules: lack of progress as the trigger, at most one hedge, a 5% budget, the loser discarded, its spending counted in the run's budget.
   - Add the per-call budget reservation.
-  - Say that the batch API is for background runs only, because its half price comes with completion times of up to 24 hours, mostly under 1 hour [3]; it conflicts with any interactive target.
+  - Amend the batch rule (ADR 0102). Today every bulk role with more than 50 cache misses goes through the batch API, which would put summarize (215 calls) and the model checks into a queue of up to 24 hours, mostly under 1 hour [3]. That conflicts with any interactive target: batch becomes a choice for runs nobody waits on, and interactive runs stay interactive.
 - **"Versioning and incremental computation":**
   - Add the fixed-order rule: prompt inputs sorted by identity, packets formed from fixed lists.
   - Add "stale while refreshing" and a stronger early stop when a re-asked answer is unchanged (backdating).
