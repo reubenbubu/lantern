@@ -149,7 +149,9 @@ final class Assembler {
         || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)
         // A frontend by its responsibility sentence, or else by what its manifest and Dockerfile
         // say (ADR 0083).
-        || id.type().equals(C4Views.FRONTEND)) {
+        || id.type().equals(C4Views.FRONTEND)
+        // An element only Investigate found, by the connections it found (ADR 0110).
+        || (responsibility(id) == null && foundOnlyByTheInvestigator(id))) {
       undescribed.add(id);
     }
     return id;
@@ -606,17 +608,54 @@ final class Assembler {
               ? person(entity.id()).content()
               : entity.id().type().equals(C4Views.FRONTEND) && responsibility == null
                   ? frontend(entity.id()).content()
-                  : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
-                      ? purpose().content()
-                      : responsibility != null
-                          ? responsibility(entity.id(), responsibility).content()
-                          : summarizedDescription(entity.id()).content();
+                  : responsibility == null && foundOnlyByTheInvestigator(entity.id())
+                      ? investigated(entity.id()).content()
+                      : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+                          ? purpose().content()
+                          : responsibility != null
+                              ? responsibility(entity.id(), responsibility).content()
+                              : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
               entity.id(), entity.name(), entity.parent(), description, entity.facts()));
     }
     return List.copyOf(entities.values());
+  }
+
+  /** The connections Investigate found to an entity (ADR 0110). */
+  private List<Fact> investigatedTo(EntityId id) {
+    return knowledge.withPredicate(InvestigatedFindings.CONNECTION).stream()
+        .filter(f -> Knowledge.isEntity(f) && Knowledge.object(f).equals(id))
+        .toList();
+  }
+
+  /** Whether only Investigate's connections know the entity: no fact is about it. */
+  private boolean foundOnlyByTheInvestigator(EntityId id) {
+    return C4Views.DESTINATIONS.contains(id.type())
+        && knowledge.about(id).isEmpty()
+        && !investigatedTo(id).isEmpty();
+  }
+
+  /**
+   * The description of an element only Investigate found: what its units use it for, as the
+   * connections it found say, opened with {@value InvestigatedFindings#FOUND_BY_LLM}, emphasized,
+   * and citing those connections (ADR 0110).
+   */
+  private Text investigated(EntityId id) {
+    List<Fact> found = investigatedTo(id);
+    StringBuilder text = new StringBuilder();
+    for (Fact fact : found) {
+      text.append(text.isEmpty() ? "" : " ")
+          .append(name(fact.subject()))
+          .append(": ")
+          .append(fact.attributes().path("description").asString(""))
+          .append('.');
+    }
+    List<String> ids = facts(found);
+    return opened(
+        InvestigatedFindings.FOUND_BY_LLM,
+        new Text(List.of(TextRun.of(text.toString()), new Citation(ids)), ids));
   }
 
   /**

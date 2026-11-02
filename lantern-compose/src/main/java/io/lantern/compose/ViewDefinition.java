@@ -72,8 +72,8 @@ public record ViewDefinition(
    * A view of one repository with the sections of the Architecture Explorer, in the order the
    * Quality bar asks: the overview as its orientation, where to start reading, the containers (the
    * first diagram) with their deployment, decisions and unknowns, context, components, main flows,
-   * the catalog, change guidance, the dependencies and structure (ADR 0048), then the glossary (ADR
-   * 0063).
+   * the risks and findings (ADR 0110), the catalog, change guidance, the dependencies and structure
+   * (ADR 0048), then the glossary (ADR 0063).
    */
   public static ViewDefinition perRepo(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -91,6 +91,7 @@ public record ViewDefinition(
             SectionKind.CONTEXT,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
+            SectionKind.FINDINGS,
             SectionKind.CATALOG,
             SectionKind.CHANGE_GUIDANCE,
             SectionKind.DEPENDENCIES,
@@ -101,8 +102,9 @@ public record ViewDefinition(
   /**
    * A view of one repository for a C4 report: overview, where to start reading, context,
    * containers, components and main flows, the sections whose diagrams the C4 report spec draws
-   * (ADR 0031), the first two in its introduction; then the decisions and unknowns, the deployment
-   * and the glossary, its documentation pages (ADR 0086, #229).
+   * (ADR 0031), the first two in its introduction; then the risks and findings (ADR 0110), the
+   * decisions and unknowns, the deployment and the glossary, its documentation pages (ADR 0086,
+   * #229).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -118,6 +120,7 @@ public record ViewDefinition(
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
+            SectionKind.FINDINGS,
             SectionKind.DECISIONS,
             SectionKind.DEPLOYMENT,
             SectionKind.GLOSSARY));
@@ -125,8 +128,8 @@ public record ViewDefinition(
 
   /**
    * A view of the whole system for a C4 report: overview, where to start reading, context,
-   * containers, components and main flows (ADR 0031), then the decisions and unknowns, the
-   * deployment and the glossary (ADR 0086, #229).
+   * containers, components and main flows (ADR 0031), then the risks and findings (ADR 0110), the
+   * decisions and unknowns, the deployment and the glossary (ADR 0086, #229).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(
@@ -142,6 +145,7 @@ public record ViewDefinition(
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
             SectionKind.SEQUENCES,
+            SectionKind.FINDINGS,
             SectionKind.DECISIONS,
             SectionKind.DEPLOYMENT,
             SectionKind.GLOSSARY));

@@ -60,6 +60,12 @@ public enum SectionKind {
   /** Risks found by fixed checks of the knowledge, most serious first. */
   RISKS("Risks", EnumSet.of(Level.L0, Level.L1)),
   /**
+   * Risks and findings: for now what the LLM investigator found and Lantern verified, most serious
+   * first, each marked as found by the LLM (ADR 0110), and the units it did not look at; the
+   * findings page (#273) adds the fixed checks, decisions and unknowns.
+   */
+  FINDINGS("Risks and findings", EnumSet.of(Level.L0, Level.L1)),
+  /**
    * Who depends on the repository's deployable units and what they depend on, from the linker's
    * links.
    */

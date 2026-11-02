@@ -77,6 +77,7 @@ final class RepoSections {
   private ExplorerSections explorer;
   private BriefSections brief;
   private ClaimContradictions claims;
+  private InvestigatedFindings investigated;
 
   /**
    * @param wordings the LLM's responsibility sentences and intent phrases (ADR 0050)
@@ -217,7 +218,8 @@ final class RepoSections {
       case RISKS ->
           blocks.addAll(
               new RepoRisks(knowledge, assembler, repo, containers)
-                  .callouts(id, brief().currencyRisks(id)));
+                  .callouts(id, brief().currencyRisks(id), investigated().callouts(id)));
+      case FINDINGS -> blocks.addAll(investigated().table(id));
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
       case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));
       case QUALITY_EVIDENCE -> blocks.addAll(brief().qualityEvidence(id));
@@ -225,6 +227,23 @@ final class RepoSections {
           throw new IllegalArgumentException("The glossary is built from the whole document");
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
+  }
+
+  /** What the LLM investigator found in scope (ADR 0110), built once per document. */
+  private InvestigatedFindings investigated() {
+    if (investigated == null) {
+      investigated = new InvestigatedFindings(knowledge, assembler, inScopeUnits());
+    }
+    return investigated;
+  }
+
+  /** The units in scope, and the system for the system's documents. */
+  private Set<EntityId> inScopeUnits() {
+    Set<EntityId> scope = new java.util.HashSet<>(units);
+    if (repo == null) {
+      scope.add(SYSTEM);
+    }
+    return scope;
   }
 
   /** The main flows, built once per document: the start-here list and the flows both use them. */

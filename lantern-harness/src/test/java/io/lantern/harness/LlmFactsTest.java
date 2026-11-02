@@ -109,7 +109,12 @@ class LlmFactsTest {
             "flow-significance",
             "flow-narrative",
             "purpose",
-            "key-fact");
+            "key-fact",
+            "lead-verdict",
+            "investigated-risk",
+            "finding-wording",
+            "INVESTIGATED_CONNECTION",
+            "not-investigated");
   }
 
   @Test
