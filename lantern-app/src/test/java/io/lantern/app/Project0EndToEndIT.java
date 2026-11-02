@@ -588,13 +588,12 @@ class Project0EndToEndIT {
           "flow-significance payments",
           "flow-significance storefront",
           // Investigate (ADR 0110): the lead the changed path raises, asked twice since the fake
-          // model answers nothing; the two units that show the changed facts; and the system,
-          // whose map shows their links.
+          // model answers nothing, and the two units that show the changed facts; not the system,
+          // whose map and accepted risks stay the same.
           "investigate-leads lead:contract-mismatch/service:com.acme.shop:storefront-app/POST%20/api/payments",
           "investigate-leads lead:contract-mismatch/service:com.acme.shop:storefront-app/POST%20/api/payments (again)",
           "investigate-units service:com.acme.shop:payments",
-          "investigate-units service:com.acme.shop:storefront-app",
-          "investigate-system system:snapshot");
+          "investigate-units service:com.acme.shop:storefront-app");
 
   /** An answer's fingerprint inputs, each as its kind, file and ID. */
   private static java.util.Set<String> inputs(String json) {
