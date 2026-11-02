@@ -48,8 +48,9 @@ Options:
                             (Spring profile fake-llm; models fake and fake-priced, the latter
                             priced like a real model so costs show). Nothing is called.
   --record-calls            Write every LLM call of each run, request and response, one file
-                            a call, to <set>/calls/ beside its report (lantern.llm.record-to;
-                            a model's batch API is not used while recording).
+                            a call, to <set>/calls/ beside its report (lantern.llm.record-to).
+                            A model's batch API is not used while recording, so batchable
+                            calls cost the interactive price. The folder must be empty.
   --judge-wording           End each run with the wording judge (docs/adr/0111-wording-judge.md),
                             whose verdicts the scorecard's judged rows read. Serve it with a
                             model none of the writing roles use (--role wording-judge=MODEL).
@@ -278,8 +279,12 @@ for set in "${sets[@]}"; do
     launch=("$REPO/scripts/launch.sh" --yes --system "$set")
     [[ -n "$llm_file" ]] && launch+=(--llm-properties "$llm_file")
     [[ -n "$mirror_file" ]] && launch+=(--mirror-properties "$mirror_file")
-    # Each set's calls go beside its scorecard, so one set's never mixes with another's.
-    [[ "$record_calls" == true ]] && launch+=(--set "lantern.llm.record-to=$scores/$set/calls")
+    # Each set's calls get their own folder, so one set's or one run's never mix with another's.
+    if [[ "$record_calls" == true ]]; then
+      [[ -z "$(ls -A "$scores/$set/calls" 2>/dev/null)" ]] ||
+        die "$scores/$set/calls already holds calls; choose another --label"
+      launch+=(--set "lantern.llm.record-to=$scores/$set/calls")
+    fi
     info "$set: analyzing ${#repos[@]} repositories"
     started="$(mktemp "${TMPDIR:-/tmp}/lantern-score-started-XXXXXX")"
     temporary+=("$started")

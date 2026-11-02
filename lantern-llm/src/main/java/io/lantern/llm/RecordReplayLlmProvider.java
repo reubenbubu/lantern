@@ -13,6 +13,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
@@ -46,6 +48,8 @@ public final class RecordReplayLlmProvider implements LlmProvider {
   private final String name;
   private final Path directory;
   private final LlmProvider recordFrom;
+  private static final Logger LOG = LoggerFactory.getLogger(RecordReplayLlmProvider.class);
+
   private final boolean every;
 
   private RecordReplayLlmProvider(
@@ -103,7 +107,18 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     Path file = directory.resolve(hash + ".json");
     if (every) {
       LlmResponse response = record.get();
-      write(free(hash), key, request, response);
+      Path claimed = free(hash);
+      try {
+        write(claimed, key, request, response);
+      } catch (UncheckedIOException e) {
+        // The call is made and paid for: a recording that cannot be written does not fail it.
+        LOG.warn("Could not record a call in {}: {}", claimed, e.getMessage());
+        try {
+          Files.deleteIfExists(claimed);
+        } catch (IOException ignored) {
+          // Nothing more to do; the empty file is left.
+        }
+      }
       return response;
     }
     if (Files.isRegularFile(file)) {
