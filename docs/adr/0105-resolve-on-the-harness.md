@@ -1,7 +1,7 @@
 # 0105: Resolve on the harness
 
-Status: accepted (#666); amends ADRs 0045 (prompt, answer, checks, storage, conversation) and 0081; amended for #529 (four links a conversation, unmeasured)
-(tool references, `find_in_code`)
+Status: accepted (#666); amends ADRs 0045 (prompt, answer, checks, storage, conversation) and 0081
+(tool references, `find_in_code`); amended for #529 (four links a conversation, unmeasured)
 
 ## Context
 

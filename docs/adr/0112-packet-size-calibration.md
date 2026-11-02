@@ -65,7 +65,7 @@ answers.
 - **Results.**
   - Investigate's leads: 1 item (ADR 0110).
   - Describe's elements: 10 (ADR 0103).
-  - The support judge: 10 (ADR 0101).
+  - The support judge: 5 (ADR 0101).
   - Resolve: 4, unmeasured, since no development set has an open link (ADR 0105).
 - **Also measured.**
   - Every request after a role's first, and every turn after a conversation's first, read the

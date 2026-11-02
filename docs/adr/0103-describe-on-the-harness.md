@@ -125,5 +125,5 @@ Measured on DeepSeek V4.1 Flash on project-1 to project-4 (2026-11-02); how, the
 
 Size 1 trial a cost $0.009. 217 elements were scored.
 
-- **Kept: 10 elements a request** (`lantern.harness.items-per-request.describe-element=10`). Every size passes, but the score only says whether an element was described, not how well. Describe writes prose, and the epic caps such a role below 20 unless the middle positions of a size-20 request are shown no worse than its ends; this score cannot show that, so the size stays at 10.
+- **Kept: 10 elements a request** (`lantern.harness.items-per-request.describe-element=10`). Every size passes, but the score only says whether an element was described, not how well. Describe writes prose, and the epic caps such a role below 20 unless the middle positions of a size-20 request are shown no worse than its ends; this score cannot show that, so the size stays at 10. The two size-1 runs never differed, so a size truly equal to 1 is never rejected by this score: it has no power, which is why it needs the wording judge's scores.
 - To be measured again with the wording judge's scores once they are validated (#668).
