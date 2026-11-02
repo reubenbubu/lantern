@@ -121,10 +121,10 @@ final class DescribeRole {
   private static final int ELEMENT_OUTPUT_TOKENS = 200;
 
   /** The output room of a unit's or a component's sentence with its citations. */
-  private static final int SENTENCE_OUTPUT_TOKENS = 100;
+  private static final int SENTENCE_OUTPUT_TOKENS = 150;
 
   /** The output room of an interaction's phrase with its citations. */
-  private static final int PHRASE_OUTPUT_TOKENS = 60;
+  private static final int PHRASE_OUTPUT_TOKENS = 90;
 
   private static final JsonNode UNIT_ITEM_SCHEMA =
       JsonSchema.itemSchema(JSON.readTree(UNIT_SCHEMA));

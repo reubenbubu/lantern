@@ -1843,6 +1843,6 @@ class DescriberTest {
             .findFirst()
             .orElseThrow();
     // The unit, 3 components and 5 interactions.
-    assertThat(app.maxOutputTokens()).isGreaterThanOrEqualTo(Math.max(1_000, 100 * 4 + 60 * 5));
+    assertThat(app.maxOutputTokens()).isGreaterThanOrEqualTo(Math.max(1_000, 150 * 4 + 90 * 5));
   }
 }
