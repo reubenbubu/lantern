@@ -131,5 +131,298 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "lead-verdict",
+    "kind": "attribute",
+    "description": "Investigate's verdict on the subject lead (knowledge-build epic, section 11.2, Mode A; ADR 0110): the value is confirmed, refuted or unclear. Of origin llm; its lineage is the lead's claim, so it ends with the lead. A refuted lead stays stored, so it is not asked again until what it points at changes.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "For a confirmed lead, the risk's title."
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The identifiers it rests on, as the code writes them, each in the lines it cites."
+        },
+        "cites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The file ranges it cites, as repo:path:from-to, each verified to hold its names."
+        },
+        "model": {
+          "type": "string",
+          "description": "The model that wrote it, as provider/model."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Why the verdict is unclear when the model gave none: the lead was not answered, or its answer was rejected twice."
+        }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "investigated-risk",
+    "kind": "attribute",
+    "description": "A risk Investigate found and Lantern verified (knowledge-build epic, section 11.2; ADR 0110): a confirmed lead, or a risk it found exploring a unit or the system. The subject is its first unit; the value is its key, the lead's claim ID when it confirms a lead, else its names sorted and joined by commas, so a reworded rerun is a new observation of the same risk. Of origin llm, shown as found by the LLM.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The risk, in at most 8 words."
+        },
+        "finding": {
+          "type": "string",
+          "description": "What the code does, in one or two sentences."
+        },
+        "consequence": {
+          "type": "string",
+          "description": "What can happen because of it, in one or two sentences."
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "What an attacker or a failure could do to data or availability."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "The model's confidence."
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The deployable units it concerns."
+        },
+        "lead": {
+          "type": "string",
+          "description": "The lead it confirms, if any."
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The identifiers it rests on, as the code writes them, each in the lines it cites."
+        },
+        "cites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The file ranges it cites, as repo:path:from-to, each verified to hold its names."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "leads",
+            "unit",
+            "system"
+          ],
+          "description": "Which Investigate mode found it: checking leads, exploring a unit, or the whole system."
+        },
+        "model": {
+          "type": "string",
+          "description": "The model that wrote it, as provider/model."
+        }
+      },
+      "required": [
+        "title",
+        "finding",
+        "consequence",
+        "impact"
+      ],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "finding-wording",
+    "kind": "attribute",
+    "description": "Investigate's wording of a finding a fixed check raised, the subject (knowledge-build epic, section 11.2, Merging with static findings; ADR 0110): a risk it found that restates the finding is stored here, never as a second risk. The value is the risk's key. Of origin llm; its lineage is the finding's claim and the lead's.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "The risk, in at most 8 words."
+        },
+        "finding": {
+          "type": "string",
+          "description": "What the code does."
+        },
+        "consequence": {
+          "type": "string",
+          "description": "What can happen because of it."
+        },
+        "impact": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "Its impact."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "The model's confidence."
+        },
+        "units": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The deployable units it concerns."
+        },
+        "lead": {
+          "type": "string",
+          "description": "The lead it confirms, if any."
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The identifiers it rests on, as the code writes them, each in the lines it cites."
+        },
+        "cites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The file ranges it cites, as repo:path:from-to, each verified to hold its names."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "leads",
+            "unit",
+            "system"
+          ],
+          "description": "Which Investigate mode found it: checking leads, exploring a unit, or the whole system."
+        },
+        "model": {
+          "type": "string",
+          "description": "The model that wrote it, as provider/model."
+        }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "INVESTIGATED_CONNECTION",
+    "kind": "relationship",
+    "keyAttributes": [
+      "interaction"
+    ],
+    "parent": "INTERACTS_WITH",
+    "description": "A connection Investigate found and Lantern verified that no static or resolved link states (knowledge-build epic, section 11.2; ADR 0110): the subject unit uses the object, a model element or a new external system or database. Its key is its two ends and its interaction. Of origin llm, drawn as a line marked found by the LLM; sequence flows are not traced through it.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "interaction": {
+          "type": "string",
+          "enum": [
+            "http",
+            "messaging",
+            "database",
+            "mail",
+            "other"
+          ],
+          "description": "How the unit uses it."
+        },
+        "description": {
+          "type": "string",
+          "description": "What the unit uses it for, in a phrase."
+        },
+        "technology": {
+          "type": "string",
+          "description": "The technology, if the code shows it."
+        },
+        "confidence": {
+          "type": "string",
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "description": "The model's confidence."
+        },
+        "names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The identifiers it rests on, as the code writes them, each in the lines it cites."
+        },
+        "cites": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The file ranges it cites, as repo:path:from-to, each verified to hold its names."
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "leads",
+            "unit",
+            "system"
+          ],
+          "description": "Which Investigate mode found it: checking leads, exploring a unit, or the whole system."
+        },
+        "model": {
+          "type": "string",
+          "description": "The model that wrote it, as provider/model."
+        }
+      },
+      "required": [
+        "interaction"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "not-investigated",
+    "kind": "attribute",
+    "description": "Investigate did not look at the subject, a deployable unit or the system (knowledge-build epic, section 11.2, Failure; ADR 0110): a budget refused it, the provider failed, or the model cannot use tools. The value is investigate. Of origin llm; the findings say which were left out.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Why, in words."
+        }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

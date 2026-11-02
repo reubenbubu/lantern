@@ -7,6 +7,11 @@ public enum Role {
   /** Summarizing types, the most numerous units: the bulk tier. */
   SUMMARIZE_TYPES(Tier.BULK),
   RESOLVE(Tier.REASONING),
+  /**
+   * Checking the leads static analysis flagged and looking for what it missed, citing the code
+   * (knowledge-build epic, section 11.2): reading code to judge risks, on the reasoning tier.
+   */
+  INVESTIGATE(Tier.REASONING),
   INFER_INTENT(Tier.REASONING),
   /**
    * Describing data stores, destinations, external systems and people (knowledge-build epic,
