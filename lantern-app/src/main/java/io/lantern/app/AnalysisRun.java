@@ -416,7 +416,9 @@ public final class AnalysisRun {
       // Stored as claims of origin llm, which later roles read (knowledge-build epic, section 6).
       Map<Origin, List<Fact>> summaryFacts =
           Summarizer.facts(summarized, summarizable, snapshot.number());
-      recordLlmFacts(snapshot, summaryFacts);
+      // A run summarizes only the repositories it analyzes, so it ends only their summaries; those
+      // of repositories carried forward keep holding.
+      recordLlmFacts(snapshot, summaryFacts, registered.keySet());
       LOG.info(
           "Summarize stored {} summaries as claims of {} summaries",
           summaryFacts.values().stream().mapToInt(List::size).sum(),
@@ -431,6 +433,25 @@ public final class AnalysisRun {
             "Units without a summary, not asked because a budget refused the call: {}",
             summarized.notAsked().size());
       }
+
+      // Investigate checks the leads derivation stored, then explores each unit and the system,
+      // every finding cited to code Lantern verifies; what it finds is stored as claims of origin
+      // llm before anything is described or composed (knowledge-build epic, section 11.2; ADR
+      // 0110). It reads the facts made before it: static facts, summaries and resolved links.
+      io.lantern.link.Investigator.Result investigated =
+          new io.lantern.link.Investigator(
+                  harness, snapshotFiles, io.lantern.derive.LeadRules.judges())
+              .investigate(
+                  facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+                  snapshot.number());
+      recordLlmFacts(snapshot, investigated.byOrigin());
+      LOG.info(
+          "Investigate: {} asked, {} reused, {} leads confirmed, {} facts; not investigated: {}",
+          investigated.asked(),
+          investigated.reused(),
+          investigated.confirmed(),
+          investigated.facts().size(),
+          investigated.notInvestigated());
 
       // The LLM words the responsibilities of the snapshot's units and components and the intent
       // of their links, and narrates the main flows, from every fact that holds in it, carried
@@ -486,6 +507,7 @@ public final class AnalysisRun {
       List<Fact> screened = screen(harness, snapshot);
       List<Fact> composed = new ArrayList<>(extracted);
       composed.addAll(screened);
+      composed.addAll(investigated.facts());
 
       String systemTitle =
           systems
@@ -583,12 +605,16 @@ public final class AnalysisRun {
    * under a budget, stops holding and is unknown.
    */
   private void recordLlmFacts(Snapshot snapshot, Map<Origin, List<Fact>> byOrigin) {
+    recordLlmFacts(snapshot, byOrigin, snapshot.commits().keySet());
+  }
+
+  /** As above, ending only the facts of those origins whose evidence names one of {@code repos}. */
+  private void recordLlmFacts(
+      Snapshot snapshot, Map<Origin, List<Fact>> byOrigin, Set<String> repos) {
     transaction.executeWithoutResult(
         status ->
             byOrigin.forEach(
-                (origin, found) ->
-                    facts.recordDerived(
-                        snapshot.number(), origin, snapshot.commits().keySet(), found)));
+                (origin, found) -> facts.recordDerived(snapshot.number(), origin, repos, found)));
   }
 
   /** How many units of each level the trees hold, each unit once. */

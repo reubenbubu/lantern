@@ -81,7 +81,9 @@ final class SubmitTool implements ToolBox {
   public List<LlmTool> tools() {
     List<LlmTool> all = new ArrayList<>(tools.tools());
     JsonNode schema = role.submitSchema();
-    all.add(schema == null ? definition() : definition(schema));
+    LlmTool submit = schema == null ? definition() : definition(schema);
+    String description = role.submitDescription();
+    all.add(description == null ? submit : new LlmTool(NAME, description, submit.inputSchema()));
     return all;
   }
 
@@ -90,7 +92,7 @@ final class SubmitTool implements ToolBox {
     if (!call.name().equals(NAME)) {
       return tools.run(call);
     }
-    var entries = Envelope.entries(call.input());
+    var entries = Envelope.entries(role.envelope(call.input()));
     if (entries.isEmpty()) {
       return LlmToolResult.error(call, "Submit an object {\"items\": {\"<item id>\": {...}}}.");
     }
@@ -100,7 +102,7 @@ final class SubmitTool implements ToolBox {
       int index = ids.indexOf(id);
       if (index < 0) {
         verdicts.put(id, "not an item of this task");
-      } else if (accepted.containsKey(id)) {
+      } else if (accepted.containsKey(id) && !role.partial()) {
         verdicts.put(id, "already accepted");
       } else if (dropped.contains(id)) {
         verdicts.put(id, "dropped after a second rejection");
@@ -108,6 +110,9 @@ final class SubmitTool implements ToolBox {
         ItemAnswer answer = role.read(id, packet.get(index), entry.getValue());
         List<Rejection> found =
             answer.omitted() ? List.of() : role.pipeline().check(answer, inputs.apply(index));
+        if (role.partial() && partly(id, index, answer, found, verdicts)) {
+          continue;
+        }
         if (found.isEmpty()) {
           accepted.put(id, answer);
           if (failedOnce.contains(id)) {
@@ -130,6 +135,49 @@ final class SubmitTool implements ToolBox {
       }
     }
     return LlmToolResult.of(call, verdicts.toString());
+  }
+
+  /**
+   * A partial role's entry: the parts no check rejected are added to what was accepted of the item
+   * before, and the rejected ones listed by field. Returns false when a rejection is of the whole
+   * item, which the usual rules then settle.
+   */
+  private boolean partly(
+      String id, int index, ItemAnswer answer, List<Rejection> found, ObjectNode verdicts) {
+    if (Entries.whole(found)) {
+      if (accepted.containsKey(id)) {
+        // What was accepted before stays; this submission adds nothing.
+        verdicts.put(
+            id,
+            "rejected, keeping what was accepted before: "
+                + String.join(" ", found.stream().map(Rejection::reason).toList()));
+        return true;
+      }
+      return false;
+    }
+    ItemAnswer earlier = accepted.get(id);
+    JsonNode kept = Entries.without(answer.raw(), found);
+    if (earlier != null
+        && !earlier.omitted()
+        && earlier.raw() != null
+        && earlier.raw().isObject()) {
+      kept = answer.omitted() ? earlier.raw() : Entries.overlay((ObjectNode) earlier.raw(), kept);
+    } else if (answer.omitted()) {
+      kept = answer.raw();
+    }
+    if (!Entries.empty(kept) || answer.omitted()) {
+      accepted.put(id, role.read(id, packet.get(index), kept));
+    }
+    if (found.isEmpty()) {
+      verdicts.put(id, "accepted");
+      return true;
+    }
+    StringBuilder text = new StringBuilder("accepted in part; rejected:");
+    for (Rejection rejection : found) {
+      text.append(' ').append(rejection.field()).append(": ").append(rejection.reason());
+    }
+    verdicts.put(id, text.append(" Submit corrected ones again, or leave them out.").toString());
+    return true;
   }
 
   synchronized Map<String, ItemAnswer> accepted() {

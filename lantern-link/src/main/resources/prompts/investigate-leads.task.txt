@@ -1,0 +1,6 @@
+Task: check leads. Static analysis flagged each item in <items> as a possible risk, and shows the code it points at. For each item, read the code (use the tools to read further when the excerpt does not settle it) and decide:
+- "confirmed": the code shows the risk as described, on at least one path a caller can take;
+- "refuted": the code shows the risk cannot happen (for example, the header is removed or verified on every path that reaches the unit, or the send happens after commit), and you can cite where;
+- "unclear": the code you can read does not settle it.
+For a confirmed item, write the risk: a title of at most 8 words; the finding, what the code does, in one or two sentences; the consequence, what can happen because of it, in one or two sentences; its impact (high, medium or low) by what an attacker or a failure could do to data or availability; and your confidence (high, medium or low). For every verdict, give the identifiers your verdict rests on, exactly as the code writes them, and cite the ranges that show them.
+Cite each range as repo:path:from-to, using the repository, path and line numbers the <code> blocks and read_file results show; cite nothing else. Call submit once with every item, each with its lead id and a verdict.

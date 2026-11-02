@@ -82,6 +82,8 @@ public final class GraphTools implements ToolBox {
   static final String SEARCH_FACTS = "search_facts";
   static final String READ_FILE = "read_file";
   static final String FIND_IN_CODE = "find_in_code";
+  static final String NEIGHBOURS = "neighbours";
+  static final String SUMMARY_OF = "summary_of";
 
   /** The most lines one search gives. */
   static final int MAX_HITS = 30;
@@ -270,6 +272,35 @@ public final class GraphTools implements ToolBox {
     return List.copyOf(tools);
   }
 
+  /**
+   * The tools of an exploring conversation besides {@link #tools()} (knowledge-build epic, section
+   * 10, Agent loop): {@code neighbours}, the facts that link an entity to others, to a depth of
+   * two, and {@code summary_of}, an entity's accepted summary.
+   */
+  public List<LlmTool> exploreTools() {
+    List<LlmTool> tools = new ArrayList<>(tools());
+    ObjectNode near = schema();
+    property(near, "entity", "string", "An entity ID as the facts write it, such as service:g:a");
+    property(near, "depth", "integer", "1 for its own links, 2 for theirs too; default 1");
+    near.putArray("required").add("entity");
+    tools.add(
+        new LlmTool(
+            NEIGHBOURS,
+            "Lists the facts that link an entity to other entities, either way, and with depth 2"
+                + " those of the entities they reach. Each fact gets a reference such as [F12].",
+            near));
+    ObjectNode summary = schema();
+    property(summary, "entity", "string", "An entity ID, such as a module or repository");
+    summary.putArray("required").add("entity");
+    tools.add(
+        new LlmTool(
+            SUMMARY_OF,
+            "Shows the summary Lantern accepted for an entity, such as a module or repository, if"
+                + " it has one.",
+            summary));
+    return List.copyOf(tools);
+  }
+
   private static ObjectNode schema() {
     ObjectNode schema = JSON.createObjectNode().put("type", "object");
     schema.putObject("properties");
@@ -313,8 +344,59 @@ public final class GraphTools implements ToolBox {
         }
         yield find(call, input);
       }
+      case NEIGHBOURS -> {
+        String entity = text(input, "entity");
+        if (entity == null) {
+          yield LlmToolResult.error(call, "Give the entity, an entity ID such as service:g:a.");
+        }
+        int depth = input.path("depth").asInt(1) >= 2 ? 2 : 1;
+        yield LlmToolResult.of(call, neighbours(entity.strip(), depth));
+      }
+      case SUMMARY_OF -> {
+        String entity = text(input, "entity");
+        if (entity == null) {
+          yield LlmToolResult.error(call, "Give the entity, an entity ID such as module:g:a.");
+        }
+        yield LlmToolResult.of(call, factsAbout(entity.strip(), "summary"));
+      }
       default -> LlmToolResult.error(call, "There is no tool named " + call.name() + ".");
     };
+  }
+
+  /** The facts that link the entity to others, either way, to the depth. */
+  private String neighbours(String entity, int depth) {
+    EntityId start;
+    try {
+      start = EntityId.parse(entity);
+    } catch (RuntimeException e) {
+      return "Not an entity ID: " + entity + ". Use " + SEARCH_FACTS + " to find one.";
+    }
+    java.util.Set<String> reached = new java.util.LinkedHashSet<>(List.of(start.toString()));
+    java.util.Set<String> frontier = java.util.Set.of(start.toString());
+    List<Fact> found = new ArrayList<>();
+    for (int level = 0; level < depth; level++) {
+      java.util.Set<String> next = new java.util.LinkedHashSet<>();
+      for (Fact fact : facts) {
+        if (fact.object().kind() != FactObject.Kind.ENTITY) {
+          continue;
+        }
+        String subject = fact.subject().toString();
+        String object = fact.object().value();
+        if ((frontier.contains(subject) || frontier.contains(object)) && !found.contains(fact)) {
+          found.add(fact);
+          for (String end : List.of(subject, object)) {
+            if (reached.add(end)) {
+              next.add(end);
+            }
+          }
+        }
+      }
+      frontier = next;
+    }
+    if (found.isEmpty()) {
+      return "No facts link " + start + " to another entity.";
+    }
+    return list(found, "Links of " + start + (depth == 2 ? " and of what it reaches" : ""));
   }
 
   private static String text(JsonNode input, String field) {

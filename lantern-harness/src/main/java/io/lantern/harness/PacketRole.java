@@ -55,6 +55,33 @@ public interface PacketRole {
     return null;
   }
 
+  /**
+   * What the {@code submit} tool's description tells the model; null for the harness's, which
+   * describes the answer envelope.
+   */
+  default String submitDescription() {
+    return null;
+  }
+
+  /**
+   * A {@code submit} call's input as the answer envelope, {@code {"items": {"<item id>": {...}}}}:
+   * by default the input as it is; a role whose submit schema is written another way, such as a
+   * list of proposals, turns it into the envelope here.
+   */
+  default JsonNode envelope(JsonNode submitted) {
+    return submitted;
+  }
+
+  /**
+   * Whether an item's entry is kept in part (knowledge-build epic, section 11.2, Modes B and C):
+   * when every rejection of a submitted entry is of a field, the rest is accepted at once, and a
+   * later submission of the item adds to what was accepted, so the model may submit more than once.
+   * By default an entry is accepted whole or not at all, once.
+   */
+  default boolean partial() {
+    return false;
+  }
+
   /** An accepted entry as it is stored (JSON). */
   String store(Item item, ItemAnswer accepted);
 }

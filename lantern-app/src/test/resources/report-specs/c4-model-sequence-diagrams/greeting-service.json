@@ -99,6 +99,16 @@
       "tone" : "info"
     } ]
   }, {
+    "id" : "findings",
+    "level" : "documentation",
+    "title" : "Risks and findings",
+    "sections" : [ {
+      "type" : "callout",
+      "id" : "findings-none",
+      "body" : "**The LLM found no risks**\nLantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify.",
+      "tone" : "info"
+    } ]
+  }, {
     "id" : "catalog",
     "level" : "documentation",
     "title" : "Catalog",
@@ -147,7 +157,7 @@
       "type" : "table",
       "id" : "glossary-terms",
       "columns" : [ "Term", "Meaning", "Source" ],
-      "rows" : [ [ "HTTP", "Hypertext Transfer Protocol, the request and response protocol of the web", "Lantern's glossary" ], [ "STOMP", "Simple Text Oriented Messaging Protocol", "Lantern's glossary" ] ]
+      "rows" : [ [ "HTTP", "Hypertext Transfer Protocol, the request and response protocol of the web", "Lantern's glossary" ], [ "LLM", "Large language model, such as the one Lantern asks to word and investigate the code", "Lantern's glossary" ], [ "STOMP", "Simple Text Oriented Messaging Protocol", "Lantern's glossary" ] ]
     } ]
   } ]
 }

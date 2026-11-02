@@ -562,6 +562,23 @@ final class C4Views {
       }
     }
     result.addAll(peopleLinks());
+    // What Investigate found, marked as such on every line that draws it (ADR 0110).
+    for (EntityId unit : units(knowledge)) {
+      for (Fact fact : knowledge.relations(unit, InvestigatedFindings.CONNECTION)) {
+        if (Knowledge.isEntity(fact)) {
+          result.add(
+              link(
+                  unit,
+                  InvestigatedFindings.CONNECTION,
+                  Knowledge.object(fact),
+                  InvestigatedFindings.FOUND_BY_LLM + " " + attribute(fact, "description"),
+                  null,
+                  null,
+                  attribute(fact, "technology"),
+                  fact));
+        }
+      }
+    }
     for (Fact route : knowledge.withPredicate(ROUTES_TO)) {
       if (Knowledge.isEntity(route) && !folded.contains(Knowledge.object(route))) {
         result.add(

@@ -54,8 +54,10 @@ final class RepoRisks {
    *
    * @param currency the risks technology currency found, which come first among those of the same
    *     severity
+   * @param investigated the risks the LLM investigator found (ADR 0110), which come last among
+   *     those of the same severity
    */
-  List<Block> callouts(String section, List<Callout> currency) {
+  List<Block> callouts(String section, List<Callout> currency, List<Callout> investigated) {
     List<Callout> risks = new ArrayList<>(currency);
     unreleased(section, risks);
     inconsistentVersions(section, risks);
@@ -63,6 +65,7 @@ final class RepoRisks {
       cycles(section, container, risks);
     }
     injections(section, risks);
+    risks.addAll(investigated);
     // Stable: risks of the same severity keep the order of the checks.
     risks.sort(
         Comparator.comparing(Callout::severity, Comparator.nullsLast(Comparator.naturalOrder())));

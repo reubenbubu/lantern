@@ -367,6 +367,10 @@ class EndToEndIT {
         .as("the carried-forward service's stored build")
         .contains(serviceBuild);
     assertThat(fake.sent()).as("LLM requests in the third run").hasSize(sent);
+    // The service's summaries keep holding though only the library was analyzed (ADR 0104).
+    assertThat(facts.findValidAt(third.snapshot().number(), java.util.Set.of("greeting-service")))
+        .as("summaries of the carried-forward service")
+        .anySatisfy(f -> assertThat(f.predicate()).isEqualTo(io.lantern.harness.LlmFacts.SUMMARY));
     assertThat(third.snapshot().number()).isEqualTo(second + 1);
     assertThat(third.builds()).containsOnlyKeys("greeting-lib");
     assertThat(third.reusedBuilds()).containsExactly("greeting-lib");
@@ -808,12 +812,22 @@ class EndToEndIT {
             .sum();
     assertThat(wordings).as("wordings").isEqualTo(recorded);
     assertThat(wordings > 0).as("wordings asked").isEqualTo(run.wordingsAsked() > 0);
+    // Each Investigate call is one its records counted (ADR 0110).
+    long investigateCalls = byRole.getOrDefault(Role.INVESTIGATE, 0L);
+    assertThat(investigateCalls)
+        .as("investigate calls")
+        .isEqualTo(
+            run.roles().stream()
+                .filter(r -> r.role().startsWith("investigate-"))
+                .mapToLong(io.lantern.harness.RoleRecord::calls)
+                .sum());
     // The model checks (ADR 0101) make the rest.
     assertThat(calls)
         .isEqualTo(
             run.summariesGenerated()
                 + resolveCalls
                 + wordings
+                + investigateCalls
                 + byRole.getOrDefault(Role.JUDGE, 0L)
                 + byRole.getOrDefault(Role.SCREEN, 0L));
   }

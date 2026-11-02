@@ -63,6 +63,7 @@ JWKS,JSON Web Key Set: the public keys that verify the signatures of JWTs
 JWT,JSON Web Token: a signed token carrying claims about a user
 KPI,Key performance indicator
 LDAP,Lightweight Directory Access Protocol, used for directories of users and groups
+LLM,Large language model, such as the one Lantern asks to word and investigate the code
 LTS,Long-term support
 MQ,Message queue
 MQTT,MQ Telemetry Transport, a lightweight publish and subscribe messaging protocol
