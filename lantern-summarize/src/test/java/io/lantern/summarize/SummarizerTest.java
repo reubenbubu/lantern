@@ -2084,4 +2084,29 @@ class SummarizerTest {
     assertThat(summary.text()).doesNotContain("Five");
     assertThat(fake.sent()).hasSize(1);
   }
+
+  @Test
+  void anAnswerWithOmittedFalseKeepsItsSentencesAndBracketedCitesAreRead() {
+    fake.answering(
+        "{\"items\": {\"I1\": {\"omitted\": false, \"sentences\": [{\"text\": \"Line holds a"
+            + " quantity.\", \"cites\": [\"[F1]\"]}, {\"text\": \"It is a record.\", \"cites\":"
+            + " [\"F1\"]}, {\"text\": \"Three.\", \"cites\": [\"F1\"]}, {\"text\": \"Four.\","
+            + " \"cites\": [\"F1\"]}, {\"text\": \"Five.\", \"cites\": [\"F1\"]}]}}}");
+    SummaryNode line =
+        new SummaryNode(
+            EntityId.parse("type:p.Line"),
+            SummaryLevel.TYPE,
+            List.of(
+                TestFacts.fact(
+                    "r", "type:p.Line", "kind", FactObject.string("record"), "Line.java")),
+            List.of());
+    String fact = line.facts().getFirst().id();
+
+    Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
+
+    assertThat(summary.text()).startsWith("Line holds a quantity. [fact:" + fact + "] It is a");
+    assertThat(summary.text()).doesNotContain("[[").doesNotContain("Five");
+    // The fifth sentence is past the four a type asks for: left out, without lowering confidence.
+    assertThat(summary.confidence()).isEqualTo(Confidence.INFERRED);
+  }
 }

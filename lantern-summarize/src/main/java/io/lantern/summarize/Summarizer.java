@@ -690,9 +690,15 @@ public final class Summarizer {
         }
         if (node.facts().isEmpty() && children.isEmpty()) {
           if (planned.contains(node.entity())) {
-            // It was planned for its parts' summaries, and none came: they were not asked.
-            notAsked.add(node.entity());
-            session.notAsked(node.entity().toString(), "none of its parts was summarized");
+            // It was planned for its parts' summaries, and none came. If a part was not asked under
+            // the budget, neither is it; if its parts were omitted or rejected, nothing is left to
+            // summarize, which is an omission, not a unit the budget left out.
+            boolean budget =
+                node.children().stream().anyMatch(child -> notAsked.contains(child.entity()));
+            (budget ? notAsked : omitted).add(node.entity());
+            session.notAsked(
+                node.entity().toString(),
+                budget ? "none of its parts was summarized" : "none of its parts has a summary");
           }
           return Optional.empty();
         }
@@ -999,6 +1005,8 @@ public final class Summarizer {
       // asks for, is left out as a sentence the checks reject is; the rest must fit the schema.
       List<Rejection> dropped = new ArrayList<>();
       List<Integer> positions = new ArrayList<>();
+      // Sentences past the count the item asks for: left out, but nothing wrong was written.
+      int beyond = 0;
       JsonNode written = entry.get("sentences");
       int total = written != null && written.isArray() ? written.size() : 0;
       if (total > 0 && entry.isObject()) {
@@ -1015,6 +1023,7 @@ public final class Summarizer {
                     : "Does not match the schema: " + String.join("; ", violations) + ".";
             dropped.add(new Rejection(Prompt.ITEM, field, "Schema", reason));
           } else if (fitting.size() >= most) {
+            beyond++;
             dropped.add(
                 new Rejection(
                     Prompt.ITEM,
@@ -1042,7 +1051,7 @@ public final class Summarizer {
         }
         throw new Rejected(Pipeline.repairTurn(all));
       }
-      if (entry.has("omitted")) {
+      if (new ItemAnswer(Prompt.ITEM, entry, List.of(), List.of()).omitted()) {
         return Answer.OMITTED;
       }
       List<String> kept = new ArrayList<>();
@@ -1056,7 +1065,10 @@ public final class Summarizer {
         String text = Citations.withoutCitations(sentence.get("text").asString()).strip();
         // A range such as F1-F3 cites each reference in it; the text keeps it as written.
         List<String> asWritten = new ArrayList<>();
-        sentence.get("cites").forEach(cite -> asWritten.add(cite.asString().strip()));
+        // A cite written in brackets, such as "[F1]", is the reference inside them.
+        sentence
+            .get("cites")
+            .forEach(cite -> asWritten.add(cite.asString().replaceAll("[\\[\\]]", "").strip()));
         List<String> cites = new ArrayList<>();
         for (String cite : asWritten) {
           Set<String> expanded = Citations.references("[" + cite + "]");
@@ -1113,7 +1125,7 @@ public final class Summarizer {
           text,
           checked,
           evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED,
-          Confidence.of(evidenced, kept.size(), total - kept.size()));
+          Confidence.of(evidenced, kept.size(), total - beyond - kept.size()));
     }
 
     /** A rejection of the whole answer, as the repair turn sends it. */

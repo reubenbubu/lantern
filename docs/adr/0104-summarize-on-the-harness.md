@@ -47,11 +47,16 @@ standing go-ahead for milestone 1F.
   in it. Only an answer that is not an entry for `I1`, or leaves no sentence, gets the repair turn,
   which lists every reason; a second failure leaves the unit without a summary, as before.
   `{"omitted": true}` is a correct answer: the unit has no summary, it is counted as omitted, and
-  a rerun reuses the omission.
+  a rerun reuses the omission; so is a package, module or repository with no facts whose parts all
+  have none. A cite written in brackets (`"[F1]"`) is read as the reference inside them.
+- **Sentence length.** The epic bounds a sentence at 300 characters as a safety bound and asks for
+  word limits in the prompt; the prompt asks for at most 35 words a sentence, and the Form check
+  leaves out a longer one. With a real model this may drop sentences the fake runs never write; the
+  first paid run (#529) counts how many.
 - **Basis and confidence are computed.** The model no longer writes a `Purpose:` line. The
   summary's purpose is evidenced when its first sentence is kept and cites a README claim, a source
   file with Javadoc, or a part's evidenced summary; otherwise inferred (amends ADR 0059). Its
-  confidence is ADR 0066's, from that and the share of the answer's sentences kept.
+  confidence is ADR 0066's, from that and the share of the answer's sentences kept; a sentence left out only for being past the count the item asks for does not lower it.
 - **Parts and merges (ADR 0024).** A unit too large for one request is still split into parts
   under its usual references and merged. Each part asks for 1 to 3 sentences; the merge shows the
   parts' kept sentences, each with the references it cites, in `<summaries>`, and may cite only
