@@ -2,7 +2,7 @@
 
 This is the research for #696, the first issue of milestone 1G "Composer on the model".
 
-**Depth: high.** The question is open: it decides how the composer is built and how the design's Composition section reads, and it needs tools, typed-access prior art and papers compared. **Pages read: 24 in full** (Structurizr: 5 documentation pages and 2 source files; LikeC4: 4; Ilograph: 3; IcePanel: 1; Backstage: 1; Glean: 2; jOOQ: 1; c4model.com: 2; Graphviz FAQ: 1; 2 research papers, read in full as PDFs). **Read in part: 5** (SPARQL 1.1, the property paths and ordering; RDF 1.1 Semantics, its entailment rules; an arXiv abstract page; the TU/e oblique-lifting abstract; the Wikipedia page on ISO/IEC 42010). ISO 42010's own site refused the connection and the ArchiMate viewpoints chapter needs a login, so neither carries any weight (Not read).
+**Depth: high.** The question is open: it decides how the composer is built and how the design's Composition section reads, and it needs tools, typed-access prior art and papers compared. **Pages read: 24 in full** (Structurizr: 5 documentation pages and 2 source files; LikeC4: 4; Ilograph: 3; IcePanel: 1; Backstage: 1; Glean: 2; jOOQ: 1; c4model.com: 2; Graphviz FAQ: 1; 2 research papers, read in full as PDFs). **Read in part: 5** (SPARQL 1.1, the property paths and ordering; RDF 1.1 Semantics, its entailment rules; an arXiv abstract page; the TU/e oblique-lifting abstract; the Wikipedia page on ISO/IEC 42010). ISO 42010's own site refused the connection and the ArchiMate viewpoints chapter needs a login, so neither carries any weight (Not read). What rests on a source read in part (lifting, the RDFS rules, SPARQL ordering) is only what its opened part says, and each point is also made by a source read in full (Structurizr, LikeC4).
 
 ## Question
 
@@ -37,10 +37,10 @@ What this means for Lantern:
 ### 2. Merging lines ("implied relationships")
 
 - **Structurizr has three strategies**: none by default; "unless same exists", which causes "an explosion of relationships"; and "unless any exists", the DSL's default, to "show a summary relationship at higher levels in the model". <https://docs.structurizr.com/java/implied-relationships>
-- **In its source, an implied relationship copies only the description and technology of the lower one** (`model.addRelationship(source, destination, relationship.getDescription(), relationship.getTechnology(), false)`), keeps a link back to it (`setLinkedRelationshipId`), refuses a pair whose ends are the same or one the other's parent, and walks every pair of ancestors. So the first lower relationship processed decides a merged line's label: it depends on order. <https://gh.ali360.cloudns.ch/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/AbstractImpliedRelationshipsStrategy.java>, <https://gh.ali360.cloudns.ch/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/CreateImpliedRelationshipsUnlessAnyRelationshipExistsStrategy.java>
+- **In its source, an implied relationship copies only the description and technology of the lower one** (`model.addRelationship(source, destination, relationship.getDescription(), relationship.getTechnology(), false)`), keeps a link back to it (`setLinkedRelationshipId`), refuses a pair whose ends are the same or one the other's parent, and walks every pair of ancestors. So the first lower relationship processed decides a merged line's label: it depends on order. <https://github.com/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/AbstractImpliedRelationshipsStrategy.java>, <https://github.com/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/CreateImpliedRelationshipsUnlessAnyRelationshipExistsStrategy.java>
 - **LikeC4 merges lines when it draws a view and stores none.** "Connections represent merged relationships - direct between elements and/or those derived from their nested elements"; a merged one is titled `[...]`; `multiple true` draws "each relationship as a separate edge". <https://likec4.dev/dsl/views/predicates/>
 - **IcePanel reuses lower connections at higher levels**, which "sync changes in the original connection". <https://docs.icepanel.io/features/diagramming>
-- **Relation partition algebra calls this lifting**: "Lifting transforms a relation at a certain level of the decomposition structure of a system" to a higher one; "oblique lifting" works when leaves sit at different depths; after lifting, "various kinds of weights (or multiplicities) may be associated with the interconnections". (Abstract only.) <https://research.tue.nl/en/publications/hiding-expressed-using-relation-algebra-with-multi-relations-obli/>
+- **Relation partition algebra calls this lifting** (from the abstract only, so it names the idea and carries no more weight than that): "Lifting transforms a relation at a certain level of the decomposition structure of a system" to a higher one; "oblique lifting" works when leaves sit at different depths; after lifting, "various kinds of weights (or multiplicities) may be associated with the interconnections". (Abstract only.) <https://research.tue.nl/en/publications/hiding-expressed-using-relation-algebra-with-multi-relations-obli/>
 - **Structurizr's groups are boundaries, not elements**; nothing draws a relationship to a group. <https://docs.structurizr.com/dsl/cookbook/groups/>
 
 What this means for Lantern:
@@ -115,7 +115,7 @@ What this means for Lantern: composing is a pure function of the model, the view
 | Option | For | Against |
 | --- | --- | --- |
 | A generated constant or record per type (jOOQ) | Compile-time checks | Only for types known at build time |
-| A generic API on strings | Open | Copied strings everywhere (today's ~111) |
+| A generic API on strings | Open | Copied strings everywhere (about 111 today, as #280 counts) |
 | Typed records of the model's shapes, a type reference that knows its parents, constants for the built-in types in one layer, decisions by ancestor | Open and safe; strings in one place; parent fallback built in | Constants must match the vocabulary (a test checks) |
 
 ## Recommendation
@@ -126,7 +126,7 @@ What this means for Lantern: composing is a pure function of the model, the view
 
 **Merging lines** happens when a view is composed: each end goes to the nearest element the view shows (a unit, or the domain or feature area that stands for it), a line whose ends become one element or one the other's parent is dropped, and the rest merge into one line per ordered pair of ends and protocol, keeping the facts behind it, sorted. *Lantern's judgement on the label, against the note's sources:* the label follows ADR 0088, which already settles it without depending on order: one phrase, the one most of the line's links say, the first alphabetically on a tie, else the static label. A line between groups takes the intent Name groups stored for it (`(group, intent, "<other end> <protocol>")`, ADR 0107), else the same rule over its member lines. A count such as "N interactions" is not a label: it is no intent phrase (`docs/quality-bar.md`, Rubric).
 
-**Splitting**: the overview first; above the threshold, domains instead of units with one view per domain (its units and their lifted neighbours); what is still above it split by concern. Components do the same with feature areas. Thresholds are settings.
+**Splitting**: the overview first; above the threshold, domains instead of units (units in no domain drawn as themselves) with one view per domain (its units and their lifted neighbours); what is still above it split by concern. Components do the same with feature areas, and an area still above it is split by groups of entry points (epic, section 12). Thresholds are settings.
 
 **Typed access and fallback.** *Lantern's judgement:* the note's sources argue against a constant per type for an open vocabulary, but Lantern's built-in types are fixed at build time and already have generated attribute records (#518, ADR 0090). So predicate and type names of built-in types become constants in one typed layer in core (#280), and every decision of what a type is drawn as (C4 level, kind, shape) asks the vocabulary by ancestor, so a runtime type that extends `container` is drawn as one with no code. The renderer receives resolved kinds and maps no type.
 
@@ -144,8 +144,8 @@ Read in full:
 - <https://docs.structurizr.com/java/implied-relationships>
 - <https://docs.structurizr.com/server/diagrams/notation>
 - <https://docs.structurizr.com/dsl/cookbook/groups/>
-- <https://gh.ali360.cloudns.ch/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/AbstractImpliedRelationshipsStrategy.java>
-- <https://gh.ali360.cloudns.ch/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/CreateImpliedRelationshipsUnlessAnyRelationshipExistsStrategy.java>
+- <https://github.com/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/AbstractImpliedRelationshipsStrategy.java>
+- <https://github.com/structurizr/java/blob/master/structurizr-core/src/main/java/com/structurizr/model/CreateImpliedRelationshipsUnlessAnyRelationshipExistsStrategy.java>
 - <https://likec4.dev/dsl/views/>
 - <https://likec4.dev/dsl/views/predicates/>
 - <https://likec4.dev/dsl/specification/>
