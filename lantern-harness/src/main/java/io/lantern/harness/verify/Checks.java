@@ -436,7 +436,7 @@ public final class Checks {
     }
 
     /** Whether a sentence opens with a pronoun or with the kind of part it is about. */
-    static boolean weakOpening(String sentence) {
+    public static boolean weakOpening(String sentence) {
       return WEAK_OPENINGS.stream().anyMatch(p -> p.matcher(sentence).lookingAt());
     }
 

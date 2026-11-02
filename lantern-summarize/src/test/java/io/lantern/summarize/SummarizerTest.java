@@ -1092,6 +1092,23 @@ class SummarizerTest {
   }
 
   @Test
+  void aRepairedAnswerLedByASentenceWrittenToFollowLosesItToo() {
+    fake.answering(
+        Answers.epic(
+            request ->
+                request.purpose().contains("type:com.example.shop.Order$Line")
+                    ? "The class is a Spring bean [F1]. It holds a quantity [F1]. Lines belong to"
+                        + " an order [F1]."
+                    : citingAll(request)));
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
+    assertThat(line.text()).startsWith("Lines belong to an order [fact:").doesNotContain("It ");
+  }
+
+  @Test
   void aLaterSentenceTrueOfAnySpringApplicationIsLeftOutWithoutAskingAgain() {
     firstLineAnswer(
         "Lines hold the quantity of one book in an order [F1]. It is available for injection"

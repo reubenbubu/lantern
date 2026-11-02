@@ -19,7 +19,9 @@ its first sentence to a check and kept the ones that followed it. The Form check
   intent phrase that matches one of the patterns in
   `lantern-harness/src/main/resources/checks/generic-sentences.txt`: framework mechanics (being a Spring bean, being injected, being managed), generated members
   (Lombok, getters and setters, inherited CRUD operations), starting the application, following a
-  standard pattern, and the members list "works mainly with …". The patterns are data, one Java
+  standard pattern, and the members list "works mainly with …". Only the stereotypes every Spring
+  application has count: "annotated with @Service" says nothing, "annotated with
+  @FeignClient(name=orders)" does, and a reason Resolve gives may say it. The patterns are data, one Java
   regular expression a line, matched case-insensitively anywhere in the sentence, so a pattern is
   added without code.
 - **Sentences shown alone.** A responsibility, and the first sentence of a summary (a new text kind,
@@ -31,9 +33,12 @@ its first sentence to a check and kept the ones that followed it. The Form check
   60% rule.
 - **Asking again instead of a fragment.** A summary answer whose first sentence is left out while
   others pass is sent back once, with the reasons and a note to write the whole summary again
-  opening with what the unit is for. The answer to that repair turn is taken as it is, its first
-  sentence left out or not, so a unit is never left without a summary for the levels above it
-  that cite it.
+  opening with what the unit is for. The answer to that repair turn is taken without its first
+  sentence if it loses it again, so a unit is not left without a summary the levels above it
+  cite; but the sentences now leading it were checked as following one, so those that open with a
+  pronoun or their kind are left out too, and an answer left with none is dropped, as one rejected
+  twice is. A first answer that fails as a whole (cut off, outside the schema) uses up the repair
+  turn, so its retry is held to these rules without another.
 - **No new prompt version.** The prompts already ask for this (no boilerplate, no restated names);
   the checks hold answers to it. Cached answers accepted before stay until their inputs change.
 

@@ -9,9 +9,12 @@
 \b(is|are|gets?|being) injected\b
 \bmanaged by (the )?spring\b
 \bspring[- ]managed\b
-\b(is|as|are) (a |an )?spring (bean|component|service|controller|repository|configuration)( class)?\b
+\b(is|as|are) (a |an )?spring (bean|component|service|controller|repository)( class)?\b
+\b(is|as) (a |an )?spring configuration class\b
 \bregister(s|ed)? (it(self)?|them(selves)?|the class) (as|with) (a )?(spring )?(bean|component)s?\b
-\bannotated with @
+# Only the stereotypes every Spring application has; "annotated with @FeignClient(name=orders)"
+# or "@Scheduled" says something.
+\bannotated with @(component|service|repository|controller|restcontroller|configuration|autowired)\b
 # Generated or boilerplate members.
 \blombok\b
 \bboilerplate\b

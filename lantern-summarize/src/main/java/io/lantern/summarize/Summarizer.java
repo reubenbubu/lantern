@@ -1138,6 +1138,23 @@ public final class Summarizer {
                     + " whole summary again, opening with what the unit is for."));
         throw new Rejected(Pipeline.repairTurn(lead));
       }
+      if (!firstKept) {
+        // A retried answer that lost its first sentence leads with one written to follow it, which
+        // was checked as such: it may lead only if it may be shown alone (#275).
+        while (!kept.isEmpty() && Checks.Generic.weakOpening(kept.getFirst())) {
+          dropped.add(
+              new Rejection(
+                  Prompt.ITEM,
+                  "sentences",
+                  "Generic",
+                  "\""
+                      + kept.removeFirst()
+                      + "\" would lead the summary, but opens with a pronoun or its kind."));
+        }
+        if (kept.isEmpty()) {
+          throw new Rejected(Pipeline.repairTurn(dropped));
+        }
+      }
       if (!dropped.isEmpty()) {
         LOG.info(
             "Left out {} sentences from the answer to {}: {}",

@@ -235,10 +235,10 @@ class ChecksTest {
             "Keeps the files attached to each organization and refuses duplicates",
             "Organization files are kept here, one root per organization",
             "Thin wrapper over the tax rules, rounding to the cent",
-            "Itemised invoices are built from the order lines")) {
-      assertThat(reasons(check, text(CheckedText.Kind.RESPONSIBILITY, fine, "F1")))
-          .as(fine)
-          .isEmpty();
+            "Itemised invoices are built from the order lines",
+            "Its client is annotated with @FeignClient(name=orders), so calls go to orders",
+            "Topic names are bound as Spring configuration properties per environment")) {
+      assertThat(reasons(check, text(CheckedText.Kind.PROSE, fine, "F1"))).as(fine).isEmpty();
     }
     // An intent phrase is the Form check's.
     assertThat(reasons(check, text(CheckedText.Kind.INTENT, "It works mainly with", "F1")))
