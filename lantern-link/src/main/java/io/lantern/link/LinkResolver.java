@@ -385,13 +385,15 @@ public final class LinkResolver implements LinkRule.OverFacts {
     List<List<Item>> packets = new ArrayList<>();
     for (List<Item> unitItems : byUnit.values()) {
       List<Item> sorted = new ArrayList<>(unitItems);
-      sorted.sort(java.util.Comparator.comparing(session::fingerprint));
+      sorted.sort(java.util.Comparator.comparing(session::sampleFingerprint));
       List<Item> hits = sorted.stream().filter(session::cached).toList();
       List<Item> misses = sorted.stream().filter(item -> !hits.contains(item)).toList();
-      // Four to a conversation, the cached ones too: one whose cited facts no longer hold is asked.
+      // Four to a conversation (or a calibration's size, ADR 0112), the cached ones too: one whose
+      // cited facts no longer hold is asked.
+      int size = session.spec().packetSize();
       for (List<Item> group : List.of(hits, misses)) {
-        for (int i = 0; i < group.size(); i += PACKET_SIZE) {
-          packets.add(group.subList(i, Math.min(group.size(), i + PACKET_SIZE)));
+        for (int i = 0; i < group.size(); i += size) {
+          packets.add(group.subList(i, Math.min(group.size(), i + size)));
         }
       }
     }

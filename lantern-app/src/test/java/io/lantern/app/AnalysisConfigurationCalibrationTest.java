@@ -26,5 +26,9 @@ class AnalysisConfigurationCalibrationTest {
         .isInstanceOf(IllegalStateException.class);
     assertThatThrownBy(() -> AnalysisConfiguration.calibrations("resolve:0", "1"))
         .isInstanceOf(IllegalArgumentException.class);
+    // A misspelled role would otherwise change nothing and look like a recording.
+    assertThatThrownBy(() -> AnalysisConfiguration.calibrations("investigate-lead:5", "1"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("investigate-leads");
   }
 }

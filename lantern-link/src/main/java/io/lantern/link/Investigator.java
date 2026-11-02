@@ -756,8 +756,9 @@ public final class Investigator {
         List<Future<?>> futures = new ArrayList<>();
         for (Map.Entry<String, List<Item>> group : groups.entrySet()) {
           List<Item> items = new ArrayList<>(group.getValue());
-          items.sort(java.util.Comparator.comparing(session::fingerprint));
-          int size = mode == Mode.A ? LEADS_PER_PACKET : 1;
+          items.sort(java.util.Comparator.comparing(session::sampleFingerprint));
+          // Mode A's packets are its role's size (a calibration's, ADR 0112); B and C ask one.
+          int size = mode == Mode.A ? session.spec().packetSize() : 1;
           for (int i = 0; i < items.size(); i += size) {
             List<Item> packet = items.subList(i, Math.min(items.size(), i + size));
             InvestigateRole role = role(mode, group.getKey());

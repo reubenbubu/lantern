@@ -268,7 +268,7 @@ public final class RoleSession {
       // which every request sends once: the plan counts requests, not items, packed as they will
       // be sent (a new request at every change of repository).
       int requests =
-          Packer.pack(misses, spec.packetSize(), this::fingerprint).size()
+          Packer.pack(misses, spec.packetSize(), this::sampleFingerprint).size()
               + (predictedMisses + spec.packetSize() - 1) / spec.packetSize();
       this.requestsPerItem = toAsk == 0 ? 0 : (double) requests / toAsk;
       if (requests > 0 && model.supports(Capability.PROMPT_CACHING) && prefixTokens > 0) {
@@ -708,7 +708,8 @@ public final class RoleSession {
 
   private void askPlannedPackets(
       List<Item> misses, PacketRole role, Map<String, Outcome> outcomes) {
-    List<List<Item>> packets = Packer.pack(misses, spec.packetSize(), this::fingerprint);
+    // Grouped by the role's own fingerprint, so a calibration keeps the same neighbours in order.
+    List<List<Item>> packets = Packer.pack(misses, spec.packetSize(), this::sampleFingerprint);
     List<Item> missing = java.util.Collections.synchronizedList(new ArrayList<>());
     run(packets, packet -> missing.addAll(askPacket(packet, role, outcomes)));
     List<List<Item>> alone = missing.stream().map(List::of).toList();

@@ -103,6 +103,18 @@ class AnalysisConfiguration {
    * The roles {@code lantern.harness.calibrate} names, as {@code <role>:<packet size>} separated by
    * commas, each under the trial {@code lantern.harness.calibration-trial}.
    */
+  /** The roles that ask several items a request, the ones a calibration can name. */
+  static final java.util.Set<String> CALIBRATABLE =
+      java.util.Set.of(
+          "resolve",
+          "investigate-leads",
+          "describe-element",
+          "name-groups",
+          "support-judge",
+          "injection-screen",
+          "wording-judge-role",
+          "wording-judge-specific");
+
   static java.util.Map<String, io.lantern.harness.Harness.Calibration> calibrations(
       String calibrate, String trial) {
     java.util.Map<String, io.lantern.harness.Harness.Calibration> calibrations =
@@ -122,6 +134,13 @@ class AnalysisConfiguration {
       } catch (NumberFormatException e) {
         throw new IllegalStateException(
             "lantern.harness.calibrate needs a whole packet size: " + entry, e);
+      }
+      if (!CALIBRATABLE.contains(parts[0].strip())) {
+        throw new IllegalStateException(
+            "lantern.harness.calibrate names "
+                + parts[0].strip()
+                + ", not a role that asks several items a request: one of "
+                + new java.util.TreeSet<>(CALIBRATABLE));
       }
       calibrations.put(parts[0].strip(), new io.lantern.harness.Harness.Calibration(size, trial));
     }
