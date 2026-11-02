@@ -589,7 +589,7 @@ Every answer, batched or agentic, goes through the same checks before anything i
 | Ranges | A file range **the model wrote** (`repo:path:from-to`) is outside the file at the snapshot's blob, longer than 40 lines, or in a file not of the snapshot. Excerpts Lantern supplied (`[E…]`) are not range-checked |
 | Names (ADR 0068) | A code-like name or technology in the text appears in none of the cited inputs or cited lines |
 | Coverage | A proposal's declared `names` do not all appear in its cited lines, or a cited range holds none of them |
-| Form | A text breaks the role's word limit. An intent phrase starts with a banned opening: `uses`, `use`, `calls`, `call`, `depends on`, `connects to`, `talks to`, `communicates with`, `interacts with`. A phrase contains a protocol word: `HTTP`, `HTTPS`, `REST`, `JSON`, `AMQP`, `Kafka`, `JMS`, `JDBC`, `SQL`, `gRPC`, `WebSocket`, `STOMP`, `SMTP`, `RESP`. A responsibility restates its subject's name: more than 60% of its subject's name tokens (split on case changes, dots, dashes and underscores, lower-cased, stop words removed) appear among the sentence's first 6 tokens |
+| Form | A text breaks the role's word limit. An intent phrase starts with a banned opening: `uses`, `use`, `calls`, `call`, `depends on`, `connects to`, `talks to`, `communicates with`, `interacts with`. A phrase contains a protocol word: `HTTP`, `HTTPS`, `REST`, `JSON`, `AMQP`, `Kafka`, `JMS`, `JDBC`, `SQL`, `gRPC`, `WebSocket`, `STOMP`, `SMTP`, `RESP`. A responsibility restates its subject's name: more than 60% of its subject's name tokens (split on case changes, dots, dashes and underscores, lower-cased, stop words removed) appear among the sentence's first 6 tokens, and the sentence adds fewer than 3 content tokens beyond the name's (plurals matched to singulars; words that say nothing, such as `handles`, `manages`, `provides`, `service`, not counted; amended by #685, `docs/research/summary-prompt-rules.md`) |
 | Conflict | A proposed connection or claim repeats or contradicts a static claim (the same subject and predicate, with the same object or with the static claim's object in its place). Static wins: the proposal is dropped and logged |
 | Secrets | The text holds a value the masking marked as secret |
 
@@ -1103,13 +1103,13 @@ Answer with the JSON object alone. Check that every bracket you open is closed o
 Task: narrate flows. Each item in <items> is one flow through the system: what starts it and the steps that cross from one container to another, in the order of the code, each with the facts behind it. A synchronous step waits for its answer; an asynchronous one hands work on, and what follows it happens later.
 For each item write:
 - a title of at most 5 words naming the business scenario, what someone or something gets done, such as "Customer places an order", without request paths or class names;
-- a walkthrough of two to four plain sentences, at most 70 words in all, telling a reader who does not know the code what the flow does for the system, in the order it happens, naming the containers as the steps name them and saying where work is handed on asynchronously;
-- the pre-conditions, at most 20 words: what must hold before it starts;
-- the post-conditions, at most 20 words: what has changed when it ends, such as data written or messages sent.
+- a walkthrough of two to four plain sentences, at most 75 words in all, covering every step in order, telling a reader who does not know the code what the flow does for the system, in the order it happens, naming the containers as the steps name them and saying where work is handed on asynchronously; say only what the steps and their facts show, so a check or a store is named only where a step shows it;
+- the pre-conditions, at most 22 words: what must hold before it starts;
+- the post-conditions, at most 22 words: what has changed when it ends, such as data written or messages sent; when the last step hands work on asynchronously, say the message was sent, not what its receiver does later.
 Leave out any of these that the facts do not show.
 Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
-Before you answer, check each text against its word limit: title 5, walkthrough 70, each condition 20.
+Before you answer, check each text against its word limit: title 5, walkthrough 75, each condition 22; and that each text names no protocol or technology its citations do not show.
 ```
 
 Narrative answer schema (a narrative cites \[F..\] and the earlier answers \[A..\] shown):

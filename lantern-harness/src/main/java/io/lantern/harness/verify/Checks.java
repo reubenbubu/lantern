@@ -79,6 +79,45 @@ public final class Checks {
   static final Set<String> STOP_WORDS =
       Set.of("a", "an", "the", "of", "and", "or", "for", "to", "in", "on", "with", "by", "is");
 
+  /**
+   * Words that say nothing about what a part does, so a responsibility made of its name and these
+   * restates the name (#685).
+   */
+  static final Set<String> EMPTY_WORDS =
+      Set.of(
+          "handles",
+          "handle",
+          "manages",
+          "manage",
+          "provides",
+          "provide",
+          "responsible",
+          "offers",
+          "supports",
+          "contains",
+          "implements",
+          "logic",
+          "operations",
+          "functionality",
+          "related",
+          "various",
+          "service",
+          "services",
+          "class",
+          "component",
+          "it",
+          "its",
+          "this",
+          "that",
+          "which",
+          "are",
+          "be",
+          "as",
+          "all");
+
+  /** A responsibility that adds fewer content words than this beyond its name restates it. */
+  static final int ADDED_WORDS = 3;
+
   private static Rejection reject(ItemAnswer answer, String field, Check check, String reason) {
     return new Rejection(answer.item(), field, check.name(), reason);
   }
@@ -359,16 +398,35 @@ public final class Checks {
       return found;
     }
 
-    /** Whether more than 60% of the subject's name tokens are among the first 6 tokens. */
+    /**
+     * Whether more than 60% of the subject's name tokens are among the first 6 tokens, and the
+     * sentence adds fewer than {@link #ADDED_WORDS} content words beyond the name: a sentence that
+     * opens with the name's words but says what the part does is not a restatement (#685).
+     */
     static boolean restates(CheckedText text) {
-      List<String> name = tokens(text.subjectName());
+      List<String> name = tokens(text.subjectName()).stream().map(Form::singular).toList();
       if (name.isEmpty()) {
         return false;
       }
-      List<String> first = tokens(text.text());
-      first = first.subList(0, Math.min(6, first.size()));
+      List<String> all = tokens(text.text()).stream().map(Form::singular).toList();
+      List<String> first = all.subList(0, Math.min(6, all.size()));
       long shared = name.stream().filter(first::contains).count();
-      return shared * 10 > name.size() * 6L;
+      if (shared * 10 <= name.size() * 6L) {
+        return false;
+      }
+      long added =
+          all.stream()
+              .filter(token -> !name.contains(token))
+              .filter(token -> !EMPTY_WORDS.contains(token) && !EMPTY_WORDS.contains(token + "s"))
+              .count();
+      return added < ADDED_WORDS;
+    }
+
+    /** A token without a plural "s", so "orders" matches the name token "order". */
+    private static String singular(String token) {
+      return token.length() > 3 && token.endsWith("s") && !token.endsWith("ss")
+          ? token.substring(0, token.length() - 1)
+          : token;
     }
 
     public static List<String> tokens(String text) {

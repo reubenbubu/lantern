@@ -209,6 +209,24 @@ class ChecksTest {
   }
 
   @Test
+  void aResponsibilityThatOpensWithItsNameButSaysWhatItDoesDoesNotRestateIt() {
+    Check check = new Checks.Form();
+    assertThat(
+            reasons(
+                check,
+                text(
+                    CheckedText.Kind.RESPONSIBILITY,
+                    "Keeps the service's orders until each one ships",
+                    "F1")))
+        .isEmpty();
+    assertThat(
+            reasons(
+                check,
+                text(CheckedText.Kind.RESPONSIBILITY, "Handles orders for the service", "F1")))
+        .containsExactly("Restates its subject's name; say what it is responsible for.");
+  }
+
+  @Test
   void genericSentencesAndWeakOpeningsAreRejected() {
     Check check = new Checks.Generic();
     String generic =

@@ -56,7 +56,7 @@ final class FlowJudgements {
   static final String SIGNIFICANCE_VERSION = "3";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
-  static final String NARRATIVE_VERSION = "6";
+  static final String NARRATIVE_VERSION = "7";
 
   static final String SIGNIFICANCE_TASK = DescribeRole.prompt("flow-significance.task.txt");
   static final String SIGNIFICANCE_SCHEMA = DescribeRole.prompt("flow-significance.schema.json");
