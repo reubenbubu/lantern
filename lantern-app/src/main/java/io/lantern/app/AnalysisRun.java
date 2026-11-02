@@ -416,7 +416,9 @@ public final class AnalysisRun {
       // Stored as claims of origin llm, which later roles read (knowledge-build epic, section 6).
       Map<Origin, List<Fact>> summaryFacts =
           Summarizer.facts(summarized, summarizable, snapshot.number());
-      recordLlmFacts(snapshot, summaryFacts);
+      // A run summarizes only the repositories it analyzes, so it ends only their summaries; those
+      // of repositories carried forward keep holding.
+      recordLlmFacts(snapshot, summaryFacts, registered.keySet());
       LOG.info(
           "Summarize stored {} summaries as claims of {} summaries",
           summaryFacts.values().stream().mapToInt(List::size).sum(),
@@ -435,7 +437,7 @@ public final class AnalysisRun {
       // Investigate checks the leads derivation stored, then explores each unit and the system,
       // every finding cited to code Lantern verifies; what it finds is stored as claims of origin
       // llm before anything is described or composed (knowledge-build epic, section 11.2; ADR
-      // 0110). It reads every fact that holds in the snapshot, summaries included.
+      // 0110). It reads the facts made before it: static facts, summaries and resolved links.
       io.lantern.link.Investigator.Result investigated =
           new io.lantern.link.Investigator(
                   harness, snapshotFiles, io.lantern.derive.LeadRules.judges())
@@ -603,12 +605,16 @@ public final class AnalysisRun {
    * under a budget, stops holding and is unknown.
    */
   private void recordLlmFacts(Snapshot snapshot, Map<Origin, List<Fact>> byOrigin) {
+    recordLlmFacts(snapshot, byOrigin, snapshot.commits().keySet());
+  }
+
+  /** As above, ending only the facts of those origins whose evidence names one of {@code repos}. */
+  private void recordLlmFacts(
+      Snapshot snapshot, Map<Origin, List<Fact>> byOrigin, Set<String> repos) {
     transaction.executeWithoutResult(
         status ->
             byOrigin.forEach(
-                (origin, found) ->
-                    facts.recordDerived(
-                        snapshot.number(), origin, snapshot.commits().keySet(), found)));
+                (origin, found) -> facts.recordDerived(snapshot.number(), origin, repos, found)));
   }
 
   /** How many units of each level the trees hold, each unit once. */

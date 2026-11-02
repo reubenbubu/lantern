@@ -212,12 +212,20 @@ public final class Investigator {
     this.judges = Map.copyOf(judges);
   }
 
-  /** What the snapshot's facts lead Investigate to, its own earlier facts left out. */
+  /**
+   * Whether a fact is one Investigate reads: a static fact, a summary or a resolved link, the LLM
+   * facts made before it in a run. What Describe and the wordings stored in an earlier run, and its
+   * own earlier facts, are left out, so a rerun over the same commits asks nothing again.
+   */
+  private static boolean before(Fact fact) {
+    return fact.origin().kind() != Origin.Kind.LLM
+        || fact.predicate().equals(LlmFacts.SUMMARY)
+        || fact.origin().name().equals(LinkResolver.NAME);
+  }
+
+  /** What the snapshot's facts lead Investigate to, what it reads only (see before). */
   public Result investigate(Collection<Fact> all, long snapshot) {
-    List<Fact> facts =
-        all.stream()
-            .filter(f -> !(f.origin().kind() == Origin.Kind.LLM && f.origin().name().equals(NAME)))
-            .toList();
+    List<Fact> facts = all.stream().filter(Investigator::before).toList();
     Model model = new Model(facts);
     if (model.units.isEmpty()) {
       return new Result(List.of(), 0, 0, 0, List.of());
@@ -523,7 +531,12 @@ public final class Investigator {
           retrying.add(e.getKey());
         }
       }
-      Map<String, Outcome> retried = again.isEmpty() ? Map.of() : ask(session, again, Mode.A_ALONE);
+      Map<String, Outcome> retried = Map.of();
+      if (!again.isEmpty()) {
+        // Each retry is a new item, planned like the first, so the run's record counts it once.
+        session.plan(again.values().stream().flatMap(List::stream).toList(), prefix(true));
+        retried = ask(session, again, Mode.A_ALONE);
+      }
       for (Map.Entry<String, Lead> e : bySubject.entrySet()) {
         Lead lead = e.getValue();
         Outcome outcome = outcomes.get(e.getKey());

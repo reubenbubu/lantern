@@ -68,7 +68,11 @@ standing go-ahead for milestone 1F.
   facts it cites (a cited part's summary resolved to the facts that summary cites), the basis and
   the model, its confidence the summary's, recorded for the snapshot before anything is composed.
   The summary vocabulary type is in `vocabulary/llm-types.json`. Roles that read facts leave these
-  out, as they do Describe's texts, so a summary never feeds a prompt as a fact.
+  out, as they do Describe's texts, so a summary never feeds a prompt as a fact. A run summarizes
+  only the repositories it analyzes, so it ends only their summaries: those of repositories
+  carried forward keep holding (amendment for #269, which found them ended by a run of another
+  repository of the system). Investigate's unit prompts show them, as the epic's block 4 says
+  (ADR 0110).
 - **The fake model** answers Summarize in the epic's form: a placeholder sentence citing the first
   part's summary, and one citing the first fact or code block, or for a merge the first reference
   its parts cite; an item with neither is omitted.

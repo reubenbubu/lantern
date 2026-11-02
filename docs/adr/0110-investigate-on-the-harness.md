@@ -17,8 +17,11 @@ under the owner's standing go-ahead for milestone 1F.
 
 - **Where it runs.** `Investigator` (`lantern-link`, next to Resolve, whose graph tools it uses) runs
   in the analysis after Summarize, so a unit's prompt can show its summaries, and before Describe,
-  so what it finds is stored before anything is described or composed. It reads every fact that
-  holds in the snapshot, its own earlier facts left out. What each lead kind asks the model to
+  so what it finds is stored before anything is described or composed. It reads the facts that
+  hold in the snapshot and are made before it in a run: the static facts, the summaries and the
+  resolved links. What Describe, the wordings and Investigate itself stored in an earlier run is
+  left out, so a rerun over the same commits asks nothing again. A lead asked again alone is
+  planned as an item of its own, so the run's record counts every item once. What each lead kind asks the model to
   judge comes from the catalog (`leads.json`, `LeadRules.judges()`), passed in by the app, since
   `lantern-derive` depends on `lantern-link`. It never fails the run.
 - **Mode A.** Each `lead-trigger` fact is an item: its ID and kind, why it fired, what to judge,

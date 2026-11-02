@@ -586,7 +586,15 @@ class Project0EndToEndIT {
           "flow-significance catalog-lib",
           "flow-significance fulfilment",
           "flow-significance payments",
-          "flow-significance storefront");
+          "flow-significance storefront",
+          // Investigate (ADR 0110): the lead the changed path raises, asked twice since the fake
+          // model answers nothing; the two units that show the changed facts; and the system,
+          // whose map shows their links.
+          "investigate-leads lead:contract-mismatch/service:com.acme.shop:storefront-app/POST%20/api/payments",
+          "investigate-leads lead:contract-mismatch/service:com.acme.shop:storefront-app/POST%20/api/payments (again)",
+          "investigate-units service:com.acme.shop:payments",
+          "investigate-units service:com.acme.shop:storefront-app",
+          "investigate-system system:snapshot");
 
   /** An answer's fingerprint inputs, each as its kind, file and ID. */
   private static java.util.Set<String> inputs(String json) {
@@ -775,6 +783,7 @@ class Project0EndToEndIT {
             "sequences-storefront-ordercontroller-place",
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
+            "findings",
             // The decision records and unknowns are a documentation page (ADR 0086), then the
             // deployment table of storefront's compose file (ADR 0082, DEP-1 to DEP-4) and the
             // glossary (ADR 0087).

@@ -224,8 +224,10 @@ class InvestigatorTest {
         Clock.systemUTC());
   }
 
+  private Harness harness;
+
   private Investigator.Result investigate(LlmClient client) {
-    Harness harness =
+    harness =
         new Harness(
             client,
             store,
@@ -353,6 +355,15 @@ class InvestigatorTest {
     assertThat(leadConversations).isEqualTo(2);
     assertThat(of(result, Investigator.LEAD_VERDICT).getFirst().object().value())
         .isEqualTo("unclear");
+    // The lead asked again is an item planned of its own, so the record counts each once.
+    assertThat(harness.records())
+        .filteredOn(r -> r.role().equals("investigate-leads"))
+        .singleElement()
+        .satisfies(
+            r -> {
+              assertThat(r.planned()).isEqualTo(2);
+              assertThat(r.settled()).isEqualTo(2);
+            });
   }
 
   @Test
@@ -477,6 +488,17 @@ class InvestigatorTest {
   void aRerunOverUnchangedFactsAndCodeMakesNoCall() {
     headerLead();
     investigate(submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null));
+    // What Describe stored after it in the first run is not among what it reads.
+    facts.add(
+        Fact.create(
+            EntityId.parse(FILES_UNIT),
+            LlmFacts.RESPONSIBILITY,
+            FactObject.string("Stores uploaded files."),
+            FactJson.newObject(),
+            new Origin(Origin.Kind.LLM, "describe-unit", "1"),
+            Evidence.of("fs", "pom.xml", null, null),
+            0.6,
+            Validity.from(1)));
     FakeLlmProvider again = submitting(r -> null);
 
     Investigator.Result result = investigate(again);
