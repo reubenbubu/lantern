@@ -120,11 +120,15 @@ final class DescribeRole {
   /** The output room of an element's sentence with its citations. */
   private static final int ELEMENT_OUTPUT_TOKENS = 200;
 
-  /** The output room of a unit's or a component's sentence with its citations. */
-  private static final int SENTENCE_OUTPUT_TOKENS = 150;
+  /**
+   * The output room of a unit's or a component's sentence with its citations, and the thinking it
+   * takes: a large unit's thinking grows with its texts and filled 9,550 tokens before any answer
+   * on project-2 (#685). Room the model does not use costs nothing.
+   */
+  private static final int SENTENCE_OUTPUT_TOKENS = 250;
 
-  /** The output room of an interaction's phrase with its citations. */
-  private static final int PHRASE_OUTPUT_TOKENS = 90;
+  /** The output room of an interaction's phrase with its citations, and its thinking (#685). */
+  private static final int PHRASE_OUTPUT_TOKENS = 150;
 
   private static final JsonNode UNIT_ITEM_SCHEMA =
       JsonSchema.itemSchema(JSON.readTree(UNIT_SCHEMA));

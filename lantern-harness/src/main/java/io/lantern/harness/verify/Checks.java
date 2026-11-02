@@ -531,7 +531,12 @@ public final class Checks {
         List<String> lines = inputs.files().lines(range.group(1), range.group(2)).orElse(List.of());
         int from = Math.max(1, Integer.parseInt(range.group(3)));
         int to = Math.min(lines.size(), Integer.parseInt(range.group(4)));
-        cited.add(from > to ? "" : String.join("\n", lines.subList(from - 1, to)));
+        // The file's path counts as shown too: a text may name the file whose lines it cites
+        // (#685).
+        cited.add(
+            range.group(2)
+                + "\n"
+                + (from > to ? "" : String.join("\n", lines.subList(from - 1, to))));
       } else {
         cited.add(inputs.references().getOrDefault(cite, ""));
       }

@@ -117,6 +117,20 @@ class ChecksTest {
   }
 
   @Test
+  void aFileWhoseLinesAreCitedMayBeNamed() {
+    // "application.yml sets ..." citing a range of application.yml is grounded (#685).
+    assertThat(
+            Checks.cited(
+                text(CheckedText.Kind.PROSE, "x", "shop:conf/application.yml:1-2")
+                    .texts()
+                    .getFirst(),
+                inputs()))
+        .first()
+        .asString()
+        .startsWith("conf/application.yml\n");
+  }
+
+  @Test
   void aNameTheItemShowsOutsideItsReferencesNeedsNoCitation() {
     // A flow's steps name its containers in their headings, which cannot be cited (#685).
     ItemAnswer answer = text(CheckedText.Kind.PROSE, "Saves the order in main_db", "F1");
