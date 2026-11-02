@@ -1,0 +1,566 @@
+// The scoring rows per LLM role (docs/epics/001-knowledge-build.md, section 13, as changed by #662;
+// docs/research/role-measurement.md; docs/adr/0072-scoring-harness.md, amendment for #667). Each row
+// is computed from a run (its report, run.json, linked.jsonl.gz and llm.jsonl.gz) against the set's
+// reference and its answer key (testsets/<set>/answer-key.json), which is prepared from the code
+// and the references, never from a model's answers. A row that a run cannot fill says so as
+// "not measured", with why.
+//
+// Every row that scores items keeps each item's score under `items`, so two scorecards can be
+// compared item by item (pairedDifference below).
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { gunzipSync } from 'node:zlib';
+
+/** The penalty of a wrong answer against a right one, per role (the role's ADR records it). */
+export const PENALTY = { resolve: 3, flows: 1, describe: 1 };
+
+/** The least share of participants two flows must share, over the larger set (#662). */
+export const FLOW_OVERLAP = 2 / 3;
+
+/** A row a run cannot fill, and why. */
+export const notMeasured = (why) => ({ measured: false, why });
+
+/** The facts of a gzipped JSON-lines file, or null when there is none. */
+export function readFacts(path) {
+  if (!path || !existsSync(path)) return null;
+  return gunzipSync(readFileSync(path))
+    .toString('utf8')
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((line) => JSON.parse(line));
+}
+
+/** A set's answer key, or null when it has none. */
+export function readAnswerKey(path) {
+  return path && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+}
+
+/** A Lantern entity ID as the report writes element IDs: lower case, dashes for the rest. */
+export function reportId(entity) {
+  return String(entity ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+const ratio = (a, b) => (b === 0 ? null : a / b);
+
+/**
+ * The three-outcome score of a role's items (#662): each item correct, wrong or abstained, or not
+ * asked (for budget, a model without what it needs, or a failure), which is counted apart.
+ *
+ * @param items `{ id, outcome, unknown }`, outcome one of correct, wrong, abstained, notAsked;
+ *     unknown when the reference's right answer is "unknown"
+ * @param p the penalty of a wrong answer
+ */
+export function threeOutcomes(items, p) {
+  const judged = items.filter((i) => i.outcome !== 'notAsked');
+  const count = (o) => judged.filter((i) => i.outcome === o).length;
+  const correct = count('correct');
+  const wrong = count('wrong');
+  const abstained = count('abstained');
+  const answerable = judged.filter((i) => !i.unknown);
+  const overAbstained = answerable.filter((i) => i.outcome === 'abstained').length;
+  const scores = {};
+  for (const i of judged) scores[i.id] = i.outcome === 'correct' ? 1 : i.outcome === 'wrong' ? -p : 0;
+  return {
+    measured: true,
+    items: judged.length,
+    notAsked: items.length - judged.length,
+    correct,
+    wrong,
+    abstained,
+    coverage: ratio(correct + wrong, judged.length),
+    accuracy: ratio(correct, correct + wrong),
+    penalized: ratio(correct - p * wrong, judged.length),
+    penalty: p,
+    overAbstention: ratio(overAbstained, answerable.length),
+    scores,
+  };
+}
+
+/** A role's record in run.json's harness list, by its name. */
+function record(run, role) {
+  return (run?.harness ?? []).find((r) => r.role === role) ?? null;
+}
+
+/**
+ * Resolve: each open link of the answer key, as the run answered it. A pick is the target of a
+ * link of origin llm/resolve that resolves the open link's claim; no pick of a link the role asked
+ * is an abstention; a link it never planned (no candidates) or did not ask is not asked.
+ */
+export function resolveRow(key, linked, llm, run) {
+  const entries = key?.resolve ?? [];
+  if (!key) return notMeasured('the set has no answer key');
+  if (entries.length === 0) return { ...threeOutcomes([], PENALTY.resolve), note: 'no open link in the answer key' };
+  if (!linked && !llm) return notMeasured('the run wrote no linked.jsonl.gz or llm.jsonl.gz');
+  const picks = new Map();
+  for (const fact of [...(linked ?? []), ...(llm ?? [])]) {
+    const resolves = fact.attributes?.resolves;
+    if (resolves && fact.origin?.kind === 'llm') picks.set(resolves, fact.object?.value);
+  }
+  const resolve = record(run, 'resolve');
+  const unasked = new Set(resolve?.unaskedSubjects ?? []);
+  const planned = new Set([...(resolve?.askedSubjects ?? [])]);
+  const items = entries.map((entry) => {
+    // A link more than one target receives (every queue bound to the key) lists them all; a pick
+    // of any of them is right.
+    const right = new Set([entry.answer].flat());
+    const unknown = right.has('unknown');
+    const pick = picks.get(entry.link);
+    let outcome;
+    if (pick !== undefined) outcome = !unknown && right.has(pick) ? 'correct' : 'wrong';
+    // Asked and answered unknown or left out: abstained, which is right when the key says unknown.
+    else if (planned.has(entry.link) || (resolve && !unasked.has(entry.link) && (entry.candidates ?? []).length > 0 && (resolve.items?.planned ?? 0) > 0))
+      outcome = unknown ? 'correct' : 'abstained';
+    else outcome = 'notAsked';
+    return { id: entry.link, outcome, unknown, pick: pick ?? null, answer: [...right].join(' or ') };
+  });
+  const row = threeOutcomes(items, PENALTY.resolve);
+  row.wrongItems = items.filter((i) => i.outcome === 'wrong').map((i) => `${i.id}: picked ${i.pick}, right ${i.answer}`);
+  return row;
+}
+
+/** The link facts between elements that Describe words as interactions: their claim IDs. */
+const INTERACTION = /^(CALLS_HTTP|SENDS_MAIL|USES_IDENTITY_PROVIDER|PUBLISHES|CONSUMES|ROUTES_TO|SENDS_MESSAGES_TO|USES_DATABASE|ACCESSES_DATA_OF|USES_BROKER|USES_INFRASTRUCTURE|INVESTIGATED_CONNECTION)$/;
+
+/** The kinds of report element Describe gives a responsibility. */
+const DESCRIBED_KINDS = new Set(['container', 'database', 'queue', 'external', 'component', 'person']);
+
+/**
+ * Describe's coverage (section 13): the share of the report's elements with a responsibility it
+ * wrote, and of the interactions between them with an intent. Its wording's judge score comes with
+ * #668; until then the row is coverage only.
+ */
+export function describeRow(report, linked, llm) {
+  if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+  const described = new Set(
+    llm.filter((f) => f.predicate === 'responsibility').map((f) => reportId(f.subject)),
+  );
+  const elements = Object.entries(report.elements).filter(([, e]) => DESCRIBED_KINDS.has(e.kind));
+  const withText = elements.filter(([id]) => described.has(id) || described.has(id.replace(/-\d+$/, '')));
+  const intents = new Set(llm.filter((f) => f.predicate === 'intent').map((f) => String(f.object?.value).split('/')[0]));
+  const interactions = new Set(
+    (linked ?? []).filter((f) => INTERACTION.test(f.predicate)).map((f) => f.claim ?? f.id),
+  );
+  const intended = [...interactions].filter((id) => intents.has(id));
+  const scores = {};
+  for (const [id] of elements) scores[`element:${id}`] = withText.some(([w]) => w === id) ? 1 : 0;
+  for (const id of interactions) scores[`interaction:${id}`] = intents.has(id) ? 1 : 0;
+  return {
+    measured: true,
+    elements: elements.length,
+    elementsDescribed: withText.length,
+    elementCoverage: ratio(withText.length, elements.length),
+    interactions: interactions.size,
+    interactionsIntended: intended.length,
+    interactionCoverage: ratio(intended.length, interactions.size),
+    undescribed: elements.filter(([id]) => !withText.some(([w]) => w === id)).map(([, e]) => e.name),
+    judge: notMeasured('the wording judge comes with #668'),
+    scores,
+  };
+}
+
+/**
+ * Flows (#662): a report flow matches a reference flow when the trigger is the same entry point and
+ * the participants overlap by at least two thirds, shared over the larger set; one to one, best
+ * overlap first. Recall and precision of the significant set: the flows the report draws.
+ *
+ * @param refFlows reference flows `{ title, trigger, participants }`
+ * @param repFlows report flows, triggers written the reference's way, participants as reference IDs
+ *     where they match one (others kept as they are)
+ */
+export function matchFlows(refFlows, repFlows) {
+  const pairs = [];
+  refFlows.forEach((ref, i) => {
+    repFlows.forEach((rep, j) => {
+      if (ref.trigger === null || rep.trigger !== ref.trigger) return;
+      const theirs = new Set(rep.participants);
+      const shared = ref.participants.filter((p) => theirs.has(p)).length;
+      const overlap = shared / Math.max(ref.participants.length, rep.participants.length, 1);
+      if (overlap >= FLOW_OVERLAP - 1e-9) pairs.push({ i, j, overlap });
+    });
+  });
+  pairs.sort((a, b) => b.overlap - a.overlap || a.i - b.i || a.j - b.j);
+  const usedRef = new Set();
+  const usedRep = new Set();
+  const matches = [];
+  for (const pair of pairs) {
+    if (usedRef.has(pair.i) || usedRep.has(pair.j)) continue;
+    usedRef.add(pair.i);
+    usedRep.add(pair.j);
+    matches.push(pair);
+  }
+  return matches;
+}
+
+export function flowsRow(refFlows, repFlows) {
+  if (refFlows.length === 0) return notMeasured('the reference draws no flow');
+  const matches = matchFlows(refFlows, repFlows);
+  const matched = new Set(matches.map((m) => m.i));
+  const scores = {};
+  refFlows.forEach((f, i) => {
+    scores[`${f.trigger ?? f.title}#${i}`] = matched.has(i) ? 1 : 0;
+  });
+  return {
+    measured: true,
+    reference: refFlows.length,
+    report: repFlows.length,
+    matched: matches.length,
+    recall: ratio(matches.length, refFlows.length),
+    precision: ratio(matches.length, repFlows.length),
+    matches: matches.map((m) => ({
+      reference: refFlows[m.i].title,
+      report: repFlows[m.j].title,
+      overlap: Math.round(m.overlap * 100) / 100,
+    })),
+    missing: refFlows.filter((_, i) => !matched.has(i)).map((f) => `${f.title} (${f.trigger ?? 'no trigger'})`),
+    scores,
+  };
+}
+
+/** The category a stored risk is of: its lead's kind, or for a finding's wording the finding's. */
+function categoryOf(fact) {
+  if (fact.predicate === 'finding-wording') {
+    const kind = String(fact.subject).match(/^finding:([^/]+)/);
+    return kind ? kind[1] : null;
+  }
+  const lead = fact.attributes?.lead;
+  const kind = lead ? String(lead).match(/^lead:([^/]+)/) : null;
+  return kind ? kind[1] : null;
+}
+
+/**
+ * Investigate (#662): each risk it stored matches a reference risk of the answer key, or a decoy,
+ * by subject element and category; one that matches several is the one whose words it shares
+ * most. A risk with no category (one found exploring, without a lead) matches by subject and the
+ * words of its title and finding against the entry's. A risk
+ * that matches neither is unjudged: listed and counted, not wrong. TPR − FPR over the reference
+ * risks and the decoys; precision over the judged risks only.
+ *
+ * @param subjectOf maps a Lantern entity ID to the reference element ID it matched, or null
+ * @param overlap the subject-word overlap of two texts, 0 to 1
+ * @param threshold the overlap at which two texts are about the same thing
+ */
+export function investigateRow(key, llm, subjectOf, overlap, threshold) {
+  if (!key) return notMeasured('the set has no answer key');
+  if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+  const risks = key.risks ?? [];
+  const decoys = key.decoys ?? [];
+  if (risks.length === 0) return notMeasured('the answer key holds no risks');
+  const found = llm
+    .filter((f) => f.predicate === 'investigated-risk' || f.predicate === 'finding-wording')
+    .map((f) => {
+      const units = [...(f.attributes?.units ?? []), f.predicate === 'investigated-risk' ? f.subject : null]
+        .filter(Boolean)
+        .map(subjectOf)
+        .filter(Boolean);
+      const text = `${f.attributes?.title ?? ''}. ${f.attributes?.finding ?? ''}`;
+      return { fact: f, subjects: new Set(units), category: categoryOf(f), text, title: f.attributes?.title ?? f.subject };
+    });
+  const words = (entry) =>
+    `${entry.reference ?? ''} ${entry.looksLike ?? ''} ${entry.how ?? ''} ${(entry.names ?? []).join(' ')}`;
+  const matches = (entry, risk) => {
+    if (!entry.subjects.some((s) => risk.subjects.has(s))) return false;
+    if (risk.category !== null) return entry.category === risk.category;
+    return overlap(words(entry), risk.text) >= threshold;
+  };
+  // The entry a found risk is: of those it matches, the one whose words it shares most, a
+  // reference risk before a decoy on a tie.
+  const best = (risk) => {
+    const candidates = [
+      ...risks.map((e, i) => ({ kind: 'risk', i, e })),
+      ...decoys.map((e, i) => ({ kind: 'decoy', i, e })),
+    ].filter((c) => matches(c.e, risk));
+    if (candidates.length === 0) return null;
+    return candidates
+      .map((c) => ({ ...c, score: overlap(words(c.e), risk.text) }))
+      .sort((a, b) => b.score - a.score || (a.kind === 'risk' ? -1 : 1) - (b.kind === 'risk' ? -1 : 1))[0];
+  };
+  const hit = new Set();
+  const decoyHit = new Set();
+  const unjudged = [];
+  let judged = 0;
+  let tp = 0;
+  for (const risk of found) {
+    const match = best(risk);
+    if (match === null) {
+      unjudged.push(risk.title);
+      continue;
+    }
+    judged++;
+    if (match.kind === 'risk') {
+      hit.add(match.i);
+      tp++;
+    } else {
+      decoyHit.add(match.i);
+    }
+  }
+  const scores = {};
+  risks.forEach((e, i) => {
+    scores[`risk:${i}`] = hit.has(i) ? 1 : 0;
+  });
+  decoys.forEach((e, i) => {
+    scores[`decoy:${i}`] = decoyHit.has(i) ? -1 : 0;
+  });
+  const tpr = ratio(hit.size, risks.length);
+  const fpr = ratio(decoyHit.size, decoys.length);
+  return {
+    measured: true,
+    found: found.length,
+    reference: risks.length,
+    decoys: decoys.length,
+    matched: hit.size,
+    decoysFlagged: decoyHit.size,
+    recall: tpr,
+    precision: ratio(tp, judged),
+    tprMinusFpr: tpr === null ? null : tpr - (fpr ?? 0),
+    unjudged,
+    missing: risks.filter((_, i) => !hit.has(i)).map((e) => e.reference),
+    scores,
+  };
+}
+
+/**
+ * Name groups (#662): the share of the groups it was given that it named, from the run's record of
+ * the role (an omitted or dropped group, or one not asked, is not named).
+ */
+export function nameGroupsRow(run) {
+  const r = record(run, 'name-groups');
+  if (!r) return notMeasured('the run has no record of the name-groups role');
+  const i = r.items ?? {};
+  const named = (i.planned ?? 0) - (i.omitted ?? 0) - (i.dropped ?? 0) - (i.notAsked ?? 0) - (i.failed ?? 0);
+  return {
+    measured: true,
+    groups: i.planned ?? 0,
+    named,
+    coverage: ratio(named, i.planned ?? 0),
+    judge: notMeasured('the group-name judge comes with #668'),
+  };
+}
+
+/** A run record's totals over its roles' harness records. */
+function totals(run) {
+  const t = { calls: 0, costUsd: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, planned: 0, cached: 0 };
+  for (const r of run?.harness ?? []) {
+    t.calls += r.calls ?? 0;
+    t.costUsd += Number(r.costUsd ?? 0);
+    t.input += r.tokens?.input ?? 0;
+    t.output += r.tokens?.output ?? 0;
+    t.cacheRead += r.tokens?.cacheRead ?? 0;
+    t.cacheWrite += r.tokens?.cacheWrite ?? 0;
+    t.planned += r.items?.planned ?? 0;
+    t.cached += r.items?.cached ?? 0;
+  }
+  return t;
+}
+
+/**
+ * The harness (section 13): dollars and tokens of the run, the share of planned items the answer
+ * cache answered, and, when their run records are given, the warm rerun's and the one-file
+ * change's calls. Its gates: a warm rerun makes zero calls.
+ */
+export function harnessRow(run, warm = null, change = null) {
+  if (!run) return notMeasured('no run.json given');
+  const t = totals(run);
+  const row = {
+    measured: true,
+    costUsd: Math.round((Number(run.costUsd ?? t.costUsd) || t.costUsd) * 10000) / 10000,
+    calls: run.calls ?? t.calls,
+    tokens: { input: t.input, output: t.output, cacheRead: t.cacheRead, cacheWrite: t.cacheWrite },
+    items: t.planned,
+    cacheHitRate: ratio(t.cached, t.planned),
+  };
+  if (warm) {
+    const w = totals(warm);
+    row.warm = { calls: warm.calls ?? w.calls, costUsd: Number(warm.costUsd ?? w.costUsd), gate: (warm.calls ?? w.calls) === 0 };
+  } else {
+    row.warm = notMeasured('no warm rerun given (--warm <run.json>)');
+  }
+  row.oneFileChange = change
+    ? { calls: change.calls ?? totals(change).calls }
+    : notMeasured('no one-file change run given (--change <run.json>)');
+  return row;
+}
+
+/** A seeded pseudo-random number generator, so a comparison gives the same interval every time. */
+function random(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 2 ** 32;
+  };
+}
+
+/**
+ * The paired comparison of two runs on the same items (section 13): the mean of the per-item
+ * difference (b − a), in points, with a 95% bootstrap interval, and its direction per set.
+ *
+ * @param pairs `{ set, a, b }` per item scored in both runs
+ * @param resamples how many bootstrap resamples
+ */
+export function pairedDifference(pairs, resamples = 2000, seed = 662) {
+  if (pairs.length === 0) return { items: 0, mean: null, low: null, high: null, bySet: {} };
+  const diffs = pairs.map((p) => p.b - p.a);
+  const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  const next = random(seed);
+  const means = [];
+  for (let k = 0; k < resamples; k++) {
+    let sum = 0;
+    for (let i = 0; i < diffs.length; i++) sum += diffs[Math.floor(next() * diffs.length)];
+    means.push(sum / diffs.length);
+  }
+  means.sort((x, y) => x - y);
+  const points = (x) => Math.round(x * 1000) / 10;
+  const bySet = {};
+  for (const set of new Set(pairs.map((p) => p.set))) {
+    const d = mean(pairs.filter((p) => p.set === set).map((p) => p.b - p.a));
+    bySet[set] = d > 0 ? 'up' : d < 0 ? 'down' : 'same';
+  }
+  const low = points(means[Math.floor(0.025 * resamples)]);
+  const high = points(means[Math.ceil(0.975 * resamples) - 1]);
+  const directions = Object.values(bySet);
+  const against = (dir) => directions.filter((d) => d !== dir).length;
+  return {
+    items: pairs.length,
+    mean: points(mean(diffs)),
+    low,
+    high,
+    bySet,
+    // Improves when the interval excludes 0 and all sets but at most one agree; does not regress
+    // when the interval's lower bound is above −7 points (section 13).
+    improves: low > 0 && against('up') <= 1,
+    regresses: low <= -7,
+  };
+}
+
+/** The rows per role that score items, as the scorecard keeps them. */
+export const SCORED_ROWS = ['resolve', 'describe', 'flows', 'investigate'];
+
+/** The pairs of item scores two scorecards share, for one row. */
+export function itemPairs(a, b, row) {
+  const sa = a.scores?.roles?.[row]?.scores;
+  const sb = b.scores?.roles?.[row]?.scores;
+  if (!sa || !sb) return [];
+  return Object.keys(sa)
+    .filter((id) => id in sb)
+    .map((id) => ({ set: a.set, id, a: sa[id], b: sb[id] }));
+}
+
+/** The categories a risk or decoy of an answer key is of: the lead kinds, two finding kinds, other. */
+export const RISK_CATEGORIES = [
+  'identity-from-request',
+  'send-before-commit',
+  'contract-mismatch',
+  'weak-access-check',
+  'shared-type-skew',
+  'single-instance',
+  'plaintext-secret',
+  'environment-baked',
+  'open-cors',
+  'schema-unmanaged',
+  'version-skew',
+  'other',
+];
+
+/** A citation as an answer key writes it: repo:path:start-end. */
+export const CITE = /^([^:\s]+):([^:\s]+):(\d+)-(\d+)$/;
+
+/** Every entry of an answer key that cites code, with where it sits, for the checks below. */
+export function citingEntries(key) {
+  return [
+    ...(key.resolve ?? []).map((e, i) => ({ where: `resolve[${i}]`, entry: e })),
+    ...(key.risks ?? []).map((e, i) => ({ where: `risks[${i}]`, entry: e })),
+    ...(key.decoys ?? []).map((e, i) => ({ where: `decoys[${i}]`, entry: e })),
+  ];
+}
+
+/**
+ * What is wrong with an answer key's form, without its code (no checkout needed): its header, each
+ * entry's citations, names and category, and its subjects among the reference's elements (when
+ * the reference is given: project-8's sits in its checkout).
+ */
+export function answerKeyIssues(key, reference) {
+  const issues = [];
+  if (!/agent/i.test(key.preparedBy ?? '')) issues.push('preparedBy must say who prepared it');
+  if (!key.status) issues.push('status must say whether the owner has checked it');
+  if (!key.commits || Object.keys(key.commits).length === 0) issues.push('commits must name each repository\'s commit');
+  for (const { where, entry } of citingEntries(key)) {
+    const cites = entry.cites ?? [];
+    if (cites.length === 0) issues.push(`${where}: cites nothing`);
+    for (const cite of cites) {
+      const m = String(cite).match(CITE);
+      if (!m) issues.push(`${where}: ${cite} is not repo:path:start-end`);
+      else if (!(m[1] in (key.commits ?? {}))) issues.push(`${where}: ${cite} names a repository without a commit`);
+      else if (Number(m[3]) < 1 || Number(m[4]) < Number(m[3]) || Number(m[4]) - Number(m[3]) >= 40) {
+        issues.push(`${where}: ${cite} is not a range of 1 to 40 lines`);
+      }
+    }
+    if ((entry.names ?? []).length === 0) issues.push(`${where}: names nothing to check the citation by`);
+    if (!where.startsWith('resolve')) {
+      if (!RISK_CATEGORIES.includes(entry.category)) issues.push(`${where}: category ${entry.category} is not one of the list`);
+      for (const subject of entry.subjects ?? []) {
+        if (reference && !(subject in reference.elements)) {
+          issues.push(`${where}: subject ${subject} is not an element of the reference`);
+        }
+      }
+      if ((entry.subjects ?? []).length === 0) issues.push(`${where}: names no subject`);
+    } else if (entry.answer === undefined) {
+      issues.push(`${where}: has no answer`);
+    }
+  }
+  return issues;
+}
+
+/**
+ * What is wrong with an answer key's citations against the code: each cited file at the key's
+ * commit of its repository, in the checkout, holds the cited lines, and they hold one of the
+ * entry's names.
+ *
+ * @param checkout the set's checkout, one git repository a folder named as the key's repositories
+ */
+export function answerKeyCodeIssues(key, checkout) {
+  const issues = [];
+  const files = new Map();
+  const show = (repo, path) => {
+    const k = `${repo}:${path}`;
+    if (!files.has(k)) {
+      try {
+        files.set(
+          k,
+          execFileSync('git', ['-C', join(checkout, repo), 'show', `${key.commits[repo]}:${path}`], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            maxBuffer: 64 * 1024 * 1024,
+          }).split('\n'),
+        );
+      } catch {
+        files.set(k, null);
+      }
+    }
+    return files.get(k);
+  };
+  for (const { where, entry } of citingEntries(key)) {
+    const cited = [];
+    for (const cite of entry.cites ?? []) {
+      const m = String(cite).match(CITE);
+      if (!m) continue;
+      const lines = show(m[1], m[2]);
+      if (lines === null) {
+        issues.push(`${where}: ${cite}: no such file at ${m[1]}@${key.commits[m[1]]}`);
+        continue;
+      }
+      if (Number(m[4]) > lines.length) {
+        issues.push(`${where}: ${cite}: the file has ${lines.length} lines`);
+        continue;
+      }
+      cited.push(lines.slice(Number(m[3]) - 1, Number(m[4])).join('\n'));
+    }
+    const text = cited.join('\n');
+    if (cited.length > 0 && !(entry.names ?? []).some((name) => text.includes(name))) {
+      issues.push(`${where}: none of ${JSON.stringify(entry.names)} is in its cited lines`);
+    }
+  }
+  return issues;
+}

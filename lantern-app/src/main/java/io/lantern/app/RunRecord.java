@@ -152,6 +152,7 @@ final class RunRecord {
     for (io.lantern.harness.RoleRecord record : harness) {
       ObjectNode entry = record.toJson();
       record.asked().stream().sorted().forEach(entry.putArray("askedSubjects")::add);
+      record.unasked().stream().sorted().forEach(entry.putArray("unaskedSubjects")::add);
       harnessRoles.add(entry);
     }
     ArrayNode byModel = root.putArray("byModel");

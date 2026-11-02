@@ -1,0 +1,373 @@
+{
+  "set": "project-4",
+  "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
+  "status": "awaiting the owner's check at the 1F test drop",
+  "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
+  "commits": {
+    "Auth-Service": "6cb4edae467de8eaddd30ed4f528636e5f053114",
+    "CRM-Frontend": "0797125f7be4662b3849d079a9314e99936199ed",
+    "crm-shared-lib": "442bbbb7b82243754e528ad09768fdaa8290050d",
+    "Deployment": "3857d2884a7ee350136cfbca8b5e86ae0a84ba0e",
+    "Discovery-and-Gateway": "62649cb897f8759c54efcc2613b7bef30b95957a",
+    "File-Service": "413caa5eaa7e9790fbd804b8ab9029e427831d28",
+    "Main-Service": "0b59f25e6aa3717e59a30da4745795d4e273976b",
+    "Notification-Service": "0fc0353cb541ca7e323d3d56dafba83a5cfb864e"
+  },
+  "resolve": [],
+  "risks": [
+    {
+      "reference": "**High**: Identity headers are trusted and never stripped.",
+      "subjects": [
+        "gateway",
+        "main",
+        "file",
+        "auth"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthorizeAndCheckAccessFilter.java:52-56",
+        "crm-shared-lib:rbac/src/main/java/com/crm/sharedlib/rbac/aspectj/PermissionControlAspect.java:26-31",
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:79-84"
+      ],
+      "names": [
+        "USER_PERMISSIONS_HEADER_NAME",
+        "getHeader",
+        "/api/auth/**"
+      ],
+      "how": "Services read User-Permissions from the request header; the gateway sets it only on check-access routes and the public auth route has no filter."
+    },
+    {
+      "reference": "**High**: The check-access filter takes the organization from the `Organization-Id` header, never from the path.",
+      "subjects": [
+        "gateway",
+        "main",
+        "auth"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/utils/OrganizationIdExtractor.java:17-45",
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/filters/AuthorizeAndCheckAccessFilter.java:45-55",
+        "Main-Service:src/main/java/com/crm/main/aspect/OrganizationMembershipControlAspect.java:27-35",
+        "Main-Service:src/main/java/com/crm/main/service/operation/OrganizationCreatorService.java:69-77"
+      ],
+      "names": [
+        "extractOrganizationIdFromRequest",
+        "ORGANIZATION_ID_HEADER_NAME",
+        "checkOrganizationMembership"
+      ],
+      "how": "The pattern is matched on the full URI string and falls back to the header, so permissions may be computed for a different organization than the membership check."
+    },
+    {
+      "reference": "**High**: The gateway's permission fallback calls `/users/{u}/organizations/{o}/persmissions` without the `/api/internal` prefix.",
+      "subjects": [
+        "gateway",
+        "auth"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/clients/UserPermissionClient.java:12-25",
+        "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalUserPermissionsController.java:11-24"
+      ],
+      "names": [
+        "USERS_USER_ID_ORGANIZATIONS_ORGANIZATION_ID_PERMISSIONS",
+        "/api/internal",
+        "persmissions"
+      ],
+      "how": "The client path starts at /users while the controller is mapped under /api/internal (unless the web client base URL adds the prefix, not verified here)."
+    },
+    {
+      "reference": "**High**: Secrets: one HMAC signing key shared by gateway and auth-service; Gmail SMTP credentials; generated passwords sent in plaintext...",
+      "subjects": [
+        "gateway",
+        "auth",
+        "notification",
+        "x-auth-event"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Auth-Service:src/main/resources/application.properties:21-35",
+        "Notification-Service:src/main/resources/application.properties:10-15",
+        "Deployment:heml-chart/templates/secrets.yaml:20-26",
+        "Deployment:README.md:450-458"
+      ],
+      "names": [
+        "org.hibernate.orm.jdbc.bind",
+        "app.token.signing.key",
+        "AUTH_TOKEN_SIGNING_KEY"
+      ],
+      "how": "Bind-parameter logging at TRACE, the shared signing key, SMTP password and Helm stringData secrets, with the README admitting plaintext secrets."
+    },
+    {
+      "reference": "Events and Feign side effects happen inside database transactions, before commit, with no outbox.",
+      "subjects": [
+        "main",
+        "x-main-events",
+        "auth"
+      ],
+      "category": "send-before-commit",
+      "cites": [
+        "Main-Service:src/main/java/com/crm/main/service/operation/OrganizationCreatorService.java:46-64",
+        "Main-Service:src/main/java/com/crm/main/service/consumer/CreateTaskDefaultPrioritiesConsumer.java:57-60",
+        "Main-Service:src/main/java/com/crm/main/service/consumer/OrganizationRootDirCreatedConsumer.java:38-41"
+      ],
+      "names": [
+        "sendOrganizationCreatedEvent",
+        "AmqpRejectAndDontRequeueException",
+        "createOrganization"
+      ],
+      "how": "createOrganization is @Transactional and publishes org-created and Feign role creation before commit; consumers reject without requeue or rethrow."
+    },
+    {
+      "reference": "notification-service declares `GET /api/internal/auth/authorize` with a body; auth-service maps `POST`.",
+      "subjects": [
+        "notification",
+        "auth"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "Notification-Service:src/main/java/com/crm/notification/notification_service/feign/AuthClient.java:13-14",
+        "Auth-Service:src/main/java/com/crm/auth/controller/internal/InternalAuthController.java:19-20"
+      ],
+      "names": [
+        "@GetMapping",
+        "@PostMapping",
+        "/authorize"
+      ],
+      "how": "The Feign client uses GetMapping with a request body while the controller handles PostMapping."
+    },
+    {
+      "reference": "The web app calls `GET /api/organizations/{id}/preview`, which main-service serves, but no gateway route matches it.",
+      "subjects": [
+        "frontend",
+        "gateway",
+        "main"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "CRM-Frontend:src/app/core/services/organizations/organization.service.ts:25-27",
+        "Main-Service:src/main/java/com/crm/main/controller/OrganizationController.java:36-42",
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:38-61"
+      ],
+      "names": [
+        "getOrganizationPreview",
+        "/{organizationId}/preview",
+        "/api/organizations/*"
+      ],
+      "how": "The frontend and controller use /preview but routes only list /api/organizations/* (one segment) and fixed sub-paths."
+    },
+    {
+      "reference": "crm-shared-lib versions differ: gateway and auth-service 0.2.0, file-service 0.2.1, notification-service 0.2.5, main-service 0.3.0...",
+      "subjects": [
+        "gateway",
+        "auth",
+        "file",
+        "notification",
+        "main"
+      ],
+      "category": "shared-type-skew",
+      "cites": [
+        "Main-Service:pom.xml:30-34",
+        "Notification-Service:pom.xml:28-32",
+        "File-Service:pom.xml:30-34",
+        "Auth-Service:pom.xml:29-33"
+      ],
+      "names": [
+        "crm-shared-lib",
+        "0.3.0-SNAPSHOT",
+        "0.2.5-SNAPSHOT"
+      ],
+      "how": "Each service pins a different SNAPSHOT of crm-shared-lib (gateway pins 0.2.0 modules too)."
+    },
+    {
+      "reference": "Single instances: one Eureka with no peers, one PostgreSQL for all schemas in Kustomize, single Redis and RabbitMQ...",
+      "subjects": [
+        "eureka",
+        "auth-db",
+        "main-db",
+        "file-db",
+        "redis",
+        "notification"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "Discovery-and-Gateway:eureka-service/src/main/resources/application.properties:1-4",
+        "Deployment:kustomize/base/postgres.yml:10-11",
+        "Deployment:heml-chart/values.yaml:124-127",
+        "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:38-42"
+      ],
+      "names": [
+        "eureka.client.register-with-eureka",
+        "replicas",
+        "enableSimpleBroker"
+      ],
+      "how": "Eureka does not peer, Postgres and Helm components run one replica, and the STOMP broker is in memory."
+    },
+    {
+      "reference": "file-service has no notion of organization, and only GET and PATCH on `/api/files/**` get the gateway's ownership check...",
+      "subjects": [
+        "gateway",
+        "file",
+        "main",
+        "redis"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:65-78",
+        "File-Service:src/main/java/com/crm/file/controller/FileController.java:39-63",
+        "Main-Service:src/main/java/com/crm/main/service/assignments/OrganizationUserAssignmentService.java:62-72"
+      ],
+      "names": [
+        "organizationFilesFilter",
+        "deleteFile",
+        "removeUserFromOrganization"
+      ],
+      "how": "Only the GET/PATCH route adds organizationFilesFilter; DELETE and POST check just a FILES permission, and member removal does not touch cached permissions."
+    },
+    {
+      "reference": "`DELETE /api/organizations/{id}/tasks/{taskId}` requires only TASKS:READ.",
+      "subjects": [
+        "main"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Main-Service:src/main/java/com/crm/main/controller/TaskController.java:75-85"
+      ],
+      "names": [
+        "deleteTask",
+        "action = READ"
+      ],
+      "how": "deleteTask is annotated with RequiresPermission action READ."
+    },
+    {
+      "reference": "The frontend image is built with `--configuration development`, so it calls `http://localhost:8080`...",
+      "subjects": [
+        "frontend"
+      ],
+      "category": "environment-baked",
+      "cites": [
+        "CRM-Frontend:Dockerfile:12-12",
+        "CRM-Frontend:src/environments/environment.ts:1-3",
+        "CRM-Frontend:angular.json:55-64"
+      ],
+      "names": [
+        "--configuration development",
+        "apiUrl",
+        "environment.development.ts"
+      ],
+      "how": "The build bakes an environment file with a fixed API URL into the image."
+    },
+    {
+      "reference": "CORS allows every origin at the gateway, and the Helm ingress combines `*` with credentials.",
+      "subjects": [
+        "gateway",
+        "frontend"
+      ],
+      "category": "open-cors",
+      "cites": [
+        "Discovery-and-Gateway:api-gateway/src/main/resources/application.properties:18-20",
+        "Deployment:heml-chart/values.yaml:35-38"
+      ],
+      "names": [
+        "allowedorigins",
+        "allowCredentials",
+        "allowOrigin"
+      ],
+      "how": "Allowed origins default to * at the gateway; Helm sets allowOrigin * with allowCredentials true."
+    },
+    {
+      "reference": "READMEs are stale: Main-Service says Java 21 and Boot 3; Notification-Service says Java 17 and lists test endpoints...",
+      "subjects": [
+        "main",
+        "notification",
+        "file",
+        "apa-crm"
+      ],
+      "category": "other",
+      "cites": [
+        "Main-Service:README.md:30-31",
+        "Notification-Service:README.md:69-71",
+        "File-Service:README.md:83-83",
+        "Deployment:README.md:399-404"
+      ],
+      "names": [
+        "Java 21",
+        "/api/test/notifications",
+        "/api/internal/files/default"
+      ],
+      "how": "The README lines name versions, endpoints and templates that the code does not have."
+    },
+    {
+      "reference": "`GET /api/organizations/{id}` has no membership check and its gateway route only authenticates.",
+      "subjects": [
+        "main",
+        "gateway"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Main-Service:src/main/java/com/crm/main/controller/OrganizationController.java:55-61",
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:38-45"
+      ],
+      "names": [
+        "getOrganizationById",
+        "authFilter"
+      ],
+      "how": "getOrganizationById has no RequiresOrganizationMembership or permission annotation, and the first route uses only authFilter."
+    },
+    {
+      "reference": "No schema migrations anywhere: Hibernate `ddl-auto=update`.",
+      "subjects": [
+        "auth-db",
+        "main-db",
+        "file-db"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "Auth-Service:src/main/resources/application.properties:9-9",
+        "Main-Service:src/main/resources/application.yml:33-34",
+        "File-Service:src/main/resources/application.properties:9-9"
+      ],
+      "names": [
+        "ddl-auto",
+        "update"
+      ],
+      "how": "Each service lets Hibernate update the schema; no migration tool is present."
+    }
+  ],
+  "decoys": [
+    {
+      "looksLike": "Postgres and RabbitMQ passwords appear in the compose file.",
+      "safeBecause": "They are only ${...} variable placeholders with no default, filled from the environment at deploy time.",
+      "subjects": [
+        "main-db",
+        "x-main-events"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Deployment:docker-compose.dev.yml:22-25",
+        "Deployment:docker-compose.dev.yml:203-206"
+      ],
+      "names": [
+        "POSTGRES_PASSWORD",
+        "RABBITMQ_DEFAULT_PASS"
+      ]
+    },
+    {
+      "looksLike": "The public gateway route /ws-notifications/** has no authentication filter.",
+      "safeBecause": "notification-service authenticates every STOMP CONNECT through the auth service and checks organization membership on SUBSCRIBE, and rejects client SEND.",
+      "subjects": [
+        "notification"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:34-37",
+        "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:41-61",
+        "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:83-88"
+      ],
+      "names": [
+        "/ws-notifications/**",
+        "handleConnectMessage",
+        "isUserExistsInOrganization"
+      ]
+    }
+  ]
+}

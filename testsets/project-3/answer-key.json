@@ -1,0 +1,393 @@
+{
+  "set": "project-3",
+  "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
+  "status": "awaiting the owner's check at the 1F test drop",
+  "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
+  "commits": {
+    "mediahub-api-gateway": "3ad3447569811e123d06685e2f99e7d5724a3241",
+    "mediahub-config-repo": "a57c8a6f762fc57eb74d41b373fe06ced740ba7d",
+    "mediahub-config-server": "7def2dadcb3c19c88a50f0d5d4e0bb91f9b918b0",
+    "mediahub-discovery-server": "4363aa9f0daefa956e47210da226a9485fe6c03b",
+    "mediahub-frontend-ui": "acefeda6b3e99dc4667be91e0ea620c65249ca92",
+    "mediahub-infra": "aef86fb6c1988cdef3512cdfaf2705a7e5209a65",
+    "mediahub-media-service": "fab6a4cb1240653196da2a62afc847c0edf95cb0",
+    "mediahub-subscription-service": "8a16d856c6ccee5908401ffae58334b3b5db7dfd",
+    "mediahub-user-service": "c5698fa7e4e333ff11c00fe2bafb51568550acf1"
+  },
+  "resolve": [],
+  "risks": [
+    {
+      "reference": "No authentication or authorization anywhere: the gateway has no security or filters, the services have no Spring",
+      "subjects": [
+        "gateway",
+        "user",
+        "media",
+        "subscription"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "mediahub-api-gateway:pom.xml:21-44",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/controller/UserController.java:24-61",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/dto/UserRequestDto.java:36-37",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/UserServiceImpl.java:34-40"
+      ],
+      "names": [
+        "spring-cloud-starter-gateway",
+        "updateUserRole",
+        "Role"
+      ],
+      "how": "Gateway has no security dependency, the user controller has no auth check, and the role comes from the request body."
+    },
+    {
+      "reference": "The gateway's discovery locator routes /{SERVICE-ID}/** to every registered service, including config-server, and the",
+      "subjects": [
+        "gateway",
+        "config"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "mediahub-api-gateway:src/main/resources/application.yaml:8-11",
+        "mediahub-api-gateway:src/main/resources/application.yaml:35-39",
+        "mediahub-config-repo:api-gateway.yml:22-29",
+        "mediahub-infra:docker-compose.yml:18-19"
+      ],
+      "names": [
+        "locator",
+        "include",
+        "8888:8888"
+      ],
+      "how": "Discovery locator is on, actuator is exposed, and the config server port is published."
+    },
+    {
+      "reference": "The web app does not match the backend: it signs in and registers at /api/v1/auth/**, which has no route or controller,",
+      "subjects": [
+        "frontend",
+        "gateway",
+        "user",
+        "subscription",
+        "media"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "mediahub-frontend-ui:src/app/core/services/auth.service.ts:23-23",
+        "mediahub-frontend-ui:src/app/services/subscription.ts:14-28",
+        "mediahub-frontend-ui:src/app/services/user.ts:17-27",
+        "mediahub-media-service:src/main/java/com/mediahub/media_service/controller/MediaController.java:53-59"
+      ],
+      "names": [
+        "/api/v1/auth",
+        "/history",
+        "/stats"
+      ],
+      "how": "The web app calls auth, my, history and stats paths that no controller serves, and expects arrays where media returns a Page."
+    },
+    {
+      "reference": "user-service's Feign client asks media-service for /api/media/{id}; media-service serves /api/v1/media/{id}.",
+      "subjects": [
+        "user",
+        "media"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/client/MediaServiceClient.java:10-10",
+        "mediahub-media-service:src/main/java/com/mediahub/media_service/controller/MediaController.java:21-21",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/WatchHistoryServiceImpl.java:22-29"
+      ],
+      "names": [
+        "/api/media/{id}",
+        "/api/v1/media"
+      ],
+      "how": "Feign path /api/media/{id} does not exist; media-service serves /api/v1/media, and the catch turns it into a failure."
+    },
+    {
+      "reference": "The active-subscription check looks only at status: end dates are never compared and nothing sets EXPIRED; creation",
+      "subjects": [
+        "subscription",
+        "subscription-db"
+      ],
+      "category": "other",
+      "cites": [
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:26-46",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:79-84",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/repository/SubscriptionRepository.java:15-15",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/domain/SubscriptionStatus.java:3-8"
+      ],
+      "names": [
+        "hasActiveSubscription",
+        "findByUserIdAndStatus",
+        "EXPIRED"
+      ],
+      "how": "The active check only looks at status, nothing sets EXPIRED, and the Optional query fails with two ACTIVE rows."
+    },
+    {
+      "reference": "Subscriptions take plan, price and dates from the caller with no payment step, and any failure calling user-service",
+      "subjects": [
+        "subscription",
+        "user"
+      ],
+      "category": "other",
+      "cites": [
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/dto/request/CreateSubscriptionRequest.java:16-29",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:28-41"
+      ],
+      "names": [
+        "price",
+        "ResourceNotFoundException",
+        "getUserById"
+      ],
+      "how": "Price and dates come from the request and any user-client exception becomes User not found."
+    },
+    {
+      "reference": "Access to premium media is not enforced: no service calls the active-subscription check, and the catalogue is open to",
+      "subjects": [
+        "subscription",
+        "media"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/controller/SubscriptionController.java:49-54",
+        "mediahub-media-service:src/main/java/com/mediahub/media_service/controller/MediaController.java:20-43"
+      ],
+      "names": [
+        "hasActive",
+        "searchMedia"
+      ],
+      "how": "hasActive exists but nothing calls it, and the media controller has no subscription check."
+    },
+    {
+      "reference": "No cross-service consistency: deleting a user leaves their subscriptions and watch history; deleting media leaves watch",
+      "subjects": [
+        "user",
+        "media",
+        "subscription"
+      ],
+      "category": "other",
+      "cites": [
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/UserServiceImpl.java:78-85",
+        "mediahub-media-service:src/main/java/com/mediahub/media_service/service/impl/MediaServiceImpl.java:70-77",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/domain/Subscription.java:23-24",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/domain/WatchHistory.java:20-24"
+      ],
+      "names": [
+        "deleteById",
+        "userId",
+        "mediaId"
+      ],
+      "how": "Deletes only remove the local row; other services keep rows with the deleted user or media id."
+    },
+    {
+      "reference": "Single instances and a start-up chain: one Eureka with no peers, one config server that every service needs at start",
+      "subjects": [
+        "discovery",
+        "config",
+        "gateway",
+        "user",
+        "media",
+        "subscription"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "mediahub-discovery-server:src/main/resources/application.yaml:8-15",
+        "mediahub-user-service:src/main/resources/bootstrap.yaml:4-9",
+        "mediahub-media-service:src/main/resources/application.yaml:4-9",
+        "mediahub-infra:docker-compose.yml:44-48"
+      ],
+      "names": [
+        "fail-fast",
+        "register-with-eureka",
+        "config-server"
+      ],
+      "how": "One Eureka, one config server with fail-fast start and one gateway, each a single instance."
+    },
+    {
+      "reference": "Credentials: PostgreSQL user postgres with password \"password\" in compose and as config defaults, database ports",
+      "subjects": [
+        "user-db",
+        "media-db",
+        "subscription-db",
+        "config"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "mediahub-infra:docker-compose.yml:55-60",
+        "mediahub-config-repo:user-service.yml:5-9",
+        "mediahub-config-server:src/main/resources/application.yaml:10-22",
+        "mediahub-infra:.env.example:1-8"
+      ],
+      "names": [
+        "POSTGRES_PASSWORD=password",
+        "DB_PASS:password",
+        "encrypt"
+      ],
+      "how": "Default password is in compose and config, DB ports are published, and git token and encrypt key come from env."
+    },
+    {
+      "reference": "The compose file cannot run as committed: its build contexts (./api-gateway, ./user-service, …) are not in",
+      "subjects": [
+        "gateway",
+        "frontend",
+        "user",
+        "media",
+        "subscription"
+      ],
+      "category": "other",
+      "cites": [
+        "mediahub-infra:docker-compose.yml:3-3",
+        "mediahub-infra:Makefile:27-35",
+        "mediahub-frontend-ui:proxy.conf.json:1-7",
+        "mediahub-user-service:.github/workflows/ci-cd.yml:42-73"
+      ],
+      "names": [
+        "build: ./discovery-server",
+        "app.jar",
+        "localhost:8080"
+      ],
+      "how": "Compose builds from folders that are not in the infra repo, jars come from a manual step, and the web app is only proxied."
+    },
+    {
+      "reference": "Framework versions differ: the gateway is on Boot 3.4.3 and Spring Cloud 2024.0.0, everything else on Boot 4.0.3 and",
+      "subjects": [
+        "gateway"
+      ],
+      "category": "version-skew",
+      "cites": [
+        "mediahub-api-gateway:pom.xml:8-8",
+        "mediahub-api-gateway:pom.xml:18-18",
+        "mediahub-user-service:pom.xml:8-8",
+        "mediahub-user-service:pom.xml:31-31"
+      ],
+      "names": [
+        "3.4.3",
+        "2024.0.0",
+        "2025.1.0"
+      ],
+      "how": "Gateway pom pins Boot 3.4.3 and Cloud 2024.0.0, user-service pom Boot 4.0.3 and Cloud 2025.1.0."
+    },
+    {
+      "reference": "Error handling: user- and subscription-service return the exception message in 500 bodies, and because every service",
+      "subjects": [
+        "user",
+        "subscription",
+        "media"
+      ],
+      "category": "other",
+      "cites": [
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/exception/GlobalExceptionHandler.java:46-50",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/exception/GlobalExceptionHandler.java:46-50",
+        "mediahub-media-service:src/main/java/com/mediahub/media_service/exception/GlobalExceptionHandler.java:50-56"
+      ],
+      "names": [
+        "ex.getMessage()",
+        "handleGeneral",
+        "Exception.class"
+      ],
+      "how": "Catch-all handlers return 500 for any exception, and user and subscription put its message in the body."
+    },
+    {
+      "reference": "Monitoring is configured but not deployed: Prometheus and Grafana are not in compose, the gateway has no Prometheus",
+      "subjects": [
+        "discovery",
+        "gateway",
+        "user",
+        "media",
+        "subscription"
+      ],
+      "category": "other",
+      "cites": [
+        "mediahub-infra:prometheus/prometheus.yml:1-32",
+        "mediahub-discovery-server:src/main/resources/application.yaml:1-15",
+        "mediahub-api-gateway:pom.xml:37-40",
+        "mediahub-infra:docker-compose.yml:103-121"
+      ],
+      "names": [
+        "host.docker.internal:8081",
+        "/actuator/prometheus",
+        "user-service"
+      ],
+      "how": "Prometheus scrapes host ports that compose never publishes; the gateway has no Prometheus registry and Eureka exposes no actuator."
+    },
+    {
+      "reference": "Stale or inconsistent docs: READMEs give database ports 5433-5435 and endpoints that do not exist; .env.example gives",
+      "subjects": [
+        "user",
+        "frontend",
+        "subscription"
+      ],
+      "category": "other",
+      "cites": [
+        "mediahub-user-service:README.md:9-9",
+        "mediahub-user-service:README.md:45-51",
+        "mediahub-infra:.env.example:10-13",
+        "mediahub-frontend-ui:src/app/features/subscription/subscription.ts:100-104",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/domain/Plan.java:3-7"
+      ],
+      "names": [
+        "5433",
+        "USER_DB_PORT=5433",
+        "ULTRA"
+      ],
+      "how": "README ports and endpoints, env example ports and the ULTRA plan do not match the code."
+    },
+    {
+      "reference": "No schema migrations (ddl-auto=update), SQL logging on, gateway logging at TRACE, and run logs committed to the",
+      "subjects": [
+        "config-repo",
+        "user",
+        "media",
+        "subscription",
+        "gateway"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "mediahub-config-repo:user-service.yml:10-13",
+        "mediahub-config-repo:media-service.yml:10-13",
+        "mediahub-config-repo:api-gateway.yml:31-35",
+        "mediahub-media-service:app.log:1-3"
+      ],
+      "names": [
+        "ddl-auto: update",
+        "show-sql: true",
+        "TRACE"
+      ],
+      "how": "Services use ddl-auto update with SQL logging, the gateway logs at TRACE, and a run log is committed."
+    }
+  ],
+  "decoys": [
+    {
+      "looksLike": "A user password is handled in user-service and stored next to the email, which looks like a plaintext secret.",
+      "safeBecause": "The password is encoded with a BCryptPasswordEncoder before it is saved and UserResponseDto has no password field.",
+      "subjects": [
+        "user",
+        "user-db"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/service/impl/UserServiceImpl.java:38-38",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/config/SecurityConfig.java:11-14",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/dto/UserResponseDto.java:15-22"
+      ],
+      "names": [
+        "passwordEncoder.encode",
+        "BCryptPasswordEncoder"
+      ]
+    },
+    {
+      "looksLike": "The subscription service builds a URL by hand for media-service, which looks like a path mismatch like the user-service Feign client.",
+      "safeBecause": "The URI /api/v1/media/{id} and the Feign paths of UserClient and MediaClient match the controllers' @RequestMapping and @GetMapping.",
+      "subjects": [
+        "subscription",
+        "media"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/service/impl/SubscriptionServiceImpl.java:86-94",
+        "mediahub-media-service:src/main/java/com/mediahub/media_service/controller/MediaController.java:45-47",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-12"
+      ],
+      "names": [
+        "http://media-service/api/v1/media/{id}",
+        "/api/v1/users"
+      ]
+    }
+  ]
+}

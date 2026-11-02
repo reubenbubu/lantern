@@ -575,6 +575,16 @@ public final class AnalysisRun {
       // analyzed in this run, so a link to a repository carried forward is there too.
       LOG.info(
           "Wrote {}", ExtractedFacts.write(out, ExtractedFacts.LINKED_FILE, stored.linkerFacts()));
+      // Every fact of origin llm that holds in the snapshot, which the scorer's rows per role read
+      // (ADR 0072): resolved links, texts, judgements, verdicts and risks.
+      LOG.info(
+          "Wrote {}",
+          ExtractedFacts.write(
+              out,
+              ExtractedFacts.LLM_FILE,
+              facts.findValidAt(snapshot.number(), snapshot.commits().keySet()).stream()
+                  .filter(f -> f.origin().kind() == Origin.Kind.LLM)
+                  .toList()));
       return new Result(
           system,
           systemTitle,

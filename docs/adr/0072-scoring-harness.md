@@ -95,3 +95,51 @@ Since #254 a repository without a Maven build is analyzed without a build (ADR 0
 project-3's and project-4's frontends and deployment repositories included.
 
 ## Amendment (#369): the scorer's "at most 15 elements a diagram" check is the readability check: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.
+
+## Amendment (#667): a row per LLM role, against an answer key
+
+The scorecard gains a row per LLM role (knowledge-build epic, section 13, as #662 changed it; the
+research in `docs/research/role-measurement.md`), computed by `lantern-web/scripts/roles.mjs`:
+
+- **Inputs.** Besides the report and `run.json`, `analyze` writes `linked.jsonl.gz` (the linker's
+  facts, Resolve's picks among them) and `llm.jsonl.gz` (every fact of origin llm that holds in the
+  snapshot); `run.json`'s harness records list each role's asked subjects and, new, its unasked
+  ones (not asked for budget, a model without tool use, or failed). `score-testsets.sh` copies both
+  files beside the scorecard. A set's answer key is `testsets/<set>/answer-key.json`
+  (`--answer-key` names another).
+- **The answer key** is prepared by the agent from the code at the pins and the references, never
+  from a model's answers, and says so in its header with its status (awaiting the owner's check
+  until the 1F test drop). It holds, per open link of the set (from a fake run's static facts),
+  its right target, several when every one of them receives the message, or "unknown"; per
+  reference risk, its subject elements (reference IDs) and category (one of the lead kinds,
+  `version-skew` or `other`); and decoys, code that looks like a risk of a category and is safe,
+  with why. Every entry cites `repo:path:start-end` at the key's commit of its repository, and
+  names an identifier the lines hold; `score.mjs check-key` checks each against git, and a test
+  checks every key's form.
+- **Three outcomes.** Resolve's items are correct, wrong or abstained, with p = 3 (its instruction
+  asks for certainty): coverage, accuracy on the answered, the penalized score (correct − p ×
+  wrong over the items), over-abstention on the links the key answers; an item not asked is counted
+  apart. Abstaining on a link whose key says unknown is correct; a pick there is wrong.
+- **Describe**: the share of the report's containers, stores, queues, external systems, people and
+  components with a responsibility of origin llm, and of the linker's interactions with an intent.
+  Its judge score comes with #668.
+- **Flows**: a report flow matches a reference flow when its trigger is the same entry point and
+  their participants overlap by at least two thirds of the larger set, one to one, best overlap
+  first; recall and precision of the flows the report draws. The scorecard's older flow count
+  (by trigger alone) stays beside it, so earlier scorecards compare.
+- **Investigate**: each risk or finding wording it stored matches a reference risk, or a decoy, of
+  the answer key when a subject is shared and the category is the same (its lead's kind, or the
+  finding's); a risk without a lead matches by subject and the words of its title and finding. A
+  risk matching neither is unjudged, listed and counted. Recall, precision over judged risks, and
+  TPR − FPR with the decoys.
+- **Name groups**: the share of groups it was given that it named; the judge comes with #668.
+- **Harness**: dollars, calls and tokens of the run, the cache hit rate (planned items the answer
+  cache answered), and with `--warm` and `--change` the warm rerun's calls (gate: zero) and the
+  one-file change's.
+- **Purpose**: not measured until the key-fact judge (#668).
+- **Paired comparison.** Each scored row keeps its items' scores. `score.mjs compare` adds the
+  paired difference of two scorecards; `score.mjs paired <a> <b>` pools every set two score
+  folders share: the mean per-item difference in points, a 95% bootstrap interval (2,000
+  resamples, seeded, so the same every time), the direction per set, and the epic's verdict (an
+  improvement when the interval excludes 0 and all sets but at most one agree; a possible
+  regression when its lower bound is at or below −7 points).

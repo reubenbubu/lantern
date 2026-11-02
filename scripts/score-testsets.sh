@@ -19,8 +19,9 @@ the git repositories of its checkout are analyzed. A real model costs money: onl
 user's go-ahead.
 
 Writes to <workspace>/scores/<label>/: for each set <set>/_system.c4.html, run.json
-(the run's model for every role, its calls and cost) and extracted.jsonl.gz (the facts
-the extractors found), <set>.scorecard.json and <set>.scorecard.md, the extraction
+(the run's model for every role, its calls and cost), extracted.jsonl.gz (the facts
+the extractors found), linked.jsonl.gz and llm.jsonl.gz (the linker's facts and those of
+origin llm, which the rows per role read with testsets/<set>/answer-key.json), <set>.scorecard.json and <set>.scorecard.md, the extraction
 coverage <set>.coverage.json and <set>.coverage.md (lantern-web/scripts/coverage.mjs,
 when the set has a testsets/<set>/coverage.json); with --compare-with, <set>.compare.md
 beside them.
@@ -275,6 +276,14 @@ for set in "${sets[@]}"; do
   if [[ -f "$documents/run.json" ]]; then
     cp "$documents/run.json" "$scores/$set/"
     run_args=(--run "$scores/$set/run.json")
+  fi
+  # The run's facts the rows per role read beside run.json, and the set's answer key
+  # (docs/adr/0072-scoring-harness.md, amendment for #667).
+  for facts in linked.jsonl.gz llm.jsonl.gz; do
+    [[ -f "$documents/$facts" ]] && cp "$documents/$facts" "$scores/$set/"
+  done
+  if [[ -f "$REPO/testsets/$set/answer-key.json" ]]; then
+    run_args+=(--answer-key "$REPO/testsets/$set/answer-key.json")
   fi
   "$node_bin" "$REPO/lantern-web/scripts/score.mjs" "$scores/$set/_system.c4.html" "$(reference_dir "$set")" \
     ${run_args[@]+"${run_args[@]}"} --out "$scores/$set" >&2

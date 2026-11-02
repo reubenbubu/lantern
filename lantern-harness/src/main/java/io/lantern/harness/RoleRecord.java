@@ -42,6 +42,7 @@ public final class RoleRecord implements LlmCallLog {
   private Estimate estimate;
   private String warmUp;
   private final List<String> asked = new ArrayList<>();
+  private final List<String> unasked = new ArrayList<>();
 
   RoleRecord(String role, String provider, String model) {
     this.role = role;
@@ -114,6 +115,9 @@ public final class RoleRecord implements LlmCallLog {
     if (wasRepaired) {
       repaired++;
     }
+    if (outcome.kind() == Outcome.Kind.NOT_ASKED || outcome.kind() == Outcome.Kind.FAILED) {
+      unasked.add(subject);
+    }
     if (outcome.kind() != Outcome.Kind.CACHED && outcome.kind() != Outcome.Kind.NOT_ASKED) {
       asked.add(subject);
     }
@@ -156,6 +160,14 @@ public final class RoleRecord implements LlmCallLog {
   /** The subjects of the items the model was asked about, in the order they finished. */
   public synchronized List<String> asked() {
     return List.copyOf(asked);
+  }
+
+  /**
+   * The subjects of the items left without an answer of this run: not asked for budget or a model
+   * without what they need, or failed; the scorer counts them apart (ADR 0072).
+   */
+  public synchronized List<String> unasked() {
+    return List.copyOf(unasked);
   }
 
   /** What the role's calls cost. */
