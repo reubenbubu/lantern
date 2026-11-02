@@ -1,6 +1,6 @@
 # 0081: Tool use: the model queries the graph and reads files
 
-Status: accepted (#169), amends ADRs 0008 and 0045, amends ADR 0072 (`run.json`), amended by ADR 0100 (#525: caps on turns, input and output, the submit tool)
+Status: accepted (#169), amends ADRs 0008 and 0045, amends ADR 0072 (`run.json`), amended by ADR 0100 (#525: caps on turns, input and output, the submit tool), amended by ADR 0105 (#666: tool facts numbered `F..`, `find_in_code`, ranges cited)
 
 ## Context
 

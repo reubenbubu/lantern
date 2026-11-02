@@ -2,7 +2,6 @@ package io.lantern.harness;
 
 import io.lantern.harness.verify.CheckInputs;
 import io.lantern.harness.verify.ItemAnswer;
-import io.lantern.harness.verify.Pipeline;
 import io.lantern.harness.verify.Rejection;
 import io.lantern.llm.LlmTool;
 import io.lantern.llm.LlmToolCall;
@@ -36,14 +35,22 @@ final class SubmitTool implements ToolBox {
   private final List<Item> packet;
   private final List<String> ids;
   private final PacketRole role;
-  private final CheckInputs inputs;
+  private final java.util.function.IntFunction<CheckInputs> inputs;
   private final Map<String, ItemAnswer> accepted = new LinkedHashMap<>();
   private final Set<String> failedOnce = new LinkedHashSet<>();
   private final Set<String> dropped = new LinkedHashSet<>();
   private final Set<String> repaired = new LinkedHashSet<>();
 
+  /**
+   * @param inputs what the checks compare the answer of the packet's item at an index with, asked
+   *     at each submit, so the references the tools have shown by then count
+   */
   SubmitTool(
-      ToolBox tools, List<Item> packet, List<String> ids, PacketRole role, CheckInputs inputs) {
+      ToolBox tools,
+      List<Item> packet,
+      List<String> ids,
+      PacketRole role,
+      java.util.function.IntFunction<CheckInputs> inputs) {
     this.tools = tools;
     this.packet = List.copyOf(packet);
     this.ids = List.copyOf(ids);
@@ -57,6 +64,11 @@ final class SubmitTool implements ToolBox {
     schema.put("type", "object");
     schema.putArray("required").add("items");
     schema.putObject("properties").putObject("items").put("type", "object");
+    return definition(schema);
+  }
+
+  /** The tool's definition, its input the role's submit schema. */
+  static LlmTool definition(JsonNode schema) {
     return new LlmTool(
         NAME,
         "Submit your answer: an object with an entry per item ID, either the item's answer or"
@@ -68,7 +80,8 @@ final class SubmitTool implements ToolBox {
   @Override
   public List<LlmTool> tools() {
     List<LlmTool> all = new ArrayList<>(tools.tools());
-    all.add(definition());
+    JsonNode schema = role.submitSchema();
+    all.add(schema == null ? definition() : definition(schema));
     return all;
   }
 
@@ -94,7 +107,7 @@ final class SubmitTool implements ToolBox {
       } else {
         ItemAnswer answer = role.read(id, packet.get(index), entry.getValue());
         List<Rejection> found =
-            answer.omitted() ? List.of() : Pipeline.STANDARD.check(answer, inputs);
+            answer.omitted() ? List.of() : role.pipeline().check(answer, inputs.apply(index));
         if (found.isEmpty()) {
           accepted.put(id, answer);
           if (failedOnce.contains(id)) {

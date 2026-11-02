@@ -378,9 +378,13 @@
           "type": "string",
           "description": "The claim ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
         },
+        "reason": {
+          "type": "string",
+          "description": "What settles the LLM resolver's pick, in at most 30 words of its own. Present only on links of origin llm."
+        },
         "rationale": {
           "type": "string",
-          "description": "Why the LLM resolver picked this candidate, in its own words. Present only on links of origin llm."
+          "description": "No longer given since #666: reason replaced it. Why the LLM resolver picked this candidate, in its own words; kept so facts stored before stay valid."
         },
         "model": {
           "type": "string",
@@ -650,9 +654,13 @@
           "type": "string",
           "description": "The claim ID of the unresolved-link the LLM resolver picked this link for. Present only on links of origin llm."
         },
+        "reason": {
+          "type": "string",
+          "description": "What settles the LLM resolver's pick, in at most 30 words of its own. Present only on links of origin llm."
+        },
         "rationale": {
           "type": "string",
-          "description": "Why the LLM resolver picked this candidate, in its own words. Present only on links of origin llm."
+          "description": "No longer given since #666: reason replaced it. Why the LLM resolver picked this candidate, in its own words; kept so facts stored before stay valid."
         },
         "model": {
           "type": "string",

@@ -57,6 +57,16 @@ class GitSourceFilesTest {
   }
 
   @Test
+  void findsTheLinesThatHoldATextAtTheCommit() {
+    assertThat(files.grep("r", first, "class A", 30))
+        .containsExactly(new GitSourceFiles.Match("A.java", 1));
+    // The working tree's change is not at the commit.
+    assertThat(files.grep("r", first, "changed", 30)).isEmpty();
+    assertThat(files.grep("other", first, "class A", 30)).isEmpty();
+    assertThat(files.grep("r", first, "class A", 0)).hasSizeLessThanOrEqualTo(1);
+  }
+
+  @Test
   void readsNothingItCannotOrShouldNot() {
     assertThat(files.read("r", first, "Missing.java")).isEmpty();
     assertThat(files.read("other", first, "A.java")).isEmpty();

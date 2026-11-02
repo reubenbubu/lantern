@@ -168,19 +168,24 @@ final class MessageLinker {
 
   /** The topic, queue or exchange a use names, or null for a broker the linker does not know. */
   private static EntityId destination(Use use) {
-    String broker = use.broker();
+    return destination(use.broker(), use.kind(), use.destination());
+  }
+
+  /**
+   * The topic, queue or exchange of a broker, by its kind ({@code exchange} or {@code queue} on
+   * RabbitMQ) and name; null for a broker the linker does not know.
+   */
+  static EntityId destination(String broker, String kind, String name) {
     if (broker == null) {
       return null;
     }
     return switch (broker) {
-      case MessagingExtractor.KAFKA ->
-          new EntityId(CrossRepoLinks.TOPIC, broker + ":" + use.destination());
-      case MessagingExtractor.JMS ->
-          new EntityId(CrossRepoLinks.QUEUE, broker + ":" + use.destination());
+      case MessagingExtractor.KAFKA -> new EntityId(CrossRepoLinks.TOPIC, broker + ":" + name);
+      case MessagingExtractor.JMS -> new EntityId(CrossRepoLinks.QUEUE, broker + ":" + name);
       case MessagingExtractor.RABBITMQ ->
-          "exchange".equals(use.kind())
-              ? new EntityId(CrossRepoLinks.EXCHANGE, broker + ":" + use.destination())
-              : new EntityId(CrossRepoLinks.QUEUE, broker + ":" + use.destination());
+          "exchange".equals(kind)
+              ? new EntityId(CrossRepoLinks.EXCHANGE, broker + ":" + name)
+              : new EntityId(CrossRepoLinks.QUEUE, broker + ":" + name);
       default -> null;
     };
   }

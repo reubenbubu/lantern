@@ -21,7 +21,9 @@ import org.springframework.context.annotation.Profile;
  * placeholder responsibility for every unit, component and element and a placeholder intent for
  * every interaction, each citing the item's first fact; it narrates no flow and words no purpose,
  * so those keep their static prose, except a flow's title, a placeholder in place of the scenario a
- * model would name; and it answers "unknown" to a link left open, so such links stay open.
+ * model would name; and it submits "unknown" for every link left open (knowledge-build epic,
+ * section 11.1), citing the calling unit's first fact and the first candidate's, so such links stay
+ * open and the answers are cached.
  *
  * <p>Every text it words is wrapped in {@code {{ }}} with a hint of what a real model would write
  * there, such as {@code {{placeholder: summary of class Order}}}, so a reader of a document made
@@ -46,6 +48,7 @@ class FakeLlmConfiguration {
     // models whose settings say they cache.
     return new FakeLlmProvider()
         .simulatingPromptCache()
+        .callingTools(FakeLlmConfiguration::toolCalls)
         .answering(
             request -> {
               String check = modelCheck(request);
@@ -64,7 +67,8 @@ class FakeLlmConfiguration {
                 return "{}";
               }
               if (request.role() == Role.RESOLVE) {
-                return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
+                // After its submit, a Resolve conversation ends.
+                return "Done.";
               }
               String summary = summarize(request);
               return summary != null ? summary : "{}";
@@ -165,6 +169,61 @@ class FakeLlmConfiguration {
       entries.add("\"" + ids.group(1) + "\": " + entry);
     }
     return "{\"items\": {" + String.join(", ", entries) + "}}";
+  }
+
+  /** The fact reference after which a candidate's facts are listed: {@code [K1] service:...}. */
+  private static final Pattern CANDIDATE =
+      Pattern.compile("(?m)^\\[K1\\] [^\\n]*\\n<facts>\\n\\[(F[0-9]+)\\]");
+
+  /** The fact block 4 of a Resolve request lists first: the calling unit's. */
+  private static final Pattern CALLER =
+      Pattern.compile("The calling unit: [^\\n]*\\n[^\\n]*\\n<facts>\\n\\[(F[0-9]+)\\]");
+
+  /**
+   * The tools the fake calls: on a Resolve conversation's first turn, {@code submit} with "unknown"
+   * for every item ({@link #resolve(LlmRequest, String)}); nothing for any other request.
+   */
+  static List<io.lantern.llm.LlmToolCall> toolCalls(LlmRequest request) {
+    return resolve(request, "unknown");
+  }
+
+  /**
+   * A Resolve conversation's first turn as the fake answers it: {@code submit} with the given pick
+   * ({@code unknown}, or a candidate such as {@code K1}) for every item, citing the calling unit's
+   * first fact and the item's first candidate's (an item without such facts is omitted); nothing
+   * for any other request, or once it has submitted.
+   */
+  static List<io.lantern.llm.LlmToolCall> resolve(LlmRequest request, String pick) {
+    if (request.role() != Role.RESOLVE || request.messages().size() != 1) {
+      return List.of();
+    }
+    String prompt = request.messages().getFirst().text();
+    Matcher caller = CALLER.matcher(prompt);
+    String callerRef = caller.find() ? caller.group(1) : null;
+    List<String> entries = new ArrayList<>();
+    Matcher item = ITEM.matcher(prompt);
+    while (item.find()) {
+      Matcher candidate = CANDIDATE.matcher(item.group(2));
+      String entry =
+          callerRef != null && candidate.find()
+              ? "{\"pick\": \""
+                  + pick
+                  + "\", \"confidence\": \"low\", \"reason\": \"A fake model.\","
+                  + " \"cites\": [\""
+                  + callerRef
+                  + "\", \""
+                  + candidate.group(1)
+                  + "\"]}"
+              : "{\"omitted\": true}";
+      entries.add("\"" + item.group(1) + "\": " + entry);
+    }
+    return List.of(
+        new io.lantern.llm.LlmToolCall(
+            "fake-submit",
+            "submit",
+            tools.jackson.databind.json.JsonMapper.builder()
+                .build()
+                .readTree("{\"items\": {" + String.join(", ", entries) + "}}")));
   }
 
   /** The responsibility the fake gives every unit, component and element Describe asks about. */

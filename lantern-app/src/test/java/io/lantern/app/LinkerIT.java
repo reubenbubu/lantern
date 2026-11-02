@@ -292,9 +292,8 @@ class LinkerIT {
   void theResolversLinksAreRecordedForTheSnapshotAndItsAnswersReused() {
     FakeLlmProvider fake =
         new FakeLlmProvider()
-            .answering(
-                "{\"target\": \"C1\", \"confidence\": \"medium\", \"cites\": [\"C1\"],"
-                    + " \"rationale\": \"Only tax serves the path.\"}");
+            .callingTools(request -> FakeLlmConfiguration.resolve(request, "K1"))
+            .answering("Done.");
     LlmClient client =
         new LlmClient(
             ModelSettings.single(fake.model("m")),
@@ -323,10 +322,12 @@ class LinkerIT {
                 assertThat(f.origin().name()).isEqualTo(LinkResolver.NAME);
                 assertThat(f.subject() + " " + f.predicate() + " " + f.object().value())
                     .isEqualTo("service:g:orders " + CrossRepoLinks.CALLS_HTTP + " service:g:tax");
-                assertThat(f.confidence()).isEqualTo(0.35);
+                // The fake's confidence is low.
+                assertThat(f.confidence()).isEqualTo(0.2);
               });
     }
-    assertThat(fake.sent()).hasSize(1);
+    // One conversation: the submit turn and the turn that ends it.
+    assertThat(fake.sent()).hasSize(2);
   }
 
   private List<Fact> linked(long snapshot) {

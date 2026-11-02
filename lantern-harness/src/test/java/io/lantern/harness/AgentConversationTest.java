@@ -13,9 +13,11 @@ import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
 import io.lantern.llm.Role;
 import io.lantern.llm.ToolBox;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -116,6 +118,101 @@ class AgentConversationTest {
         .extracting(LlmTool::name)
         .containsExactly("look", "submit");
     assertThat(store.size()).isEqualTo(2);
+  }
+
+  /**
+   * A role with checks of its own and a submit schema (Resolve's): the checks run with the standard
+   * ones at each submit, and submit takes the role's schema as its input.
+   */
+  @Test
+  void aRolesOwnChecksRunAtSubmitAndSubmitTakesItsSchema() {
+    io.lantern.harness.verify.Check noBills =
+        new io.lantern.harness.verify.Check() {
+          @Override
+          public String name() {
+            return "NoBills";
+          }
+
+          @Override
+          public List<io.lantern.harness.verify.Rejection> check(
+              io.lantern.harness.verify.ItemAnswer answer,
+              io.lantern.harness.verify.CheckInputs inputs) {
+            return answer.texts().stream()
+                .filter(t -> t.text().contains("Bills"))
+                .map(
+                    t ->
+                        new io.lantern.harness.verify.Rejection(
+                            answer.item(), t.field(), name(), "Says Bills."))
+                .toList();
+          }
+        };
+    JsonNode schema = JSON.readTree("{\"type\": \"object\", \"title\": \"own\"}");
+    PacketRole role =
+        new PacketRole() {
+          @Override
+          public PromptLayout layout(List<Item> packet, List<String> ids) {
+            return PacketsTest.SENTENCES.layout(packet, ids);
+          }
+
+          @Override
+          public int maxOutputTokens(int items) {
+            return PacketsTest.SENTENCES.maxOutputTokens(items);
+          }
+
+          @Override
+          public io.lantern.harness.verify.CheckInputs inputs(List<Item> packet, List<String> ids) {
+            return PacketsTest.SENTENCES.inputs(packet, ids);
+          }
+
+          @Override
+          public io.lantern.harness.verify.ItemAnswer read(String id, Item item, JsonNode entry) {
+            return PacketsTest.SENTENCES.read(id, item, entry);
+          }
+
+          @Override
+          public String store(Item item, io.lantern.harness.verify.ItemAnswer accepted) {
+            return PacketsTest.SENTENCES.store(item, accepted);
+          }
+
+          @Override
+          public io.lantern.harness.verify.Pipeline pipeline() {
+            List<io.lantern.harness.verify.Check> checks =
+                new ArrayList<>(io.lantern.harness.verify.Checks.STANDARD);
+            checks.add(noBills);
+            return new io.lantern.harness.verify.Pipeline(checks);
+          }
+
+          @Override
+          public JsonNode submitSchema() {
+            return schema;
+          }
+        };
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .callingTools(
+                request ->
+                    turn(request) == 1
+                        ? List.of(
+                            submit(
+                                1,
+                                "{\"I1\": "
+                                    + good("Keeps the records")
+                                    + ", \"I2\": "
+                                    + good("Bills each customer")
+                                    + "}"))
+                        : List.of())
+            .answering("Done.");
+
+    Map<String, Outcome> outcomes =
+        harness(client(fake), store)
+            .session(role(16))
+            .converse(List.of(item("a"), item("b")), role, LOOK, List::of);
+
+    assertThat(outcomes.get("a").kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(outcomes.get("b").kind()).isEqualTo(Outcome.Kind.DROPPED);
+    assertThat(fake.sent().get(1).request().messages().getLast().toolResults().getFirst().content())
+        .contains("\"I2\":\"rejected: Says Bills.");
+    assertThat(fake.sent().getFirst().request().tools().getLast().inputSchema()).isEqualTo(schema);
   }
 
   @Test

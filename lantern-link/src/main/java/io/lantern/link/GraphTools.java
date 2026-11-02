@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.SourceSecrets;
 import io.lantern.extract.config.UrlCredentials;
+import io.lantern.harness.render.FactLines;
 import io.lantern.llm.LlmTool;
 import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
@@ -30,19 +31,19 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Tools that let the model look further than its prompt (ADR 0081): look up the facts about an
- * entity, search the facts for a text, and read a range of lines of a file of the snapshot's
- * repositories at the snapshot's commit. The Resolve role uses them, and the Investigate role
- * (#269) builds on them.
+ * Tools that let the model look further than its prompt (ADR 0081; knowledge-build epic, section
+ * 10, Agent loop): look up the facts about an entity, search the facts for a text, read a range of
+ * lines of a file of the snapshot's repositories at the snapshot's commit, and find a text in their
+ * files. The Resolve role uses them, and the Investigate role (#269) builds on them.
  *
- * <p>Every fact a tool shows gets a reference ({@code T1}, {@code T2}, ...), kept for the whole
- * conversation, which an answer may cite like a prompt's references; {@link #shown()} gives what
- * they stand for. Facts are written as the resolver's prompt writes them, without fact IDs or line
- * numbers, and listed in a fixed order, so the same snapshot gives the same results and recorded
- * conversations replay. A file is shown with its secrets masked: Java source as summaries show it
- * (ADR 0054), any other file with the value of each secret key masked and credentials removed from
- * URLs, private keys masked in every file, secret XML elements and attributes masked; keys,
- * keystores and binary files are not shown.
+ * <p>Every fact a tool shows gets a fact reference ({@code F..}) numbered after the request's own,
+ * kept for the whole conversation, which an answer may cite like the request's references; {@link
+ * #shown()} gives what they stand for. Facts are written as every role's prompt writes them ({@link
+ * FactLines}), without fact IDs or line numbers, and listed in a fixed order, so the same snapshot
+ * gives the same results and recorded conversations replay. A file is shown with its secrets
+ * masked: Java source as summaries show it (ADR 0054), any other file with the value of each secret
+ * key masked and credentials removed from URLs, private keys masked in every file, secret XML
+ * elements and attributes masked; keys, keystores and binary files are not shown.
  *
  * <p>One instance serves one conversation ({@link Graph#tools()}); not thread-safe.
  */
@@ -52,7 +53,7 @@ public final class GraphTools implements ToolBox {
   @FunctionalInterface
   public interface RepoFiles {
 
-    /** Reads no file: the {@code read_file} tool is not offered. */
+    /** Reads no file: the {@code read_file} and {@code find_in_code} tools are not offered. */
     RepoFiles NONE = (repo, path) -> Optional.empty();
 
     /**
@@ -62,11 +63,28 @@ public final class GraphTools implements ToolBox {
      * @param path the file path relative to the repository root
      */
     Optional<byte[]> read(String repo, String path);
+
+    /**
+     * The lines of a repository's text files that hold a text, as written (case kept), in the order
+     * of their paths and lines; none by default.
+     *
+     * @param max the most to give
+     */
+    default List<Hit> find(String repo, String text, int max) {
+      return List.of();
+    }
   }
+
+  /** A line of a file that holds a text {@code find_in_code} looked for. */
+  public record Hit(String path, int line) {}
 
   static final String FACTS_ABOUT = "facts_about";
   static final String SEARCH_FACTS = "search_facts";
   static final String READ_FILE = "read_file";
+  static final String FIND_IN_CODE = "find_in_code";
+
+  /** The most lines one search gives. */
+  static final int MAX_HITS = 30;
 
   /** The most facts one call shows. */
   static final int MAX_FACTS = 40;
@@ -107,7 +125,7 @@ public final class GraphTools implements ToolBox {
       this.secretKeys = ConfigExtractor.normalizedKeys(ConfigExtractor.jwtSecretKeys(facts));
       List<Fact> sorted = new ArrayList<>();
       for (Fact fact : Objects.requireNonNull(facts, "facts")) {
-        if (rendered.putIfAbsent(fact.id(), ResolvePrompt.fact(fact)) == null) {
+        if (rendered.putIfAbsent(fact.id(), FactLines.line(fact)) == null) {
           sorted.add(fact);
         }
         repos.add(fact.evidence().repo());
@@ -117,9 +135,45 @@ public final class GraphTools implements ToolBox {
       this.facts = List.copyOf(sorted);
     }
 
-    /** New tools for one conversation, with references of their own. */
+    /** New tools for one conversation, with references of their own, from {@code F1}. */
     public GraphTools tools() {
-      return new GraphTools(this);
+      return tools(0);
+    }
+
+    /**
+     * New tools for one conversation, with references of their own.
+     *
+     * @param factsBefore how many fact references the request shows, so the tools' come after
+     */
+    public GraphTools tools(int factsBefore) {
+      return new GraphTools(this, factsBefore);
+    }
+
+    /** A file of the snapshot with its blob, as an answer that cites it records it; or empty. */
+    public Optional<io.lantern.harness.FileRead> fileRead(String repo, String path) {
+      if (!repos.contains(repo) || files == RepoFiles.NONE) {
+        return Optional.empty();
+      }
+      return files
+          .read(repo, path)
+          .map(
+              content ->
+                  new io.lantern.harness.FileRead(
+                      repo, path, io.lantern.harness.Fingerprints.gitBlob(content)));
+    }
+
+    /**
+     * The lines of a file of the snapshot as the tools show it, its secrets masked; empty if it is
+     * not one or is never shown. The checks read cited ranges from it.
+     */
+    public Optional<List<String>> lines(String repo, String path) {
+      if (!repos.contains(repo) || files == RepoFiles.NONE) {
+        return Optional.empty();
+      }
+      return files
+          .read(repo, path)
+          .map(content -> masked(path, content, secretKeys))
+          .map(text -> text.lines().toList());
     }
   }
 
@@ -132,13 +186,16 @@ public final class GraphTools implements ToolBox {
   private final Map<String, io.lantern.harness.FileRead> read = new LinkedHashMap<>();
   private final Map<String, io.lantern.harness.Harness.Shown> texts = new LinkedHashMap<>();
   private final Map<String, String> refs = new HashMap<>();
+  private final Map<String, List<String>> masked = new HashMap<>();
+  private final int factsBefore;
 
-  private GraphTools(Graph graph) {
+  private GraphTools(Graph graph, int factsBefore) {
     this.facts = graph.facts;
     this.rendered = graph.rendered;
     this.repos = graph.repos;
     this.files = graph.files;
     this.secretKeys = graph.secretKeys;
+    this.factsBefore = factsBefore;
   }
 
   /**
@@ -155,7 +212,7 @@ public final class GraphTools implements ToolBox {
   }
 
   /** The facts the tools have shown so far, by reference, in the order shown. */
-  public Map<String, Fact> shown() {
+  public synchronized Map<String, Fact> shown() {
     return Collections.unmodifiableMap(new LinkedHashMap<>(shown));
   }
 
@@ -170,7 +227,7 @@ public final class GraphTools implements ToolBox {
         new LlmTool(
             FACTS_ABOUT,
             "Lists the facts static analysis extracted about one entity: those it is the subject"
-                + " of, then those that point to it. Each fact gets a reference such as [T1] that"
+                + " of, then those that point to it. Each fact gets a reference such as [F12] that"
                 + " an answer may cite.",
             about));
     ObjectNode search = schema();
@@ -182,7 +239,7 @@ public final class GraphTools implements ToolBox {
             SEARCH_FACTS,
             "Finds the facts whose subject, predicate, value, attributes or file hold a text, such"
                 + " as a class, property, path, topic or host name. Each fact gets a reference"
-                + " such as [T1] that an answer may cite.",
+                + " such as [F12] that an answer may cite.",
             search));
     if (files != RepoFiles.NONE) {
       ObjectNode read = schema();
@@ -195,9 +252,20 @@ public final class GraphTools implements ToolBox {
           new LlmTool(
               READ_FILE,
               "Reads lines of a file of the analyzed repositories at the analyzed commit, with"
-                  + " line numbers and secrets masked. A file is not a fact and cannot be cited;"
-                  + " cite the facts about what it shows.",
+                  + " line numbers and secrets masked. Cite lines you read as repo:path:from-to.",
               read));
+      ObjectNode find = schema();
+      property(find, "repo", "string", "Only this repository; default every one");
+      property(find, "text", "string", "The text to find, as written, case kept");
+      find.putArray("required").add("text");
+      tools.add(
+          new LlmTool(
+              FIND_IN_CODE,
+              "Finds the lines of the analyzed repositories' files that hold a text, such as a"
+                  + " property key, host name, client or class name: up to "
+                  + MAX_HITS
+                  + " lines, each as repo:path:line with the line, secrets masked.",
+              find));
     }
     return List.copyOf(tools);
   }
@@ -238,6 +306,12 @@ public final class GraphTools implements ToolBox {
           yield LlmToolResult.error(call, "No files can be read.");
         }
         yield read(call, input);
+      }
+      case FIND_IN_CODE -> {
+        if (files == RepoFiles.NONE) {
+          yield LlmToolResult.error(call, "No files can be searched.");
+        }
+        yield find(call, input);
       }
       default -> LlmToolResult.error(call, "There is no tool named " + call.name() + ".");
     };
@@ -306,7 +380,7 @@ public final class GraphTools implements ToolBox {
       }
       String known = refs.get(fact.id());
       // The longest a new reference can be, so a fact cut off for length gets no reference.
-      String line = "[" + (known == null ? "T" + (shown.size() + 1) : known) + "] ";
+      String line = "[" + (known == null ? nextRef() : known) + "] ";
       line += rendered.get(fact.id()) + "\n";
       if (out.length() + line.length() > MAX_CHARS) {
         break;
@@ -323,14 +397,18 @@ public final class GraphTools implements ToolBox {
     return out.toString();
   }
 
-  private String ref(Fact fact) {
+  private synchronized String ref(Fact fact) {
     return refs.computeIfAbsent(
         fact.id(),
         id -> {
-          String ref = "T" + (shown.size() + 1);
+          String ref = nextRef();
           shown.put(ref, fact);
           return ref;
         });
+  }
+
+  private String nextRef() {
+    return "F" + (factsBefore + shown.size() + 1);
   }
 
   private LlmToolResult read(LlmToolCall call, JsonNode input) {
@@ -354,21 +432,7 @@ public final class GraphTools implements ToolBox {
     if (content.isEmpty()) {
       return LlmToolResult.error(call, "No file " + path + " in " + repo + ".");
     }
-    synchronized (this) {
-      read.putIfAbsent(
-          repo + '\u0000' + path,
-          new io.lantern.harness.FileRead(
-              repo, path, io.lantern.harness.Fingerprints.gitBlob(content.get())));
-    }
-    String text = masked(path, content.get(), secretKeys);
-    if (text != null) {
-      synchronized (this) {
-        texts.putIfAbsent(
-            repo + '\u0000' + path,
-            new io.lantern.harness.Harness.Shown(
-                repo, path, io.lantern.harness.Fingerprints.gitBlob(content.get()), text));
-      }
-    }
+    String text = shownFile(repo, path, content.get());
     if (text == null) {
       return LlmToolResult.error(
           call, path + " is not shown: it is binary, or a key or keystore that holds secrets.");
@@ -405,6 +469,92 @@ public final class GraphTools implements ToolBox {
       out.append(line);
     }
     return LlmToolResult.of(call, out.toString());
+  }
+
+  /**
+   * A file as the tools show it, its secrets masked, recorded as read with its blob (so a cached
+   * answer holds while the file keeps it) and, if shown, for the injection screen; null if it is
+   * never shown.
+   */
+  private String shownFile(String repo, String path, byte[] content) {
+    String blob = io.lantern.harness.Fingerprints.gitBlob(content);
+    String text = masked(path, content, secretKeys);
+    synchronized (this) {
+      read.putIfAbsent(repo + '\u0000' + path, new io.lantern.harness.FileRead(repo, path, blob));
+      if (text != null) {
+        texts.putIfAbsent(
+            repo + '\u0000' + path, new io.lantern.harness.Harness.Shown(repo, path, blob, text));
+        masked.putIfAbsent(repo + '\u0000' + path, text.lines().toList());
+      }
+    }
+    return text;
+  }
+
+  /** The lines that hold a text, in one repository or every one, each with its file and number. */
+  private LlmToolResult find(LlmToolCall call, JsonNode input) {
+    String text = text(input, "text");
+    if (text == null || text.isBlank()) {
+      return LlmToolResult.error(call, "Give the text to find.");
+    }
+    String only = text(input, "repo");
+    if (only != null && !repos.contains(only)) {
+      return LlmToolResult.error(
+          call, "No repository named " + only + ". The repositories: " + String.join(", ", repos));
+    }
+    String needle = text.strip();
+    StringBuilder out = new StringBuilder("Lines that hold \"" + needle + "\":\n");
+    int found = 0;
+    boolean more = false;
+    for (String repo : only == null ? repos : Set.of(only)) {
+      for (Hit hit : files.find(repo, needle, MAX_HITS + 1)) {
+        if (found == MAX_HITS) {
+          more = true;
+          break;
+        }
+        List<String> lines = lines(repo, hit.path());
+        if (lines == null || hit.line() < 1 || hit.line() > lines.size()) {
+          continue;
+        }
+        String line = lines.get(hit.line() - 1);
+        // A line whose text was masked no longer holds what was looked for.
+        if (!line.contains(needle)) {
+          continue;
+        }
+        String shown = repo + ":" + hit.path() + ":" + hit.line() + ": " + line.strip() + "\n";
+        if (out.length() + shown.length() > MAX_CHARS) {
+          more = true;
+          break;
+        }
+        out.append(shown);
+        found++;
+      }
+      if (more) {
+        break;
+      }
+    }
+    if (found == 0) {
+      return LlmToolResult.of(call, "No line of the files holds \"" + needle + "\".");
+    }
+    if (more) {
+      out.append("... and more; narrow the search, for example to one repository.\n");
+    }
+    return LlmToolResult.of(call, out.toString());
+  }
+
+  /** A file's lines as shown, read once a conversation; null if it is never shown. */
+  private List<String> lines(String repo, String path) {
+    synchronized (this) {
+      List<String> known = masked.get(repo + '\u0000' + path);
+      if (known != null) {
+        return known;
+      }
+    }
+    Optional<byte[]> content = files.read(repo, path);
+    if (content.isEmpty()) {
+      return null;
+    }
+    String text = shownFile(repo, path, content.get());
+    return text == null ? null : text.lines().toList();
   }
 
   /** File names and extensions of keys and keystores, which are never shown. */
