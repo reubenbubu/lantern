@@ -1,7 +1,7 @@
 {
   "dimension": "role",
   "question": "says what the element does for the system",
-  "status": "awaiting the owner's labels at the 1F test drop",
+  "status": "labelled by Claude (Opus 5.5) at the owner's request on 2026-11-02, without the judge's verdicts; the owner's spot-check of 20 labels decides whether they stand",
   "how": "Set each item's \"label\" to \"pass\" or \"fail\" for the question, judging the text alone; leave null when it cannot be judged. Items marked \"tune\" may be used to improve the judge's prompt; \"test\" items are held out and validate it.",
   "drawnFrom": [
     "project-1",
@@ -19,7 +19,7 @@
       "about": "system:snapshot",
       "text": "All client traffic enters through an API gateway that routes requests to separate services, while main-service stores CRM data in PostgreSQL and auth-service uses Redis.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "0ecb724964ef",
@@ -29,7 +29,7 @@
       "about": "system:snapshot",
       "text": "Service data lives in separate PostgreSQL databases, and services communicate through HTTP calls plus RabbitMQ and Kafka events.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "0edf71b5f270",
@@ -39,7 +39,7 @@
       "about": "system:snapshot",
       "text": "All client traffic goes through a gateway to separate services; browser requests pass through a BFF that handles Keycloak sign-in, and orders are stored in PostgreSQL.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "12ca617217a0",
@@ -49,7 +49,7 @@
       "about": "group:service:com.eventplatform:attendee-service/area/path-bookings",
       "text": "Booking and ticketing",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "15199e60c7f4",
@@ -59,7 +59,7 @@
       "about": "component:service:com.example:bff/type:com.example.bff.filter.TokenRefreshFilter",
       "text": "Extracts the session token identifier",
       "split": "tune",
-      "label": null
+      "label": "fail"
     },
     {
       "id": "1663c2869a63",
@@ -69,7 +69,7 @@
       "about": "component:service:com.example:profile-service/type:com.example.profileservice.service.ProfileService",
       "text": "Finds the profile before deleting it",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "16f688bbd45c",
@@ -79,7 +79,7 @@
       "about": "group:service:com.crm.auth:auth-service/area/path-auth",
       "text": "Authenticates people, registers accounts and issues the access and refresh tokens that keep their sessions going.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "176b063ff776",
@@ -89,7 +89,7 @@
       "about": "person:invited-user",
       "text": "Receives an invitation to an organization and opens the matching invitation screen.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "1bdb6bde468a",
@@ -99,7 +99,7 @@
       "about": "group:service:io.fleetcare:billing-service/area/pkg-collections",
       "text": "Collections",
       "split": "tune",
-      "label": null
+      "label": "fail"
     },
     {
       "id": "1d43cf12f10b",
@@ -109,7 +109,7 @@
       "about": "system:snapshot",
       "text": "Each service keeps its own PostgreSQL database and shares changes with the others by publishing events through Kafka using transactional outboxes.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "217acab4a452",
@@ -119,7 +119,7 @@
       "about": "group:service:com.eventplatform:event-service/area/path-event-categories",
       "text": "Event categories",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "21c106fe1b7d",
@@ -129,7 +129,7 @@
       "about": "system:snapshot",
       "text": "The browser client sends requests through an API gateway, which routes media, subscription and user paths to the backend service for each.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "246b58b66037",
@@ -139,7 +139,7 @@
       "about": "component:service:main-service/type:com.crm.main.service.assignments.OrganizationUserAssignmentService",
       "text": "Looks up an organization role",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "26a5a85acff3",
@@ -149,7 +149,7 @@
       "about": "component:service:main-service/type:com.crm.main.service.wrapper.RoleClientWrapper",
       "text": "Filters roles through the auth client",
       "split": "tune",
-      "label": null
+      "label": "fail"
     },
     {
       "id": "2b6b5d7ba947",
@@ -159,7 +159,7 @@
       "about": "component:service:main-service/type:com.crm.main.controller.TaskController",
       "text": "Fetches the organization before creating a task",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "2febc1c25357",
@@ -169,7 +169,7 @@
       "about": "service:io.fleetcare:billing-service",
       "text": "Checks the registry service status",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "311480729eee",
@@ -179,7 +179,7 @@
       "about": "component:service:com.eventplatform:notification-service/type:com.eventplatform.notification.domain.NotificationRecipientRepository",
       "text": "Stores and retrieves notification recipient records through standard persistence operations.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "3165014c7663",
@@ -189,7 +189,7 @@
       "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.PaymentStateService",
       "text": "Loads a payment attempt",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "37144e8ab68f",
@@ -199,7 +199,7 @@
       "about": "exchange:rabbitmq:billing.dead.letters",
       "text": "Carries declined-payment notices raised when the payment provider is unreachable, so a clerk is alerted.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "3b0fe4d7b453",
@@ -209,7 +209,7 @@
       "about": "component:service:com.eventplatform:attendee-service/type:com.eventplatform.attendee.application.BookingPersistenceService",
       "text": "Finds the completed booking record",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "3bf48d8c8b90",
@@ -219,7 +219,7 @@
       "about": "external-system:loki",
       "text": "Stores structured log entries pushed by the gateway so they can be aggregated in one place.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "4624bde82d40",
@@ -229,7 +229,7 @@
       "about": "database:localhost:5433/profile_db",
       "text": "Holds user profiles alongside registrations still awaiting email confirmation.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "475900078ef3",
@@ -239,7 +239,7 @@
       "about": "component:service:io.fleetcare:billing-service/type:io.fleetcare.billing.payment.PaymentService",
       "text": "Sends a charge to PayGrid",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "48afa8004486",
@@ -249,7 +249,7 @@
       "about": "service:com.example:bff",
       "text": "Sends public service calls to the gateway",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "52ae005a3d13",
@@ -259,7 +259,7 @@
       "about": "service:main-service",
       "text": "Reads roles by their identifiers",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "551f5f97d837",
@@ -269,7 +269,7 @@
       "about": "service:io.fleetcare:workorder-service",
       "text": "Reads a parts reservation",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "576a70a5eaf5",
@@ -279,7 +279,7 @@
       "about": "component:service:io.fleetcare:workorder-service/type:io.fleetcare.workorder.feature.labor.LaborEntryController",
       "text": "Completes a labor entry",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "57acf55c857b",
@@ -289,7 +289,7 @@
       "about": "group:service:main-service/area/path-internal",
       "text": "Answers internal questions about an organization's files and about a user's roles and membership, turning away callers who are not members.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "5a0a14ca1046",
@@ -299,7 +299,7 @@
       "about": "component:service:com.eventplatform:attendee-service/type:com.eventplatform.attendee.application.BookingPersistenceService",
       "text": "Formats the booking marked completed",
       "split": "test",
-      "label": null
+      "label": "fail"
     },
     {
       "id": "6a351fd9ed41",
@@ -309,7 +309,7 @@
       "about": "component:service:io.fleetcare:billing-service/type:io.fleetcare.billing.payment.RefundController",
       "text": "Sends a refund to PayGrid",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "6ba904793f31",
@@ -319,7 +319,7 @@
       "about": "service:com.example:bff",
       "text": "Falls back through the gateway",
       "split": "test",
-      "label": null
+      "label": "fail"
     },
     {
       "id": "8c15eb1e550e",
@@ -329,7 +329,7 @@
       "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.RefundApplicationService",
       "text": "Finds a refund by idempotency key",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "9046e02fbe76",
@@ -339,7 +339,7 @@
       "about": "component:service:main-service/type:com.crm.main.service.assignments.OrganizationUserAssignmentService",
       "text": "Finds a member of an organization",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "90c95c76a612",
@@ -349,7 +349,7 @@
       "about": "component:service:com.eventplatform:notification-service/type:com.eventplatform.notification.domain.NotificationPreferenceRepository",
       "text": "Stores and retrieves notification preference records through standard save, find and delete operations.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "92a94df021a9",
@@ -359,7 +359,7 @@
       "about": "database:media-db",
       "text": "Stores the movies, TV shows, genres, categories and metadata that make up the streaming catalogue.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "9545363a3160",
@@ -369,7 +369,7 @@
       "about": "component:service:io.fleetcare:technician-service/type:io.fleetcare.technician.adapter.inbound.TechnicianCertificationController",
       "text": "Saves issued or renewed certifications",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "a0b3a6a041a8",
@@ -379,7 +379,7 @@
       "about": "frontend:CRM-Frontend",
       "text": "Loads organization preview data",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "a27dda5b36e7",
@@ -389,7 +389,7 @@
       "about": "component:service:main-service/type:com.crm.main.service.wrapper.UserClientWrapper",
       "text": "Reads a user through the auth client",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "a384c4c61b8a",
@@ -399,7 +399,7 @@
       "about": "component:service:com.example:gateway/type:com.example.gateway.controller.FallbackController",
       "text": "Answers failed downstream calls with a 503 problem detail naming the path the caller originally requested.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "a65bd202315f",
@@ -409,7 +409,7 @@
       "about": "group:service:com.eventplatform:attendee-service/area/path-attendees",
       "text": "Attendee profiles",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "a7a839ba55d7",
@@ -419,7 +419,7 @@
       "about": "component:service:com.eventplatform:event-service/type:com.eventplatform.event.api.EventCategoryController",
       "text": "Requests changes to an event category",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "b099dfce6c69",
@@ -429,7 +429,7 @@
       "about": "service:io.fleetcare:edge-gateway",
       "text": "Forwards technician events to notification-service",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "b204f6282f9c",
@@ -439,7 +439,7 @@
       "about": "component:service:io.fleetcare:billing-service/type:io.fleetcare.billing.invoice.InvoiceController",
       "text": "Changes an invoice's status",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "b5342a03da3a",
@@ -449,7 +449,7 @@
       "about": "external-system:registry.fleetcare.example",
       "text": "Tells billing which capabilities and what status the payment registry currently reports.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "b7131398ab3c",
@@ -459,7 +459,7 @@
       "about": "group:service:io.fleetcare:workorder-service/area/pkg-creation",
       "text": "Work order intake",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "c621186820ac",
@@ -469,7 +469,7 @@
       "about": "component:service:com.eventplatform:attendee-service/type:com.eventplatform.attendee.domain.AttendeeProfileRepository",
       "text": "Stores and retrieves attendee profile records by their identifier.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "ce7c9e0759c7",
@@ -479,7 +479,7 @@
       "about": "group:service:com.example:profile-service/area/path-profile",
       "text": "Profile management",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "ced0b375314d",
@@ -489,7 +489,7 @@
       "about": "person:user",
       "text": "Signs up and logs in through the application's registration and login screens.",
       "split": "tune",
-      "label": null
+      "label": "fail"
     },
     {
       "id": "d41589e97984",
@@ -499,7 +499,7 @@
       "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.PaymentStateService",
       "text": "Keeps each booking payment's status consistent as claims, provider results and webhooks move it forward.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "d462253cd818",
@@ -509,7 +509,7 @@
       "about": "component:service:com.eventplatform:payment-service/type:com.eventplatform.payment.application.RefundApplicationService",
       "text": "Locks a payment for refund claiming",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "d9efc9f31324",
@@ -519,7 +519,7 @@
       "about": "component:service:main-service/type:com.crm.main.controller.TaskController",
       "text": "Saves the updated task",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "db98e3bc5d87",
@@ -529,7 +529,7 @@
       "about": "component:service:com.mediahub:media-service/type:com.mediahub.media_service.controller.MediaController",
       "text": "Exposes HTTP operations to create, search, read, update and delete media entries in a standard response envelope.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "dd09bce9f205",
@@ -539,7 +539,7 @@
       "about": "person:admin",
       "text": "Holds the role the authentication endpoints require before granting privileged access.",
       "split": "test",
-      "label": null
+      "label": "fail"
     },
     {
       "id": "e9d1e67c04a3",
@@ -549,7 +549,7 @@
       "about": "frontend:CRM-Frontend",
       "text": "Loads one task status",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "f1de57f63bee",
@@ -559,7 +559,7 @@
       "about": "database:localhost:5432/auth_service",
       "text": "Stores user accounts, roles, refresh sessions, linked external identities and a log of security audit events.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "f25012a7ecbf",
@@ -569,7 +569,7 @@
       "about": "database:com.crm.auth:auth-service/postgresql:com.crm.auth:auth-service",
       "text": "Holds users, tokens, roles, permissions and password-reset information used to verify access.",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "f4c778136442",
@@ -579,7 +579,7 @@
       "about": "service:com.mediahub:user-service",
       "text": "Manages user accounts, roles and viewing-history records, and is the source of truth for user data.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "f81bf8b2a0f9",
@@ -589,7 +589,7 @@
       "about": "group:service:com.example:profile-service/area/path-profile",
       "text": "Keeps each person's profile record aligned with their user account, creating, reading and removing profiles for administrators and for the people themselves.",
       "split": "tune",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "ff9a8c63ba9d",
@@ -599,7 +599,7 @@
       "about": "service:io.fleetcare:customer-portal-bff",
       "text": "Retrieves a technician's skills",
       "split": "test",
-      "label": null
+      "label": "pass"
     },
     {
       "id": "ffbb8c140267",
@@ -609,7 +609,7 @@
       "about": "component:service:main-service/type:com.crm.main.controller.OrganizationRolesController",
       "text": "Deletes the role from the auth service",
       "split": "test",
-      "label": null
+      "label": "pass"
     }
   ]
 }
