@@ -23,19 +23,25 @@ milestone 1F.
   composed from (as the composer traces them, #631). Its subject and locality are the scope's key,
   `system` or the repository's name. A scope with no candidate flow is not asked about.
 - **Candidates.** A scope's candidates are the stored flows that leave their unit (ADR 0097) and
-  touch the scope, one for each `flow-shape`: the flow standing for a shape, and the order the
-  item lists them in, is by what starts it, then its unit, then its ID, so a new commit that
-  changes nothing the item shows asks nothing again. Each is shown as `[W..]` with what starts it,
+  touch the scope, one for each `flow-shape`: the flow standing for a shape is the one whose ID
+  sorts first, as `SAME_SHAPE_AS` points to it, and the item lists them by what starts them, then
+  their unit and ID, so a new commit that changes nothing the item shows asks nothing again. Each is shown as `[W..]` with what starts it,
   its entry fact, its containers in order, its steps with the facts behind each, and where it
   hands work on asynchronously; then the responsibility of each unit the flows cross.
 - **Two passes.** A scope of more than 60 candidates is judged first unit by unit (subject
-  `<scope>/<unit>`, "the flows that start in" the unit), each keeping its significant flows in
-  the model's order, at most 15, or its first 15 if unjudged; then once over what was kept.
+  `<scope>/<unit>`, "the flows that start in" the unit, listed in the rank order of ADR 0047),
+  each keeping its significant flows in the model's order, at most 15, or its 15 highest ranked if
+  unjudged; then once over what was kept. The second pass is planned with the first, ahead of the
+  smaller scopes, as an item expected to show the 15 highest ranked of each unit and resting on
+  the first pass's items.
 - **Checks.** The shared pipeline on each reason (prose of at most 20 words), and a role check:
   every `[W..]` answered with a boolean `significant`; `order` holding exactly the significant
   flows; and, on the first attempt only, at least one significant flow when some flow crosses a
   unit boundary, else the epic's repair text. Its rejections are of the whole item, so the repair
-  turn answers it again; a second answer of none significant is accepted.
+  turn answers it again; a second answer of none significant is accepted. A reason the shared
+  checks reject is rejected as `flows.W<n>.reason`, so the repair turn may correct or withdraw it
+  and the flow stays judged; the answer is checked against the epic's schema with the reason
+  optional for this (the prompt shows the epic's).
 - **Stored answer.** Each flow and the order by its `W..` reference, so a cached answer holds for
   the same item whatever IDs its flows have, and citations as the item numbers them.
 - **Claims.** `(flow, flow-significance, "<scope>")` for every flow judged, with `significant`,

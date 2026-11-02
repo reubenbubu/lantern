@@ -869,6 +869,25 @@ final class SequenceFlows {
     return chosen;
   }
 
+  /** The rank of ADR 0047: the containers touched, then a hand-off, then the entry point. */
+  private static final Comparator<Trace> RANK =
+      Comparator.comparingInt(Trace::touches)
+          .reversed()
+          .thenComparing(t -> t.asyncThrough.isEmpty())
+          .thenComparing(t -> t.entry.key());
+
+  /** The candidates in the rank order of ADR 0047, as the fallback draws them. */
+  List<Candidate> byRank(List<Candidate> candidates) {
+    Map<EntityId, Trace> traces = new HashMap<>();
+    for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
+      traces.put(flow.id(), new Trace(flow));
+    }
+    List<Candidate> ranked = new ArrayList<>(candidates);
+    ranked.sort(
+        Comparator.comparing((Candidate c) -> traces.get(c.flow()), Comparator.nullsLast(RANK)));
+    return ranked;
+  }
+
   private List<Trace> choose() {
     List<Trace> candidates = new ArrayList<>();
     for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
@@ -879,11 +898,7 @@ final class SequenceFlows {
         candidates.add(trace);
       }
     }
-    candidates.sort(
-        Comparator.comparingInt(Trace::touches)
-            .reversed()
-            .thenComparing(t -> t.asyncThrough.isEmpty())
-            .thenComparing(t -> t.entry.key()));
+    candidates.sort(RANK);
     candidates.removeIf(t -> t.participants.stream().noneMatch(scope::contains));
     if (judged != null) {
       // The model's choice, in its order: every flow it judged significant that is in scope.
@@ -1127,14 +1142,12 @@ final class SequenceFlows {
   }
 
   /**
-   * The scope's candidate flows, one for each stored shape: the one with the smallest ID, so the
-   * same facts always show the same flows.
+   * The scope's candidate flows, one for each stored shape: the one with the smallest ID, as {@code
+   * SAME_SHAPE_AS} points to it, listed by what starts them, so the same facts always show the same
+   * flows in the same order.
    */
   List<Candidate> candidates() {
-    // Each shape stands for its flows by the one whose start sorts first, and the candidates are
-    // listed by what starts them: an order that a new commit changing nothing shown keeps.
-    SortedMap<String, Candidate> byShape = new TreeMap<>();
-    Set<EntityId> units = C4Views.units(knowledge);
+    SortedMap<String, Trace> byShape = new TreeMap<>();
     for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
       if (!flow.candidate()) {
         continue;
@@ -1144,13 +1157,16 @@ final class SequenceFlows {
         continue;
       }
       String shape = knowledge.attribute(flow.id(), "flow-shape").orElse("flow " + flow.id());
-      Candidate candidate = candidate(trace, units);
-      Candidate held = byShape.get(shape);
-      if (held == null || CANDIDATE_ORDER.compare(candidate, held) < 0) {
-        byShape.put(shape, candidate);
+      Trace held = byShape.get(shape);
+      if (held == null || flow.id().toString().compareTo(held.flow.id().toString()) < 0) {
+        byShape.put(shape, trace);
       }
     }
-    List<Candidate> result = new ArrayList<>(byShape.values());
+    Set<EntityId> units = C4Views.units(knowledge);
+    List<Candidate> result = new ArrayList<>();
+    for (Trace trace : byShape.values()) {
+      result.add(candidate(trace, units));
+    }
     result.sort(CANDIDATE_ORDER);
     return result;
   }

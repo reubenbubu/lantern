@@ -702,15 +702,35 @@ public final class Describer {
     Map<Scope, List<FlowJudgements.Asked>> firstPass = new LinkedHashMap<>();
     candidates.forEach(
         (scope, found) -> {
+          // Each unit's flows in rank order (ADR 0047), so one left unjudged passes on its best.
           List<FlowJudgements.Asked> byUnit =
               FlowJudgements.firstPass(
-                  scope.key(), found, responsibilities, scope.assembler()::name);
+                  scope.key(),
+                  scope.flows(null).byRank(found),
+                  responsibilities,
+                  scope.assembler()::name);
           if (!byUnit.isEmpty()) {
             firstPass.put(scope, byUnit);
           }
         });
-    List<Item> planned = new ArrayList<>();
-    firstPass.values().forEach(items -> items.forEach(a -> planned.add(a.item())));
+    // A large scope first, its first pass and then its second, which rests on the first and is
+    // expected to show the best of each unit; then the other scopes.
+    List<RoleSession.Planned> planned = new ArrayList<>();
+    firstPass.forEach(
+        (scope, unitItems) -> {
+          List<SequenceFlows.Candidate> expected = new ArrayList<>();
+          unitItems.forEach(
+              unitItem -> {
+                planned.add(RoleSession.Planned.of(unitItem.item()));
+                expected.addAll(FlowJudgements.kept(unitItem, null));
+              });
+          FlowJudgements.Asked second =
+              FlowJudgements.significance(
+                  scope.key(), scope.title(), expected, responsibilities, scope.assembler()::name);
+          planned.add(
+              RoleSession.Planned.predicted(scope.key(), Tokens.estimate(second.item().rendering()))
+                  .after(unitItems.stream().map(a -> a.item().subject()).toList()));
+        });
     Map<Scope, FlowJudgements.Asked> items = new LinkedHashMap<>();
     candidates.forEach(
         (scope, found) -> {
@@ -719,11 +739,12 @@ public final class Describer {
                 FlowJudgements.significance(
                     scope.key(), scope.title(), found, responsibilities, scope.assembler()::name);
             items.put(scope, asked);
-            planned.add(asked.item());
+            planned.add(RoleSession.Planned.of(asked.item()));
           }
         });
     significance.plan(
         planned,
+        0,
         Tokens.estimate(
             io.lantern.harness.checks.CommonPrompt.SYSTEM + FlowJudgements.SIGNIFICANCE_TASK));
     String sigModel = significance.model().provider() + "/" + significance.model().model();
@@ -741,7 +762,6 @@ public final class Describer {
               FlowJudgements.significance(
                   scope.key(), scope.title(), kept, responsibilities, scope.assembler()::name);
           items.put(scope, asked);
-          significance.plan(List.of(asked.item()), 0);
         });
     Map<FlowJudgements.Asked, Outcome> judged =
         askAll(significance, List.copyOf(items.values()), false);

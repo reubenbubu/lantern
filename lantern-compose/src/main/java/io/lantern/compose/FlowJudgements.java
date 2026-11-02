@@ -122,12 +122,30 @@ final class FlowJudgements {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final JsonNode SIGNIFICANCE_ITEM_SCHEMA =
-      JsonSchema.itemSchema(JSON.readTree(SIGNIFICANCE_SCHEMA));
+      optionalReason(JsonSchema.itemSchema(JSON.readTree(SIGNIFICANCE_SCHEMA)));
   private static final JsonNode NARRATIVE_ITEM_SCHEMA =
       JsonSchema.itemSchema(JSON.readTree(NARRATIVE_SCHEMA));
   private static final Set<Character> CITABLE = Set.of('F', 'A');
 
   private FlowJudgements() {}
+
+  /**
+   * The schema an answer is checked against: the epic's, with a flow's reason optional, so a flow
+   * whose rejected reason is withdrawn in the repair turn stays judged (the prompt shows the
+   * epic's).
+   */
+  private static JsonNode optionalReason(JsonNode itemSchema) {
+    JsonNode copy = itemSchema.deepCopy();
+    JsonNode flow = copy.path("properties").path("flows").path("additionalProperties");
+    if (flow.path("required") instanceof ArrayNode required) {
+      for (int i = required.size() - 1; i >= 0; i--) {
+        if (required.get(i).asString().equals("reason")) {
+          required.remove(i);
+        }
+      }
+    }
+    return copy;
+  }
 
   // ---------------------------------------------------------------------------------------------
   // Items
@@ -462,7 +480,8 @@ final class FlowJudgements {
                     t ->
                         texts.add(
                             new CheckedText(
-                                "flows." + ref,
+                                // Only the reason: a flow whose reason is withdrawn stays judged.
+                                "flows." + ref + ".reason",
                                 CheckedText.Kind.PROSE,
                                 t.text(),
                                 t.cites(),
@@ -506,7 +525,7 @@ final class FlowJudgements {
                 flow.put("significant", answer.path("significant").asBoolean(false));
                 flow.put("category", answer.path("category").asString("other"));
                 accepted.texts().stream()
-                    .filter(t -> t.field().equals("flows." + ref))
+                    .filter(t -> t.field().equals("flows." + ref + ".reason"))
                     .findFirst()
                     .ifPresent(
                         t -> {

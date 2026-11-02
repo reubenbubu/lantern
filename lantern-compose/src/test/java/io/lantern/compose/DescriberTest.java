@@ -1771,6 +1771,38 @@ class DescriberTest {
   }
 
   @Test
+  void aReasonRejectedTwiceIsLeftOutAndTheChoiceStands() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.system().contains("Task: choose the flows worth drawing.")
+                        // The request's reason cites a fact the item does not show, every time.
+                        ? choosing(request.messages().getFirst().text(), "schedule")
+                            .replaceFirst("\"cites\": \\[\"F[0-9]+\"\\]", "\"cites\": [\"F99\"]")
+                        : answer(request));
+
+    Describer.Result result = describe(fake);
+
+    assertThat(fake.sent())
+        .filteredOn(s -> s.request().purpose().equals("flow-significance 1 items: system (repair)"))
+        .singleElement()
+        .satisfies(
+            s ->
+                assertThat(s.request().messages().getLast().text())
+                    .contains("<rejection item=\"I1\" field=\"flows.W1.reason\">"));
+    assertThat(sequences(system(result.wordings())).sections())
+        .extracting(Section::title)
+        .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
+    // The flow whose reason was left out is still judged, without a reason.
+    assertThat(result.facts(2).get(io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE)))
+        .filteredOn(f -> f.object().value().equals("system"))
+        .extracting(
+            f -> f.attributes().path("significant").asBoolean() + " " + f.attributes().has("text"))
+        .containsExactlyInAnyOrder("true true", "false false");
+  }
+
+  @Test
   void noFlowSignificantWhileSomeCrossUnitsIsAskedOnceToConfirm() {
     FakeLlmProvider fake =
         new FakeLlmProvider()
