@@ -15,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.util.AbstractMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,9 +34,10 @@ class ResolvePromptTest {
   @Test
   void theVersionIsRaisedWhenThePromptChanges() throws Exception {
     Fact unresolved = unresolved();
-    Map<EntityId, Map.Entry<List<Fact>, Set<String>>> candidates = new LinkedHashMap<>();
+    Map<EntityId, ResolvePrompt.Shown> candidates = new LinkedHashMap<>();
     candidates.put(
-        EntityId.parse("service:g:tax"), new AbstractMap.SimpleEntry<>(List.of(), Set.of("t")));
+        EntityId.parse("service:g:tax"),
+        new ResolvePrompt.Shown(List.of(), List.of(), Set.of("t")));
     ResolvePrompt.Question question =
         ResolvePrompt.question(
             unresolved,
@@ -115,10 +115,11 @@ class ResolvePromptTest {
   @Test
   void candidatesAreShownByUnitIdNotByRank() {
     Fact unresolved = unresolved();
-    Map<EntityId, Map.Entry<List<Fact>, Set<String>>> ranked = new LinkedHashMap<>();
+    Map<EntityId, ResolvePrompt.Shown> ranked = new LinkedHashMap<>();
     for (String unit : List.of("tax", "billing", "audit")) {
       ranked.put(
-          EntityId.parse("service:g:" + unit), new AbstractMap.SimpleEntry<>(List.of(), Set.of()));
+          EntityId.parse("service:g:" + unit),
+          new ResolvePrompt.Shown(List.of(), List.of(), Set.of()));
     }
 
     ResolvePrompt.Question question =

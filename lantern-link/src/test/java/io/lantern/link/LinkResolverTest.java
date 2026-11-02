@@ -560,6 +560,107 @@ class LinkResolverTest {
   }
 
   @Test
+  void inOneRepositoryOneCitationDoesNotCountForBothSides() {
+    // Caller and candidates in one repository: a range there is on both sides.
+    unit("m", "orders");
+    type("m", "orders", "o.TaxClient");
+    add(
+        HttpClientExtractor.NAME,
+        "method:o.TaxClient#quote()",
+        HttpClientExtractor.HTTP_CALL,
+        FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\","
+            + "\"unresolved\":[\"TAX_SERVICE_URL\"]}",
+        "m:src/main/java/o/TaxClient.java#18");
+    unit("m", "billing");
+    endpoint("m", "billing", "b.BillingController", "/v2/quotes");
+    unit("m", "tax");
+    endpoint("m", "tax", "t.TaxController", "/v2/quotes");
+    FakeLlmProvider one =
+        submittingOnce(
+            r ->
+                "{\"I1\": "
+                    + entry(
+                        candidate(r, "service:g:tax"),
+                        "high",
+                        "Tax serves it.",
+                        "m:config/clients.yml:1-3")
+                    + "}");
+
+    assertThat(resolveWithFiles(one).facts()).isEmpty();
+    assertThat(verdicts(one.sent().get(1).request()))
+        .contains(
+            "Cites nothing on the side of K2, the candidate it picks, apart from what it cites");
+
+    model = "m2";
+    FakeLlmProvider two =
+        submittingOnce(
+            r ->
+                "{\"I1\": "
+                    + entry(
+                        candidate(r, "service:g:tax"),
+                        "high",
+                        "Tax serves it.",
+                        "m:config/clients.yml:1-3",
+                        ref(r, "t.TaxController#quotes() endpoint"))
+                    + "}");
+    assertThat(resolveWithFiles(two).facts()).hasSize(1);
+  }
+
+  @Test
+  void aPickCitingNoEndpointReachesTheOneTheLinkerRanksFirst() {
+    taxCall();
+    FakeLlmProvider fake =
+        submittingOnce(
+            r ->
+                "{\"I1\": "
+                    + entry(
+                        candidate(r, "service:g:tax"),
+                        "high",
+                        "Only tax is named for it.",
+                        ref(r, "http-call"),
+                        ref(r, "service:g:tax application-name"))
+                    + "}");
+
+    Fact link = resolve(fake).facts().getFirst();
+
+    assertThat(link.attributes().get("endpoint").asString()).isEqualTo("GET /v2/quotes");
+    assertThat(link.attributes().get("target").asString())
+        .isEqualTo("method:t.TaxController#quotes()");
+  }
+
+  @Test
+  void aCachedAnswerIsAskedAgainOnceAFileItCitesChanges() {
+    taxCall();
+    Function<LlmRequest, String> citingLines =
+        r ->
+            "{\"I1\": "
+                + entry(
+                    candidate(r, "service:g:tax"),
+                    "high",
+                    "Only tax serves GET /v2/quotes.",
+                    ref(r, "http-call"),
+                    ref(r, "t.TaxController#quotes() endpoint"),
+                    "t:src/main/java/t/TaxController.java:3-6")
+                + "}";
+    resolveWithFiles(submittingOnce(citingLines));
+    FakeLlmProvider unchanged = model(r -> List.of());
+    resolveWithFiles(unchanged);
+    assertThat(unchanged.sent()).isEmpty();
+
+    String key = "t:src/main/java/t/TaxController.java";
+    String before = FILE_TEXTS.get(key);
+    try {
+      FILE_TEXTS.put(key, before + "// edited\n");
+      FakeLlmProvider again = model(r -> List.of());
+      resolveWithFiles(again);
+      assertThat(again.sent()).isNotEmpty();
+    } finally {
+      FILE_TEXTS.put(key, before);
+    }
+  }
+
+  @Test
   void aReasonNamingWhatItDoesNotCiteIsRejected() {
     taxCall();
     FakeLlmProvider fake =
@@ -913,6 +1014,12 @@ class LinkResolverTest {
               assertThat(f.attributes().get("protocol").asString()).isEqualTo("AMQP");
               assertThat(f.attributes().get("target").asString())
                   .isEqualTo("method:w.Listener#direct()");
+              // The key attributes static matching writes, so the pick is the same claim.
+              assertThat(f.attributes().get("destination").asString())
+                  .isEqualTo("exchange:rabbitmq:direct.x");
+              assertThat(f.attributes().get("bindingKey").asString()).isEqualTo("order.created");
+              assertThat(f.attributes().get("queue").asString())
+                  .isEqualTo("queue:rabbitmq:q.direct");
             });
   }
 
@@ -1007,9 +1114,11 @@ class LinkResolverTest {
       """;
 
   private static final Map<String, String> FILE_TEXTS =
-      Map.of(
-          "t:src/main/java/t/TaxController.java", TAX_CONTROLLER,
-          "a:src/main/resources/application.yml", ORDERS_CONFIG);
+      new java.util.concurrent.ConcurrentHashMap<>(
+          Map.of(
+              "t:src/main/java/t/TaxController.java", TAX_CONTROLLER,
+              "a:src/main/resources/application.yml", ORDERS_CONFIG,
+              "m:config/clients.yml", ORDERS_CONFIG));
 
   private static final GraphTools.RepoFiles FILES =
       new GraphTools.RepoFiles() {

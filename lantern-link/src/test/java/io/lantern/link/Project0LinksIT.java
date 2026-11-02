@@ -562,8 +562,11 @@ class Project0LinksIT {
       assertThat(payments).as(prompt).isNotNegative();
     }
     assertBothResolved(
-        "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"model\":\"fake/fake\","
-            + "\"protocol\":\"AMQP\",\"reason\":\"The answer project-0 documents.\","
+        // With the key attributes static matching writes: the same claim (ADR 0105).
+        "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"bindingKey\":\"refund.*\","
+            + "\"destination\":\"exchange:rabbitmq:shop.returns\",\"model\":\"fake/fake\","
+            + "\"protocol\":\"AMQP\",\"queue\":\"queue:rabbitmq:payments.refund-requests\","
+            + "\"reason\":\"The answer project-0 documents.\","
             + "\"resolves\":\"shop.returns\","
             + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\","
             + "\"target\":\"method:~.payments.RefundListener#refundRequested(java.lang.String)\"}"

@@ -35,7 +35,6 @@ import io.lantern.llm.ConversationLimits;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.Role;
 import io.lantern.llm.Tokens;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -255,6 +254,15 @@ public final class LinkResolver implements LinkRule.OverFacts {
     // A stored answer cites a fact by its claim ID (else its fact ID).
     Map<String, Fact> byKey = new HashMap<>(byId);
     facts.forEach(f -> byKey.putIfAbsent(ResolvePrompt.key(f), f));
+    // The repositories each module's code is in, for which side a cited file range is on.
+    Map<EntityId, Set<String>> moduleRepos = new HashMap<>();
+    for (Fact contains : index.of(BuiltInTypes.CONTAINS)) {
+      if (contains.subject().type().equals(BuiltInTypes.MODULE)) {
+        moduleRepos
+            .computeIfAbsent(contains.subject(), m -> new TreeSet<>())
+            .add(contains.evidence().repo());
+      }
+    }
     List<Question> questions = new ArrayList<>();
     for (Fact unresolved : index.of(CrossRepoLinks.UNRESOLVED_LINK)) {
       String kind = unresolved(unresolved).kind();
@@ -263,7 +271,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
         // Nothing to pick from: the link stays open, for the questions queue.
         continue;
       }
-      questions.add(question(unresolved, index, deployments, http, routes, byId));
+      questions.add(question(unresolved, index, moduleRepos, deployments, http, routes, byId));
     }
     if (questions.isEmpty()) {
       return new Result(List.of(), 0, 0, 0, List.of(), List.of());
@@ -380,11 +388,11 @@ public final class LinkResolver implements LinkRule.OverFacts {
       sorted.sort(java.util.Comparator.comparing(session::fingerprint));
       List<Item> hits = sorted.stream().filter(session::cached).toList();
       List<Item> misses = sorted.stream().filter(item -> !hits.contains(item)).toList();
-      if (!hits.isEmpty()) {
-        packets.add(hits);
-      }
-      for (int i = 0; i < misses.size(); i += PACKET_SIZE) {
-        packets.add(misses.subList(i, Math.min(misses.size(), i + PACKET_SIZE)));
+      // Four to a conversation, the cached ones too: one whose cited facts no longer hold is asked.
+      for (List<Item> group : List.of(hits, misses)) {
+        for (int i = 0; i < group.size(); i += PACKET_SIZE) {
+          packets.add(group.subList(i, Math.min(group.size(), i + PACKET_SIZE)));
+        }
       }
     }
     java.util.function.Function<EntityId, Set<EntityId>> unitsOf =
@@ -490,6 +498,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
   private static Question question(
       Fact unresolved,
       LinkIndex index,
+      Map<EntityId, Set<String>> moduleRepos,
       Deployments deployments,
       HttpLinker http,
       RouteLinker routes,
@@ -515,7 +524,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     String httpMethod = url.equals(call) ? null : call.substring(0, call.indexOf(' '));
     String path = LinkText.parse(url).path();
     Fact send = about.stream().filter(LinkResolver::isSend).findFirst().orElse(null);
-    Map<EntityId, Map.Entry<List<Fact>, Set<String>>> candidates = new LinkedHashMap<>();
+    Map<EntityId, ResolvePrompt.Shown> candidates = new LinkedHashMap<>();
     for (String text : Claims.list(unresolved(unresolved).candidates())) {
       EntityId id = EntityId.parse(text);
       List<Fact> shown = new ArrayList<>();
@@ -536,18 +545,25 @@ public final class LinkResolver implements LinkRule.OverFacts {
                   : isHttp
                       ? http.endpoints(unit, httpMethod, path, view)
                       : receiving(index, unit, send, unresolved.object().value(), view);
-      code.stream().limit(MAX_CANDIDATE_FACTS).forEach(shown::add);
-      candidates.put(id, new AbstractMap.SimpleEntry<>(shown, repos(unit)));
+      List<Fact> reached = code.stream().limit(MAX_CANDIDATE_FACTS).toList();
+      shown.addAll(reached);
+      candidates.put(id, new ResolvePrompt.Shown(shown, reached, repos(moduleRepos, unit)));
     }
     return ResolvePrompt.question(
-        unresolved, unresolved.subject(), repos(caller), about, address, candidates);
+        unresolved, unresolved.subject(), repos(moduleRepos, caller), about, address, candidates);
   }
 
   /** The repositories a unit's code is in: its own fact's, then its modules'. */
-  private static Set<String> repos(Unit unit) {
+  private static Set<String> repos(Map<EntityId, Set<String>> moduleRepos, Unit unit) {
     Set<String> repos = new TreeSet<>();
-    if (unit != null && unit.fact() != null) {
+    if (unit == null) {
+      return repos;
+    }
+    if (unit.fact() != null) {
       repos.add(unit.fact().evidence().repo());
+    }
+    for (EntityId module : unit.modules()) {
+      repos.addAll(moduleRepos.getOrDefault(module, Set.of()));
     }
     return repos;
   }
@@ -757,6 +773,14 @@ public final class LinkResolver implements LinkRule.OverFacts {
             .toList();
     if (ends.size() == 1) {
       code = ends.getFirst();
+    } else {
+      // Citing none, or several, the pick reaches the one the linker ranks first, so the link is
+      // the claim a static match to it would be (ADR 0105).
+      code =
+          candidate.reached().stream()
+              .filter(f -> f.predicate().equals(codePredicate))
+              .findFirst()
+              .orElse(null);
     }
     Fact origin = null;
     for (String id : Claims.list(unresolved(unresolved).facts())) {
@@ -846,7 +870,53 @@ public final class LinkResolver implements LinkRule.OverFacts {
       attributes.put("protocol", protocol);
       attributes.put("matchedBy", "llm");
     } else {
-      attributes.put("protocol", protocol(brokerOf(origin)));
+      // The send's destination, routing key and, when the answer cites one binding, its key and
+      // queue: the key attributes static matching writes, so a pick is the same claim (ADR 0105).
+      String broker = brokerOf(origin);
+      attributes.put("protocol", protocol(broker));
+      String kind = null;
+      String routingKey = null;
+      if (origin != null && origin.predicate().equals(MessagingExtractor.SENDS_TO)) {
+        var sent = Claims.of(origin, io.lantern.extract.attributes.SendsToAttributes.class);
+        kind = sent.destinationKind();
+        routingKey = sent.routingKey();
+      } else if (origin != null) {
+        MessageSendAttributes sent = Claims.ofOrNull(origin, MessageSendAttributes.class);
+        kind = sent == null ? null : sent.destinationKind();
+        routingKey = sent == null ? null : sent.routingKey();
+      }
+      EntityId destination = MessageLinker.destination(broker, kind, unresolved.object().value());
+      if (destination != null) {
+        attributes.put("destination", destination.toString());
+      }
+      if (routingKey != null) {
+        attributes.put("routingKey", routingKey);
+      }
+      // The binding that routes to the listener reached: the one cited, else the first.
+      Fact listener = code;
+      List<Fact> bindings =
+          candidate.reached().stream()
+              .filter(
+                  f ->
+                      f.predicate().equals(MessagingExtractor.BINDING)
+                          && (listener == null
+                              || f.object().value().equals(listener.object().value())))
+              .toList();
+      List<Fact> citedBindings = bindings.stream().filter(cited::contains).toList();
+      Fact binding =
+          citedBindings.size() == 1
+              ? citedBindings.getFirst()
+              : bindings.isEmpty() ? null : bindings.getFirst();
+      if (binding != null) {
+        EntityId queue = MessageLinker.destination(broker, "queue", binding.object().value());
+        if (queue != null) {
+          attributes.put("queue", queue.toString());
+        }
+        String bindingKey = Claims.of(binding, MessageBindingAttributes.class).routingKey();
+        if (bindingKey != null) {
+          attributes.put("bindingKey", bindingKey);
+        }
+      }
     }
     String view = Claims.view(unresolved);
     if (view != null) {

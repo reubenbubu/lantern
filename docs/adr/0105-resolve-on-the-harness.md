@@ -45,22 +45,34 @@ milestone 1F.
   Every file a tool shows, `find_in_code`'s included, is recorded with its blob, so a cached answer
   holds while those files keep it. A model without tool use is not asked: its links stay open and
   are counted not asked.
+- **The submit schema** is the epic's as written, so it shows only the answer branch; common rule
+  5 asks for `{"omitted": true}` where nothing shows, and the harness accepts it before any check.
+  A provider that enforces tool-input schemas strictly would refuse that form; none of Lantern's
+  does today (#529 watches for it).
 - **Checks.** Each submitted entry passes the standard pipeline (its `reason` is the text, at most
   30 words, its `cites` its citations; the Names check holds the reason's code-like names to what
   it cites) and a check of the role's own, `Sides`: the pick is one of the item's candidates or
   `unknown`, the cites include the caller's side (a fact of block 4 or of the item, a fact about
   the caller's code, or a range in its repository) and the candidate's (a fact listed under the
   picked candidate, a fact about its code, or a range in its repository; for `unknown`, any
-  candidate's). A rejected entry is sent back in the submit result; a second rejection, or a
+  candidate's). Each side needs a citation of its own, so one fact or range of code both units
+  share never counts for both; a unit's repositories are those of its unit fact and its modules.
+  A rejected entry is sent back in the submit result; a second rejection, or a
   rejected entry never submitted again, drops the item. The harness lets a role add checks and set
   the submit schema (`PacketRole.pipeline`, `PacketRole.submitSchema`), and asks for each item's
   check inputs at each submit, so references a tool showed by then count.
 - **Stored.** An accepted entry is stored with the unit it picks (or `unknown`), its confidence,
   its reason and its cites, a fact by its claim ID (a fact not yet stored by the hash of its line)
-  and a range as written; a cached answer is reused only while every fact it cites holds. A pick
+  and a range as written; the file of every cited range is recorded with its blob, like the files
+  a tool read, and a cached answer is reused only while those keep their blobs and every fact it
+  cites holds. Cached and asked items alike go four to a conversation, so one whose cited facts no
+  longer hold is asked with at most three others. A pick
   becomes `CALLS_HTTP` or `SENDS_MESSAGES_TO` of origin `llm/resolve` (the rule's name is now
-  `resolve`) with the attributes ADR 0045 gives it, so with the cited endpoint it is the claim a
-  static match to that endpoint would be; its confidence is as before (0.5, 0.35 or 0.2 times the
+  `resolve`) with the attributes ADR 0045 gives it and the key attributes static matching writes,
+  so it is the claim a static match would be: an HTTP pick names the endpoint it cites, or when it
+  cites none or several, the one the linker ranks first; a message pick names the send's
+  destination and routing key, and the binding it cites (else the first that routes to the
+  listener reached) with its key and queue; its confidence is as before (0.5, 0.35 or 0.2 times the
   open link's), and the model's text is the descriptive attribute `reason` (it was `rationale`,
   which the vocabulary keeps, no longer given, since a type may only grow).
   `unknown`, an omitted entry and a conversation that never submits leave the link open and are

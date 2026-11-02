@@ -73,9 +73,21 @@ final class ResolvePrompt {
    * @param unit the unit
    * @param facts the facts shown under it: its unit, application name, deployment containers and
    *     the endpoints or listeners that would be reached
+   * @param reached the endpoints, bindings or listeners that would be reached, best first
    * @param repos the repositories its code is in, where file ranges on its side are read
    */
-  record Candidate(String ref, EntityId unit, List<Fact> facts, Set<String> repos) {}
+  record Candidate(
+      String ref, EntityId unit, List<Fact> facts, List<Fact> reached, Set<String> repos) {}
+
+  /**
+   * What an item shows of a candidate.
+   *
+   * @param facts the facts shown under it
+   * @param reached the endpoints, bindings or listeners among them, best first, as the linker ranks
+   *     them
+   * @param repos the repositories its code is in
+   */
+  record Shown(List<Fact> facts, List<Fact> reached, Set<String> repos) {}
 
   /**
    * One open link as an item.
@@ -145,7 +157,7 @@ final class ResolvePrompt {
       Set<String> callerRepos,
       List<Fact> about,
       List<Fact> address,
-      Map<EntityId, Map.Entry<List<Fact>, Set<String>>> candidates) {
+      Map<EntityId, Shown> candidates) {
     Refs refs = new Refs();
     UnresolvedLinkAttributes attributes = Claims.of(unresolved, UnresolvedLinkAttributes.class);
     String kind = attributes.kind();
@@ -183,17 +195,22 @@ final class ResolvePrompt {
     }
     text.append("Candidates:\n");
     List<Candidate> shown = new ArrayList<>();
-    List<Map.Entry<EntityId, Map.Entry<List<Fact>, Set<String>>>> ordered =
-        new ArrayList<>(candidates.entrySet());
+    List<Map.Entry<EntityId, Shown>> ordered = new ArrayList<>(candidates.entrySet());
     ordered.sort(Map.Entry.comparingByKey(Comparator.comparing(EntityId::toString)));
-    for (Map.Entry<EntityId, Map.Entry<List<Fact>, Set<String>>> e : ordered) {
+    for (Map.Entry<EntityId, Shown> e : ordered) {
       String ref = "K" + (shown.size() + 1);
       text.append('[').append(Refs.token(ref)).append("] ").append(e.getKey()).append('\n');
-      List<Fact> facts = FactLines.sorted(e.getValue().getKey());
+      List<Fact> facts = FactLines.sorted(e.getValue().facts());
       if (!facts.isEmpty()) {
         facts(text, refs, facts);
       }
-      shown.add(new Candidate(ref, e.getKey(), facts, Set.copyOf(e.getValue().getValue())));
+      shown.add(
+          new Candidate(
+              ref,
+              e.getKey(),
+              facts,
+              List.copyOf(e.getValue().reached()),
+              Set.copyOf(e.getValue().repos())));
     }
     return new Question(
         unresolved,

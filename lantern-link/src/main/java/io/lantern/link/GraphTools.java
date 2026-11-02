@@ -149,6 +149,19 @@ public final class GraphTools implements ToolBox {
       return new GraphTools(this, factsBefore);
     }
 
+    /** A file of the snapshot with its blob, as an answer that cites it records it; or empty. */
+    public Optional<io.lantern.harness.FileRead> fileRead(String repo, String path) {
+      if (!repos.contains(repo) || files == RepoFiles.NONE) {
+        return Optional.empty();
+      }
+      return files
+          .read(repo, path)
+          .map(
+              content ->
+                  new io.lantern.harness.FileRead(
+                      repo, path, io.lantern.harness.Fingerprints.gitBlob(content)));
+    }
+
     /**
      * The lines of a file of the snapshot as the tools show it, its secrets masked; empty if it is
      * not one or is never shown. The checks read cited ranges from it.

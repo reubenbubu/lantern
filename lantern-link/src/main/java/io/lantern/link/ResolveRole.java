@@ -64,6 +64,7 @@ final class ResolveRole implements PacketRole {
   private Map<String, Fact> block4 = Map.of();
   private List<Map<String, Fact>> itemRefs = List.of();
   private GraphTools tools;
+  private final Map<String, io.lantern.harness.FileRead> citedFiles = new LinkedHashMap<>();
 
   /**
    * @param questions the items' questions, by item subject
@@ -167,9 +168,17 @@ final class ResolveRole implements PacketRole {
     return List.copyOf(used);
   }
 
-  /** The files the current conversation's tools read, recorded with its answers. */
+  /**
+   * The files the current conversation's tools read and those its answers cite ranges of, recorded
+   * with its answers, so a cached answer holds only while each keeps its blob.
+   */
   synchronized List<io.lantern.harness.FileRead> filesRead() {
-    return tools == null ? List.of() : tools.filesRead();
+    Map<String, io.lantern.harness.FileRead> all = new LinkedHashMap<>();
+    if (tools != null) {
+      tools.filesRead().forEach(f -> all.putIfAbsent(f.repo() + '\u0000' + f.path(), f));
+    }
+    citedFiles.forEach(all::putIfAbsent);
+    return List.copyOf(all.values());
   }
 
   /** The facts the current conversation's tools showed, by reference. */
@@ -213,6 +222,21 @@ final class ResolveRole implements PacketRole {
 
   @Override
   public ItemAnswer read(String id, Item item, JsonNode entry) {
+    if (entry != null) {
+      for (String cite : cites(entry)) {
+        Matcher range = RANGE.matcher(cite);
+        if (range.matches()) {
+          String key = range.group(1) + '\u0000' + range.group(2);
+          synchronized (this) {
+            if (!citedFiles.containsKey(key)) {
+              graph
+                  .fileRead(range.group(1), range.group(2))
+                  .ifPresent(file -> citedFiles.put(key, file));
+            }
+          }
+        }
+      }
+    }
     List<CheckedText> texts = new ArrayList<>();
     if (entry != null && entry.isObject() && entry.path("reason").isString()) {
       texts.add(
@@ -377,7 +401,9 @@ final class ResolveRole implements PacketRole {
         }
       }
       List<String> cites = cites(answer.raw());
-      if (cites.stream().noneMatch(cite -> role.caller(question, index, cite))) {
+      List<String> callerSide =
+          cites.stream().filter(cite -> role.caller(question, index, cite)).toList();
+      if (callerSide.isEmpty()) {
         found.add(
             new Rejection(
                 answer.item(),
@@ -385,13 +411,20 @@ final class ResolveRole implements PacketRole {
                 name(),
                 "Cites nothing on the caller's side; cite the item's facts, the calling unit's"
                     + " facts or file ranges you read in its repository."));
+        return found;
       }
+      // Each side needs a citation of its own: one fact or range never counts for both, as code
+      // or a file both units share would.
       Candidate side = picked;
+      List<Candidate> sides = side != null ? List.of(side) : question.candidates();
       boolean candidateSide =
-          side != null
-              ? cites.stream().anyMatch(cite -> role.candidate(side, index, cite))
-              : question.candidates().stream()
-                  .anyMatch(c -> cites.stream().anyMatch(cite -> role.candidate(c, index, cite)));
+          sides.stream()
+              .anyMatch(
+                  c ->
+                      cites.stream()
+                          .filter(cite -> role.candidate(c, index, cite))
+                          .anyMatch(
+                              cite -> callerSide.stream().anyMatch(other -> !other.equals(cite))));
       if (!candidateSide) {
         found.add(
             new Rejection(
@@ -401,10 +434,12 @@ final class ResolveRole implements PacketRole {
                 side != null
                     ? "Cites nothing on the side of "
                         + side.ref()
-                        + ", the candidate it picks; cite the facts listed under it or file"
-                        + " ranges you read in its repository."
-                    : "Cites nothing on a candidate's side; cite the facts listed under the"
-                        + " candidates or file ranges you read in their repositories."));
+                        + ", the candidate it picks, apart from what it cites on the caller's;"
+                        + " cite the facts listed under it or file ranges you read in its"
+                        + " repository."
+                    : "Cites nothing on a candidate's side apart from what it cites on the"
+                        + " caller's; cite the facts listed under the candidates or file ranges"
+                        + " you read in their repositories."));
       }
       return found;
     }
