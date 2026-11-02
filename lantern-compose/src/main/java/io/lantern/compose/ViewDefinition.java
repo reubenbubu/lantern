@@ -100,11 +100,11 @@ public record ViewDefinition(
   }
 
   /**
-   * A view of one repository for a C4 report: overview, where to start reading, context,
-   * containers, components and main flows, the sections whose diagrams the C4 report spec draws
-   * (ADR 0031), the first two in its introduction; then the risks and findings (ADR 0110), the
-   * decisions and unknowns, the deployment and the glossary, its documentation pages (ADR 0086,
-   * #229).
+   * A view of one repository for a C4 report: overview, context, containers, components and main
+   * flows, the sections whose diagrams the C4 report spec draws (ADR 0031), the overview's purpose
+   * and key fact as its introduction, without the Explorer's "start here" (ADR 0048, #681); then
+   * the risks and findings (ADR 0110), the decisions and unknowns, the deployment and the glossary,
+   * its documentation pages (ADR 0086, #229).
    */
   public static ViewDefinition c4Report(String id, String repo, TemplateRef template) {
     return new ViewDefinition(
@@ -115,7 +115,6 @@ public record ViewDefinition(
         template,
         List.of(
             SectionKind.OVERVIEW,
-            SectionKind.START_HERE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
@@ -127,9 +126,9 @@ public record ViewDefinition(
   }
 
   /**
-   * A view of the whole system for a C4 report: overview, where to start reading, context,
-   * containers, components and main flows (ADR 0031), then the risks and findings (ADR 0110), the
-   * decisions and unknowns, the deployment and the glossary (ADR 0086, #229).
+   * A view of the whole system for a C4 report: overview, context, containers, components and main
+   * flows (ADR 0031), then the risks and findings (ADR 0110), the decisions and unknowns, the
+   * deployment and the glossary (ADR 0086, #229).
    */
   public static ViewDefinition c4System(String id, String title, TemplateRef template) {
     return new ViewDefinition(
@@ -140,7 +139,6 @@ public record ViewDefinition(
         template,
         List.of(
             SectionKind.OVERVIEW,
-            SectionKind.START_HERE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,

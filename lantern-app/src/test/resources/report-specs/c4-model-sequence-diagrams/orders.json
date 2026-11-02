@@ -2,7 +2,7 @@
   "document" : {
     "id" : "orders",
     "title" : "orders",
-    "subtitle" : "*Purpose inferred from the code:* Builds on its parts. Described by its facts.\n\n- orders, a library\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Containers**\nNo deployable unit was found in the code.\n\n**Decisions**\nNo decision records were found in orders, so the reasons for its design are not known.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener, STOMP handler, scheduled or background job) was found whose code reaches another container.\n\nFor architects and senior engineers. Pinned to commit orders `edaff9a77935`, as of 1970-01-01.",
+    "subtitle" : "*Purpose inferred from the code:* Builds on its parts. Described by its facts.\n\nFor architects and senior engineers. Pinned to commit orders `edaff9a77935`, as of 1970-01-01.",
     "version" : "1",
     "updated" : "1970-01-01"
   },
@@ -53,10 +53,34 @@
       "body" : "The code names no people or user roles, so who uses greeting-lib, greeting-service, orders and shop is not known.",
       "tone" : "info"
     }, {
+      "type" : "callout",
+      "id" : "start-here-none",
+      "body" : "No entry point, main class, readme or decision record was found, so there is no obvious place to start reading.",
+      "tone" : "info",
+      "title" : "Start here"
+    }, {
+      "type" : "callout",
+      "id" : "containers-none",
+      "body" : "No deployable unit was found in the code.",
+      "tone" : "info",
+      "title" : "Containers"
+    }, {
+      "type" : "callout",
+      "id" : "decisions-decisions",
+      "body" : "**Decisions**\nNo decision records were found in orders, so the reasons for its design are not known.",
+      "tone" : "info",
+      "title" : "Decisions and unknowns"
+    }, {
+      "type" : "callout",
+      "id" : "sequences-none",
+      "body" : "No entry point (HTTP endpoint, message listener, STOMP handler, scheduled or background job) was found whose code reaches another container.",
+      "tone" : "info",
+      "title" : "Main flows"
+    }, {
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A \"start here\" list of the entry points and files to read first** (Start here): It lists nothing.", "**The container diagram first** ([System context of greeting-lib, greeting-service, orders and shop](#/context/context-diagram)): The first diagram is not the container diagram.", "**The main flows as sequence diagrams**: The document has no sequence diagram." ]
+      "items" : [ "**A \"start here\" list of the entry points and files to read first** ([Start here](#/context/start-here-none)): It lists nothing.", "**The container diagram first** ([System context of greeting-lib, greeting-service, orders and shop](#/context/context-diagram)): The first diagram is not the container diagram.", "**The main flows as sequence diagrams**: The document has no sequence diagram." ]
     } ]
   }, {
     "id" : "findings",

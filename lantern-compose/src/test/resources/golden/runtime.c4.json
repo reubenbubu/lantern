@@ -35,16 +35,6 @@
     "parent" : "repo:base",
     "facts" : [ "6a8392e4ce8cbe79cf60b8f68bd9b5ece02cd2c656649748b41cd86e4855e219" ]
   }, {
-    "id" : "method:com.example.web.Controller#list()",
-    "name" : "list()",
-    "parent" : "type:com.example.web.Controller",
-    "facts" : [ "b394a91a93fe10a7cb925b5d0c5b8fede696c29a62e1c066beccc4c472f4f6c9", "ee1b4c47e36b10ca27a7efe5172a0c3d1adec46c4391e7447fab7c5fbc0d71b5" ]
-  }, {
-    "id" : "method:com.example.web.Jobs#run()",
-    "name" : "run()",
-    "parent" : "type:com.example.web.Jobs",
-    "facts" : [ "6b1bef19b8eef7e70b26e74284291eccdf28c18a5c015abd8411683c68b8be89", "e9341ef4b3f1630f489f2256765f33b90add4b55731641ab97e44c5b28f79397" ]
-  }, {
     "id" : "module:com.example:app",
     "name" : "app",
     "parent" : "repo:shop",
@@ -593,29 +583,6 @@
       "from" : 1
     }
   }, {
-    "id" : "6b1bef19b8eef7e70b26e74284291eccdf28c18a5c015abd8411683c68b8be89",
-    "subject" : "type:com.example.web.Jobs",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "method:com.example.web.Jobs#run()"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "test",
-      "version" : "1"
-    },
-    "evidence" : [ {
-      "repo" : "shop",
-      "path" : "pom.xml",
-      "role" : "declared"
-    } ],
-    "confidence" : 1.0,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
     "id" : "7eb776af0e8c1e430a59ebfffca54699745069f39a7181eb9f9549bf98c989d0",
     "subject" : "package:com.example:app:com.example.web",
     "predicate" : "CONTAINS",
@@ -1017,29 +984,6 @@
       "from" : 1
     }
   }, {
-    "id" : "ee1b4c47e36b10ca27a7efe5172a0c3d1adec46c4391e7447fab7c5fbc0d71b5",
-    "subject" : "type:com.example.web.Controller",
-    "predicate" : "CONTAINS",
-    "object" : {
-      "kind" : "entity",
-      "value" : "method:com.example.web.Controller#list()"
-    },
-    "attributes" : { },
-    "origin" : {
-      "kind" : "static",
-      "name" : "test",
-      "version" : "1"
-    },
-    "evidence" : [ {
-      "repo" : "shop",
-      "path" : "pom.xml",
-      "role" : "declared"
-    } ],
-    "confidence" : 1.0,
-    "validity" : {
-      "from" : 1
-    }
-  }, {
     "id" : "f8d0cc45ceebce3cd830aa8e8f18b44af4d1449163157e3e506d2f4fb5c92dec",
     "subject" : "module:com.example:app",
     "predicate" : "CONTAINS",
@@ -1171,112 +1115,6 @@
           }
         } ],
         "facts" : [ "b0eb5400d240445c0940cf27c4580af2d3f2a8891341164f1cc0a3a8c9bc9f7b" ]
-      } ],
-      "facts" : [ ]
-    } ],
-    "sections" : [ ]
-  }, {
-    "id" : "start_here",
-    "title" : "Start here",
-    "levels" : [ "L1", "L2" ],
-    "entity" : "system:snapshot",
-    "facts" : [ ],
-    "blocks" : [ {
-      "kind" : "list",
-      "id" : "start_here.list",
-      "ordered" : false,
-      "items" : [ {
-        "content" : [ {
-          "kind" : "text",
-          "text" : "GET /orders on "
-        }, {
-          "kind" : "ref",
-          "text" : "shop-app",
-          "target" : {
-            "kind" : "entity",
-            "id" : "service:com.example:app"
-          }
-        }, {
-          "kind" : "text",
-          "text" : ": "
-        }, {
-          "kind" : "ref",
-          "text" : "Controller.list",
-          "target" : {
-            "kind" : "entity",
-            "id" : "method:com.example.web.Controller#list()"
-          }
-        }, {
-          "kind" : "text",
-          "text" : " in "
-        }, {
-          "kind" : "text",
-          "text" : "pom.xml",
-          "style" : "code"
-        }, {
-          "kind" : "text",
-          "text" : "."
-        } ],
-        "facts" : [ "b394a91a93fe10a7cb925b5d0c5b8fede696c29a62e1c066beccc4c472f4f6c9" ]
-      }, {
-        "content" : [ {
-          "kind" : "text",
-          "text" : "Scheduled job (0 0 * * * *) on "
-        }, {
-          "kind" : "ref",
-          "text" : "shop-app",
-          "target" : {
-            "kind" : "entity",
-            "id" : "service:com.example:app"
-          }
-        }, {
-          "kind" : "text",
-          "text" : ": "
-        }, {
-          "kind" : "ref",
-          "text" : "Jobs.run",
-          "target" : {
-            "kind" : "entity",
-            "id" : "method:com.example.web.Jobs#run()"
-          }
-        }, {
-          "kind" : "text",
-          "text" : " in "
-        }, {
-          "kind" : "text",
-          "text" : "pom.xml",
-          "style" : "code"
-        }, {
-          "kind" : "text",
-          "text" : "."
-        } ],
-        "facts" : [ "e9341ef4b3f1630f489f2256765f33b90add4b55731641ab97e44c5b28f79397" ]
-      }, {
-        "content" : [ {
-          "kind" : "text",
-          "text" : "Read "
-        }, {
-          "kind" : "text",
-          "text" : "README.md",
-          "style" : "code"
-        }, {
-          "kind" : "text",
-          "text" : " in shop."
-        } ],
-        "facts" : [ "36a9345b20f0244dacf15cb2211c9ef1e3d0270b0d0b50f55ddde512eea4b2b8" ]
-      }, {
-        "content" : [ {
-          "kind" : "text",
-          "text" : "The decision records of shop are in "
-        }, {
-          "kind" : "text",
-          "text" : "docs/adr/",
-          "style" : "code"
-        }, {
-          "kind" : "text",
-          "text" : " (1 record)."
-        } ],
-        "facts" : [ "39b98ed64ff6fcc31704c09ecacced9683d2db9563d803d2cb58627708310131" ]
       } ],
       "facts" : [ ]
     } ],

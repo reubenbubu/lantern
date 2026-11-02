@@ -81,3 +81,18 @@ element descriptions are summaries (ADR 0044) and line labels say what static fa
 guidance is a *(review)* check; whether these examples help a reader is judged on the test sets.
 
 ## Amendment (#369): the Architecture Explorer and the Executive Brief are out of scope for now (`docs/design.md`, Non-goals; `docs/quality-bar.md`, Scope). What this ADR built stays; it gets no further work until the user brings the document back into scope.
+
+## Amendment (#681): the C4 report has no start-here section
+
+The owner confirmed on 2026-11-02 that the C4 report's introduction is what the spec's sample
+shows: one short paragraph under the title, the system's purpose and key fact (ADR 0060, ADR
+0109). The start-here list and the other content of no page made it read as leaked prompt text.
+
+- **The C4 report views** (`<repo>.c4`, `system:c4`) no longer have the start-here section. It is
+  the Explorer's.
+- **The renderer's introduction** (`subtitle`) holds only the first section's paragraphs and
+  callouts, followed by the reader and pinned commits (ADR 0063). The first section's lists (what
+  the system or repository runs) are left out; the containers page shows them.
+- **A later section that is no page itself** (such as the note above the main flows that says they
+  were chosen by rank) puts its blocks, under its title, after the summary of the first page among
+  its subsections, or else at the end of the first page, instead of in the introduction.

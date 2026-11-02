@@ -67,3 +67,10 @@ decided ID mapping is in a comment on #112.
   and the composer's golden documents with golden files; `lantern-web`'s Vitest tests validate the
   same files, and the spec's own sample data, against the spec's schema with Ajv and against the
   cross-reference rules its template checks on load.
+
+## Amendment (#681): the introduction is the first section's text only
+
+The index's introduction is no longer all content on no page. It holds the first section's
+paragraphs and callouts (the system's purpose and key fact), then the reader and pinned commits
+(ADR 0063); the first section's lists are left out, and a later section's blocks on no page go to
+a page. The rules are in ADR 0048, amendment for #681.

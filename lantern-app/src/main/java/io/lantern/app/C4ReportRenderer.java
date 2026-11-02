@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -223,6 +224,7 @@ public final class C4ReportRenderer {
 
     Result run() {
       document.sections().forEach(section -> plan(section, null));
+      rehome();
       pages.forEach(this::placeOnPage);
       pages.forEach(this::collectElements);
       elements.values().forEach(e -> elementIds.id(e.id.toString()));
@@ -281,6 +283,50 @@ public final class C4ReportRenderer {
       for (Section sub : section.sections()) {
         plan(sub, target);
       }
+    }
+
+    /**
+     * Moves the blocks of a later section that is not a page itself, such as the note above the
+     * main flows, from the introduction to a page (#681): after the summary of the first page among
+     * its subsections, or else to the end of the first page. The introduction keeps the first
+     * section's blocks, and quality reports stay for {@link #distributeQualityReports}.
+     */
+    private void rehome() {
+      if (pages.isEmpty() || document.sections().isEmpty()) {
+        return;
+      }
+      Section first = document.sections().getFirst();
+      Map<PagePlan, List<Part>> moved = new LinkedHashMap<>();
+      for (Iterator<Part> it = loose.iterator(); it.hasNext(); ) {
+        Part part = it.next();
+        if (part.owner == first || part.block instanceof QualityReport) {
+          continue;
+        }
+        it.remove();
+        PagePlan page =
+            pages.stream().filter(p -> within(p.section, part.owner)).findFirst().orElse(null);
+        if (page != null) {
+          moved.computeIfAbsent(page, p -> new ArrayList<>()).add(part);
+        } else {
+          pages.getFirst().parts.add(part);
+        }
+      }
+      // After the page's leading paragraphs, which stay its summary.
+      moved.forEach(
+          (page, parts) -> {
+            int at = 0;
+            while (at < page.parts.size()
+                && page.parts.get(at).block instanceof Paragraph
+                && page.parts.get(at).owner == page.section) {
+              at++;
+            }
+            page.parts.addAll(at, parts);
+          });
+    }
+
+    /** Whether the section is the ancestor or one of its subsections, at any depth. */
+    private static boolean within(Section section, Section ancestor) {
+      return section == ancestor || ancestor.sections().stream().anyMatch(s -> within(section, s));
     }
 
     /**
@@ -563,20 +609,14 @@ public final class C4ReportRenderer {
       ObjectNode node = MAPPER.createObjectNode();
       node.put("id", document.id());
       node.put("title", document.title());
-      // A later section's title heads its first block, as on a page, unless the block has its own.
+      // Under the title, as in the spec's sample: the first section's own text, the system's
+      // purpose and key fact, not its lists or other sections' blocks (#681).
       Section first = document.sections().isEmpty() ? null : document.sections().getFirst();
       String intro =
           loose.stream()
-              .map(
-                  part -> {
-                    String markdown = looseMarkdown(part.block);
-                    return markdown.isEmpty()
-                            || markdown.startsWith("**")
-                            || part.heading == null
-                            || part.owner == first
-                        ? markdown
-                        : "**" + oneLine(part.heading) + "**\n" + markdown;
-                  })
+              .filter(part -> part.owner == first)
+              .filter(part -> part.block instanceof Paragraph || part.block instanceof Callout)
+              .map(part -> looseMarkdown(part.block))
               .filter(s -> !s.isEmpty())
               .collect(Collectors.joining("\n\n"));
       String pinned = pinnedMarkdown();
@@ -604,10 +644,6 @@ public final class C4ReportRenderer {
     private String looseMarkdown(Block block) {
       return switch (block) {
         case Paragraph p -> markdown(p.content());
-        case ListBlock l ->
-            l.items().stream()
-                .map(item -> "- " + oneLine(markdown(item.content())))
-                .collect(Collectors.joining("\n"));
         case Callout c -> calloutMarkdown(c);
         default -> "";
       };
