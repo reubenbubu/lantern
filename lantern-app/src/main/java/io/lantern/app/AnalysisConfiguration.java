@@ -72,7 +72,9 @@ class AnalysisConfiguration {
       JdbcRuleRuns ruleRuns,
       @Value("${lantern.version}") String toolVersion,
       @Value("${lantern.workspace}") Path workspace,
-      @Value("${lantern.judge.wording:false}") boolean judgeWording) {
+      @Value("${lantern.judge.wording:false}") boolean judgeWording,
+      @Value("${lantern.harness.calibrate:}") String calibrate,
+      @Value("${lantern.harness.calibration-trial:1}") String calibrationTrial) {
     return new AnalysisRun(
             registry,
             systems,
@@ -93,7 +95,56 @@ class AnalysisConfiguration {
             toolVersion,
             absolute(workspace).resolve("documents"))
         .batchingAbove(llmProperties.batchingAbove())
-        .judgingWording(judgeWording);
+        .judgingWording(judgeWording)
+        .calibrating(calibrations(calibrate, calibrationTrial));
+  }
+
+  /**
+   * The roles {@code lantern.harness.calibrate} names, as {@code <role>:<packet size>} separated by
+   * commas, each under the trial {@code lantern.harness.calibration-trial}.
+   */
+  /** The roles that ask several items a request, the ones a calibration can name. */
+  static final java.util.Set<String> CALIBRATABLE =
+      java.util.Set.of(
+          "resolve",
+          "investigate-leads",
+          "describe-element",
+          "name-groups",
+          "support-judge",
+          "injection-screen",
+          "wording-judge-role",
+          "wording-judge-specific");
+
+  static java.util.Map<String, io.lantern.harness.Harness.Calibration> calibrations(
+      String calibrate, String trial) {
+    java.util.Map<String, io.lantern.harness.Harness.Calibration> calibrations =
+        new java.util.LinkedHashMap<>();
+    if (calibrate == null || calibrate.isBlank()) {
+      return calibrations;
+    }
+    for (String entry : calibrate.split(",")) {
+      String[] parts = entry.strip().split(":");
+      if (parts.length != 2 || parts[0].isBlank()) {
+        throw new IllegalStateException(
+            "lantern.harness.calibrate takes <role>:<packet size>, separated by commas: " + entry);
+      }
+      int size;
+      try {
+        size = Integer.parseInt(parts[1].strip());
+      } catch (NumberFormatException e) {
+        throw new IllegalStateException(
+            "lantern.harness.calibrate needs a whole packet size: " + entry, e);
+      }
+      if (!CALIBRATABLE.contains(parts[0].strip())) {
+        throw new IllegalStateException(
+            "lantern.harness.calibrate names "
+                + parts[0].strip()
+                + ", not a role that asks several items a request: one of "
+                + new java.util.TreeSet<>(CALIBRATABLE));
+      }
+      calibrations.put(parts[0].strip(), new io.lantern.harness.Harness.Calibration(size, trial));
+    }
+    return calibrations;
   }
 
   @Bean

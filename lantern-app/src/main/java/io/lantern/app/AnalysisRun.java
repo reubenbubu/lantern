@@ -130,6 +130,7 @@ public final class AnalysisRun {
   private final AnswerStore answers;
   private final RunBudget runBudget;
   private volatile int batchAbove = Harness.BATCH_ABOVE;
+  private volatile Map<String, Harness.Calibration> calibrations = Map.of();
   private volatile boolean judgeWording;
   private final RuleRuns ruleRuns;
   private final ViewDefinitionStore views;
@@ -179,6 +180,15 @@ public final class AnalysisRun {
     this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
     this.toolVersion = Objects.requireNonNull(toolVersion, "toolVersion");
     this.documentsDirectory = Objects.requireNonNull(documentsDirectory, "documentsDirectory");
+  }
+
+  /**
+   * Asks the named roles at other packet sizes for packet-size calibration ({@code
+   * lantern.harness.calibrate}; #529), each fingerprinted apart by its size and trial.
+   */
+  AnalysisRun calibrating(Map<String, Harness.Calibration> calibrations) {
+    this.calibrations = Map.copyOf(calibrations);
+    return this;
   }
 
   /**
@@ -387,6 +397,14 @@ public final class AnalysisRun {
                   (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
                   Set.of())
               .batchingAbove(batchAbove);
+      calibrations.forEach(harness::calibrating);
+      calibrations.forEach(
+          (role, c) ->
+              LOG.info(
+                  "Calibration: {} asks {} items a request, trial {}",
+                  role,
+                  c.packetSize(),
+                  c.trial()));
       Stored stored =
           store(
               snapshot.number(),

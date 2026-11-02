@@ -230,6 +230,7 @@ class InvestigatorTest {
   }
 
   private Harness harness;
+  private io.lantern.harness.Harness.Calibration harnessCalibration;
 
   private Investigator.Result investigate(LlmClient client) {
     harness =
@@ -239,6 +240,9 @@ class InvestigatorTest {
             RunBudget.NONE,
             (repo, path) -> FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
             Set.of());
+    if (harnessCalibration != null) {
+      harness.calibrating("investigate-leads", harnessCalibration);
+    }
     return new Investigator(
             harness,
             FILES,
@@ -630,6 +634,37 @@ class InvestigatorTest {
         .contains("<answers>")
         .contains(FILES_UNIT + ": lead:identity-from-request")
         .contains("Files trust the caller's user header");
+  }
+
+  @Test
+  void aCalibrationAsksTheLeadsAtItsSize() {
+    headerLead();
+    headerLead("plaintext-secret");
+    FakeLlmProvider usual = submitting(r -> null);
+    investigate(usual);
+
+    FakeLlmProvider fake = submitting(r -> null);
+    harnessCalibration = new io.lantern.harness.Harness.Calibration(1, "1");
+    investigate(fake);
+    harnessCalibration = null;
+
+    // Both leads in the first request at the usual size; one under the calibration (ADR 0112).
+    java.util.function.Function<FakeLlmProvider, String> first =
+        f ->
+            f.sent().stream()
+                .map(s -> s.request())
+                .filter(r -> leads(r) && turn(r) == 1)
+                .findFirst()
+                .orElseThrow()
+                .messages()
+                .getFirst()
+                .text();
+    assertThat(first.apply(usual)).contains("<item id=\"I1\">").contains("<item id=\"I2\">");
+    assertThat(first.apply(fake)).contains("<item id=\"I1\">").doesNotContain("<item id=\"I2\">");
+    assertThat(harness.records())
+        .filteredOn(r -> r.toJson().path("role").asString().equals("investigate-leads"))
+        .singleElement()
+        .satisfies(r -> assertThat(r.toJson().path("packetSize").asInt()).isEqualTo(1));
   }
 
   @Test

@@ -28,6 +28,30 @@ public final class Harness {
   private final Map<String, ShareRounds> rounds = new LinkedHashMap<>();
   private final Map<String, Shown> shown = new LinkedHashMap<>();
   private volatile int batchAbove = BATCH_ABOVE;
+  private final Map<String, Calibration> calibrations = new LinkedHashMap<>();
+
+  /**
+   * A role asked at another packet size for packet-size calibration (knowledge-build epic, section
+   * 10; #529): its items are fingerprinted apart, by the size and the trial, so the role is asked
+   * again at that size and its answers there never replace the ones of its usual size.
+   *
+   * @param packetSize the items per request
+   * @param trial what tells two recordings at one size apart, such as "1" and "2"
+   */
+  public record Calibration(int packetSize, String trial) {
+
+    public Calibration {
+      if (packetSize < 1) {
+        throw new IllegalArgumentException("A packet holds at least one item: " + packetSize);
+      }
+      trial = io.lantern.harness.Text.nonBlank("Calibration trial", trial);
+    }
+
+    /** What the role's fingerprints carry beside its prompt version. */
+    String tag() {
+      return "calibration packet " + packetSize + " trial " + trial;
+    }
+  }
 
   /**
    * How many cache misses a bulk role must have in a run, more than, for its requests to go through
@@ -78,6 +102,25 @@ public final class Harness {
     return this;
   }
 
+  /**
+   * Asks the named role at the given packet size, fingerprinted apart (see {@link Calibration}).
+   * Set before the role starts.
+   */
+  public synchronized Harness calibrating(String role, Calibration calibration) {
+    Objects.requireNonNull(role, "role");
+    Objects.requireNonNull(calibration, "calibration");
+    if (sessions.containsKey(role)) {
+      throw new IllegalStateException("The role " + role + " has already started");
+    }
+    calibrations.put(role, calibration);
+    return this;
+  }
+
+  /** The calibration the role runs under, if any. */
+  synchronized java.util.Optional<Calibration> calibration(String role) {
+    return java.util.Optional.ofNullable(calibrations.get(role));
+  }
+
   /** How many cache misses a bulk role must have, more than, to batch. */
   int batchAbove() {
     return batchAbove;
@@ -85,6 +128,10 @@ public final class Harness {
 
   /** The role's session in this run; asking again for a role gives the same session. */
   public synchronized RoleSession session(RoleSpec spec) {
+    Calibration calibration = calibrations.get(spec.name());
+    if (calibration != null) {
+      spec = spec.withPacketSize(calibration.packetSize());
+    }
     RoleSession session = sessions.get(spec.name());
     if (session != null) {
       if (!session.spec().equals(spec)) {

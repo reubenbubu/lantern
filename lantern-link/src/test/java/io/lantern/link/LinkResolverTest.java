@@ -848,6 +848,35 @@ class LinkResolverTest {
 
   @Test
   void aUnitsOpenLinksAreAskedFourToAConversation() {
+    fiveOpenLinks();
+    FakeLlmProvider fake = model(r -> List.of());
+
+    LinkResolver.Result result = resolve(fake);
+
+    assertThat(result.unknown()).isEqualTo(5);
+    assertThat(log.conversations()).hasSize(2);
+    List<String> users = fake.sent().stream().map(s -> user(s.request())).toList();
+    assertThat(users).anyMatch(u -> u.contains("<item id=\"I4\">") && !u.contains("\"I5\""));
+    assertThat(users).anyMatch(u -> u.contains("<item id=\"I1\">") && !u.contains("\"I2\""));
+  }
+
+  @Test
+  void aCalibrationAsksTheLinksAtItsSize() {
+    fiveOpenLinks();
+    FakeLlmProvider fake = model(r -> List.of());
+    io.lantern.harness.Harness harness =
+        harness(client(fake, BudgetGuard.unlimited("test")))
+            .calibrating("resolve", new io.lantern.harness.Harness.Calibration(1, "1"));
+
+    LinkResolver.Result result = new LinkResolver(harness).resolve(linked(), 1);
+
+    assertThat(result.unknown()).isEqualTo(5);
+    // One link a conversation (ADR 0112), the run record saying so.
+    assertThat(log.conversations()).hasSize(5);
+    assertThat(harness.records().getFirst().toJson().path("packetSize").asInt()).isEqualTo(1);
+  }
+
+  private void fiveOpenLinks() {
     unit("a", "orders");
     unit("b", "billing");
     unit("t", "tax");
@@ -868,15 +897,6 @@ class LinkResolverTest {
       endpoint("b", "billing", "b.Billing" + i, "/v2/q" + i);
       endpoint("t", "tax", "t.Tax" + i, "/v2/q" + i);
     }
-    FakeLlmProvider fake = model(r -> List.of());
-
-    LinkResolver.Result result = resolve(fake);
-
-    assertThat(result.unknown()).isEqualTo(5);
-    assertThat(log.conversations()).hasSize(2);
-    List<String> users = fake.sent().stream().map(s -> user(s.request())).toList();
-    assertThat(users).anyMatch(u -> u.contains("<item id=\"I4\">") && !u.contains("\"I5\""));
-    assertThat(users).anyMatch(u -> u.contains("<item id=\"I1\">") && !u.contains("\"I2\""));
   }
 
   @Test

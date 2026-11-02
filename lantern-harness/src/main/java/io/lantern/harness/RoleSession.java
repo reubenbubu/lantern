@@ -95,6 +95,7 @@ public final class RoleSession {
         share == null ? client : client.withBudget(harness.guard(spec.budgetGroup()));
     this.client = budgeted.alsoLogging(record);
     this.record = record;
+    record.packetSize(spec.packetSize());
   }
 
   /** The role. */
@@ -113,7 +114,26 @@ public final class RoleSession {
 
   /** The item's fingerprint for this role and model. */
   public String fingerprint(Item item) {
+    return Fingerprints.of(spec, cacheVersion(), model.provider(), model.model(), item);
+  }
+
+  /**
+   * The item's fingerprint as the role's own, whatever calibration it runs under: what a sample
+   * drawn by fingerprint reads, so a calibration asks the same items as the role's usual size.
+   */
+  public String sampleFingerprint(Item item) {
     return Fingerprints.of(spec, model, item);
+  }
+
+  /**
+   * The prompt version the role's answers are cached under: its own, with a calibration's size and
+   * trial beside it when it runs under one.
+   */
+  String cacheVersion() {
+    return harness
+        .calibration(spec.name())
+        .map(c -> spec.promptVersion() + " " + c.tag())
+        .orElse(spec.promptVersion());
   }
 
   /**
@@ -248,7 +268,7 @@ public final class RoleSession {
       // which every request sends once: the plan counts requests, not items, packed as they will
       // be sent (a new request at every change of repository).
       int requests =
-          Packer.pack(misses, spec.packetSize(), this::fingerprint).size()
+          Packer.pack(misses, spec.packetSize(), this::sampleFingerprint).size()
               + (predictedMisses + spec.packetSize() - 1) / spec.packetSize();
       this.requestsPerItem = toAsk == 0 ? 0 : (double) requests / toAsk;
       if (requests > 0 && model.supports(Capability.PROMPT_CACHING) && prefixTokens > 0) {
@@ -688,7 +708,8 @@ public final class RoleSession {
 
   private void askPlannedPackets(
       List<Item> misses, PacketRole role, Map<String, Outcome> outcomes) {
-    List<List<Item>> packets = Packer.pack(misses, spec.packetSize(), this::fingerprint);
+    // Grouped by the role's own fingerprint, so a calibration keeps the same neighbours in order.
+    List<List<Item>> packets = Packer.pack(misses, spec.packetSize(), this::sampleFingerprint);
     List<Item> missing = java.util.Collections.synchronizedList(new ArrayList<>());
     run(packets, packet -> missing.addAll(askPacket(packet, role, outcomes)));
     List<List<Item>> alone = missing.stream().map(List::of).toList();
@@ -1036,7 +1057,7 @@ public final class RoleSession {
                 fingerprint(item),
                 spec.name(),
                 item.subject(),
-                spec.promptVersion(),
+                cacheVersion(),
                 model.provider(),
                 model.model(),
                 json == null,

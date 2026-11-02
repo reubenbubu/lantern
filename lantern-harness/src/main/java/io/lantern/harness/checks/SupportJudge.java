@@ -129,7 +129,7 @@ public final class SupportJudge {
     for (Text text : texts) {
       Item item = item(text);
       if (!text.cited().isEmpty()
-          && (always.contains(text.key()) || sampled(session.fingerprint(item)))) {
+          && (always.contains(text.key()) || sampled(session.sampleFingerprint(item)))) {
         items.add(item);
       }
     }
