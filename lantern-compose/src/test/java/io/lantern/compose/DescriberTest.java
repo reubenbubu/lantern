@@ -39,6 +39,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -93,13 +94,34 @@ class DescriberTest {
           {"purpose": {"text": "Runs an online shop's orders.", "cites": ["F%s"]}}"""
           .formatted(prompt.contains(" claim ") ? ref(prompt, "claim") : "1");
     }
-    if (prompt.startsWith("The flow")) {
-      return """
-          {"title": {"text": "Shop lists its orders.", "cites": ["F1"]},
-           "walkthrough": {"text": "Lists the orders and announces them for background work.",
-                           "cites": ["F1", "F%1$s"]},
-           "postconditions": {"text": "The orders are announced.", "cites": ["F%1$s"]}}"""
-          .formatted(ref(prompt, "PUBLISHES"));
+    java.util.regex.Matcher flows =
+        java.util.regex.Pattern.compile(
+                "<item id=\"(I[0-9]+)\">\n(.*?)\n</item>", java.util.regex.Pattern.DOTALL)
+            .matcher(prompt);
+    if (request.system().contains("Task: choose the flows worth drawing.")) {
+      List<String> entries = new java.util.ArrayList<>();
+      while (flows.find()) {
+        entries.add("\"" + flows.group(1) + "\": " + significance(flows.group(2)));
+      }
+      return "{\"items\": {" + String.join(", ", entries) + "}}";
+    }
+    if (request.system().contains("Task: narrate flows.")) {
+      List<String> entries = new java.util.ArrayList<>();
+      while (flows.find()) {
+        String body = flows.group(2);
+        String send = body.contains(" PUBLISHES ") ? ref(body, "PUBLISHES") : "1";
+        entries.add(
+            "\""
+                + flows.group(1)
+                + "\": "
+                + """
+                {"title": {"text": "Shop lists its orders.", "cites": ["F1"]},
+                 "walkthrough": {"text": "Lists the orders and announces them for background work.",
+                                 "cites": ["F1", "F%1$s"]},
+                 "postconditions": {"text": "The orders are announced.", "cites": ["F%1$s"]}}"""
+                    .formatted(send));
+      }
+      return "{\"items\": {" + String.join(", ", entries) + "}}";
     }
     java.util.regex.Matcher items =
         java.util.regex.Pattern.compile(
@@ -111,6 +133,32 @@ class DescriberTest {
       entries.add("\"" + items.group(1) + "\": " + answer);
     }
     return "{\"items\": {" + String.join(", ", entries) + "}}";
+  }
+
+  /**
+   * The answer about a scope's flows: every flow significant, in the order shown, each for the
+   * reason of its entry fact.
+   */
+  private static String significance(String body) {
+    List<String> flows = new java.util.ArrayList<>();
+    List<String> order = new java.util.ArrayList<>();
+    String[] lines = body.split("\n");
+    for (int i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith("[W")) {
+        String w = lines[i].substring(1, lines[i].indexOf(']'));
+        String fact = lines[i + 1].strip();
+        fact = fact.substring(1, fact.indexOf(']'));
+        flows.add(
+            "\"%s\": {\"significant\": true, \"category\": \"cross-service\", \"reason\": {\"text\": \"It shows how the shop works.\", \"cites\": [\"%s\"]}}"
+                .formatted(w, fact));
+        order.add("\"" + w + "\"");
+      }
+    }
+    return "{\"flows\": {"
+        + String.join(", ", flows)
+        + "}, \"order\": ["
+        + String.join(", ", order)
+        + "]}";
   }
 
   /** The answer about one item. */
@@ -235,7 +283,7 @@ class DescriberTest {
 
   @Test
   void underABudgetThePurposeHasFirstClaimOnItsShareAheadOfTheFlows() {
-    // With room for everything: what the purpose and one flow are expected to cost.
+    // With room for everything: what the purpose and each flow item are expected to cost.
     Harness room =
         new Harness(
             priced(new FakeLlmProvider().answering(DescriberTest::answer)),
@@ -245,28 +293,33 @@ class DescriberTest {
             Set.of());
     new Describer(room).describe(facts.list());
     java.math.BigDecimal purpose = record(room, "purpose").estimate().usd();
-    io.lantern.harness.Estimate flows = record(room, "flow-narrative").estimate();
-    java.math.BigDecimal flow =
-        flows
-            .usd()
-            .divide(java.math.BigDecimal.valueOf(flows.toAsk()), java.math.MathContext.DECIMAL64);
-    assertThat(flows.toAsk()).isEqualTo(2);
-    assertThat(flow).isGreaterThan(purpose);
+    io.lantern.harness.Estimate chosen = record(room, "flow-significance").estimate();
+    io.lantern.harness.Estimate narrated = record(room, "flow-narrative").estimate();
+    assertThat(chosen.toAsk()).isEqualTo(3);
+    assertThat(narrated.toAsk()).isEqualTo(2);
+    java.math.BigDecimal half = purpose.divide(java.math.BigDecimal.TWO);
+    for (io.lantern.harness.Estimate flows : List.of(chosen, narrated)) {
+      assertThat(
+              flows
+                  .usd()
+                  .divide(
+                      java.math.BigDecimal.valueOf(flows.toAsk()), java.math.MathContext.DECIMAL64))
+          .isGreaterThan(half);
+    }
 
-    // A share that holds one flow and half the purpose: in the flows' order a flow would take it
-    // and leave the purpose nothing; claimed first, the purpose is asked and no flow fits after.
+    // A share that holds the purpose and half of it again: in the flows' order, the choice of
+    // flows asked before it would take the share and leave the purpose too little; claimed first,
+    // the purpose is asked and no flow item fits after it.
     Harness budget =
         new Harness(
             priced(new FakeLlmProvider().answering(DescriberTest::answer)),
             new InMemoryAnswerStore(),
-            new RunBudget(
-                flow.add(purpose.divide(java.math.BigDecimal.TWO))
-                    .multiply(java.math.BigDecimal.valueOf(100)),
-                shares()),
+            new RunBudget(purpose.add(half).multiply(java.math.BigDecimal.valueOf(100)), shares()),
             BlobLookup.NONE,
             Set.of());
     new Describer(budget).describe(facts.list());
     assertThat(record(budget, "purpose").asked()).hasSize(1);
+    assertThat(record(budget, "flow-significance").asked()).isEmpty();
     assertThat(record(budget, "flow-narrative").asked()).isEmpty();
     assertThat(record(budget, "flow-narrative").settled()).isEqualTo(2);
   }
@@ -315,20 +368,26 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    assertThat(result.asked()).isEqualTo(8);
+    assertThat(result.asked()).isEqualTo(11);
     assertThat(result.reused()).isZero();
     assertThat(result.rejected()).isEmpty();
     assertThat(result.skipped()).isEmpty();
     assertThat(fake.sent())
-        .extracting(s -> s.request().role() + " " + s.request().purpose())
+        .extracting(
+            s -> (s.request().role() + " " + s.request().purpose()).replaceAll("[0-9a-f]{64}", "F"))
         .containsExactlyInAnyOrder(
             "INFER_INTENT describe-unit 1 items: " + APP,
             "INFER_INTENT describe-unit 1 items: " + WORKER,
             "DESCRIBE_ELEMENTS describe-element 1 items: " + DATABASE,
             "DESCRIBE_ELEMENTS describe-element 1 items: " + TOPIC,
             "DESCRIBE_ELEMENTS describe-element 1 items: " + PAY,
-            "COMPOSE narrate flow " + LIST_FLOW,
-            "COMPOSE narrate flow " + RUN_FLOW,
+            // Which flows each scope draws, the system's and each repository's, then the
+            // narrative of each flow drawn.
+            "FLOW_SIGNIFICANCE flow-significance 1 items: system",
+            "FLOW_SIGNIFICANCE flow-significance 1 items: base",
+            "FLOW_SIGNIFICANCE flow-significance 1 items: shop",
+            "COMPOSE flow-narrative 1 items: F",
+            "COMPOSE flow-narrative 1 items: F",
             "INFER_INTENT word the system's purpose");
     String app =
         fake.sent().stream()
@@ -422,7 +481,7 @@ class DescriberTest {
 
     Describer.Result result = new Describer(harness(client(fake))).describe(routed.list());
 
-    assertThat(result.asked()).isEqualTo(8);
+    assertThat(result.asked()).isEqualTo(11);
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
         .noneMatch(p -> p.contains("audit"));
@@ -615,44 +674,54 @@ class DescriberTest {
     LlmRequest list =
         fake.sent().stream()
             .map(FakeLlmProvider.Sent::request)
-            .filter(r -> r.purpose().equals("narrate flow " + LIST_FLOW))
+            .filter(r -> r.purpose().startsWith("flow-narrative"))
+            .filter(r -> r.messages().getFirst().text().contains("receives GET /orders"))
             .findFirst()
             .orElseThrow();
-    assertThat(list.system()).isEqualTo(WordingPrompt.FLOW_SYSTEM);
-    assertThat(list.maxOutputTokens()).isEqualTo(Describer.MAX_FLOW_OUTPUT_TOKENS);
-    // The steps as the facts give them: no intent phrases, no fact IDs.
+    assertThat(list.role()).isEqualTo(io.lantern.llm.Role.COMPOSE);
+    assertThat(list.system()).contains(FlowJudgements.NARRATIVE_TASK);
+    assertThat(list.maxOutputTokens()).isEqualTo(1_500);
+    // The steps as the facts give them, then the units' sentences and the interactions' phrases
+    // Describe wrote, which the narrative may cite.
     assertThat(list.messages().getFirst().text())
         .isEqualTo(
             """
-            The flow "GET /orders on shop-app".
+            <items>
+            <item id="I1">
             It starts when shop-app receives GET /orders (Controller.list).
             [F1] method:com.example.web.Controller#list() endpoint "GET /orders" (shop:pom.xml)
-
             Its steps, in order:
-            - shop-app to orders (a topic), async: Sends a message [Kafka]
-              [F2] service:com.example:app PUBLISHES topic:kafka:orders\
+              - shop-app to orders (a topic), async: Sends a message [Kafka]
+                [F2] service:com.example:app PUBLISHES topic:kafka:orders\
              {"protocol":"Kafka","source":"method:com.example.domain.JpaOrders#all()"} (shop:pom.xml)
-            - Note: shop-app does not wait: worker takes the message later.
-              [F3] service:com.example:app SENDS_MESSAGES_TO service:com.example:worker\
+              - Note: shop-app does not wait: worker takes the message later.
+                [F3] service:com.example:app SENDS_MESSAGES_TO service:com.example:worker\
              {"destination":"topic:kafka:orders","protocol":"Kafka",\
             "source":"method:com.example.domain.JpaOrders#all()",\
             "target":"method:com.example.worker.L#on()"} (shop:pom.xml)
-            - shop-app to shop on db (a database), sync: Reads orders [JDBC]
-              [F4] method:com.example.domain.JpaOrders#all() READS_TABLE\
+              - shop-app to shop on db (a database), sync: Reads orders [JDBC]
+                [F4] method:com.example.domain.JpaOrders#all() READS_TABLE\
              table:com.example:app:orders (shop:pom.xml)
-              [F5] service:com.example:app USES_DATABASE database:db:5432/shop\
+                [F5] service:com.example:app USES_DATABASE database:db:5432/shop\
              {"protocol":"JDBC","schemas":["schema:com.example:app"]} (shop:pom.xml)
-            - shop-app to pay.example.com (an external system), sync: Calls pay.example.com\
+              - shop-app to pay.example.com (an external system), sync: Calls pay.example.com\
              [POST /charges]. Over HTTPS. Only under the Spring profile prod.
-              [F6] service:com.example:app CALLS_HTTP external-system:pay.example.com\
+                [F6] service:com.example:app CALLS_HTTP external-system:pay.example.com\
              {"httpMethod":"POST","path":"/charges","profile":"prod","protocol":"HTTPS",\
             "source":"method:com.example.web.Controller#list()"} (shop:pom.xml)
-            - orders to worker (a deployable unit), async: Delivers to L.on [Kafka]
-              [F3] service:com.example:app SENDS_MESSAGES_TO service:com.example:worker\
+              - orders to worker (a deployable unit), async: Delivers to L.on [Kafka]
+                [F3] service:com.example:app SENDS_MESSAGES_TO service:com.example:worker\
              {"destination":"topic:kafka:orders","protocol":"Kafka",\
             "source":"method:com.example.domain.JpaOrders#all()",\
             "target":"method:com.example.worker.L#on()"} (shop:pom.xml)
-            """);
+            What its units do, and what its interactions are for:
+            - shop-app: [A1] Takes and lists the shop's orders.
+            - worker: [A2] Processes orders in the background.
+            - [A3] shop-app to orders (a topic), async: Announces new orders
+            - [A4] shop-app to pay.example.com (an external system), sync: Charges customers' cards
+
+            </item>
+            </items>""");
   }
 
   @Test
@@ -832,7 +901,7 @@ class DescriberTest {
         .extracting(s -> s.request().purpose())
         .contains("word the system's purpose (retry)");
     assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
-    assertThat(store.size()).isEqualTo(7);
+    assertThat(store.size()).isEqualTo(10);
     Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
   }
@@ -984,7 +1053,7 @@ class DescriberTest {
 
     Document document = system(result.wordings());
 
-    assertThat(result.asked()).isEqualTo(8);
+    assertThat(result.asked()).isEqualTo(11);
     assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
     Callout first = (Callout) document.sections().getFirst().blocks().getFirst();
     assertThat(first.variant()).isEqualTo(Callout.Variant.NOTE);
@@ -1008,7 +1077,7 @@ class DescriberTest {
 
     assertThat(fake.sent()).hasSize(calls);
     assertThat(second.asked()).isZero();
-    assertThat(second.reused()).isEqualTo(8);
+    assertThat(second.reused()).isEqualTo(11);
     assertThat(second.wordings()).isEqualTo(first);
   }
 
@@ -1025,27 +1094,31 @@ class DescriberTest {
                             ? """
                             {"items": {"I1":
                               {"responsibility": {"text": "Holds things.", "cites": ["F99"]}}}}"""
-                            : """
-                            {"walkthrough": {"text": "Does things.", "cites": ["F99"]}}""");
+                            : request.system().contains("Task: narrate flows.")
+                                ? """
+                                {"items": {"I1":
+                                  {"walkthrough": {"text": "Does things.", "cites": ["F99"]}}}}"""
+                                : """
+                                {"items": {"I1": {"flows": {}, "order": ["W99"]}}}""");
 
     Describer.Result result = describe(fake);
 
-    assertThat(fake.sent()).hasSize(14);
+    // Each unit and element, each scope's choice of flows and each flow drawn by rank, twice.
+    assertThat(fake.sent()).hasSize(20);
     assertThat(fake.sent())
-        .extracting(s -> s.request().purpose())
+        .extracting(s -> s.request().purpose().replaceAll("[0-9a-f]{64}", "F"))
         .contains(
             "describe-unit 1 items: " + APP + " (repair)",
             "describe-element 1 items: " + DATABASE + " (repair)",
-            "narrate flow " + LIST_FLOW + " (retry)");
+            "flow-significance 1 items: system (repair)",
+            "flow-narrative 1 items: F (repair)");
     assertThat(fake.sent())
-        .filteredOn(s -> s.request().purpose().endsWith("(retry)"))
-        .allSatisfy(
-            s ->
-                assertThat(s.request().messages().getLast().text())
-                    .startsWith(
-                        "Your answer was rejected: the walkthrough cites F99, which is not a fact"
-                            + " in the input."));
+        .filteredOn(s -> s.request().purpose().startsWith("flow-narrative"))
+        .filteredOn(s -> s.request().purpose().endsWith("(repair)"))
+        .hasSize(2)
+        .allSatisfy(s -> assertThat(s.request().messages().getLast().text()).contains("F99"));
     assertThat(fake.sent())
+        .filteredOn(s -> s.request().purpose().startsWith("describe-"))
         .filteredOn(s -> s.request().purpose().endsWith("(repair)"))
         .allSatisfy(
             s ->
@@ -1057,8 +1130,10 @@ class DescriberTest {
                                 : "responsibility")
                             + "\">")
                     .contains("F99"));
-    assertThat(result.rejected())
-        .containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY, LIST, RUN);
+    // The flows, drawn by rank once no scope's choice held, are rejected too.
+    assertThat(result.rejected()).contains(APP, WORKER, DATABASE, TOPIC, PAY).hasSize(7);
+    assertThat(result.rejected().subList(5, 7))
+        .allSatisfy(flow -> assertThat(flow.toString()).startsWith("flow:" + APP + "/"));
     // Without a unit's sentence or a README claim, the system's purpose is not asked about.
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
@@ -1082,8 +1157,10 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    assertThat(result.skipped())
-        .containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY, LIST, RUN);
+    // The flows, drawn by rank as no model judged them, are skipped too.
+    assertThat(result.skipped()).contains(APP, WORKER, DATABASE, TOPIC, PAY).hasSize(7);
+    assertThat(result.skipped().subList(5, 7))
+        .allSatisfy(flow -> assertThat(flow.toString()).startsWith("flow:" + APP + "/"));
     assertThat(result.wordings()).isEqualTo(Wordings.NONE);
   }
 
@@ -1189,7 +1266,7 @@ class DescriberTest {
             .describe(io.lantern.derive.Derivation.withModel(moved, 1));
 
     assertThat(fake.sent()).hasSize(calls);
-    assertThat(second.reused()).isEqualTo(8);
+    assertThat(second.reused()).isEqualTo(11);
     // The answers cite the new commit's facts.
     assertThat(second.wordings().phrases())
         .containsKey(
@@ -1494,6 +1571,291 @@ class DescriberTest {
             DescribeRole.ELEMENT_SCHEMA)) {
       assertThat(epic).contains(prompt.strip());
     }
+  }
+
+  /** The flow roles' prompts are the epic's, character for character (section 11.5). */
+  @Test
+  void theFlowPromptsAreTheEpics() throws Exception {
+    String epic =
+        java.nio.file.Files.readString(
+            java.nio.file.Path.of("../docs/epics/001-knowledge-build.md"));
+
+    for (String prompt :
+        List.of(
+            FlowJudgements.SIGNIFICANCE_TASK,
+            FlowJudgements.SIGNIFICANCE_SCHEMA,
+            FlowJudgements.NARRATIVE_TASK,
+            FlowJudgements.NARRATIVE_SCHEMA)) {
+      assertThat(epic).contains(prompt.strip());
+    }
+  }
+
+  /** The sequences section of a document. */
+  private static Section sequences(Document document) {
+    return all(document.sections())
+        .filter(s -> s.id().equals("sequences"))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  /** The texts of a section's own callouts. */
+  private static List<String> callouts(Section section) {
+    return section.blocks().stream()
+        .filter(Callout.class::isInstance)
+        .map(b -> text(((Callout) b).content()))
+        .toList();
+  }
+
+  /**
+   * A significance answer: each flow whose start line contains one of the words significant, in the
+   * words' order, the others not.
+   */
+  private static String choosing(String prompt, String... words) {
+    java.util.regex.Matcher items =
+        java.util.regex.Pattern.compile(
+                "<item id=\"(I[0-9]+)\">\n(.*?)\n</item>", java.util.regex.Pattern.DOTALL)
+            .matcher(prompt);
+    items.find();
+    Map<String, String> starts = new LinkedHashMap<>();
+    Map<String, String> entry = new LinkedHashMap<>();
+    String[] lines = items.group(2).split("\n");
+    for (int i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith("[W")) {
+        String w = lines[i].substring(1, lines[i].indexOf(']'));
+        starts.put(w, lines[i]);
+        String fact = lines[i + 1].strip();
+        entry.put(w, fact.substring(1, fact.indexOf(']')));
+      }
+    }
+    List<String> flows = new ArrayList<>();
+    List<String> order = new ArrayList<>();
+    for (String word : words) {
+      starts.forEach(
+          (w, line) -> {
+            if (line.contains(word) && !order.contains("\"" + w + "\"")) {
+              order.add("\"" + w + "\"");
+            }
+          });
+    }
+    starts.forEach(
+        (w, line) ->
+            flows.add(
+                "\"%s\": {\"significant\": %s, \"category\": \"scheduled\", \"reason\": {\"text\": \"It runs on its own.\", \"cites\": [\"%s\"]}}"
+                    .formatted(w, order.contains("\"" + w + "\""), entry.get(w))));
+    return "{\"items\": {\""
+        + "I1"
+        + "\": {\"flows\": {"
+        + String.join(", ", flows)
+        + "}, \"order\": ["
+        + String.join(", ", order)
+        + "]}}}";
+  }
+
+  @Test
+  void theModelChoosesWhichFlowsEachScopeDrawsAndInWhatOrder() {
+    // Only the scheduled job is worth drawing; the request is not.
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.system().contains("Task: choose the flows worth drawing.")
+                        ? choosing(request.messages().getFirst().text(), "schedule")
+                        : answer(request));
+
+    Describer.Result result = describe(fake);
+
+    // Two flows, one for each shape, in the order of what starts them; the units they cross.
+    String asked =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().equals("flow-significance 1 items: system"))
+            .findFirst()
+            .orElseThrow()
+            .messages()
+            .getFirst()
+            .text();
+    assertThat(asked)
+        .startsWith(
+            "<items>\n<item id=\"I1\">\nScope: the system\nFlows, one for each different shape:\n")
+        .contains("\n[W1] Starts when shop-app receives GET /orders (Controller.list)\n")
+        .contains("\n[W2] Starts when the schedule 0 0 * * * * fires in shop-app (Jobs.run)\n")
+        .contains("  Hands work on asynchronously through: orders\n")
+        .contains(
+            "What the units these flows cross do:\n"
+                + "- shop-app: [A1] Takes and lists the shop's orders.\n"
+                + "- worker: [A2] Processes orders in the background.\n");
+    // Only the flow chosen is narrated, once for all scopes, and drawn without the rank's note.
+    assertThat(fake.sent())
+        .filteredOn(s -> s.request().purpose().startsWith("flow-narrative"))
+        .hasSize(1);
+    Document document = system(result.wordings());
+    assertThat(sequences(document).sections())
+        .extracting(Section::title)
+        .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
+    assertThat(callouts(sequences(document))).isEmpty();
+    // Each judgement is a claim: the flow's scope, whether it is significant, its rank and reason.
+    List<Fact> judged =
+        result.facts(2).get(io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE));
+    assertThat(judged)
+        .filteredOn(f -> f.object().value().equals("system"))
+        .hasSize(2)
+        .allSatisfy(f -> assertThat(f.predicate()).isEqualTo("flow-significance"))
+        .allSatisfy(f -> assertThat(f.attributes().path("model").asString()).isNotEmpty())
+        .allSatisfy(f -> assertThat(f.attributes().path("content").asString()).isNotEmpty())
+        .extracting(
+            f ->
+                f.attributes().path("significant").asBoolean()
+                    + " "
+                    + f.attributes().path("rank").asInt(0)
+                    + " "
+                    + f.attributes().path("text").asString())
+        .containsExactlyInAnyOrder("true 1 It runs on its own.", "false 0 It runs on its own.");
+    assertThat(judged).extracting(f -> f.object().value()).contains("system", "shop", "base");
+    List<Fact> narrated =
+        result.facts(2).get(io.lantern.harness.LlmFacts.origin(FlowJudgements.NARRATIVE));
+    assertThat(narrated).hasSize(1);
+    assertThat(narrated.getFirst().predicate()).isEqualTo("flow-narrative");
+    assertThat(narrated.getFirst().object().value()).isEqualTo("c4");
+    assertThat(narrated.getFirst().attributes().path("title").asString())
+        .isEqualTo("Shop lists its orders.");
+    assertThat(narrated.getFirst().subject().toString()).startsWith("flow:" + APP + "/");
+    assertThat(narrated.getFirst().attributes().path("cites")).isNotEmpty();
+    // Their attributes are those their vocabulary types allow.
+    for (Fact fact : List.of(judged.getFirst(), narrated.getFirst())) {
+      io.lantern.harness.LlmFacts.vocabulary().stream()
+          .filter(type -> type.name().equals(fact.predicate()))
+          .findFirst()
+          .orElseThrow()
+          .attributeSchema()
+          .validate(fact.attributes());
+    }
+  }
+
+  @Test
+  void aChoiceThatLeavesAFlowOutOrOrdersOneNotSignificantIsRepaired() {
+    java.util.concurrent.atomic.AtomicInteger asked =
+        new java.util.concurrent.atomic.AtomicInteger();
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  if (!request.purpose().startsWith("flow-significance 1 items: system")) {
+                    return request.system().contains("Task: choose the flows worth drawing.")
+                        ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
+                        : answer(request);
+                  }
+                  String chosen = choosing(request.messages().getFirst().text(), "schedule");
+                  // First the schedule's flow, W2, unanswered though ordered, and the request's,
+                  // W1, ordered though not significant; then as chosen.
+                  return asked.getAndIncrement() == 0
+                      ? chosen
+                          .replaceAll(", \"W2\": \\{[^}]*\\}\\}", "")
+                          .replace("\"order\": [\"W2\"]", "\"order\": [\"W2\", \"W1\"]")
+                      : chosen;
+                });
+
+    Describer.Result result = describe(fake);
+
+    LlmRequest repair =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().equals("flow-significance 1 items: system (repair)"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(repair.messages().getLast().text())
+        .contains("Answers no flow for W2; answer every flow, significant or not.")
+        .contains("The order must hold exactly the flows marked significant; it holds W2, W1.");
+    assertThat(sequences(system(result.wordings())).sections())
+        .extracting(Section::title)
+        .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
+  }
+
+  @Test
+  void noFlowSignificantWhileSomeCrossUnitsIsAskedOnceToConfirm() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.system().contains("Task: choose the flows worth drawing.")
+                        ? choosing(request.messages().getFirst().text())
+                        : answer(request));
+
+    Describer.Result result = describe(fake);
+
+    assertThat(fake.sent())
+        .filteredOn(s -> s.request().purpose().startsWith("flow-significance 1 items: system"))
+        .hasSize(2)
+        .last()
+        .satisfies(
+            s ->
+                assertThat(s.request().messages().getLast().text())
+                    .contains(FlowJudgements.NONE_SIGNIFICANT));
+    // Confirmed, the scope draws no flow and says why; none is narrated.
+    Section sequences = sequences(system(result.wordings()));
+    assertThat(sequences.sections()).isEmpty();
+    assertThat(callouts(sequences)).containsExactly(SequenceFlows.NONE_JUDGED_SIGNIFICANT);
+    assertThat(fake.sent()).noneMatch(s -> s.request().purpose().startsWith("flow-narrative"));
+  }
+
+  @Test
+  void withoutAChoiceAScopeDrawsItsHighestRankedAndSaysSo() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.system().contains("Task: choose the flows worth drawing.")
+                        ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
+                        : answer(request));
+
+    Describer.Result result = describe(fake);
+
+    Section sequences = sequences(system(result.wordings()));
+    assertThat(sequences.sections()).hasSize(2);
+    assertThat(callouts(sequences)).containsExactly(SequenceFlows.CHOSEN_BY_RANK);
+    assertThat(result.wordings().chosen()).isEmpty();
+    assertThat(result.facts(2).get(io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE)))
+        .isEmpty();
+  }
+
+  @Test
+  void aLargeScopeIsJudgedUnitByUnitFirstKeepingTheBestOfEach() {
+    Fact entry = facts.find(LIST.toString(), "endpoint");
+    List<SequenceFlows.Candidate> candidates = new ArrayList<>();
+    for (int i = 0; i < 61; i++) {
+      EntityId unit = i % 2 == 0 ? APP : WORKER;
+      candidates.add(
+          new SequenceFlows.Candidate(
+              EntityId.parse("flow:" + unit + "/" + "%02d".formatted(i)),
+              unit,
+              "flow " + i,
+              entry,
+              List.of("shop-app"),
+              List.of(),
+              List.of(),
+              List.of(unit)));
+    }
+    Function<EntityId, String> names = EntityId::toString;
+
+    assertThat(FlowJudgements.firstPass("system", candidates.subList(0, 60), Map.of(), names))
+        .isEmpty();
+    List<FlowJudgements.Asked> byUnit =
+        FlowJudgements.firstPass("system", candidates, Map.of(), names);
+    assertThat(byUnit)
+        .extracting(a -> a.item().subject())
+        .containsExactly("system/" + APP, "system/" + WORKER);
+    assertThat(byUnit.getFirst().flows()).hasSize(31);
+    assertThat(byUnit.getFirst().item().rendering())
+        .contains("Scope: the flows that start in " + APP + "\n");
+
+    // Judged, a unit keeps its significant flows in the model's order; unjudged, the first 15.
+    FlowJudgements.Asked app = byUnit.getFirst();
+    List<String> order =
+        List.of(candidates.get(40).flow().toString(), candidates.get(2).flow().toString());
+    assertThat(FlowJudgements.kept(app, order))
+        .extracting(SequenceFlows.Candidate::flow)
+        .containsExactly(candidates.get(40).flow(), candidates.get(2).flow());
+    assertThat(FlowJudgements.kept(app, null)).hasSize(FlowJudgements.KEPT_PER_UNIT);
+    assertThat(FlowJudgements.kept(app, List.of())).isEmpty();
   }
 
   @Test

@@ -1,0 +1,79 @@
+# 0108: Flow significance and narrative on the harness
+
+Status: accepted (#272)
+
+## Context
+
+The knowledge-build epic (`docs/epics/001-knowledge-build.md`, section 11.5) fixes two roles for
+the main flows: significance, which judges which of a scope's traced flows are worth drawing and
+in what order, and narrative, which writes the title, walkthrough and pre- and post-conditions of
+each flow drawn. Before #272 the composer drew the highest ranked flows (ADR 0047) and a
+free-form Compose prompt narrated each (ADR 0058). This records how #272 lands the two roles and
+what the epic left open. The agent decided these under the owner's standing go-ahead for
+milestone 1F.
+
+## Decisions
+
+- **Where they run.** Inside Describe, after the units and elements are worded and before the
+  system's purpose: the significance item shows the units' responsibilities as `[A..]`, the
+  narrative item the units' responsibilities and the interactions' intents. Flows were narrated
+  alongside the units before; they now wait for them.
+- **Scopes.** One significance item per scope whose documents draw flows: the system, from the
+  snapshot's facts, and each repository with a deployable unit, from the facts its documents are
+  composed from (as the composer traces them, #631). Its subject and locality are the scope's key,
+  `system` or the repository's name. A scope with no candidate flow is not asked about.
+- **Candidates.** A scope's candidates are the stored flows that leave their unit (ADR 0097) and
+  touch the scope, one for each `flow-shape`: the flow standing for a shape, and the order the
+  item lists them in, is by what starts it, then its unit, then its ID, so a new commit that
+  changes nothing the item shows asks nothing again. Each is shown as `[W..]` with what starts it,
+  its entry fact, its containers in order, its steps with the facts behind each, and where it
+  hands work on asynchronously; then the responsibility of each unit the flows cross.
+- **Two passes.** A scope of more than 60 candidates is judged first unit by unit (subject
+  `<scope>/<unit>`, "the flows that start in" the unit), each keeping its significant flows in
+  the model's order, at most 15, or its first 15 if unjudged; then once over what was kept.
+- **Checks.** The shared pipeline on each reason (prose of at most 20 words), and a role check:
+  every `[W..]` answered with a boolean `significant`; `order` holding exactly the significant
+  flows; and, on the first attempt only, at least one significant flow when some flow crosses a
+  unit boundary, else the epic's repair text. Its rejections are of the whole item, so the repair
+  turn answers it again; a second answer of none significant is accepted.
+- **Stored answer.** Each flow and the order by its `W..` reference, so a cached answer holds for
+  the same item whatever IDs its flows have, and citations as the item numbers them.
+- **Claims.** `(flow, flow-significance, "<scope>")` for every flow judged, with `significant`,
+  `category`, `rank` (of a significant flow, from 1), the reason's `text` and `cites`, `basis`
+  (inferred), `model` and the flow-shape's `content` hash it holds for; and
+  `(flow, flow-narrative, "c4")` with the texts written, `cites`, `basis`, `model` and `content`.
+  Both are new vocabulary types of the roles (`llm-types.json`), all their attributes
+  descriptive. Like the other texts the roles wrote, they are left out of the roles' inputs
+  (`Describer.withoutTexts`).
+- **What documents draw.** A scope the model judged draws its significant flows that are in
+  scope, in the model's order, with no cap. A scope that judged none says so ("the model judged
+  none of them worth drawing"). A scope whose item was not answered (omitted, dropped, failed or
+  not asked) draws the highest ranked, at most 7, as before, under a note that says they were
+  chosen by rank, not judged.
+- **Narrative items.** One per flow drawn in any scope, each flow once, keyed as before by how it
+  is traced (`Wordings.flowKey`), its locality its unit. It shows what starts the flow and its
+  entry fact, its steps with the facts behind each, the responsibilities of the units it crosses
+  and the intent of each of its interactions Describe worded, as `[A..]`; a citation of an `[A..]`
+  stands for the facts that answer cites. Word limits: title 6, walkthrough 80, conditions 25
+  each, by the Form check. A narrative not answered leaves the flow's own prose, as before; a
+  dropped one counts the flow as rejected, one not asked or failed as skipped.
+- **Roles and tiers.** Significance is `Role.FLOW_SIGNIFICANCE` on the reasoning tier, run
+  interactively, in the budget group `flows-and-purpose`, where thinking is on as the reasoning
+  models' settings configure it. Narrative stays `Role.COMPOSE`, on the high-volume tier, in bulk.
+  Under a budget the purpose keeps its first claim on the group's share (#659), and the
+  significance items are planned before the narratives.
+- **The old flow prompt** (ADR 0058) is no longer sent; its user text only names a flow's key.
+- **The fake model** judges no flow, so every scope draws its highest ranked and says so, and
+  titles each flow `{{placeholder: scenario title}}`, citing the item's first fact.
+
+## Consequences
+
+- A run makes one significance call per scope with flows (and a first pass per unit for a large
+  one), and one narrative call per flow drawn; cached per item, so a rerun over unchanged facts
+  makes none. Each repository's scope shows the system's flows that touch it, so a fact change
+  re-asks every scope that shows the flows it changes.
+- Without a real model, documents still draw the ranked flows, now with the note.
+- The recordings that accept the judgement on the test sets need a real model; they come with
+  #529.
+- Supersedes ADR 0058 for how flows are narrated, and ADR 0047 for which flows a judged scope
+  draws; the ranking of ADR 0047 stays the fallback and the order of the first pass.

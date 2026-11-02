@@ -322,6 +322,14 @@ final class Assembler {
   }
 
   /**
+   * The flows the model judged significant for a scope, in its order, by flow ID; {@code null} when
+   * it did not judge the scope (knowledge-build epic, section 11.5).
+   */
+  List<String> chosenFlows(String scope) {
+    return wordings.chosen().get(scope);
+  }
+
+  /**
    * The system's purpose (ADR 0060) as rich text citing the facts that are in the snapshot, or
    * {@code null} if the LLM worded none or none of its citations is in the snapshot. A purpose that
    * cites no README claim is inferred from the code, through the units' sentences, and opens with

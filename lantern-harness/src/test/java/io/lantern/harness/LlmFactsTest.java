@@ -99,10 +99,11 @@ class LlmFactsTest {
   }
 
   @Test
-  void theVocabularyHoldsResponsibilityIntentAndSummary() {
+  void theVocabularyHoldsTheRolesTypes() {
     assertThat(LlmFacts.vocabulary())
         .extracting(VocabularyType::name)
-        .containsExactlyInAnyOrder("responsibility", "intent", "summary");
+        .containsExactlyInAnyOrder(
+            "responsibility", "intent", "summary", "flow-significance", "flow-narrative");
   }
 
   @Test

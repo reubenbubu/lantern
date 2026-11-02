@@ -26,13 +26,20 @@ import java.util.Set;
  *     count as evidence, as README claims do, when a responsibility sentence cites them (ADR 0069)
  * @param unsupported the elements, and {@code RepoSections.SYSTEM} for the purpose, whose sentence
  *     the support judge found a claim of supported by none of its cited facts (ADR 0101)
+ * @param chosen the flows the model judged significant for each scope it judged, in its order, by
+ *     flow ID: {@link #SYSTEM_SCOPE} for the system's documents, else a repository's name
+ *     (knowledge-build epic, section 11.5; ADR 0108); a scope it did not judge is absent
  */
 public record Wordings(
     Map<EntityId, String> responsibilities,
     Map<String, Phrase> phrases,
     Map<String, Flow> flows,
     Set<String> documented,
-    Set<EntityId> unsupported) {
+    Set<EntityId> unsupported,
+    Map<String, List<String>> chosen) {
+
+  /** The scope of the system's documents among {@link #chosen}. */
+  public static final String SYSTEM_SCOPE = "system";
 
   /** No wording: documents keep summaries as descriptions and static labels. */
   public static final Wordings NONE = new Wordings(Map.of(), Map.of());
@@ -43,6 +50,17 @@ public record Wordings(
     flows = Map.copyOf(flows);
     documented = Set.copyOf(documented);
     unsupported = Set.copyOf(unsupported);
+    chosen = Map.copyOf(chosen);
+  }
+
+  /** Wordings without the model's choice of flows. */
+  public Wordings(
+      Map<EntityId, String> responsibilities,
+      Map<String, Phrase> phrases,
+      Map<String, Flow> flows,
+      Set<String> documented,
+      Set<EntityId> unsupported) {
+    this(responsibilities, phrases, flows, documented, unsupported, Map.of());
   }
 
   /** Wordings whose sentences the support judge found all supported or did not check. */
@@ -56,7 +74,7 @@ public record Wordings(
 
   /** The same wordings, with the elements whose sentence the support judge found unsupported. */
   public Wordings withUnsupported(Set<EntityId> elements) {
-    return new Wordings(responsibilities, phrases, flows, documented, elements);
+    return new Wordings(responsibilities, phrases, flows, documented, elements, chosen);
   }
 
   /** Responsibility sentences, intent phrases and flows, citing no code with Javadoc. */

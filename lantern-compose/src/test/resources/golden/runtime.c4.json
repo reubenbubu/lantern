@@ -1551,7 +1551,16 @@
     "levels" : [ "L1", "L2" ],
     "entity" : "system:snapshot",
     "facts" : [ ],
-    "blocks" : [ ],
+    "blocks" : [ {
+      "kind" : "callout",
+      "id" : "sequences.by-rank",
+      "variant" : "note",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "These flows were chosen by rank, not judged: no model chose which of the traced flows are worth drawing, so the highest ranked are shown, at most 7."
+      } ],
+      "facts" : [ ]
+    } ],
     "sections" : [ {
       "id" : "sequences.shop-app.Controller.list",
       "title" : "List (GET /orders on shop-app)",

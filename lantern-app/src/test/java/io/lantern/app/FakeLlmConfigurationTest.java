@@ -32,13 +32,30 @@ class FakeLlmConfigurationTest {
         .isEqualTo("{\"items\": {\"I1\": {\"omitted\": true}}}");
     assertThat(answer(Role.INFER_INTENT, "[F1]")).isEqualTo("{}");
     assertThat(answer(Role.COMPOSE, "[F1]")).isEqualTo("{}");
+    // It judges no flow significant, so documents draw their highest ranked, and titles each flow
+    // it narrates, citing the item's first fact.
+    String flows =
+        "<items>\n<item id=\"I1\">\nIt starts when shop receives POST /orders.\n[F2] endpoint\n"
+            + "Its steps, in order:\n  - shop to db\n</item>\n</items>";
     assertThat(
-            answer(
-                Role.COMPOSE,
-                "The flow \"POST /orders on shop\".\nIt starts when shop receives POST /orders.\n"
-                    + "[F1] endpoint\n\nIts steps, in order:\n- shop to db\n"))
+            fake.complete(
+                    "fake-model",
+                    LlmRequest.of(
+                        Role.FLOW_SIGNIFICANCE,
+                        "test",
+                        "Task: choose the flows worth drawing. ...",
+                        flows,
+                        500))
+                .text())
+        .isEqualTo("{\"items\": {\"I1\": {\"omitted\": true}}}");
+    assertThat(
+            fake.complete(
+                    "fake-model",
+                    LlmRequest.of(Role.COMPOSE, "test", "Task: narrate flows. ...", flows, 500))
+                .text())
         .isEqualTo(
-            "{\"title\": {\"text\": \"{{placeholder: scenario title}}\", \"cites\": [\"F1\"]}}");
+            "{\"items\": {\"I1\": {\"title\": {\"text\": \"{{placeholder: scenario title}}\","
+                + " \"cites\": [\"F2\"]}}}}");
     assertThat(answer(Role.RESOLVE, "[K1]")).isEqualTo("Done.");
   }
 
