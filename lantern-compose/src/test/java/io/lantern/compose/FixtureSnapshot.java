@@ -174,10 +174,10 @@ record FixtureSnapshot(
               boolean summarize = request.system().contains("Task: summarise code units.");
               List<String> sentences = new ArrayList<>();
               if (prompt.contains("[S1]")) {
-                sentences.add(sentence(summarize, "It builds on its parts.", "S1"));
+                sentences.add(sentence(summarize, "Builds on its parts.", "S1"));
               }
               if (prompt.contains("[F1]")) {
-                sentences.add(sentence(summarize, "It is described by its facts.", "F1"));
+                sentences.add(sentence(summarize, "Described by its facts.", "F1"));
               }
               if (!summarize) {
                 return String.join(" ", sentences);

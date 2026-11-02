@@ -34,7 +34,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It builds on its parts."
+      "text" : "Builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "com.example.orders",
@@ -45,7 +45,7 @@
       "citation" : true
     }, {
       "kind" : "text",
-      "text" : " It is described by its facts."
+      "text" : " Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "84449a047e11a8a0d58c30f76f3527ddfc3134c4fc8f5134e16b813fc394be96" ]
@@ -64,7 +64,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It builds on its parts."
+      "text" : "Builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "Account",
@@ -75,7 +75,7 @@
       "citation" : true
     }, {
       "kind" : "text",
-      "text" : " It is described by its facts."
+      "text" : " Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "80abdd650814d977c8cebb12093a8768c47e5c8641fabda690a40e6a76179f68" ]
@@ -93,7 +93,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It builds on its parts."
+      "text" : "Builds on its parts."
     }, {
       "kind" : "ref",
       "text" : "orders",
@@ -104,7 +104,7 @@
       "citation" : true
     }, {
       "kind" : "text",
-      "text" : " It is described by its facts."
+      "text" : " Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02" ]
@@ -127,7 +127,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "6e2eba46bf2bc4d906407d725ee4bbd7cca9e7745796fa29db75d978a75b7e69" ]
@@ -146,7 +146,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "6c3628231e3e37dc05234a40998e78cdf3bc500022210ae9106948f020b27060" ]
@@ -165,7 +165,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "6ff11552aa3d429bc2fa1c6f238a277f2143963cd601ead60de67471b06eae32" ]
@@ -184,7 +184,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "6e9fd8a86b32d8c720cbc115d2c9b15874616965e8a19b7a0b9d015f0994cea4" ]
@@ -203,7 +203,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "33911893a4adb210ca0905619b17a92c5913f6eae5d531ad026e031ce514ca30" ]
@@ -222,7 +222,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "84973e68ae19ad51967c7852cc32a89cca47a90bf6d372722b58697cc57a7807" ]
@@ -241,7 +241,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "7f998e2738c1be39234aa04aa5b85e1cecee724d108462a6c0d327070cfe1c8c" ]
@@ -260,7 +260,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "c4ee80828ba795b5fac110aeed7ab3ad2c337b879d59d34418bf62d0e8447c6d" ]
@@ -279,7 +279,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "b75464b5b8c227ef1c83271d8032beed6d5425dc0bb67aa665766da9a2eb862d" ]
@@ -298,7 +298,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "It is described by its facts."
+      "text" : "Described by its facts."
     }, {
       "kind" : "citation",
       "facts" : [ "2dcede1ec551c5253adca53555baf897bc4c0cef2eca361d3c95c88dbee9f460" ]
@@ -1325,7 +1325,7 @@
         "text" : " "
       }, {
         "kind" : "text",
-        "text" : "It builds on its parts."
+        "text" : "Builds on its parts."
       }, {
         "kind" : "ref",
         "text" : "orders",
@@ -1336,7 +1336,7 @@
         "citation" : true
       }, {
         "kind" : "text",
-        "text" : " It is described by its facts."
+        "text" : " Described by its facts."
       }, {
         "kind" : "citation",
         "facts" : [ "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02" ]

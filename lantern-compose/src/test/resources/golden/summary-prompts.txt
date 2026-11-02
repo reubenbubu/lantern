@@ -61,7 +61,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] type Greeter in package com.example.greeting.lib: It is described by its facts.
+[S1] type Greeter in package com.example.greeting.lib: Described by its facts.
 </summaries>
 </item>
 </items>
@@ -80,7 +80,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] package com.example.greeting.lib: It builds on its parts. It is described by its facts.
+[S1] package com.example.greeting.lib: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -95,7 +95,7 @@ Of the units it contains, technology:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] Maven module greeting-lib: It builds on its parts. It is described by its facts.
+[S1] Maven module greeting-lib: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -141,7 +141,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] type GreetingServiceMain in package com.example.greeting.service: It is described by its facts.
+[S1] type GreetingServiceMain in package com.example.greeting.service: Described by its facts.
 </summaries>
 </item>
 </items>
@@ -163,7 +163,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] package com.example.greeting.service: It builds on its parts. It is described by its facts.
+[S1] package com.example.greeting.service: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -178,7 +178,7 @@ Of the units it contains, technology:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] Maven module greeting-service: It builds on its parts. It is described by its facts.
+[S1] Maven module greeting-service: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -545,16 +545,16 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] type Account in package com.example.orders: It is described by its facts.
-[S2] type Billing in package com.example.orders: It is described by its facts.
-[S3] type Customer in package com.example.orders: It is described by its facts.
-[S4] type Ledger in package com.example.orders: It is described by its facts.
-[S5] type Money in package com.example.orders: It is described by its facts.
-[S6] type Order in package com.example.orders: It is described by its facts.
-[S7] type OrderDto in package com.example.orders: It is described by its facts.
-[S8] type OrderLine in package com.example.orders: It is described by its facts.
-[S9] type OrderService in package com.example.orders: It is described by its facts.
-[S10] type Status in package com.example.orders: It is described by its facts.
+[S1] type Account in package com.example.orders: Described by its facts.
+[S2] type Billing in package com.example.orders: Described by its facts.
+[S3] type Customer in package com.example.orders: Described by its facts.
+[S4] type Ledger in package com.example.orders: Described by its facts.
+[S5] type Money in package com.example.orders: Described by its facts.
+[S6] type Order in package com.example.orders: Described by its facts.
+[S7] type OrderDto in package com.example.orders: Described by its facts.
+[S8] type OrderLine in package com.example.orders: Described by its facts.
+[S9] type OrderService in package com.example.orders: Described by its facts.
+[S10] type Status in package com.example.orders: Described by its facts.
 </summaries>
 </item>
 </items>
@@ -574,7 +574,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] package com.example.orders: It builds on its parts. It is described by its facts.
+[S1] package com.example.orders: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -589,7 +589,7 @@ Of the units it contains, technology:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] Maven module orders: It builds on its parts. It is described by its facts.
+[S1] Maven module orders: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -626,7 +626,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] type PriceService in package com.example.shop.api: It is described by its facts.
+[S1] type PriceService in package com.example.shop.api: Described by its facts.
 </summaries>
 </item>
 </items>
@@ -646,7 +646,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] package com.example.shop.api: It builds on its parts. It is described by its facts.
+[S1] package com.example.shop.api: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -697,7 +697,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] type FixedPriceService in package com.example.shop.core: It is described by its facts.
+[S1] type FixedPriceService in package com.example.shop.core: Described by its facts.
 </summaries>
 </item>
 </items>
@@ -718,7 +718,7 @@ Its facts:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] package com.example.shop.core: It builds on its parts. It is described by its facts.
+[S1] package com.example.shop.core: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -742,8 +742,8 @@ Of the units it contains, technology:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] Maven module shop-api: It builds on its parts. It is described by its facts.
-[S2] Maven module shop-core: It builds on its parts. It is described by its facts.
+[S1] Maven module shop-api: Builds on its parts. Described by its facts.
+[S2] Maven module shop-core: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
@@ -760,7 +760,7 @@ Of the units it contains, technology:
 </facts>
 Summaries of the units it contains:
 <summaries>
-[S1] Maven module shop-parent: It builds on its parts. It is described by its facts.
+[S1] Maven module shop-parent: Builds on its parts. Described by its facts.
 </summaries>
 </item>
 </items>
