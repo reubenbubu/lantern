@@ -192,6 +192,12 @@ class AnalysisConfiguration {
     return new AnalyzeCommand(run);
   }
 
+  @Bean
+  JudgeLabelsCommand judgeLabelsCommand(
+      LlmAccess llm, AnswerStore answers, LlmProperties llmProperties) {
+    return new JudgeLabelsCommand(llm, answers, llmProperties.runBudget(), System.out);
+  }
+
   private static Path absolute(Path path) {
     return path.toAbsolutePath().normalize();
   }

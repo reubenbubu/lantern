@@ -1,0 +1,1 @@
+{"type": "object", "required": ["reasoning", "verdict"], "additionalProperties": false, "properties": {"reasoning": {"type": "string", "maxLength": 400}, "verdict": {"enum": ["pass", "fail", "unknown"]}}}

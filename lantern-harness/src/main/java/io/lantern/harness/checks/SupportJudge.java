@@ -7,6 +7,7 @@ import io.lantern.harness.Item;
 import io.lantern.harness.Outcome;
 import io.lantern.harness.PacketRole;
 import io.lantern.harness.PromptLayout;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
@@ -35,26 +36,19 @@ public final class SupportJudge {
 
   /** The judge's role: the high-volume tier, another tier than the reasoning-tier Describe. */
   public static final RoleSpec ROLE =
-      RoleSpec.single("support-judge", Role.JUDGE, "1", "model-checks", RunMode.BULK, 300)
+      RoleSpec.single(
+              "support-judge",
+              Role.JUDGE,
+              Prompts.version(
+                  "1", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
+              "model-checks",
+              RunMode.BULK,
+              300)
           .withPacketSize(10);
 
-  static final String TASK =
-      """
-      Task: check support. Each item in <items> is a text another model wrote, with the inputs it \
-      cites. Split the text into its atomic claims, at most 6, each a short sentence that is true \
-      or false on its own. For each claim, answer "supported" when a cited input states or \
-      directly shows it, "partly" when a cited input shows part of it, or "unsupported" when no \
-      cited input shows it, and give the reference of the input that supports it, if any. Judge \
-      only against the cited inputs, not against what you know.""";
+  static final String TASK = Prompts.text("support-judge.task.txt");
 
-  static final String ITEM_SCHEMA =
-      """
-      {"type": "object", "required": ["claims"], "additionalProperties": false, \
-      "properties": {"claims": {"type": "array", "minItems": 1, "maxItems": 6, "items": {\
-      "type": "object", "required": ["claim", "verdict"], "additionalProperties": false, \
-      "properties": {"claim": {"type": "string", "maxLength": 200}, \
-      "verdict": {"enum": ["supported", "partly", "unsupported"]}, \
-      "by": {"type": "string"}}}}}}""";
+  static final String ITEM_SCHEMA = Prompts.text("support-judge.schema.json");
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final JsonNode SCHEMA = JSON.readTree(ITEM_SCHEMA);

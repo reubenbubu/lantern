@@ -10,11 +10,18 @@ PROJECT="${COMPOSE_PROJECT_NAME:-lantern}"
 usage() {
   cat <<EOF
 Usage: scripts/launch.sh [options] [--] [<name>=]<path>...
+       scripts/launch.sh [options] --judge-labels [-- <judge-labels option>...]
 
 Starts this project's PostgreSQL database (compose project "$PROJECT"), waits until it
 is healthy, builds the app jar if it is missing, and runs "analyze" on the given
 repositories as one named system (docs/adr/0071-named-systems.md). Stop the database
-afterwards with scripts/teardown.sh.
+afterwards with scripts/teardown.sh. With --judge-labels it instead judges the labelled
+wording texts in testsets/wording-labels/ with the wording judge's current prompts and prints
+how well the judge agrees with the labels (docs/adr/0113-prompts-folder.md); options after --
+go to that command: --split=tune|test|all (default tune) and --dimension=role|specific.
+
+Every run reads its prompts from this repository's prompts/ folder, so an edited prompt
+takes effect without a rebuild.
 
 Options:
   --llm-properties FILE     LLM settings (docs/adr/0009-llm-configuration.md). Required
@@ -32,6 +39,7 @@ Options:
   --rebuild                 Build the app jar even if one exists. An existing jar is not
                             rebuilt otherwise, so pass this after changing the code.
   --db-only                 Only start the database; do not build or analyze.
+  --judge-labels            Judge the labelled wording texts instead of analyzing.
   -y, --yes                 Do not ask before running analyze (a real model costs money).
                             Needed when not at a terminal.
   -h, --help                Show this help.
@@ -55,6 +63,7 @@ info() {
 }
 
 llm_file="${LANTERN_LLM_PROPERTIES:-}"
+command="analyze"
 mirror_file="${LANTERN_MIRROR_PROPERTIES:-}"
 auto_port=false
 system=""
@@ -102,6 +111,7 @@ while [[ $# -gt 0 ]]; do
     --auto-port) auto_port=true; shift ;;
     --rebuild) rebuild=true; shift ;;
     --db-only) db_only=true; shift ;;
+    --judge-labels) command="judge-labels"; shift ;;
     -y | --yes) assume_yes=true; shift ;;
     -h | --help) usage; exit 0 ;;
     --) shift; args+=("$@"); break ;;
@@ -121,14 +131,16 @@ check_properties_file() {
 }
 
 if ! $db_only; then
-  [[ ${#args[@]} -gt 0 ]] || die "no repositories to analyze given (see --help), or use --db-only"
+  if [[ "$command" == analyze ]]; then
+    [[ ${#args[@]} -gt 0 ]] || die "no repositories to analyze given (see --help), or use --db-only"
+  fi
   [[ -n "$llm_file" ]] || die "no LLM properties file; pass --llm-properties FILE or set LANTERN_LLM_PROPERTIES"
   llm_file="$(check_properties_file "LLM properties" "$llm_file")"
   if [[ -n "$mirror_file" ]]; then
     mirror_file="$(check_properties_file "Mirror properties" "$mirror_file")"
   fi
   if ! $assume_yes && [[ ! -t 0 ]]; then
-    die "pass --yes to run analyze when not at a terminal (a real model costs money)"
+    die "pass --yes to run $command when not at a terminal (a real model costs money)"
   fi
 fi
 
@@ -253,7 +265,11 @@ locations="file:$llm_file"
 info "LLM settings: $llm_file. A real model costs money; a fake one does not."
 if ! $assume_yes; then
   answer=""
-  read -r -p "Run analyze on ${#args[@]} repositor$([[ ${#args[@]} -eq 1 ]] && echo y || echo ies)? [y/N] " answer || true
+  if [[ "$command" == analyze ]]; then
+    read -r -p "Run analyze on ${#args[@]} repositor$([[ ${#args[@]} -eq 1 ]] && echo y || echo ies)? [y/N] " answer || true
+  else
+    read -r -p "Judge the labelled wording texts? [y/N] " answer || true
+  fi
   [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || die "cancelled"
 fi
 
@@ -264,5 +280,12 @@ info "documents go to $LANTERN_WORKSPACE/documents/<system>"
 options=()
 [[ -n "$system" ]] && options+=("--system=$system")
 $title_given && options+=("--title=$title")
+# The prompts of this repository, read at run time (docs/adr/0113-prompts-folder.md).
+app_options+=("--lantern.prompts.dir=$REPO/prompts")
+if [[ "$command" == judge-labels ]]; then
+  cd "$REPO"
+  exec java -jar "$jar" --spring.config.additional-location="$locations" \
+    "${app_options[@]}" judge-labels ${args[@]+"${args[@]}"}
+fi
 exec java -jar "$jar" --spring.config.additional-location="$locations" \
-  ${app_options[@]+"${app_options[@]}"} analyze ${options[@]+"${options[@]}"} "${args[@]}"
+  "${app_options[@]}" analyze ${options[@]+"${options[@]}"} "${args[@]}"

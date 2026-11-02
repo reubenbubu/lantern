@@ -166,6 +166,7 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
         return;
       }
       Map<String, Path> repos = repos(words.subList(1, words.size()));
+      LOG.info("{}", io.lantern.harness.Prompts.describe());
       AnalysisRun.Result result =
           run.run(system(option(args, SYSTEM), repos), option(args, TITLE), repos);
       report(result);

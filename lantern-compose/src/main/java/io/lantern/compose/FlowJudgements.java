@@ -13,6 +13,7 @@ import io.lantern.harness.LlmFacts;
 import io.lantern.harness.Outcome;
 import io.lantern.harness.PacketRole;
 import io.lantern.harness.PromptLayout;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
@@ -84,7 +85,11 @@ final class FlowJudgements {
       RoleSpec.single(
           "flow-significance",
           Role.FLOW_SIGNIFICANCE,
-          SIGNIFICANCE_VERSION,
+          Prompts.version(
+              SIGNIFICANCE_VERSION,
+              "common.system.txt",
+              "flow-significance.task.txt",
+              "flow-significance.schema.json"),
           "flows-and-purpose",
           RunMode.INTERACTIVE,
           1_500);
@@ -94,7 +99,11 @@ final class FlowJudgements {
       RoleSpec.single(
           "flow-narrative",
           Role.COMPOSE,
-          NARRATIVE_VERSION,
+          Prompts.version(
+              NARRATIVE_VERSION,
+              "common.system.txt",
+              "flow-narrative.task.txt",
+              "flow-narrative.schema.json"),
           "flows-and-purpose",
           RunMode.BULK,
           750);

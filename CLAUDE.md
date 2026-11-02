@@ -191,6 +191,7 @@ Every piece of information lives in exactly one place. Link to it; never copy it
 | Decisions made while building | `docs/adr/NNNN-title.md` |
 | Research behind a rule of the bar or the design: sources, options, trade-offs, test-set evidence | `docs/research/<topic>.md` |
 | Document templates and specifications | `report-specs/` (one folder per document: template, schema, sample data) |
+| The prompts every LLM role sends | `prompts/` (`docs/adr/0113-prompts-folder.md`) |
 | Build and test commands | The Commands section below; runs, scoring and test-set commands in `.claude/skills/lantern-commands/SKILL.md` |
 
 No running logs, plan files, TODO lists or notes outside these places. If two places disagree,

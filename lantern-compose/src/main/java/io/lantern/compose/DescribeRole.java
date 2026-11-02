@@ -7,6 +7,7 @@ import io.lantern.harness.Item;
 import io.lantern.harness.LlmFacts;
 import io.lantern.harness.PacketRole;
 import io.lantern.harness.PromptLayout;
+import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
 import io.lantern.harness.checks.SupportJudge;
@@ -17,10 +18,6 @@ import io.lantern.harness.verify.CheckedText;
 import io.lantern.harness.verify.ItemAnswer;
 import io.lantern.harness.verify.JsonSchema;
 import io.lantern.llm.Role;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -93,14 +90,27 @@ final class DescribeRole {
   /** The role that words units, their components and interactions. */
   static final RoleSpec UNITS =
       RoleSpec.single(
-          "describe-unit", Role.INFER_INTENT, UNIT_VERSION, "describe", RunMode.BULK, 1500);
+          "describe-unit",
+          Role.INFER_INTENT,
+          Prompts.version(
+              UNIT_VERSION,
+              "common.system.txt",
+              "describe-units.task.txt",
+              "describe-units.schema.json"),
+          "describe",
+          RunMode.BULK,
+          1500);
 
   /** The role that words data stores, destinations, external systems and people. */
   static final RoleSpec ELEMENTS =
       RoleSpec.single(
               "describe-element",
               Role.DESCRIBE_ELEMENTS,
-              ELEMENT_VERSION,
+              Prompts.version(
+                  ELEMENT_VERSION,
+                  "common.system.txt",
+                  "describe-elements.task.txt",
+                  "describe-elements.schema.json"),
               "describe",
               RunMode.BULK,
               120)
@@ -561,15 +571,7 @@ final class DescribeRole {
 
   /** Reads a prompt resource as written. */
   static String prompt(String name) {
-    String resource = "/prompts/" + name;
-    try (InputStream in = DescribeRole.class.getResourceAsStream(resource)) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource " + resource);
-      }
-      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-    } catch (IOException e) {
-      throw new UncheckedIOException("Cannot read " + resource, e);
-    }
+    return Prompts.text(name);
   }
 
   /** A fingerprint input of a fact. */

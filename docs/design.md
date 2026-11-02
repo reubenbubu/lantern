@@ -324,6 +324,8 @@ The LLM handles understanding that static analysis can't provide, and finds what
 
 **Models (Anthropic):** Claude Haiku for the bulk tier, the highest-volume work (type summaries and the injection screen; set to the high-volume model when left unset); Claude Sonnet for the high-volume roles (Summarize above types, Describe's elements, Name groups, Compose, Translate); Claude Opus for the reasoning-heavy ones (Resolve, Investigate, Describe's units, Flow significance, Infer intent, Propose rules). The models and budget of the real-model runs that accept Phase 2 are in ADR 0070.
 
+**Prompts** live in one folder, `prompts/` at the repository's root: each role's task, answer schema and closing, the common system prompt every role shares, and the wording and support judges' and the injection screen's tasks. A run reads them from there, so the owner tunes a prompt by editing its file, and the jar carries the same files as built-in copies for a run without the folder. A role's answers are keyed by its prompt version plus, when a file it uses differs from its built-in copy, a digest of that file, so an edit re-asks that role's items and nothing else. `judge-labels` judges the owner's labelled wording texts with the current judge prompts and prints its agreement with the labels, for tuning the judge without a full run (ADR 0113).
+
 **Provider interface**
 
 - A thin Java interface over the official Anthropic and OpenAI SDKs, with an OpenAI-compatible endpoint option for gateways. The roles send the same requests to either; the OpenAI provider maps cache hints to a stable prefix and `prompt_cache_key`, and both record usage in one form: uncached input, cache write (five-minute and one-hour, each at its own price), cache read, output (ADR 0102).
