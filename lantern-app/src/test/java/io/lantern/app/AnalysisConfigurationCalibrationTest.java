@@ -31,4 +31,29 @@ class AnalysisConfigurationCalibrationTest {
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("investigate-leads");
   }
+
+  @Test
+  void eachStepTakesItsItemsPerRequestFromItsProperty() {
+    java.util.Map<String, String> props =
+        java.util.Map.of(
+            "lantern.harness.items-per-request.investigate-leads", "1",
+            "lantern.harness.items-per-request.describe-element", " 10 ",
+            "lantern.harness.items-per-request.not-a-role", "3");
+    assertThat(AnalysisConfiguration.itemsPerRequest(props::get))
+        .containsExactly(
+            java.util.Map.entry("describe-element", 10),
+            java.util.Map.entry("investigate-leads", 1));
+    assertThat(AnalysisConfiguration.itemsPerRequest(key -> null)).isEmpty();
+    assertThatThrownBy(
+            () ->
+                AnalysisConfiguration.itemsPerRequest(
+                    java.util.Map.of("lantern.harness.items-per-request.resolve", "0")::get))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("at least 1");
+    assertThatThrownBy(
+            () ->
+                AnalysisConfiguration.itemsPerRequest(
+                    java.util.Map.of("lantern.harness.items-per-request.resolve", "x")::get))
+        .isInstanceOf(IllegalStateException.class);
+  }
 }

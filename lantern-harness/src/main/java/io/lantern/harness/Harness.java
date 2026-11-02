@@ -30,6 +30,7 @@ public final class Harness {
   private final List<RejectedAnswer> rejections = new ArrayList<>();
   private volatile int batchAbove = BATCH_ABOVE;
   private final Map<String, Calibration> calibrations = new LinkedHashMap<>();
+  private final Map<String, Integer> itemsPerRequest = new LinkedHashMap<>();
 
   /**
    * A role asked at another packet size for packet-size calibration (knowledge-build epic, section
@@ -117,6 +118,26 @@ public final class Harness {
     return this;
   }
 
+  /**
+   * Asks the named role at most the given number of items a request instead of its spec's size
+   * ({@code lantern.harness.items-per-request.<role>}; #529). Unlike a {@link Calibration} it does
+   * not change the role's fingerprints: an answer does not depend on its request's neighbours
+   * (knowledge-build epic, section 10), so the cache answers an item whatever size asked it. Set
+   * before the role starts.
+   */
+  public synchronized Harness itemsPerRequest(String role, int items) {
+    Objects.requireNonNull(role, "role");
+    if (items < 1) {
+      throw new IllegalArgumentException(
+          "A request holds at least one item: " + role + " " + items);
+    }
+    if (sessions.containsKey(role)) {
+      throw new IllegalStateException("The role " + role + " has already started");
+    }
+    itemsPerRequest.put(role, items);
+    return this;
+  }
+
   /** The calibration the role runs under, if any. */
   synchronized java.util.Optional<Calibration> calibration(String role) {
     return java.util.Optional.ofNullable(calibrations.get(role));
@@ -129,6 +150,10 @@ public final class Harness {
 
   /** The role's session in this run; asking again for a role gives the same session. */
   public synchronized RoleSession session(RoleSpec spec) {
+    Integer items = itemsPerRequest.get(spec.name());
+    if (items != null) {
+      spec = spec.withPacketSize(items);
+    }
     Calibration calibration = calibrations.get(spec.name());
     if (calibration != null) {
       spec = spec.withPacketSize(calibration.packetSize());

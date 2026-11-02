@@ -74,7 +74,8 @@ class AnalysisConfiguration {
       @Value("${lantern.workspace}") Path workspace,
       @Value("${lantern.judge.wording:false}") boolean judgeWording,
       @Value("${lantern.harness.calibrate:}") String calibrate,
-      @Value("${lantern.harness.calibration-trial:1}") String calibrationTrial) {
+      @Value("${lantern.harness.calibration-trial:1}") String calibrationTrial,
+      org.springframework.core.env.Environment environment) {
     return new AnalysisRun(
             registry,
             systems,
@@ -96,7 +97,36 @@ class AnalysisConfiguration {
             absolute(workspace).resolve("documents"))
         .batchingAbove(llmProperties.batchingAbove())
         .judgingWording(judgeWording)
-        .calibrating(calibrations(calibrate, calibrationTrial));
+        .calibrating(calibrations(calibrate, calibrationTrial))
+        .itemsPerRequest(itemsPerRequest(environment::getProperty));
+  }
+
+  /**
+   * The items a request of each role that asks several, from {@code
+   * lantern.harness.items-per-request.<role>} (#529, ADR 0112); a role without the property keeps
+   * its spec's size.
+   */
+  static java.util.Map<String, Integer> itemsPerRequest(
+      java.util.function.Function<String, String> properties) {
+    java.util.Map<String, Integer> sizes = new java.util.TreeMap<>();
+    for (String role : CALIBRATABLE) {
+      String key = "lantern.harness.items-per-request." + role;
+      String value = properties.apply(key);
+      if (value == null || value.isBlank()) {
+        continue;
+      }
+      int size;
+      try {
+        size = Integer.parseInt(value.strip());
+      } catch (NumberFormatException e) {
+        throw new IllegalStateException(key + " needs a whole number of items: " + value, e);
+      }
+      if (size < 1) {
+        throw new IllegalStateException(key + " must be at least 1: " + value);
+      }
+      sizes.put(role, size);
+    }
+    return sizes;
   }
 
   /**

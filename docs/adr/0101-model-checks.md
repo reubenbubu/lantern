@@ -1,6 +1,6 @@
 # 0101: Model checks: the support judge and the injection screen
 
-Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier)
+Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier), amended for #529 (the support judge asks five a request)
 
 ## Context
 
@@ -97,3 +97,20 @@ go-ahead for milestone 1E.
   none.
 - A document can now say that one of its sentences is not supported by its sources. A repository
   with text addressed to an AI shows it as a risk.
+
+## Amendment for #529: the support judge asks five texts a request
+
+Measured on DeepSeek V4.1 Flash on project-1 to project-4 (2026-11-02); how, the noise between two runs and what the recordings share are in ADR 0112, amendment for #529. Per-item scores 0 to 100; the bound is the one-sided 90% bootstrap lower bound of the mean difference against size 1, trial a. The support judge has no right answer, so its item score is the share of an item's claims judged supported, and only a difference or a change is measured.
+
+| Size | Mean difference | 90% two-sided interval | Items | Changed (limit 85%) | Worst set | Judge's cost, four sets | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1, trial b | 0.0 | −1.1 to +1.1 | 15 | 80% | −2.8 | $0.011 | the noise |
+| 5 | +1.4 | −3.1 to +6.1 | 15 | 73% | −3.3 | $0.006 | no difference shown |
+| 10 | +3.9 | +1.1 to +7.8 | 15 | 73% | 0.0 | $0.006 | judges more claims supported |
+| 20 | +5.0 | 0.0 to +10.0 | 6 | 100% | 0.0 | $0.002 (two sets cached) | fails on changed answers |
+
+Size 1 trial a cost $0.010.
+
+- Its "changed answers" compare the list of claims an item splits into, which differs between any two runs (80% between the two size-1 runs). The limit is that share plus 5 points: 85%. Size 20 changed all 6 of its items.
+- **Kept: 5 texts a request** (`lantern.harness.items-per-request.support-judge=5`). Sizes 5 and 10 both pass the epic's one-sided test, but with no right answer a higher score is not better: at 10 the judge calls more claims supported than at 1, and its interval excludes no change, so a larger request may make it laxer; the epic's section 10 now counts such a shift against a size. 5 is the largest size with no difference shown either way. Resampled around no difference, a size truly equal to 1 fails the −7 bound 0% of the time with these 15 items.
+- With 6 to 22 items the measurement is weak. To be measured again on a sample of more texts.

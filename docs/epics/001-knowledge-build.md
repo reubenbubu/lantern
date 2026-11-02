@@ -498,8 +498,10 @@ The research behind this split is in section 4.
   - the share of items whose answer changes against size 1 is at most that of the two size-1 runs plus 5 points;
   - no set drops by more than 14 points;
   - sizes pass in order: if 10 fails, 20 is not considered;
+  - for a role whose score has no right answer (the support judge scores the share it calls supported), a shift either way counts against a size: the two-sided 90% interval must include no change (#529, ADR 0101);
   - for roles that write prose (Describe, flow narratives), the middle positions of a size-20 packet are not more than 7 points worse than the first and last, or the size is capped below 20;
   - these limits rest on an assumed 10% of changed answers; the first recordings measure it, and the role's ADR records the limits used and how often they would reject a size truly equal to size 1.
+  - the kept size is a setting, `lantern.harness.items-per-request.<role>`, whose default is the measured value (#529, ADR 0112); changing it asks nothing again, since a size is not part of a fingerprint.
 - **Order.** Roles run as a DAG; roles at one step run in parallel:
   1. Resolve (inside linking)
   2. derivation

@@ -131,6 +131,7 @@ public final class AnalysisRun {
   private final RunBudget runBudget;
   private volatile int batchAbove = Harness.BATCH_ABOVE;
   private volatile Map<String, Harness.Calibration> calibrations = Map.of();
+  private volatile Map<String, Integer> itemsPerRequest = Map.of();
   private volatile boolean judgeWording;
   private final RuleRuns ruleRuns;
   private final ViewDefinitionStore views;
@@ -188,6 +189,15 @@ public final class AnalysisRun {
    */
   AnalysisRun calibrating(Map<String, Harness.Calibration> calibrations) {
     this.calibrations = Map.copyOf(calibrations);
+    return this;
+  }
+
+  /**
+   * How many items each named role asks a request ({@code
+   * lantern.harness.items-per-request.<role>}; #529, ADR 0112), instead of its spec's size.
+   */
+  AnalysisRun itemsPerRequest(Map<String, Integer> itemsPerRequest) {
+    this.itemsPerRequest = Map.copyOf(itemsPerRequest);
     return this;
   }
 
@@ -397,6 +407,7 @@ public final class AnalysisRun {
                   (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
                   Set.of())
               .batchingAbove(batchAbove);
+      itemsPerRequest.forEach(harness::itemsPerRequest);
       calibrations.forEach(harness::calibrating);
       calibrations.forEach(
           (role, c) ->

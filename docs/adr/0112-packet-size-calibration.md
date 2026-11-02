@@ -1,6 +1,6 @@
 # 0112: Packet-size calibration runs
 
-Status: accepted (#529)
+Status: accepted (#529), amended for #529 below (the recordings, and items per request as a setting)
 
 ## Context
 
@@ -38,5 +38,77 @@ answers.
 
 - The calibration costs only the calibrated roles' calls; everything else of a calibration run is
   cached.
-- The kept sizes, paired differences, intervals and costs go into each role's ADR from the
-  recordings (#529); this ADR records only how the runs are made.
+- Each role's kept size, with its paired differences, intervals and costs, is in that role's ADR;
+  what the recordings share is below.
+
+## Amendment for #529: the recordings, and items per request as a setting
+
+- **Where and on what.** On 2026-11-02, on project-1 to project-4, every role on DeepSeek V4.1 Flash
+  through DeepSeek's own Anthropic-compatible API: the Anthropic limits had been reached and the
+  owner chose DeepSeek, capped at $8. The kept sizes hold for that model. They are to be measured
+  again on Claude Haiku 5.5 while Haiku stays the default writer.
+- **Runs.** A run at the usual sizes, then each calibrated role at 1 (trials a and b), 5, 10 and 20
+  items a request, all four roles in each run. They cost $4.26 in all: the usual run $1.70, the
+  size-1 runs $0.64 and $0.61, size 5 $0.44, size 10 $0.43, size 20 $0.44 (stopped halfway by a
+  time limit once, and finished from the cache).
+- **Scores.** Per item, from the scorer (`score.mjs`, roles of the scorecard), 0 to 100:
+  Investigate's leads by each reference risk and decoy of the answer key; Describe's elements by
+  whether each was described; the support judge, which has no right answer, by the share of an
+  item's claims it judged supported. The analysis is the epic's (section 10): a one-sided 90%
+  bootstrap lower bound of the mean per-item difference against size 1, trial a, above −7; the
+  share of changed answers at most the two size-1 runs' plus 5 points; no set more than 14 points
+  down; sizes in order.
+- **Noise between two runs.** Investigate's leads changed verdict on 16% of 103 leads between the
+  two size-1 runs (the epic assumed 10%). Resampling those differences around zero, a size truly
+  equal to size 1 fails the −7 bound about 14% of the time with 77 scored items: one failure in
+  seven is noise.
+- **Results.**
+  - Investigate's leads: 1 item (ADR 0110).
+  - Describe's elements: 10 (ADR 0103).
+  - The support judge: 5 (ADR 0101).
+  - Resolve: 4, unmeasured, since no development set has an open link (ADR 0105).
+- **Also measured.**
+  - Every request after a role's first, and every turn after a conversation's first, read the
+    cache on all four sets.
+  - Replaying a recording made no call: size 5 on project-4 replayed with 0 calls. The usual run's
+    replay made one, for the purpose: it had been skipped when its budget share ran out, and a
+    budget skip is asked again.
+  - With the injection fixtures of ADR 0101 in a repository, the screen flagged all four and not the
+    clean file. No other role's output followed them: no claim of being secure or risk-free, no
+    password, and no file read outside the repository.
+  - The estimate printed on project-4 was $0.38 against $0.77 spent, outside the 25% #529 asked
+    for. It counts no thinking tokens and no conversation turns beyond the first; flow narratives
+    cost 3 times their estimate and unit investigations 8 times. That is #694.
+- **Items per request is a setting.** `lantern.harness.items-per-request.<role>` sets how many items
+  a role asks a request, for every role a calibration can name; `application.properties` holds the
+  kept sizes, and a role without the property keeps the size in its code. Unlike a calibration it
+  is not part of a fingerprint, since an answer does not depend on its request's neighbours
+  (epic, section 10): changing it asks nothing again.
+- **Follow-up runs, for the other issues that left their acceptance here.** Project-8 at the kept
+  sizes ($0.77); the four sets again from the cache, which filled project-4's purpose ($0.001); a
+  cached rerun and a one-file change on project-4; and a pass with Claude Sonnet 5.5 as the wording
+  judge on project-1 to project-4 and project-8, the writers read from the cache ($2.39). With the
+  calibration, $7.60 in all. The recordings are kept in `~/workspace/lantern-test-drops/1F/recordings-529/`.
+  - Harness gates (#667): the cached rerun made no call (about 30 s). The one-file change, one
+    Javadoc comment in Notification-Service's `EmailService`, made 89 calls ($0.17, about 7 min;
+    the fresh run made 550): flow significance changed for 29 flows that never reach that class.
+    The gate fails; #702.
+  - Flows (#272): found by trigger on project-1 3/6, project-2 5/6, project-3 4/7, project-4 5/6,
+    project-8 2/9; the flows row, which also needs two thirds of the participants, matches only
+    project-4 (5/6). The missing participants are mostly people, external systems and stores
+    (#704). Project-2 and project-4 draw flows of one shape more than once (#701).
+  - First paragraph (#274): on all five sets it states what the system is and one key fact, both
+    cited in the stored answer; the Sonnet judge passed four key facts and failed project-8's.
+  - Descriptions (#275): of 377 element descriptions on the five sets, none opens with a pronoun or
+    restates its kind; the Describe check rejected one restating text on project-8.
+  - Group names (#536): every group is named, with a responsibility and cited lines: project-4 5 of
+    5, project-8 17 of 17, for $0.003 on project-4.
+  - Investigate (#269): on project-4, 10 of 16 reference risks, precision 100% over the judged,
+    0 of 2 decoys flagged; $0.21 in the fresh run (210 turns, 5.9 million tokens), far below the
+    epic's estimate of most of $8, which assumed Anthropic prices.
+  - Resolve: project-8 has three open links; each answer was rejected for citing a file range it
+    read, which the prompt asks for and the check refuses (#703).
+  - Wording judge (#668): the label set, 60 texts per question, is drawn into
+    `testsets/wording-labels/` for the owner to label at the 1F test drop. Unvalidated raw pass
+    rates: says what it does for the system 96–100%; not true of any Spring application 73–93%.
+  - Project-8's other-profiles note repeats each difference twice (#705).
