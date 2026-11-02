@@ -12,10 +12,10 @@ Rules for every task:
 
 Task: summarise code units. Each item in <items> is one unit at the level it names (type, package, Maven module or repository), with its facts, its source code (for a type) and the summaries of the units it contains.
 For each item write a summary as a list of sentences, at most as many as the item asks for:
-- The first sentence says what the unit is for: the job it does for the system, in words a reader who does not know the code understands. Take this from what people wrote (a README claim, Javadoc in the code) when they wrote it; otherwise infer it from the code and the facts.
+- The first sentence says what the unit is for: the job it does for the system, in words a reader who does not know the code understands. It is shown on its own as the unit's description, so it must stand alone: open it with what the unit does, usually a verb ("Issues access tokens for signed-in users.", "Keeps each work order's SLA clock."). Never open with a pronoun (This, It, These, Its) or with what kind of part it is ("The service…", "A controller that…", "This class…"). Take this from what people wrote (a README claim, Javadoc in the code) when they wrote it; otherwise infer it from the code and the facts.
 - The following sentences say what it decides, owns or protects, which other parts it works with and how (calls it makes, messages it sends, data it reads or writes), and anything a maintainer must know (constraints, side effects, error handling).
 - Do not list members, restate names, or describe framework boilerplate. A sentence that would be true of any Spring class or module says nothing; leave it out.
-Every sentence cites the facts [F..], code excerpts [E..] or contained summaries [S..] it rests on.
+Every sentence cites the facts [F..], code excerpts [E..] or contained summaries [S..] it rests on. A citation is the bare reference, such as "F2" or "E1"; never add line numbers or other words to it.
 
 Answer schema:
 {"type": "object", "required": ["items"], "properties": {"items": {"type": "object", "additionalProperties": {
@@ -24,12 +24,17 @@ Answer schema:
     "type": "object", "required": ["text", "cites"],
     "properties": {"text": {"type": "string", "maxLength": 300},
                    "cites": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}}}}}}}
+Answer with the JSON object alone, keyed by the item IDs (I1, I2, …), for example:
+{"items": {"I1": {"sentences": [{"text": "Issues access tokens for signed-in users.", "cites": ["F2", "E1"]}]}}}
+Check that every bracket you open is closed once, and that nothing follows the object.
+Before you answer, check each item: the first sentence opens with what the unit does, not with This, It or the kind of part; each sentence has at most the words asked for; each citation is a bare reference from the item's input.
+Do not say how the unit is wired or built: not that it is a Spring bean or component, how its dependencies are injected, or which annotations it carries. Say what it does with them.
 
 ##### summarize type type:com.example.greeting.lib.Greeter
 <items>
 <item id="I1">
 Unit: type Greeter in package com.example.greeting.lib
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#<init>() (greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java)
@@ -54,7 +59,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: package com.example.greeting.lib
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] package:com.example.greeting:greeting-lib:com.example.greeting.lib CONTAINS type:com.example.greeting.lib.Greeter (greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java)
@@ -69,7 +74,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: Maven module greeting-lib
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] library:com.example.greeting:greeting-lib CONTAINS module:com.example.greeting:greeting-lib (greeting-lib:pom.xml)
@@ -88,7 +93,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: repository greeting-lib
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Of the units it contains, technology:
 <facts>
 [F1] module:com.example.greeting:greeting-lib java-release "21" (greeting-lib:pom.xml)
@@ -103,7 +108,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: type GreetingServiceMain in package com.example.greeting.service
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#<init>() (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
@@ -134,7 +139,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: package com.example.greeting.service
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] package:com.example.greeting:greeting-service:com.example.greeting.service CONTAINS type:com.example.greeting.service.GreetingServiceMain (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
@@ -149,7 +154,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: Maven module greeting-service
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] module:com.example.greeting:greeting-service BUILD_DEPENDS_ON module:com.example.greeting:greeting-lib {"scope":"compile","version":"1.0.0"} (greeting-service:pom.xml)
@@ -171,7 +176,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: repository greeting-service
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Of the units it contains, technology:
 <facts>
 [F1] module:com.example.greeting:greeting-service java-release "21" (greeting-service:pom.xml)
@@ -186,7 +191,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: type Account in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#balance (orders:src/main/java/com/example/orders/Account.java)
@@ -229,7 +234,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type Billing in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.Billing CONTAINS field:com.example.orders.Billing#currency (orders:src/main/java/com/example/orders/Billing.java)
@@ -263,7 +268,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type Customer in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.Customer CONTAINS field:com.example.orders.Customer#id (orders:src/main/java/com/example/orders/Customer.java)
@@ -297,7 +302,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type Ledger in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.Ledger CONTAINS field:com.example.orders.Ledger#name (orders:src/main/java/com/example/orders/Ledger.java)
@@ -330,7 +335,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type Money in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.Money CONTAINS field:com.example.orders.Money#cents (orders:src/main/java/com/example/orders/Money.java)
@@ -359,7 +364,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type Order in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#customer (orders:src/main/java/com/example/orders/Order.java)
@@ -393,7 +398,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type OrderDto in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.OrderDto CONTAINS field:com.example.orders.OrderDto#count (orders:src/main/java/com/example/orders/OrderDto.java)
@@ -423,7 +428,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type OrderLine in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#productId (orders:src/main/java/com/example/orders/OrderLine.java)
@@ -453,7 +458,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type OrderService in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.OrderService CONTAINS field:com.example.orders.OrderService#currency (orders:src/main/java/com/example/orders/OrderService.java)
@@ -497,7 +502,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: type Status in package com.example.orders
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.orders.Status CONTAINS field:com.example.orders.Status#CLOSED (orders:src/main/java/com/example/orders/Status.java)
@@ -529,7 +534,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: package com.example.orders
-Write 3 to 5 sentences of at most 35 words each.
+Write 3 to 5 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Account (orders:src/main/java/com/example/orders/Account.java)
@@ -562,7 +567,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: Maven module orders
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] library:com.example.orders:orders CONTAINS module:com.example.orders:orders (orders:pom.xml)
@@ -582,7 +587,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: repository orders
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Of the units it contains, technology:
 <facts>
 [F1] module:com.example.orders:orders java-release "21" (orders:pom.xml)
@@ -597,7 +602,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: type PriceService in package com.example.shop.api
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.shop.api.PriceService CONTAINS method:com.example.shop.api.PriceService#priceOf(java.lang.String) (shop:api/src/main/java/com/example/shop/api/PriceService.java)
@@ -619,7 +624,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: package com.example.shop.api
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] package:com.example.shop:shop-api:com.example.shop.api CONTAINS type:com.example.shop.api.PriceService (shop:api/src/main/java/com/example/shop/api/PriceService.java)
@@ -634,7 +639,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: Maven module shop-api
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api (shop:api/pom.xml)
@@ -654,7 +659,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: type FixedPriceService in package com.example.shop.core
-Write 2 to 4 sentences of at most 35 words each.
+Write 2 to 4 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] type:com.example.shop.core.FixedPriceService CONTAINS field:com.example.shop.core.FixedPriceService#cents (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
@@ -690,7 +695,7 @@ Its source code:
 <items>
 <item id="I1">
 Unit: package com.example.shop.core
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] package:com.example.shop:shop-core:com.example.shop.core CONTAINS type:com.example.shop.core.FixedPriceService (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
@@ -705,7 +710,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: Maven module shop-core
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Its facts:
 <facts>
 [F1] library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core (shop:core/pom.xml)
@@ -726,7 +731,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: Maven module shop-parent
-Write 3 to 6 sentences of at most 35 words each.
+Write 3 to 6 sentences of at most 30 words each.
 Its facts:
 <facts>
 [F1] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-api (shop:pom.xml)
@@ -751,7 +756,7 @@ Summaries of the units it contains:
 <items>
 <item id="I1">
 Unit: repository shop
-Write 1 to 3 sentences of at most 35 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
+Write 1 to 3 sentences of at most 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
 Of the units it contains, technology:
 <facts>
 [F1] module:com.example.shop:shop-api java-release "21" (shop:api/pom.xml)

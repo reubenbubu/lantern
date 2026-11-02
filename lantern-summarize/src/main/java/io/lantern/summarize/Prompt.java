@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "16";
+  static final String VERSION = "17";
 
   /** Block 2's instructions, as the epic writes them. */
   static final String TASK = resource("summarize.task.txt");
@@ -50,8 +50,15 @@ final class Prompt {
   /** What separates a role's instructions from its answer schema in block 2. */
   static final String SCHEMA_HEADING = "\n\nAnswer schema:\n";
 
-  /** Block 2: the role's instructions and answer schema. */
-  static final String ROLE = TASK + SCHEMA_HEADING + SCHEMA;
+  /**
+   * What follows the answer schema: an example of the answer, a checklist and what not to say,
+   * placed last as the prompt experiment of #685 tested them
+   * (docs/research/summary-prompt-rules.md).
+   */
+  static final String CLOSING = resource("summarize.closing.txt");
+
+  /** Block 2: the role's instructions, answer schema and closing. */
+  static final String ROLE = TASK + SCHEMA_HEADING + SCHEMA.stripTrailing() + "\n" + CLOSING;
 
   /** The whole system prompt, blocks 1 and 2, as a request sends it. */
   static final String SYSTEM = CommonPrompt.SYSTEM + "\n\n" + ROLE;
@@ -59,8 +66,14 @@ final class Prompt {
   /** The item's ID in the request: every request holds one unit. */
   static final String ITEM = "I1";
 
-  /** The most words of one sentence; the schema's 300 characters are its safety bound. */
+  /** The most words of one sentence the checks accept; the schema's 300 characters bound it too. */
   static final int SENTENCE_WORDS = 35;
+
+  /**
+   * The most words of one sentence the prompt asks for: fewer than the checks accept, unsaid, so a
+   * sentence a little over what was asked is not sent back (#685).
+   */
+  static final int ASKED_WORDS = 30;
 
   private static final Pattern MARKER = Pattern.compile("\\s*\\[(?:fact|summary):[^\\]\\s]+\\]");
 
@@ -183,7 +196,7 @@ final class Prompt {
         text.append("Write ")
             .append(SummaryLevel.ONE_PART_SENTENCES)
             .append(" sentences of at most ")
-            .append(SENTENCE_WORDS)
+            .append(ASKED_WORDS)
             .append(" words each. It contains only one unit [S1]: say what it adds to that unit,")
             .append(" such as its dependencies, and do not restate that unit's summary.\n");
       } else {
@@ -197,7 +210,7 @@ final class Prompt {
           .append(". Write ")
           .append(SummaryLevel.ONE_PART_SENTENCES)
           .append(" sentences of at most ")
-          .append(SENTENCE_WORDS)
+          .append(ASKED_WORDS)
           .append(" words each on what this part shows about it; the summaries of the parts are")
           .append(" merged later.\n");
     }
@@ -221,7 +234,7 @@ final class Prompt {
         + " to "
         + level.maxSentences()
         + " sentences of at most "
-        + SENTENCE_WORDS
+        + ASKED_WORDS
         + " words each";
   }
 

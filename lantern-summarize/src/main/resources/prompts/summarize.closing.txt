@@ -1,0 +1,5 @@
+Answer with the JSON object alone, keyed by the item IDs (I1, I2, …), for example:
+{"items": {"I1": {"sentences": [{"text": "Issues access tokens for signed-in users.", "cites": ["F2", "E1"]}]}}}
+Check that every bracket you open is closed once, and that nothing follows the object.
+Before you answer, check each item: the first sentence opens with what the unit does, not with This, It or the kind of part; each sentence has at most the words asked for; each citation is a bare reference from the item's input.
+Do not say how the unit is wired or built: not that it is a Spring bean or component, how its dependencies are injected, or which annotations it carries. Say what it does with them.

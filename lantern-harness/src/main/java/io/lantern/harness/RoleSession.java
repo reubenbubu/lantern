@@ -776,7 +776,10 @@ public final class RoleSession {
                       id,
                       "",
                       "Schema",
-                      "The answer is not one JSON object with an entry per item.")));
+                      "The answer is not one JSON object with an entry per item"
+                          + Optional.ofNullable(JsonFaults.of(first.text(), null))
+                              .map(f -> ": " + f + ".")
+                              .orElse("."))));
           continue;
         }
         JsonNode entry = entries.get().get(id);

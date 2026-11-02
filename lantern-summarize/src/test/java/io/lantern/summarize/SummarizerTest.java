@@ -1308,7 +1308,9 @@ class SummarizerTest {
     List<LlmMessage> retry = retried().messages();
     assertThat(retry).hasSize(1);
     assertThat(retry.getFirst().text())
-        .contains("Your answer is not one JSON object with an entry for I1 under \"items\".");
+        .contains(
+            "Your answer is not one JSON object with an entry for I1 under \"items\": the answer"
+                + " is empty.");
   }
 
   @Test

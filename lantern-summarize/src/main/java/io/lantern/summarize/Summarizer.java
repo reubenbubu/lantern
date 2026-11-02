@@ -1017,11 +1017,13 @@ public final class Summarizer {
       }
       JsonNode entry = entry(response.text());
       if (entry == null) {
+        String fault = io.lantern.harness.JsonFaults.of(response.text(), Prompt.ITEM);
         throw rejected(
             "",
             "Your answer is not one JSON object with an entry for "
                 + Prompt.ITEM
-                + " under \"items\".");
+                + " under \"items\""
+                + (fault == null ? "." : ": " + fault + "."));
       }
       CheckInputs checks = inputs.checks(allowed);
       // A sentence outside the schema, such as one that cites nothing, or past the count the item

@@ -932,15 +932,15 @@ Summaries are condensed knowledge of the code, which later roles read in place o
 
 Levels run bottom-up; items within a level run in parallel. A type too large for its packet's budget is summarised in parts and merged, as ADR 0024 specifies.
 
-**Role instructions** (block 2):
+**Role instructions** (block 2; amended by #685, `docs/research/summary-prompt-rules.md`):
 
 ```text
 Task: summarise code units. Each item in <items> is one unit at the level it names (type, package, Maven module or repository), with its facts, its source code (for a type) and the summaries of the units it contains.
 For each item write a summary as a list of sentences, at most as many as the item asks for:
-- The first sentence says what the unit is for: the job it does for the system, in words a reader who does not know the code understands. Take this from what people wrote (a README claim, Javadoc in the code) when they wrote it; otherwise infer it from the code and the facts.
+- The first sentence says what the unit is for: the job it does for the system, in words a reader who does not know the code understands. It is shown on its own as the unit's description, so it must stand alone: open it with what the unit does, usually a verb ("Issues access tokens for signed-in users.", "Keeps each work order's SLA clock."). Never open with a pronoun (This, It, These, Its) or with what kind of part it is ("The service…", "A controller that…", "This class…"). Take this from what people wrote (a README claim, Javadoc in the code) when they wrote it; otherwise infer it from the code and the facts.
 - The following sentences say what it decides, owns or protects, which other parts it works with and how (calls it makes, messages it sends, data it reads or writes), and anything a maintainer must know (constraints, side effects, error handling).
 - Do not list members, restate names, or describe framework boilerplate. A sentence that would be true of any Spring class or module says nothing; leave it out.
-Every sentence cites the facts [F..], code excerpts [E..] or contained summaries [S..] it rests on.
+Every sentence cites the facts [F..], code excerpts [E..] or contained summaries [S..] it rests on. A citation is the bare reference, such as "F2" or "E1"; never add line numbers or other words to it.
 ```
 
 **Answer schema:**
@@ -954,7 +954,18 @@ Every sentence cites the facts [F..], code excerpts [E..] or contained summaries
                    "cites": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}}}}}}}
 ```
 
+**After the answer schema** (#685):
+
+```text
+Answer with the JSON object alone, keyed by the item IDs (I1, I2, …), for example:
+{"items": {"I1": {"sentences": [{"text": "Issues access tokens for signed-in users.", "cites": ["F2", "E1"]}]}}}
+Check that every bracket you open is closed once, and that nothing follows the object.
+Before you answer, check each item: the first sentence opens with what the unit does, not with This, It or the kind of part; each sentence has at most the words asked for; each citation is a bare reference from the item's input.
+Do not say how the unit is wired or built: not that it is a Spring bean or component, how its dependencies are injected, or which annotations it carries. Say what it does with them.
+```
+
 - **Sentence counts per level.** Type 2 to 4, package 3 to 5, module and repository 3 to 6, and 1 to 3 for a unit with a single part. These are today's limits from `SummaryLevel`.
+- **Words per sentence.** The item asks for at most 30 words a sentence; the checks accept up to 35, unsaid, so a sentence a little over what was asked is not sent back (#685).
 - **Checks.** The shared pipeline runs per sentence. A sentence that fails is dropped without a repair turn, as ADR 0061 does today. A summary left with no sentences gets one repair turn.
 - **Stored.** A claim `(entity, summary, "<level>")`. Its observation holds the sentences with their resolved citations, `basis` for the first sentence, and a confidence from the share of sentences kept (ADR 0066). A reworded summary is a new observation of the same claim.
 
