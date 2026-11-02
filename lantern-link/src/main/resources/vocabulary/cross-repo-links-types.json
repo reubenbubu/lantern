@@ -1111,10 +1111,15 @@
   {
     "name": "display-name",
     "kind": "attribute",
-    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the one a deployment names, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words; a frontend takes the name of the compose service that builds it from its folder; an identity provider a deployment runs is named by its product (Keycloak).",
+    "description": "The name documents show for the subject, where its key does not read as one. A unit's own database (an embedded one, or one whose server or database is a placeholder no config resolves) gets its database name when written out, else the one a deployment names, else the unit's name and 'database'; a Redis data store is named Redis, with its server when the snapshot has several; a person is named in the code's words; a frontend takes the name of the compose service that builds it from its folder; an identity provider a deployment runs is named by its product (Keycloak). A group (ADR 0099) is named by the Name groups role (ADR 0107): of origin llm, the value is the document kind it is worded for, c4, and the name is the text attribute.",
     "attributeSchema": {
       "type": "object",
-      "properties": {},
+      "properties": {
+        "text": { "type": "string", "description": "For a group's name, the name, without citations." },
+        "cites": { "type": "array", "items": { "type": "string" }, "description": "For a group's name, the facts it cites." },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "For a group's name, as for a responsibility." },
+        "model": { "type": "string", "description": "For a group's name, the model that wrote it, as provider/model." }
+      },
       "additionalProperties": false
     }
   },

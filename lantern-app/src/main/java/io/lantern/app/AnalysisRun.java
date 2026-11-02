@@ -2,6 +2,7 @@ package io.lantern.app;
 
 import io.lantern.compose.Composer;
 import io.lantern.compose.Describer;
+import io.lantern.compose.NameGroups;
 import io.lantern.compose.ViewDefinition;
 import io.lantern.compose.ViewDefinitionStore;
 import io.lantern.core.analysis.AnalysisLock;
@@ -470,6 +471,16 @@ public final class AnalysisRun {
           storedTexts,
           described.unknown().size(),
           described.unknown());
+      // Name groups words each group the derive stage formed from what Describe wrote of its
+      // members, and stores its names, responsibilities and intents, and its merge suggestions as
+      // findings (knowledge-build epic, section 11.8; ADR 0107).
+      List<Fact> withTexts = new ArrayList<>(systemFacts);
+      llmFacts.values().forEach(withTexts::addAll);
+      NameGroups.Result named = new NameGroups(harness).name(withTexts, snapshot.number());
+      recordLlmFacts(snapshot, named.byOrigin());
+      if (!named.unknown().isEmpty()) {
+        LOG.info("Groups left unnamed: {}", named.unknown());
+      }
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
       List<Fact> screened = screen(harness, snapshot);

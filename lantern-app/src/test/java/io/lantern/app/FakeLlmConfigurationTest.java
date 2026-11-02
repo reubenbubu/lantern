@@ -92,6 +92,38 @@ class FakeLlmConfigurationTest {
   }
 
   @Test
+  void nameGroupsGetsAPlaceholderNameResponsibilityAndIntentForEveryGroup() {
+    String items =
+        """
+        <items>
+        <item id="I1">
+        Group group:system/domain/orders, a domain of the system
+        <facts>
+        [F1] group:system/domain/orders group-of "domain" (shop:pom.xml)
+        </facts>
+        Its lines to other groups and elements:
+        [R1] to the group group:system/domain/billing (CALLS_HTTP)
+        </item>
+        <item id="I2">
+        Group group:system/domain/empty, a domain of the system
+        </item>
+        </items>""";
+
+    assertThat(
+            fake.complete(
+                    "fake-model",
+                    LlmRequest.of(
+                        Role.NAME_GROUPS, "test", "Rules.\n\nTask: name groups. More.", items, 500))
+                .text())
+        .isEqualTo(
+            "{\"items\": {\"I1\": {\"name\": {\"text\": \"{{placeholder: group name}}\","
+                + " \"cites\": [\"F1\"]}, \"responsibility\": {\"text\":"
+                + " \"{{placeholder: group responsibility}}\", \"cites\": [\"F1\"]},"
+                + " \"lines\": {\"R1\": {\"text\": \"{{placeholder: intent}}\","
+                + " \"cites\": [\"F1\"]}}}, \"I2\": {\"omitted\": true}}}");
+  }
+
+  @Test
   void describeGetsAPlaceholderForEveryUnitComponentInteractionAndElement() {
     String units =
         """
