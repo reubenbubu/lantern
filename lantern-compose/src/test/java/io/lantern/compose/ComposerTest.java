@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Citation;
-import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Paragraph;
@@ -39,7 +38,10 @@ class ComposerTest {
 
   private Document compose(List<Fact> facts, Map<EntityId, Summary> summaries) {
     return new Composer("0.2.0")
-        .compose(ViewDefinition.perRepo("shop-doc", "shop", TEMPLATE), SNAPSHOT, facts, summaries);
+        .compose(
+            ViewDefinition.perRepo("shop-doc", "shop", TEMPLATE),
+            SNAPSHOT,
+            TestTexts.with(facts, summaries));
   }
 
   private static Section section(Document document, String id) {
@@ -107,7 +109,7 @@ class ComposerTest {
             TEMPLATE,
             List.of(SectionKind.STRUCTURE, SectionKind.CONTEXT));
 
-    Document document = new Composer("1").compose(view, SNAPSHOT, facts.list(), Map.of());
+    Document document = new Composer("1").compose(view, SNAPSHOT, facts.list());
 
     assertThat(document.audience()).isEqualTo("architect");
     assertThat(document.sections())
@@ -154,11 +156,10 @@ class ComposerTest {
   }
 
   @Test
-  void summariesBecomeNarrativeWithCitationsAndCrossReferences() {
+  void summariesBecomeNarrativeWithCitations() {
     Fact packaging = facts.find("module:com.example:app", "packaging");
     Fact contains = facts.find("service:com.example:app", "CONTAINS");
     EntityId module = EntityId.parse("repo:shop");
-    EntityId web = EntityId.parse("package:com.example:app:com.example.web");
     Summary summary =
         summary(
             module,
@@ -166,8 +167,8 @@ class ComposerTest {
                 + packaging.id()
                 + "] [fact:"
                 + contains.id()
-                + "] It holds the web layer.[summary:"
-                + web
+                + "] It holds the web layer. [fact:"
+                + contains.id()
                 + "]",
             List.of(packaging.id(), contains.id()));
 
@@ -179,7 +180,7 @@ class ComposerTest {
             TextRun.of("The app module."),
             new Citation(List.of(packaging.id(), contains.id())),
             TextRun.of(" It holds the web layer."),
-            new CrossReference("com.example.web", CrossReference.Target.entity(web), true));
+            new Citation(List.of(contains.id())));
     assertThat(paragraph.facts()).containsExactlyInAnyOrder(packaging.id(), contains.id());
     DocumentEntity entity =
         document.entities().stream().filter(e -> e.id().equals(module)).findFirst().orElseThrow();
@@ -210,66 +211,41 @@ class ComposerTest {
   }
 
   @Test
-  void summaryCitationsOpeningASummaryOrInARowAreMarkersWithoutSpaces() {
+  void aSentenceCitingAPartsSummaryCitesTheFactsThatSummaryCites() {
+    // The stored summary holds its citations resolved (knowledge-build epic, section 11.3).
     Fact packaging = facts.find("module:com.example:app", "packaging");
     EntityId module = EntityId.parse("repo:shop");
     EntityId web = EntityId.parse("package:com.example:app:com.example.web");
-    EntityId domain = EntityId.parse("package:com.example:app:com.example.domain");
+    Summary part =
+        summary(web, "The web layer. [fact:" + packaging.id() + "]", List.of(packaging.id()));
     Summary summary =
-        summary(
-            module,
-            "[summary:" + web + "] [summary:" + domain + "] It holds the web layer.",
-            List.of(packaging.id()));
+        summary(module, "It holds the web layer. [summary:" + web + "]", List.of(packaging.id()));
 
     Paragraph paragraph =
-        block(section(compose(facts.list(), Map.of(module, summary)), "overview"), Paragraph.class);
+        block(
+            section(compose(facts.list(), Map.of(module, summary, web, part)), "overview"),
+            Paragraph.class);
 
     assertThat(paragraph.content())
         .containsExactly(
-            new CrossReference("com.example.web", CrossReference.Target.entity(web), true),
-            new CrossReference("com.example.domain", CrossReference.Target.entity(domain), true),
-            TextRun.of("It holds the web layer."));
-  }
-
-  @Test
-  void aSummaryCitationBetweenFactCitationsSplitsThem() {
-    Fact packaging = facts.find("module:com.example:app", "packaging");
-    Fact contains = facts.find("service:com.example:app", "CONTAINS");
-    EntityId module = EntityId.parse("repo:shop");
-    EntityId web = EntityId.parse("package:com.example:app:com.example.web");
-    Summary summary =
-        summary(
-            module,
-            "The app module. [fact:"
-                + packaging.id()
-                + "] [summary:"
-                + web
-                + "] [fact:"
-                + contains.id()
-                + "] It runs.",
-            List.of(packaging.id(), contains.id()));
-
-    Paragraph paragraph =
-        block(section(compose(facts.list(), Map.of(module, summary)), "overview"), Paragraph.class);
-
-    assertThat(paragraph.content())
-        .containsExactly(
-            TextRun.of("The app module."),
-            new Citation(List.of(packaging.id())),
-            new CrossReference("com.example.web", CrossReference.Target.entity(web), true),
-            new Citation(List.of(contains.id())),
-            TextRun.of(" It runs."));
+            TextRun.of("It holds the web layer."), new Citation(List.of(packaging.id())));
   }
 
   @Test
   void refusesASummaryCitingAFactNotInTheSnapshot() {
-    EntityId module = EntityId.parse("module:com.example:app");
-    String missing = "f".repeat(64);
-    Summary summary = summary(module, "Text. [fact:" + missing + "]", List.of(missing));
+    Fact packaging = facts.find("module:com.example:app", "packaging");
+    EntityId module = EntityId.parse("repo:shop");
+    List<Fact> stored =
+        TestTexts.with(
+            facts.list(),
+            Map.of(
+                module,
+                summary(module, "Text. [fact:" + packaging.id() + "]", List.of(packaging.id()))));
+    List<Fact> without = stored.stream().filter(f -> !f.id().equals(packaging.id())).toList();
 
-    assertThatThrownBy(() -> compose(facts.list(), Map.of(module, summary)))
+    assertThatThrownBy(() -> compose(without, Map.of()))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining(missing);
+        .hasMessageContaining(packaging.id());
   }
 
   @Test
@@ -294,7 +270,7 @@ class ComposerTest {
   void refusesARepositoryNotInTheSnapshot() {
     ViewDefinition view = ViewDefinition.perRepo("v", "other", TEMPLATE);
 
-    assertThatThrownBy(() -> new Composer("1").compose(view, SNAPSHOT, facts.list(), Map.of()))
+    assertThatThrownBy(() -> new Composer("1").compose(view, SNAPSHOT, facts.list()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("other");
   }
@@ -374,8 +350,7 @@ class ComposerTest {
 
     Document document =
         new Composer("1")
-            .compose(
-                ViewDefinition.perRepo("e", "empty", TEMPLATE), snapshot, facts.list(), Map.of());
+            .compose(ViewDefinition.perRepo("e", "empty", TEMPLATE), snapshot, facts.list());
 
     assertThat(document.entities())
         .extracting(e -> e.id().toString())

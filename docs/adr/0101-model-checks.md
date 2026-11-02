@@ -114,3 +114,12 @@ Size 1 trial a cost $0.010.
 - Its "changed answers" compare the list of claims an item splits into, which differs between any two runs (80% between the two size-1 runs). The limit is that share plus 5 points: 85%. Size 20 changed all 6 of its items.
 - **Kept: 5 texts a request** (`lantern.harness.items-per-request.support-judge=5`). Sizes 5 and 10 both pass the epic's one-sided test, but with no right answer a higher score is not better: at 10 the judge calls more claims supported than at 1, and its interval excludes no change, so a larger request may make it laxer; the epic's section 10 now counts such a shift against a size. 5 is the largest size with no difference shown either way. Resampled around no difference, a size truly equal to 1 fails the −7 bound 0% of the time with these 15 items.
 - With 6 to 22 items the measurement is weak. To be measured again on a sample of more texts.
+
+## Amendment for #530: the verdict is stored on the text
+
+Documents now read only stored facts (knowledge-build epic, section 12), so the verdict is stored as
+the epic's section 11.7 says: a responsibility sentence or purpose the judge checked carries
+`support` (`supported`, `partly` or `unsupported`) on its observation, and its confidence is
+multiplied by 1, 0.8 or 0.5. A sentence the judge did not check has none. A document marks a
+sentence whose stored verdict is `unsupported` with "Not supported by its sources", as before. The
+claim list stays in the judge's cached answer.

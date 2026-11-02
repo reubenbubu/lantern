@@ -31,3 +31,12 @@ button in the Explorer's details panel and stood as a centred block on its own l
 - **A citation never wraps** (`white-space: nowrap`), and one of more than four facts shows the
   first three numbers and counts the rest (`[4, 9, 12 +11]`); its tooltip, and in the Explorer the
   details panel, still list every fact.
+
+## Amendment for #530: stored summaries cite facts
+
+Documents now read the summaries the store holds (knowledge-build epic, sections 11.3 and 12),
+whose sentences keep their citations resolved to facts: a sentence that cited a part's summary
+cites the facts that summary cites. A summary therefore no longer shows a cross-reference to the
+summary of a part, and an entity that only such a cross-reference brought into a document is no
+longer in it. Summaries are only a fallback description in the C4 report. The templates still
+render a summary citation (a cross-reference marked as a citation) where a document holds one.

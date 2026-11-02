@@ -4,6 +4,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Knowledge;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
@@ -121,7 +122,29 @@ public final class Describer {
       List<EntityId> skipped,
       List<LlmText> texts,
       List<String> unknown,
-      List<java.util.function.LongFunction<List<Fact>>> flowFacts) {
+      List<java.util.function.LongFunction<List<Fact>>> flowFacts,
+      Map<String, Verdict> verdicts) {
+
+    /**
+     * The support judge's verdict on a sentence it checked (ADR 0101), by the key it judged it
+     * under: the element's ID, a component's by its main type, or the system's for the purpose.
+     *
+     * @param text the sentence it judged, so only that text takes the verdict
+     */
+    public record Verdict(String text, io.lantern.harness.checks.SupportJudge.Support support) {}
+
+    /** A run's outcome without verdicts. */
+    public Result(
+        Wordings wordings,
+        int asked,
+        int reused,
+        List<EntityId> rejected,
+        List<EntityId> skipped,
+        List<LlmText> texts,
+        List<String> unknown,
+        List<java.util.function.LongFunction<List<Fact>>> flowFacts) {
+      this(wordings, asked, reused, rejected, skipped, texts, unknown, flowFacts, Map.of());
+    }
 
     /** A run's outcome without flow judgements. */
     public Result(
@@ -142,6 +165,7 @@ public final class Describer {
       texts = List.copyOf(texts);
       unknown = List.copyOf(unknown);
       flowFacts = List.copyOf(flowFacts);
+      verdicts = Map.copyOf(verdicts);
     }
 
     /** A run's outcome without stored texts, as before the roles stored claims. */
@@ -168,12 +192,30 @@ public final class Describer {
       for (LlmText text : texts) {
         Fact fact =
             DescribeRole.fact(text.described(), text.worded(), text.role(), text.model(), snapshot);
+        Verdict verdict = verdicts.get(judgedKey(text).toString());
+        if (fact.predicate().equals(io.lantern.harness.LlmFacts.RESPONSIBILITY)
+            && verdict != null
+            && verdict.text().equals(text.worded().text())) {
+          fact = io.lantern.harness.LlmFacts.withSupport(fact, verdict.support());
+        }
         if (unique.putIfAbsent(fact.id(), fact) == null) {
           byOrigin.get(io.lantern.harness.LlmFacts.origin(text.role())).add(fact);
         }
       }
       Map<String, Fact> flows = new LinkedHashMap<>();
-      flowFacts.forEach(f -> f.apply(snapshot).forEach(fact -> flows.putIfAbsent(fact.id(), fact)));
+      Verdict purpose = verdicts.get(RepoSections.SYSTEM.toString());
+      flowFacts.forEach(
+          f ->
+              f.apply(snapshot)
+                  .forEach(
+                      fact -> {
+                        if (purpose != null
+                            && fact.predicate().equals(io.lantern.harness.LlmFacts.PURPOSE)
+                            && purpose.text().equals(fact.attributes().path("text").asString(""))) {
+                          fact = io.lantern.harness.LlmFacts.withSupport(fact, purpose.support());
+                        }
+                        flows.putIfAbsent(fact.id(), fact);
+                      }));
       flows
           .values()
           .forEach(
@@ -183,23 +225,29 @@ public final class Describer {
   }
 
   /**
+   * The key a Describe text's responsibility sentence is judged under: its element, or a
+   * component's main type.
+   */
+  static EntityId judgedKey(LlmText text) {
+    String field = text.worded().field();
+    if (field.startsWith(DescribeRole.COMPONENTS + ".")) {
+      EntityId main =
+          text.described()
+              .componentMains()
+              .get(field.substring(DescribeRole.COMPONENTS.length() + 1));
+      if (main != null) {
+        return main;
+      }
+    }
+    return text.described().element();
+  }
+
+  /**
    * The facts without the responsibilities, intents, summaries, group names, flow judgements,
    * purpose and key fact the LLM roles wrote.
    */
   public static List<Fact> withoutTexts(Collection<Fact> facts) {
-    return facts.stream()
-        .filter(
-            f ->
-                f.origin().kind() != io.lantern.core.fact.Origin.Kind.LLM
-                    || !(f.predicate().equals(io.lantern.harness.LlmFacts.RESPONSIBILITY)
-                        || f.predicate().equals(io.lantern.harness.LlmFacts.INTENT)
-                        || f.predicate().equals(io.lantern.harness.LlmFacts.SUMMARY)
-                        || f.predicate().equals(NameGroups.DISPLAY_NAME)
-                        || f.predicate().equals(FlowJudgements.FLOW_SIGNIFICANCE)
-                        || f.predicate().equals(FlowJudgements.FLOW_NARRATIVE)
-                        || f.predicate().equals(PurposeRole.PURPOSE_PREDICATE)
-                        || f.predicate().equals(PurposeRole.KEY_FACT_PREDICATE)))
-        .toList();
+    return facts.stream().filter(f -> !io.lantern.harness.LlmFacts.isText(f)).toList();
   }
 
   /**
@@ -298,8 +346,9 @@ public final class Describer {
     // it is about, and the model would word from its own words.
     facts = withoutTexts(facts);
     repoFacts = withoutTexts(repoFacts);
-    Knowledge knowledge = new Knowledge(facts);
-    Assembler assembler = new Assembler(knowledge, Map.of(), Set.of(), null, "The system");
+    ArchitectureModel systemModel = new ArchitectureModel(facts);
+    Knowledge knowledge = systemModel.knowledge();
+    Assembler assembler = new Assembler(systemModel, Set.of(), null, "The system");
     C4Views c4 =
         new C4Views(knowledge, assembler, RepoSections.SYSTEM, C4Views.units(knowledge), Set.of());
     Set<Fact> alternatives = c4.alternativeLinks().keySet();
@@ -489,6 +538,14 @@ public final class Describer {
     LOG.info(
         "Support judge: {} sentences checked, {} unsupported", verdicts.size(), unsupported.size());
     tally.documented.forEach(documented::add);
+    Map<String, Result.Verdict> stored = new java.util.TreeMap<>();
+    tally.judgeable.forEach(
+        (element, text) -> {
+          SupportJudge.Support verdict = verdicts.get(text.key());
+          if (verdict != null) {
+            stored.put(element.toString(), new Result.Verdict(text.text(), verdict));
+          }
+        });
     return new Result(
         new Wordings(
             tally.responsibilities,
@@ -504,7 +561,8 @@ public final class Describer {
         tally.skipped,
         tally.texts,
         tally.unknown,
-        tally.flowFacts);
+        tally.flowFacts,
+        stored);
   }
 
   /** What the answers of a run add up to. */
@@ -678,8 +736,9 @@ public final class Describer {
             assembler,
             c4,
             C4Views.units(knowledge)));
-    Knowledge repoKnowledge = new Knowledge(repoFacts);
-    Assembler repoAssembler = new Assembler(repoKnowledge, Map.of(), Set.of(), null, "The system");
+    ArchitectureModel repoModel = new ArchitectureModel(repoFacts);
+    Knowledge repoKnowledge = repoModel.knowledge();
+    Assembler repoAssembler = new Assembler(repoModel, Set.of(), null, "The system");
     SortedSet<String> repos = new TreeSet<>();
     repoFacts.forEach(f -> repos.add(f.evidence().repo()));
     for (String repo : repos) {

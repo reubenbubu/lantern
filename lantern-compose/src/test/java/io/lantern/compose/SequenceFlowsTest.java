@@ -234,8 +234,7 @@ class SequenceFlowsTest {
         .compose(
             ViewDefinition.c4System("system:c4", "System", TEMPLATE),
             SNAPSHOT,
-            io.lantern.derive.Derivation.withModel(facts, 1),
-            Map.of());
+            io.lantern.derive.Derivation.withModel(facts, 1));
   }
 
   private Document repo(String repo) {
@@ -243,8 +242,7 @@ class SequenceFlowsTest {
         .compose(
             ViewDefinition.c4Report(repo + ".c4", repo, TEMPLATE),
             SNAPSHOT,
-            io.lantern.derive.Derivation.withModel(facts, 1),
-            Map.of());
+            io.lantern.derive.Derivation.withModel(facts, 1));
   }
 
   private static Section flows(Document document) {

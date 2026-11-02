@@ -83,3 +83,14 @@ milestone 1F.
   #529.
 - Supersedes ADR 0058 for how flows are narrated, and ADR 0047 for which flows a judged scope
   draws; the ranking of ADR 0047 stays the fallback and the order of the first pass.
+
+## Amendment for #530: documents read the stored judgements
+
+Documents read the stored claims instead of what the run kept in memory (knowledge-build epic,
+section 12). A scope draws the flows whose `flow-significance` claim for it is significant, in
+rank order; a scope with no such claim falls back to the ranking, as before. A flow shows the
+narrative stored for it, one per flow as section 11.5 says, while the narrative's `content` is the
+content hash of the flow's steps as they are; it is no longer looked up by the prompt that asked
+for it. The narrative stores what each of its texts cites in `fieldCites`, so each text keeps its
+own citations. Where one flow holds several narratives, the most confident is shown, the first by
+fact ID on a tie.

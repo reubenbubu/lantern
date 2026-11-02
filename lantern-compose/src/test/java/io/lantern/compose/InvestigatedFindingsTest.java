@@ -87,7 +87,7 @@ class InvestigatedFindingsTest {
   }
 
   private Document compose(ViewDefinition view) {
-    return new Composer("0.2.0").compose(view, SNAPSHOT, facts, Map.of());
+    return new Composer("0.2.0").compose(view, SNAPSHOT, facts);
   }
 
   private static Section section(Document document, String id) {

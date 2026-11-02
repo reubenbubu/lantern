@@ -12,7 +12,7 @@ import {
   search,
 } from '../src/explorer/model.ts';
 import type { Document, DocumentEntity, Section } from '../src/generated/document.ts';
-import { composerOutput, schemaFixture, systemOutput } from './fixtures.ts';
+import { composerOutput, schemaFixture, systemOutput, withSummaryCitations } from './fixtures.ts';
 
 function allSections(sections: Section[]): Section[] {
   return sections.flatMap((s) => [s, ...allSections(s.sections)]);
@@ -115,7 +115,8 @@ describe('search', () => {
   });
 
   test('does not match an entity by the names of the summaries it cites', () => {
-    const document = composerOutput();
+    const document = withSummaryCitations(composerOutput());
+    const index = buildSearchIndex(document);
     const citing = document.entities.flatMap((entity) =>
       (entity.description ?? []).flatMap((i) =>
         i.kind === 'ref' && i.citation && !`${entity.name} ${entity.id}`.includes(i.text) ? [{ entity, name: i.text }] : [],
@@ -188,7 +189,7 @@ describe('Explorer', () => {
       /<button type="button" class="citation-button" title="[^"]+">\[\d+(, \d+)*\]<\/button>/,
     );
     expect(html).toContain('<details open=""><summary>');
-    expect(html).toMatch(
+    expect(renderToStaticMarkup(<Explorer document={withSummaryCitations(document)} />)).toMatch(
       /<sup class="citation"><a href="#entity=[^"]+" class="entity-ref" title="Summary of [^"]+" aria-label="Summary of [^"]+">\[\u2197\]<\/a><\/sup>/,
     );
   });

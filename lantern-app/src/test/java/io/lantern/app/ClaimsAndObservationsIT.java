@@ -120,11 +120,7 @@ class ClaimsAndObservationsIT {
   private static String document(Snapshot snapshot, List<Fact> facts) {
     Document document =
         new Composer("1")
-            .compose(
-                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
-                snapshot,
-                facts,
-                Map.of());
+            .compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE), snapshot, facts);
     String json = DocumentJson.write(document);
     for (Map.Entry<String, String> commit : snapshot.commits().entrySet()) {
       json = json.replace(commit.getValue(), "<" + commit.getKey() + ">");

@@ -106,7 +106,7 @@ class ResolvedLinksTest {
 
   private static Document c4(List<Fact> facts) {
     return new Composer("1")
-        .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, facts, Map.of());
+        .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, facts);
   }
 
   private static Section section(Document document, String id) {
@@ -191,7 +191,7 @@ class ResolvedLinksTest {
   }
 
   private static String brief(ViewDefinition view, List<Fact> facts) {
-    return new Composer("1").compose(view, SNAPSHOT, facts, Map.of()).toString();
+    return new Composer("1").compose(view, SNAPSHOT, facts).toString();
   }
 
   @Test
@@ -207,8 +207,7 @@ class ResolvedLinksTest {
             List.of(UNRESOLVED)));
     Document document =
         new Composer("1")
-            .compose(
-                ViewDefinition.perRepo("shop", "shop", EXPLORER_REF), SNAPSHOT, facts, Map.of());
+            .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER_REF), SNAPSHOT, facts);
     String callouts = document.toString();
     assertThat(callouts).contains(CALL.id()).doesNotContain("could not link");
     Section quality = document.sections().getLast();

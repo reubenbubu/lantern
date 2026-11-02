@@ -3,7 +3,7 @@ import { describe, expect, test } from 'vitest';
 import { Brief, hashTarget } from '../src/brief/Brief.tsx';
 import { DocumentView } from '../src/DocumentView.tsx';
 import type { Callout, Section } from '../src/generated/document.ts';
-import { briefOutput, schemaFixture } from './fixtures.ts';
+import { briefOutput, schemaFixture, withSummaryCitations } from './fixtures.ts';
 
 function allSections(sections: Section[]): Section[] {
   return sections.flatMap((s) => [s, ...allSections(s.sections)]);
@@ -49,10 +49,12 @@ describe('the Executive Brief', () => {
   });
 
   test('leaves the summaries an overview cites out of its text, since the brief has no section to link to', () => {
+    const document = withSummaryCitations(briefOutput());
+    const html = renderToStaticMarkup(<Brief document={document} />);
     const overview = document.sections[0].blocks.find((b) => b.kind === 'paragraph')!;
     const cited = overview.kind === 'paragraph' ? overview.content.filter((i) => i.kind === 'ref' && i.citation) : [];
     expect(cited.length).toBeGreaterThan(0);
-    const paragraph = html.match(new RegExp(`<p id="${overview.id}">(.*?)</p>`))![1];
+    const paragraph = html.match(new RegExp(`<p id="${overview.id}">([\\s\\S]*?)</p>`))![1];
     const visible = paragraph.replace(/<[^>]+>/g, '');
     for (const ref of cited) {
       expect(ref.kind === 'ref' && !document.sections.some((s) => s.entity === ref.target.id)).toBe(true);

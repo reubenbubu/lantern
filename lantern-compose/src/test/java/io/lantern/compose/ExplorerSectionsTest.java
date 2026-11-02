@@ -125,7 +125,7 @@ class ExplorerSectionsTest {
 
   private static Document explorer(List<Fact> facts) {
     return new Composer("1")
-        .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER), SNAPSHOT, facts, Map.of());
+        .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER), SNAPSHOT, facts);
   }
 
   private static Section section(Document document, String id) {

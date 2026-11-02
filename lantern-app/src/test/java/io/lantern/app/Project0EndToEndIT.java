@@ -318,6 +318,18 @@ class Project0EndToEndIT {
     }
 
     AnalysisRun.Rendered system = second.documents().getLast();
+    // Knowledge is complete before composition (knowledge-build epic, section 12): composing the
+    // stored facts alone, after the run, gives the report the run wrote.
+    Document written = system.document();
+    Document recomposed =
+        new io.lantern.compose.Composer(written.source().toolVersion())
+            .compose(
+                io.lantern.compose.ViewDefinition.c4System(
+                    written.id(), written.title(), written.template()),
+                second.snapshot(),
+                facts.findValidAt(second.snapshot().number(), commits.keySet()),
+                written.title());
+    assertThat(DocumentJson.write(recomposed)).isEqualTo(DocumentJson.write(written));
     checkSystemReport(system.document());
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));

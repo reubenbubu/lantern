@@ -94,7 +94,7 @@ public final class NameGroups {
   static final String SCHEMA = DescribeRole.prompt("name-groups.schema.json");
 
   /** The display name of a group: {@code (group, display-name, "c4")}. */
-  public static final String DISPLAY_NAME = "display-name";
+  public static final String DISPLAY_NAME = LlmFacts.DISPLAY_NAME;
 
   /** The kind of finding a merge suggestion is. */
   public static final String GROUP_MERGE = "group-merge";
@@ -183,7 +183,8 @@ public final class NameGroups {
    */
   public Result name(Collection<Fact> facts, long snapshot) {
     Knowledge knowledge = new Knowledge(facts);
-    Assembler assembler = new Assembler(knowledge, Map.of(), Set.of(), null, "The system");
+    Assembler assembler =
+        new Assembler(new io.lantern.derive.ArchitectureModel(facts), Set.of(), null, "The system");
     Map<EntityId, Fact> responsibilities = new HashMap<>();
     Map<String, Fact> intents = new HashMap<>();
     for (Fact fact : facts) {

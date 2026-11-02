@@ -544,9 +544,14 @@ public final class AnalysisRun {
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
       List<Fact> screened = screen(harness, snapshot);
+      // Knowledge is complete before composition (knowledge-build epic, section 12): the documents
+      // are composed from what the store holds now, the roles' texts included, and from nothing
+      // the run kept in memory.
+      List<Fact> complete = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
       List<Fact> composed = new ArrayList<>(extracted);
       composed.addAll(screened);
       composed.addAll(investigated.facts());
+      complete.stream().filter(io.lantern.harness.LlmFacts::isText).forEach(composed::add);
 
       String systemTitle =
           systems
@@ -562,14 +567,7 @@ public final class AnalysisRun {
       Path out = documentsDirectory.resolve(system).resolve(Long.toString(snapshot.number()));
       for (String name : registered.keySet()) {
         for (ViewDefinition view : views(name)) {
-          Document document =
-              composer.compose(
-                  view,
-                  snapshot,
-                  composed,
-                  summarized.summaries(),
-                  described.wordings(),
-                  systemTitle);
+          Document document = composer.compose(view, snapshot, composed, systemTitle);
           documents.add(new Rendered(document, write(out, view.id(), document)));
         }
       }
@@ -584,14 +582,7 @@ public final class AnalysisRun {
               storedView.audience(),
               storedView.template(),
               storedView.sections());
-      Document document =
-          composer.compose(
-              systemView,
-              snapshot,
-              systemFacts,
-              summarized.summaries(),
-              described.wordings(),
-              systemTitle);
+      Document document = composer.compose(systemView, snapshot, complete, systemTitle);
       documents.add(new Rendered(document, write(out, systemView.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
       // Every fact of origin llm that holds in the snapshot, which the scorer's rows per role read

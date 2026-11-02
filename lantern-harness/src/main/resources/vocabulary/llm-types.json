@@ -9,6 +9,7 @@
         "text": { "type": "string", "description": "The sentence, without citations." },
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "evidenced when it cites what people wrote: a README or document claim, Javadoc in a cited excerpt, or an evidenced summary; else inferred." },
+        "support": { "type": "string", "enum": ["supported", "partly", "unsupported"], "description": "The support judge's verdict on the text against its cited inputs, when it checked it (knowledge-build epic, section 11.7; ADR 0101): its confidence was multiplied by 1, 0.8 or 0.5." },
         "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
       },
       "required": ["text", "basis"],
@@ -89,6 +90,7 @@
         "preconditions": { "type": "string", "description": "What must hold before it starts." },
         "postconditions": { "type": "string", "description": "What holds after it ends." },
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts its texts cite." },
+        "fieldCites": { "type": "object", "description": "The facts each of walkthrough, preconditions and postconditions cites: an array of fact IDs by field." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "As for a responsibility." },
         "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
         "content": { "type": "string", "description": "The content hash of the flow's steps the narrative holds for." }
@@ -108,6 +110,7 @@
         "text": { "type": "string", "description": "The sentence, without citations." },
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites, an earlier answer standing for the facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "evidenced when it cites a README claim; else inferred (ADR 0060)." },
+        "support": { "type": "string", "enum": ["supported", "partly", "unsupported"], "description": "The support judge's verdict on the text against its cited inputs, when it checked it (knowledge-build epic, section 11.7; ADR 0101): its confidence was multiplied by 1, 0.8 or 0.5." },
         "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
       },
       "required": ["text", "basis"],

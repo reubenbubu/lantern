@@ -49,8 +49,7 @@ class C4ViewsTest {
         .compose(
             ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
             SNAPSHOT,
-            Derivation.withModel(facts, 1),
-            Map.of());
+            Derivation.withModel(facts, 1));
   }
 
   private Document system(List<Fact> facts) {
@@ -58,8 +57,7 @@ class C4ViewsTest {
         .compose(
             ViewDefinition.c4System("system:c4", "System", TEMPLATE),
             SNAPSHOT,
-            Derivation.withModel(facts, 1),
-            Map.of());
+            Derivation.withModel(facts, 1));
   }
 
   private static Section section(Document document, String id) {
@@ -203,8 +201,7 @@ class C4ViewsTest {
                             .compose(
                                 ViewDefinition.c4Report("base.c4", "base", TEMPLATE),
                                 SNAPSHOT,
-                                withPeople.list(),
-                                Map.of()),
+                                withPeople.list()),
                         "context"),
                     Diagram.class)))
         .noneMatch(n -> n.startsWith("person:"));
@@ -636,8 +633,7 @@ class C4ViewsTest {
             .compose(
                 ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
                 SNAPSHOT,
-                facts.list(),
-                summaries);
+                TestTexts.with(facts.list(), summaries));
 
     DocumentEntity app =
         document.entities().stream()
@@ -672,8 +668,7 @@ class C4ViewsTest {
             .compose(
                 ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
                 SNAPSHOT,
-                facts.list(),
-                summaries);
+                TestTexts.with(facts.list(), summaries));
 
     DocumentEntity app =
         document.entities().stream()

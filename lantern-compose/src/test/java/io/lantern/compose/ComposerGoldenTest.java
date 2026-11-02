@@ -56,7 +56,9 @@ class ComposerGoldenTest {
   private static Document compose(String repo, List<Fact> facts, Map<EntityId, Summary> summaries) {
     return new Composer("0.1.0-test")
         .compose(
-            ViewDefinition.perRepo(repo, repo, TEMPLATE), fixtures.snapshot(), facts, summaries);
+            ViewDefinition.perRepo(repo, repo, TEMPLATE),
+            fixtures.snapshot(),
+            TestTexts.with(facts, summaries));
   }
 
   @ParameterizedTest
@@ -73,8 +75,7 @@ class ComposerGoldenTest {
             .compose(
                 ViewDefinition.executiveBrief(repo + ".brief", repo, BRIEF),
                 fixtures.snapshot(),
-                fixtures.facts(),
-                fixtures.summaries());
+                TestTexts.with(fixtures.facts(), fixtures.summaries()));
     assertMatchesGolden(document, repo + ".brief.json");
   }
 
@@ -98,8 +99,7 @@ class ComposerGoldenTest {
                 ViewDefinition.c4System(
                     "system:c4", "System", new TemplateRef("c4-model-sequence-diagrams", "1")),
                 snapshot,
-                TestFacts.runtimeWithContradictedClaim(),
-                Map.of());
+                TestFacts.runtimeWithContradictedClaim());
     assertMatchesGolden(document, "runtime.c4.json");
   }
 
