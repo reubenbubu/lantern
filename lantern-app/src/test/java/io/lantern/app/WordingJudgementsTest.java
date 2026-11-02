@@ -45,7 +45,8 @@ class WordingJudgementsTest {
             fact("group:orders/a", "display-name", "name-groups", "Ordering"),
             fact("group:orders/a", "responsibility", "name-groups", "Places orders."),
             fact("lead:x/y", "lead-verdict", "investigate-leads", "Confirmed."),
-            fact("service:billing", "responsibility", "describe-unit", "  "));
+            fact("service:billing", "responsibility", "describe-unit", "  "),
+            fact("group:orders/a", "intent", "name-groups", "asks for payment"));
 
     List<WordingJudgements.Judged> texts = WordingJudgements.texts(facts);
 
@@ -79,6 +80,8 @@ class WordingJudgementsTest {
         WordingJudgements.line(judged, WordingJudge.Dimension.SPECIFIC, null, "openai/judge");
     ObjectNode skipped =
         WordingJudgements.line(tooLong, WordingJudge.Dimension.ROLE, null, "openai/judge");
+    ObjectNode own =
+        WordingJudgements.sameModel(judged, WordingJudge.Dimension.ROLE, "anthropic/writer");
 
     assertThat(passed.path("state").asString()).isEqualTo("judged");
     assertThat(passed.path("verdict").asString()).isEqualTo("pass");
@@ -90,5 +93,8 @@ class WordingJudgementsTest {
     assertThat(missing.path("state").asString()).isEqualTo("notAnswered");
     assertThat(missing.has("verdict")).isFalse();
     assertThat(skipped.path("state").asString()).isEqualTo("tooLong");
+    assertThat(WordingJudgements.byJudge(judged, "anthropic/writer")).isTrue();
+    assertThat(WordingJudgements.byJudge(judged, "openai/judge")).isFalse();
+    assertThat(own.path("state").asString()).isEqualTo("sameModel");
   }
 }

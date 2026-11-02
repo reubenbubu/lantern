@@ -32,6 +32,8 @@ final class WordingJudgements {
   static final String FILE = "wording.jsonl.gz";
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
+  private static final org.slf4j.Logger LOG =
+      org.slf4j.LoggerFactory.getLogger(WordingJudgements.class);
 
   /** A text the judge grades, with the fact it comes from. */
   record Judged(Fact fact, WordingJudge.Text text) {}
@@ -67,7 +69,11 @@ final class WordingJudgements {
               type.equals("group")
                   ? "responsibility of a group of components"
                   : "responsibility of a " + type.replace('-', ' '));
-      case "intent" -> Optional.of("intent of a line drawn from a " + type.replace('-', ' '));
+      // Name groups' line intents are in no judged row: only Describe's intents are judged.
+      case "intent" ->
+          fact.origin().name().equals("name-groups")
+              ? Optional.empty()
+              : Optional.of("intent of a line drawn from a " + type.replace('-', ' '));
       case "key-fact" -> Optional.of("the most important fact about the system");
       case "display-name" -> Optional.of("name of a group of components");
       default -> Optional.empty();
@@ -88,7 +94,17 @@ final class WordingJudgements {
   static Path judgeAndWrite(Harness harness, List<Fact> llmFacts, String judge, Path directory) {
     List<Judged> texts = texts(llmFacts);
     WordingJudge wordingJudge = new WordingJudge(harness);
-    List<WordingJudge.Text> plain = texts.stream().map(Judged::text).toList();
+    // A text the judge's own model wrote is not asked: the judge must not grade its own model.
+    List<WordingJudge.Text> plain =
+        texts.stream().filter(t -> !byJudge(t, judge)).map(Judged::text).toList();
+    if (plain.size() < texts.size()) {
+      LOG.warn(
+          "The wording judge's model {} wrote {} of the {} texts; they are not judged. Serve"
+              + " lantern.llm.roles.wording-judge with a model no writing role uses.",
+          judge,
+          texts.size() - plain.size(),
+          texts.size());
+    }
     Map<WordingJudge.Dimension, Map<String, WordingJudge.Verdict>> verdicts = new LinkedHashMap<>();
     for (WordingJudge.Dimension dimension : WordingJudge.Dimension.values()) {
       verdicts.put(dimension, wordingJudge.judge(dimension, plain));
@@ -96,10 +112,25 @@ final class WordingJudgements {
     List<ObjectNode> lines = new ArrayList<>();
     for (Judged judged : texts) {
       for (WordingJudge.Dimension dimension : WordingJudge.Dimension.values()) {
-        lines.add(line(judged, dimension, verdicts.get(dimension).get(judged.fact().id()), judge));
+        lines.add(
+            byJudge(judged, judge)
+                ? sameModel(judged, dimension, judge)
+                : line(judged, dimension, verdicts.get(dimension).get(judged.fact().id()), judge));
       }
     }
     return write(directory, lines);
+  }
+
+  /** Whether the judge's model wrote the text. */
+  static boolean byJudge(Judged judged, String judge) {
+    return judge.equals(judged.fact().attributes().path("model").asString(""));
+  }
+
+  /** The line of a text the judge's own model wrote: not judged. */
+  static ObjectNode sameModel(Judged judged, WordingJudge.Dimension dimension, String judge) {
+    ObjectNode line = line(judged, dimension, null, judge);
+    line.put("state", "sameModel");
+    return line;
   }
 
   /** One text's line for one dimension. */

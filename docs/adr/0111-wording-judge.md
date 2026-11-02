@@ -38,29 +38,45 @@ already checks whether a text's citations support it; that stays its job.
 - **A model of its own.** `WORDING_JUDGE` joins the configurable roles on the reasoning tier, in
   the `model-checks` share of the run budget. The writers span the reasoning and high-volume tiers,
   so no tier differs from all of them: a run that judges sets
-  `lantern.llm.roles.wording-judge` to a model no writing role uses. The scorecard counts a text
-  whose writer is the judge's model apart and does not score it.
+  `lantern.llm.roles.wording-judge` to a model no writing role uses. A text whose writer is the
+  judge's model is not asked at all (no spend), is written with the state `sameModel`, and is
+  counted apart by the scorecard; the run logs a warning naming how many there were.
+- **Only texts a row reads.** Name groups' line intents are in no judged row, so they are not
+  judged. A run that does not judge deletes an earlier run's `wording.jsonl.gz` in the snapshot's
+  folder, and `score-testsets.sh` copies the file only from a run that judged, so a scorecard never
+  reads another run's verdicts.
 - **Validation by the owner's labels.** The label set lives in `testsets/wording-labels/`, one
   pair of files per dimension:
   - `<dimension>.json`, the texts for the owner to label, in an order that does not show the
     judge's verdicts and without them;
-  - `<dimension>.judge.json`, the judge and prompt version that judged them and its verdicts.
+  - `<dimension>.judge.json`, the judge and prompt version that judged them, its verdicts, the
+    stratum each text was drawn from (the verdict when drawn) and how many texts each stratum
+    held. The owner labels without opening it.
   - `node lantern-web/scripts/wording.mjs draw <scores folder>` draws them from a scored run's
     sets: 60 texts per dimension, half the judge passed and half it failed (the other class fills
     in where one is short), taken in turn over set and role, each text once; a third of each class
-    to tune the prompt, the rest held out.
+    to tune the prompt, the rest held out. It refuses to replace a file that holds the owner's
+    labels unless given `--force`.
+  - The draw balances the judge's verdicts, not the owner's classes: drawing by verdict is what
+    gives the owner enough of each class to label when one class is rare. A sample drawn by the
+    judge's verdict reads TPR and TNR wrong if read as random (a good judge on a set where 90% of
+    texts pass would read TPR 0.66), so each held-out label is weighted by its stratum's size over
+    the held-out labels drawn from that stratum (inverse inclusion probability), and the interval
+    resamples within each stratum. Only texts the judge passed or failed are drawn, so its
+    "unknown" exit is not validated by the labels; on a re-judged labelled text it counts as wrong.
 - **The judged rows.** For Describe, Name groups and Purpose (the key fact), per dimension, the
   scorecard shows the counts (pass, fail, unknown, not answered, too long, by the judge's own
   model), the mean length and the raw pass rate p. The row says "not validated" until the
   held-out labels hold at least 10 of each class, judged by the same judge and prompt version as
-  the run, with TPR and TNR both at least 0.8. Validated, it reports θ = (p + TNR − 1) /
+  the run, with weighted TPR and TNR both at least 0.8. Validated, it reports θ = (p + TNR − 1) /
   (TPR + TNR − 1), clamped to [0, 1], with a 95% bootstrap interval that resamples the run's
   verdicts and both classes of labels, so the labels' uncertainty is in it. An unknown verdict on
   a labelled text counts as the judge being wrong; on a run's text it is counted apart from p.
 - **What waits for the recordings.** The first label set is drawn from the first recorded run that
   judges wording (#529), and the owner labels it at the 1F test drop; TPR, TNR and the corrected
   scores are recorded on #668 then. A change of the judge's model or prompt version needs the
-  labelled texts judged again before the score counts.
+  labelled texts judged again, rewriting only the verdicts in `<dimension>.judge.json` (the strata
+  stay as drawn), before the score counts; that step is built when it is first needed.
 
 ## Consequences
 

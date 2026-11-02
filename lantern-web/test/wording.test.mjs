@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { test } from 'vitest';
-import { corrected, drawLabelFiles, drawLabels, judgedCell, judgedRows, readLabels, validation } from '../scripts/wording.mjs';
+import { corrected, drawLabelFiles, drawLabels, judgedCell, judgedRows, rates, readLabels, validation } from '../scripts/wording.mjs';
 
 const JUDGE = 'openai/judge';
 
@@ -45,7 +45,14 @@ function labels(pos, neg, tp, tn, judge = JUDGE) {
   }
   items.push({ id: 't0', split: 'tune', label: 'pass' });
   verdicts.t0 = 'fail';
-  return { owner: { items }, judge: { judge, promptVersion: '1', verdicts } };
+  // Drawn by the verdict, from strata as big as the labels drawn: every label weighs 1.
+  const drawnAs = { ...verdicts };
+  const held = items.filter((i) => i.split === 'test');
+  const population = {
+    pass: held.filter((i) => drawnAs[i.id] === 'pass').length,
+    fail: held.filter((i) => drawnAs[i.id] === 'fail').length,
+  };
+  return { owner: { items }, judge: { judge, promptVersion: '1', verdicts, drawnAs, population } };
 }
 
 test('with fake answers and no labels, every judged row says not validated', () => {
@@ -101,6 +108,39 @@ test('a text written by the judge\'s own model is counted apart, not scored', ()
   const r = judgedRows(wording).describe.role;
   assert.equal(r.sameModel, 2);
   assert.equal(r.raw, 1);
+});
+
+test('labels drawn by verdict are weighted by their stratum\'s size', () => {
+  // 1000 texts, 900 truly pass; the judge's true TPR and TNR are 0.9, so it passes 810 + 10 = 820
+  // and fails 90 + 90 = 180. Drawn: 82 of the passed (81 pass, 1 fail), 30 of the failed (15 and
+  // 15). Unweighted, TPR would read 81/96 ≈ 0.84 and TNR 15/16 ≈ 0.94; weighted, both are 0.9.
+  const of = (n, label, verdict) => Array.from({ length: n }, () => ({ label, verdict }));
+  const strata = {
+    pass: [...of(81, 'pass', 'pass'), ...of(1, 'fail', 'pass')],
+    fail: [...of(15, 'pass', 'fail'), ...of(15, 'fail', 'fail')],
+  };
+  const r = rates(strata, { pass: 820, fail: 180 });
+  assert.ok(Math.abs(r.tpr - 0.9) < 1e-9, `TPR ${r.tpr}`);
+  assert.ok(Math.abs(r.tnr - 0.9) < 1e-9, `TNR ${r.tnr}`);
+});
+
+test('an unknown verdict on a labelled text counts as the judge wrong', () => {
+  const r = rates({ pass: [{ label: 'pass', verdict: 'unknown' }, { label: 'pass', verdict: 'pass' }], fail: [] }, { pass: 2, fail: 0 });
+  assert.equal(r.tpr, 0.5);
+});
+
+test('drawing again refuses to replace the owner\'s labels', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'wording-'));
+  try {
+    mkdirSync(join(dir, 'scores', 'p'), { recursive: true });
+    writeFileSync(join(dir, 'scores', 'p', 'wording.jsonl.gz'), gzipSync(lines(10, 5).map((l) => JSON.stringify(l)).join('\n')));
+    mkdirSync(join(dir, 'labels'));
+    writeFileSync(join(dir, 'labels', 'role.json'), JSON.stringify({ items: [{ id: 'x', label: 'pass' }] }));
+    assert.throws(() => drawLabelFiles(join(dir, 'scores'), join(dir, 'labels')), /holds the owner's labels/);
+    drawLabelFiles(join(dir, 'scores'), join(dir, 'labels'), 60, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('the corrected score is clamped and undefined for a judge no better than chance', () => {

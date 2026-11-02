@@ -288,7 +288,10 @@ for set in "${sets[@]}"; do
   fi
   # The run's facts the rows per role read beside run.json, and the set's answer key
   # (docs/adr/0072-scoring-harness.md, amendment for #667).
-  for facts in linked.jsonl.gz llm.jsonl.gz wording.jsonl.gz; do
+  facts_files=(linked.jsonl.gz llm.jsonl.gz)
+  # The wording judge's verdicts only from a run that judged, never an earlier run's.
+  [[ "$judge_wording" == true ]] && facts_files+=(wording.jsonl.gz)
+  for facts in "${facts_files[@]}"; do
     [[ -f "$documents/$facts" ]] && cp "$documents/$facts" "$scores/$set/"
   done
   if [[ -f "$REPO/testsets/$set/answer-key.json" ]]; then

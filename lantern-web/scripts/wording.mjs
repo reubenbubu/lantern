@@ -6,11 +6,17 @@
 // Validated, the row reports the corrected pass rate θ = (p + TNR − 1) / (TPR + TNR − 1) with a 95%
 // bootstrap interval that includes the labels' own uncertainty.
 //
-//   node scripts/wording.mjs draw <scores folder> [--per-dimension 60] [--out <labels folder>]
+// The label set is drawn by the judge's verdict (half it passed, half it failed), not at random, so
+// each label stands for the texts of its stratum: TPR and TNR are weighted by the stratum's size
+// over the labels drawn from it (inverse inclusion probability), or they would be biased.
+//
+//   node scripts/wording.mjs draw <scores folder> [--per-dimension 60] [--out <labels folder>] [--force]
 //     draws the label set from a scored run's folders (<scores folder>/<set>/wording.jsonl.gz):
 //     per dimension about half the texts the judge passed and half it failed, spread over sets and
 //     roles, a third to tune and the rest held out. It writes <dimension>.json, the texts for the
-//     owner to label (no verdicts shown), and <dimension>.judge.json, the judge's verdicts on them.
+//     owner to label (no verdicts shown), and <dimension>.judge.json, the judge's verdicts on them,
+//     the stratum each was drawn from and the strata's sizes. It refuses to replace a file that
+//     holds the owner's labels unless --force is given.
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -96,20 +102,24 @@ export function validation(labels, run) {
       why: `the labels were judged by ${judge.judge} (prompt ${judge.promptVersion}), the run by ${run.judge} (prompt ${run.promptVersion})`,
     };
   }
-  const heldOut = (owner.items ?? []).filter((i) => i.split === 'test' && (i.label === 'pass' || i.label === 'fail'));
-  const positives = heldOut.filter((i) => i.label === 'pass').map((i) => judge.verdicts?.[i.id] === 'pass');
-  const negatives = heldOut.filter((i) => i.label === 'fail').map((i) => judge.verdicts?.[i.id] === 'fail');
-  if (positives.length < MIN_PER_CLASS || negatives.length < MIN_PER_CLASS) {
+  const heldOut = (owner.items ?? [])
+    .filter((i) => i.split === 'test' && (i.label === 'pass' || i.label === 'fail'))
+    .map((i) => ({ label: i.label, verdict: judge.verdicts?.[i.id] ?? null, stratum: judge.drawnAs?.[i.id] ?? null }));
+  const pos = heldOut.filter((i) => i.label === 'pass').length;
+  const neg = heldOut.length - pos;
+  if (pos < MIN_PER_CLASS || neg < MIN_PER_CLASS) {
     return {
       validated: false,
-      why: `${positives.length} pass and ${negatives.length} fail held-out labels; at least ${MIN_PER_CLASS} of each needed`,
+      why: `${pos} pass and ${neg} fail held-out labels; at least ${MIN_PER_CLASS} of each needed`,
       labelled: heldOut.length,
     };
   }
-  const share = (xs) => xs.filter(Boolean).length / xs.length;
-  const tpr = share(positives);
-  const tnr = share(negatives);
-  const result = { tpr, tnr, positives, negatives, labelled: heldOut.length };
+  if (heldOut.some((i) => !(i.stratum in (judge.population ?? {})))) {
+    return { validated: false, why: 'the labels do not say which stratum each was drawn from (redraw them)', labelled: heldOut.length };
+  }
+  const strata = { pass: heldOut.filter((i) => i.stratum === 'pass'), fail: heldOut.filter((i) => i.stratum === 'fail') };
+  const { tpr, tnr } = rates(strata, judge.population);
+  const result = { tpr, tnr, strata, population: judge.population, labelled: heldOut.length };
   if (tpr < MIN_RATE || tnr < MIN_RATE) {
     return { ...result, validated: false, why: `TPR ${pct(tpr)} and TNR ${pct(tnr)}; both must be at least ${pct(MIN_RATE)}` };
   }
@@ -117,6 +127,35 @@ export function validation(labels, run) {
 }
 
 const pct = (x) => `${Math.round(x * 100)}%`;
+
+/**
+ * TPR and TNR over labels drawn by stratum (the judge's verdict when drawn): each label weighs its
+ * stratum's size over the labels from that stratum. An "unknown" verdict counts as the judge wrong.
+ *
+ * @param strata `{ pass: [...], fail: [...] }`, each label `{ label, verdict }`
+ * @param population `{ pass, fail }`, how many texts each stratum held when the labels were drawn
+ */
+export function rates(strata, population) {
+  let tp = 0;
+  let p = 0;
+  let tn = 0;
+  let n = 0;
+  for (const s of ['pass', 'fail']) {
+    const xs = strata[s] ?? [];
+    if (xs.length === 0) continue;
+    const w = population[s] / xs.length;
+    for (const x of xs) {
+      if (x.label === 'pass') {
+        p += w;
+        if (x.verdict === 'pass') tp += w;
+      } else {
+        n += w;
+        if (x.verdict === 'fail') tn += w;
+      }
+    }
+  }
+  return { tpr: p === 0 ? null : tp / p, tnr: n === 0 ? null : tn / n };
+}
 const clamp = (x) => Math.min(1, Math.max(0, x));
 
 /** The corrected pass rate θ of a raw rate p (Lee et al.), clamped to [0, 1]; null when TPR + TNR ≤ 1. */
@@ -126,19 +165,17 @@ export function corrected(p, tpr, tnr) {
 }
 
 /**
- * The 95% interval of θ: resamples the run's verdicts and both classes of held-out labels together,
- * so the labels' uncertainty is in it.
+ * The 95% interval of θ: resamples the run's verdicts and the held-out labels within each stratum
+ * together, so the labels' uncertainty is in it.
  */
-export function correctedInterval(verdicts, positives, negatives, resamples = 2000, seed = 668) {
+export function correctedInterval(verdicts, strata, population, resamples = 2000, seed = 668) {
   const next = random(seed);
-  const draw = (xs) => {
-    let n = 0;
-    for (let i = 0; i < xs.length; i++) n += xs[Math.floor(next() * xs.length)] ? 1 : 0;
-    return n / xs.length;
-  };
+  const resample = (xs) => Array.from({ length: xs.length }, () => xs[Math.floor(next() * xs.length)]);
   const thetas = [];
   for (let k = 0; k < resamples; k++) {
-    const t = corrected(draw(verdicts), draw(positives), draw(negatives));
+    const p = resample(verdicts).filter(Boolean).length / verdicts.length;
+    const r = rates({ pass: resample(strata.pass), fail: resample(strata.fail) }, population);
+    const t = r.tpr === null || r.tnr === null ? null : corrected(p, r.tpr, r.tnr);
     if (t !== null) thetas.push(t);
   }
   if (thetas.length === 0) return { low: null, high: null };
@@ -154,8 +191,9 @@ export function correctedInterval(verdicts, positives, negatives, resamples = 20
 export function judgedDimension(lines, dimension, labels) {
   const all = lines.filter((l) => l.dimension === dimension);
   if (all.length === 0) return notMeasured('the run judged no such text');
-  const sameModel = all.filter((l) => l.writer && l.writer === l.judge);
-  const own = all.filter((l) => !(l.writer && l.writer === l.judge));
+  const byJudge = (l) => l.state === 'sameModel' || (l.writer && l.writer === l.judge);
+  const sameModel = all.filter(byJudge);
+  const own = all.filter((l) => !byJudge(l));
   const judged = own.filter((l) => l.state === 'judged');
   const count = (v) => judged.filter((l) => l.verdict === v).length;
   const pass = count('pass');
@@ -184,8 +222,8 @@ export function judgedDimension(lines, dimension, labels) {
   const theta = corrected(row.raw, v.tpr, v.tnr);
   const { low, high } = correctedInterval(
     graded.map((l) => l.verdict === 'pass'),
-    v.positives,
-    v.negatives,
+    v.strata,
+    v.population,
   );
   return { ...row, validated: true, tpr: v.tpr, tnr: v.tnr, labelled: v.labelled, corrected: theta, low, high };
 }
@@ -285,11 +323,28 @@ export function drawLabels(bySet, dimension, perDimension = 60, seed = 668) {
   // The owner's file lists the texts in an order that does not reveal the judge's verdicts.
   const ordered = [...items].sort((a, b) => a.id.localeCompare(b.id));
   const verdicts = Object.fromEntries(chosen.map(({ l }) => [shortId(l.set, l.fact, dimension), l.verdict]));
-  return { items: ordered, verdicts, judge: chosen[0]?.l.judge ?? null, promptVersion: chosen[0]?.l.promptVersion ?? null };
+  return {
+    items: ordered,
+    verdicts,
+    // The stratum each text was drawn from, and the strata's sizes, which weigh the labels; the
+    // verdicts may be redone by another judge, the strata stay as drawn.
+    drawnAs: { ...verdicts },
+    population: { pass: candidates.pass.length, fail: candidates.fail.length },
+    judge: chosen[0]?.l.judge ?? null,
+    promptVersion: chosen[0]?.l.promptVersion ?? null,
+  };
 }
 
 /** Writes the label set of every dimension from a folder of scored sets. */
-export function drawLabelFiles(scoresDir, outDir = LABELS_DIR, perDimension = 60) {
+export function drawLabelFiles(scoresDir, outDir = LABELS_DIR, perDimension = 60, force = false) {
+  if (!force) {
+    for (const d of DIMENSIONS) {
+      const file = join(outDir, `${d}.json`);
+      if (existsSync(file) && (JSON.parse(readFileSync(file, 'utf8')).items ?? []).some((i) => i.label !== null && i.label !== undefined)) {
+        throw new Error(`${file} holds the owner's labels; drawing again would lose them (--force to replace)`);
+      }
+    }
+  }
   const bySet = {};
   for (const set of readdirSync(scoresDir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name)) {
     const lines = readLines(join(scoresDir, set, 'wording.jsonl.gz'));
@@ -308,7 +363,14 @@ export function drawLabelFiles(scoresDir, outDir = LABELS_DIR, perDimension = 60
       drawnFrom: Object.keys(bySet).sort(),
       items: drawn.items,
     };
-    const judge = { dimension: d, judge: drawn.judge, promptVersion: drawn.promptVersion, verdicts: drawn.verdicts };
+    const judge = {
+      dimension: d,
+      judge: drawn.judge,
+      promptVersion: drawn.promptVersion,
+      population: drawn.population,
+      drawnAs: drawn.drawnAs,
+      verdicts: drawn.verdicts,
+    };
     writeFileSync(join(outDir, `${d}.json`), `${JSON.stringify(owner, null, 2)}\n`);
     writeFileSync(join(outDir, `${d}.judge.json`), `${JSON.stringify(judge, null, 2)}\n`);
     const v = Object.values(drawn.verdicts);
@@ -320,20 +382,22 @@ export function drawLabelFiles(scoresDir, outDir = LABELS_DIR, perDimension = 60
 function main(argv) {
   const [command, dir, ...rest] = argv;
   if (command !== 'draw' || !dir) {
-    console.error('usage: node scripts/wording.mjs draw <scores folder> [--per-dimension 60] [--out <labels folder>]');
+    console.error('usage: node scripts/wording.mjs draw <scores folder> [--per-dimension 60] [--out <labels folder>] [--force]');
     process.exit(2);
   }
   let per = 60;
   let out = LABELS_DIR;
+  let force = false;
   for (let i = 0; i < rest.length; i++) {
-    if (rest[i] === '--per-dimension') per = Number(rest[++i]);
+    if (rest[i] === '--force') force = true;
+    else if (rest[i] === '--per-dimension') per = Number(rest[++i]);
     else if (rest[i] === '--out') out = rest[++i];
     else {
       console.error(`unknown option ${rest[i]}`);
       process.exit(2);
     }
   }
-  const counts = drawLabelFiles(dir, out, per);
+  const counts = drawLabelFiles(dir, out, per, force);
   for (const [d, c] of Object.entries(counts)) {
     console.log(`${d}: ${c.items} texts (${c.judgedPass} the judge passed, ${c.judgedFail} it failed) in ${out}`);
   }

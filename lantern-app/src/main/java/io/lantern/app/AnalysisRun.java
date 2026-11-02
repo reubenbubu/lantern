@@ -577,6 +577,13 @@ public final class AnalysisRun {
             "Wrote {}",
             WordingJudgements.judgeAndWrite(
                 harness, heldLlmFacts, judge.provider() + "/" + judge.model(), out));
+      } else {
+        // An earlier run's verdicts on this snapshot are not this run's.
+        try {
+          java.nio.file.Files.deleteIfExists(out.resolve(WordingJudgements.FILE));
+        } catch (java.io.IOException e) {
+          throw new java.io.UncheckedIOException(e);
+        }
       }
       Path runRecord =
           RunRecord.write(
