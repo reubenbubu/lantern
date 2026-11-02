@@ -117,6 +117,46 @@ class ChecksTest {
   }
 
   @Test
+  void aFileWhoseLinesAreCitedMayBeNamedButItsPathHoldsNoDeclaredName() {
+    // "OrderService.java declares ..." citing a range of that file is grounded (#685) ...
+    assertThat(
+            new Checks.Names()
+                .check(
+                    text(
+                        CheckedText.Kind.PROSE,
+                        "OrderService.java declares the class",
+                        "shop:src/OrderService.java:1-1"),
+                    inputs()))
+        .isEmpty();
+    // ... but a declared name must still be inside the cited lines, not only in the path.
+    ItemAnswer pathOnly =
+        new ItemAnswer(
+            "I1",
+            JSON.readTree("{}"),
+            List.of(
+                new CheckedText(
+                    "proposal",
+                    CheckedText.Kind.PROSE,
+                    "OrderService has no transaction",
+                    List.of("shop:src/OrderService.java:1-1"),
+                    40,
+                    "",
+                    Set.of("OrderService"))),
+            List.of());
+    assertThat(new Checks.Coverage().check(pathOnly, inputs()))
+        .extracting(Rejection::reason)
+        .contains("Declares the name OrderService, which its cited lines do not hold.");
+  }
+
+  @Test
+  void aNameTheItemShowsOutsideItsReferencesNeedsNoCitation() {
+    // A flow's steps name its containers in their headings, which cannot be cited (#685).
+    ItemAnswer answer = text(CheckedText.Kind.PROSE, "Saves the order in main_db", "F1");
+    assertThat(new Checks.Names().check(answer, inputs())).hasSize(1);
+    assertThat(new Checks.Names().check(answer, inputs().withShown(List.of("main_db")))).isEmpty();
+  }
+
+  @Test
   void coverage() {
     Check check = new Checks.Coverage();
     ItemAnswer covered =
@@ -184,6 +224,24 @@ class ChecksTest {
                 check,
                 text(CheckedText.Kind.RESPONSIBILITY, "Turns a cart into a paid purchase", "F1")))
         .isEmpty();
+  }
+
+  @Test
+  void aResponsibilityThatOpensWithItsNameButSaysWhatItDoesDoesNotRestateIt() {
+    Check check = new Checks.Form();
+    assertThat(
+            reasons(
+                check,
+                text(
+                    CheckedText.Kind.RESPONSIBILITY,
+                    "Keeps the service's orders until each one ships",
+                    "F1")))
+        .isEmpty();
+    assertThat(
+            reasons(
+                check,
+                text(CheckedText.Kind.RESPONSIBILITY, "Handles orders for the service", "F1")))
+        .containsExactly("Restates its subject's name; say what it is responsible for.");
   }
 
   @Test

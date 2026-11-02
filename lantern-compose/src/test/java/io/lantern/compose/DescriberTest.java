@@ -2326,8 +2326,8 @@ class DescriberTest {
             .findFirst()
             .orElseThrow();
     assertThat(request)
-        .contains("<item id=\"I1\">\nThe external system pay.example.com")
-        .contains("<item id=\"I2\">\nThe external system mail.example.com");
+        .contains("<item id=\"I1\">\nThe external system mail.example.com")
+        .contains("<item id=\"I2\">\nThe external system pay.example.com");
     assertThat(
             fake.sent().stream()
                 .filter(s -> s.request().purpose().endsWith("(repair)"))
