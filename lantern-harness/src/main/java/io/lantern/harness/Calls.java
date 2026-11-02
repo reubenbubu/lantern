@@ -26,11 +26,14 @@ public final class Calls {
 
   private final RoleSession session;
   private final LlmClient client;
+  private final String subject;
   private boolean repaired;
+  private int verified;
 
-  Calls(RoleSession session, LlmClient client) {
+  Calls(RoleSession session, LlmClient client, String subject) {
     this.session = Objects.requireNonNull(session, "session");
     this.client = Objects.requireNonNull(client, "client");
+    this.subject = Objects.requireNonNull(subject, "subject");
   }
 
   /** Sends one request. */
@@ -68,7 +71,10 @@ public final class Calls {
         return accepted;
       } catch (Rejected again) {
         logRejected(request.purpose() + " (retry)", again, second);
-        throw new ItemDropped("Rejected twice, the second time because " + again.getMessage());
+        // An answer cut off at its limit is not stored as a drop: a larger limit may let it
+        // through.
+        throw new ItemDropped(
+            "Rejected twice, the second time because " + again.getMessage(), !second.cutOff());
       }
     }
   }
@@ -78,6 +84,16 @@ public final class Calls {
    * conversation: the harness's own checks, then the role's.
    */
   public <T> T verify(LlmResponse answer, Verifier<T> verifier) throws Rejected {
+    int attempt = Math.min(++verified, 2);
+    try {
+      return check(answer, verifier);
+    } catch (Rejected rejected) {
+      session.rejected(subject, attempt, answer.text(), List.of(rejected.getMessage()));
+      throw rejected;
+    }
+  }
+
+  private <T> T check(LlmResponse answer, Verifier<T> verifier) throws Rejected {
     String secret = session.harness().secretIn(answer.text());
     if (secret != null) {
       throw new Rejected("The answer holds a value marked as secret; leave it out.");

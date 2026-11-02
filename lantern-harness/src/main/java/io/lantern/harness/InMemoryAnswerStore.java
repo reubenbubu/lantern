@@ -21,7 +21,7 @@ public final class InMemoryAnswerStore implements AnswerStore {
   public synchronized Optional<StoredAnswer> latest(String role, String subject) {
     for (int i = order.size() - 1; i >= 0; i--) {
       StoredAnswer answer = order.get(i);
-      if (answer.role().equals(role) && answer.subject().equals(subject)) {
+      if (answer.role().equals(role) && answer.subject().equals(subject) && !answer.isDropped()) {
         return Optional.of(answer);
       }
     }

@@ -483,10 +483,18 @@ class LinkResolverTest {
 
     assertThat(result.facts()).isEmpty();
     assertThat(result.rejected()).hasSize(1);
-    assertThat(store.size()).isZero();
+    // The drop is stored, so a rerun repeats it without a call (#682).
+    assertThat(store.size()).isEqualTo(1);
     assertThat(verdicts(fake.sent().get(1).request()))
         .contains("Picks K7, which is not one of this item's candidates (K1, K2)");
     assertThat(verdicts(fake.sent().get(2).request())).contains("rejected again and dropped");
+
+    // A rerun repeats the drop without a call, and the link stays open (#682).
+    int sent = fake.sent().size();
+    LinkResolver.Result again = resolve(fake);
+    assertThat(fake.sent()).hasSize(sent);
+    assertThat(again.facts()).isEmpty();
+    assertThat(again.rejected()).hasSize(1);
   }
 
   /** The first request of a conversation, from any of its turns. */

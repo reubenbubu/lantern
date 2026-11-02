@@ -27,6 +27,7 @@ public final class Harness {
   private final Map<String, io.lantern.llm.BudgetGuard> guards = new LinkedHashMap<>();
   private final Map<String, ShareRounds> rounds = new LinkedHashMap<>();
   private final Map<String, Shown> shown = new LinkedHashMap<>();
+  private final List<RejectedAnswer> rejections = new ArrayList<>();
   private volatile int batchAbove = BATCH_ABOVE;
   private final Map<String, Calibration> calibrations = new LinkedHashMap<>();
 
@@ -170,6 +171,16 @@ public final class Harness {
   /** The files whose text entered a prompt in this run, in the order first shown. */
   public synchronized List<Shown> shown() {
     return List.copyOf(shown.values());
+  }
+
+  /** Notes an answer the checks rejected, or an item dropped (#682). */
+  synchronized void rejected(RejectedAnswer rejection) {
+    rejections.add(rejection);
+  }
+
+  /** Every answer rejected and every item dropped in this run, in the order they happened. */
+  public synchronized List<RejectedAnswer> rejections() {
+    return List.copyOf(rejections);
   }
 
   /** The model configured for the role. */

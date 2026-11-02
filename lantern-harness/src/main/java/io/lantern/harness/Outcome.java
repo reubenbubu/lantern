@@ -19,7 +19,10 @@ public record Outcome(Kind kind, String fingerprint, String answer, String reaso
     ANSWERED,
     /** The model answered that its inputs show nothing for it, a correct answer, now cached. */
     OMITTED,
-    /** Its answer failed the checks twice; nothing is stored. */
+    /**
+     * Its answer failed the checks twice. The drop is stored with why, so a rerun on the same
+     * inputs repeats it without a call (#682).
+     */
     DROPPED,
     /**
      * It was not asked, or got no answer: its role's share of the run budget was spent, a budget
@@ -29,6 +32,14 @@ public record Outcome(Kind kind, String fingerprint, String answer, String reaso
     NOT_ASKED,
     /** The call failed in the provider or was refused; nothing is stored. */
     FAILED
+  }
+
+  /** How the reason of a drop repeated from the answer cache begins (#682). */
+  public static final String REPEATED_DROP = "dropped when last asked: ";
+
+  /** Whether it is a drop repeated from the answer cache, with no call (#682). */
+  public boolean repeatedDrop() {
+    return kind == Kind.DROPPED && reason != null && reason.startsWith(REPEATED_DROP);
   }
 
   /** Whether it has an answer, cached or new. */

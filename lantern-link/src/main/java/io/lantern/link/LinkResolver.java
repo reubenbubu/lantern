@@ -333,7 +333,11 @@ public final class LinkResolver implements LinkRule.OverFacts {
         }
         case DROPPED, NOT_ASKED, FAILED -> {
           if (kind == Outcome.Kind.DROPPED) {
-            asked++;
+            if (outcome.repeatedDrop()) {
+              reused++;
+            } else {
+              asked++;
+            }
             rejected.add(link);
           } else {
             skipped.add(link);

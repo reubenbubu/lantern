@@ -934,7 +934,14 @@ public final class Describer {
     }
     switch (outcome.kind()) {
       case CACHED -> tally.reused++;
-      case ANSWERED, DROPPED -> tally.asked++;
+      case DROPPED -> {
+        if (outcome.repeatedDrop()) {
+          tally.reused++;
+        } else {
+          tally.asked++;
+        }
+      }
+      case ANSWERED -> tally.asked++;
       case OMITTED -> {
         if ("omitted".equals(outcome.reason())) {
           tally.asked++;

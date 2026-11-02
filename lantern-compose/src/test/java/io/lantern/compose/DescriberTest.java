@@ -905,7 +905,7 @@ class DescriberTest {
   }
 
   @Test
-  void aPurposeRejectedTwiceIsCountedCachesNothingAndLeavesItUnknown() {
+  void aPurposeRejectedTwiceIsCountedStoredAsDroppedAndLeavesItUnknown() {
     FakeLlmProvider fake =
         new FakeLlmProvider()
             .answering(
@@ -922,7 +922,8 @@ class DescriberTest {
         .extracting(s -> s.request().purpose())
         .contains("purpose 1 items: " + RepoSections.SYSTEM + " (repair)");
     assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
-    assertThat(store.size()).isEqualTo(10);
+    // Ten answers and the purpose's drop, which a rerun repeats without a call (#682).
+    assertThat(store.size()).isEqualTo(11);
     Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
   }
@@ -1195,7 +1196,7 @@ class DescriberTest {
   }
 
   @Test
-  void anAnswerRejectedTwiceLeavesTheElementAsItWasAndCachesNothing() {
+  void anAnswerRejectedTwiceLeavesTheElementAsItWasAndIsStoredAsDropped() {
     FakeLlmProvider fake =
         new FakeLlmProvider()
             .answering(
@@ -1252,7 +1253,8 @@ class DescriberTest {
         .extracting(s -> s.request().purpose())
         .noneMatch(p -> p.contains("purpose"));
     assertThat(result.wordings()).isEqualTo(Wordings.NONE);
-    assertThat(store.size()).isZero();
+    // Only the drops are stored, which a rerun repeats without a call (#682).
+    assertThat(store.size()).isEqualTo(10);
     // The documents keep summaries and static labels.
     assertThat(edges(diagrams(system(result.wordings()), Diagram.Kind.C4_CONTEXT).getFirst()))
         .containsExactly("system:snapshot -> external-system:pay.example.com: Calls POST /charges");
