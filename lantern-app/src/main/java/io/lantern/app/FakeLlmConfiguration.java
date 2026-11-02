@@ -19,11 +19,12 @@ import org.springframework.context.annotation.Profile;
  * <p>It never calls out. A summary cites the first part's summary and the first fact or excerpt it
  * is given, in the answer form of the knowledge-build epic (section 11.3); Describe gets a
  * placeholder responsibility for every unit, component and element and a placeholder intent for
- * every interaction, each citing the item's first fact; it narrates no flow and words no purpose,
- * so those keep their static prose, except a flow's title, a placeholder in place of the scenario a
- * model would name; and it submits "unknown" for every link left open (knowledge-build epic,
- * section 11.1), citing the calling unit's first fact and the first candidate's, so such links stay
- * open and the answers are cached.
+ * every interaction, each citing the item's first fact; it judges no flow significant, so each
+ * document draws its highest ranked, narrates no flow and words no purpose, so those keep their
+ * static prose, except a flow's title, a placeholder in place of the scenario a model would name;
+ * and it submits "unknown" for every link left open (knowledge-build epic, section 11.1), citing
+ * the calling unit's first fact and the first candidate's, so such links stay open and the answers
+ * are cached.
  *
  * <p>Every text it words is wrapped in {@code {{ }}} with a hint of what a real model would write
  * there, such as {@code {{placeholder: summary of class Order}}}, so a reader of a document made
@@ -63,9 +64,9 @@ class FakeLlmConfiguration {
               if (named != null) {
                 return named;
               }
-              if (request.role() == Role.COMPOSE && flow(request)) {
-                // A flow's title is a heading: marked as the fake's, so the reader ignores it.
-                return "{\"title\": {\"text\": \"" + FLOW_TITLE + "\", \"cites\": [\"F1\"]}}";
+              String flows = flows(request);
+              if (flows != null) {
+                return flows;
               }
               if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                 return "{}";
@@ -344,11 +345,34 @@ class FakeLlmConfiguration {
   /** The title the fake gives a flow, where a model words the scenario the flow is. */
   static final String FLOW_TITLE = "{{placeholder: scenario title}}";
 
-  /** Whether the request asks to word a sequence flow (ADR 0058), which cites its facts. */
-  private static boolean flow(LlmRequest request) {
-    String prompt = request.messages().getFirst().text();
-    return prompt.startsWith("The flow \"")
-        && prompt.contains("\nIts steps, in order:\n")
-        && prompt.contains("[F1]");
+  /**
+   * The fake's answer about flows (knowledge-build epic, section 11.5; ADR 0108), or null for
+   * another request: it judges no flow significant, so each scope draws its highest ranked, and it
+   * gives each flow it narrates only a title, citing the item's first fact.
+   */
+  static String flows(LlmRequest request) {
+    boolean significance = request.system().contains("Task: choose the flows worth drawing.");
+    if (!significance && !request.system().contains("Task: narrate flows.")) {
+      return null;
+    }
+    Matcher items = ITEM.matcher(request.messages().getFirst().text());
+    List<String> entries = new ArrayList<>();
+    while (items.find()) {
+      Matcher fact = FACT_REF.matcher(items.group(2));
+      if (significance || !fact.find()) {
+        entries.add("\"" + items.group(1) + "\": {\"omitted\": true}");
+      } else {
+        // A flow's title is a heading: marked as the fake's, so the reader ignores it.
+        entries.add(
+            "\""
+                + items.group(1)
+                + "\": {\"title\": {\"text\": \""
+                + FLOW_TITLE
+                + "\", \"cites\": [\""
+                + fact.group(1)
+                + "\"]}}");
+      }
+    }
+    return "{\"items\": {" + String.join(", ", entries) + "}}";
   }
 }

@@ -78,9 +78,6 @@ public final class Describer {
   /** The most README claims the prompt shows per repository. */
   static final int MAX_CLAIMS = 8;
 
-  /** The most tokens an answer about a flow may take. */
-  static final int MAX_FLOW_OUTPUT_TOKENS = 1_500;
-
   /** The most tokens an answer about the system's purpose may take. */
   static final int MAX_PURPOSE_OUTPUT_TOKENS = 1_000;
 
@@ -140,7 +137,20 @@ public final class Describer {
       List<EntityId> rejected,
       List<EntityId> skipped,
       List<LlmText> texts,
-      List<String> unknown) {
+      List<String> unknown,
+      List<java.util.function.LongFunction<List<Fact>>> flowFacts) {
+
+    /** A run's outcome without flow judgements. */
+    public Result(
+        Wordings wordings,
+        int asked,
+        int reused,
+        List<EntityId> rejected,
+        List<EntityId> skipped,
+        List<LlmText> texts,
+        List<String> unknown) {
+      this(wordings, asked, reused, rejected, skipped, texts, unknown, List.of());
+    }
 
     public Result {
       Objects.requireNonNull(wordings, "wordings");
@@ -148,6 +158,7 @@ public final class Describer {
       skipped = List.copyOf(skipped);
       texts = List.copyOf(texts);
       unknown = List.copyOf(unknown);
+      flowFacts = List.copyOf(flowFacts);
     }
 
     /** A run's outcome without stored texts, as before the roles stored claims. */
@@ -166,6 +177,9 @@ public final class Describer {
       Map<io.lantern.core.fact.Origin, List<Fact>> byOrigin = new LinkedHashMap<>();
       byOrigin.put(io.lantern.harness.LlmFacts.origin(DescribeRole.UNITS), new ArrayList<>());
       byOrigin.put(io.lantern.harness.LlmFacts.origin(DescribeRole.ELEMENTS), new ArrayList<>());
+      byOrigin.put(
+          io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE), new ArrayList<>());
+      byOrigin.put(io.lantern.harness.LlmFacts.origin(FlowJudgements.NARRATIVE), new ArrayList<>());
       Map<String, Fact> unique = new LinkedHashMap<>();
       for (LlmText text : texts) {
         Fact fact =
@@ -174,12 +188,28 @@ public final class Describer {
           byOrigin.get(io.lantern.harness.LlmFacts.origin(text.role())).add(fact);
         }
       }
+      Map<String, Fact> flows = new LinkedHashMap<>();
+      flowFacts.forEach(f -> f.apply(snapshot).forEach(fact -> flows.putIfAbsent(fact.id(), fact)));
+      flows
+          .values()
+          .forEach(
+              fact ->
+                  byOrigin
+                      .get(
+                          fact.origin()
+                                  .equals(
+                                      io.lantern.harness.LlmFacts.origin(
+                                          FlowJudgements.SIGNIFICANCE))
+                              ? io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE)
+                              : io.lantern.harness.LlmFacts.origin(FlowJudgements.NARRATIVE))
+                      .add(fact));
       return byOrigin;
     }
   }
 
   /**
-   * The facts without the responsibilities, intents, summaries and group names the LLM roles wrote.
+   * The facts without the responsibilities, intents, summaries, group names and flow judgements the
+   * LLM roles wrote.
    */
   public static List<Fact> withoutTexts(Collection<Fact> facts) {
     return facts.stream()
@@ -189,7 +219,9 @@ public final class Describer {
                     || !(f.predicate().equals(io.lantern.harness.LlmFacts.RESPONSIBILITY)
                         || f.predicate().equals(io.lantern.harness.LlmFacts.INTENT)
                         || f.predicate().equals(io.lantern.harness.LlmFacts.SUMMARY)
-                        || f.predicate().equals(NameGroups.DISPLAY_NAME)))
+                        || f.predicate().equals(NameGroups.DISPLAY_NAME)
+                        || f.predicate().equals(FlowJudgements.FLOW_SIGNIFICANCE)
+                        || f.predicate().equals(FlowJudgements.FLOW_NARRATIVE)))
         .toList();
   }
 
@@ -205,14 +237,10 @@ public final class Describer {
       RoleSpec role, String model, DescribeRole.Described described, DescribeRole.Worded worded) {}
 
   /** The role that narrates the main flows. */
-  public static final RoleSpec FLOWS =
-      RoleSpec.single(
-          "flow-narrative",
-          Role.COMPOSE,
-          WordingPrompt.FLOW_VERSION,
-          "flows-and-purpose",
-          RunMode.BULK,
-          MAX_FLOW_OUTPUT_TOKENS / 2);
+  public static final RoleSpec FLOWS = FlowJudgements.NARRATIVE;
+
+  /** The role that chooses which flows each scope draws. */
+  public static final RoleSpec FLOW_SIGNIFICANCE = FlowJudgements.SIGNIFICANCE;
 
   /** The role that words the system's purpose. */
   public static final RoleSpec PURPOSE =
@@ -333,7 +361,6 @@ public final class Describer {
       }
       unitItems.addAll(items);
     }
-    List<Question> flowQuestions = flows(repoFacts, knowledge, assembler, c4);
     // Under a budget, the system's purpose has first claim on its group's share, ahead of the flows
     // (#659): one cheap call that writes the report's first paragraph. It is asked last, on the
     // units' sentences, so its claim is planned now on a prompt of their expected size.
@@ -355,30 +382,10 @@ public final class Describer {
     unitSession.plan(
         unitItems.stream().map(DescribeRole.Described::item).toList(),
         Tokens.estimate(io.lantern.harness.checks.CommonPrompt.SYSTEM + DescribeRole.UNIT_TASK));
-    plan(flowQuestions);
-    Map<String, Outcome> unitOutcomes;
-    List<Asked> flowOutcomes = new ArrayList<>();
-    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-      List<Future<Asked>> futures = new ArrayList<>();
-      for (Question question : flowQuestions) {
-        futures.add(executor.submit(() -> answer(question)));
-      }
-      unitOutcomes =
-          unitSession.askPackets(
-              unitItems.stream().map(DescribeRole.Described::item).toList(),
-              DescribeRole.units(bySubject));
-      for (Future<Asked> future : futures) {
-        flowOutcomes.add(future.get());
-      }
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new IllegalStateException("Interrupted while wording units", e);
-    } catch (ExecutionException e) {
-      if (e.getCause() instanceof RuntimeException runtime) {
-        throw runtime;
-      }
-      throw new IllegalStateException(e.getCause());
-    }
+    Map<String, Outcome> unitOutcomes =
+        unitSession.askPackets(
+            unitItems.stream().map(DescribeRole.Described::item).toList(),
+            DescribeRole.units(bySubject));
     DescribeRole.SummaryFacts summaryFacts = describeItems.summaryFacts();
     Map<EntityId, DescribeRole.Answered> unitAnswers = new TreeMap<>(Knowledge.BY_ID);
     List<WordingPrompt.UnitSentence> sentences = new ArrayList<>();
@@ -420,9 +427,11 @@ public final class Describer {
           elementSession,
           summaryFacts);
     }
-    for (int i = 0; i < flowQuestions.size(); i++) {
-      tally.add(flowQuestions.get(i), flowOutcomes.get(i));
-    }
+    // Then the flows: which are worth drawing in each scope, then the narrative of each one drawn,
+    // from the units' sentences and the interactions' phrases (knowledge-build epic, section 11.5;
+    // ADR 0108).
+    Map<String, List<String>> chosen =
+        flows(repoFacts, knowledge, assembler, c4, unitAnswers, tally);
     // The system's purpose rests on the units' sentences, so it is asked about after them.
     Optional<Question> purpose = purpose(knowledge, sentences);
     purpose.ifPresent(
@@ -463,14 +472,15 @@ public final class Describer {
         "Support judge: {} sentences checked, {} unsupported", verdicts.size(), unsupported.size());
     tally.documented.forEach(documented::add);
     return new Result(
-        new Wordings(tally.responsibilities, tally.phrases, tally.flows, documented)
-            .withUnsupported(unsupported),
+        new Wordings(
+            tally.responsibilities, tally.phrases, tally.flows, documented, unsupported, chosen),
         tally.asked,
         tally.reused,
         tally.rejected,
         tally.skipped,
         tally.texts,
-        tally.unknown);
+        tally.unknown,
+        tally.flowFacts);
   }
 
   /** What the answers of a run add up to. */
@@ -485,6 +495,8 @@ public final class Describer {
     final List<LlmText> texts = new ArrayList<>();
     final List<String> unknown = new ArrayList<>();
     final Set<String> documented = new TreeSet<>();
+    // The flow judgements, made into claims once the snapshot is known.
+    final List<java.util.function.LongFunction<List<Fact>>> flowFacts = new ArrayList<>();
     int asked;
     int reused;
 
@@ -606,11 +618,7 @@ public final class Describer {
           } else {
             asked++;
           }
-          if (flow(question)) {
-            flows.put(Wordings.flowKey(question.user()), flow(question, outcome.answer()));
-          } else {
-            resolve(question, outcome.answer(), responsibilities, phrases, judgeable);
-          }
+          resolve(question, outcome.answer(), responsibilities, phrases, judgeable);
         }
       }
     }
@@ -619,18 +627,35 @@ public final class Describer {
   // ---------------------------------------------------------------------------------------------
   // The question
 
+  /** A scope whose documents draw flows: the system's, or a repository's. */
+  private record Scope(
+      String key,
+      String title,
+      Knowledge knowledge,
+      Assembler assembler,
+      C4Views c4,
+      SortedSet<EntityId> units) {
+
+    SequenceFlows flows(List<String> judged) {
+      return new SequenceFlows(knowledge, assembler, c4, units, judged);
+    }
+  }
+
   /**
-   * The prompts about the main flows that the system's documents and each repository's show (ADR
-   * 0058), each once: the same trace gives the same prompt whichever scope shows it. A repository's
-   * flows are traced from the facts its documents are composed from.
+   * The scopes whose documents draw flows: the system, from its facts, and each repository with a
+   * unit, from the facts its documents are composed from.
    */
-  private static List<Question> flows(
+  private static List<Scope> scopes(
       Collection<Fact> repoFacts, Knowledge knowledge, Assembler assembler, C4Views c4) {
-    SortedSet<EntityId> all = C4Views.units(knowledge);
-    Map<String, Question> questions = new LinkedHashMap<>();
-    new SequenceFlows(knowledge, assembler, c4, all)
-        .questions()
-        .forEach(q -> questions.putIfAbsent(q.user(), q));
+    List<Scope> scopes = new ArrayList<>();
+    scopes.add(
+        new Scope(
+            Wordings.SYSTEM_SCOPE,
+            "the system",
+            knowledge,
+            assembler,
+            c4,
+            C4Views.units(knowledge)));
     Knowledge repoKnowledge = new Knowledge(repoFacts);
     Assembler repoAssembler = new Assembler(repoKnowledge, Map.of(), Set.of(), null, "The system");
     SortedSet<String> repos = new TreeSet<>();
@@ -642,11 +667,256 @@ public final class Describer {
       }
       C4Views repoViews =
           new C4Views(repoKnowledge, repoAssembler, RepoSections.SYSTEM, units, Set.of(repo));
-      new SequenceFlows(repoKnowledge, repoAssembler, repoViews, units)
-          .questions()
-          .forEach(q -> questions.putIfAbsent(q.user(), q));
+      scopes.add(
+          new Scope(
+              repo, "the repository " + repo, repoKnowledge, repoAssembler, repoViews, units));
     }
-    return new ArrayList<>(questions.values());
+    return scopes;
+  }
+
+  /**
+   * Chooses the flows each scope draws and narrates those (knowledge-build epic, section 11.5; ADR
+   * 0108): one significance item per scope over its candidate flows, one for each shape, in two
+   * passes for a scope of more than {@value FlowJudgements#ONE_PASS}; then one narrative item for
+   * each flow a scope draws, the scopes the model did not judge drawing their highest ranked.
+   *
+   * @return the flows judged significant for each scope answered, in the model's order
+   */
+  private Map<String, List<String>> flows(
+      Collection<Fact> repoFacts,
+      Knowledge knowledge,
+      Assembler assembler,
+      C4Views c4,
+      Map<EntityId, DescribeRole.Answered> responsibilities,
+      Tally tally) {
+    List<Scope> scopes = scopes(repoFacts, knowledge, assembler, c4);
+    RoleSession significance = harness.session(FlowJudgements.SIGNIFICANCE);
+    Map<Scope, List<SequenceFlows.Candidate>> candidates = new LinkedHashMap<>();
+    for (Scope scope : scopes) {
+      List<SequenceFlows.Candidate> found = scope.flows(null).candidates();
+      if (!found.isEmpty()) {
+        candidates.put(scope, found);
+      }
+    }
+    // A large scope is judged unit by unit first, each keeping its best, then as a whole.
+    Map<Scope, List<FlowJudgements.Asked>> firstPass = new LinkedHashMap<>();
+    candidates.forEach(
+        (scope, found) -> {
+          // Each unit's flows in rank order (ADR 0047), so one left unjudged passes on its best.
+          List<FlowJudgements.Asked> byUnit =
+              FlowJudgements.firstPass(
+                  scope.key(),
+                  scope.flows(null).byRank(found),
+                  responsibilities,
+                  scope.assembler()::name);
+          if (!byUnit.isEmpty()) {
+            firstPass.put(scope, byUnit);
+          }
+        });
+    // A large scope first, its first pass and then its second, which rests on the first and is
+    // expected to show the best of each unit; then the other scopes.
+    List<RoleSession.Planned> planned = new ArrayList<>();
+    firstPass.forEach(
+        (scope, unitItems) -> {
+          List<SequenceFlows.Candidate> expected = new ArrayList<>();
+          unitItems.forEach(
+              unitItem -> {
+                planned.add(RoleSession.Planned.of(unitItem.item()));
+                expected.addAll(FlowJudgements.kept(unitItem, null));
+              });
+          FlowJudgements.Asked second =
+              FlowJudgements.significance(
+                  scope.key(), scope.title(), expected, responsibilities, scope.assembler()::name);
+          planned.add(
+              RoleSession.Planned.predicted(scope.key(), Tokens.estimate(second.item().rendering()))
+                  .after(unitItems.stream().map(a -> a.item().subject()).toList()));
+        });
+    Map<Scope, FlowJudgements.Asked> items = new LinkedHashMap<>();
+    candidates.forEach(
+        (scope, found) -> {
+          if (!firstPass.containsKey(scope)) {
+            FlowJudgements.Asked asked =
+                FlowJudgements.significance(
+                    scope.key(), scope.title(), found, responsibilities, scope.assembler()::name);
+            items.put(scope, asked);
+            planned.add(RoleSession.Planned.of(asked.item()));
+          }
+        });
+    significance.plan(
+        planned,
+        0,
+        Tokens.estimate(
+            io.lantern.harness.checks.CommonPrompt.SYSTEM + FlowJudgements.SIGNIFICANCE_TASK));
+    String sigModel = significance.model().provider() + "/" + significance.model().model();
+    Map<FlowJudgements.Asked, Outcome> firstOutcomes =
+        askAll(significance, firstPass.values().stream().flatMap(List::stream).toList(), false);
+    firstPass.forEach(
+        (scope, unitItems) -> {
+          List<SequenceFlows.Candidate> kept = new ArrayList<>();
+          for (FlowJudgements.Asked unitItem : unitItems) {
+            Outcome outcome = firstOutcomes.get(unitItem);
+            count(tally, outcome);
+            kept.addAll(FlowJudgements.kept(unitItem, order(unitItem, outcome)));
+          }
+          FlowJudgements.Asked asked =
+              FlowJudgements.significance(
+                  scope.key(), scope.title(), kept, responsibilities, scope.assembler()::name);
+          items.put(scope, asked);
+        });
+    Map<FlowJudgements.Asked, Outcome> judged =
+        askAll(significance, List.copyOf(items.values()), false);
+    Map<String, List<String>> chosen = new LinkedHashMap<>();
+    items.forEach(
+        (scope, asked) -> {
+          Outcome outcome = judged.get(asked);
+          List<String> order = order(asked, outcome);
+          count(tally, outcome);
+          if (order == null) {
+            LOG.info(
+                "Flows of {} chosen by rank: significance {}",
+                scope.key(),
+                outcome == null ? "not asked" : outcome.kind() + " " + outcome.reason());
+            return;
+          }
+          chosen.put(scope.key(), order);
+          String stored = outcome.answer();
+          tally.flowFacts.add(
+              snapshot ->
+                  FlowJudgements.judged(
+                          asked, stored, scope.key(), sigModel, scope.knowledge(), snapshot)
+                      .facts());
+        });
+    // The narrative of each flow a scope draws, each flow once.
+    Map<String, FlowJudgements.Asked> narratives = new LinkedHashMap<>();
+    Map<String, SequenceFlows.Narrated> narrated = new LinkedHashMap<>();
+    Map<String, Scope> scopeOf = new LinkedHashMap<>();
+    for (Scope scope : scopes) {
+      for (SequenceFlows.Narrated flow : scope.flows(chosen.get(scope.key())).narrated()) {
+        if (narrated.putIfAbsent(flow.key(), flow) == null) {
+          scopeOf.put(flow.key(), scope);
+          narratives.put(
+              flow.key(),
+              FlowJudgements.narrative(
+                  flow,
+                  responsibilities,
+                  tally.phrases,
+                  scope.knowledge()::fact,
+                  scope.assembler()::name));
+        }
+      }
+    }
+    RoleSession narrative = harness.session(FlowJudgements.NARRATIVE);
+    narrative.plan(
+        narratives.values().stream().map(FlowJudgements.Asked::item).toList(),
+        Tokens.estimate(
+            io.lantern.harness.checks.CommonPrompt.SYSTEM + FlowJudgements.NARRATIVE_TASK));
+    String narModel = narrative.model().provider() + "/" + narrative.model().model();
+    Map<FlowJudgements.Asked, Outcome> outcomes =
+        askAll(narrative, List.copyOf(narratives.values()), true);
+    narratives.forEach(
+        (key, asked) -> {
+          Outcome outcome = outcomes.get(asked);
+          count(tally, outcome);
+          EntityId flow = narrated.get(key).candidate().flow();
+          if (outcome == null || outcome.answer() == null) {
+            settle(tally, outcome, flow);
+            return;
+          }
+          Scope scope = scopeOf.get(key);
+          FlowJudgements.narrative(asked, outcome.answer(), flow, narModel, scope.knowledge(), 0)
+              .ifPresent(n -> tally.flows.put(key, n.flow()));
+          String stored = outcome.answer();
+          tally.flowFacts.add(
+              snapshot ->
+                  FlowJudgements.narrative(
+                          asked, stored, flow, narModel, scope.knowledge(), snapshot)
+                      .map(n -> List.of(n.fact()))
+                      .orElse(List.of()));
+        });
+    return chosen;
+  }
+
+  /** The flows a significance answer orders, by ID; null if it has no answer. */
+  private static List<String> order(FlowJudgements.Asked asked, Outcome outcome) {
+    if (outcome == null
+        || (outcome.kind() != Outcome.Kind.CACHED && outcome.kind() != Outcome.Kind.ANSWERED)
+        || outcome.answer() == null) {
+      return null;
+    }
+    return FlowJudgements.order(asked, outcome.answer());
+  }
+
+  /** Asks each item alone, all at once, and returns each one's outcome; none if it has none. */
+  private static Map<FlowJudgements.Asked, Outcome> askAll(
+      RoleSession session, List<FlowJudgements.Asked> items, boolean narrative) {
+    // By identity: two items may show the same.
+    Map<FlowJudgements.Asked, Outcome> outcomes =
+        java.util.Collections.synchronizedMap(new java.util.IdentityHashMap<>());
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<Future<?>> futures = new ArrayList<>();
+      for (FlowJudgements.Asked asked : items) {
+        futures.add(
+            executor.submit(
+                () -> {
+                  Outcome outcome = FlowJudgements.ask(session, asked, narrative);
+                  if (outcome != null) {
+                    outcomes.put(asked, outcome);
+                  }
+                }));
+      }
+      for (Future<?> future : futures) {
+        future.get();
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Interrupted while asking about flows", e);
+    } catch (ExecutionException e) {
+      if (e.getCause() instanceof RuntimeException runtime) {
+        throw runtime;
+      }
+      throw new IllegalStateException(e.getCause());
+    }
+    return outcomes;
+  }
+
+  /**
+   * Records a flow whose narrative has no answer, as for an element: one dropped is rejected, one
+   * not asked or failed is skipped, and one the model left out is neither.
+   */
+  private static void settle(Tally tally, Outcome outcome, EntityId flow) {
+    if (outcome == null) {
+      tally.skipped.add(flow);
+      return;
+    }
+    switch (outcome.kind()) {
+      case DROPPED -> tally.rejected.add(flow);
+      case OMITTED -> {
+        if (!"omitted".equals(outcome.reason())) {
+          tally.skipped.add(flow);
+        }
+      }
+      case NOT_ASKED, FAILED -> {
+        LOG.warn("Left flow {} as it was, could not narrate it: {}", flow, outcome.reason());
+        tally.skipped.add(flow);
+      }
+      default -> {}
+    }
+  }
+
+  private static void count(Tally tally, Outcome outcome) {
+    if (outcome == null) {
+      return;
+    }
+    switch (outcome.kind()) {
+      case CACHED -> tally.reused++;
+      case ANSWERED, DROPPED -> tally.asked++;
+      case OMITTED -> {
+        if ("omitted".equals(outcome.reason())) {
+          tally.asked++;
+        }
+      }
+      default -> {}
+    }
   }
 
   /**
@@ -861,10 +1131,8 @@ public final class Describer {
   /** The role of a question. */
   static RoleSpec spec(Question question) {
     return switch (question.about()) {
-      case WordingPrompt.WALKTHROUGH -> FLOWS;
       case WordingPrompt.PURPOSE -> PURPOSE;
-      default ->
-          throw new IllegalArgumentException("Not a flow or the purpose: " + question.about());
+      default -> throw new IllegalArgumentException("Not the purpose: " + question.about());
     };
   }
 
@@ -925,7 +1193,6 @@ public final class Describer {
     String purpose =
         switch (question.about()) {
           case WordingAnswer.UNIT -> "word unit " + question.element();
-          case WordingPrompt.WALKTHROUGH -> "narrate flow " + question.name();
           case WordingPrompt.PURPOSE -> "word the system's purpose";
           default -> "word element " + question.element();
         };
@@ -975,20 +1242,12 @@ public final class Describer {
   }
 
   private static int maxTokens(Question question) {
-    return flow(question) ? MAX_FLOW_OUTPUT_TOKENS : MAX_PURPOSE_OUTPUT_TOKENS;
+    return MAX_PURPOSE_OUTPUT_TOKENS;
   }
 
-  /** Whether the question is about a sequence flow. */
-  private static boolean flow(Question question) {
-    return question.about().equals(WordingPrompt.WALKTHROUGH);
-  }
-
-  /**
-   * The role of the call: narrating a flow is composing narrative for a reader (docs/design.md, LLM
-   * integration, Roles); responsibilities and intent are inferring intent.
-   */
+  /** The role of the call: wording the system's purpose is inferring intent. */
   private static Role role(Question question) {
-    return flow(question) ? Role.COMPOSE : Role.INFER_INTENT;
+    return Role.INFER_INTENT;
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1038,24 +1297,6 @@ public final class Describer {
                     new Wordings.Phrase(item.text(), cited));
               }
             });
-  }
-
-  /** A flow's walkthrough and conditions, each with citation markers, or null if left out. */
-  private static Wordings.Flow flow(Question question, WordingAnswer answer) {
-    Map<String, String> texts = new HashMap<>();
-    answer
-        .items()
-        .forEach(
-            (field, item) -> sentence(question, item).ifPresent(text -> texts.put(field, text)));
-    // The title is a heading, which holds no citation markers; it is kept when it cites a fact.
-    WordingAnswer.Item title = answer.items().get(WordingPrompt.TITLE);
-    return new Wordings.Flow(
-        texts.get(WordingPrompt.WALKTHROUGH),
-        texts.get(WordingPrompt.PRECONDITIONS),
-        texts.get(WordingPrompt.POSTCONDITIONS),
-        title == null || !texts.containsKey(WordingPrompt.TITLE)
-            ? null
-            : title.text().replaceAll("[.\\s]+$", ""));
   }
 
   /**

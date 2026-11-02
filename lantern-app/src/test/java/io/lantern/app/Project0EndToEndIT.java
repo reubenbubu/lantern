@@ -114,10 +114,10 @@ class Project0EndToEndIT {
   static class Fake {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, words
-     * nothing when asked for responsibilities and intent phrases (ADR 0103) or to narrate a flow
-     * (ADR 0058), so the report keeps the static labels and prose this test checks, and answers
-     * unknown when asked to resolve a link left open (ADR 0045), so those links stay open; {@code
-     * Project0LinksIT} checks the resolver's picks.
+     * nothing when asked for responsibilities and intent phrases (ADR 0103), judges no flow and
+     * gives each flow only a title (ADR 0108), so the report keeps the static labels and prose this
+     * test checks, and answers unknown when asked to resolve a link left open (ADR 0045), so those
+     * links stay open; {@code Project0LinksIT} checks the resolver's picks.
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -134,6 +134,11 @@ class Project0EndToEndIT {
                   return nothing;
                 }
                 String prompt = request.messages().getFirst().text();
+                // Flows as the fake-llm profile answers them: none judged, each titled (ADR 0108).
+                String flows = FakeLlmConfiguration.flows(request);
+                if (flows != null) {
+                  return flows;
+                }
                 if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                   return "{}";
                 }
@@ -537,7 +542,12 @@ class Project0EndToEndIT {
     // The screen reads the changed file's text again; the rest is exactly these items.
     String screened = "injection-screen payments:" + path + ":";
     assertThat(items).anySatisfy(item -> assertThat(item).startsWith(screened));
-    assertThat(items.stream().filter(item -> !item.startsWith(screened)))
+    assertThat(
+            items.stream()
+                .filter(item -> !item.startsWith(screened))
+                .map(
+                    item ->
+                        item.replaceAll("^flow-narrative [0-9a-f]{64}$", "flow-narrative <flow>")))
         .as(String.join("\n", why))
         .containsExactlyInAnyOrder(FACT_CHANGE_REASKS.toArray(String[]::new));
     long calls = fake.sent().size() - sent;
@@ -552,8 +562,9 @@ class Project0EndToEndIT {
    * controller, whose file changed (its request and response records are no component's, so they
    * are not summarized, ADR 0104); the payments module, repository and unit, which show the
    * endpoint fact; the storefront's modules, repository and unit, whose call to {@code
-   * /api/payments} no longer meets an endpoint; the order flow, which loses its payment steps; and
-   * the charge endpoint, which nothing calls now, as a flow of its own.
+   * /api/payments} no longer meets an endpoint; the order flow, which loses its payment steps, and
+   * the charge endpoint, which nothing calls now, as a flow of its own, each narrated anew (by the
+   * key of how it is traced); and the choice of flows of every scope that shows either (ADR 0108).
    */
   private static final List<String> FACT_CHANGE_REASKS =
       List.of(
@@ -565,10 +576,14 @@ class Project0EndToEndIT {
           "summarize module:com.acme.shop:storefront-parent",
           "summarize repo:storefront",
           "describe-unit service:com.acme.shop:storefront-app",
-          "flow-narrative method:com.acme.shop.storefront.web.OrderController#place("
-              + "com.acme.shop.storefront.web.OrderController$NewOrder)",
-          "flow-narrative method:com.acme.shop.payments.PaymentController#charge("
-              + "com.acme.shop.payments.PaymentController$Charge)");
+          "flow-narrative <flow>",
+          "flow-narrative <flow>",
+          "flow-significance system",
+          "flow-significance catalog",
+          "flow-significance catalog-lib",
+          "flow-significance fulfilment",
+          "flow-significance payments",
+          "flow-significance storefront");
 
   /** An answer's fingerprint inputs, each as its kind, file and ID. */
   private static java.util.Set<String> inputs(String json) {

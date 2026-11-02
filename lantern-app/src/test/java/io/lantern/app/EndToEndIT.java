@@ -136,9 +136,13 @@ class EndToEndIT {
                 if (request.role() == Role.RESOLVE) {
                   return "Done.";
                 }
-                if (request.role() == Role.COMPOSE) {
-                  return "{\"walkthrough\": {\"text\": \"It answers a greeting.\","
-                      + " \"cites\": [\"F1\"]}}";
+                // No flow judged, so each scope draws its highest ranked; each narrated (ADR 0108).
+                if (request.role() == Role.FLOW_SIGNIFICANCE) {
+                  return FakeLlmConfiguration.flows(request);
+                }
+                if (request.role() == Role.COMPOSE && request.system().contains("narrate flows")) {
+                  return "{\"items\": {\"I1\": {\"walkthrough\": {\"text\": \"It answers a"
+                      + " greeting.\", \"cites\": [\"F1\"]}}}}";
                 }
                 if (request.role() == Role.INFER_INTENT) {
                   String cite = "{\"text\": \"%s\", \"cites\": [\"F1\"]}";
@@ -774,6 +778,7 @@ class EndToEndIT {
     // its items.
     long wordings =
         byRole.getOrDefault(Role.COMPOSE, 0L)
+            + byRole.getOrDefault(Role.FLOW_SIGNIFICANCE, 0L)
             + byRole.getOrDefault(Role.INFER_INTENT, 0L)
             + byRole.getOrDefault(Role.DESCRIBE_ELEMENTS, 0L);
     // Each wording call is one the wording roles' records counted.
@@ -782,7 +787,11 @@ class EndToEndIT {
             .filter(
                 r ->
                     java.util.Set.of(
-                            "describe-unit", "describe-element", "flow-narrative", "purpose")
+                            "describe-unit",
+                            "describe-element",
+                            "flow-significance",
+                            "flow-narrative",
+                            "purpose")
                         .contains(r.role()))
             .mapToLong(io.lantern.harness.RoleRecord::calls)
             .sum();

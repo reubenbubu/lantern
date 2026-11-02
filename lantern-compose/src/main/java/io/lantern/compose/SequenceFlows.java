@@ -16,6 +16,7 @@ import io.lantern.derive.Knowledge;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -24,7 +25,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Predicate;
 
@@ -64,6 +67,12 @@ final class SequenceFlows {
   private final C4Views c4;
   private final Set<EntityId> scope;
 
+  /**
+   * The flows the model judged significant for this scope, in the order it gave them (knowledge-
+   * build epic, section 11.5), by the flow's ID; {@code null} when it did not judge them.
+   */
+  private final List<String> judged;
+
   /** The flows shown, once chosen. */
   private List<Trace> chosen;
 
@@ -88,10 +97,25 @@ final class SequenceFlows {
    * @param units the deployable units in scope; flows that start in or pass through one are shown
    */
   SequenceFlows(Knowledge knowledge, Assembler assembler, C4Views c4, Set<EntityId> units) {
+    this(knowledge, assembler, c4, units, null);
+  }
+
+  /**
+   * @param units the deployable units in scope; flows that start in or pass through one are shown
+   * @param judged the flows the model judged significant for the scope, in its order, by ID; null
+   *     when it did not judge them, so the highest ranked are shown, marked as chosen by rank
+   */
+  SequenceFlows(
+      Knowledge knowledge,
+      Assembler assembler,
+      C4Views c4,
+      Set<EntityId> units,
+      List<String> judged) {
     this.knowledge = knowledge;
     this.assembler = assembler;
     this.c4 = c4;
     this.scope = units;
+    this.judged = judged == null ? null : List.copyOf(judged);
   }
 
   // Entry points.
@@ -845,6 +869,25 @@ final class SequenceFlows {
     return chosen;
   }
 
+  /** The rank of ADR 0047: the containers touched, then a hand-off, then the entry point. */
+  private static final Comparator<Trace> RANK =
+      Comparator.comparingInt(Trace::touches)
+          .reversed()
+          .thenComparing(t -> t.asyncThrough.isEmpty())
+          .thenComparing(t -> t.entry.key());
+
+  /** The candidates in the rank order of ADR 0047, as the fallback draws them. */
+  List<Candidate> byRank(List<Candidate> candidates) {
+    Map<EntityId, Trace> traces = new HashMap<>();
+    for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
+      traces.put(flow.id(), new Trace(flow));
+    }
+    List<Candidate> ranked = new ArrayList<>(candidates);
+    ranked.sort(
+        Comparator.comparing((Candidate c) -> traces.get(c.flow()), Comparator.nullsLast(RANK)));
+    return ranked;
+  }
+
   private List<Trace> choose() {
     List<Trace> candidates = new ArrayList<>();
     for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
@@ -855,12 +898,21 @@ final class SequenceFlows {
         candidates.add(trace);
       }
     }
-    candidates.sort(
-        Comparator.comparingInt(Trace::touches)
-            .reversed()
-            .thenComparing(t -> t.asyncThrough.isEmpty())
-            .thenComparing(t -> t.entry.key()));
+    candidates.sort(RANK);
     candidates.removeIf(t -> t.participants.stream().noneMatch(scope::contains));
+    if (judged != null) {
+      // The model's choice, in its order: every flow it judged significant that is in scope.
+      Map<String, Trace> byId = new HashMap<>();
+      candidates.forEach(t -> byId.put(t.flow.id().toString(), t));
+      List<Trace> kept = new ArrayList<>();
+      for (String id : judged) {
+        Trace trace = byId.get(id);
+        if (trace != null && !kept.contains(trace)) {
+          kept.add(trace);
+        }
+      }
+      return kept;
+    }
     List<Trace> first = new ArrayList<>();
     // Business weight (ADR 0070): how a person signs in, and the socket a frontend opens for the
     // system to push to it, come before the ranked rest, the best ranked of each.
@@ -1002,6 +1054,18 @@ final class SequenceFlows {
    */
   List<Section> flows(String section, List<Block> blocks) {
     List<Trace> kept = chosen();
+    if (kept.isEmpty() && judged != null && !candidates().isEmpty()) {
+      // The model judged the traced flows and found none worth drawing (ADR 0108).
+      blocks.add(
+          new Callout(
+              assembler.id(section, "none-significant"),
+              Callout.Variant.NOTE,
+              null,
+              null,
+              List.of(TextRun.of(NONE_JUDGED_SIGNIFICANT)),
+              List.of()));
+      return List.of();
+    }
     if (kept.isEmpty()) {
       // A note: what the code does not show cites no fact (Quality bar, ADR 0046).
       blocks.add(
@@ -1018,11 +1082,139 @@ final class SequenceFlows {
               List.of()));
       return List.of();
     }
+    if (judged == null) {
+      // Without the model's judgement the flows are the highest ranked, and the reader is told so.
+      blocks.add(
+          new Callout(
+              assembler.id(section, "by-rank"),
+              Callout.Variant.NOTE,
+              null,
+              null,
+              List.of(TextRun.of(CHOSEN_BY_RANK)),
+              List.of()));
+    }
     List<Section> result = new ArrayList<>();
     for (Trace trace : kept) {
       result.add(flowSection(section, trace));
     }
     return result;
+  }
+
+  /** What a scope says whose traced flows the model judged none worth drawing. */
+  static final String NONE_JUDGED_SIGNIFICANT =
+      "Flows were traced from the code, but the model judged none of them worth drawing.";
+
+  /** What a scope whose flows no model judged says of them. */
+  static final String CHOSEN_BY_RANK =
+      "These flows were chosen by rank, not judged: no model chose which of the traced flows are"
+          + " worth drawing, so the highest ranked are shown, at most "
+          + MAX_FLOWS
+          + ".";
+
+  // What the LLM is shown (knowledge-build epic, section 11.5).
+
+  /**
+   * A flow the significance role is shown: one for each shape the scope's candidate flows have.
+   *
+   * @param flow the flow's ID
+   * @param unit the unit it starts in
+   * @param starts what starts it, with its handler
+   * @param entry the fact that makes its handler an entry point
+   * @param containers its participants in order, by name
+   * @param steps its steps, each with the facts behind it
+   * @param async the destinations and jobs it hands work on through, by name
+   * @param crossed the deployable units it crosses
+   */
+  record Candidate(
+      EntityId flow,
+      EntityId unit,
+      String starts,
+      Fact entry,
+      List<String> containers,
+      List<WordingPrompt.FlowStep> steps,
+      List<String> async,
+      List<EntityId> crossed) {
+
+    /** Whether it crosses a unit boundary: more than one deployable unit takes part. */
+    boolean crossesUnits() {
+      return crossed.size() > 1;
+    }
+  }
+
+  /**
+   * The scope's candidate flows, one for each stored shape: the one with the smallest ID, as {@code
+   * SAME_SHAPE_AS} points to it, listed by what starts them, so the same facts always show the same
+   * flows in the same order.
+   */
+  List<Candidate> candidates() {
+    SortedMap<String, Trace> byShape = new TreeMap<>();
+    for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
+      if (!flow.candidate()) {
+        continue;
+      }
+      Trace trace = new Trace(flow);
+      if (trace.participants.stream().noneMatch(scope::contains)) {
+        continue;
+      }
+      String shape = knowledge.attribute(flow.id(), "flow-shape").orElse("flow " + flow.id());
+      Trace held = byShape.get(shape);
+      if (held == null || flow.id().toString().compareTo(held.flow.id().toString()) < 0) {
+        byShape.put(shape, trace);
+      }
+    }
+    Set<EntityId> units = C4Views.units(knowledge);
+    List<Candidate> result = new ArrayList<>();
+    for (Trace trace : byShape.values()) {
+      result.add(candidate(trace, units));
+    }
+    result.sort(CANDIDATE_ORDER);
+    return result;
+  }
+
+  /** Candidates by what starts them, then by the unit and the flow. */
+  private static final Comparator<Candidate> CANDIDATE_ORDER =
+      Comparator.comparing(Candidate::starts)
+          .thenComparing(c -> c.unit().toString())
+          .thenComparing(c -> c.flow().toString());
+
+  private Candidate candidate(Trace trace, Set<EntityId> units) {
+    Heading heading = heading(trace);
+    List<String> containers = new ArrayList<>();
+    List<EntityId> crossed = new ArrayList<>();
+    for (EntityId participant : trace.participants) {
+      containers.add(nameOf(participant));
+      if (units.contains(participant)) {
+        crossed.add(participant);
+      }
+    }
+    if (!crossed.contains(trace.entry.unit)) {
+      crossed.addFirst(trace.entry.unit);
+    }
+    return new Candidate(
+        trace.flow.id(),
+        trace.entry.unit,
+        heading.starts() + " (" + methodName(trace.entry.method) + ")",
+        trace.entry.fact,
+        containers,
+        List.copyOf(trace.outline),
+        List.copyOf(trace.asyncThrough),
+        crossed);
+  }
+
+  /**
+   * A flow the narrative role is asked about: one shown in this scope.
+   *
+   * @param key the key its wording is found under, from how it is traced
+   * @param candidate what it shows
+   */
+  record Narrated(String key, Candidate candidate) {}
+
+  /** The flows this scope shows, for the narrative role, in the order shown. */
+  List<Narrated> narrated() {
+    Set<EntityId> units = C4Views.units(knowledge);
+    return chosen().stream()
+        .map(t -> new Narrated(Wordings.flowKey(question(t).user()), candidate(t, units)))
+        .toList();
   }
 
   /** A flow's title, its trigger as the overview names it, and the clause saying what starts it. */
@@ -1192,11 +1384,6 @@ final class SequenceFlows {
         heading.starts() + " (" + methodName(entry.method) + ")",
         entry.fact,
         trace.outline);
-  }
-
-  /** The prompts asking the LLM to word the flows shown (ADR 0058), in the order shown. */
-  List<WordingPrompt.Question> questions() {
-    return chosen().stream().map(this::question).toList();
   }
 
   private Section flowSection(String section, Trace trace) {

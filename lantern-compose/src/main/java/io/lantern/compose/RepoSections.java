@@ -230,7 +230,13 @@ final class RepoSections {
   /** The main flows, built once per document: the start-here list and the flows both use them. */
   private SequenceFlows flows() {
     if (flows == null) {
-      flows = new SequenceFlows(knowledge, assembler, c4, units);
+      flows =
+          new SequenceFlows(
+              knowledge,
+              assembler,
+              c4,
+              units,
+              assembler.chosenFlows(repo == null ? Wordings.SYSTEM_SCOPE : repo));
     }
     return flows;
   }

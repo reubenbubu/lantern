@@ -55,5 +55,47 @@
       "additionalProperties": false
     },
     "objectKind": "string"
+  },
+  {
+    "name": "flow-significance",
+    "kind": "attribute",
+    "description": "Whether the subject flow is worth drawing in one scope's documents, judged by the LLM from the traced candidate flows of that scope, one for each shape (knowledge-build epic, section 11.5; ADR 0108). The value is the scope: system, or the repository whose documents draw it. Of origin llm; a new judgement of the same flow and scope is a new observation of the same claim.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "significant": { "type": "boolean", "description": "Whether the flow is drawn." },
+        "category": { "type": "string", "enum": ["cross-service", "async-handoff", "failure-handling", "entry-by-people", "lifecycle", "scheduled", "data-read", "other"], "description": "What kind of flow it is." },
+        "rank": { "type": "integer", "description": "Of a significant flow, its place in the order a reader sees them, from 1." },
+        "text": { "type": "string", "description": "The reason, without citations." },
+        "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites." },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "As for a responsibility." },
+        "model": { "type": "string", "description": "The model that judged it, as provider/model." },
+        "content": { "type": "string", "description": "The content hash of the flow's steps the judgement holds for." }
+      },
+      "required": ["significant", "category", "basis"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
+    "name": "flow-narrative",
+    "kind": "attribute",
+    "description": "The title, walkthrough and pre- and post-conditions of the subject flow, worded by the LLM from its steps, the responsibilities of the units it crosses and the intents of its interactions (knowledge-build epic, section 11.5; ADR 0108). The value is the document kind it is worded for, c4. Of origin llm; a reworded narrative is a new observation of the same claim.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "At most 6 words naming the business scenario." },
+        "walkthrough": { "type": "string", "description": "Two to four sentences of what the flow does, without citations." },
+        "preconditions": { "type": "string", "description": "What must hold before it starts." },
+        "postconditions": { "type": "string", "description": "What holds after it ends." },
+        "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts its texts cite." },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "As for a responsibility." },
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
+        "content": { "type": "string", "description": "The content hash of the flow's steps the narrative holds for." }
+      },
+      "required": ["basis"],
+      "additionalProperties": false
+    },
+    "objectKind": "string"
   }
 ]

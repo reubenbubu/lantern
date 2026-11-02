@@ -57,6 +57,11 @@ public final class Refs {
     return token(ref);
   }
 
+  /** Whether the thing of the key has a reference of the letter already. */
+  public boolean shown(char letter, String key) {
+    return byKey.containsKey(letter + "\u0000" + key);
+  }
+
   /** The token of a reference already numbered, such as {@code C2}. */
   public static String token(String ref) {
     return OPEN + ref + CLOSE;

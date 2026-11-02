@@ -20,33 +20,6 @@ class WordingPromptTest {
   private final TestFacts facts = TestFacts.runtime();
 
   /**
-   * The fingerprint of the texts and limits of the prompt about a flow for {@link
-   * WordingPrompt#FLOW_VERSION} (ADR 0058), as above. The way steps are written into it is checked
-   * below and by {@code DescriberTest}.
-   */
-  @Test
-  void theFlowVersionIsRaisedWhenItsPromptChanges() throws Exception {
-    String texts =
-        String.join(
-            "\n--\n",
-            WordingPrompt.FLOW_SYSTEM,
-            WordingPrompt.RETRY,
-            Integer.toString(WordingPrompt.WALKTHROUGH_WORDS),
-            Integer.toString(WordingPrompt.CONDITION_WORDS),
-            Integer.toString(Describer.MAX_FLOW_OUTPUT_TOKENS),
-            Integer.toString(io.lantern.derive.Flows.MAX_MESSAGES));
-    String fingerprint =
-        HexFormat.of()
-            .formatHex(
-                MessageDigest.getInstance("SHA-256")
-                    .digest(texts.getBytes(StandardCharsets.UTF_8)));
-
-    assertThat(WordingPrompt.FLOW_VERSION + " " + fingerprint)
-        .as("The prompt changed: raise WordingPrompt.FLOW_VERSION and update this fingerprint")
-        .isEqualTo("4 f8979d0dbfeca850643cca4a06c43dab95c392fd4b8af96f8c01ab0d744f205f");
-  }
-
-  /**
    * The fingerprint of the texts and limits of the prompt about the system's purpose for {@link
    * WordingPrompt#PURPOSE_VERSION} (ADR 0060), as above. The way units and claims are written into
    * it is checked by {@code DescriberTest}.

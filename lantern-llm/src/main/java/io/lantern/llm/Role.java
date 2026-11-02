@@ -15,6 +15,11 @@ public enum Role {
   DESCRIBE_ELEMENTS(Tier.HIGH_VOLUME),
   NAME_GROUPS(Tier.HIGH_VOLUME),
   PROPOSE_RULES(Tier.REASONING),
+  /**
+   * Choosing which traced flows are worth drawing for a scope (knowledge-build epic, section 11.5):
+   * a judgement on the reasoning tier, where narrating them is composing on the high-volume tier.
+   */
+  FLOW_SIGNIFICANCE(Tier.REASONING),
   COMPOSE(Tier.HIGH_VOLUME),
   TRANSLATE(Tier.HIGH_VOLUME),
   /** The support judge (ADR 0101): of another tier than the reasoning-tier texts it checks. */
