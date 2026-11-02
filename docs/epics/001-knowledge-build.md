@@ -587,7 +587,7 @@ Every answer, batched or agentic, goes through the same checks before anything i
 | Schema | The answer does not match the role's JSON schema |
 | References | It cites a reference that was not in its inputs or tool results, or of a kind the role does not allow (each role lists its citable references) |
 | Ranges | A file range **the model wrote** (`repo:path:from-to`) is outside the file at the snapshot's blob, longer than 40 lines, or in a file not of the snapshot. Excerpts Lantern supplied (`[E…]`) are not range-checked |
-| Names (ADR 0068) | A code-like name or technology in the text appears in none of the cited inputs or cited lines |
+| Names (ADR 0068) | A code-like name or technology in the text appears in none of the cited inputs or cited lines, the subject's own name, the file names of the cited ranges, or the names the item shows outside its references (the containers a flow's steps name; amended by #685) |
 | Coverage | A proposal's declared `names` do not all appear in its cited lines, or a cited range holds none of them |
 | Form | A text breaks the role's word limit. An intent phrase starts with a banned opening: `uses`, `use`, `calls`, `call`, `depends on`, `connects to`, `talks to`, `communicates with`, `interacts with`. A phrase contains a protocol word: `HTTP`, `HTTPS`, `REST`, `JSON`, `AMQP`, `Kafka`, `JMS`, `JDBC`, `SQL`, `gRPC`, `WebSocket`, `STOMP`, `SMTP`, `RESP`. A responsibility restates its subject's name: more than 60% of its subject's name tokens (split on case changes, dots, dashes and underscores, lower-cased, stop words removed) appear among the sentence's first 6 tokens, and the sentence adds fewer than 3 content tokens beyond the name's (plurals matched to singulars; words that say nothing, such as `handles`, `manages`, `provides`, `service`, not counted; amended by #685, `docs/research/summary-prompt-rules.md`) |
 | Conflict | A proposed connection or claim repeats or contradicts a static claim (the same subject and predicate, with the same object or with the static claim's object in its place). Static wins: the proposal is dropped and logged |
@@ -1007,7 +1007,7 @@ Before you answer, check: each responsibility opens with what the part does and 
 ```text
 Task: describe the elements the units use. Each item in <items> is one database, topic, queue, exchange, external system or person, with its facts, what is built in it, and how the system's units use it.
 For each item, write a responsibility sentence: one plain sentence of at most 22 words saying what it holds or carries, what it does for the system, or (for a person) what they do with the system, in words a non-engineer understands. Infer it from names, paths, routing keys, tables and how the units use it. Do not restate its name or its kind. It is shown on its own beside the part, so open it with what the part does, usually a verb ("Keeps each customer's cart until checkout.", "Sends password-reset emails to users."); never open with a pronoun (It, This, These) or with its kind ("The service…", "A database that…"). Do not open by echoing its name: for a part called PasswordResetService, write "Emails a one-time code so a user can choose a new password", not "Handles password resets". Use the code's own terms for what it handles (passwords, organizations, bookings) rather than a vaguer word.
-Answer {"omitted": true} for an item whose facts do not show its responsibility. Cite facts [F..] and earlier answers [A..]. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Answer {"omitted": true} for an item whose facts do not show its responsibility. Cite facts [F..] and earlier answers [A..]. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 Before you answer, check: each responsibility opens with what the item does or holds, does not open by echoing its name, and has at most 22 words.
 ```
@@ -1066,7 +1066,7 @@ Derivation stores every candidate flow (section 9). This role decides which are 
 Task: choose the flows worth drawing. The item lists flows that static analysis traced through the system, [W1]..., one for each different shape; each shows what starts it and the steps that cross from one container to another.
 Mark a flow significant when it is architecturally meaningful for this system: it crosses services, hands work on asynchronously, handles a failure or compensates for one, is how people enter or use the system, or is how the system starts, stops or runs on a schedule. Prefer flows that carry a business scenario over ones that only read data. There is no target number: a small system may have two such flows and a large one twenty. Do not mark a flow significant only because it is long.
 For every flow, answer significant true or false, a category (cross-service, async-handoff, failure-handling, entry-by-people, lifecycle, scheduled, data-read, other) and a reason of at most 18 words, naming the services or mechanism that make it matter, citing the [F..] facts it rests on. Then give the significant flows in the order a reader should see them: the one that best explains what the system is for first.
-A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 ```
 
@@ -1107,7 +1107,7 @@ For each item write:
 - the pre-conditions, at most 22 words: what must hold before it starts;
 - the post-conditions, at most 22 words: what has changed when it ends, such as data written or messages sent; when the last step hands work on asynchronously, say the message was sent, not what its receiver does later.
 Leave out any of these that the facts do not show.
-Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 Before you answer, check each text against its word limit: title 5, walkthrough 75, each condition 22; and that each text names no protocol or technology its citations do not show.
 ```
@@ -1231,7 +1231,7 @@ For each item write:
 - a responsibility sentence of at most 22 words saying what the group as a whole is responsible for, in words a non-engineer understands, opening with what the group does, not with a pronoun or "The group";
 - for each line [R..], an intent phrase of at most 7 words, starting with a verb, saying what the group does with the other group and why. Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol.
 If two groups in <groups> look like one area of the system, you may say so in merge, with the other group's reference [G..] and a reason of at most 18 words; it is only a suggestion.
-Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it. Each item cites only the references inside that item: a merge reason rests on this group's own facts and answers, never on another item's.
+Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it. Each item cites only the references inside that item: a merge reason rests on this group's own facts and answers, never on another item's.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 ```
 

@@ -5,6 +5,6 @@ For each item write:
 - the pre-conditions, at most 22 words: what must hold before it starts;
 - the post-conditions, at most 22 words: what has changed when it ends, such as data written or messages sent; when the last step hands work on asynchronously, say the message was sent, not what its receiver does later.
 Leave out any of these that the facts do not show.
-Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 Before you answer, check each text against its word limit: title 5, walkthrough 75, each condition 22; and that each text names no protocol or technology its citations do not show.

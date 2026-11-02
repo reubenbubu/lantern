@@ -53,10 +53,10 @@ import tools.jackson.databind.node.ObjectNode;
 final class FlowJudgements {
 
   /** The version of the significance prompt. */
-  static final String SIGNIFICANCE_VERSION = "3";
+  static final String SIGNIFICANCE_VERSION = "4";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
-  static final String NARRATIVE_VERSION = "7";
+  static final String NARRATIVE_VERSION = "8";
 
   static final String SIGNIFICANCE_TASK = DescribeRole.prompt("flow-significance.task.txt");
   static final String SIGNIFICANCE_SCHEMA = DescribeRole.prompt("flow-significance.schema.json");

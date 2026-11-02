@@ -117,17 +117,35 @@ class ChecksTest {
   }
 
   @Test
-  void aFileWhoseLinesAreCitedMayBeNamed() {
-    // "application.yml sets ..." citing a range of application.yml is grounded (#685).
+  void aFileWhoseLinesAreCitedMayBeNamedButItsPathHoldsNoDeclaredName() {
+    // "OrderService.java declares ..." citing a range of that file is grounded (#685) ...
     assertThat(
-            Checks.cited(
-                text(CheckedText.Kind.PROSE, "x", "shop:conf/application.yml:1-2")
-                    .texts()
-                    .getFirst(),
-                inputs()))
-        .first()
-        .asString()
-        .startsWith("conf/application.yml\n");
+            new Checks.Names()
+                .check(
+                    text(
+                        CheckedText.Kind.PROSE,
+                        "OrderService.java declares the class",
+                        "shop:src/OrderService.java:1-1"),
+                    inputs()))
+        .isEmpty();
+    // ... but a declared name must still be inside the cited lines, not only in the path.
+    ItemAnswer pathOnly =
+        new ItemAnswer(
+            "I1",
+            JSON.readTree("{}"),
+            List.of(
+                new CheckedText(
+                    "proposal",
+                    CheckedText.Kind.PROSE,
+                    "OrderService has no transaction",
+                    List.of("shop:src/OrderService.java:1-1"),
+                    40,
+                    "",
+                    Set.of("OrderService"))),
+            List.of());
+    assertThat(new Checks.Coverage().check(pathOnly, inputs()))
+        .extracting(Rejection::reason)
+        .contains("Declares the name OrderService, which its cited lines do not hold.");
   }
 
   @Test

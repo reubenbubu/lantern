@@ -271,6 +271,7 @@ public final class Checks {
       List<Rejection> found = new ArrayList<>();
       for (CheckedText text : answer.texts()) {
         List<String> support = new ArrayList<>(cited(text, inputs));
+        support.addAll(citedFiles(text));
         if (!text.subjectName().isEmpty()) {
           support.add(text.subjectName());
         }
@@ -589,17 +590,29 @@ public final class Checks {
         List<String> lines = inputs.files().lines(range.group(1), range.group(2)).orElse(List.of());
         int from = Math.max(1, Integer.parseInt(range.group(3)));
         int to = Math.min(lines.size(), Integer.parseInt(range.group(4)));
-        // The file's path counts as shown too: a text may name the file whose lines it cites
-        // (#685).
-        cited.add(
-            range.group(2)
-                + "\n"
-                + (from > to ? "" : String.join("\n", lines.subList(from - 1, to))));
+        cited.add(from > to ? "" : String.join("\n", lines.subList(from - 1, to)));
       } else {
         cited.add(inputs.references().getOrDefault(cite, ""));
       }
     }
     return cited;
+  }
+
+  /**
+   * The file name of each range a text cites: a text may name the file whose lines it cites, but
+   * not the folders above it (#685). Only the Names check reads these; Coverage still needs a
+   * declared name inside the cited lines.
+   */
+  static List<String> citedFiles(CheckedText text) {
+    List<String> files = new ArrayList<>();
+    for (String cite : text.cites()) {
+      Matcher range = RANGE.matcher(cite);
+      if (range.matches()) {
+        String path = range.group(2);
+        files.add(path.substring(path.lastIndexOf('/') + 1));
+      }
+    }
+    return files;
   }
 
   private static String normal(String text) {

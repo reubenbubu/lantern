@@ -53,7 +53,7 @@ final class DescribeRole {
   static final String UNIT_VERSION = "7";
 
   /** The prompt version of the element role. */
-  static final String ELEMENT_VERSION = "6";
+  static final String ELEMENT_VERSION = "7";
 
   /** The most words of a responsibility sentence. */
   static final int SENTENCE_WORDS = 25;
