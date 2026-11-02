@@ -23,15 +23,16 @@ test('three outcomes: a wrong answer costs p, an abstention nothing, not asked i
       { id: 'b', outcome: 'correct' },
       { id: 'c', outcome: 'wrong' },
       { id: 'd', outcome: 'abstained' },
-      { id: 'e', outcome: 'correct', unknown: true },
+      { id: 'e', outcome: 'correct', unknown: true, abstainedRight: true },
       { id: 'f', outcome: 'notAsked' },
     ],
     3,
   );
   assert.equal(row.items, 5);
   assert.equal(row.notAsked, 1);
-  assert.equal(row.coverage, 4 / 5);
-  assert.equal(row.accuracy, 3 / 4);
+  // e abstained where the reference says unknown: correct, but not an answer.
+  assert.equal(row.coverage, 3 / 5);
+  assert.equal(row.accuracy, 2 / 3);
   assert.equal(row.penalized, (3 - 3 * 1) / 5);
   // Of the four items the reference answers, one was abstained on.
   assert.equal(row.overAbstention, 1 / 4);
@@ -71,6 +72,9 @@ test('Resolve: a pick is right or wrong, an unknown abstention is right, a pick 
   assert.equal(row.notAsked, 2); // L6 has no candidates, L7 was not asked for budget
   assert.equal(row.penalty, 3);
   assert.equal(row.penalized, (3 - 3 * 2) / 6);
+  // Picks: L1, L2, L4 and L8; L3's right abstention is no answer.
+  assert.equal(row.coverage, 4 / 6);
+  assert.equal(row.accuracy, 2 / 4);
 });
 
 test('flows match by trigger and two thirds of the larger participant set, one to one, best first', () => {

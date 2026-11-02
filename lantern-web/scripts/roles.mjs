@@ -60,6 +60,8 @@ export function threeOutcomes(items, p) {
   const correct = count('correct');
   const wrong = count('wrong');
   const abstained = count('abstained');
+  // A right abstention (the key says unknown) is correct but not an answer.
+  const picked = judged.filter((i) => i.outcome === 'correct' && !i.abstainedRight).length;
   const answerable = judged.filter((i) => !i.unknown);
   const overAbstained = answerable.filter((i) => i.outcome === 'abstained').length;
   const scores = {};
@@ -71,8 +73,8 @@ export function threeOutcomes(items, p) {
     correct,
     wrong,
     abstained,
-    coverage: ratio(correct + wrong, judged.length),
-    accuracy: ratio(correct, correct + wrong),
+    coverage: ratio(picked + wrong, judged.length),
+    accuracy: ratio(picked, picked + wrong),
     penalized: ratio(correct - p * wrong, judged.length),
     penalty: p,
     overAbstention: ratio(overAbstained, answerable.length),
@@ -115,7 +117,8 @@ export function resolveRow(key, linked, llm, run) {
     else if (planned.has(entry.link) || (resolve && !unasked.has(entry.link) && (entry.candidates ?? []).length > 0 && (resolve.items?.planned ?? 0) > 0))
       outcome = unknown ? 'correct' : 'abstained';
     else outcome = 'notAsked';
-    return { id: entry.link, outcome, unknown, pick: pick ?? null, answer: [...right].join(' or ') };
+    const abstainedRight = pick === undefined && outcome === 'correct';
+    return { id: entry.link, outcome, unknown, abstainedRight, pick: pick ?? null, answer: [...right].join(' or ') };
   });
   const row = threeOutcomes(items, PENALTY.resolve);
   row.wrongItems = items.filter((i) => i.outcome === 'wrong').map((i) => `${i.id}: picked ${i.pick}, right ${i.answer}`);
@@ -135,11 +138,14 @@ const DESCRIBED_KINDS = new Set(['container', 'database', 'queue', 'external', '
  */
 export function describeRow(report, linked, llm) {
   if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+  // A component is drawn under its anchor type's ID (component:<unit>/type:<type> as type-<type>).
   const described = new Set(
-    llm.filter((f) => f.predicate === 'responsibility').map((f) => reportId(f.subject)),
+    llm
+      .filter((f) => f.predicate === 'responsibility')
+      .flatMap((f) => [reportId(f.subject), reportId(String(f.subject).split('/').pop())]),
   );
   const elements = Object.entries(report.elements).filter(([, e]) => DESCRIBED_KINDS.has(e.kind));
-  const withText = elements.filter(([id]) => described.has(id) || described.has(id.replace(/-\d+$/, '')));
+  const withText = elements.filter(([id]) => described.has(id));
   const intents = new Set(llm.filter((f) => f.predicate === 'intent').map((f) => String(f.object?.value).split('/')[0]));
   const interactions = new Set(
     (linked ?? []).filter((f) => INTERACTION.test(f.predicate)).map((f) => f.claim ?? f.id),
