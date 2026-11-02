@@ -53,10 +53,10 @@ import tools.jackson.databind.node.ObjectNode;
 final class FlowJudgements {
 
   /** The version of the significance prompt. */
-  static final String SIGNIFICANCE_VERSION = "1";
+  static final String SIGNIFICANCE_VERSION = "2";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
-  static final String NARRATIVE_VERSION = "5";
+  static final String NARRATIVE_VERSION = "6";
 
   static final String SIGNIFICANCE_TASK = DescribeRole.prompt("flow-significance.task.txt");
   static final String SIGNIFICANCE_SCHEMA = DescribeRole.prompt("flow-significance.schema.json");
@@ -158,9 +158,15 @@ final class FlowJudgements {
    *     DescribeRole.Answered})
    * @param flows each flow it shows, by its key {@code W..} (significance items only)
    * @param crossing the keys of the flows that cross a unit boundary
+   * @param containers the containers the item's steps name, which its texts may name without citing
+   *     a fact that does (#685)
    */
   record Asked(
-      Item item, Refs refs, Map<String, SequenceFlows.Candidate> flows, Set<String> crossing) {}
+      Item item,
+      Refs refs,
+      Map<String, SequenceFlows.Candidate> flows,
+      Set<String> crossing,
+      Set<String> containers) {}
 
   /**
    * The significance item of a scope: each candidate flow with its trigger, containers, steps and
@@ -231,7 +237,9 @@ final class FlowJudgements {
       said.forEach(line -> text.append(line).append('\n'));
     }
     Item item = new Item(scope, scope, inputs, text.toString());
-    return new Asked(item, refs, flows, crossing);
+    Set<String> containers = new java.util.TreeSet<>();
+    candidates.forEach(c -> containers.addAll(c.containers()));
+    return new Asked(item, refs, flows, crossing, containers);
   }
 
   /**
@@ -349,7 +357,8 @@ final class FlowJudgements {
       earlier.forEach(line -> text.append(line).append('\n'));
     }
     Item item = new Item(narrated.key(), flow.unit().toString(), inputs, text.toString());
-    return new Asked(item, refs, Map.of(), Set.of());
+    return new Asked(
+        item, refs, Map.of(), Set.of(), new java.util.TreeSet<>(narrated.candidate().containers()));
   }
 
   private static void appendSteps(
@@ -440,7 +449,8 @@ final class FlowJudgements {
           false,
           (repo, path) -> Optional.empty(),
           Map.of(),
-          Set.of());
+          Set.of(),
+          asked.containers());
     }
 
     @Override

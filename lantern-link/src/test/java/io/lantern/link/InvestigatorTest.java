@@ -302,7 +302,8 @@ class InvestigatorTest {
         .containsExactly(lead.claimId() != null ? lead.claimId() : lead.id());
     Fact risk = of(result, Investigator.RISK).getFirst();
     assertThat(risk.subject().toString()).isEqualTo(FILES_UNIT);
-    assertThat(risk.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "investigate", "1"));
+    assertThat(risk.origin())
+        .isEqualTo(new Origin(Origin.Kind.LLM, "investigate", InvestigatePrompt.VERSION));
     assertThat(risk.attributes().path("title").asString())
         .isEqualTo("Files trust the caller's user header");
     assertThat(risk.attributes().path("impact").asString()).isEqualTo("high");

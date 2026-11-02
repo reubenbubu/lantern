@@ -20,6 +20,8 @@ import tools.jackson.databind.JsonNode;
  * @param staticClaims the objects static claims give each subject and predicate, joined by {@code "
  *     "}, for the Conflict check
  * @param secrets values masking marked as secret
+ * @param shown names the item shows outside its references, such as the containers a flow's steps
+ *     name, which a text may name without citing (#685)
  */
 public record CheckInputs(
     JsonNode schema,
@@ -28,7 +30,20 @@ public record CheckInputs(
     boolean ranges,
     Files files,
     Map<String, Set<String>> staticClaims,
-    Set<String> secrets) {
+    Set<String> secrets,
+    Set<String> shown) {
+
+  /** Inputs whose item shows no names outside its references. */
+  public CheckInputs(
+      JsonNode schema,
+      Map<String, String> references,
+      Set<Character> citable,
+      boolean ranges,
+      Files files,
+      Map<String, Set<String>> staticClaims,
+      Set<String> secrets) {
+    this(schema, references, citable, ranges, files, staticClaims, secrets, Set.of());
+  }
 
   /** The lines of the snapshot's files. */
   @FunctionalInterface
@@ -43,13 +58,21 @@ public record CheckInputs(
     Objects.requireNonNull(files, "files");
     staticClaims = Map.copyOf(staticClaims);
     secrets = Set.copyOf(secrets);
+    shown = Set.copyOf(shown);
+  }
+
+  /** These inputs with names the item shows outside its references. */
+  public CheckInputs withShown(java.util.Collection<String> names) {
+    Set<String> all = new java.util.LinkedHashSet<>(shown);
+    all.addAll(names);
+    return new CheckInputs(schema, references, citable, ranges, files, staticClaims, secrets, all);
   }
 
   /** These inputs with more secret values, such as the run's. */
   public CheckInputs withSecrets(java.util.Collection<String> more) {
     Set<String> all = new java.util.LinkedHashSet<>(secrets);
     all.addAll(more);
-    return new CheckInputs(schema, references, citable, ranges, files, staticClaims, all);
+    return new CheckInputs(schema, references, citable, ranges, files, staticClaims, all, shown);
   }
 
   /** The key of a subject and predicate in {@link #staticClaims}. */

@@ -1,7 +1,10 @@
 Task: narrate flows. Each item in <items> is one flow through the system: what starts it and the steps that cross from one container to another, in the order of the code, each with the facts behind it. A synchronous step waits for its answer; an asynchronous one hands work on, and what follows it happens later.
 For each item write:
-- a title of at most 6 words naming the business scenario, what someone or something gets done, such as "Customer places an order", without request paths or class names;
-- a walkthrough of two to four plain sentences, at most 80 words in all, telling a reader who does not know the code what the flow does for the system, in the order it happens, naming the containers as the steps name them and saying where work is handed on asynchronously;
-- the pre-conditions, at most 25 words: what must hold before it starts;
-- the post-conditions, at most 25 words: what has changed when it ends, such as data written or messages sent.
+- a title of at most 5 words naming the business scenario, what someone or something gets done, such as "Customer places an order", without request paths or class names;
+- a walkthrough of two to four plain sentences, at most 70 words in all, telling a reader who does not know the code what the flow does for the system, in the order it happens, naming the containers as the steps name them and saying where work is handed on asynchronously;
+- the pre-conditions, at most 20 words: what must hold before it starts;
+- the post-conditions, at most 20 words: what has changed when it ends, such as data written or messages sent.
 Leave out any of these that the facts do not show.
+Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
+Before you answer, check each text against its word limit: title 5, walkthrough 70, each condition 20.

@@ -117,6 +117,14 @@ class ChecksTest {
   }
 
   @Test
+  void aNameTheItemShowsOutsideItsReferencesNeedsNoCitation() {
+    // A flow's steps name its containers in their headings, which cannot be cited (#685).
+    ItemAnswer answer = text(CheckedText.Kind.PROSE, "Saves the order in main_db", "F1");
+    assertThat(new Checks.Names().check(answer, inputs())).hasSize(1);
+    assertThat(new Checks.Names().check(answer, inputs().withShown(List.of("main_db")))).isEmpty();
+  }
+
+  @Test
   void coverage() {
     Check check = new Checks.Coverage();
     ItemAnswer covered =

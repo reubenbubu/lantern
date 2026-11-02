@@ -235,6 +235,7 @@ public final class Checks {
         if (!text.subjectName().isEmpty()) {
           support.add(text.subjectName());
         }
+        support.addAll(inputs.shown());
         List<String> missing = Grounding.unsupported(text.text(), support);
         if (!missing.isEmpty()) {
           found.add(

@@ -857,8 +857,9 @@ Task: check leads. Static analysis flagged each item in <items> as a possible ri
 - "confirmed": the code shows the risk as described, on at least one path a caller can take;
 - "refuted": the code shows the risk cannot happen (for example, the header is removed or verified on every path that reaches the unit, or the send happens after commit), and you can cite where;
 - "unclear": the code you can read does not settle it.
-For a confirmed item, write the risk: a title of at most 8 words; the finding, what the code does, in one or two sentences; the consequence, what can happen because of it, in one or two sentences; its impact (high, medium or low) by what an attacker or a failure could do to data or availability; and your confidence (high, medium or low). For every verdict, give the identifiers your verdict rests on, exactly as the code writes them, and cite the ranges that show them.
+For a confirmed item, write the risk: a title of at most 6 words; the finding, what the code does, in one or two sentences; the consequence, what can happen because of it, in one or two sentences; its impact (high, medium or low) by what an attacker or a failure could do to data or availability; and your confidence (high, medium or low). For every verdict, give the identifiers your verdict rests on, exactly as the code writes them, and cite the ranges that show them. The two must match: list in names only identifiers that appear, character for character, inside the lines you cite, and make every cited range contain at least one of them. A class or method name is on its declaration line, so cite that line too or leave the name out. The finding and the consequence name only what your cited lines show.
 Cite each range as repo:path:from-to, using the repository, path and line numbers the <code> blocks and read_file results show; cite nothing else. Call submit once with every item, each with its lead id and a verdict.
+Before you call submit, check each item: every name appears in one of its cited ranges, every range holds one of its names, and the title has at most 6 words.
 ```
 
 **Role instructions, Modes B and C** (block 2):
@@ -868,7 +869,7 @@ Task: investigate what static analysis missed. You are given one deployable unit
 Look for what a careful reviewer would report and the facts do not already state:
 - risks: security gaps (identity, permissions or tenancy taken from what a caller sends; missing or wrong access checks; secrets exposed), consistency gaps (side effects before a transaction commits; data shared without an owner; message or API contracts that differ between the two sides), and availability gaps (single points of failure, missing timeouts or retries on calls that block a request, listeners with no handling for messages they cannot process);
 - connections: calls, messages, data stores or external systems this unit uses that no fact links it to.
-Do not repeat a risk in <answers>, and do not propose a connection the facts already link. Read the code before you propose anything, and propose only what the lines you cite show. Cite each range as repo:path:from-to, as read_file shows it; cite nothing else. Propose at most 10 things, the most important first; proposing nothing is a good answer when you find nothing.
+Do not repeat a risk in <answers>, and do not propose a connection the facts already link. Read the code before you propose anything, and propose only what the lines you cite show. Cite each range as repo:path:from-to, as read_file shows it, at most 40 lines long, and write a single line as from-to too (path:12-12); cite nothing else. List in names only identifiers that appear, character for character, inside the lines you cite, and make every cited range contain at least one of them. Propose at most 10 things, the most important first; proposing nothing is a good answer when you find nothing.
 Submit with the submit tool as soon as you have proposals worth keeping; you may submit more than once. Each submission is checked at once and the result tells you which proposals were accepted and why others were not, so you can correct them.
 ```
 
@@ -994,17 +995,21 @@ Describe words the responsibility of every element and the intent of every inter
 
 ```text
 Task: describe deployable units. Each item in <items> is one deployable unit with the facts that make it a unit, what its README claims, its components [C1]... (each with the start of its main type's code), its interactions [R1]... with other containers, between its own components and with the people who use it, and the summaries of its code.
-For the unit and for each component, write a responsibility sentence: one plain sentence of at most 25 words saying what it is responsible for, in words a non-engineer understands. Say what it does for the system: what it decides, owns or protects. Do not restate its name or its kind.
-For each interaction, write an intent phrase: at most 8 words, starting with a verb, saying what the source does with the target and why, such as "Looks up product prices" or "Publishes new orders for shipping". Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol, which is shown separately.
-Leave out any unit, component or interaction whose facts and code do not show its responsibility or intent. Cite facts [F..], code excerpts [E..] and summaries [S..]; [C..] and [R..] are keys for your answer, not citations.
+For the unit and for each component, write a responsibility sentence: one plain sentence of at most 20 words saying what it is responsible for, in words a non-engineer understands. Say what it does for the system: what it decides, owns or protects. It is shown on its own beside the part, so open it with what the part does, usually a verb ("Keeps each customer's cart until checkout.", "Sends password-reset emails to users."); never open with a pronoun (It, This, These) or with its kind ("The service…", "A database that…"), and do not repeat the words of its name.
+For each interaction, write an intent phrase: at most 6 words, starting with a verb, saying what the source does with the target and why, such as "Looks up product prices", "Publishes new orders for shipping" or "Checks a member's organization role". Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol, which is shown separately.
+Leave out any unit, component or interaction whose facts and code do not show its responsibility or intent. Cite facts [F..], code excerpts [E..] and summaries [S..]; [C..] and [R..] are keys for your answer, not citations. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
+Before you answer, check: each responsibility opens with what the part does and has at most 20 words; each intent phrase starts with a verb and has at most 6 words; each citation is a bare reference from the item.
 ```
 
 **Role instructions, elements** (block 2):
 
 ```text
 Task: describe the elements the units use. Each item in <items> is one database, topic, queue, exchange, external system or person, with its facts, what is built in it, and how the system's units use it.
-For each item, write a responsibility sentence: one plain sentence of at most 25 words saying what it holds or carries, what it does for the system, or (for a person) what they do with the system, in words a non-engineer understands. Infer it from names, paths, routing keys, tables and how the units use it. Do not restate its name or its kind.
-Answer {"omitted": true} for an item whose facts do not show its responsibility. Cite facts [F..] and earlier answers [A..].
+For each item, write a responsibility sentence: one plain sentence of at most 20 words saying what it holds or carries, what it does for the system, or (for a person) what they do with the system, in words a non-engineer understands. Infer it from names, paths, routing keys, tables and how the units use it. Do not restate its name or its kind. It is shown on its own beside the part, so open it with what the part does, usually a verb ("Keeps each customer's cart until checkout.", "Sends password-reset emails to users."); never open with a pronoun (It, This, These) or with its kind ("The service…", "A database that…"), and do not repeat the words of its name.
+Answer {"omitted": true} for an item whose facts do not show its responsibility. Cite facts [F..] and earlier answers [A..]. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
+Before you answer, check: each responsibility opens with what the item does or holds, does not repeat its name, and has at most 20 words.
 ```
 
 **Answer schemas:**
@@ -1060,7 +1065,9 @@ Derivation stores every candidate flow (section 9). This role decides which are 
 ```text
 Task: choose the flows worth drawing. The item lists flows that static analysis traced through the system, [W1]..., one for each different shape; each shows what starts it and the steps that cross from one container to another.
 Mark a flow significant when it is architecturally meaningful for this system: it crosses services, hands work on asynchronously, handles a failure or compensates for one, is how people enter or use the system, or is how the system starts, stops or runs on a schedule. Prefer flows that carry a business scenario over ones that only read data. There is no target number: a small system may have two such flows and a large one twenty. Do not mark a flow significant only because it is long.
-For every flow, answer significant true or false, a category (cross-service, async-handoff, failure-handling, entry-by-people, lifecycle, scheduled, data-read, other) and a reason of at most 20 words citing the [F..] facts it rests on. Then give the significant flows in the order a reader should see them: the one that best explains what the system is for first.
+For every flow, answer significant true or false, a category (cross-service, async-handoff, failure-handling, entry-by-people, lifecycle, scheduled, data-read, other) and a reason of at most 15 words citing the [F..] facts it rests on. Then give the significant flows in the order a reader should see them: the one that best explains what the system is for first.
+A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 ```
 
 **Answer schema, significance:**
@@ -1095,11 +1102,14 @@ For every flow, answer significant true or false, a category (cross-service, asy
 ```text
 Task: narrate flows. Each item in <items> is one flow through the system: what starts it and the steps that cross from one container to another, in the order of the code, each with the facts behind it. A synchronous step waits for its answer; an asynchronous one hands work on, and what follows it happens later.
 For each item write:
-- a title of at most 6 words naming the business scenario, what someone or something gets done, such as "Customer places an order", without request paths or class names;
-- a walkthrough of two to four plain sentences, at most 80 words in all, telling a reader who does not know the code what the flow does for the system, in the order it happens, naming the containers as the steps name them and saying where work is handed on asynchronously;
-- the pre-conditions, at most 25 words: what must hold before it starts;
-- the post-conditions, at most 25 words: what has changed when it ends, such as data written or messages sent.
+- a title of at most 5 words naming the business scenario, what someone or something gets done, such as "Customer places an order", without request paths or class names;
+- a walkthrough of two to four plain sentences, at most 70 words in all, telling a reader who does not know the code what the flow does for the system, in the order it happens, naming the containers as the steps name them and saying where work is handed on asynchronously;
+- the pre-conditions, at most 20 words: what must hold before it starts;
+- the post-conditions, at most 20 words: what has changed when it ends, such as data written or messages sent.
 Leave out any of these that the facts do not show.
+Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
+Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
+Before you answer, check each text against its word limit: title 5, walkthrough 70, each condition 20.
 ```
 
 Narrative answer schema (a narrative cites \[F..\] and the earlier answers \[A..\] shown):
@@ -1217,11 +1227,12 @@ Name groups words each derived group (section 9, Grouping) and the lines between
 ```text
 Task: name groups. Each item in <items> is a group of parts of the system that static analysis bundled together because the code shows they belong together; the item says why (its basis), lists its members with what each does, and lists the group's lines to other groups [R1]... with the intents of the member lines they stand for.
 For each item write:
-- a name of at most 4 words for what the group is about, such as "Orders" or "Billing and invoicing", not a member's name and not a technology;
-- a responsibility sentence of at most 25 words saying what the group as a whole is responsible for, in words a non-engineer understands;
-- for each line [R..], an intent phrase of at most 8 words, starting with a verb, saying what the group does with the other group and why. Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol.
-If two groups in <groups> look like one area of the system, you may say so in merge, with the other group's reference [G..] and a reason of at most 20 words; it is only a suggestion.
-Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations.
+- a name of at most 3 words for what the group is about, such as "Orders" or "Billing and invoicing", not a member's name and not a technology;
+- a responsibility sentence of at most 20 words saying what the group as a whole is responsible for, in words a non-engineer understands, opening with what the group does, not with a pronoun or "The group";
+- for each line [R..], an intent phrase of at most 6 words, starting with a verb, saying what the group does with the other group and why. Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol.
+If two groups in <groups> look like one area of the system, you may say so in merge, with the other group's reference [G..] and a reason of at most 15 words; it is only a suggestion.
+Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it. Each item cites only the references inside that item: a merge reason rests on this group's own facts and answers, never on another item's.
+Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 ```
 
 **Answer schema:**
