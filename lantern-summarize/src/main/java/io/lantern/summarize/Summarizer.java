@@ -248,6 +248,7 @@ public final class Summarizer {
         unit.whenComplete(
             (summary, failure) -> {
               if (failure != null) {
+                run.neverRan(node);
                 run.session(node).releaseWarmUp(node.entity().toString());
               }
             });
@@ -550,6 +551,9 @@ public final class Summarizer {
     // cannot start before its parts are done.
     private final Set<EntityId> toAsk = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean accepted = new AtomicBoolean();
+    // The units that started: a planned unit that never did, since a part failed, is recorded as
+    // not asked, so each planned unit still gets its outcome.
+    private final Set<EntityId> started = ConcurrentHashMap.newKeySet();
     // Each role's units take slots of its own model's lane; a batched role's units wait for their
     // batch instead, so every unit whose parts are done joins the next batch.
     private final Map<RoleSession, Semaphore> running = new HashMap<>();
@@ -661,6 +665,7 @@ public final class Summarizer {
      * is rejected twice gets none.
      */
     Optional<Summary> visit(SummaryNode node, List<CompletableFuture<Optional<Summary>>> parts) {
+      started.add(node.entity());
       RoleSession session = session(node);
       Semaphore running = this.running.get(session);
       try {
@@ -729,6 +734,13 @@ public final class Summarizer {
         running.release();
         // Whatever ended it, the units waiting for the warm-up unit go on.
         session.releaseWarmUp(node.entity().toString());
+      }
+    }
+
+    /** Records a planned unit that never started, because one of its parts failed. */
+    void neverRan(SummaryNode node) {
+      if (planned.contains(node.entity()) && !started.contains(node.entity())) {
+        session(node).notAsked(node.entity().toString(), "another unit failed first");
       }
     }
 
@@ -961,11 +973,15 @@ public final class Summarizer {
       LlmRequest request =
           Prompt.request(
               role(node.level()).modelRole(), purpose, prompt, node.level().maxOutputTokens());
+      // The first answer is sent back if it lost its first sentence; the retry is taken as it is.
+      boolean[] retry = {false};
       return calls.answer(
           request,
           response -> {
             stopIfFailed();
-            return answer(purpose, response, inputs, allowed, sentences);
+            boolean first = !retry[0];
+            retry[0] = true;
+            return answer(purpose, response, inputs, allowed, sentences, first);
           },
           Repair.withMessage(rejected -> rejected.reasons().getFirst()));
     }
@@ -983,11 +999,18 @@ public final class Summarizer {
      * sentence followed by the references it cites. Its purpose counts as evidenced only if its
      * first sentence is kept and cites what people wrote.
      *
-     * @throws Rejected with the repair turn, if the answer is not one object in the schema, or no
-     *     sentence passes
+     * @param first whether this is the first answer, not the one to a repair turn
+     * @throws Rejected with the repair turn, if the answer is not one object in the schema, no
+     *     sentence passes, or, in the first answer, the first sentence does not pass while others
+     *     do: what is left is a fragment, which a description must never show (#275)
      */
     private static Answer answer(
-        String purpose, LlmResponse response, Inputs inputs, Set<String> allowed, int most)
+        String purpose,
+        LlmResponse response,
+        Inputs inputs,
+        Set<String> allowed,
+        int most,
+        boolean first)
         throws Rejected {
       if (response.cutOff()) {
         throw rejected("", "It was cut off at the length limit; write shorter sentences.");
@@ -1078,7 +1101,8 @@ public final class Summarizer {
         CheckedText checked =
             new CheckedText(
                 field,
-                CheckedText.Kind.PROSE,
+                // The first sentence is what a part without a responsibility shows alone.
+                i == 0 ? CheckedText.Kind.LEAD : CheckedText.Kind.PROSE,
                 text,
                 cites,
                 Prompt.SENTENCE_WORDS,
@@ -1102,6 +1126,34 @@ public final class Summarizer {
       }
       if (kept.isEmpty()) {
         throw new Rejected(Pipeline.repairTurn(dropped));
+      }
+      if (first && !firstKept) {
+        List<Rejection> lead = new ArrayList<>(dropped);
+        lead.add(
+            new Rejection(
+                Prompt.ITEM,
+                "sentences.1",
+                "Form",
+                "The first sentence was left out, so the others would stand without it; write the"
+                    + " whole summary again, opening with what the unit is for."));
+        throw new Rejected(Pipeline.repairTurn(lead));
+      }
+      if (!firstKept) {
+        // A retried answer that lost its first sentence leads with one written to follow it, which
+        // was checked as such: it may lead only if it may be shown alone (#275).
+        while (!kept.isEmpty() && Checks.Generic.weakOpening(kept.getFirst())) {
+          dropped.add(
+              new Rejection(
+                  Prompt.ITEM,
+                  "sentences",
+                  "Generic",
+                  "\""
+                      + kept.removeFirst()
+                      + "\" would lead the summary, but opens with a pronoun or its kind."));
+        }
+        if (kept.isEmpty()) {
+          throw new Rejected(Pipeline.repairTurn(dropped));
+        }
       }
       if (!dropped.isEmpty()) {
         LOG.info(

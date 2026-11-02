@@ -187,6 +187,65 @@ class ChecksTest {
   }
 
   @Test
+  void genericSentencesAndWeakOpeningsAreRejected() {
+    Check check = new Checks.Generic();
+    String generic =
+        "\"The class is a Spring service, so it is available for injection\" would be true of any"
+            + " Spring application; say what this part decides, owns or protects.";
+    assertThat(
+            reasons(
+                check,
+                text(
+                    CheckedText.Kind.PROSE,
+                    "The class is a Spring service, so it is available for injection",
+                    "F1")))
+        .containsExactly(generic);
+    assertThat(
+            reasons(
+                check,
+                text(
+                    CheckedText.Kind.PROSE,
+                    "It works mainly with SignUpRequest, User, and PasswordGenerator",
+                    "F1")))
+        .hasSize(1);
+    assertThat(
+            reasons(
+                check,
+                text(CheckedText.Kind.RESPONSIBILITY, "Is managed by Spring as a bean", "F1")))
+        .hasSize(1);
+    // Later sentences of a summary may refer back; a sentence shown alone may not.
+    assertThat(reasons(check, text(CheckedText.Kind.PROSE, "It rejects duplicate files", "F1")))
+        .isEmpty();
+    assertThat(reasons(check, text(CheckedText.Kind.LEAD, "It rejects duplicate files", "F1")))
+        .containsExactly(
+            "\"It rejects duplicate files\" opens with a pronoun or restates what kind of part it"
+                + " is; it is shown alone, so open with what the part does.");
+    for (String weak :
+        List.of(
+            "This service keeps the file list of an organization",
+            "A Spring service that keeps the file list of an organization",
+            "The controller is where sign-up requests arrive",
+            "Its job is keeping files")) {
+      assertThat(reasons(check, text(CheckedText.Kind.RESPONSIBILITY, weak, "F1")))
+          .as(weak)
+          .hasSize(1);
+    }
+    for (String fine :
+        List.of(
+            "Keeps the files attached to each organization and refuses duplicates",
+            "Organization files are kept here, one root per organization",
+            "Thin wrapper over the tax rules, rounding to the cent",
+            "Itemised invoices are built from the order lines",
+            "Its client is annotated with @FeignClient(name=orders), so calls go to orders",
+            "Topic names are bound as Spring configuration properties per environment")) {
+      assertThat(reasons(check, text(CheckedText.Kind.PROSE, fine, "F1"))).as(fine).isEmpty();
+    }
+    // An intent phrase is the Form check's.
+    assertThat(reasons(check, text(CheckedText.Kind.INTENT, "It works mainly with", "F1")))
+        .isEmpty();
+  }
+
+  @Test
   void conflict() {
     Check check = new Checks.Conflict();
     ItemAnswer fresh = proposing("service:shop:orders", "CALLS_HTTP", "service:shop:payments");

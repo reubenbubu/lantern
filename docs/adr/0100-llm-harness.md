@@ -42,8 +42,9 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   element, flow narrative, purpose) and Resolve move onto the harness with their prompts, checks and
   repair turns unchanged, so the fake-model documents hold. Each keeps its own check, run inside the
   harness together with its Secrets check. The harness's eight checks (Schema, References, Ranges,
-  Names, Coverage, Form, Conflict, Secrets) and its packet envelope are built and tested now and
-  used by the new role prompts of milestone 1F; the legacy prompts ask one item per request.
+  Names, Coverage, Form, Conflict, Secrets; a ninth, Generic, since ADR 0106) and its packet
+  envelope are built and tested now and used by the new role prompts of milestone 1F; the legacy
+  prompts ask one item per request.
 - **Two rendering fixes the incrementality gate found.** A summary's fact sheet showed the fact IDs
   that a link fact lists in its `facts` attribute, and a flow narrative listed each step's facts in
   fact-ID order. Fact IDs change with extractor versions and commits, so a one-file change re-asked

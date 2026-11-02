@@ -144,14 +144,14 @@ class EndToEndIT {
                   String cite = "{\"text\": \"%s\", \"cites\": [\"F1\"]}";
                   String answer =
                       "{\"unit\": "
-                          + cite.formatted("It greets its callers.")
+                          + cite.formatted("Greets its callers.")
                           + ", \"element\": "
-                          + cite.formatted("It keeps the greetings.")
+                          + cite.formatted("Keeps the greetings.")
                           + ", \"purpose\": "
-                          + cite.formatted("It greets people.");
+                          + cite.formatted("Greets people.");
                   if (prompt.contains("[C1]")) {
                     answer +=
-                        ", \"components\": {\"C1\": " + cite.formatted("It takes requests.") + "}";
+                        ", \"components\": {\"C1\": " + cite.formatted("Takes requests.") + "}";
                   }
                   if (prompt.contains("[R1]")) {
                     answer +=
@@ -164,7 +164,7 @@ class EndToEndIT {
                 // Summarize in the epic's form (ADR 0104).
                 String summary =
                     FakeLlmConfiguration.summarize(
-                        request, "It builds on its parts.", "It is described by its facts.");
+                        request, "Builds on its parts.", "Described by its facts.");
                 return summary != null ? summary : "{}";
               });
     }

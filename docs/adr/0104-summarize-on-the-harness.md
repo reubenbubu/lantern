@@ -1,8 +1,9 @@
 # 0104: Summarize on the harness
 
-Status: accepted (#665); amends ADRs 0010 (which units, which tiers), 0024 (part and merge
-prompts), 0057 (fifteen facts a group), 0059 (the purpose mark), 0061 (how a sentence is dropped)
-and 0100 (budget rounds across roles); supersedes the prompt wording of ADR 0025
+Status: accepted (#665), amended by ADR 0106 (a summary that loses its first sentence is asked again
+once); amends ADRs 0010 (which units, which tiers), 0024 (part and merge prompts), 0057 (fifteen
+facts a group), 0059 (the purpose mark), 0061 (how a sentence is dropped) and 0100 (budget rounds
+across roles); supersedes the prompt wording of ADR 0025
 
 ## Context
 

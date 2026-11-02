@@ -32,7 +32,12 @@ public record CheckedText(
     /** A responsibility sentence: must not restate its subject's name. */
     RESPONSIBILITY,
     /** An intent phrase: no banned opening, no protocol word. */
-    INTENT
+    INTENT,
+    /**
+     * The first sentence of a summary, shown alone as a description where a part has no
+     * responsibility sentence: no pronoun opening and no restated kind, but its name may be said.
+     */
+    LEAD
   }
 
   public CheckedText {

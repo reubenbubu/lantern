@@ -2,7 +2,7 @@
   "document" : {
     "id" : "greeting-service",
     "title" : "greeting-service",
-    "subtitle" : "*Purpose inferred from the code:* It builds on its parts. It is described by its facts.\n\n- [greeting-service](#/containers/el-service-com-example-greeting-greeting-service), a service\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener, STOMP handler, scheduled or background job) was found whose code reaches another container.\n\nFor architects and senior engineers. Pinned to commit greeting-service `87b8856deb48`, as of 1970-01-01.",
+    "subtitle" : "*Purpose inferred from the code:* Builds on its parts. Described by its facts.\n\n- [greeting-service](#/containers/el-service-com-example-greeting-greeting-service), a service\n\n**Start here**\nNo entry point, main class, readme or decision record was found, so there is no obvious place to start reading.\n\n**Main flows**\nNo entry point (HTTP endpoint, message listener, STOMP handler, scheduled or background job) was found whose code reaches another container.\n\nFor architects and senior engineers. Pinned to commit greeting-service `87b8856deb48`, as of 1970-01-01.",
     "version" : "1",
     "updated" : "1970-01-01"
   },
@@ -13,7 +13,7 @@
       "parent" : "system-snapshot",
       "tag" : "Service",
       "technology" : "Java 21",
-      "description" : "Inferred, from its module's summary: It builds on its parts. It is described by its facts."
+      "description" : "Inferred, from its module's summary: Builds on its parts. Described by its facts."
     },
     "system-snapshot" : {
       "kind" : "system",

@@ -143,7 +143,7 @@ class Project0EndToEndIT {
                 // Summarize in the epic's form (ADR 0104).
                 String summary =
                     FakeLlmConfiguration.summarize(
-                        request, "It builds on its parts.", "It is described by its facts.");
+                        request, "Builds on its parts.", "Described by its facts.");
                 return summary != null ? summary : "{}";
               });
     }

@@ -1,0 +1,30 @@
+# Sentences that would be true of any Spring application (docs/quality-bar.md, Words say what the
+# diagram cannot). One Java regular expression a line, matched case-insensitively anywhere in a
+# sentence; a sentence one matches says nothing about the system and is rejected by the Generic
+# check. Lines starting with # and empty lines are ignored.
+
+# Framework mechanics: being a bean, being injected, being managed.
+\bavailable for (dependency )?injection\b
+\b(dependency|constructor|field) injection\b
+\b(is|are|gets?|being) injected\b
+\bmanaged by (the )?spring\b
+\bspring[- ]managed\b
+\b(is|as|are) (a |an )?spring (bean|component|service|controller|repository)( class)?\b
+\b(is|as) (a |an )?spring configuration class\b
+\bregister(s|ed)? (it(self)?|them(selves)?|the class) (as|with) (a )?(spring )?(bean|component)s?\b
+# Only the stereotypes every Spring application has; "annotated with @FeignClient(name=orders)"
+# or "@Scheduled" says something.
+\bannotated with @(component|service|repository|controller|restcontroller|configuration|autowired)\b
+# Generated or boilerplate members.
+\blombok\b
+\bboilerplate\b
+\b(getters?|setters?|getters and setters|accessors|constructors?) (for|of) (its|all|the) (fields|properties|attributes)\b
+\b(provides|has|exposes|generates) (getters|setters|accessors)\b
+\b(plain old java object|pojo)\b
+\b(inherits|provides|gets) (the )?(standard |basic |default |generic )?crud (operations|methods)\b
+# Starting the application.
+\b(entry point|main class) (of|for) the (spring boot )?(application|service|app)\b
+\b(bootstraps|starts|launches|boots) the spring( boot)? (application|context)\b
+# Lists of members instead of what the part does.
+\bworks (mainly|mostly|most|primarily|chiefly) with\b
+\b(follows|uses|implements) (the )?(standard |typical |usual |common )?(spring|mvc|layered|repository|service[- ]layer) (pattern|convention|architecture|layer)s?\b
