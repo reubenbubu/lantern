@@ -180,6 +180,39 @@ class LeadRulesTest {
   }
 
   @Test
+  void aSingleInstanceLeadCitesEachUnitsLinkInAFixedOrderOfKinds() {
+    shop();
+    billing();
+    EntityId database = EntityId.parse("datastore:postgres:shop");
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("platform", "compose");
+    attributes.put("environment", "local");
+    attributes.put("image", "postgres:16");
+    Fact container =
+        model.add(
+            EntityId.parse("repo:infra"),
+            "deployment-container",
+            FactObject.string("postgres"),
+            attributes,
+            "infra");
+    ObjectNode in = FactJson.newObject();
+    in.put("fact", container.id());
+    model.add(database, "deployed-in", FactObject.string("postgres"), in);
+    // The shop links to the database twice; the link of the kind listed first is cited, whatever
+    // order the facts came in, so every run cites the same one (#682).
+    Fact consumes = model.add(UNIT, "CONSUMES", database);
+    Fact uses = model.add(UNIT, "USES_DATABASE", database);
+    model.add(OTHER, "USES_DATABASE", database);
+
+    List<Fact> found = leads("single-instance");
+
+    assertThat(keys(found)).containsExactly("single-instance/" + database);
+    assertThat(strings(found.getFirst(), "facts"))
+        .contains(uses.id())
+        .doesNotContain(consumes.id());
+  }
+
+  @Test
   void secretsWrittenInPlainText() {
     shop();
     ObjectNode masked = FactJson.newObject();
