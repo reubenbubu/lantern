@@ -2,7 +2,7 @@
 
 Status: accepted (#528), amends ADR 0083 (frontends), supersedes the unit and element prompts of ADRs 0050, 0056 and 0069 and
 the wording of their answers' checks in ADRs 0065, 0066 and 0068; amends ADR 0100 (repair turn) and
-ADR 0101 (tiers)
+ADR 0101 (tiers); amended for #529 (elements asked ten a request)
 
 ## Context
 
@@ -111,3 +111,19 @@ owner's standing go-ahead for milestone 1F.
   such as a topic `orders` means most sentences that name what it carries. The recordings of #529
   show how often the repair turn has to correct it.
 - Packet sizes are starting sizes, calibrated in #529.
+
+## Amendment for #529: ten elements a request
+
+Measured on DeepSeek V4.1 Flash on project-1 to project-4 (2026-11-02); how, the noise between two runs and what the recordings share are in ADR 0112, amendment for #529. Per-item scores 0 to 100; the bound is the one-sided 90% bootstrap lower bound of the mean difference against size 1, trial a.
+
+| Size | Mean difference | Lower bound | Changed (limit 5%) | Worst set | Elements' cost, four sets | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1, trial b | 0.0 | 0.0 | 0% of 216 | 0.0 | $0.008 | the noise |
+| 5 | 0.0 | 0.0 | 0% | 0.0 | $0.005 | passes |
+| 10 | 0.0 | 0.0 | 0% | 0.0 | $0.004 | passes |
+| 20 | 0.0 | 0.0 | 0% | 0.0 | $0.002 (two sets cached) | passes, capped |
+
+Size 1 trial a cost $0.009. 217 elements were scored.
+
+- **Kept: 10 elements a request** (`lantern.harness.items-per-request.describe-element=10`). Every size passes, but the score only says whether an element was described, not how well. Describe writes prose, and the epic caps such a role below 20 unless the middle positions of a size-20 request are shown no worse than its ends; this score cannot show that, so the size stays at 10.
+- To be measured again with the wording judge's scores once they are validated (#668).

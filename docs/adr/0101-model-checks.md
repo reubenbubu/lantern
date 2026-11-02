@@ -1,6 +1,6 @@
 # 0101: Model checks: the support judge and the injection screen
 
-Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier)
+Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier), amended for #529 (the support judge asks ten a request)
 
 ## Context
 
@@ -97,3 +97,20 @@ go-ahead for milestone 1E.
   none.
 - A document can now say that one of its sentences is not supported by its sources. A repository
   with text addressed to an AI shows it as a risk.
+
+## Amendment for #529: the support judge asks ten texts a request
+
+Measured on DeepSeek V4.1 Flash on project-1 to project-4 (2026-11-02); how, the noise between two runs and what the recordings share are in ADR 0112, amendment for #529. Per-item scores 0 to 100; the bound is the one-sided 90% bootstrap lower bound of the mean difference against size 1, trial a. The support judge has no right answer, so its item score is the share of an item's claims judged supported, and only a difference or a change is measured.
+
+| Size | Mean difference | Lower bound | Items | Worst set | Judge's cost, four sets | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1, trial b | 0.0 | −1.1 | 15 | −2.8 | $0.011 | the noise |
+| 5 | +1.4 | −2.2 | 15 | −3.3 | $0.006 | passes |
+| 10 | +3.9 | +1.1 | 15 | 0.0 | $0.006 | passes |
+| 20 | +5.0 | +2.2 | 6 | 0.0 | $0.002 (two sets cached) | fails on changed answers |
+
+Size 1 trial a cost $0.010.
+
+- Its "changed answers" compare the list of claims an item splits into, which differs between any two runs (80% between the two size-1 runs). The limit is that share plus 5 points: 85%. Size 20 changed all 6 of its items.
+- **Kept: 10 texts a request** (`lantern.harness.items-per-request.support-judge=10`), the size the epic starts with.
+- With 6 to 22 items the measurement is weak. To be measured again on a sample of more texts.

@@ -83,4 +83,26 @@ class CalibrationTest {
     assertThatThrownBy(() -> new Harness.Calibration(0, "1"))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void itemsPerRequestChangeTheRequestsButNotTheAnswersCache() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(CalibrationTest::passing);
+    Harness harness = harness(client(fake), store).itemsPerRequest(Dimension.ROLE.role().name(), 2);
+    assertThat(new WordingJudge(harness).judge(Dimension.ROLE, texts())).hasSize(6);
+    // Six items, two a request.
+    assertThat(fake.sent()).hasSize(3);
+    assertThat(harness.records().getFirst().toJson().path("packetSize").asInt()).isEqualTo(2);
+    // At the usual size the same items read the cache: a size is not part of a fingerprint.
+    assertThat(judge(fake, null)).isZero();
+  }
+
+  @Test
+  void itemsPerRequestAreSetBeforeTheRoleStartsAndHoldAtLeastOne() {
+    Harness harness = harness(client(new FakeLlmProvider()), store);
+    assertThatThrownBy(() -> harness.itemsPerRequest(Dimension.ROLE.role().name(), 0))
+        .isInstanceOf(IllegalArgumentException.class);
+    harness.session(Dimension.ROLE.role());
+    assertThatThrownBy(() -> harness.itemsPerRequest(Dimension.ROLE.role().name(), 3))
+        .isInstanceOf(IllegalStateException.class);
+  }
 }

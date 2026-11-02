@@ -219,7 +219,8 @@ class TestSetScoreIT {
             WORKSPACE,
             false,
             "",
-            "1");
+            "1",
+            context.getEnvironment());
   }
 
   /**

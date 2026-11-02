@@ -290,6 +290,7 @@ class OpenAiBatchParityIT {
             Path.of(context.getEnvironment().getRequiredProperty("lantern.workspace")),
             false,
             "",
-            "1");
+            "1",
+            context.getEnvironment());
   }
 }

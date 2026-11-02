@@ -1,6 +1,6 @@
 # 0105: Resolve on the harness
 
-Status: accepted (#666); amends ADRs 0045 (prompt, answer, checks, storage, conversation) and 0081
+Status: accepted (#666); amends ADRs 0045 (prompt, answer, checks, storage, conversation) and 0081; amended for #529 (four links a conversation, unmeasured)
 (tool references, `find_in_code`)
 
 ## Context
@@ -89,3 +89,7 @@ milestone 1F.
 - A conversation costs at least two calls, the submit turn and the turn that ends it, so a run's
   Resolve calls are no longer its links asked.
 - The thinking budget is the model's setting (ADR 0009), set for the recordings in #529.
+
+## Amendment for #529: four links a conversation, unmeasured
+
+No development set has an open link in its answer key, so the calibration runs asked Resolve nothing to score (ADR 0112, amendment for #529). It keeps the epic's starting size of 4 (`lantern.harness.items-per-request.resolve=4`), to be measured on a set with open links.

@@ -1,6 +1,6 @@
 # 0110: Investigate on the harness: leads, units and the system
 
-Status: accepted (#269); supersedes ADR 0084 (PR #328, never merged)
+Status: accepted (#269); supersedes ADR 0084 (PR #328, never merged); amended for #529 (leads asked one a request)
 
 ## Context
 
@@ -140,3 +140,19 @@ under the owner's standing go-ahead for milestone 1F.
   approved recordings (#529).
 - Not covered: proposals of people, components and unconnected elements (#329); the fixed checks,
   decisions and unknowns on the findings page (#273).
+
+## Amendment for #529: one lead a request
+
+Measured on DeepSeek V4.1 Flash on project-1 to project-4 (2026-11-02); how, the noise between two runs and what the recordings share are in ADR 0112, amendment for #529. Per-item scores 0 to 100; the bound is the one-sided 90% bootstrap lower bound of the mean difference against size 1, trial a.
+
+| Size | Mean difference | Lower bound | Changed verdicts (limit 21%) | Worst set | Leads' cost, four sets | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1, trial b | −1.3 | −5.2 | 16% of 103 | −9.1 | $0.31 | the noise |
+| 5 | −5.2 | −9.1 | 18% | −13.6 | $0.16 | fails the bound |
+| 10 | −1.3 | −3.9 | 19% | −4.5 | $0.17 | not considered |
+| 20 | +2.6 | 0.0 | 17% | 0.0 | $0.11 (two sets cached) | not considered |
+
+Size 1 trial a cost $0.32. 77 reference risks and decoys were scored.
+
+- **Kept: 1 lead a request** (`lantern.harness.items-per-request.investigate-leads=1`). Size 5 fails the −7 bound; sizes pass in order, so 10 and 20, which pass, are not considered. A size truly equal to 1 fails that bound about one time in seven with these 77 items (ADR 0112), so size 5's failure may be noise. A size-1 run of leads costs about twice a size-5 run.
+- To be measured again on Claude Haiku 5.5 and on more scored leads.

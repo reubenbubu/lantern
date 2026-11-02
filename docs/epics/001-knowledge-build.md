@@ -500,6 +500,7 @@ The research behind this split is in section 4.
   - sizes pass in order: if 10 fails, 20 is not considered;
   - for roles that write prose (Describe, flow narratives), the middle positions of a size-20 packet are not more than 7 points worse than the first and last, or the size is capped below 20;
   - these limits rest on an assumed 10% of changed answers; the first recordings measure it, and the role's ADR records the limits used and how often they would reject a size truly equal to size 1.
+  - the kept size is a setting, `lantern.harness.items-per-request.<role>`, whose default is the measured value (#529, ADR 0112); changing it asks nothing again, since a size is not part of a fingerprint.
 - **Order.** Roles run as a DAG; roles at one step run in parallel:
   1. Resolve (inside linking)
   2. derivation
