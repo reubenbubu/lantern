@@ -355,7 +355,7 @@ public final class Investigator {
                   fact,
                   fact.subject().toString(),
                   fact.object().value(),
-                  fact.attributes().path("trigger").asString(""),
+                  Claims.json(fact).path("trigger").asString(""),
                   leadUnits,
                   strings(fact, "code"),
                   cited));
@@ -412,7 +412,7 @@ public final class Investigator {
 
   private static List<String> strings(Fact fact, String name) {
     List<String> values = new ArrayList<>();
-    for (JsonNode value : fact.attributes().path(name)) {
+    for (JsonNode value : Claims.json(fact).path(name)) {
       if (value.isString()) {
         values.add(value.stringValue());
       }
@@ -863,7 +863,7 @@ public final class Investigator {
      */
     private Optional<Fact> restated(JsonNode entry, Lead lead, List<String> units) {
       for (Fact finding : model.findings) {
-        String about = finding.attributes().path("about").asString("");
+        String about = Claims.json(finding).path("about").asString("");
         boolean sameUnit =
             units.contains(about)
                 || units.stream()
