@@ -72,7 +72,7 @@ import tools.jackson.databind.node.ObjectNode;
 public final class NameGroups {
 
   /** The prompt version, part of every answer's cache key. */
-  static final String VERSION = "2";
+  static final String VERSION = "3";
 
   /** The most groups a request holds, a starting size to calibrate. */
   static final int PACKET = 8;

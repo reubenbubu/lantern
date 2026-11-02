@@ -50,10 +50,10 @@ import tools.jackson.databind.node.ObjectNode;
 final class DescribeRole {
 
   /** The prompt version of the unit role. */
-  static final String UNIT_VERSION = "6";
+  static final String UNIT_VERSION = "7";
 
   /** The prompt version of the element role. */
-  static final String ELEMENT_VERSION = "5";
+  static final String ELEMENT_VERSION = "6";
 
   /** The most words of a responsibility sentence. */
   static final int SENTENCE_WORDS = 25;
