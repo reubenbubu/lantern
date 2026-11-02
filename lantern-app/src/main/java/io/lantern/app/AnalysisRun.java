@@ -130,6 +130,7 @@ public final class AnalysisRun {
   private final AnswerStore answers;
   private final RunBudget runBudget;
   private volatile int batchAbove = Harness.BATCH_ABOVE;
+  private volatile boolean judgeWording;
   private final RuleRuns ruleRuns;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
@@ -178,6 +179,15 @@ public final class AnalysisRun {
     this.c4Renderer = Objects.requireNonNull(c4Renderer, "c4Renderer");
     this.toolVersion = Objects.requireNonNull(toolVersion, "toolVersion");
     this.documentsDirectory = Objects.requireNonNull(documentsDirectory, "documentsDirectory");
+  }
+
+  /**
+   * Whether the run ends by judging the roles' texts with the wording judge ({@code
+   * lantern.judge.wording}, off unless set; ADR 0111), which measures them for scoring.
+   */
+  AnalysisRun judgingWording(boolean judge) {
+    this.judgeWording = judge;
+    return this;
   }
 
   /**
@@ -555,6 +565,26 @@ public final class AnalysisRun {
               systemTitle);
       documents.add(new Rendered(document, write(out, systemView.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
+      // Every fact of origin llm that holds in the snapshot, which the scorer's rows per role read
+      // (ADR 0072): resolved links, texts, judgements, verdicts and risks.
+      List<Fact> heldLlmFacts =
+          facts.findValidAt(snapshot.number(), snapshot.commits().keySet()).stream()
+              .filter(f -> f.origin().kind() == Origin.Kind.LLM)
+              .toList();
+      if (judgeWording) {
+        io.lantern.llm.ModelConfig judge = llm.models().get(io.lantern.llm.Role.WORDING_JUDGE);
+        LOG.info(
+            "Wrote {}",
+            WordingJudgements.judgeAndWrite(
+                harness, heldLlmFacts, judge.provider() + "/" + judge.model(), out));
+      } else {
+        // An earlier run's verdicts on this snapshot are not this run's.
+        try {
+          java.nio.file.Files.deleteIfExists(out.resolve(WordingJudgements.FILE));
+        } catch (java.io.IOException e) {
+          throw new java.io.UncheckedIOException(e);
+        }
+      }
       Path runRecord =
           RunRecord.write(
               out,
@@ -575,16 +605,7 @@ public final class AnalysisRun {
       // analyzed in this run, so a link to a repository carried forward is there too.
       LOG.info(
           "Wrote {}", ExtractedFacts.write(out, ExtractedFacts.LINKED_FILE, stored.linkerFacts()));
-      // Every fact of origin llm that holds in the snapshot, which the scorer's rows per role read
-      // (ADR 0072): resolved links, texts, judgements, verdicts and risks.
-      LOG.info(
-          "Wrote {}",
-          ExtractedFacts.write(
-              out,
-              ExtractedFacts.LLM_FILE,
-              facts.findValidAt(snapshot.number(), snapshot.commits().keySet()).stream()
-                  .filter(f -> f.origin().kind() == Origin.Kind.LLM)
-                  .toList()));
+      LOG.info("Wrote {}", ExtractedFacts.write(out, ExtractedFacts.LLM_FILE, heldLlmFacts));
       return new Result(
           system,
           systemTitle,

@@ -21,7 +21,8 @@ user's go-ahead.
 Writes to <workspace>/scores/<label>/: for each set <set>/_system.c4.html, run.json
 (the run's model for every role, its calls and cost), extracted.jsonl.gz (the facts
 the extractors found), linked.jsonl.gz and llm.jsonl.gz (the linker's facts and those of
-origin llm, which the rows per role read with testsets/<set>/answer-key.json), <set>.scorecard.json and <set>.scorecard.md, the extraction
+origin llm, which the rows per role read with testsets/<set>/answer-key.json),
+wording.jsonl.gz (the wording judge's verdicts, with --judge-wording), <set>.scorecard.json and <set>.scorecard.md, the extraction
 coverage <set>.coverage.json and <set>.coverage.md (lantern-web/scripts/coverage.mjs,
 when the set has a testsets/<set>/coverage.json); with --compare-with, <set>.compare.md
 beside them.
@@ -31,7 +32,7 @@ Options:
                             Default: \$LANTERN_LLM_PROPERTIES.
   --mirror-properties FILE  Optional Maven mirror settings (docs/adr/0030-maven-mirror.md).
   --role ROLE=MODEL         Serve ROLE (summarize, resolve, infer-intent, name-groups,
-                            propose-rules, compose, translate, judge, screen) with the model named MODEL
+                            propose-rules, compose, translate, judge, screen, wording-judge) with the model named MODEL
                             under lantern.llm.models, for this run. Repeatable.
   --tier TIER=MODEL         The same for a tier (high-volume, reasoning). Repeatable.
   --label NAME              Names this run's folder of scorecards. Default: the date and
@@ -43,6 +44,9 @@ Options:
   --fake-llm                Use a free fake model for every role instead of a settings file
                             (Spring profile fake-llm; models fake and fake-priced, the latter
                             priced like a real model so costs show). Nothing is called.
+  --judge-wording           End each run with the wording judge (docs/adr/0111-wording-judge.md),
+                            whose verdicts the scorecard's judged rows read. Serve it with a
+                            model none of the writing roles use (--role wording-judge=MODEL).
   --held-out                Allow the held-out sets project-5 to project-7. Nobody analyzes
                             them before Phase 2's real-model acceptance (docs/design.md, Test
                             sets); without this option they are refused.
@@ -75,6 +79,7 @@ compare_with=""
 sets_dir="$HOME/workspace/lantern-test-projects"
 score_only=false
 fake_llm=false
+judge_wording=false
 held_out=false
 assume_yes=false
 sets=()
@@ -109,6 +114,7 @@ while [[ $# -gt 0 ]]; do
     --score-only) score_only=true; shift ;;
     --fake-llm) fake_llm=true; shift ;;
     --held-out) held_out=true; shift ;;
+    --judge-wording) judge_wording=true; shift ;;
     -y | --yes) assume_yes=true; shift ;;
     -h | --help) usage; exit 0 ;;
     -*) die "unknown option $1 (see --help)" ;;
@@ -191,6 +197,9 @@ lantern.llm.tiers.reasoning=fake
 PROPERTIES
   overrides+=("--set" "spring.profiles.active=fake-llm")
   assume_yes=true
+fi
+if [[ "$judge_wording" == true ]]; then
+  overrides+=("--set" "lantern.judge.wording=true")
 fi
 
 if ! $score_only && ! $assume_yes; then
@@ -279,7 +288,10 @@ for set in "${sets[@]}"; do
   fi
   # The run's facts the rows per role read beside run.json, and the set's answer key
   # (docs/adr/0072-scoring-harness.md, amendment for #667).
-  for facts in linked.jsonl.gz llm.jsonl.gz; do
+  facts_files=(linked.jsonl.gz llm.jsonl.gz)
+  # The wording judge's verdicts only from a run that judged, never an earlier run's.
+  [[ "$judge_wording" == true ]] && facts_files+=(wording.jsonl.gz)
+  for facts in "${facts_files[@]}"; do
     [[ -f "$documents/$facts" ]] && cp "$documents/$facts" "$scores/$set/"
   done
   if [[ -f "$REPO/testsets/$set/answer-key.json" ]]; then

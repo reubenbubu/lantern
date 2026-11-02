@@ -144,8 +144,9 @@ class FakeLlmConfiguration {
   }
 
   /**
-   * The fake's answer to a model check (ADR 0101), or null for another role: every text supported
-   * and nothing addressed to an AI, so fake runs show what the checks cost and change no document.
+   * The fake's answer to a model check (ADR 0101) or the wording judge (ADR 0111), or null for
+   * another role: every text supported and passed, and nothing addressed to an AI, so fake runs
+   * show what the checks cost and change no document.
    */
   static String modelCheck(LlmRequest request) {
     if (request.role() == Role.JUDGE) {
@@ -154,6 +155,10 @@ class FakeLlmConfiguration {
     }
     if (request.role() == Role.SCREEN) {
       return items(request, "{\"suspected\": false}");
+    }
+    if (request.role() == Role.WORDING_JUDGE) {
+      return items(
+          request, "{\"reasoning\": \"The fake passes every text.\", \"verdict\": \"pass\"}");
     }
     return null;
   }
