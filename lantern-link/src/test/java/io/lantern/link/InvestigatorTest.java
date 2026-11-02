@@ -136,6 +136,11 @@ class InvestigatorTest {
 
   /** The files unit reads the caller's user from a header, and derivation raised a lead on it. */
   private Fact headerLead() {
+    return headerLead("identity-from-request");
+  }
+
+  /** As {@link #headerLead()}, the lead of the given kind. */
+  private Fact headerLead(String kind) {
     unit("gw", "gateway");
     unit("fs", "files");
     Fact read =
@@ -156,9 +161,9 @@ class InvestigatorTest {
     attributes.putArray("facts").add(read.id());
     return add(
         "lead-identity-from-request",
-        "lead:identity-from-request/" + FILES_UNIT + "/header:X-User-Id",
+        "lead:" + kind + "/" + FILES_UNIT + "/header:X-User-Id",
         Investigator.LEAD_TRIGGER,
-        FactObject.string("identity-from-request"),
+        FactObject.string(kind),
         attributes.toString(),
         "fs",
         CONTROLLER,
@@ -235,7 +240,11 @@ class InvestigatorTest {
             (repo, path) -> FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
             Set.of());
     return new Investigator(
-            harness, FILES, Map.of("identity-from-request", "Whether anything verifies it."))
+            harness,
+            FILES,
+            Map.of(
+                "identity-from-request", "Whether anything verifies it.",
+                "plaintext-secret", "Whether the secret is kept in the code."))
         .investigate(facts, 1);
   }
 
@@ -367,6 +376,145 @@ class InvestigatorTest {
   }
 
   @Test
+  void aLeadNamedByItsIdRatherThanItsItemIdIsStillAnswered() {
+    Fact lead = headerLead();
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                leads(r) && turn(r) == 1
+                    ? CONFIRMED.replace("\"I1\"", "\"" + lead.subject() + "\"")
+                    : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Investigator.LEAD_VERDICT).getFirst().object().value())
+        .isEqualTo("confirmed");
+  }
+
+  @Test
+  void everyVerdictKeepsItsJustification() {
+    headerLead();
+    String refuted =
+        CONFIRMED
+            .replace("\"confirmed\"", "\"refuted\"")
+            .replace(
+                "upload takes the user from the X-User-Id header as the caller sent it.",
+                "upload reads X-User-Id only after the gateway set it.");
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? refuted : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(
+            of(result, Investigator.LEAD_VERDICT)
+                .getFirst()
+                .attributes()
+                .path("finding")
+                .asString())
+        .isEqualTo("upload reads X-User-Id only after the gateway set it.");
+  }
+
+  @Test
+  void anUncitedProposalIsSentBack() {
+    headerLead();
+    String uncited =
+        """
+        {"kind": "risk", "title": "Uploads have no size limit",
+         "finding": "upload accepts any file.", "consequence": "A caller can fill the disk.",
+         "impact": "medium", "confidence": "low", "names": ["MultipartFile"], "cites": []}""";
+    FakeLlmProvider fake = submitting(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? uncited : null);
+
+    Investigator.Result result = investigate(fake);
+
+    LlmRequest second =
+        fake.sent().stream()
+            .map(c -> c.request())
+            .filter(r -> unit(r, FILES_UNIT) && turn(r) == 2)
+            .findFirst()
+            .orElseThrow();
+    assertThat(second.messages().getLast().toolResults().getFirst().content()).contains("cites");
+    assertThat(of(result, Investigator.RISK)).isEmpty();
+  }
+
+  @Test
+  void aUnitsRiskNamingNoUnitIsTheUnitsAndASystemRiskMustNameItsUnits() {
+    headerLead();
+    String unnamed =
+        """
+        {"kind": "risk", "title": "Uploads have no size limit",
+         "finding": "upload accepts any MultipartFile.", "consequence": "A caller can fill the disk.",
+         "impact": "medium", "confidence": "low", "names": ["MultipartFile"],
+         "cites": ["fs:src/main/java/f/FileController.java:6-6"]}""";
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                turn(r) == 1
+                        && (unit(r, FILES_UNIT)
+                            || r.messages().getFirst().text().contains("The whole system"))
+                    ? unnamed
+                    : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Investigator.RISK))
+        .singleElement()
+        .satisfies(
+            risk -> {
+              assertThat(risk.subject().toString()).isEqualTo(FILES_UNIT);
+              assertThat(risk.attributes().path("mode").asString()).isEqualTo("unit");
+            });
+    LlmRequest system =
+        fake.sent().stream()
+            .map(c -> c.request())
+            .filter(
+                r -> r.messages().getFirst().text().contains("The whole system") && turn(r) == 2)
+            .findFirst()
+            .orElseThrow();
+    assertThat(system.messages().getLast().toolResults().getFirst().content())
+        .contains("names the units it concerns");
+  }
+
+  @Test
+  void aLeadOfAFindingsKindIsItsWordingOnlyIfTheFindingRestsOnWhatTheLeadShows() {
+    headerLead("plaintext-secret");
+    ObjectNode raised = FactJson.newObject();
+    raised.put("about", FILES_UNIT);
+    // A finding of the lead's kind in another file of the unit: not what the lead shows.
+    add(
+        "findings",
+        "finding:shared-jwt-secret/elsewhere",
+        Investigator.FINDING_RAISED,
+        FactObject.string("shared-jwt-secret"),
+        raised.toString(),
+        "fs",
+        STORAGE,
+        3);
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+
+    Investigator.Result separate = investigate(fake);
+
+    assertThat(of(separate, Investigator.FINDING_WORDING)).isEmpty();
+    assertThat(of(separate, Investigator.RISK)).hasSize(1);
+
+    // One in the file the lead's fact names, though not on the cited lines: its wording.
+    Fact finding =
+        add(
+            "findings",
+            "finding:shared-jwt-secret/here",
+            Investigator.FINDING_RAISED,
+            FactObject.string("shared-jwt-secret"),
+            raised.toString(),
+            "fs",
+            CONTROLLER,
+            12);
+    Investigator.Result worded =
+        investigate(submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null));
+
+    assertThat(of(worded, Investigator.FINDING_WORDING))
+        .singleElement()
+        .satisfies(w -> assertThat(w.subject()).isEqualTo(finding.subject()));
+  }
+
+  @Test
   void aRefutedLeadIsStoredWithoutARisk() {
     headerLead();
     String refuted = CONFIRMED.replace("\"confirmed\"", "\"refuted\"");
@@ -441,7 +589,7 @@ class InvestigatorTest {
 
   @Test
   void aRiskThatRestatesAStaticFindingIsItsWording() {
-    headerLead();
+    headerLead("plaintext-secret");
     ObjectNode raised = FactJson.newObject();
     raised.put("about", FILES_UNIT);
     Fact finding =

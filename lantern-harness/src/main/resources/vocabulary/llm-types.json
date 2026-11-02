@@ -143,6 +143,10 @@
           "type": "string",
           "description": "For a confirmed lead, the risk's title."
         },
+        "finding": {
+          "type": "string",
+          "description": "The verdict's justification: what the cited code shows."
+        },
         "names": {
           "type": "array",
           "items": {

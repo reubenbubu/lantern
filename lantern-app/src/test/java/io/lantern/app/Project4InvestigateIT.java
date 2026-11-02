@@ -260,6 +260,15 @@ class Project4InvestigateIT {
                 .append('\n'));
     Files.writeString(OUT.resolve("asked.txt"), String.join("\n\n=====\n\n", ASKED));
     risks.forEach(r -> out.append(r.subject()).append(' ').append(r.attributes()).append('\n'));
+    List<Fact> wordings =
+        held.stream().filter(f -> f.predicate().equals(Investigator.FINDING_WORDING)).toList();
+    wordings.forEach(
+        w ->
+            out.append("worded ")
+                .append(w.subject())
+                .append(' ')
+                .append(w.attributes().path("lead").asString())
+                .append('\n'));
     Files.writeString(OUT.resolve("investigated.txt"), out.toString());
 
     // The header-trust and before-commit leads are confirmed, and each gives a risk.
@@ -279,6 +288,25 @@ class Project4InvestigateIT {
                     && v.subject().toString().toLowerCase(Locale.ROOT).contains("file")
                     && v.object().value().equals("confirmed"));
     assertThat(risks).isNotEmpty();
+    // The header-trust lead of the file service and every before-commit lead are risks of their
+    // own, which the LLM badge marks: no fixed check finds them, so none is a finding's wording.
+    assertThat(risks)
+        .as("the file service's header-trust risk")
+        .anyMatch(
+            r ->
+                r.attributes().path("lead").asString().startsWith("lead:identity-from-request/")
+                    && r.attributes()
+                        .path("lead")
+                        .asString()
+                        .toLowerCase(Locale.ROOT)
+                        .contains("file"));
+    assertThat(wordings)
+        .as("wordings of the confirmed header-trust and before-commit leads")
+        .noneMatch(
+            w ->
+                CONFIRMED.stream()
+                    .anyMatch(
+                        k -> w.attributes().path("lead").asString().startsWith("lead:" + k + "/")));
 
     // Every citation of a stored risk holds in git at the pins: in a file of the repository at
     // its commit, within its lines, holding the risk's name.
@@ -323,8 +351,7 @@ class Project4InvestigateIT {
             .findFirst()
             .orElseThrow();
     // A risk it found is badged; a finding of a fixed check it only worded is not.
-    long worded =
-        held.stream().filter(f -> f.predicate().equals(Investigator.FINDING_WORDING)).count();
+    long worded = wordings.size();
     assertThat(table.path("rows").size()).isEqualTo(risks.size() + (int) worded);
     assertThat(table.path("llmRows").size()).isEqualTo(risks.size());
     String riskUnit = risks.getFirst().subject().toString();

@@ -346,6 +346,7 @@ public final class Investigator {
           summaries.add(fact);
         }
       }
+      findings.sort(java.util.Comparator.comparing(Fact::id));
       elements.addAll(units.keySet());
       for (Fact fact : facts) {
         if (fact.predicate().equals(LEAD_TRIGGER) && fact.origin().kind() != Origin.Kind.LLM) {
@@ -569,17 +570,19 @@ public final class Investigator {
           if (verdict.equals("confirmed")) {
             confirmed++;
             line += ": " + entry.path("title").asString("");
-            risk(entry, lead, InvestigateRole.Mode.LEADS);
+            risk(entry, lead, InvestigateRole.Mode.LEADS, null);
           }
           answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(line);
         }
         case OMITTED -> unclear(lead, "not answered");
         case DROPPED -> unclear(lead, "its answer was rejected twice");
-        case NOT_ASKED, FAILED -> {
-          notInvestigated(
-              lead.unit(),
-              outcome == null || outcome.reason() == null ? "failed" : outcome.reason());
-        }
+        // A lead not asked is unclear with the reason; its unit is still explored (Mode B), so only
+        // what Mode B or C leaves out is marked not investigated.
+        case NOT_ASKED, FAILED ->
+            unclear(
+                lead,
+                "not asked: "
+                    + (outcome == null || outcome.reason() == null ? "failed" : outcome.reason()));
       }
     }
 
@@ -592,6 +595,10 @@ public final class Investigator {
       ObjectNode attributes = FactJson.newObject();
       if (entry.path("title").isString() && verdict.equals("confirmed")) {
         attributes.put("title", entry.get("title").stringValue());
+      }
+      // Every verdict keeps its justification (knowledge-build epic, section 11.2).
+      if (entry.path("finding").isString()) {
+        attributes.put("finding", entry.get("finding").stringValue().strip());
       }
       copyList(entry, "names", attributes);
       copyList(entry, "cites", attributes);
@@ -617,6 +624,10 @@ public final class Investigator {
       List<FingerprintInput> inputs = new ArrayList<>();
       inputs.add(FingerprintInput.of(lead.fact()));
       lead.facts().forEach(f -> inputs.add(FingerprintInput.of(f)));
+      // What it asks the model to judge: a changed judge text asks the lead anew.
+      inputs.add(
+          FingerprintInput.answer(
+              Fingerprints.sha256(Objects.requireNonNullElse(judges.get(lead.kind()), ""))));
       if (again) {
         inputs.add(FingerprintInput.answer(Fingerprints.sha256("asked again alone")));
       }
@@ -687,7 +698,12 @@ public final class Investigator {
       RoleSession session =
           harness.session(SYSTEM_ROLE.withTools(graph.tools().exploreTools(), EXPLORE_LIMITS));
       List<String> risks = new ArrayList<>();
-      answers.forEach((unit, lines) -> lines.forEach(line -> risks.add(unit + ": " + line)));
+      // Every unit's accepted risks: its confirmed leads and the risks exploring it found.
+      answers.forEach(
+          (unit, lines) ->
+              lines.stream()
+                  .filter(line -> line.startsWith("risk: ") || line.contains(" confirmed: "))
+                  .forEach(line -> risks.add(unit + ": " + line)));
       String context = InvestigatePrompt.answers(risks);
       List<FingerprintInput> inputs = new ArrayList<>();
       inputs.add(FingerprintInput.answer(Fingerprints.sha256(systemMap)));
@@ -716,7 +732,7 @@ public final class Investigator {
             if ("connection".equals(proposal.path("kind").asString(""))) {
               connection(proposal, unit, mode);
             } else {
-              risk(proposal, null, mode);
+              risk(proposal, null, mode, unit);
             }
           }
         }
@@ -805,11 +821,8 @@ public final class Investigator {
     // --- Storing -----------------------------------------------------------------------------
 
     /** A risk: the finding it restates, worded; else an {@code investigated-risk}. */
-    private void risk(JsonNode entry, Lead lead, InvestigateRole.Mode mode) {
-      List<String> units = units(entry, lead);
-      if (units.isEmpty()) {
-        return;
-      }
+    private void risk(JsonNode entry, Lead lead, InvestigateRole.Mode mode, String conversation) {
+      List<String> units = units(entry, lead, conversation);
       String key = lead != null ? lead.claim() : String.join(",", sortedNames(entry));
       if (!keys.add("risk " + units.getFirst() + " " + key)) {
         return;
@@ -830,6 +843,10 @@ public final class Investigator {
       attributes.put("mode", mode.jsonName());
       attributes.put("model", modelName);
       Optional<Fact> restated = restated(entry, lead, units);
+      // A finding is worded once: a second risk restating it says nothing the first did not.
+      if (restated.isPresent() && !worded.add(restated.get().id())) {
+        return;
+      }
       List<String> lineage = new ArrayList<>();
       if (restated.isPresent()) {
         lineage.add(claim(restated.get()));
@@ -855,8 +872,11 @@ public final class Investigator {
       }
     }
 
-    /** The units a risk concerns: those it names, else its lead's, else its conversation's. */
-    private List<String> units(JsonNode entry, Lead lead) {
+    /**
+     * The units a risk concerns: those it names, else its lead's, else its conversation's unit; a
+     * risk of none of them, such as a confirmed lead of no unit, is the system's.
+     */
+    private List<String> units(JsonNode entry, Lead lead, String conversation) {
       List<String> units = new ArrayList<>();
       for (JsonNode unit : entry.path("units")) {
         if (unit.isString() && model.units.containsKey(unit.stringValue().strip())) {
@@ -866,52 +886,107 @@ public final class Investigator {
       if (units.isEmpty() && lead != null) {
         units.addAll(lead.units());
       }
+      if (units.isEmpty() && conversation != null) {
+        units.add(conversation);
+      }
+      if (units.isEmpty()) {
+        units.add(SYSTEM.toString());
+      }
       return units.stream().distinct().toList();
     }
 
     /**
      * The finding a risk restates (knowledge-build epic, section 11.2, Merging with static
-     * findings): one of its units', whose kind is about the risk's lead kind, or whose evidence a
-     * cited range overlaps.
+     * findings): one about one of its units (or, a finding about nothing, in one of their
+     * repositories); for a lead's risk, one of the lead's kind which rests on what the lead shows
+     * (its facts or their files) or whose evidence a cited range overlaps; for a risk found
+     * exploring, one whose evidence a cited range overlaps. The findings are walked by ID, so the
+     * same risk restates the same finding in every run.
      */
     private Optional<Fact> restated(JsonNode entry, Lead lead, List<String> units) {
       for (Fact finding : model.findings) {
         String about = Claims.json(finding).path("about").asString("");
         boolean sameUnit =
-            units.contains(about)
-                || units.stream()
+            about.isEmpty()
+                ? units.stream()
                     .anyMatch(
                         u ->
                             model
                                 .repos
                                 .getOrDefault(u, Set.of())
-                                .contains(finding.evidence().repo()));
+                                .contains(finding.evidence().repo()))
+                : units.contains(about);
         if (!sameUnit) {
           continue;
         }
         String findingKind = finding.object().value();
-        if (lead != null && lead.kind().equals(FINDING_LEADS.get(findingKind))) {
+        // A lead's risk is of its lead's kind, so it restates only a finding of that kind; a risk
+        // found exploring, one whose evidence it cites.
+        boolean match =
+            lead != null
+                ? lead.kind().equals(FINDING_LEADS.get(findingKind))
+                    && (restsOnTheLead(finding, lead) || citesItsEvidence(entry, finding))
+                : citesItsEvidence(entry, finding);
+        if (match) {
           return Optional.of(finding);
-        }
-        for (String cite : InvestigateRole.cites(entry)) {
-          Matcher range = RANGE.matcher(cite);
-          if (!range.matches()) {
-            continue;
-          }
-          int from = Integer.parseInt(range.group(3));
-          int to = Integer.parseInt(range.group(4));
-          for (Evidence.Location location : finding.evidence().locations()) {
-            if (location.repo().equals(range.group(1))
-                && location.path().equals(range.group(2))
-                && location.lines() != null
-                && location.lines().start() <= to
-                && location.lines().end() >= from) {
-              return Optional.of(finding);
-            }
-          }
         }
       }
       return Optional.empty();
+    }
+
+    private final Set<String> worded = new LinkedHashSet<>();
+
+    /** Whether a finding rests on a fact the lead shows, or on a file one of them names. */
+    private static boolean restsOnTheLead(Fact finding, Lead lead) {
+      Set<String> shown = new LinkedHashSet<>();
+      Set<String> files = new LinkedHashSet<>();
+      shown.add(lead.claim());
+      shown.add(lead.fact().id());
+      for (Fact fact : lead.facts()) {
+        shown.add(fact.id());
+        shown.add(claim(fact));
+        for (Evidence.Location location : fact.evidence().locations()) {
+          files.add(location.repo() + ':' + location.path());
+        }
+      }
+      for (String id : finding.lineage()) {
+        if (shown.contains(id)) {
+          return true;
+        }
+      }
+      for (JsonNode id : Claims.json(finding).path("facts")) {
+        if (shown.contains(id.asString(""))) {
+          return true;
+        }
+      }
+      for (Evidence.Location location : finding.evidence().locations()) {
+        if (files.contains(location.repo() + ':' + location.path())) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /** Whether one of a risk's cited ranges overlaps a finding's evidence. */
+    private static boolean citesItsEvidence(JsonNode entry, Fact finding) {
+      for (String cite : InvestigateRole.cites(entry)) {
+        Matcher range = RANGE.matcher(cite);
+        if (!range.matches()) {
+          continue;
+        }
+        int from = Integer.parseInt(range.group(3));
+        int to = Integer.parseInt(range.group(4));
+        for (Evidence.Location location : finding.evidence().locations()) {
+          if (location.repo().equals(range.group(1))
+              && location.path().equals(range.group(2))
+              && location.lines() != null
+              && location.lines().start() <= to
+              && location.lines().end() >= from) {
+            return true;
+          }
+        }
+      }
+      return false;
     }
 
     private void connection(JsonNode entry, String unit, InvestigateRole.Mode mode) {

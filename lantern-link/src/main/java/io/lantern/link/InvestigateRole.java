@@ -158,6 +158,8 @@ final class InvestigateRole implements PacketRole {
   private final Set<String> linked;
   private final Map<String, FileRead> citedFiles = new LinkedHashMap<>();
   private int proposals;
+  // A lead's ID by its subject, so an entry naming its lead by either is placed under its item.
+  private final Map<String, String> idsBySubject = new LinkedHashMap<>();
 
   /**
    * @param mode the conversation's mode
@@ -200,7 +202,10 @@ final class InvestigateRole implements PacketRole {
   }
 
   @Override
-  public PromptLayout layout(List<Item> packet, List<String> ids) {
+  public synchronized PromptLayout layout(List<Item> packet, List<String> ids) {
+    for (int i = 0; i < packet.size() && i < ids.size(); i++) {
+      idsBySubject.put(packet.get(i).subject(), ids.get(i));
+    }
     return new PromptLayout(
         CommonPrompt.SYSTEM,
         InvestigatePrompt.role(mode == Mode.LEADS),
@@ -305,7 +310,8 @@ final class InvestigateRole implements PacketRole {
         String lead = entry.get("lead").stringValue().strip().replaceAll("^\\[|\\]$", "");
         ObjectNode copy = ((ObjectNode) entry).deepCopy();
         copy.remove("lead");
-        items.set(lead.toUpperCase(Locale.ROOT), copy);
+        String id = idsBySubject.get(lead);
+        items.set(id != null ? id : lead.toUpperCase(Locale.ROOT), copy);
       }
     } else {
       ObjectNode item = items.putObject("I1");
@@ -490,6 +496,17 @@ final class InvestigateRole implements PacketRole {
       if (!entry.isObject()) {
         return;
       }
+      if (role.mode != Mode.LEADS
+          && field.startsWith(InvestigatePrompt.PROPOSALS + ".P")
+          && Integer.parseInt(field.substring(InvestigatePrompt.PROPOSALS.length() + 2))
+              > MAX_PROPOSALS) {
+        found.add(
+            reject(
+                item,
+                field,
+                "A conversation keeps at most " + MAX_PROPOSALS + " proposals; this one is over."));
+        return;
+      }
       String kind = entry.path("kind").asString("");
       if (role.mode == Mode.LEADS) {
         String verdict = entry.path("verdict").asString("");
@@ -509,6 +526,10 @@ final class InvestigateRole implements PacketRole {
         }
       } else if (kind.equals("risk")) {
         riskFields(item, field, entry, found);
+        if (role.mode == Mode.SYSTEM
+            && (!entry.path("units").isArray() || entry.path("units").isEmpty())) {
+          found.add(reject(item, field, "A risk of the system names the units it concerns."));
+        }
       } else if (kind.equals("connection")) {
         connection(item, field, entry, found);
       }

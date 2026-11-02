@@ -36,10 +36,14 @@ under the owner's standing go-ahead for milestone 1F.
 - **Unanswered leads.** A lead the conversation never answered, or answered `omitted`, is asked
   again alone, once: its item gets one more fingerprint input, so it is a new item the cache tells
   apart. Unanswered again, its verdict is stored as `unclear` with the reason. A lead whose answer
-  was rejected twice is `unclear` too, with that reason. A refuted lead is stored refuted.
+  was rejected twice is `unclear` too, with that reason, and so is a lead a budget or the provider
+  left unasked, whose unit is still explored. A refuted lead is stored refuted. An entry may name
+  its lead by its item ID or by the lead's ID. What a lead asks the model to judge is part of its
+  fingerprint, so a changed judge text asks it anew.
 - **Mode B and C.** One conversation per unit, after every Mode A conversation, block 4 the unit's
   facts and links, its open links, the summaries of its modules and repositories, and its checked
-  leads as `<answers>`; then one for the system, block 4 every unit's risks so far, one line each.
+  leads as `<answers>`; then one for the system, block 4 every unit's accepted risks so far
+  (its confirmed leads and the risks exploring it found), one line each.
   Every read tool, with the epic's two new ones: `neighbours(entity, depth)`, the facts that link
   an entity to others either way, to a depth of two, and `summary_of(entity)`, its accepted
   summary (`GraphTools.exploreTools`; Resolve keeps its four). Caps 16 tool turns, 120,000 input
@@ -51,14 +55,15 @@ under the owner's standing go-ahead for milestone 1F.
   kept in part (`PacketRole.partial`): a submission's proposals that pass are accepted at once, the
   others listed with their reasons, and a later submission adds to what was accepted, as the
   epic's instructions promise. A rejection of any field of a proposal rejects the proposal. A
-  conversation keeps at most 10 proposals, each key once.
+  conversation makes at most 10 proposals: the eleventh and later are sent back; each key is kept
+  once.
 - **Checks.** The standard pipeline: the schema; the Ranges check (each range in a file of the
   snapshot, within its lines, at most 40 lines); the Coverage check (every name in the cited lines,
   every range holding a name), on the lines as the tools show them, secrets masked; the Names check
   on the title, finding, consequence and description; the Secrets check. Then the role's own,
   `Proposals`: a Mode A entry has a verdict and is a risk; a confirmed one, and every Mode B or C
-  risk, has its title, finding, consequence, impact and confidence; a refuted one cites; units are
-  deployable units; names are at least three characters with a letter and not a keyword or word
+  risk, has its title, finding, consequence, impact and confidence; a refuted one cites; a risk of
+  the system names its units; units are deployable units; names are at least three characters with a letter and not a keyword or word
   that holds on any line; a connection runs from a unit (by default the conversation's) to another
   model element (a unit, or an end a static or resolved link has) or a new `external-system:` or
   `database:`, with its interaction and description, between ends no static or resolved link
@@ -66,16 +71,21 @@ under the owner's standing go-ahead for milestone 1F.
 - **Stored**, all of origin `llm/investigate` at the prompt's version, each with its cited ranges as
   evidence (the file's blob included) and a confidence of 0.6, 0.45 or 0.3 by the model's own:
   - a verdict, `(lead, lead-verdict, confirmed|refuted|unclear)`, with lineage to the lead, so it
-    ends with it;
+    ends with it, keeping its justification (`finding`) and citations;
   - a confirmed lead, or a Mode B or C risk, `(first unit, investigated-risk, key)`, the key the
     lead's claim ID or the risk's names sorted, its title, finding, consequence, impact, units,
-    names, citations and mode descriptive;
+    names, citations and mode descriptive; a risk naming no unit is its lead's units', else its
+    conversation's unit's, else the system's;
   - a risk that restates a finding of a fixed check, `(finding, finding-wording, key)` instead,
     with lineage to the finding and the lead. It restates one when it concerns the finding's unit
-    (its `about`, or a repository of the unit holds its evidence) and either its lead's kind is the
-    finding kind's (`version-skew` and `shared-type-skew`, `shared-jwt-secret` and
-    `plaintext-secret`, `unrouted-endpoint` and `contract-mismatch`) or a cited range overlaps the
-    finding's evidence;
+    (its `about`; a finding about nothing, a repository of the unit holding its evidence) and either
+    a lead's risk is of the finding kind's lead kind (`version-skew` and `shared-type-skew`,
+    `shared-jwt-secret` and `plaintext-secret`, `unrouted-endpoint` and `contract-mismatch`) and
+    the finding rests on what the lead shows (a fact of the lead, or a file one names) or a cited
+    range overlaps its evidence, or a risk found exploring cites a range that overlaps the
+    finding's evidence. A lead's risk never restates a finding of another kind, though their lines
+    overlap: on project-4 a before-commit lead in a package of a package cycle is its own risk. The
+    findings are walked by ID, and each is worded once;
   - a connection, `(unit, INVESTIGATED_CONNECTION, end)`, keyed by its interaction;
   - a unit or the system a budget refused, the provider failed or a model without tool use left
     out, `(subject, not-investigated, investigate)` with the reason.
@@ -116,9 +126,8 @@ under the owner's standing go-ahead for milestone 1F.
   project-4 at its pins with a scripted model that confirms every lead of the two kinds #269 names,
   citing the code each shows, and leaves the rest unclear. Of project-4's 52 leads it confirms 24,
   among them the header-trust lead of the file service and the before-commit leads; they give 20
-  risks and 4 wordings of fixed checks' findings; every cited range of a stored risk holds its name
-  in git at the pins; the system report's findings page badges the 20 risk rows and not the 4
-  worded findings; a Brief and an Explorer mark them. It shows that a verdict is checked, stored and marked on real code, not what
+  risks, and no wording, since no fixed check finds either kind; every cited range of a stored risk holds its name
+  in git at the pins; the system report's findings page badges every risk row; a Brief and an Explorer mark them. It shows that a verdict is checked, stored and marked on real code, not what
   a model finds. It replaces #328's hand-written recordings, which were keyed on the whole prompt
   and so missed at every prompt change.
 
