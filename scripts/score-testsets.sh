@@ -47,6 +47,10 @@ Options:
   --fake-llm                Use a free fake model for every role instead of a settings file
                             (Spring profile fake-llm; models fake and fake-priced, the latter
                             priced like a real model so costs show). Nothing is called.
+  --record-calls            Write every LLM call of each run, request and response, one file
+                            a call, to <set>/calls/ beside its report (lantern.llm.record-to).
+                            A model's batch API is not used while recording, so batchable
+                            calls cost the interactive price. The folder must be empty.
   --judge-wording           End each run with the wording judge (docs/adr/0111-wording-judge.md),
                             whose verdicts the scorecard's judged rows read. Serve it with a
                             model none of the writing roles use (--role wording-judge=MODEL).
@@ -83,6 +87,7 @@ sets_dir="$HOME/workspace/lantern-test-projects"
 score_only=false
 fake_llm=false
 judge_wording=false
+record_calls=false
 held_out=false
 assume_yes=false
 sets=()
@@ -120,6 +125,7 @@ while [[ $# -gt 0 ]]; do
     --fake-llm) fake_llm=true; shift ;;
     --held-out) held_out=true; shift ;;
     --judge-wording) judge_wording=true; shift ;;
+    --record-calls) record_calls=true; shift ;;
     -y | --yes) assume_yes=true; shift ;;
     -h | --help) usage; exit 0 ;;
     -*) die "unknown option $1 (see --help)" ;;
@@ -273,6 +279,12 @@ for set in "${sets[@]}"; do
     launch=("$REPO/scripts/launch.sh" --yes --system "$set")
     [[ -n "$llm_file" ]] && launch+=(--llm-properties "$llm_file")
     [[ -n "$mirror_file" ]] && launch+=(--mirror-properties "$mirror_file")
+    # Each set's calls get their own folder, so one set's or one run's never mix with another's.
+    if [[ "$record_calls" == true ]]; then
+      [[ -z "$(ls -A "$scores/$set/calls" 2>/dev/null)" ]] ||
+        die "$scores/$set/calls already holds calls; choose another --label"
+      launch+=(--set "lantern.llm.record-to=$scores/$set/calls")
+    fi
     info "$set: analyzing ${#repos[@]} repositories"
     started="$(mktemp "${TMPDIR:-/tmp}/lantern-score-started-XXXXXX")"
     temporary+=("$started")

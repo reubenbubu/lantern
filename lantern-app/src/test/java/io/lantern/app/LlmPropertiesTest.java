@@ -218,6 +218,30 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void withARecordFolderEveryCallIsWrittenThereAndStillSent(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path calls) throws Exception {
+    model("fast", "fake", "fast-model");
+    tiers("fast", "fast");
+    FakeLlmProvider fake = new FakeLlmProvider().answering("recorded");
+    LlmAccess access =
+        LlmConfiguration.create(bind(), List.of(fake), stored, Clock.systemUTC(), calls);
+
+    for (int i = 0; i < 2; i++) {
+      assertThat(
+              access
+                  .client()
+                  .call(LlmRequest.of(Role.COMPOSE, "record test", null, "Write", 10))
+                  .text())
+          .isEqualTo("recorded");
+    }
+
+    assertThat(fake.sent()).hasSize(2);
+    try (var files = java.nio.file.Files.list(calls)) {
+      assertThat(files).hasSize(2);
+    }
+  }
+
+  @Test
   void anthropicModelsWithAnApiKeyGetAnAnthropicProvider() throws Exception {
     model("fast", "anthropic", "some-model");
     tiers("fast", "fast");
