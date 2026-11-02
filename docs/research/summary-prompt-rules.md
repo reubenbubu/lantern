@@ -94,6 +94,20 @@ source 1 instead), the extended-thinking page, LIFEBench (arXiv 2505.16234) and 
   words beyond the name (plurals matched, empty words such as "handles" or "service" not counted),
   so "Handles orders for the service" is still rejected.
 
+- **The smaller roles, judged on all four development sets (#687).** Recorded requests of
+  project-1 to project-4 were replayed with the prompts from before #685 and judged against the new
+  answers to the same input. The new prompts were no less accurate:
+  - element descriptions, 35 items in 13 calls: preferred old 4, new 2, ties 7; inaccurate
+    statements old 4, new 2;
+  - flow significance, 16 items: old 4, new 7, ties 2; inaccurate old 13, new 13;
+  - group names, 12 items (every group the four sets have): old 2, new 2, tie 1; inaccurate old 5,
+    new 1.
+
+  The same run found the significance and group-name answers writing a reason as a string with its
+  citations beside it. The prompts now show the reason's JSON shape, and no answer of the four sets
+  made that slip again (3 repairs in 63 items: one stray bracket, one citation not in the input, one
+  technology the citations did not show).
+
 ## Options
 
 1. **State each rule the check enforces, with a good and a bad example, a margin under each word
@@ -112,7 +126,7 @@ Option 1, with two limits learned from the experiment: ask for about 90% of a wo
 not open by echoing its name", not "never use its words", with the code's own terms encouraged; and
 judge every change for quality against the old answers, since rejections alone rewarded thinner
 texts. The experiment cost about $14 of real calls: the lab $0.72, the judge about $8.80, the runs
-about $4.20.
+about $4.20; #687 added about $3.30 (a recorded run of the four sets $1.76, replays $0.13, the judge $1.39).
 
 ## What it changes
 
