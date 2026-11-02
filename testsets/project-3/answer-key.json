@@ -17,6 +17,7 @@
   "resolve": [],
   "risks": [
     {
+      "id": "r1",
       "reference": "No authentication or authorization anywhere: the gateway has no security or filters, the services have no Spring",
       "subjects": [
         "gateway",
@@ -39,6 +40,7 @@
       "how": "Gateway has no security dependency, the user controller has no auth check, and the role comes from the request body."
     },
     {
+      "id": "r2",
       "reference": "The gateway's discovery locator routes /{SERVICE-ID}/** to every registered service, including config-server, and the",
       "subjects": [
         "gateway",
@@ -59,6 +61,7 @@
       "how": "Discovery locator is on, actuator is exposed, and the config server port is published."
     },
     {
+      "id": "r3",
       "reference": "The web app does not match the backend: it signs in and registers at /api/v1/auth/**, which has no route or controller,",
       "subjects": [
         "frontend",
@@ -82,6 +85,7 @@
       "how": "The web app calls auth, my, history and stats paths that no controller serves, and expects arrays where media returns a Page."
     },
     {
+      "id": "r4",
       "reference": "user-service's Feign client asks media-service for /api/media/{id}; media-service serves /api/v1/media/{id}.",
       "subjects": [
         "user",
@@ -100,6 +104,7 @@
       "how": "Feign path /api/media/{id} does not exist; media-service serves /api/v1/media, and the catch turns it into a failure."
     },
     {
+      "id": "r5",
       "reference": "The active-subscription check looks only at status: end dates are never compared and nothing sets EXPIRED; creation",
       "subjects": [
         "subscription",
@@ -120,6 +125,7 @@
       "how": "The active check only looks at status, nothing sets EXPIRED, and the Optional query fails with two ACTIVE rows."
     },
     {
+      "id": "r6",
       "reference": "Subscriptions take plan, price and dates from the caller with no payment step, and any failure calling user-service",
       "subjects": [
         "subscription",
@@ -138,6 +144,7 @@
       "how": "Price and dates come from the request and any user-client exception becomes User not found."
     },
     {
+      "id": "r7",
       "reference": "Access to premium media is not enforced: no service calls the active-subscription check, and the catalogue is open to",
       "subjects": [
         "subscription",
@@ -155,6 +162,7 @@
       "how": "hasActive exists but nothing calls it, and the media controller has no subscription check."
     },
     {
+      "id": "r8",
       "reference": "No cross-service consistency: deleting a user leaves their subscriptions and watch history; deleting media leaves watch",
       "subjects": [
         "user",
@@ -176,6 +184,7 @@
       "how": "Deletes only remove the local row; other services keep rows with the deleted user or media id."
     },
     {
+      "id": "r9",
       "reference": "Single instances and a start-up chain: one Eureka with no peers, one config server that every service needs at start",
       "subjects": [
         "discovery",
@@ -200,6 +209,7 @@
       "how": "One Eureka, one config server with fail-fast start and one gateway, each a single instance."
     },
     {
+      "id": "r10",
       "reference": "Credentials: PostgreSQL user postgres with password \"password\" in compose and as config defaults, database ports",
       "subjects": [
         "user-db",
@@ -222,6 +232,7 @@
       "how": "Default password is in compose and config, DB ports are published, and git token and encrypt key come from env."
     },
     {
+      "id": "r11",
       "reference": "The compose file cannot run as committed: its build contexts (./api-gateway, ./user-service, …) are not in",
       "subjects": [
         "gateway",
@@ -245,6 +256,7 @@
       "how": "Compose builds from folders that are not in the infra repo, jars come from a manual step, and the web app is only proxied."
     },
     {
+      "id": "r12",
       "reference": "Framework versions differ: the gateway is on Boot 3.4.3 and Spring Cloud 2024.0.0, everything else on Boot 4.0.3 and",
       "subjects": [
         "gateway"
@@ -264,6 +276,7 @@
       "how": "Gateway pom pins Boot 3.4.3 and Cloud 2024.0.0, user-service pom Boot 4.0.3 and Cloud 2025.1.0."
     },
     {
+      "id": "r13",
       "reference": "Error handling: user- and subscription-service return the exception message in 500 bodies, and because every service",
       "subjects": [
         "user",
@@ -284,6 +297,7 @@
       "how": "Catch-all handlers return 500 for any exception, and user and subscription put its message in the body."
     },
     {
+      "id": "r14",
       "reference": "Monitoring is configured but not deployed: Prometheus and Grafana are not in compose, the gateway has no Prometheus",
       "subjects": [
         "discovery",
@@ -307,6 +321,7 @@
       "how": "Prometheus scrapes host ports that compose never publishes; the gateway has no Prometheus registry and Eureka exposes no actuator."
     },
     {
+      "id": "r15",
       "reference": "Stale or inconsistent docs: READMEs give database ports 5433-5435 and endpoints that do not exist; .env.example gives",
       "subjects": [
         "user",
@@ -329,6 +344,7 @@
       "how": "README ports and endpoints, env example ports and the ULTRA plan do not match the code."
     },
     {
+      "id": "r16",
       "reference": "No schema migrations (ddl-auto=update), SQL logging on, gateway logging at TRACE, and run logs committed to the",
       "subjects": [
         "config-repo",
@@ -354,6 +370,7 @@
   ],
   "decoys": [
     {
+      "id": "d1",
       "looksLike": "A user password is handled in user-service and stored next to the email, which looks like a plaintext secret.",
       "safeBecause": "The password is encoded with a BCryptPasswordEncoder before it is saved and UserResponseDto has no password field.",
       "subjects": [
@@ -372,6 +389,7 @@
       ]
     },
     {
+      "id": "d2",
       "looksLike": "The subscription service builds a URL by hand for media-service, which looks like a path mismatch like the user-service Feign client.",
       "safeBecause": "The URI /api/v1/media/{id} and the Feign paths of UserClient and MediaClient match the controllers' @RequestMapping and @GetMapping.",
       "subjects": [

@@ -16,6 +16,7 @@
   "resolve": [],
   "risks": [
     {
+      "id": "r1",
       "reference": "**High**: Identity headers are trusted and never stripped.",
       "subjects": [
         "gateway",
@@ -37,6 +38,7 @@
       "how": "Services read User-Permissions from the request header; the gateway sets it only on check-access routes and the public auth route has no filter."
     },
     {
+      "id": "r2",
       "reference": "**High**: The check-access filter takes the organization from the `Organization-Id` header, never from the path.",
       "subjects": [
         "gateway",
@@ -58,6 +60,7 @@
       "how": "The pattern is matched on the full URI string and falls back to the header, so permissions may be computed for a different organization than the membership check."
     },
     {
+      "id": "r3",
       "reference": "**High**: The gateway's permission fallback calls `/users/{u}/organizations/{o}/persmissions` without the `/api/internal` prefix.",
       "subjects": [
         "gateway",
@@ -76,6 +79,7 @@
       "how": "The client path starts at /users while the controller is mapped under /api/internal (unless the web client base URL adds the prefix, not verified here)."
     },
     {
+      "id": "r4",
       "reference": "**High**: Secrets: one HMAC signing key shared by gateway and auth-service; Gmail SMTP credentials; generated passwords sent in plaintext...",
       "subjects": [
         "gateway",
@@ -98,6 +102,7 @@
       "how": "Bind-parameter logging at TRACE, the shared signing key, SMTP password and Helm stringData secrets, with the README admitting plaintext secrets."
     },
     {
+      "id": "r5",
       "reference": "Events and Feign side effects happen inside database transactions, before commit, with no outbox.",
       "subjects": [
         "main",
@@ -118,6 +123,7 @@
       "how": "createOrganization is @Transactional and publishes org-created and Feign role creation before commit; consumers reject without requeue or rethrow."
     },
     {
+      "id": "r6",
       "reference": "notification-service declares `GET /api/internal/auth/authorize` with a body; auth-service maps `POST`.",
       "subjects": [
         "notification",
@@ -136,6 +142,7 @@
       "how": "The Feign client uses GetMapping with a request body while the controller handles PostMapping."
     },
     {
+      "id": "r7",
       "reference": "The web app calls `GET /api/organizations/{id}/preview`, which main-service serves, but no gateway route matches it.",
       "subjects": [
         "frontend",
@@ -156,6 +163,7 @@
       "how": "The frontend and controller use /preview but routes only list /api/organizations/* (one segment) and fixed sub-paths."
     },
     {
+      "id": "r8",
       "reference": "crm-shared-lib versions differ: gateway and auth-service 0.2.0, file-service 0.2.1, notification-service 0.2.5, main-service 0.3.0...",
       "subjects": [
         "gateway",
@@ -179,6 +187,7 @@
       "how": "Each service pins a different SNAPSHOT of crm-shared-lib (gateway pins 0.2.0 modules too)."
     },
     {
+      "id": "r9",
       "reference": "Single instances: one Eureka with no peers, one PostgreSQL for all schemas in Kustomize, single Redis and RabbitMQ...",
       "subjects": [
         "eureka",
@@ -203,6 +212,7 @@
       "how": "Eureka does not peer, Postgres and Helm components run one replica, and the STOMP broker is in memory."
     },
     {
+      "id": "r10",
       "reference": "file-service has no notion of organization, and only GET and PATCH on `/api/files/**` get the gateway's ownership check...",
       "subjects": [
         "gateway",
@@ -224,6 +234,7 @@
       "how": "Only the GET/PATCH route adds organizationFilesFilter; DELETE and POST check just a FILES permission, and member removal does not touch cached permissions."
     },
     {
+      "id": "r11",
       "reference": "`DELETE /api/organizations/{id}/tasks/{taskId}` requires only TASKS:READ.",
       "subjects": [
         "main"
@@ -239,6 +250,7 @@
       "how": "deleteTask is annotated with RequiresPermission action READ."
     },
     {
+      "id": "r12",
       "reference": "The frontend image is built with `--configuration development`, so it calls `http://localhost:8080`...",
       "subjects": [
         "frontend"
@@ -257,6 +269,7 @@
       "how": "The build bakes an environment file with a fixed API URL into the image."
     },
     {
+      "id": "r13",
       "reference": "CORS allows every origin at the gateway, and the Helm ingress combines `*` with credentials.",
       "subjects": [
         "gateway",
@@ -275,6 +288,7 @@
       "how": "Allowed origins default to * at the gateway; Helm sets allowOrigin * with allowCredentials true."
     },
     {
+      "id": "r14",
       "reference": "READMEs are stale: Main-Service says Java 21 and Boot 3; Notification-Service says Java 17 and lists test endpoints...",
       "subjects": [
         "main",
@@ -297,6 +311,7 @@
       "how": "The README lines name versions, endpoints and templates that the code does not have."
     },
     {
+      "id": "r15",
       "reference": "`GET /api/organizations/{id}` has no membership check and its gateway route only authenticates.",
       "subjects": [
         "main",
@@ -314,6 +329,7 @@
       "how": "getOrganizationById has no RequiresOrganizationMembership or permission annotation, and the first route uses only authFilter."
     },
     {
+      "id": "r16",
       "reference": "No schema migrations anywhere: Hibernate `ddl-auto=update`.",
       "subjects": [
         "auth-db",
@@ -335,6 +351,7 @@
   ],
   "decoys": [
     {
+      "id": "d1",
       "looksLike": "Postgres and RabbitMQ passwords appear in the compose file.",
       "safeBecause": "They are only ${...} variable placeholders with no default, filled from the environment at deploy time.",
       "subjects": [
@@ -352,6 +369,7 @@
       ]
     },
     {
+      "id": "d2",
       "looksLike": "The public gateway route /ws-notifications/** has no authentication filter.",
       "safeBecause": "notification-service authenticates every STOMP CONNECT through the auth service and checks organization membership on SUBSCRIBE, and rejects client SEND.",
       "subjects": [

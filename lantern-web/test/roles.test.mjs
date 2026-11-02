@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import {
   answerKeyIssues,
+  describeRow,
   harnessRow,
   investigateRow,
   matchFlows,
@@ -198,3 +199,71 @@ for (const set of readdirSync(testsets).filter((s) => existsSync(`${testsets}${s
     assert.deepEqual(answerKeyIssues(key, reference), []);
   });
 }
+
+test('Resolve: a failed link is not asked, a cached one without a pick is an abstention', () => {
+  const key = {
+    resolve: [
+      { link: 'F', answer: 'service:a', candidates: ['service:a'] },
+      { link: 'C', answer: 'service:a', candidates: ['service:a'] },
+    ],
+  };
+  // A failed item is listed as unasked only (RoleRecord), a cached one as cached.
+  const run = { harness: [{ role: 'resolve', items: { planned: 2 }, askedSubjects: [], unaskedSubjects: ['F'], cachedSubjects: ['C'] }] };
+  const row = resolveRow(key, [], [], run);
+  assert.equal(row.notAsked, 1);
+  assert.equal(row.abstained, 1);
+});
+
+test('Investigate: a wording of a fixed check\'s finding is of the key\'s category for its kind', () => {
+  const key = {
+    risks: [{ id: 'r1', reference: 'One signing key', subjects: ['gateway'], category: 'plaintext-secret' }],
+    decoys: [],
+  };
+  const llm = [
+    {
+      predicate: 'finding-wording',
+      subject: 'finding:shared-jwt-secret/x',
+      attributes: { units: ['service:gw'], title: 'Every unit signs with one key' },
+    },
+  ];
+  const row = investigateRow(key, llm, (e) => (e === 'service:gw' ? 'gateway' : null), () => 0, 0.5);
+  assert.equal(row.matched, 1);
+  assert.deepEqual(row.scores, { r1: 1 });
+  // No decoys: TPR − FPR cannot be told.
+  assert.equal(row.tprMinusFpr, null);
+});
+
+test('Describe: elements with a responsibility, components by their anchor type, lines labelled by an intent', () => {
+  const report = {
+    elements: {
+      'service-a': { kind: 'container', name: 'a' },
+      'type-x-y': { kind: 'component', name: 'Y' },
+      'service-b': { kind: 'container', name: 'b' },
+      'person-u': { kind: 'person', name: 'User' },
+    },
+    pages: [
+      {
+        sections: [
+          {
+            type: 'diagram',
+            relationships: [
+              { from: 'service-a', to: 'service-b', label: 'Sends orders to' },
+              { from: 'service-b', to: 'service-a', label: 'Calls' },
+              { from: 'person-u', to: 'service-a', label: 'Uses' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const llm = [
+    { predicate: 'responsibility', subject: 'service:a', attributes: {} },
+    { predicate: 'responsibility', subject: 'component:service:a/type:x.Y', attributes: {} },
+    { predicate: 'intent', subject: 'service:a', attributes: { text: 'Sends orders to [fact:abc]' } },
+  ];
+  const row = describeRow(report, [], llm);
+  assert.equal(row.elementsDescribed, 2);
+  assert.equal(row.elements, 4);
+  assert.equal(row.interactions, 2);
+  assert.equal(row.interactionsIntended, 1);
+});

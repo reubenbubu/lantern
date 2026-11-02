@@ -43,6 +43,7 @@ public final class RoleRecord implements LlmCallLog {
   private String warmUp;
   private final List<String> asked = new ArrayList<>();
   private final List<String> unasked = new ArrayList<>();
+  private final List<String> reused = new ArrayList<>();
 
   RoleRecord(String role, String provider, String model) {
     this.role = role;
@@ -115,11 +116,10 @@ public final class RoleRecord implements LlmCallLog {
     if (wasRepaired) {
       repaired++;
     }
-    if (outcome.kind() == Outcome.Kind.NOT_ASKED || outcome.kind() == Outcome.Kind.FAILED) {
-      unasked.add(subject);
-    }
-    if (outcome.kind() != Outcome.Kind.CACHED && outcome.kind() != Outcome.Kind.NOT_ASKED) {
-      asked.add(subject);
+    switch (outcome.kind()) {
+      case CACHED -> reused.add(subject);
+      case NOT_ASKED, FAILED -> unasked.add(subject);
+      default -> asked.add(subject);
     }
   }
 
@@ -157,7 +157,10 @@ public final class RoleRecord implements LlmCallLog {
     return notAsked;
   }
 
-  /** The subjects of the items the model was asked about, in the order they finished. */
+  /**
+   * The subjects of the items the model was asked about and that it answered, left out or had
+   * rejected, in the order they finished; failed ones are {@link #unasked()}.
+   */
   public synchronized List<String> asked() {
     return List.copyOf(asked);
   }
@@ -168,6 +171,11 @@ public final class RoleRecord implements LlmCallLog {
    */
   public synchronized List<String> unasked() {
     return List.copyOf(unasked);
+  }
+
+  /** The subjects of the items the answer cache answered. */
+  public synchronized List<String> reused() {
+    return List.copyOf(reused);
   }
 
   /** What the role's calls cost. */

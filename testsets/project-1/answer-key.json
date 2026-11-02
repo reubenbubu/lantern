@@ -26,6 +26,7 @@
   ],
   "risks": [
     {
+      "id": "r1",
       "reference": "Default credentials are live: the realm export, imported when Keycloak first starts on an empty database, holds the",
       "subjects": [
         "keycloak",
@@ -45,6 +46,7 @@
       "how": "Realm export holds client secrets and password/password users; compose defaults the bootstrap admin to admin/admin and runs start-dev."
     },
     {
+      "id": "r2",
       "reference": "Self-registered users probably cannot set a password: the realm configures no SMTP server, and keycloak-admin-service",
       "subjects": [
         "kc-admin",
@@ -62,6 +64,7 @@
       "how": "The password email failure is only logged and 201 is still returned; the checklist says realm SMTP must be configured (the realm export has no smtpServer)."
     },
     {
+      "id": "r3",
       "reference": "No email sender exists for confirmation links: the only EmailService logs the link and is disabled under `prod`",
       "subjects": [
         "profile"
@@ -78,6 +81,7 @@
       "how": "The only EmailService logs the confirmation URL and is not registered under prod."
     },
     {
+      "id": "r4",
       "reference": "An unconfirmed or expired registration blocks its email for good: register silently does nothing when any profile has",
       "subjects": [
         "profile",
@@ -95,6 +99,7 @@
       "how": "register returns early when any profile has the email; the cleanup job is only a TODO."
     },
     {
+      "id": "r5",
       "reference": "Confirmation is not atomic across Keycloak and profile_db: the Keycloak user is created inside the database transaction",
       "subjects": [
         "profile",
@@ -114,6 +119,7 @@
       "how": "confirm calls Keycloak to create the user inside a database transaction, so a later failure leaves the Keycloak user."
     },
     {
+      "id": "r6",
       "reference": "Anonymous web traffic shares one rate-limit bucket: public calls reach the gateway from the BFF without a token or",
       "subjects": [
         "gateway",
@@ -135,6 +141,7 @@
       "how": "BFF forwards public calls with no token or X-Forwarded-For, so the key resolver falls back to the BFF IP for all visitors."
     },
     {
+      "id": "r7",
       "reference": "Single instances: one Redis holds BFF sessions, Spring sessions, refresh locks and rate-limit state; one Keycloak in",
       "subjects": [
         "redis",
@@ -155,6 +162,7 @@
       "how": "One Redis and one dev-mode Keycloak with no replicas; the gateway readiness includes redis."
     },
     {
+      "id": "r8",
       "reference": "BFF_SESSION expires 30 minutes after login whatever the activity: it is issued only at login, and refresh renews only",
       "subjects": [
         "bff"
@@ -173,6 +181,7 @@
       "how": "The session JWT gets a fixed expiry at login and is issued nowhere else."
     },
     {
+      "id": "r9",
       "reference": "Order numbers are made in the browser (`ORD-` + random below 10000) but must be unique across all users",
       "subjects": [
         "angular-ui",
@@ -193,6 +202,7 @@
       "how": "The browser makes a random order number below 10000 and the database requires it unique, so collisions become 409."
     },
     {
+      "id": "r10",
       "reference": "The profile `enabled` flag is inconsistent and unused: admin-created profiles stay false, self-registered ones become",
       "subjects": [
         "profile",
@@ -211,6 +221,7 @@
       "how": "createProfile sets enabled true, createAdminUser leaves the default false."
     },
     {
+      "id": "r11",
       "reference": "Confirmation tokens are stored in plain text, while admin-service Javadoc says a BCrypt hash is stored; confirmation is",
       "subjects": [
         "profile",
@@ -230,6 +241,7 @@
       "how": "The token is stored as given, the Javadoc says BCrypt hash, and confirm is a GET that changes state."
     },
     {
+      "id": "r12",
       "reference": "Every container publishes its port on the host, including PostgreSQL, Redis and the services",
       "subjects": [
         "redis",
@@ -259,6 +271,7 @@
       "how": "Compose publishes host ports for Redis, PostgreSQL and the services."
     },
     {
+      "id": "r13",
       "reference": "A profile's email is whatever the client sends: `POST /api` takes the email from the request body and never compares it",
       "subjects": [
         "profile",
@@ -280,6 +293,7 @@
       "how": "The profile email comes from the request body, not the token, and registration skips emails already stored."
     },
     {
+      "id": "r14",
       "reference": "No transport security by default: every hop is plain HTTP (nginx on 4200, Keycloak with `KC_HTTP_ENABLED`, the",
       "subjects": [
         "angular-ui",
@@ -302,6 +316,7 @@
       "how": "Everything serves plain HTTP and the cookie is not Secure by default."
     },
     {
+      "id": "r15",
       "reference": "Stale or missing documentation: the README diagram puts the order database on 5433 (it is 5434); the admin profile",
       "subjects": [
         "template",
@@ -327,6 +342,7 @@
   ],
   "decoys": [
     {
+      "id": "d1",
       "looksLike": "A signing key property with an empty default looks like a missing or hard-coded secret.",
       "safeBecause": "The key comes from env var BFF_JWT_SIGNING_KEY with no value in code; unset uses an ephemeral generated key in dev, and prod refuses to start.",
       "subjects": [
@@ -343,6 +359,7 @@
       ]
     },
     {
+      "id": "d2",
       "looksLike": "Credentialed CORS on the BFF looks like an open-cors setting.",
       "safeBecause": "Allowed origins are an explicit list from bff.cors.allowed-origins (default http://localhost:4200), never a wildcard.",
       "subjects": [
@@ -359,6 +376,7 @@
       ]
     },
     {
+      "id": "d3",
       "looksLike": "The orders list takes a user id and could trust a caller-supplied identity.",
       "safeBecause": "The user id is jwt.getSubject() from the validated token, not a header or parameter.",
       "subjects": [
@@ -375,6 +393,7 @@
       ]
     },
     {
+      "id": "d4",
       "looksLike": "The internal registration endpoint creates users and might be callable by anyone.",
       "safeBecause": "It requires the INTERNAL_SERVICE role via @PreAuthorize, and the gateway also answers 403 for that path.",
       "subjects": [

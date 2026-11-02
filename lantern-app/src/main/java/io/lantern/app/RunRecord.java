@@ -153,6 +153,7 @@ final class RunRecord {
       ObjectNode entry = record.toJson();
       record.asked().stream().sorted().forEach(entry.putArray("askedSubjects")::add);
       record.unasked().stream().sorted().forEach(entry.putArray("unaskedSubjects")::add);
+      record.reused().stream().sorted().forEach(entry.putArray("cachedSubjects")::add);
       harnessRoles.add(entry);
     }
     ArrayNode byModel = root.putArray("byModel");

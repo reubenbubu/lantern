@@ -104,7 +104,8 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
 - **Inputs.** Besides the report and `run.json`, `analyze` writes `linked.jsonl.gz` (the linker's
   facts, Resolve's picks among them) and `llm.jsonl.gz` (every fact of origin llm that holds in the
   snapshot); `run.json`'s harness records list each role's asked subjects and, new, its unasked
-  ones (not asked for budget, a model without tool use, or failed). `score-testsets.sh` copies both
+  ones (not asked for budget, a model without tool use, or failed, which are no longer among the
+  asked) and its cached ones. `score-testsets.sh` copies both
   files beside the scorecard. A set's answer key is `testsets/<set>/answer-key.json`
   (`--answer-key` names another).
 - **The answer key** is prepared by the agent from the code at the pins and the references, never
@@ -113,25 +114,34 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
   its right target, several when every one of them receives the message, or "unknown"; per
   reference risk, its subject elements (reference IDs) and category (one of the lead kinds,
   `version-skew` or `other`); and decoys, code that looks like a risk of a category and is safe,
-  with why. Every entry cites `repo:path:start-end` at the key's commit of its repository, and
+  with why. Each risk and decoy has a stable ID (`r1`, `d1`, ...), which its item score is named
+  by, so a key that gains an entry still pairs the others. Every entry cites `repo:path:start-end` at the key's commit of its repository, and
   names an identifier the lines hold; `score.mjs check-key` checks each against git, and a test
   checks every key's form.
 - **Three outcomes.** Resolve's items are correct, wrong or abstained, with p = 3 (its instruction
-  asks for certainty): coverage, accuracy on the answered, the penalized score (correct − p ×
-  wrong over the items), over-abstention on the links the key answers; an item not asked is counted
-  apart. Abstaining on a link whose key says unknown is correct; a pick there is wrong.
+  asks for certainty): coverage (picks over items), accuracy on the picks, the penalized score
+  (correct − p × wrong over the items), over-abstention on the links the key answers; an item not
+  asked, or never an item, is counted apart. Abstaining on a link whose key says unknown is
+  correct, though not a pick; a pick there is wrong.
 - **Describe**: the share of the report's containers, stores, queues, external systems, people and
-  components with a responsibility of origin llm, and of the linker's interactions with an intent.
-  Its judge score comes with #668.
+  components (by their anchor type's ID) with a responsibility of origin llm, and of the lines the
+  report draws, a person's left out (they keep their fixed labels), whose label is an intent it
+  wrote, citation markers aside: what a reader sees worded. Its judge score comes with #668.
 - **Flows**: a report flow matches a reference flow when its trigger is the same entry point and
   their participants overlap by at least two thirds of the larger set, one to one, best overlap
   first; recall and precision of the flows the report draws. The scorecard's older flow count
   (by trigger alone) stays beside it, so earlier scorecards compare.
 - **Investigate**: each risk or finding wording it stored matches a reference risk, or a decoy, of
-  the answer key when a subject is shared and the category is the same (its lead's kind, or the
-  finding's); a risk without a lead matches by subject and the words of its title and finding. A
-  risk matching neither is unjudged, listed and counted. Recall, precision over judged risks, and
-  TPR − FPR with the decoys.
+  the answer key when a subject is shared and the category is the same: its lead's kind, or for a
+  wording the key's category of the finding's kind (`version-skew` → `shared-type-skew`,
+  `shared-jwt-secret` → `plaintext-secret`, `unrouted-endpoint` → `contract-mismatch`,
+  `end-of-life` and `dependency-drift` → `version-skew`, the others → `other`); a risk without a
+  lead matches by subject and the words of its title and finding. One that matches several entries
+  is the one whose words it shares most, a reference risk first on a tie. A risk matching nothing
+  is unjudged, listed and counted. Recall, precision over the judged entries (each once), and
+  TPR − FPR with the decoys (not measured for a key without decoys). In the paired comparison a
+  risk found scores +1 and a decoy flagged −1, pooled over the items, which weights them by their
+  counts rather than as TPR − FPR does.
 - **Name groups**: the share of groups it was given that it named; the judge comes with #668.
 - **Harness**: dollars, calls and tokens of the run, the cache hit rate (planned items the answer
   cache answered), and with `--warm` and `--change` the warm rerun's calls (gate: zero) and the

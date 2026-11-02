@@ -90,7 +90,8 @@ function record(run, role) {
 /**
  * Resolve: each open link of the answer key, as the run answered it. A pick is the target of a
  * link of origin llm/resolve that resolves the open link's claim; no pick of a link the role asked
- * is an abstention; a link it never planned (no candidates) or did not ask is not asked.
+ * or had cached is an abstention; a link it did not ask (budget, a model without tool use, a
+ * failure) or never had as an item (no candidates) is not asked.
  */
 export function resolveRow(key, linked, llm, run) {
   const entries = key?.resolve ?? [];
@@ -104,7 +105,8 @@ export function resolveRow(key, linked, llm, run) {
   }
   const resolve = record(run, 'resolve');
   const unasked = new Set(resolve?.unaskedSubjects ?? []);
-  const planned = new Set([...(resolve?.askedSubjects ?? [])]);
+  // The links the role had an answer for this run: asked, or answered from the cache.
+  const answered = new Set([...(resolve?.askedSubjects ?? []), ...(resolve?.cachedSubjects ?? [])]);
   const items = entries.map((entry) => {
     // A link more than one target receives (every queue bound to the key) lists them all; a pick
     // of any of them is right.
@@ -113,10 +115,10 @@ export function resolveRow(key, linked, llm, run) {
     const pick = picks.get(entry.link);
     let outcome;
     if (pick !== undefined) outcome = !unknown && right.has(pick) ? 'correct' : 'wrong';
+    // Not asked for budget, a model without tool use, or failed; or never an item (no candidates).
+    else if (unasked.has(entry.link) || !answered.has(entry.link)) outcome = 'notAsked';
     // Asked and answered unknown or left out: abstained, which is right when the key says unknown.
-    else if (planned.has(entry.link) || (resolve && !unasked.has(entry.link) && (entry.candidates ?? []).length > 0 && (resolve.items?.planned ?? 0) > 0))
-      outcome = unknown ? 'correct' : 'abstained';
-    else outcome = 'notAsked';
+    else outcome = unknown ? 'correct' : 'abstained';
     const abstainedRight = pick === undefined && outcome === 'correct';
     return { id: entry.link, outcome, unknown, abstainedRight, pick: pick ?? null, answer: [...right].join(' or ') };
   });
@@ -125,16 +127,21 @@ export function resolveRow(key, linked, llm, run) {
   return row;
 }
 
-/** The link facts between elements that Describe words as interactions: their claim IDs. */
-const INTERACTION = /^(CALLS_HTTP|SENDS_MAIL|USES_IDENTITY_PROVIDER|PUBLISHES|CONSUMES|ROUTES_TO|SENDS_MESSAGES_TO|USES_DATABASE|ACCESSES_DATA_OF|USES_BROKER|USES_INFRASTRUCTURE|INVESTIGATED_CONNECTION)$/;
+/** A text as a line's label shows it: citation markers dropped, spaces folded. */
+const label = (text) =>
+  String(text ?? '')
+    .replace(/\[(fact|summary):[^\]]*\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /** The kinds of report element Describe gives a responsibility. */
 const DESCRIBED_KINDS = new Set(['container', 'database', 'queue', 'external', 'component', 'person']);
 
 /**
  * Describe's coverage (section 13): the share of the report's elements with a responsibility it
- * wrote, and of the interactions between them with an intent. Its wording's judge score comes with
- * #668; until then the row is coverage only.
+ * wrote, and of the lines the report draws whose label is an intent it wrote (a person's lines keep
+ * their fixed labels, so they are left out). Its wording's judge score comes with #668; until then
+ * the row is coverage only.
  */
 export function describeRow(report, linked, llm) {
   if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
@@ -146,14 +153,23 @@ export function describeRow(report, linked, llm) {
   );
   const elements = Object.entries(report.elements).filter(([, e]) => DESCRIBED_KINDS.has(e.kind));
   const withText = elements.filter(([id]) => described.has(id));
-  const intents = new Set(llm.filter((f) => f.predicate === 'intent').map((f) => String(f.object?.value).split('/')[0]));
-  const interactions = new Set(
-    (linked ?? []).filter((f) => INTERACTION.test(f.predicate)).map((f) => f.claim ?? f.id),
-  );
-  const intended = [...interactions].filter((id) => intents.has(id));
+  const intents = new Set(llm.filter((f) => f.predicate === 'intent').map((f) => label(f.attributes?.text)));
+  const lines = new Map();
+  for (const page of report.pages) {
+    for (const section of page.sections) {
+      if (section.type !== 'diagram') continue;
+      for (const r of section.relationships) {
+        if (report.elements[r.from]?.kind === 'person') continue;
+        const key = `${r.from}->${r.to}`;
+        lines.set(key, (lines.get(key) ?? false) || intents.has(label(r.label)));
+      }
+    }
+  }
+  const interactions = { size: lines.size };
+  const intended = [...lines.values()].filter(Boolean);
   const scores = {};
   for (const [id] of elements) scores[`element:${id}`] = withText.some(([w]) => w === id) ? 1 : 0;
-  for (const id of interactions) scores[`interaction:${id}`] = intents.has(id) ? 1 : 0;
+  for (const [key, has] of lines) scores[`line:${key}`] = has ? 1 : 0;
   return {
     measured: true,
     elements: elements.length,
@@ -226,11 +242,27 @@ export function flowsRow(refFlows, repFlows) {
   };
 }
 
-/** The category a stored risk is of: its lead's kind, or for a finding's wording the finding's. */
+/** The answer key's category of each kind of fixed-check finding (ADR 0072, amendment for #667). */
+export const FINDING_CATEGORIES = {
+  'version-skew': 'shared-type-skew',
+  'shared-jwt-secret': 'plaintext-secret',
+  'unrouted-endpoint': 'contract-mismatch',
+  'end-of-life': 'version-skew',
+  'dependency-drift': 'version-skew',
+  'snapshot-dependency': 'other',
+  'package-cycle': 'other',
+  'readme-contradiction': 'other',
+  'injection-suspected': 'other',
+};
+
+/**
+ * The category a stored risk is of: its lead's kind, or for a finding's wording the key's category
+ * of the finding's kind.
+ */
 function categoryOf(fact) {
   if (fact.predicate === 'finding-wording') {
     const kind = String(fact.subject).match(/^finding:([^/]+)/);
-    return kind ? kind[1] : null;
+    return kind ? (FINDING_CATEGORIES[kind[1]] ?? 'other') : null;
   }
   const lead = fact.attributes?.lead;
   const kind = lead ? String(lead).match(/^lead:([^/]+)/) : null;
@@ -287,28 +319,25 @@ export function investigateRow(key, llm, subjectOf, overlap, threshold) {
   const hit = new Set();
   const decoyHit = new Set();
   const unjudged = [];
-  let judged = 0;
-  let tp = 0;
   for (const risk of found) {
     const match = best(risk);
     if (match === null) {
       unjudged.push(risk.title);
       continue;
     }
-    judged++;
     if (match.kind === 'risk') {
       hit.add(match.i);
-      tp++;
     } else {
       decoyHit.add(match.i);
     }
   }
   const scores = {};
+  // Items are named by the entries' IDs, so a key that gains an entry still pairs the others.
   risks.forEach((e, i) => {
-    scores[`risk:${i}`] = hit.has(i) ? 1 : 0;
+    scores[e.id ?? `risk:${i}`] = hit.has(i) ? 1 : 0;
   });
   decoys.forEach((e, i) => {
-    scores[`decoy:${i}`] = decoyHit.has(i) ? -1 : 0;
+    scores[e.id ?? `decoy:${i}`] = decoyHit.has(i) ? -1 : 0;
   });
   const tpr = ratio(hit.size, risks.length);
   const fpr = ratio(decoyHit.size, decoys.length);
@@ -320,8 +349,9 @@ export function investigateRow(key, llm, subjectOf, overlap, threshold) {
     matched: hit.size,
     decoysFlagged: decoyHit.size,
     recall: tpr,
-    precision: ratio(tp, judged),
-    tprMinusFpr: tpr === null ? null : tpr - (fpr ?? 0),
+    // Over the judged entries, each once: repeats of one risk do not count twice.
+    precision: ratio(hit.size, hit.size + decoyHit.size),
+    tprMinusFpr: tpr === null || fpr === null ? null : tpr - fpr,
     unjudged,
     missing: risks.filter((_, i) => !hit.has(i)).map((e) => e.reference),
     scores,

@@ -9,6 +9,7 @@
   "resolve": [],
   "risks": [
     {
+      "id": "r1",
       "reference": "event-service's inventory endpoints are reachable through the gateway by any attendee: the gateway routes all of",
       "subjects": [
         "gateway",
@@ -28,6 +29,7 @@
       "how": "Gateway only requires authentication for /api/v1/**, and the inventory controller admits ATTENDEE; confirm checks only that the caller is the requester."
     },
     {
+      "id": "r2",
       "reference": "Cancelling an event cancels its bookings and tickets in attendee-service but requests no refund; no service reacts to",
       "subjects": [
         "attendee",
@@ -48,6 +50,7 @@
       "how": "cancelEvent only cancels bookings and tickets with no refund request, and refunds are refused once the event has started."
     },
     {
+      "id": "r3",
       "reference": "Default configuration is local-only: the JWT signing key and the QR signing key are generated at startup when none is",
       "subjects": [
         "auth",
@@ -76,6 +79,7 @@
       "how": "Keys are generated at startup when unset, the webhook secret has a known compose default, and all DB users have the password local_dev_only."
     },
     {
+      "id": "r4",
       "reference": "Redis is on event-service's write path: business transactions evict the cache by calling `Cache.evict` directly, which",
       "subjects": [
         "event",
@@ -95,6 +99,7 @@
       "how": "Cache eviction and cached reads run in the request path with no error handler, so a Redis failure fails the request."
     },
     {
+      "id": "r5",
       "reference": "Publishing and cancelling an event call venue-service over HTTP inside the event database transaction.",
       "subjects": [
         "event",
@@ -114,6 +119,7 @@
       "how": "publish and cancel call venue-service over HTTP while the event row changes inside the open transaction; the owner reference makes reserve idempotent."
     },
     {
+      "id": "r6",
       "reference": "Personal data and ticket credentials travel through Kafka and are copied: `booking.created`, `ticket.issued` and",
       "subjects": [
         "attendee",
@@ -136,6 +142,7 @@
       "how": "ticket.issued carries email, phone and the signed QR token, which notification-service copies into its variables."
     },
     {
+      "id": "r7",
       "reference": "Single points of failure in the only deployment: one Kafka node with replication factor 1 and auto-created topics, one",
       "subjects": [
         "redis",
@@ -158,6 +165,7 @@
       "how": "One postgres, one redis and one single-node kafka with replication factor 1 are the whole deployment."
     },
     {
+      "id": "r8",
       "reference": "The payment provider is an in-process fake that keeps payment state in memory.",
       "subjects": [
         "payment"
@@ -175,6 +183,7 @@
       "how": "The fake provider keeps payment behaviour in a ConcurrentHashMap and reports an unknown id as failed after a restart."
     },
     {
+      "id": "r9",
       "reference": "Compensation refunds call the provider inside the Kafka consumer's database transaction.",
       "subjects": [
         "payment",
@@ -194,6 +203,7 @@
       "how": "The Kafka listener is transactional and calls the refund service, which calls the provider, inside that transaction."
     },
     {
+      "id": "r10",
       "reference": "Any EVENT_STAFF user may validate and check in tickets for every event; staff are not tied to events.",
       "subjects": [
         "attendee"
@@ -209,6 +219,7 @@
       "how": "mayScan lets any EVENT_STAFF scan any event's tickets."
     },
     {
+      "id": "r11",
       "reference": "Cancelling an event does not stop bookings still awaiting payment: payment-service never hears of the cancellation,",
       "subjects": [
         "payment",
@@ -231,6 +242,7 @@
       "how": "None of the payment, inventory-confirm or booking-confirm steps check the event's cancelled status."
     },
     {
+      "id": "r12",
       "reference": "Reminders and cancellation alerts are not withdrawn for bookings that end without tickets: notification-service plans",
       "subjects": [
         "notification"
@@ -249,6 +261,7 @@
       "how": "Reminders are planned on booking.created, the switch has no case for failed, expired or refunded bookings, and cancellation alerts go to all seen bookings."
     },
     {
+      "id": "r13",
       "reference": "The gateway rate-limits by the TCP peer address and ignores `X-Forwarded-For`, while the frontend's nginx proxies",
       "subjects": [
         "gateway",
@@ -266,6 +279,7 @@
       "how": "The limiter keys on the peer address while nginx proxies every request to the gateway."
     },
     {
+      "id": "r14",
       "reference": "Every service port (8081-8086) is published on the host next to the gateway.",
       "subjects": [
         "auth",
@@ -290,6 +304,7 @@
       "how": "Each service publishes its port on the host next to the gateway."
     },
     {
+      "id": "r15",
       "reference": "Reschedule alerts cannot fire: event details can change only while an event is a draft, and bookings exist only once",
       "subjects": [
         "event",
@@ -309,6 +324,7 @@
       "how": "Details are locked after draft and bookings need open sales, so rescheduleEvent never has a booking to alert."
     },
     {
+      "id": "r16",
       "reference": "Setting the email or SMS provider to anything but `local` leaves no sender bean, since no other adapter exists.",
       "subjects": [
         "notification"
@@ -325,6 +341,7 @@
       "how": "The only email and SMS senders are conditional on provider 'local'; any other value leaves no bean."
     },
     {
+      "id": "r17",
       "reference": "Observability gaps: Grafana has a Loki data source but nothing ships logs to Loki.",
       "subjects": [
         "notification"
@@ -341,6 +358,7 @@
       "how": "Grafana points at Loki but the collector only has a traces pipeline (absence of a logs pipeline)."
     },
     {
+      "id": "r18",
       "reference": "Documentation and UI are behind the code: the front end says \"Phase 3\" and that booking is deferred, and",
       "subjects": [
         "frontend",
@@ -363,6 +381,7 @@
   ],
   "decoys": [
     {
+      "id": "d1",
       "looksLike": "Identity headers like X-User-Id and X-User-Roles could be trusted from the request.",
       "safeBecause": "The gateway's highest-precedence filter removes all six identity headers from every incoming request, and services read identity from the JWT.",
       "subjects": [
@@ -378,6 +397,7 @@
       ]
     },
     {
+      "id": "d2",
       "looksLike": "The gateway handles CORS by hand and might allow any origin.",
       "safeBecause": "The filter rejects any Origin not in the configured allowed-origins list (default http://localhost:3000) with 403.",
       "subjects": [
@@ -394,6 +414,7 @@
       ]
     },
     {
+      "id": "d3",
       "looksLike": "event-service sends to Kafka from inside a @Transactional method.",
       "safeBecause": "The relay only sends rows already committed to the outbox table by earlier business transactions, and marks them published afterwards.",
       "subjects": [
@@ -412,6 +433,7 @@
       ]
     },
     {
+      "id": "d4",
       "looksLike": "No schema migrations: JPA could create the schema.",
       "safeBecause": "Hibernate runs with ddl-auto validate and Flyway applies versioned scripts from db/migration.",
       "subjects": [

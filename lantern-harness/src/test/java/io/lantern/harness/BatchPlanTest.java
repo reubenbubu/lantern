@@ -109,6 +109,7 @@ class BatchPlanTest {
     assertThat(record.unasked())
         .hasSize(record.toJson().get("items").get("notAsked").asInt())
         .doesNotContainAnyElementsOf(record.asked());
+    assertThat(record.reused()).isEmpty();
   }
 
   @Test

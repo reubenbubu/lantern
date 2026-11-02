@@ -93,6 +93,7 @@
   ],
   "risks": [
     {
+      "id": "r1",
       "reference": "Workorder and billing both verify HMAC JWTs with the same secret placeholder under the internal profile; the secret",
       "subjects": [
         "workorder-service",
@@ -112,6 +113,7 @@
       "how": "Both services build an HMAC JWT decoder from the same shared-secret property, defaulted to a placeholder value in config."
     },
     {
+      "id": "r2",
       "reference": "The gateway composite calls `/api/technicians/{id}/skils`; technician-service serves `/api/technicians/{id}/skills`",
       "subjects": [
         "edge-gateway",
@@ -129,6 +131,7 @@
       "how": "Gateway calls the misspelled /skils path while technician-service maps /skills."
     },
     {
+      "id": "r3",
       "reference": "The customer BFF requests technician availability without the serviceCode query parameter required by",
       "subjects": [
         "customer-portal-bff",
@@ -146,6 +149,7 @@
       "how": "BFF calls availability with no query parameter while technician-service requires a serviceCode request parameter."
     },
     {
+      "id": "r4",
       "reference": "The work-order Feign client declares GET for `/api/technicians/{id}/shifts/{shiftId}/reschedule`, while",
       "subjects": [
         "workorder-service",
@@ -163,6 +167,7 @@
       "how": "Feign client uses GET for the reschedule path that technician-service maps only as POST."
     },
     {
+      "id": "r5",
       "reference": "PaymentService publishes RabbitMQ and JMS messages from a transactional method without a shared transactional outbox; a",
       "subjects": [
         "billing-service",
@@ -181,6 +186,7 @@
       "how": "pay() is @Transactional and sends Rabbit and JMS messages before the transaction commits, with no outbox."
     },
     {
+      "id": "r6",
       "reference": "The shared permission aspect checks whether the forwarded role string contains the required role text; a longer role",
       "subjects": [
         "workorder-service",
@@ -198,6 +204,7 @@
       "how": "The aspect uses String.contains on the forwarded roles string, so a longer role value passes."
     },
     {
+      "id": "r7",
       "reference": "Work-order binds identity headers",
       "subjects": [
         "workorder-service",
@@ -216,6 +223,7 @@
       "how": "Work-order binds X-User-Id and X-Roles from the request while the gateway adds (not replaces) those headers."
     },
     {
+      "id": "r8",
       "reference": "Billing declares Spring Boot 3.2.12 and uses the older `openjdk:17.0.2-jdk-slim` image; review support and security",
       "subjects": [
         "billing-service"
@@ -232,6 +240,7 @@
       "how": "Billing pins Spring Boot 3.2.12 and an older openjdk 17.0.2 base image."
     },
     {
+      "id": "r9",
       "reference": "The Commons repository HEAD declares 2.3.0 while notification and work-order pin 1.9.4 and 2.1.0; both consumers are",
       "subjects": [
         "workorder-service",
@@ -251,6 +260,7 @@
       "how": "Notification pins commons 1.9.4 and work-order 2.1.0 (and parent 1.4.0-SNAPSHOT) while commons HEAD is 2.3.0."
     },
     {
+      "id": "r10",
       "reference": "The staff app calls GET /api/staff/operations/summary, while the gateway declares only customer and work-order route",
       "subjects": [
         "staff-web-app",
@@ -269,6 +279,7 @@
       "how": "Staff app calls /staff/operations/summary but the gateway routes only /customer/** and /api/work-orders/**."
     },
     {
+      "id": "r11",
       "reference": "VehicleHistoryController and VehicleMaintenanceController declare the same GET /api/vehicles/{vin}/history handler",
       "subjects": [
         "workorder-service"
@@ -285,6 +296,7 @@
       "how": "Two controllers under /api/vehicles both map GET /{vin}/history."
     },
     {
+      "id": "r12",
       "reference": "Compose provides predictable local fallback credentials for databases and brokers",
       "subjects": [
         "postgresql-server",
@@ -307,6 +319,7 @@
       "how": "Compose supplies predictable fallback passwords via ${VAR:-not-a-real-password}."
     },
     {
+      "id": "r13",
       "reference": "The production Helm infrastructure template declares one replica for each stateful workload; this does not provide an",
       "subjects": [
         "postgresql-server",
@@ -324,6 +337,7 @@
       "how": "The infrastructure StatefulSet template hardcodes replicas: 1 for every stateful workload."
     },
     {
+      "id": "r14",
       "reference": "The export selects completed work orders by creation time within the last 24 hours, not completion time; a job",
       "subjects": [
         "billing-service",
@@ -342,6 +356,7 @@
       "how": "The export filters completed orders by w.created_at over the last 86400 seconds, not by completion time."
     },
     {
+      "id": "r15",
       "reference": "Billing selects completed work-order rows and accepted estimates through a second JDBC connection to the workorder",
       "subjects": [
         "billing-service",
@@ -360,6 +375,7 @@
       "how": "Billing opens a second datasource to the workorder database and selects from work_orders and estimates."
     },
     {
+      "id": "r16",
       "reference": "The payment audit queue has a listener, but its handler is empty and does not persist an audit record.",
       "subjects": [
         "workorder-service",
@@ -376,6 +392,7 @@
       "how": "The listener method body is empty, so nothing is recorded."
     },
     {
+      "id": "r17",
       "reference": "The work-order read-model listener splits a pipe-delimited string; the outbox publishes created events as structured",
       "subjects": [
         "workorder-service",
@@ -394,6 +411,7 @@
       "how": "Listener expects a pipe-delimited string while the poller publishes decoded JSON bodies."
     },
     {
+      "id": "r18",
       "reference": "The customer mutation requests BookingReceipt.workOrderId, which the BFF GraphQL schema does not expose; GraphQL",
       "subjects": [
         "customer-web-app",
@@ -411,6 +429,7 @@
       "how": "The query selects workOrderId, which the BookingReceipt GraphQL type does not declare."
     },
     {
+      "id": "r19",
       "reference": "The staff STOMP client sets only a broker URL and does not explicitly provide a token",
       "subjects": [
         "staff-web-app",
@@ -429,6 +448,7 @@
       "how": "STOMP client passes no token while the server rejects CONNECT/SUBSCRIBE without a user, so connection success is unproven."
     },
     {
+      "id": "r20",
       "reference": "The customer fetch and BFF work-order client do not explicitly attach a bearer token, while work-order creation",
       "subjects": [
         "customer-web-app",
@@ -449,6 +469,7 @@
       "how": "Fetch sends no Authorization header and the BFF client adds none, while create requires the FLEET_CUSTOMER role."
     },
     {
+      "id": "r21",
       "reference": "No committed test sources exist for notification-service, edge-gateway, platform-config, platform-discovery,",
       "subjects": [
         "notification-service",
@@ -471,6 +492,7 @@
       "how": "Absence: these units have no src/test folder (notification and edge-gateway contain only src/main); the cited pom shows notification opts out of JaCoCo."
     },
     {
+      "id": "r22",
       "reference": "The work-order production profile enables SQL bind TRACE logging; sensitive bound values may be written to logs.",
       "subjects": [
         "workorder-service"
@@ -488,23 +510,7 @@
   ],
   "decoys": [
     {
-      "looksLike": "Work-order creation is @Transactional and publishes an event inside the transaction, like a send before commit.",
-      "safeBecause": "The local event goes to a @TransactionalEventListener (default AFTER_COMMIT) and the broker message is only an outbox row saved in the same transaction.",
-      "subjects": [
-        "workorder-service"
-      ],
-      "category": "send-before-commit",
-      "cites": [
-        "workorder-service:src/main/java/io/fleetcare/workorder/feature/creation/WorkOrderCreationService.java:34-42",
-        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/WorkOrderAuditListener.java:11-14"
-      ],
-      "names": [
-        "@TransactionalEventListener",
-        "events.recordCreated",
-        "publishEvent"
-      ]
-    },
-    {
+      "id": "d1",
       "looksLike": "Technician-service trusts role values for @PreAuthorize checks that might come from a request.",
       "safeBecause": "Roles are read from the realm_access claim of a JWT validated by oauth2ResourceServer and every exchange except health requires authentication; no identity header is read.",
       "subjects": [
@@ -522,6 +528,7 @@
       ]
     },
     {
+      "id": "d2",
       "looksLike": "Database passwords appear in service configuration, like a hardcoded secret.",
       "safeBecause": "They are bare environment placeholders with no default value, so no secret is in the code.",
       "subjects": [
@@ -539,6 +546,7 @@
       ]
     },
     {
+      "id": "d3",
       "looksLike": "Work-order service has JPA and a database but may let Hibernate manage the schema.",
       "safeBecause": "ddl-auto is validate and Flyway is enabled, so schema changes come only from migrations.",
       "subjects": [
