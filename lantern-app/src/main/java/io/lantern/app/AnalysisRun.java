@@ -432,6 +432,25 @@ public final class AnalysisRun {
             summarized.notAsked().size());
       }
 
+      // Investigate checks the leads derivation stored, then explores each unit and the system,
+      // every finding cited to code Lantern verifies; what it finds is stored as claims of origin
+      // llm before anything is described or composed (knowledge-build epic, section 11.2; ADR
+      // 0110). It reads every fact that holds in the snapshot, summaries included.
+      io.lantern.link.Investigator.Result investigated =
+          new io.lantern.link.Investigator(
+                  harness, snapshotFiles, io.lantern.derive.LeadRules.judges())
+              .investigate(
+                  facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+                  snapshot.number());
+      recordLlmFacts(snapshot, investigated.byOrigin());
+      LOG.info(
+          "Investigate: {} asked, {} reused, {} leads confirmed, {} facts; not investigated: {}",
+          investigated.asked(),
+          investigated.reused(),
+          investigated.confirmed(),
+          investigated.facts().size(),
+          investigated.notInvestigated());
+
       // The LLM words the responsibilities of the snapshot's units and components and the intent
       // of their links, and narrates the main flows, from every fact that holds in it, carried
       // forward repositories included (ADR 0050, ADR 0058), and of no other system (ADR 0071).
@@ -486,6 +505,7 @@ public final class AnalysisRun {
       List<Fact> screened = screen(harness, snapshot);
       List<Fact> composed = new ArrayList<>(extracted);
       composed.addAll(screened);
+      composed.addAll(investigated.facts());
 
       String systemTitle =
           systems

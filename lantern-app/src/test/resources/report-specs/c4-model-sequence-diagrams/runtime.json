@@ -373,6 +373,16 @@
       "of" : "sequences-shop-app-jobs-run-diagram"
     } ]
   }, {
+    "id" : "findings",
+    "level" : "documentation",
+    "title" : "Risks and findings",
+    "sections" : [ {
+      "type" : "callout",
+      "id" : "findings-none",
+      "body" : "**The LLM found no risks**\nLantern's LLM investigator found no risks here, or did not run; it proposes risks only with file:line citations Lantern can verify.",
+      "tone" : "info"
+    } ]
+  }, {
     "id" : "decisions",
     "level" : "documentation",
     "title" : "Decisions and unknowns",
@@ -410,7 +420,7 @@
       "type" : "table",
       "id" : "glossary-terms",
       "columns" : [ "Term", "Meaning", "Source" ],
-      "rows" : [ [ "ADR", "Architecture decision record: a short document recording one design decision and its reasons", "Lantern's glossary" ], [ "HTTP", "Hypertext Transfer Protocol, the request and response protocol of the web", "Lantern's glossary" ], [ "HTTPS", "HTTP encrypted with TLS", "Lantern's glossary" ], [ "ID", "Identifier", "Lantern's glossary" ], [ "JDBC", "Java Database Connectivity, Java's standard interface to relational databases", "Lantern's glossary" ], [ "JSON", "JavaScript Object Notation, a plain-text data format", "Lantern's glossary" ], [ "MVC", "Model-view-controller, the pattern Spring's web framework, Spring MVC, is named after", "Lantern's glossary" ], [ "REST", "Representational state transfer: a style of web interface built on HTTP resources and methods", "Lantern's glossary" ], [ "TLS", "Transport Layer Security, which encrypts network connections", "Lantern's glossary" ] ]
+      "rows" : [ [ "ADR", "Architecture decision record: a short document recording one design decision and its reasons", "Lantern's glossary" ], [ "HTTP", "Hypertext Transfer Protocol, the request and response protocol of the web", "Lantern's glossary" ], [ "HTTPS", "HTTP encrypted with TLS", "Lantern's glossary" ], [ "ID", "Identifier", "Lantern's glossary" ], [ "JDBC", "Java Database Connectivity, Java's standard interface to relational databases", "Lantern's glossary" ], [ "JSON", "JavaScript Object Notation, a plain-text data format", "Lantern's glossary" ], [ "LLM", "Large language model, such as the one Lantern asks to word and investigate the code", "Lantern's glossary" ], [ "MVC", "Model-view-controller, the pattern Spring's web framework, Spring MVC, is named after", "Lantern's glossary" ], [ "REST", "Representational state transfer: a style of web interface built on HTTP resources and methods", "Lantern's glossary" ], [ "TLS", "Transport Layer Security, which encrypts network connections", "Lantern's glossary" ] ]
     } ]
   } ]
 }

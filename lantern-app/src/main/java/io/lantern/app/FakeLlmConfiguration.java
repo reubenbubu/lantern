@@ -79,6 +79,10 @@ class FakeLlmConfiguration {
                 // After its submit, a Resolve conversation ends.
                 return "Done.";
               }
+              if (request.role() == Role.INVESTIGATE) {
+                // It finds nothing: each lead is asked again alone, then unclear (ADR 0110).
+                return "Done.";
+              }
               String summary = summarize(request);
               return summary != null ? summary : "{}";
             });

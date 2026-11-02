@@ -215,9 +215,9 @@ final class InvestigateRole implements PacketRole {
     return new ToolBox() {
       @Override
       public List<LlmTool> tools() {
-        return tools.tools().stream()
-            .filter(t -> mode != Mode.LEADS || LEAD_TOOLS.contains(t.name()))
-            .toList();
+        return mode == Mode.LEADS
+            ? tools.tools().stream().filter(t -> LEAD_TOOLS.contains(t.name())).toList()
+            : tools.exploreTools();
       }
 
       @Override

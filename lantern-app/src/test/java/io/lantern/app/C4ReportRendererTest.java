@@ -165,6 +165,7 @@ class C4ReportRendererTest {
                 .map(p -> p.get("title").asString()))
         .containsExactly(
             "Decisions and unknowns",
+            "Risks and findings",
             "Catalog",
             "Change guidance",
             "Dependencies",

@@ -631,7 +631,8 @@ public final class Investigator {
     // --- Modes B and C -----------------------------------------------------------------------
 
     void units() {
-      RoleSession session = harness.session(UNITS.withTools(graph.tools().tools(), EXPLORE_LIMITS));
+      RoleSession session =
+          harness.session(UNITS.withTools(graph.tools().exploreTools(), EXPLORE_LIMITS));
       Map<String, List<Item>> byUnit = new TreeMap<>();
       for (String unit : model.units.keySet()) {
         if (notInvestigated.contains(unit)) {
@@ -671,7 +672,7 @@ public final class Investigator {
 
     void system() {
       RoleSession session =
-          harness.session(SYSTEM_ROLE.withTools(graph.tools().tools(), EXPLORE_LIMITS));
+          harness.session(SYSTEM_ROLE.withTools(graph.tools().exploreTools(), EXPLORE_LIMITS));
       List<String> risks = new ArrayList<>();
       answers.forEach((unit, lines) -> lines.forEach(line -> risks.add(unit + ": " + line)));
       String context = InvestigatePrompt.answers(risks);
