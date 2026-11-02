@@ -50,8 +50,7 @@ class ExecutiveBriefTest {
         .compose(
             ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE),
             SNAPSHOT,
-            Derivation.withModel(facts, 1),
-            Map.of());
+            Derivation.withModel(facts, 1));
   }
 
   private static Section section(Document document, String id) {
@@ -183,8 +182,7 @@ class ExecutiveBriefTest {
             .compose(
                 ViewDefinition.executiveBrief("b", "base", TEMPLATE),
                 SNAPSHOT,
-                Derivation.withModel(TestFacts.shop().list(), 1),
-                Map.of());
+                Derivation.withModel(TestFacts.shop().list(), 1));
     Metrics metrics = (Metrics) section(document, "headlines").blocks().getFirst();
 
     assertThat(metrics.items())
@@ -348,8 +346,7 @@ class ExecutiveBriefTest {
         .compose(
             ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE),
             new Snapshot(2, SNAPSHOT.commits(), 5, "0.1.0", at),
-            Derivation.withModel(facts, 2),
-            Map.of());
+            Derivation.withModel(facts, 2));
   }
 
   private static List<String> rows(Table table) {
@@ -498,8 +495,7 @@ class ExecutiveBriefTest {
             .compose(
                 ViewDefinition.executiveBrief("base.brief", "base", TEMPLATE),
                 SNAPSHOT,
-                Derivation.withModel(facts, 1),
-                Map.of());
+                Derivation.withModel(facts, 1));
     List<Block> blocks = section(document, "blast_radius").blocks();
 
     assertThat(text(((ListBlock) blocks.getFirst()).items().getFirst().content()))
@@ -624,8 +620,7 @@ class ExecutiveBriefTest {
             .compose(
                 ViewDefinition.executiveBrief("base.brief", "base", TEMPLATE),
                 new Snapshot(2, SNAPSHOT.commits(), 5, "0.1.0", OCTOBER_2026),
-                Derivation.withModel(facts, 2),
-                Map.of());
+                Derivation.withModel(facts, 2));
     Callout risk = (Callout) section(document, "risks").blocks().getFirst();
 
     assertThat(text(risk.content()))

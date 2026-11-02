@@ -41,13 +41,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "com.example.shop.api",
-      "target" : {
-        "kind" : "entity",
-        "id" : "package:com.example.shop:shop-api:com.example.shop.api"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "a734eec6e38e80e5cc063e2c8dc3776ce630050f4baa2352f88dd0f9f0e7175f", "c902da593b6fc8eaa837df6b95cf658f7340f26107ae023d0e064766ff39e4f2" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -71,13 +66,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "com.example.shop.core",
-      "target" : {
-        "kind" : "entity",
-        "id" : "package:com.example.shop:shop-core:com.example.shop.core"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "2c4afc7f5f236d762e6d8bf3ae2be58dd93dcc62fedcdc5be7abfa045a57a18b", "97b6b2adf0997f5d9b441351bc749803fe5637e28e93b5efa6e6ddf50b4a0315" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -101,13 +91,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "shop-api",
-      "target" : {
-        "kind" : "entity",
-        "id" : "module:com.example.shop:shop-api"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "03a3e832dc284ee54e69fc339c21e89f114971ea314719785768096a94539704", "a734eec6e38e80e5cc063e2c8dc3776ce630050f4baa2352f88dd0f9f0e7175f", "c902da593b6fc8eaa837df6b95cf658f7340f26107ae023d0e064766ff39e4f2" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -131,13 +116,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "PriceService",
-      "target" : {
-        "kind" : "entity",
-        "id" : "type:com.example.shop.api.PriceService"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "a734eec6e38e80e5cc063e2c8dc3776ce630050f4baa2352f88dd0f9f0e7175f" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -161,13 +141,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "FixedPriceService",
-      "target" : {
-        "kind" : "entity",
-        "id" : "type:com.example.shop.core.FixedPriceService"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "97b6b2adf0997f5d9b441351bc749803fe5637e28e93b5efa6e6ddf50b4a0315" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -190,13 +165,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "shop-parent",
-      "target" : {
-        "kind" : "entity",
-        "id" : "module:com.example.shop:shop-parent"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "03a3e832dc284ee54e69fc339c21e89f114971ea314719785768096a94539704", "40bfe3922fbe6253ffdd170c0ec4cac4d163bf856e295ef0af822e3bded4717e", "a734eec6e38e80e5cc063e2c8dc3776ce630050f4baa2352f88dd0f9f0e7175f", "c902da593b6fc8eaa837df6b95cf658f7340f26107ae023d0e064766ff39e4f2" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -886,13 +856,8 @@
         "kind" : "text",
         "text" : "Builds on its parts."
       }, {
-        "kind" : "ref",
-        "text" : "shop-parent",
-        "target" : {
-          "kind" : "entity",
-          "id" : "module:com.example.shop:shop-parent"
-        },
-        "citation" : true
+        "kind" : "citation",
+        "facts" : [ "03a3e832dc284ee54e69fc339c21e89f114971ea314719785768096a94539704", "40bfe3922fbe6253ffdd170c0ec4cac4d163bf856e295ef0af822e3bded4717e", "a734eec6e38e80e5cc063e2c8dc3776ce630050f4baa2352f88dd0f9f0e7175f", "c902da593b6fc8eaa837df6b95cf658f7340f26107ae023d0e064766ff39e4f2" ]
       }, {
         "kind" : "text",
         "text" : " Described by its facts."
@@ -900,7 +865,7 @@
         "kind" : "citation",
         "facts" : [ "e03924967af4d54258ed41ac9303927501484c96ccaa4feafa04df91906516ff" ]
       } ],
-      "facts" : [ "e03924967af4d54258ed41ac9303927501484c96ccaa4feafa04df91906516ff" ]
+      "facts" : [ "03a3e832dc284ee54e69fc339c21e89f114971ea314719785768096a94539704", "40bfe3922fbe6253ffdd170c0ec4cac4d163bf856e295ef0af822e3bded4717e", "a734eec6e38e80e5cc063e2c8dc3776ce630050f4baa2352f88dd0f9f0e7175f", "c902da593b6fc8eaa837df6b95cf658f7340f26107ae023d0e064766ff39e4f2", "e03924967af4d54258ed41ac9303927501484c96ccaa4feafa04df91906516ff" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",

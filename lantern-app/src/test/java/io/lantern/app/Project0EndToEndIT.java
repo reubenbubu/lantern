@@ -318,6 +318,38 @@ class Project0EndToEndIT {
     }
 
     AnalysisRun.Rendered system = second.documents().getLast();
+    // Knowledge is complete before composition (knowledge-build epic, section 12): composing the
+    // stored facts alone, after the run, gives the report the run wrote.
+    Document written = system.document();
+    Document recomposed =
+        new io.lantern.compose.Composer(written.source().toolVersion())
+            .compose(
+                io.lantern.compose.ViewDefinition.c4System(
+                    written.id(), written.title(), written.template()),
+                second.snapshot(),
+                facts.findValidAt(second.snapshot().number(), commits.keySet()),
+                written.title());
+    assertThat(DocumentJson.write(recomposed)).isEqualTo(DocumentJson.write(written));
+    // And each repository's C4 report, from the stored facts of its repository.
+    List<Fact> held = facts.findValidAt(second.snapshot().number(), commits.keySet());
+    List<Fact> repositoryFacts = AnalysisRun.repositoryFacts(held, commits.keySet());
+    List<Document> repoReports =
+        second.documents().stream()
+            .map(AnalysisRun.Rendered::document)
+            .filter(d -> d.id().endsWith(".c4") && commits.containsKey(d.title()))
+            .toList();
+    assertThat(repoReports).isNotEmpty();
+    for (Document report : repoReports) {
+      Document again =
+          new io.lantern.compose.Composer(report.source().toolVersion())
+              .compose(
+                  io.lantern.compose.ViewDefinition.c4Report(
+                      report.id(), report.title(), report.template()),
+                  second.snapshot(),
+                  repositoryFacts,
+                  written.title());
+      assertThat(DocumentJson.write(again)).as(report.id()).isEqualTo(DocumentJson.write(report));
+    }
     checkSystemReport(system.document());
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));

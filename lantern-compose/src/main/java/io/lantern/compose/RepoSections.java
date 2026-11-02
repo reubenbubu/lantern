@@ -18,9 +18,9 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Knowledge;
-import io.lantern.summarize.Summary;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -63,7 +63,7 @@ final class RepoSections {
   private static final int NAMED_REPOS = 4;
 
   private final Knowledge knowledge;
-  private final Map<EntityId, Summary> summaries;
+  private final ArchitectureModel model;
   private final String repo;
   private final EntityId repoId;
   private final SortedSet<String> repos;
@@ -80,23 +80,21 @@ final class RepoSections {
   private InvestigatedFindings investigated;
 
   /**
-   * @param wordings the LLM's responsibility sentences and intent phrases (ADR 0050)
+   * @param model the snapshot's model, with the texts the LLM roles stored (ADR 0050)
    * @param repo the repository the document is about, or {@code null} for the whole system
    * @param snapshotRepos the snapshot's repositories, which together form the system
    * @param systemName the system's title, or {@code null} to name it after its repositories
    * @param asOf the snapshot's date, against which technology currency is judged
    */
   RepoSections(
-      Knowledge knowledge,
-      Map<EntityId, Summary> summaries,
-      Wordings wordings,
+      ArchitectureModel model,
       String repo,
       SortedSet<String> snapshotRepos,
       String systemName,
       LocalDate asOf) {
-    this.knowledge = knowledge;
+    this.model = model;
+    this.knowledge = model.knowledge();
     this.asOf = asOf;
-    this.summaries = summaries;
     this.repo = repo;
     this.repoId = repo == null ? SYSTEM : Assembler.repo(repo);
     this.repos = repo == null ? snapshotRepos : new TreeSet<>(Set.of(repo));
@@ -120,12 +118,7 @@ final class RepoSections {
     inScope.addAll(units);
     this.assembler =
         new Assembler(
-            knowledge,
-            summaries,
-            wordings,
-            inScope,
-            repo,
-            systemName == null ? systemName(snapshotRepos) : systemName);
+            model, inScope, repo, systemName == null ? systemName(snapshotRepos) : systemName);
     inScope.forEach(assembler::entity);
     this.c4 = new C4Views(knowledge, assembler, SYSTEM, units, repos);
   }
@@ -402,7 +395,7 @@ final class RepoSections {
   }
 
   private Optional<Paragraph> paragraph(String section, EntityId entity) {
-    Summary summary = summaries.get(entity);
+    ArchitectureModel.Summary summary = model.summary(entity).orElse(null);
     if (summary == null) {
       return Optional.empty();
     }

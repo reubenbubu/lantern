@@ -1386,6 +1386,11 @@ final class SequenceFlows {
         trace.outline);
   }
 
+  /** The content hash of a stored flow's steps, which its narrative holds for, or null. */
+  private String content(EntityId flow) {
+    return FlowJudgements.content(knowledge, flow).orElse(null);
+  }
+
   private Section flowSection(String section, Trace trace) {
     Entry entry = trace.entry;
     String handler = methodName(entry.method);
@@ -1394,7 +1399,7 @@ final class SequenceFlows {
     String starts = heading.starts();
     // The LLM's title, walkthrough and conditions, where it worded this flow as traced here (ADR
     // 0058); else the scenario as the entry point's name says it.
-    Wordings.Flow worded = assembler.flow(Wordings.flowKey(question(trace).user()));
+    Wordings.Flow worded = assembler.flow(trace.flow.id(), content(trace.flow.id()));
     String scenario = worded == null || worded.title() == null ? scenario(entry) : worded.title();
     String title = scenario + " (" + heading.title() + ")";
     Assembler.Text walkthrough =

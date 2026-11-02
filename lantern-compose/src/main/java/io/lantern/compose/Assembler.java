@@ -8,8 +8,8 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Knowledge;
-import io.lantern.summarize.Summary;
 import io.lantern.summarize.SummaryLevel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -62,8 +62,7 @@ final class Assembler {
   private static final Pattern NOT_ID_CHAR = Pattern.compile("[^A-Za-z0-9._:-]");
 
   private final Knowledge knowledge;
-  private final Map<EntityId, Summary> summaries;
-  private final Wordings wordings;
+  private final ArchitectureModel model;
   private final Set<EntityId> described;
   private final String repo;
   private final String systemName;
@@ -74,37 +73,16 @@ final class Assembler {
   private final Set<String> elementIds = new HashSet<>();
 
   /**
-   * @param knowledge the snapshot's facts
-   * @param summaries the summaries, by entity
+   * @param model the snapshot's model: its facts, and the responsibility sentences, summaries,
+   *     intent phrases and flow narratives the LLM roles stored about them (ADR 0050)
    * @param described the entities whose summaries become their descriptions: those in scope
    * @param repo the repository the document is about, preferred as the parent of a module, service
    *     or library observed in several repositories, or {@code null} for a document of the system
    * @param systemName the name of the software system the document's containers belong to
    */
-  Assembler(
-      Knowledge knowledge,
-      Map<EntityId, Summary> summaries,
-      Set<EntityId> described,
-      String repo,
-      String systemName) {
-    this(knowledge, summaries, Wordings.NONE, described, repo, systemName);
-  }
-
-  /**
-   * @param wordings the responsibility sentences that describe units and components instead of
-   *     their summaries, and data stores and destinations (ADR 0050, ADR 0056), and the intent
-   *     phrases of links
-   */
-  Assembler(
-      Knowledge knowledge,
-      Map<EntityId, Summary> summaries,
-      Wordings wordings,
-      Set<EntityId> described,
-      String repo,
-      String systemName) {
-    this.knowledge = knowledge;
-    this.summaries = summaries;
-    this.wordings = wordings;
+  Assembler(ArchitectureModel model, Set<EntityId> described, String repo, String systemName) {
+    this.model = model;
+    this.knowledge = model.knowledge();
     this.described = described;
     this.repo = repo;
     this.systemName = systemName;
@@ -141,7 +119,7 @@ final class Assembler {
     entities.put(id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts)));
     adding.remove(id);
     if (described.contains(id)
-            && (summaries.containsKey(summarized(id)) || responsibility(id) != null)
+            && (model.summary(summarized(id)).isPresent() || responsibility(id) != null)
         // A data store or destination has no summary; it is described wherever a diagram draws
         // it, by its responsibility sentence (ADR 0056).
         || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
@@ -302,9 +280,9 @@ final class Assembler {
    *
    * @throws IllegalArgumentException if the summary cites a fact that is not in the snapshot
    */
-  Text summary(Summary summary) {
-    Text text = rich(summary.entity(), summary.text());
-    return summary.purpose() == Summary.Purpose.EVIDENCED ? text : inferred(text);
+  Text summary(ArchitectureModel.Summary summary) {
+    Text text = rich(summary.unit(), summary.marked());
+    return summary.basis() == io.lantern.harness.LlmFacts.Basis.EVIDENCED ? text : inferred(text);
   }
 
   /**
@@ -312,15 +290,35 @@ final class Assembler {
    * snapshot's facts left out, or {@code null} if it has none that still cites something.
    */
   private String responsibility(EntityId id) {
-    return known(wordings.responsibilities().get(id));
+    return known(sentence(id).map(ArchitectureModel.Text::marked).orElse(null));
+  }
+
+  /** The stored sentence about the element, the system's being its purpose. */
+  private java.util.Optional<ArchitectureModel.Text> sentence(EntityId id) {
+    return id.equals(RepoSections.SYSTEM) ? model.purpose() : model.responsibility(id);
   }
 
   /**
-   * The LLM's walkthrough and conditions of the flow whose prompt has the key (ADR 0058), or {@code
-   * null} if it has none.
+   * The LLM's title, walkthrough and conditions of the flow (ADR 0058, ADR 0108), with citation
+   * markers, or {@code null} if none holds for its steps as they are.
+   *
+   * @param content the content hash of the flow's steps
    */
-  Wordings.Flow flow(String key) {
-    return wordings.flows().get(key);
+  Wordings.Flow flow(EntityId flow, String content) {
+    return model
+        .narrative(flow, content)
+        .map(
+            n ->
+                new Wordings.Flow(
+                    marked(n.walkthrough()),
+                    marked(n.preconditions()),
+                    marked(n.postconditions()),
+                    n.title()))
+        .orElse(null);
+  }
+
+  private static String marked(ArchitectureModel.Text text) {
+    return text == null ? null : text.marked();
   }
 
   /**
@@ -328,7 +326,7 @@ final class Assembler {
    * it did not judge the scope (knowledge-build epic, section 11.5).
    */
   List<String> chosenFlows(String scope) {
-    return wordings.chosen().get(scope);
+    return model.significantFlows(scope).orElse(null);
   }
 
   /**
@@ -338,7 +336,7 @@ final class Assembler {
    * {@value #INFERRED}, emphasized, as an inferred summary does (ADR 0059).
    */
   Text purpose() {
-    String kept = known(wordings.responsibilities().get(RepoSections.SYSTEM));
+    String kept = responsibility(RepoSections.SYSTEM);
     return kept == null ? null : purpose(rich(RepoSections.SYSTEM, kept));
   }
 
@@ -348,7 +346,7 @@ final class Assembler {
    * is in the snapshot.
    */
   Text keyFact() {
-    String kept = known(wordings.keyFact());
+    String kept = known(model.keyFact().map(ArchitectureModel.Text::marked).orElse(null));
     return kept == null ? null : rich(RepoSections.SYSTEM, kept);
   }
 
@@ -370,7 +368,9 @@ final class Assembler {
    * element's sentence unsupported by its cited facts (ADR 0101); otherwise as it is.
    */
   private Text unsupported(EntityId about, Text text) {
-    return wordings.unsupported().contains(about) ? opened(UNSUPPORTED, text) : text;
+    return sentence(about).filter(ArchitectureModel.Text::unsupported).isPresent()
+        ? opened(UNSUPPORTED, text)
+        : text;
   }
 
   /**
@@ -385,7 +385,7 @@ final class Assembler {
             f ->
                 f != null
                     && (f.predicate().equals(CLAIM)
-                        || code && wordings.documented().contains(f.id())));
+                        || code && model.documented().contains(f.id())));
   }
 
   /** The text opened with {@value #INFERRED}, emphasized. */
@@ -465,12 +465,12 @@ final class Assembler {
    * still used: its line or message cites the link fact it words.
    */
   Phrased phrase(Fact link) {
-    Wordings.Phrase phrase = wordings.phrases().get(link.id());
+    ArchitectureModel.Text phrase = model.intent(link).orElse(null);
     if (phrase == null) {
       return null;
     }
     List<Fact> facts = new ArrayList<>();
-    for (String id : phrase.facts()) {
+    for (String id : phrase.cites()) {
       Fact fact = knowledge.fact(id);
       if (fact != null) {
         facts.add(fact);
@@ -803,13 +803,15 @@ final class Assembler {
    */
   private Text summarizedDescription(EntityId id) {
     EntityId source = summarized(id);
-    Summary summary = summaries.get(source);
+    ArchitectureModel.Summary summary = model.summary(source).orElseThrow();
     if (source.equals(id)) {
       return summary(summary);
     }
     return opened(
-        summary.purpose() == Summary.Purpose.EVIDENCED ? FROM_MODULE : FROM_MODULE_INFERRED,
-        rich(summary.entity(), summary.text()));
+        summary.basis() == io.lantern.harness.LlmFacts.Basis.EVIDENCED
+            ? FROM_MODULE
+            : FROM_MODULE_INFERRED,
+        rich(summary.unit(), summary.marked()));
   }
 
   /** The facts the document refers to, including those its entities' descriptions cite. */

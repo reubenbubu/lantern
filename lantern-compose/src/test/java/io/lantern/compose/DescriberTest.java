@@ -337,14 +337,28 @@ class DescriberTest {
     return new Describer(harness(client(fake))).describe(facts.list());
   }
 
+  /** The system's document composed from the facts and what the Describe run stored. */
+  private Document system(Describer.Result result) {
+    return new Composer("1")
+        .compose(
+            ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+            SNAPSHOT,
+            stored(facts.list(), result));
+  }
+
+  /** The facts with what the run's roles stored, as the analysis run records them. */
+  static List<Fact> stored(List<Fact> facts, Describer.Result result) {
+    List<Fact> all = new ArrayList<>(facts);
+    result.facts(1).values().forEach(all::addAll);
+    return all;
+  }
+
   private Document system(Wordings wordings) {
     return new Composer("1")
         .compose(
             ViewDefinition.c4System("system:c4", "System", TEMPLATE),
             SNAPSHOT,
-            facts.list(),
-            Map.of(),
-            wordings);
+            TestTexts.with(facts.list(), wordings));
   }
 
   private static String text(List<Inline> content) {
@@ -522,6 +536,73 @@ class DescriberTest {
   }
 
   @Test
+  void theModelReadsBackFromTheStoredFactsWhatDescribeWorded() {
+    // Documents read only what is stored (knowledge-build epic, section 12): every sentence,
+    // phrase, choice of flows and key fact Describe worded is read back from its facts.
+    Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
+    Wordings worded = result.wordings();
+
+    io.lantern.derive.ArchitectureModel model =
+        new io.lantern.derive.ArchitectureModel(stored(facts.list(), result));
+
+    assertThat(worded.responsibilities()).isNotEmpty();
+    worded
+        .responsibilities()
+        .forEach(
+            (element, sentence) ->
+                assertThat(
+                        (element.equals(RepoSections.SYSTEM)
+                                ? model.purpose()
+                                : model.responsibility(element))
+                            .map(io.lantern.derive.ArchitectureModel.Text::marked))
+                    .as(element.toString())
+                    .contains(sentence));
+    assertThat(worded.phrases()).isNotEmpty();
+    worded
+        .phrases()
+        .forEach(
+            (link, phrase) ->
+                assertThat(
+                        model.intent(
+                            facts.list().stream()
+                                .filter(f -> f.id().equals(link))
+                                .findFirst()
+                                .orElseThrow()))
+                    .map(io.lantern.derive.ArchitectureModel.Text::text)
+                    .as(link)
+                    .contains(phrase.text()));
+    assertThat(worded.chosen()).isNotEmpty();
+    worded
+        .chosen()
+        .forEach((scope, flows) -> assertThat(model.significantFlows(scope)).contains(flows));
+    assertThat(model.keyFact().map(io.lantern.derive.ArchitectureModel.Text::marked))
+        .isEqualTo(java.util.Optional.ofNullable(worded.keyFact()));
+    assertThat(model.documented()).isEqualTo(worded.documented());
+  }
+
+  @Test
+  void composingTheSameStoredFactsTwiceInAnyOrderGivesTheSameDocument() {
+    Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
+    List<Fact> stored = stored(facts.list(), result);
+    List<Fact> shuffled = new ArrayList<>(stored);
+    java.util.Collections.shuffle(shuffled, new java.util.Random(7));
+    ViewDefinition view = ViewDefinition.c4System("system:c4", "System", TEMPLATE);
+
+    String first =
+        io.lantern.core.document.DocumentJson.write(
+            new Composer("1").compose(view, SNAPSHOT, stored));
+
+    assertThat(
+            io.lantern.core.document.DocumentJson.write(
+                new Composer("1").compose(view, SNAPSHOT, stored)))
+        .isEqualTo(first);
+    assertThat(
+            io.lantern.core.document.DocumentJson.write(
+                new Composer("1").compose(view, SNAPSHOT, shuffled)))
+        .isEqualTo(first);
+  }
+
+  @Test
   void aSentenceTheJudgeChecksAndFindsUnsupportedReachesTheDocumentWithItsNote() {
     // Describe writes its sentences; the judge, told to check the shop app's, finds no cited
     // input supports it.
@@ -549,7 +630,7 @@ class DescriberTest {
 
     Describer.Result result =
         new Describer(harness(client(fake))).alsoJudging(Set.of(APP)).describe(facts.list());
-    Document document = system(result.wordings());
+    Document document = system(result);
 
     LlmRequest judged =
         fake.sent().stream()
@@ -561,6 +642,15 @@ class DescriberTest {
         .contains("<text>Takes and lists the shop's orders.</text>")
         .contains("[F1] service:com.example:app application-name \"shop-app\"");
     assertThat(result.wordings().unsupported()).containsExactly(APP);
+    // Stored on the sentence's observation, its confidence halved (epic, section 11.7).
+    Fact sentence =
+        result.facts(1).values().stream()
+            .flatMap(List::stream)
+            .filter(f -> f.subject().equals(APP) && f.predicate().equals("responsibility"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(sentence.attributes().path("support").asString()).isEqualTo("unsupported");
+    assertThat(sentence.confidence()).isEqualTo(io.lantern.harness.LlmFacts.CONFIDENCE * 0.5);
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
     assertThat(app.description().getFirst())
@@ -732,9 +822,7 @@ class DescriberTest {
 
   @Test
   void documentsUseTheWalkthroughAndConditionsOfAFlowTracedAsTheModelSawIt() {
-    Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
-
-    Document document = system(wordings);
+    Document document = system(describe(new FakeLlmProvider().answering(DescriberTest::answer)));
 
     Section flow = flowSection(document, LIST_FLOW);
     // The model's title names the scenario, before the trigger (ADR 0047, amendment for #272).
@@ -773,9 +861,7 @@ class DescriberTest {
             .compose(
                 ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
                 SNAPSHOT,
-                repoFacts,
-                Map.of(),
-                both);
+                TestTexts.with(repoFacts, both));
     assertThat(all(repo.sections())).noneMatch(s -> s.title().endsWith(" (" + LIST_FLOW + ")"));
     assertThat(fake.sent())
         .extracting(s -> s.request().messages().getFirst().text())
@@ -924,7 +1010,7 @@ class DescriberTest {
     assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
     // Ten answers and the purpose's drop, which a rerun repeats without a call (#682).
     assertThat(store.size()).isEqualTo(11);
-    Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
+    Callout first = (Callout) system(result).sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
   }
 
@@ -960,9 +1046,7 @@ class DescriberTest {
             .compose(
                 ViewDefinition.c4System("system:c4", "System", TEMPLATE),
                 SNAPSHOT,
-                withClaim,
-                Map.of(),
-                wordings);
+                TestTexts.with(withClaim, wordings));
 
     Function<EntityId, List<Inline>> description =
         id ->
@@ -1002,9 +1086,7 @@ class DescriberTest {
             .compose(
                 ViewDefinition.c4System("system:c4", "System", TEMPLATE),
                 SNAPSHOT,
-                withClaim,
-                Map.of(),
-                wordings);
+                TestTexts.with(withClaim, wordings));
 
     Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo("Runs an online shop's orders.");
@@ -1024,9 +1106,7 @@ class DescriberTest {
             .compose(
                 ViewDefinition.c4System("system:c4", "System", TEMPLATE),
                 SNAPSHOT,
-                withClaim,
-                Map.of(),
-                wordings);
+                TestTexts.with(withClaim, wordings));
 
     // The purpose, then the key fact, in one paragraph, each cited.
     Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
@@ -1122,7 +1202,7 @@ class DescriberTest {
                         ? answer(request).replaceFirst("\"purpose\": \\{[^}]*\\},\\s*", "")
                         : answer(request));
 
-    Document document = system(describe(keyFactOnly).wordings());
+    Document document = system(describe(keyFactOnly));
 
     List<io.lantern.core.document.Block> blocks = document.sections().getFirst().blocks();
     assertThat(text(((Callout) blocks.get(0)).content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
@@ -1150,7 +1230,7 @@ class DescriberTest {
     Describer.Result result = describe(omitsAll);
 
     assertThat(systems).noneMatch(system -> system.contains(PurposeRole.TASK));
-    Callout first = (Callout) system(result.wordings()).sections().getFirst().blocks().getFirst();
+    Callout first = (Callout) system(result).sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
   }
 
@@ -1165,7 +1245,7 @@ class DescriberTest {
                         : answer(request));
     Describer.Result result = describe(leavesItOut);
 
-    Document document = system(result.wordings());
+    Document document = system(result);
 
     assertThat(result.asked()).isEqualTo(11);
     assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
@@ -1256,7 +1336,7 @@ class DescriberTest {
     // Only the drops are stored, which a rerun repeats without a call (#682).
     assertThat(store.size()).isEqualTo(10);
     // The documents keep summaries and static labels.
-    assertThat(edges(diagrams(system(result.wordings()), Diagram.Kind.C4_CONTEXT).getFirst()))
+    assertThat(edges(diagrams(system(result), Diagram.Kind.C4_CONTEXT).getFirst()))
         .containsExactly("system:snapshot -> external-system:pay.example.com: Calls POST /charges");
   }
 
@@ -1307,17 +1387,25 @@ class DescriberTest {
 
   @Test
   void leftOutCitationsLeaveNoLeadingTrailingOrDoubledSpace() {
-    String bad = "[fact:" + "f".repeat(64) + "]";
+    // A stored sentence can cite a fact the document's facts do not hold, such as one of another
+    // repository: its citation is left out, and the text reads as written.
+    Fact gone = facts.find(WORKER.toString(), "deployable-unit");
     String good = "[fact:" + facts.find(APP.toString(), "deployable-unit").id() + "]";
+    String bad = "[fact:" + gone.id() + "]";
     Wordings wordings =
         new Wordings(
             Map.of(
-                APP, "Takes orders " + bad + " " + good + " " + bad + ".",
-                WORKER,
-                    bad + " Stores orders " + bad + " and ships them " + bad + " " + good + " "),
+                APP, "Takes orders. " + bad + " " + good + " " + bad,
+                WORKER, "Stores orders and ships them. " + bad + " " + good),
             Map.of());
+    List<Fact> stored =
+        TestTexts.with(facts.list(), wordings).stream()
+            .filter(f -> !f.id().equals(gone.id()))
+            .toList();
 
-    Document document = system(wordings);
+    Document document =
+        new Composer("1")
+            .compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE), SNAPSHOT, stored);
 
     for (EntityId id : List.of(APP, WORKER)) {
       DocumentEntity entity =
@@ -1328,11 +1416,11 @@ class DescriberTest {
     }
     DocumentEntity appEntity =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(text(appEntity.description())).contains("Takes orders").doesNotContain("orders .");
+    assertThat(text(appEntity.description())).contains("Takes orders.");
     DocumentEntity worker =
         document.entities().stream().filter(e -> e.id().equals(WORKER)).findFirst().orElseThrow();
     assertThat(text(worker.description()))
-        .endsWith("Stores orders and ships them")
+        .endsWith("Stores orders and ships them.")
         .doesNotStartWith(" ");
   }
 
@@ -1413,9 +1501,7 @@ class DescriberTest {
                         .compose(
                             ViewDefinition.c4System("system:c4", "System", TEMPLATE),
                             SNAPSHOT,
-                            more.list(),
-                            Map.of(),
-                            wordings),
+                            TestTexts.with(more.list(), wordings)),
                     Diagram.Kind.C4_CONTAINER)
                 .getFirst()
                 .edges()
@@ -1642,9 +1728,7 @@ class DescriberTest {
                 .compose(
                     ViewDefinition.c4System("system:c4", "System", TEMPLATE),
                     SNAPSHOT,
-                    withCode,
-                    Map.of(),
-                    wordings);
+                    TestTexts.with(withCode, wordings));
     Function<Document, String> description =
         document ->
             text(
@@ -1803,7 +1887,7 @@ class DescriberTest {
     assertThat(fake.sent())
         .filteredOn(s -> s.request().purpose().startsWith("flow-narrative"))
         .hasSize(1);
-    Document document = system(result.wordings());
+    Document document = system(result);
     assertThat(sequences(document).sections())
         .extracting(Section::title)
         .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
@@ -1880,7 +1964,7 @@ class DescriberTest {
     assertThat(repair.messages().getLast().text())
         .contains("Answers no flow for W2; answer every flow, significant or not.")
         .contains("The order must hold exactly the flows marked significant; it holds W2, W1.");
-    assertThat(sequences(system(result.wordings())).sections())
+    assertThat(sequences(system(result)).sections())
         .extracting(Section::title)
         .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
   }
@@ -1906,7 +1990,7 @@ class DescriberTest {
             s ->
                 assertThat(s.request().messages().getLast().text())
                     .contains("<rejection item=\"I1\" field=\"flows.W1.reason\">"));
-    assertThat(sequences(system(result.wordings())).sections())
+    assertThat(sequences(system(result)).sections())
         .extracting(Section::title)
         .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
     // The flow whose reason was left out is still judged, without a reason.
@@ -1938,7 +2022,7 @@ class DescriberTest {
                 assertThat(s.request().messages().getLast().text())
                     .contains(FlowJudgements.NONE_SIGNIFICANT));
     // Confirmed, the scope draws no flow and says why; none is narrated.
-    Section sequences = sequences(system(result.wordings()));
+    Section sequences = sequences(system(result));
     assertThat(sequences.sections()).isEmpty();
     assertThat(callouts(sequences)).containsExactly(SequenceFlows.NONE_JUDGED_SIGNIFICANT);
     assertThat(fake.sent()).noneMatch(s -> s.request().purpose().startsWith("flow-narrative"));
@@ -1956,7 +2040,7 @@ class DescriberTest {
 
     Describer.Result result = describe(fake);
 
-    Section sequences = sequences(system(result.wordings()));
+    Section sequences = sequences(system(result));
     assertThat(sequences.sections()).hasSize(2);
     assertThat(callouts(sequences)).containsExactly(SequenceFlows.CHOSEN_BY_RANK);
     assertThat(result.wordings().chosen()).isEmpty();
@@ -2277,9 +2361,7 @@ class DescriberTest {
             .compose(
                 ViewDefinition.c4System("system:c4", "System", TEMPLATE),
                 SNAPSHOT,
-                withFrontend.list(),
-                Map.of(),
-                result.wordings());
+                TestTexts.with(withFrontend.list(), result.wordings()));
     assertThat(
             document.entities().stream()
                 .filter(e -> e.id().toString().equals("frontend:shop/web"))

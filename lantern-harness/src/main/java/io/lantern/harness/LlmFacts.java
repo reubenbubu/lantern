@@ -42,6 +42,50 @@ public final class LlmFacts {
   /** A unit's summary: {@code (unit, summary, "<level>")}. */
   public static final String SUMMARY = "summary";
 
+  /**
+   * A flow's significance for a scope: {@code (flow, flow-significance, "<scope>")}
+   * (knowledge-build epic, section 11.5).
+   */
+  public static final String FLOW_SIGNIFICANCE = "flow-significance";
+
+  /** A flow's title, walkthrough and conditions: {@code (flow, flow-narrative, "c4")}. */
+  public static final String FLOW_NARRATIVE = "flow-narrative";
+
+  /** The system's purpose: {@code (system, purpose, "c4")} (section 11.6). */
+  public static final String PURPOSE = "purpose";
+
+  /** The system's key fact: {@code (system, key-fact, "c4")} (section 11.6). */
+  public static final String KEY_FACT = "key-fact";
+
+  /**
+   * A group's name: {@code (group, display-name, "c4")} with the name in {@code text} (section
+   * 11.8; ADR 0107). Other facts of this predicate, not of origin llm, hold a name as their value.
+   */
+  public static final String DISPLAY_NAME = "display-name";
+
+  /** The attribute of a text that holds the support judge's verdict on it (section 11.7). */
+  public static final String SUPPORT = "support";
+
+  /**
+   * The predicates of the texts the roles write: what a document shows in words, as opposed to the
+   * facts it shows them about.
+   */
+  public static final Set<String> TEXTS =
+      Set.of(
+          RESPONSIBILITY,
+          INTENT,
+          SUMMARY,
+          DISPLAY_NAME,
+          FLOW_SIGNIFICANCE,
+          FLOW_NARRATIVE,
+          PURPOSE,
+          KEY_FACT);
+
+  /** Whether the fact is a text a role wrote: of origin llm, with one of {@link #TEXTS}. */
+  public static boolean isText(Fact fact) {
+    return fact.origin().kind() == Origin.Kind.LLM && TEXTS.contains(fact.predicate());
+  }
+
   /** The document kind texts are worded for. */
   public static final String C4 = "c4";
 
@@ -205,6 +249,27 @@ public final class LlmFacts {
             confidence,
             Validity.from(snapshot));
     return lineage.isEmpty() ? fact : fact.withLineage(lineage);
+  }
+
+  /**
+   * The text with the support judge's verdict on it (knowledge-build epic, section 11.7): {@link
+   * #SUPPORT} on its observation, its confidence multiplied by the verdict's factor.
+   */
+  public static Fact withSupport(
+      Fact text, io.lantern.harness.checks.SupportJudge.Support verdict) {
+    ObjectNode attributes = text.attributes().deepCopy();
+    attributes.put(SUPPORT, verdict.name().toLowerCase(Locale.ROOT));
+    Fact judged =
+        Fact.create(
+            text.subject(),
+            text.predicate(),
+            text.object(),
+            attributes,
+            text.origin(),
+            text.evidence(),
+            text.confidence() * verdict.factor(),
+            text.validity());
+    return text.lineage().isEmpty() ? judged : judged.withLineage(text.lineage());
   }
 
   /** Where the cited facts were observed, each place once, as cited evidence. */

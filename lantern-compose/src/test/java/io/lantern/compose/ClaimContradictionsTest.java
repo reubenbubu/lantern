@@ -36,7 +36,7 @@ class ClaimContradictionsTest {
   }
 
   private static Document compose(ViewDefinition view) {
-    return new Composer("1").compose(view, SNAPSHOT, FACTS, Map.of());
+    return new Composer("1").compose(view, SNAPSHOT, FACTS);
   }
 
   private static Section section(Document document, String id) {
@@ -150,7 +150,7 @@ class ClaimContradictionsTest {
 
     Document document =
         new Composer("1")
-            .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER), SNAPSHOT, facts, Map.of());
+            .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER), SNAPSHOT, facts);
 
     assertThat(contradictions(document)).isEmpty();
     assertThat(claimFailures(document)).isEmpty();
@@ -171,7 +171,7 @@ class ClaimContradictionsTest {
 
     Document document =
         new Composer("1")
-            .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER), SNAPSHOT, facts, Map.of());
+            .compose(ViewDefinition.perRepo("shop", "shop", EXPLORER), SNAPSHOT, facts);
 
     List<Callout> callouts = contradictions(document);
     assertThat(callouts)

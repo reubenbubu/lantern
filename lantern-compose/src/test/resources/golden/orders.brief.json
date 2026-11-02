@@ -36,13 +36,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "com.example.orders",
-      "target" : {
-        "kind" : "entity",
-        "id" : "package:com.example.orders:orders:com.example.orders"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "6e2eba46bf2bc4d906407d725ee4bbd7cca9e7745796fa29db75d978a75b7e69", "80abdd650814d977c8cebb12093a8768c47e5c8641fabda690a40e6a76179f68" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -66,13 +61,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "Account",
-      "target" : {
-        "kind" : "entity",
-        "id" : "type:com.example.orders.Account"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "6e2eba46bf2bc4d906407d725ee4bbd7cca9e7745796fa29db75d978a75b7e69" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -95,13 +85,8 @@
       "kind" : "text",
       "text" : "Builds on its parts."
     }, {
-      "kind" : "ref",
-      "text" : "orders",
-      "target" : {
-        "kind" : "entity",
-        "id" : "module:com.example.orders:orders"
-      },
-      "citation" : true
+      "kind" : "citation",
+      "facts" : [ "6e2eba46bf2bc4d906407d725ee4bbd7cca9e7745796fa29db75d978a75b7e69", "80abdd650814d977c8cebb12093a8768c47e5c8641fabda690a40e6a76179f68", "84449a047e11a8a0d58c30f76f3527ddfc3134c4fc8f5134e16b813fc394be96" ]
     }, {
       "kind" : "text",
       "text" : " Described by its facts."
@@ -1327,13 +1312,8 @@
         "kind" : "text",
         "text" : "Builds on its parts."
       }, {
-        "kind" : "ref",
-        "text" : "orders",
-        "target" : {
-          "kind" : "entity",
-          "id" : "module:com.example.orders:orders"
-        },
-        "citation" : true
+        "kind" : "citation",
+        "facts" : [ "6e2eba46bf2bc4d906407d725ee4bbd7cca9e7745796fa29db75d978a75b7e69", "80abdd650814d977c8cebb12093a8768c47e5c8641fabda690a40e6a76179f68", "84449a047e11a8a0d58c30f76f3527ddfc3134c4fc8f5134e16b813fc394be96" ]
       }, {
         "kind" : "text",
         "text" : " Described by its facts."
@@ -1341,7 +1321,7 @@
         "kind" : "citation",
         "facts" : [ "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02" ]
       } ],
-      "facts" : [ "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02" ]
+      "facts" : [ "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02", "6e2eba46bf2bc4d906407d725ee4bbd7cca9e7745796fa29db75d978a75b7e69", "80abdd650814d977c8cebb12093a8768c47e5c8641fabda690a40e6a76179f68", "84449a047e11a8a0d58c30f76f3527ddfc3134c4fc8f5134e16b813fc394be96" ]
     }, {
       "kind" : "list",
       "id" : "overview.builds",

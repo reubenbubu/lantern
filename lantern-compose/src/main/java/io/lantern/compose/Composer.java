@@ -4,11 +4,9 @@ import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentSource;
 import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
-import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.snapshot.Snapshot;
-import io.lantern.derive.Knowledge;
-import io.lantern.summarize.Summary;
+import io.lantern.derive.ArchitectureModel;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -26,8 +24,9 @@ import java.util.TreeSet;
  *
  * <p>Composing is deterministic: facts and entities are visited in ID order and nothing random or
  * time-dependent is used (technology currency is judged as of the snapshot's date), so the same
- * view, snapshot, facts, summaries and wordings always give the same document. The composer makes
- * no LLM calls; narrative comes from the summaries and wordings it is given.
+ * view, snapshot and facts always give the same document. The composer makes no LLM calls; its
+ * words are the texts the LLM roles stored as facts, which it reads through {@link
+ * ArchitectureModel}.
  */
 public final class Composer {
 
@@ -51,57 +50,31 @@ public final class Composer {
    *
    * @param view the view definition
    * @param snapshot the snapshot the document is of
-   * @param facts the facts; those that do not hold in the snapshot are ignored
-   * @param summaries the summaries of the snapshot's units, by entity, as {@link
-   *     io.lantern.summarize.Summarizer} returns them; units without a summary get no narrative
+   * @param facts the facts, the texts the LLM roles stored included; those that do not hold in the
+   *     snapshot are ignored
    * @throws IllegalArgumentException if the view's repository is not in the snapshot, or a summary
    *     cites a fact that does not hold in it; a system view covers every repository of the
    *     snapshot
    */
-  public Document compose(
-      ViewDefinition view,
-      Snapshot snapshot,
-      Collection<Fact> facts,
-      Map<EntityId, Summary> summaries) {
-    return compose(view, snapshot, facts, summaries, Wordings.NONE);
+  public Document compose(ViewDefinition view, Snapshot snapshot, Collection<Fact> facts) {
+    return compose(view, snapshot, facts, null);
   }
 
   /**
-   * Composes the document of a view, describing deployable units and components by their
-   * responsibility sentences and labelling lines and messages with their intent phrases where the
-   * wordings have them (ADR 0050); elsewhere it is as {@link #compose(ViewDefinition, Snapshot,
-   * Collection, Map)}. Citations of facts that do not hold in the snapshot are left out.
-   *
-   * @param wordings what {@link Describer} worded
-   */
-  public Document compose(
-      ViewDefinition view,
-      Snapshot snapshot,
-      Collection<Fact> facts,
-      Map<EntityId, Summary> summaries,
-      Wordings wordings) {
-    return compose(view, snapshot, facts, summaries, wordings, null);
-  }
-
-  /**
-   * Composes the document of a view as {@link #compose(ViewDefinition, Snapshot, Collection, Map,
-   * Wordings)} does, naming the software system its containers belong to (ADR 0071).
+   * Composes the document of a view as {@link #compose(ViewDefinition, Snapshot, Collection)} does,
+   * naming the software system its containers belong to (ADR 0071). The model is read from the
+   * facts alone (knowledge-build epic, section 12): units and components are described by their
+   * stored responsibility sentences, else their summaries, and lines and messages labelled with
+   * their stored intent phrases (ADR 0050).
    *
    * @param systemName the system's title, or {@code null} to name it after the snapshot's
    *     repositories (ADR 0044)
    */
   public Document compose(
-      ViewDefinition view,
-      Snapshot snapshot,
-      Collection<Fact> facts,
-      Map<EntityId, Summary> summaries,
-      Wordings wordings,
-      String systemName) {
+      ViewDefinition view, Snapshot snapshot, Collection<Fact> facts, String systemName) {
     Objects.requireNonNull(view, "view");
-    Objects.requireNonNull(wordings, "wordings");
     Objects.requireNonNull(snapshot, "snapshot");
     Objects.requireNonNull(facts, "facts");
-    Objects.requireNonNull(summaries, "summaries");
     String repo = view.scope().repo();
     if (repo != null && !snapshot.commits().containsKey(repo)) {
       throw new IllegalArgumentException(
@@ -111,9 +84,7 @@ public final class Composer {
         facts.stream().filter(f -> f.validity().contains(snapshot.number())).toList();
     RepoSections composition =
         new RepoSections(
-            new Knowledge(valid),
-            summaries,
-            wordings,
+            new ArchitectureModel(valid),
             repo,
             new TreeSet<>(snapshot.commits().keySet()),
             systemName,

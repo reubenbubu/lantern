@@ -108,8 +108,8 @@ final class FlowJudgements {
           RunMode.BULK,
           750);
 
-  static final String FLOW_SIGNIFICANCE = "flow-significance";
-  static final String FLOW_NARRATIVE = "flow-narrative";
+  static final String FLOW_SIGNIFICANCE = LlmFacts.FLOW_SIGNIFICANCE;
+  static final String FLOW_NARRATIVE = LlmFacts.FLOW_NARRATIVE;
 
   static final String TITLE = "title";
   static final String WALKTHROUGH = "walkthrough";
@@ -758,13 +758,18 @@ final class FlowJudgements {
     }
     ObjectNode attributes = FactJson.newObject();
     List<Fact> all = new ArrayList<>();
+    ObjectNode fieldCites = FactJson.newObject();
     texts.forEach(
         (field, cited) -> {
           attributes.put(field, cited.text());
           cited.facts().stream().filter(f -> !all.contains(f)).forEach(all::add);
+          ArrayNode own = fieldCites.putArray(field);
+          new LinkedHashSet<>(cited.facts()).forEach(f -> own.add(f.id()));
         });
     ArrayNode cites = attributes.putArray("cites");
     all.forEach(f -> cites.add(f.id()));
+    // Each text cites its own facts, as the document shows them beside it.
+    attributes.set("fieldCites", fieldCites);
     attributes.put("basis", LlmFacts.Basis.INFERRED.jsonName());
     attributes.put("model", model);
     content(knowledge, flow).ifPresent(c -> attributes.put("content", c));
@@ -790,7 +795,7 @@ final class FlowJudgements {
   }
 
   /** The content hash of the flow's steps a judgement holds for (epic, section 9; #615). */
-  private static Optional<String> content(Knowledge knowledge, EntityId flow) {
+  static Optional<String> content(Knowledge knowledge, EntityId flow) {
     return knowledge.about(flow).stream()
         .filter(f -> f.predicate().equals("flow-shape"))
         .map(f -> f.attributes().path("content").asString(""))

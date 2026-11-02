@@ -72,8 +72,7 @@ class GatewayComponentsIT {
             .compose(
                 ViewDefinition.c4System("system:c4", "APA-CRM", TEMPLATE),
                 new Snapshot(1, commits, 1, "test", Instant.EPOCH),
-                facts,
-                Map.of());
+                facts);
 
     List<String> lines = new ArrayList<>();
     List<String> routeLines = new ArrayList<>();
