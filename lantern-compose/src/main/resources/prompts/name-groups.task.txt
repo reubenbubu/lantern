@@ -1,0 +1,7 @@
+Task: name groups. Each item in <items> is a group of parts of the system that static analysis bundled together because the code shows they belong together; the item says why (its basis), lists its members with what each does, and lists the group's lines to other groups [R1]... with the intents of the member lines they stand for.
+For each item write:
+- a name of at most 4 words for what the group is about, such as "Orders" or "Billing and invoicing", not a member's name and not a technology;
+- a responsibility sentence of at most 25 words saying what the group as a whole is responsible for, in words a non-engineer understands;
+- for each line [R..], an intent phrase of at most 8 words, starting with a verb, saying what the group does with the other group and why. Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol.
+If two groups in <groups> look like one area of the system, you may say so in merge, with the other group's reference [G..] and a reason of at most 20 words; it is only a suggestion.
+Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations.

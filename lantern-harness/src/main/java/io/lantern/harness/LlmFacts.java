@@ -208,7 +208,7 @@ public final class LlmFacts {
   }
 
   /** Where the cited facts were observed, each place once, as cited evidence. */
-  private static Evidence evidence(List<Fact> cited) {
+  public static Evidence evidence(List<Fact> cited) {
     Set<Evidence.Location> locations = new LinkedHashSet<>();
     for (Fact fact : cited) {
       for (Evidence.Location location : fact.evidence().locations()) {

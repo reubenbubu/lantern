@@ -124,7 +124,12 @@ class ClaimIdentityTest {
           // so a newer table updates the finding rather than raising another. Since #526, where in
           // a
           // file the injection screen found text addressed to an AI, and its quote: one per file.
-          Map.entry("finding-raised", Set.of("support", "line", "ends", "lines", "quote")),
+          // Since #536, why Name groups suggests merging two groups, in its words.
+          Map.entry(
+              "finding-raised", Set.of("support", "line", "ends", "lines", "quote", "reason")),
+          // Since #536, a group's name the LLM worded: its text, basis and model, as a
+          // responsibility's.
+          Map.entry("display-name", Set.of("text", "basis", "model")),
           // Since #587: the text config resolved an expression to; URLs that differ only in their
           // path are one address.
           Map.entry(

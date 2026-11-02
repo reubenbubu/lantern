@@ -59,6 +59,10 @@ class FakeLlmConfiguration {
               if (described != null) {
                 return described;
               }
+              String named = nameGroups(request);
+              if (named != null) {
+                return named;
+              }
               if (request.role() == Role.COMPOSE && flow(request)) {
                 // A flow's title is a heading: marked as the fake's, so the reader ignores it.
                 return "{\"title\": {\"text\": \"" + FLOW_TITLE + "\", \"cites\": [\"F1\"]}}";
@@ -288,6 +292,51 @@ class FakeLlmConfiguration {
         fields.add("\"interactions\": {" + String.join(", ", interactions) + "}");
       }
       entries.add("\"" + items.group(1) + "\": {" + String.join(", ", fields) + "}");
+    }
+    return "{\"items\": {" + String.join(", ", entries) + "}}";
+  }
+
+  /** The name the fake gives every group Name groups asks about. */
+  static final String GROUP_NAME = "{{placeholder: group name}}";
+
+  /** The responsibility the fake gives every group. */
+  static final String GROUP_RESPONSIBILITY = "{{placeholder: group responsibility}}";
+
+  private static final Pattern LINE_KEY = Pattern.compile("(?m)^\\[(R[0-9]+)\\] ");
+
+  /**
+   * The fake's answer to a Name groups request (knowledge-build epic, section 11.8), or null for
+   * another: every group gets a placeholder name and responsibility, and each of its lines a
+   * placeholder intent, citing the item's first fact; it suggests no merge.
+   */
+  static String nameGroups(LlmRequest request) {
+    if (!request.system().contains("Task: name groups.")) {
+      return null;
+    }
+    Matcher items = ITEM.matcher(request.messages().getFirst().text());
+    List<String> entries = new ArrayList<>();
+    while (items.find()) {
+      String body = items.group(2);
+      Matcher fact = FACT_REF.matcher(body);
+      if (!fact.find()) {
+        entries.add("\"" + items.group(1) + "\": {\"omitted\": true}");
+        continue;
+      }
+      String cite = "{\"text\": \"%s\", \"cites\": [\"" + fact.group(1) + "\"]}";
+      List<String> lines = new ArrayList<>();
+      Matcher key = LINE_KEY.matcher(body);
+      while (key.find()) {
+        lines.add("\"" + key.group(1) + "\": " + cite.formatted(INTENT));
+      }
+      entries.add(
+          "\""
+              + items.group(1)
+              + "\": {\"name\": "
+              + cite.formatted(GROUP_NAME)
+              + ", \"responsibility\": "
+              + cite.formatted(GROUP_RESPONSIBILITY)
+              + (lines.isEmpty() ? "" : ", \"lines\": {" + String.join(", ", lines) + "}")
+              + "}");
     }
     return "{\"items\": {" + String.join(", ", entries) + "}}";
   }

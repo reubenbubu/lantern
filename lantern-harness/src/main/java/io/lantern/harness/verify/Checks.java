@@ -58,7 +58,7 @@ public final class Checks {
           "interacts with");
 
   /** The protocol words an intent phrase may not hold. */
-  static final List<String> PROTOCOL_WORDS =
+  public static final List<String> PROTOCOL_WORDS =
       List.of(
           "HTTP",
           "HTTPS",
@@ -370,7 +370,7 @@ public final class Checks {
       return shared * 10 > name.size() * 6L;
     }
 
-    static List<String> tokens(String text) {
+    public static List<String> tokens(String text) {
       String split =
           text.replaceAll("([\\p{Ll}\\p{N}])(\\p{Lu})", "$1 $2").replaceAll("[._\\-/:#]", " ");
       List<String> tokens = new ArrayList<>();

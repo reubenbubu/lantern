@@ -9,14 +9,14 @@
     "name": "finding-raised",
     "kind": "attribute",
     "keyAttributes": ["about", "module", "packages", "product", "repo", "rule", "target", "version", "versions", "via"],
-    "description": "A fixed check raised the subject finding, of the kind the value names (#619): snapshot-dependency, dependency-drift, package-cycle, end-of-life, version-skew, shared-jwt-secret, unrouted-endpoint or readme-contradiction; or, raised by the injection screen with origin llm after derivation (ADR 0101), injection-suspected. Its key attributes are what the kind is about, so a skew between other versions is another claim; its lineage is the facts behind it. Whether it is new or gone follows from its validity.",
+    "description": "A fixed check raised the subject finding, of the kind the value names (#619): snapshot-dependency, dependency-drift, package-cycle, end-of-life, version-skew, shared-jwt-secret, unrouted-endpoint or readme-contradiction; or, raised by the injection screen with origin llm after derivation (ADR 0101), injection-suspected; or, suggested by the Name groups role with origin llm (ADR 0107), group-merge, never applied. Its key attributes are what the kind is about, so a skew between other versions is another claim; its lineage is the facts behind it. Whether it is new or gone follows from its validity.",
     "attributeSchema": {
       "type": "object",
       "properties": {
         "rule": { "type": "string", "description": "The rule that raised it: findings/ and its kind." },
-        "about": { "type": "string", "description": "What it is about: a repository (repo: and its name), a service, library or module, a deployable unit, or the subject of the fact it wraps." },
+        "about": { "type": "string", "description": "What it is about: a repository (repo: and its name), a service, library or module, a deployable unit, the subject of the fact it wraps, or for a group-merge finding the first group of the pair, by key." },
         "repo": { "type": "string", "description": "For a dependency finding, the repository whose modules depend." },
-        "target": { "type": "string", "description": "For a dependency finding, what they depend on." },
+        "target": { "type": "string", "description": "For a dependency finding, what they depend on; for a group-merge finding, the second group of the pair, by key." },
         "versions": { "type": "array", "items": { "type": "string" }, "description": "For a dependency finding, the versions, sorted: the unreleased ones, or every one in use." },
         "packages": { "type": "array", "items": { "type": "string" }, "description": "For a package cycle, its packages, sorted." },
         "product": { "type": "string", "enum": ["JAVA", "SPRING_BOOT", "SPRING_FRAMEWORK"], "description": "For an end of life, the runtime or framework." },
@@ -28,6 +28,7 @@
         "ends": { "type": "string", "description": "For an end of life with a date, the date (ISO 8601). Whether support has ended is judged as of a document's date." },
         "lines": { "type": "string", "description": "For an injection-suspected finding, the flagged lines of the file, from-to." },
         "quote": { "type": "string", "description": "For an injection-suspected finding, the words the screen quoted from those lines." },
+        "reason": { "type": "string", "description": "For a group-merge finding, why the two groups look like one area, in the model's words." },
         "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it rests on." }
       },
       "required": ["about", "rule"],
