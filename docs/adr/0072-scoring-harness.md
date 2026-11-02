@@ -153,3 +153,9 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
   resamples, seeded, so the same every time), the direction per set, and the epic's verdict (an
   improvement when the interval excludes 0 and all sets but at most one agree; a possible
   regression when its lower bound is at or below −7 points).
+
+## Amendment for #668
+
+The judged rows (Describe's wording, Name groups' names, Purpose's key fact) read the wording
+judge's verdicts, `wording.jsonl.gz` beside the run's documents, and the owner's labels in
+`testsets/wording-labels/`; they say "not validated" until the labels validate the judge (ADR 0111).

@@ -1289,10 +1289,10 @@ Every role is tested without a real model, and measured on the development test 
 | --- | --- | --- |
 | Resolve | Share of open links resolved; share correct | Reference links |
 | Investigate | Risk recall and precision by subject; connections by end pair | Reference risks and connections |
-| Describe | Coverage (share of elements with a responsibility, of interactions with an intent); judge score of wording | Reference catalog; judge (#277) |
+| Describe | Coverage (share of elements with a responsibility, of interactions with an intent); judge score of wording | Reference catalog; wording judge (#668) |
 | Flows | Recall and precision of significant flows by trigger and participants | Reference flows |
 | Purpose | Judge score of the key fact; the purpose stays unscored, as the bar says | Reference first paragraph |
-| Grouping and Name groups | Groups against the domains and feature areas project-8's cases name; judge score of group names | project-8 cases; judge (#277) |
+| Grouping and Name groups | Groups against the domains and feature areas project-8's cases name; judge score of group names | project-8 cases; wording judge (#668) |
 | Harness | Dollars and tokens per run, cold and warm; cache hit rate; calls after a one-file change | Previous scorecard |
 
 - **Acceptance gates.** A milestone that changes a role states targets for its row, as milestones do today. The harness row has two fixed gates:
@@ -1307,7 +1307,7 @@ Every role is tested without a real model, and measured on the development test 
   - **Three outcomes.** Each item is correct, wrong or abstained ("unknown", omitted). A row reports coverage, accuracy on the answered items, and a penalized score, correct − p × wrong, with p set by how sure the role's instruction says it must be: 3 for Resolve ("only when the code or configuration shows it"), 1 for flow significance and Describe's intents. The role's ADR records its p. It also reports how often the role abstained on items the reference answers. An item not asked for budget is counted apart, neither abstained nor wrong. Where a reference marks an item's right answer as unknown, abstaining is correct and a pick is wrong.
   - **Flows match** a reference flow when the trigger is the same entry point and the participants overlap by at least 2/3 (shared over the larger set), one to one, best overlap first.
   - **Risks match** a reference risk by subject element and category. A finding that matches nothing is unjudged, not wrong: the scorecard lists it and its count, precision is over judged findings only, and once adjudicated it is added to the reference.
-  - **Judged rows** use the judge of #277, built to the note's judge rules and validated against the owner's labels before its score counts; until then those rows report coverage only.
+  - **Judged rows** use the wording judge (#668, ADR 0111), built to the note's judge rules: one dimension per call (says what the element does for the system; not true of any Spring application), validated against the owner's labels before its score counts; until then those rows say "not validated" beside their coverage.
 * **Claiming an improvement.** Two scorecards are compared on the same items: the bootstrap interval of the paired difference, and its direction per set. A change improves a row when the interval excludes 0 and all sets but at most one agree in direction; it does not regress one when the interval's lower bound is above −7 points. One new recording that a decision rests on is recorded twice, or its disagreeing items are rerun.
 * **A candidate test set.** Code2DFD's dataset of 17 Spring microservice applications comes with hand-checked dataflow diagrams and evidence lines (section 4). It would add breadth to the static layer's scoring, but the decision on test sets belongs to the owner (`design.md`, Test sets).
 

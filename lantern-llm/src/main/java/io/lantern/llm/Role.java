@@ -30,7 +30,12 @@ public enum Role {
   /** The support judge (ADR 0101): of another tier than the reasoning-tier texts it checks. */
   JUDGE(Tier.HIGH_VOLUME),
   /** The injection screen (ADR 0101): the bulk tier. */
-  SCREEN(Tier.BULK);
+  SCREEN(Tier.BULK),
+  /**
+   * The wording judge (ADR 0111), which measures the roles' texts for scoring and runs only when
+   * asked: the reasoning tier, and a run that judges sets it to a model none of the writers use.
+   */
+  WORDING_JUDGE(Tier.REASONING);
 
   private final Tier tier;
 

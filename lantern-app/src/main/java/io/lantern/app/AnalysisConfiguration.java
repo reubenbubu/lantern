@@ -71,7 +71,8 @@ class AnalysisConfiguration {
       JdbcExtractionCache extractionCache,
       JdbcRuleRuns ruleRuns,
       @Value("${lantern.version}") String toolVersion,
-      @Value("${lantern.workspace}") Path workspace) {
+      @Value("${lantern.workspace}") Path workspace,
+      @Value("${lantern.judge.wording:false}") boolean judgeWording) {
     return new AnalysisRun(
             registry,
             systems,
@@ -91,7 +92,8 @@ class AnalysisConfiguration {
             ruleRuns,
             toolVersion,
             absolute(workspace).resolve("documents"))
-        .batchingAbove(llmProperties.batchingAbove());
+        .batchingAbove(llmProperties.batchingAbove())
+        .judgingWording(judgeWording);
   }
 
   @Bean

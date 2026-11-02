@@ -3,10 +3,12 @@
 // report spec (report-specs/c4-model-sequence-diagrams). Free: no LLM, only names and structure.
 //
 //   node scripts/score.mjs <report .html or .json> <set folder> [--run <run.json>] [--out <prefix>]
-//       [--answer-key <file>] [--warm <run.json>] [--change <run.json>]
+//       [--answer-key <file>] [--warm <run.json>] [--change <run.json>] [--labels <folder>]
 //     writes <prefix>.scorecard.json and <prefix>.scorecard.md; the prefix defaults to the report's
 //     path without .html or .json. It also scores each LLM role (roles.mjs) from the run's facts beside run.json (linked.jsonl.gz,
-//     llm.jsonl.gz) against the set's answer key (default <set folder>/answer-key.json).
+//     llm.jsonl.gz) against the set's answer key (default <set folder>/answer-key.json), and the wording
+//     judge's verdicts (wording.jsonl.gz, wording.mjs) against the owner's labels (default
+//     testsets/wording-labels).
 //   node scripts/score.mjs compare <a.scorecard.json> <b.scorecard.json> [--labels <a>,<b>]
 //       [--out <file.md>]
 //     prints (or writes) the two scorecards side by side; the labels head their columns; with the
@@ -20,6 +22,7 @@
 // The set folder is testsets/<set>: its reference/reference.c4.json is the reference and its
 // reference/aliases.json, if there is one, the set's alias table.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { judgedCell, judgedRows, readLabels, readLines } from './wording.mjs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -714,6 +717,9 @@ export function score(report, reference, aliases = {}, inputs = {}) {
 /** The rows per LLM role (roles.mjs; ADR 0072, amendment for #667). */
 function roleRows(report, reference, matched, repFlows, inputs) {
   const { answerKey = null, linked = null, llm = null, run = null, warm = null, change = null } = inputs;
+  // The wording judge's rows (wording.mjs; ADR 0111): "not validated" until the owner's labels are.
+  const judged = judgedRows(inputs.wording ?? null, inputs.labels ?? {});
+  const withJudge = (row, judge) => (row.measured === false ? row : { ...row, judge });
   const subjectOf = (entity) => {
     const id = reportId(entity);
     if (matched.has(id)) return matched.get(id);
@@ -725,7 +731,7 @@ function roleRows(report, reference, matched, repFlows, inputs) {
   }));
   return {
     resolve: resolveRow(answerKey, linked, llm, run),
-    describe: describeRow(report, linked, llm),
+    describe: withJudge(describeRow(report, linked, llm), judged.describe),
     flows: flowsRow(flowsOf(reference), roleFlows),
     investigate: investigateRow(
       answerKey,
@@ -734,8 +740,8 @@ function roleRows(report, reference, matched, repFlows, inputs) {
       (a, b) => subjectOverlap(subjectWords(a), subjectWords(b)),
       SUBJECT_THRESHOLD,
     ),
-    nameGroups: nameGroupsRow(run),
-    purpose: notMeasured('the key-fact judge comes with #668'),
+    nameGroups: withJudge(nameGroupsRow(run), judged.nameGroups),
+    purpose: judged.purpose,
     harness: harnessRow(run, warm, change),
   };
 }
@@ -779,7 +785,7 @@ export function roleCells(roles) {
   const d = roles.describe;
   cell.Describe = !d.measured
     ? why(d)
-    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}), interactions ${d.interactionsIntended}/${d.interactions} (${percent(d.interactionCoverage)}); judge ${why(d.judge)}`;
+    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}), interactions ${d.interactionsIntended}/${d.interactions} (${percent(d.interactionCoverage)}); judge ${judgedCell(d.judge)}`;
   const f = roles.flows;
   cell.Flows = !f.measured
     ? why(f)
@@ -789,8 +795,8 @@ export function roleCells(roles) {
     ? why(i)
     : `${i.matched}/${i.reference} recall (${percent(i.recall)}), precision ${percent(i.precision)} over judged, decoys flagged ${i.decoysFlagged}/${i.decoys}, TPR − FPR ${percent(i.tprMinusFpr)}; ${i.unjudged.length} unjudged of ${i.found} found`;
   const n = roles.nameGroups;
-  cell['Name groups'] = !n.measured ? why(n) : `${n.named}/${n.groups} named (${percent(n.coverage)}); judge ${why(n.judge)}`;
-  cell.Purpose = why(roles.purpose);
+  cell['Name groups'] = !n.measured ? why(n) : `${n.named}/${n.groups} named (${percent(n.coverage)}); judge ${judgedCell(n.judge)}`;
+  cell.Purpose = `key fact judge ${judgedCell(roles.purpose)}`;
   const h = roles.harness;
   cell.Harness = !h.measured
     ? why(h)
@@ -907,8 +913,9 @@ export function readRun(path) {
  * Scores the report file against the set's reference and returns the scorecard.
  *
  * @param options `answerKey` (default `<set>/answer-key.json`), `warm` and `change` (run records
- *     of a warm rerun and of a one-file change); the run's facts (linked.jsonl.gz, llm.jsonl.gz)
- *     are read beside run.json, or beside the report without one
+ *     of a warm rerun and of a one-file change), `labels` (the owner's wording labels, default
+ *     testsets/wording-labels); the run's facts (linked.jsonl.gz, llm.jsonl.gz) and the wording
+ *     judge's verdicts (wording.jsonl.gz) are read beside run.json, or beside the report without one
  */
 export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
   const referencePath = `${setDir}/reference/reference.c4.json`;
@@ -923,6 +930,8 @@ export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
     run: runPath ? readRun(runPath) : null,
     warm: options.warm ? readRun(options.warm) : null,
     change: options.change ? readRun(options.change) : null,
+    wording: readLines(join(beside, 'wording.jsonl.gz')),
+    labels: readLabels(options.labels),
   };
   return {
     answerKey: inputs.answerKey ? keyPath : null,
@@ -1079,16 +1088,18 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       const answerKey = option(args, '--answer-key');
       const warm = option(args, '--warm');
       const change = option(args, '--change');
+      const labels = option(args, '--labels');
       const [reportPath, setDir] = args;
       if (!reportPath || !setDir) {
         throw new Error(
-          'usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--answer-key <file>] [--warm <run.json>] [--change <run.json>] [--out <prefix>]',
+          'usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--answer-key <file>] [--warm <run.json>] [--change <run.json>] [--labels <folder>] [--out <prefix>]',
         );
       }
       const card = scoreFiles(reportPath, setDir, run, {
         answerKey: answerKey ?? undefined,
         warm,
         change,
+        labels: labels ?? undefined,
       });
       const prefix = out ?? reportPath.replace(/\.(html|json)$/, '');
       writeFileSync(`${prefix}.scorecard.json`, `${JSON.stringify(card, null, 2)}\n`);

@@ -140,8 +140,8 @@ const DESCRIBED_KINDS = new Set(['container', 'database', 'queue', 'external', '
 /**
  * Describe's coverage (section 13): the share of the report's elements with a responsibility it
  * wrote, and of the lines the report draws whose label is an intent it wrote (a person's lines keep
- * their fixed labels, so they are left out). Its wording's judge score comes with #668; until then
- * the row is coverage only.
+ * their fixed labels, so they are left out). Its wording's judge score is added by the scorecard
+ * (wording.mjs, judgedRows).
  */
 export function describeRow(report, linked, llm) {
   if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
@@ -179,7 +179,6 @@ export function describeRow(report, linked, llm) {
     interactionsIntended: intended.length,
     interactionCoverage: ratio(intended.length, interactions.size),
     undescribed: elements.filter(([id]) => !withText.some(([w]) => w === id)).map(([, e]) => e.name),
-    judge: notMeasured('the wording judge comes with #668'),
     scores,
   };
 }
@@ -372,7 +371,6 @@ export function nameGroupsRow(run) {
     groups: i.planned ?? 0,
     named,
     coverage: ratio(named, i.planned ?? 0),
-    judge: notMeasured('the group-name judge comes with #668'),
   };
 }
 
