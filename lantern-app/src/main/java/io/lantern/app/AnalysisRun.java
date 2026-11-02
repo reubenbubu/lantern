@@ -432,9 +432,10 @@ public final class AnalysisRun {
                       java.util.TreeMap::new,
                       java.util.stream.Collectors.counting()));
       LOG.info(
-          "Describe stored {}; left {} elements, components and interactions unknown",
+          "Describe stored {}; left {} elements, components and interactions unknown: {}",
           storedTexts,
-          described.unknown().size());
+          described.unknown().size(),
+          described.unknown());
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
       List<Fact> screened = screen(harness, snapshot);

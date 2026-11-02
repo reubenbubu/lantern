@@ -1729,4 +1729,54 @@ class DescriberTest {
     assertThat(fake.sent()).hasSize(calls);
     assertThat(again.reused()).isEqualTo(first.asked());
   }
+
+  @Test
+  void aWordedFrontendIsDescribedByItsSentence() {
+    TestFacts withFrontend =
+        TestFacts.runtime()
+            .attribute(
+                "shop",
+                "frontend:shop/web",
+                "frontend-app",
+                "angular",
+                "{\"name\":\"web\",\"directory\":\"web\",\"framework\":\"Angular\","
+                    + "\"version\":\"19.2\",\"server\":\"nginx\","
+                    + "\"technology\":\"Angular 19.2 · nginx\"}")
+            .relate(
+                "shop",
+                "frontend:shop/web",
+                "CALLS_HTTP",
+                "service:com.example:app",
+                "{\"httpMethod\":\"GET\",\"path\":\"/orders\",\"protocol\":\"JSON/HTTP\","
+                    + "\"url\":\"http://shop-app:8080/orders\",\"matchedBy\":\"host\"}");
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.messages().getFirst().text().contains("The deployable unit web")
+                        ? """
+                        {"items": {"I1": {"unit": {"text": "Lets shoppers browse orders.",
+                          "cites": ["F1"]}}}}"""
+                        : answer(request));
+
+    Describer.Result result = new Describer(harness(client(fake))).describe(withFrontend.list());
+    assertThat(result.wordings().responsibilities())
+        .containsKey(EntityId.parse("frontend:shop/web"));
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                withFrontend.list(),
+                Map.of(),
+                result.wordings());
+    assertThat(
+            document.entities().stream()
+                .filter(e -> e.id().toString().equals("frontend:shop/web"))
+                .map(e -> text(e.description()))
+                .findFirst()
+                .orElseThrow())
+        .contains("Lets shoppers browse orders.");
+  }
 }
