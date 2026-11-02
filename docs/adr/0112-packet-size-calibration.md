@@ -84,3 +84,31 @@ answers.
   kept sizes, and a role without the property keeps the size in its code. Unlike a calibration it
   is not part of a fingerprint, since an answer does not depend on its request's neighbours
   (epic, section 10): changing it asks nothing again.
+- **Follow-up runs, for the other issues that left their acceptance here.** Project-8 at the kept
+  sizes ($0.77); the four sets again from the cache, which filled project-4's purpose ($0.001); a
+  cached rerun and a one-file change on project-4; and a pass with Claude Sonnet 5.5 as the wording
+  judge on project-1 to project-4 and project-8, the writers read from the cache ($2.39). With the
+  calibration, $7.60 in all. The recordings are kept in `~/workspace/lantern-test-drops/1F/recordings-529/`.
+  - Harness gates (#667): the cached rerun made no call (about 30 s). The one-file change, one
+    Javadoc comment in Notification-Service's `EmailService`, made 89 calls ($0.17, about 7 min;
+    the fresh run made 550): flow significance changed for 29 flows that never reach that class.
+    The gate fails; #702.
+  - Flows (#272): found by trigger on project-1 3/6, project-2 5/6, project-3 4/7, project-4 5/6,
+    project-8 2/9; the flows row, which also needs two thirds of the participants, matches only
+    project-4 (5/6). The missing participants are mostly people, external systems and stores
+    (#704). Project-2 and project-4 draw flows of one shape more than once (#701).
+  - First paragraph (#274): on all five sets it states what the system is and one key fact, both
+    cited in the stored answer; the Sonnet judge passed four key facts and failed project-8's.
+  - Descriptions (#275): of 377 element descriptions on the five sets, none opens with a pronoun or
+    restates its kind; the Describe check rejected one restating text on project-8.
+  - Group names (#536): every group is named, with a responsibility and cited lines: project-4 5 of
+    5, project-8 17 of 17, for $0.003 on project-4.
+  - Investigate (#269): on project-4, 10 of 16 reference risks, precision 100% over the judged,
+    0 of 2 decoys flagged; $0.21 in the fresh run (210 turns, 5.9 million tokens), far below the
+    epic's estimate of most of $8, which assumed Anthropic prices.
+  - Resolve: project-8 has three open links; each answer was rejected for citing a file range it
+    read, which the prompt asks for and the check refuses (#703).
+  - Wording judge (#668): the label set, 60 texts per question, is drawn into
+    `testsets/wording-labels/` for the owner to label at the 1F test drop. Unvalidated raw pass
+    rates: says what it does for the system 96–100%; not true of any Spring application 73–93%.
+  - Project-8's other-profiles note repeats each difference twice (#705).
