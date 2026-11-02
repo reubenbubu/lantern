@@ -220,6 +220,10 @@ class PacketsTest {
     // The drop is stored too, so a rerun repeats it without a call (#682).
     assertThat(store.size()).isEqualTo(3);
     assertThat(store.find(outcomes.get(bad).fingerprint()).orElseThrow().isDropped()).isTrue();
+    int sent = fake.sent().size();
+    Map<String, Outcome> again = ask(fake, items);
+    assertThat(fake.sent()).hasSize(sent);
+    assertThat(again.get(bad).repeatedDrop()).isTrue();
     // The repair turn lists the rejection of the bad item only.
     String repair = fake.sent().get(1).request().messages().getLast().text();
     assertThat(repair)

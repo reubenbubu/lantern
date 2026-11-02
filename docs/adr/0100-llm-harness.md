@@ -225,8 +225,13 @@ resting on it changed too, and a warm rerun of project-4 made 241 calls.
   the last answer for a subject skips drops.
 - **Not every drop is stored.** These still ask again on a rerun:
   - an answer whose repair was cut off at its length limit, which a larger limit may let through;
-  - an item a conversation's cap ended before the model could correct it;
+  - an item rejected once in a conversation that a cap, a provider error or the budget ended before
+    the model could correct it;
   - provider errors and items the budget left unasked, as before.
+- **A drop lasts as long as an answer.** Like a cached answer, a stored drop is reused until its
+  fingerprint changes. A change to the checks that should let earlier drops through bumps the
+  role's prompt version, as a prompt change does. A drop the cache repeats has its reason begin
+  with `dropped when last asked:`, so the roles count it as reused, not asked.
 - **Every rejection is written down.** Each answer the checks rejected is listed with the run's
   documents as `rejections.jsonl.gz`: the role, the subject, the attempt (1 the first answer, 2
   after the repair turn), the text rejected and the reasons. It covers the first answer rejected

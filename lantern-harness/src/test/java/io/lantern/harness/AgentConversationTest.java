@@ -119,6 +119,42 @@ class AgentConversationTest {
         .containsExactly("look", "submit");
     assertThat(store.size()).isEqualTo(3);
     assertThat(store.find(outcomes.get("c").fingerprint()).orElseThrow().isDropped()).isTrue();
+
+    // A rerun on the same inputs repeats the drop and asks nothing (#682).
+    int sent = fake.sent().size();
+    Map<String, Outcome> again =
+        harness(client(fake), store)
+            .session(role(16))
+            .converse(items, PacketsTest.SENTENCES, LOOK, List::of);
+    assertThat(fake.sent()).hasSize(sent);
+    assertThat(again.get("c").repeatedDrop()).isTrue();
+    assertThat(again.get("a").kind()).isEqualTo(Outcome.Kind.CACHED);
+  }
+
+  @Test
+  void anItemRejectedOnceInAConversationThatFailsIsNotStoredAsDropped() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .callingTools(
+                request -> {
+                  if (turn(request) == 1) {
+                    return List.of(
+                        submit(
+                            1,
+                            "{\"I1\": {\"responsibility\": {\"text\": \"x\", \"cites\": [\"F7\"]}}}"));
+                  }
+                  throw new io.lantern.llm.LlmException("The provider is down");
+                })
+            .answering("Done.");
+
+    Map<String, Outcome> outcomes =
+        harness(client(fake), store)
+            .session(role(16))
+            .converse(List.of(item("a")), PacketsTest.SENTENCES, LOOK, List::of);
+
+    // The provider's failure, not the model, kept it from being corrected: a rerun asks again.
+    assertThat(outcomes.get("a").kind()).isEqualTo(Outcome.Kind.DROPPED);
+    assertThat(store.size()).isZero();
   }
 
   /**

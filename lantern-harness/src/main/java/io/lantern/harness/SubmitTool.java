@@ -41,6 +41,7 @@ final class SubmitTool implements ToolBox {
   private final Set<String> failedOnce = new LinkedHashSet<>();
   private final Set<String> dropped = new LinkedHashSet<>();
   private final Set<String> repaired = new LinkedHashSet<>();
+  private final Set<String> rejectedBefore = new LinkedHashSet<>();
 
   /**
    * @param inputs what the checks compare the answer of the packet's item at an index with, asked
@@ -116,7 +117,7 @@ final class SubmitTool implements ToolBox {
         if (!found.isEmpty()) {
           sink.rejected(
               packet.get(index).subject(),
-              failedOnce.contains(id) ? 2 : 1,
+              rejectedBefore.add(id) ? 1 : 2,
               entry.getValue().toString(),
               RoleSession.reasons(found));
         }

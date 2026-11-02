@@ -34,6 +34,14 @@ public record Outcome(Kind kind, String fingerprint, String answer, String reaso
     FAILED
   }
 
+  /** How the reason of a drop repeated from the answer cache begins (#682). */
+  public static final String REPEATED_DROP = "dropped when last asked: ";
+
+  /** Whether it is a drop repeated from the answer cache, with no call (#682). */
+  public boolean repeatedDrop() {
+    return kind == Kind.DROPPED && reason != null && reason.startsWith(REPEATED_DROP);
+  }
+
   /** Whether it has an answer, cached or new. */
   public boolean answered() {
     return answer != null;

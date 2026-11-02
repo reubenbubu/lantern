@@ -520,7 +520,7 @@ public final class RoleSession {
       Item item, Asker asker, java.util.function.Predicate<StoredAnswer> holds) {
     String fingerprint = fingerprint(item);
     Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
-    if (stored.isPresent() && revalidated(stored.get()) && holds.test(stored.get())) {
+    if (stored.isPresent() && revalidated(stored.get()) && holdsOrDropped(stored.get(), holds)) {
       Outcome outcome = reused(stored.get());
       record.reused(item.subject(), outcome);
       settledWithoutAsking(item);
@@ -952,7 +952,7 @@ public final class RoleSession {
     for (Item item : items) {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
-      if (stored.isPresent() && revalidated(stored.get()) && holds.test(stored.get())) {
+      if (stored.isPresent() && revalidated(stored.get()) && holdsOrDropped(stored.get(), holds)) {
         settleReused(outcomes, item, reused(stored.get()));
       } else {
         packet.add(item);
@@ -1027,7 +1027,11 @@ public final class RoleSession {
         settle(
             outcomes,
             item,
-            dropped(item, "rejected twice", read, submit.rejectedTwice(id) || !capped),
+            dropped(
+                item,
+                "rejected twice",
+                read,
+                submit.rejectedTwice(id) || (!capped && failure == null)),
             false);
       } else if (failure instanceof BudgetExceededException) {
         settle(
@@ -1063,11 +1067,20 @@ public final class RoleSession {
           Outcome.Kind.DROPPED,
           stored.fingerprint(),
           null,
-          "dropped when last asked: " + stored.dropped());
+          Outcome.REPEATED_DROP + stored.dropped());
     }
     return stored.omitted()
         ? Outcome.of(Outcome.Kind.CACHED, stored.fingerprint(), null, "omitted")
         : Outcome.of(Outcome.Kind.CACHED, stored.fingerprint(), stored.answer(), null);
+  }
+
+  /**
+   * Whether a stored answer still holds by the role's own test; a stored drop has no answer to
+   * test, and repeats while its fingerprint and files hold.
+   */
+  private static boolean holdsOrDropped(
+      StoredAnswer stored, java.util.function.Predicate<StoredAnswer> holds) {
+    return stored.isDropped() || holds.test(stored);
   }
 
   private void settleReused(Map<String, Outcome> outcomes, Item item, Outcome outcome) {
