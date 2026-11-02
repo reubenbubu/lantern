@@ -21,10 +21,10 @@ import org.springframework.context.annotation.Profile;
  * placeholder responsibility for every unit, component and element and a placeholder intent for
  * every interaction, each citing the item's first fact; it judges no flow significant, so each
  * document draws its highest ranked, narrates no flow and words no purpose, so those keep their
- * static prose, except a flow's title, a placeholder in place of the scenario a model would name;
- * and it submits "unknown" for every link left open (knowledge-build epic, section 11.1), citing
- * the calling unit's first fact and the first candidate's, so such links stay open and the answers
- * are cached.
+ * static prose, except a flow's title, a placeholder in place of the scenario a model would name
+ * (it omits the system's purpose and key fact); and it submits "unknown" for every link left open
+ * (knowledge-build epic, section 11.1), citing the calling unit's first fact and the first
+ * candidate's, so such links stay open and the answers are cached.
  *
  * <p>Every text it words is wrapped in {@code {{ }}} with a hint of what a real model would write
  * there, such as {@code {{placeholder: summary of class Order}}}, so a reader of a document made
@@ -67,6 +67,10 @@ class FakeLlmConfiguration {
               String flows = flows(request);
               if (flows != null) {
                 return flows;
+              }
+              // It words no purpose and no key fact (ADR 0109).
+              if (request.system().contains(PURPOSE_TASK)) {
+                return "{\"items\": {\"I1\": {\"omitted\": true}}}";
               }
               if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                 return "{}";
@@ -341,6 +345,9 @@ class FakeLlmConfiguration {
     }
     return "{\"items\": {" + String.join(", ", entries) + "}}";
   }
+
+  /** How the purpose and key-fact role's task starts. */
+  static final String PURPOSE_TASK = "Task: say what the system is for and what matters most";
 
   /** The title the fake gives a flow, where a model words the scenario the flow is. */
   static final String FLOW_TITLE = "{{placeholder: scenario title}}";

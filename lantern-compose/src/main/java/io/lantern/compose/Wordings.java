@@ -29,6 +29,8 @@ import java.util.Set;
  * @param chosen the flows the model judged significant for each scope it judged, in its order, by
  *     flow ID: {@link #SYSTEM_SCOPE} for the system's documents, else a repository's name
  *     (knowledge-build epic, section 11.5; ADR 0108); a scope it did not judge is absent
+ * @param keyFact the single fact about how the system is built that a new reader most needs, with
+ *     citation markers, or {@code null} if the model wrote none (section 11.6; ADR 0109)
  */
 public record Wordings(
     Map<EntityId, String> responsibilities,
@@ -36,7 +38,8 @@ public record Wordings(
     Map<String, Flow> flows,
     Set<String> documented,
     Set<EntityId> unsupported,
-    Map<String, List<String>> chosen) {
+    Map<String, List<String>> chosen,
+    String keyFact) {
 
   /** The scope of the system's documents among {@link #chosen}. */
   public static final String SYSTEM_SCOPE = "system";
@@ -51,6 +54,17 @@ public record Wordings(
     documented = Set.copyOf(documented);
     unsupported = Set.copyOf(unsupported);
     chosen = Map.copyOf(chosen);
+  }
+
+  /** Wordings without a key fact. */
+  public Wordings(
+      Map<EntityId, String> responsibilities,
+      Map<String, Phrase> phrases,
+      Map<String, Flow> flows,
+      Set<String> documented,
+      Set<EntityId> unsupported,
+      Map<String, List<String>> chosen) {
+    this(responsibilities, phrases, flows, documented, unsupported, chosen, null);
   }
 
   /** Wordings without the model's choice of flows. */
@@ -74,7 +88,7 @@ public record Wordings(
 
   /** The same wordings, with the elements whose sentence the support judge found unsupported. */
   public Wordings withUnsupported(Set<EntityId> elements) {
-    return new Wordings(responsibilities, phrases, flows, documented, elements, chosen);
+    return new Wordings(responsibilities, phrases, flows, documented, elements, chosen, keyFact);
   }
 
   /** Responsibility sentences, intent phrases and flows, citing no code with Javadoc. */

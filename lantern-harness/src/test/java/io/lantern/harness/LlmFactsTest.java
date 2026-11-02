@@ -103,7 +103,13 @@ class LlmFactsTest {
     assertThat(LlmFacts.vocabulary())
         .extracting(VocabularyType::name)
         .containsExactlyInAnyOrder(
-            "responsibility", "intent", "summary", "flow-significance", "flow-narrative");
+            "responsibility",
+            "intent",
+            "summary",
+            "flow-significance",
+            "flow-narrative",
+            "purpose",
+            "key-fact");
   }
 
   @Test

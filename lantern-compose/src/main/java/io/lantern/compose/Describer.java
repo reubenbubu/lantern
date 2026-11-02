@@ -1,24 +1,16 @@
 package io.lantern.compose;
 
-import io.lantern.compose.WordingPrompt.Question;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.Knowledge;
-import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
 import io.lantern.harness.Outcome;
-import io.lantern.harness.Rejected;
-import io.lantern.harness.Repair;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
-import io.lantern.harness.RunMode;
 import io.lantern.harness.checks.SupportJudge;
-import io.lantern.llm.LlmMessage;
-import io.lantern.llm.LlmRequest;
-import io.lantern.llm.Role;
 import io.lantern.llm.Tokens;
 import io.lantern.summarize.SourceFiles;
 import java.util.ArrayList;
@@ -77,15 +69,6 @@ public final class Describer {
 
   /** The most README claims the prompt shows per repository. */
   static final int MAX_CLAIMS = 8;
-
-  /** The most tokens an answer about the system's purpose may take. */
-  static final int MAX_PURPOSE_OUTPUT_TOKENS = 1_000;
-
-  /** The most units the prompt about the system's purpose shows. */
-  static final int MAX_PURPOSE_UNITS = 30;
-
-  /** The most facts the prompt about the system's purpose shows under one unit's sentence. */
-  static final int MAX_PURPOSE_UNIT_FACTS = 8;
 
   /** The links a unit's relationships are drawn from, as the container diagram draws them. */
   static final List<String> LINKS =
@@ -180,6 +163,7 @@ public final class Describer {
       byOrigin.put(
           io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE), new ArrayList<>());
       byOrigin.put(io.lantern.harness.LlmFacts.origin(FlowJudgements.NARRATIVE), new ArrayList<>());
+      byOrigin.put(io.lantern.harness.LlmFacts.origin(PurposeRole.ROLE), new ArrayList<>());
       Map<String, Fact> unique = new LinkedHashMap<>();
       for (LlmText text : texts) {
         Fact fact =
@@ -193,23 +177,14 @@ public final class Describer {
       flows
           .values()
           .forEach(
-              fact ->
-                  byOrigin
-                      .get(
-                          fact.origin()
-                                  .equals(
-                                      io.lantern.harness.LlmFacts.origin(
-                                          FlowJudgements.SIGNIFICANCE))
-                              ? io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE)
-                              : io.lantern.harness.LlmFacts.origin(FlowJudgements.NARRATIVE))
-                      .add(fact));
+              fact -> byOrigin.computeIfAbsent(fact.origin(), o -> new ArrayList<>()).add(fact));
       return byOrigin;
     }
   }
 
   /**
-   * The facts without the responsibilities, intents, summaries, group names and flow judgements the
-   * LLM roles wrote.
+   * The facts without the responsibilities, intents, summaries, group names, flow judgements,
+   * purpose and key fact the LLM roles wrote.
    */
   public static List<Fact> withoutTexts(Collection<Fact> facts) {
     return facts.stream()
@@ -221,7 +196,9 @@ public final class Describer {
                         || f.predicate().equals(io.lantern.harness.LlmFacts.SUMMARY)
                         || f.predicate().equals(NameGroups.DISPLAY_NAME)
                         || f.predicate().equals(FlowJudgements.FLOW_SIGNIFICANCE)
-                        || f.predicate().equals(FlowJudgements.FLOW_NARRATIVE)))
+                        || f.predicate().equals(FlowJudgements.FLOW_NARRATIVE)
+                        || f.predicate().equals(PurposeRole.PURPOSE_PREDICATE)
+                        || f.predicate().equals(PurposeRole.KEY_FACT_PREDICATE)))
         .toList();
   }
 
@@ -243,14 +220,7 @@ public final class Describer {
   public static final RoleSpec FLOW_SIGNIFICANCE = FlowJudgements.SIGNIFICANCE;
 
   /** The role that words the system's purpose. */
-  public static final RoleSpec PURPOSE =
-      RoleSpec.single(
-          "purpose",
-          Role.INFER_INTENT,
-          WordingPrompt.PURPOSE_VERSION,
-          "flows-and-purpose",
-          RunMode.INTERACTIVE,
-          MAX_PURPOSE_OUTPUT_TOKENS / 2);
+  public static final RoleSpec PURPOSE = PurposeRole.ROLE;
 
   private final Harness harness;
   private final SourceFiles sources;
@@ -333,7 +303,6 @@ public final class Describer {
     C4Views c4 =
         new C4Views(knowledge, assembler, RepoSections.SYSTEM, C4Views.units(knowledge), Set.of());
     Set<Fact> alternatives = c4.alternativeLinks().keySet();
-    List<Question> questions = new ArrayList<>();
     Map<String, Optional<String>> read = new HashMap<>();
     Function<Evidence, Optional<String>> files =
         evidence ->
@@ -365,14 +334,14 @@ public final class Describer {
     // (#659): one cheap call that writes the report's first paragraph. It is asked last, on the
     // units' sentences, so its claim is planned now on a prompt of their expected size.
     RoleSession purposeSession = harness.session(PURPOSE);
-    Optional<Question> expected =
+    long purposePrefix =
+        Tokens.estimate(io.lantern.harness.checks.CommonPrompt.SYSTEM + PurposeRole.TASK);
+    Optional<PurposeRole.Asked> expected =
         purposeSession.underShare() ? expectedPurpose(knowledge, unitItems) : Optional.empty();
     expected.ifPresent(
-        q ->
+        a ->
             purposeSession.claim(
-                q.element().toString(),
-                Tokens.estimate(item(q).rendering()),
-                Tokens.estimate(q.system())));
+                a.item().subject(), Tokens.estimate(a.item().rendering()), purposePrefix));
     Tally tally = new Tally();
     // A unit whose facts show nothing to word from is not asked about, and is unknown.
     nothingToWord.forEach(unit -> tally.unknown.add(unit.toString()));
@@ -388,7 +357,7 @@ public final class Describer {
             DescribeRole.units(bySubject));
     DescribeRole.SummaryFacts summaryFacts = describeItems.summaryFacts();
     Map<EntityId, DescribeRole.Answered> unitAnswers = new TreeMap<>(Knowledge.BY_ID);
-    List<WordingPrompt.UnitSentence> sentences = new ArrayList<>();
+    List<PurposeRole.Said> sentences = new ArrayList<>();
     for (DescribeRole.Described described : unitItems) {
       Outcome outcome = unitOutcomes.get(described.item().subject());
       List<DescribeRole.Worded> worded =
@@ -397,12 +366,9 @@ public final class Describer {
         if (text.field().equals(DescribeRole.UNIT)) {
           unitAnswers.put(
               described.element(), new DescribeRole.Answered(text.text(), text.cited()));
-          List<Fact> cited = byLine(text.cited());
           sentences.add(
-              new WordingPrompt.UnitSentence(
-                  described.name(),
-                  text.text(),
-                  cited.subList(0, Math.min(MAX_PURPOSE_UNIT_FACTS, cited.size()))));
+              new PurposeRole.Said(
+                  described.name(), new DescribeRole.Answered(text.text(), text.cited())));
         }
       }
     }
@@ -419,34 +385,76 @@ public final class Describer {
         Tokens.estimate(io.lantern.harness.checks.CommonPrompt.SYSTEM + DescribeRole.ELEMENT_TASK));
     Map<String, Outcome> elementOutcomes =
         elementSession.askPackets(elements, DescribeRole.elements(bySubject));
+    // The purpose's item shows the people's sentences and the external systems.
+    List<PurposeRole.Said> people = new ArrayList<>();
+    Map<String, Fact> externals = new java.util.TreeMap<>();
     for (DescribeRole.Described described : elementItems) {
-      tally.add(
-          described,
-          elementOutcomes.get(described.item().subject()),
-          DescribeRole.ELEMENTS,
-          elementSession,
-          summaryFacts);
+      List<DescribeRole.Worded> worded =
+          tally.add(
+              described,
+              elementOutcomes.get(described.item().subject()),
+              DescribeRole.ELEMENTS,
+              elementSession,
+              summaryFacts);
+      if (described.element().type().equals(C4Views.PERSON)) {
+        worded.stream()
+            .filter(t -> t.field().equals(DescribeRole.RESPONSIBILITY))
+            .forEach(
+                t ->
+                    people.add(
+                        new PurposeRole.Said(
+                            described.name(), new DescribeRole.Answered(t.text(), t.cited()))));
+      } else if (described.element().type().equals(C4Views.EXTERNAL_SYSTEM)) {
+        firstFact(described).ifPresent(f -> externals.putIfAbsent(described.name(), f));
+      }
     }
     // Then the flows: which are worth drawing in each scope, then the narrative of each one drawn,
     // from the units' sentences and the interactions' phrases (knowledge-build epic, section 11.5;
     // ADR 0108).
     Map<String, List<String>> chosen =
         flows(repoFacts, knowledge, assembler, c4, unitAnswers, tally);
-    // The system's purpose rests on the units' sentences, so it is asked about after them.
-    Optional<Question> purpose = purpose(knowledge, sentences);
-    purpose.ifPresent(
-        q -> {
-          if (expected.isEmpty()) {
-            plan(List.of(q));
-          }
-          tally.add(q, answer(q));
-        });
+    // The system's purpose and key fact rest on all of these, so they are asked about last
+    // (knowledge-build epic, section 11.6; ADR 0109).
+    Optional<PurposeRole.Asked> purpose =
+        PurposeRole.item(sentences, people, externals, tally.systemFlowTitles(), claims(knowledge));
     if (purpose.isEmpty()) {
       expected.ifPresent(
-          q ->
+          a ->
               purposeSession.notAsked(
-                  q.element().toString(), "no unit was worded and no README states a claim"));
+                  a.item().subject(), "no unit or person was worded and no README states a claim"));
     }
+    purpose.ifPresent(
+        asked -> {
+          if (expected.isEmpty()) {
+            purposeSession.plan(List.of(asked.item()), purposePrefix);
+          }
+          Outcome outcome = PurposeRole.ask(purposeSession, asked);
+          count(tally, outcome);
+          if (outcome == null || outcome.answer() == null) {
+            if (outcome != null && outcome.kind() == Outcome.Kind.DROPPED) {
+              tally.rejected.add(RepoSections.SYSTEM);
+            } else if (outcome == null
+                || outcome.kind() == Outcome.Kind.NOT_ASKED
+                || outcome.kind() == Outcome.Kind.FAILED) {
+              tally.skipped.add(RepoSections.SYSTEM);
+            }
+            return;
+          }
+          Map<String, PurposeRole.Worded> worded = PurposeRole.worded(asked, outcome.answer());
+          PurposeRole.Worded said = worded.get(PurposeRole.PURPOSE);
+          if (said != null) {
+            tally.responsibilities.put(RepoSections.SYSTEM, said.marked());
+            tally.judgeable.put(
+                RepoSections.SYSTEM,
+                new SupportJudge.Text(RepoSections.SYSTEM.toString(), said.text(), said.lines()));
+          }
+          PurposeRole.Worded key = worded.get(PurposeRole.KEY_FACT);
+          if (key != null) {
+            tally.keyFact = key.marked();
+          }
+          String model = purposeSession.model().provider() + "/" + purposeSession.model().model();
+          tally.flowFacts.add(snapshot -> PurposeRole.facts(worded, model, snapshot));
+        });
     LOG.info(
         "Wordings: {} units, data stores, destinations, external systems, people, flows and the"
             + " system asked, {} cached, {} rejected, {} skipped",
@@ -473,7 +481,13 @@ public final class Describer {
     tally.documented.forEach(documented::add);
     return new Result(
         new Wordings(
-            tally.responsibilities, tally.phrases, tally.flows, documented, unsupported, chosen),
+            tally.responsibilities,
+            tally.phrases,
+            tally.flows,
+            documented,
+            unsupported,
+            chosen,
+            tally.keyFact),
         tally.asked,
         tally.reused,
         tally.rejected,
@@ -495,10 +509,26 @@ public final class Describer {
     final List<LlmText> texts = new ArrayList<>();
     final List<String> unknown = new ArrayList<>();
     final Set<String> documented = new TreeSet<>();
-    // The flow judgements, made into claims once the snapshot is known.
+    // The flow judgements, purpose and key fact, made into claims once the snapshot is known.
     final List<java.util.function.LongFunction<List<Fact>>> flowFacts = new ArrayList<>();
+    // The keys of the flows the system's documents draw, in order.
+    final List<String> systemFlows = new ArrayList<>();
+    // The system's key fact, with citation markers, if the model wrote one.
+    String keyFact;
     int asked;
     int reused;
+
+    /** The titles of the flows the system's documents draw, in order, as the model named them. */
+    List<String> systemFlowTitles() {
+      List<String> titles = new ArrayList<>();
+      for (String key : systemFlows) {
+        Wordings.Flow flow = flows.get(key);
+        if (flow != null && flow.title() != null && !titles.contains(flow.title())) {
+          titles.add(flow.title());
+        }
+      }
+      return titles;
+    }
 
     /**
      * Adds what a Describe item's outcome worded: its texts as claims to store, its sentences and
@@ -603,24 +633,6 @@ public final class Describer {
                 }
               });
       return worded;
-    }
-
-    void add(Question question, Asked outcome) {
-      switch (outcome.kind()) {
-        case SKIPPED -> skipped.add(question.element());
-        case REJECTED -> {
-          asked++;
-          rejected.add(question.element());
-        }
-        case ANSWERED -> {
-          if (outcome.cached()) {
-            reused++;
-          } else {
-            asked++;
-          }
-          resolve(question, outcome.answer(), responsibilities, phrases, judgeable);
-        }
-      }
     }
   }
 
@@ -792,6 +804,9 @@ public final class Describer {
     Map<String, Scope> scopeOf = new LinkedHashMap<>();
     for (Scope scope : scopes) {
       for (SequenceFlows.Narrated flow : scope.flows(chosen.get(scope.key())).narrated()) {
+        if (scope.key().equals(Wordings.SYSTEM_SCOPE)) {
+          tally.systemFlows.add(flow.key());
+        }
         if (narrated.putIfAbsent(flow.key(), flow) == null) {
           scopeOf.put(flow.key(), scope);
           narratives.put(
@@ -919,13 +934,6 @@ public final class Describer {
     }
   }
 
-  /**
-   * The prompt about the system's purpose (ADR 0060): the responsibility sentence of each unit the
-   * model worded, with the facts it cites, and the claims of each repository's README with the
-   * fewest folders; or none when there is neither, so the purpose is stated as unknown without a
-   * call. Units are listed by name and READMEs by repository, so the order does not depend on fact
-   * IDs.
-   */
   /** A sentence of the length a unit's responsibility sentence is expected to have. */
   private static final String EXPECTED_SENTENCE =
       "Handles the requests of its domain, stores their records and calls the services it"
@@ -935,13 +943,13 @@ public final class Describer {
   private static final int EXPECTED_CITES = 3;
 
   /**
-   * The prompt about the system's purpose as it is expected to be once every unit is worded: each
-   * unit with a sentence of the expected length and as many of its first facts as a sentence is
-   * expected to cite. Its size is what the purpose's claim on its share is planned on.
+   * The purpose's item as it is expected to be once every unit is worded: each unit with a sentence
+   * of the expected length and as many of its first facts as a sentence is expected to cite, and
+   * the READMEs' claims. Its size is what the purpose's claim on its share is planned on.
    */
-  private static Optional<Question> expectedPurpose(
+  private static Optional<PurposeRole.Asked> expectedPurpose(
       Knowledge knowledge, List<DescribeRole.Described> items) {
-    List<WordingPrompt.UnitSentence> units = new ArrayList<>();
+    List<PurposeRole.Said> units = new ArrayList<>();
     for (DescribeRole.Described described : items) {
       if (described.asksUnit()) {
         List<Fact> facts = new ArrayList<>();
@@ -950,29 +958,21 @@ public final class Describer {
             .forEach(ref -> described.refs().thing(ref).ifPresent(t -> facts.add((Fact) t)));
         List<Fact> sorted = byLine(facts);
         units.add(
-            new WordingPrompt.UnitSentence(
+            new PurposeRole.Said(
                 described.name(),
-                EXPECTED_SENTENCE,
-                sorted.subList(0, Math.min(EXPECTED_CITES, sorted.size()))));
+                new DescribeRole.Answered(
+                    EXPECTED_SENTENCE,
+                    sorted.subList(0, Math.min(EXPECTED_CITES, sorted.size())))));
       }
     }
-    return purpose(knowledge, units);
+    return PurposeRole.item(units, List.of(), Map.of(), List.of(), claims(knowledge));
   }
 
-  /** The citation markers of the facts, as summaries have them. */
-  private static String markers(List<Fact> facts) {
-    StringBuilder text = new StringBuilder();
-    facts.forEach(f -> text.append(" [fact:").append(f.id()).append(']'));
-    return text.toString();
-  }
-
-  private static Optional<Question> purpose(
-      Knowledge knowledge, List<WordingPrompt.UnitSentence> sentences) {
-    List<WordingPrompt.UnitSentence> units = new ArrayList<>(sentences);
-    units.sort(
-        Comparator.comparing(WordingPrompt.UnitSentence::name)
-            .thenComparing(WordingPrompt.UnitSentence::sentence));
-    units = units.subList(0, Math.min(MAX_PURPOSE_UNITS, units.size()));
+  /**
+   * Each repository's README claims, of its README with the fewest folders, by repository and path,
+   * repositories in order (ADR 0060).
+   */
+  private static Map<String, List<Fact>> claims(Knowledge knowledge) {
     SortedSet<String> repos = new TreeSet<>();
     knowledge.withPredicate(CLAIM).forEach(f -> repos.add(f.evidence().repo()));
     Map<String, List<Fact>> claims = new LinkedHashMap<>();
@@ -982,17 +982,29 @@ public final class Describer {
         claims.put(repo + " (" + readme.getFirst().evidence().path() + ")", readme);
       }
     }
-    if (units.isEmpty() && claims.isEmpty()) {
-      return Optional.empty();
-    }
-    return Optional.of(WordingPrompt.purpose(RepoSections.SYSTEM, units, claims));
+    return claims;
   }
 
-  /** The facts by ID, each once. */
-  private static Map<String, Fact> byId(List<Fact> facts) {
-    Map<String, Fact> result = new LinkedHashMap<>();
-    facts.forEach(f -> result.putIfAbsent(f.id(), f));
-    return result;
+  /** The first fact an element's item shows, in the order of its lines. */
+  private static Optional<Fact> firstFact(DescribeRole.Described described) {
+    List<Fact> facts = new ArrayList<>();
+    described.refs().lines().keySet().stream()
+        .filter(ref -> ref.startsWith("F"))
+        .forEach(
+            ref ->
+                described
+                    .refs()
+                    .thing(ref)
+                    .filter(Fact.class::isInstance)
+                    .ifPresent(t -> facts.add((Fact) t)));
+    return byLine(facts).stream().findFirst();
+  }
+
+  /** The citation markers of the facts, as summaries have them. */
+  private static String markers(List<Fact> facts) {
+    StringBuilder text = new StringBuilder();
+    facts.forEach(f -> text.append(" [fact:").append(f.id()).append(']'));
+    return text.toString();
   }
 
   /** What the other end of a line does with the data store or destination at this end. */
@@ -1115,219 +1127,5 @@ public final class Describer {
 
   private static String kind(EntityId other) {
     return WordingPrompt.kind(other);
-  }
-
-  // ---------------------------------------------------------------------------------------------
-  // Asking
-
-  private enum Kind {
-    ANSWERED,
-    REJECTED,
-    SKIPPED
-  }
-
-  private record Asked(Kind kind, WordingAnswer answer, boolean cached) {}
-
-  /** The role of a question. */
-  static RoleSpec spec(Question question) {
-    return switch (question.about()) {
-      case WordingPrompt.PURPOSE -> PURPOSE;
-      default -> throw new IllegalArgumentException("Not the purpose: " + question.about());
-    };
-  }
-
-  /**
-   * A question as an item of the harness: the claims it shows, the blobs of the files whose code it
-   * shows, and its whole prompt.
-   */
-  static Item item(Question question) {
-    List<FingerprintInput> inputs = new ArrayList<>();
-    question.facts().values().forEach(fact -> inputs.add(FingerprintInput.of(fact)));
-    // The files whose code the prompt shows, by their blobs.
-    question
-        .code()
-        .keySet()
-        .forEach(
-            ref -> {
-              Fact fact = question.facts().get(ref);
-              if (fact != null) {
-                FingerprintInput.fileOf(fact).ifPresent(inputs::add);
-              }
-            });
-    return new Item(
-        question.element().toString(),
-        "",
-        inputs,
-        "prompt "
-            + question.version()
-            + "\nsystem\n"
-            + question.system()
-            + "\nuser\n"
-            + question.user());
-  }
-
-  /** Plans the questions, role by role, before any is asked. */
-  private void plan(List<Question> questions) {
-    Map<RoleSpec, List<Item>> byRole = new LinkedHashMap<>();
-    Map<RoleSpec, Long> prefix = new LinkedHashMap<>();
-    for (Question question : questions) {
-      byRole.computeIfAbsent(spec(question), r -> new ArrayList<>()).add(item(question));
-      prefix.putIfAbsent(spec(question), Tokens.estimate(question.system()));
-    }
-    byRole.forEach((role, items) -> harness.session(role).plan(items, prefix.get(role)));
-  }
-
-  private Asked answer(Question question) {
-    RoleSession session = harness.session(spec(question));
-    Item item = item(question);
-    try {
-      return answer(question, session, item);
-    } finally {
-      // Whatever ended it, the items waiting for the warm-up item go on.
-      session.releaseWarmUp(item);
-    }
-  }
-
-  private Asked answer(Question question, RoleSession session, Item item) {
-    String key = session.fingerprint(item);
-    String purpose =
-        switch (question.about()) {
-          case WordingAnswer.UNIT -> "word unit " + question.element();
-          case WordingPrompt.PURPOSE -> "word the system's purpose";
-          default -> "word element " + question.element();
-        };
-    Outcome outcome =
-        session.ask(
-            item,
-            calls -> {
-              Map<String, WordingAnswer.Item> items =
-                  calls.answer(
-                      new LlmRequest(
-                          role(question),
-                          purpose,
-                          question.system(),
-                          List.of(LlmMessage.user(question.user())),
-                          maxTokens(question),
-                          false),
-                      response -> {
-                        try {
-                          return WordingPrompt.check(response, question);
-                        } catch (WordingPrompt.Rejected rejected) {
-                          throw new Rejected(rejected.getMessage());
-                        }
-                      },
-                      Repair.withMessage(
-                          rejected -> WordingPrompt.RETRY.formatted(rejected.getMessage())));
-              return io.lantern.harness.Answer.of(WordingJson.write(items));
-            });
-    return switch (outcome.kind()) {
-      case CACHED, ANSWERED ->
-          new Asked(
-              Kind.ANSWERED,
-              new WordingAnswer(
-                  key,
-                  question.element(),
-                  WordingJson.read(outcome.answer()),
-                  question.version(),
-                  session.model().provider(),
-                  session.model().model()),
-              outcome.kind() == Outcome.Kind.CACHED);
-      case DROPPED -> new Asked(Kind.REJECTED, null, false);
-      case OMITTED, NOT_ASKED, FAILED -> {
-        LOG.warn(
-            "Left {} as it was, could not {}: {}", question.element(), purpose, outcome.reason());
-        yield new Asked(Kind.SKIPPED, null, false);
-      }
-    };
-  }
-
-  private static int maxTokens(Question question) {
-    return MAX_PURPOSE_OUTPUT_TOKENS;
-  }
-
-  /** The role of the call: wording the system's purpose is inferring intent. */
-  private static Role role(Question question) {
-    return Role.INFER_INTENT;
-  }
-
-  // ---------------------------------------------------------------------------------------------
-  // The wordings
-
-  /**
-   * Turns an answer's references into what they stand for in the question of the same key: a
-   * sentence gets citation markers for the facts it cites, a phrase the IDs of the facts it cites.
-   */
-  private static void resolve(
-      Question question,
-      WordingAnswer answer,
-      Map<EntityId, String> responsibilities,
-      Map<String, Wordings.Phrase> phrases,
-      Map<EntityId, SupportJudge.Text> judgeable) {
-    answer
-        .items()
-        .forEach(
-            (ref, item) -> {
-              if (ref.equals(question.about())) {
-                sentence(question, item)
-                    .ifPresent(
-                        s -> {
-                          responsibilities.put(question.element(), s);
-                          judgeable.put(
-                              question.element(), judged(question, question.element(), item));
-                        });
-              } else if (question.components().containsKey(ref)) {
-                EntityId type = question.components().get(ref);
-                sentence(question, item)
-                    .ifPresent(
-                        s -> {
-                          if (responsibilities.putIfAbsent(type, s) == null) {
-                            judgeable.put(type, judged(question, type, item));
-                          }
-                        });
-              } else if (question.relationships().containsKey(ref)) {
-                List<String> cited = new ArrayList<>();
-                for (String cite : item.cites()) {
-                  Fact fact = question.facts().get(cite);
-                  if (fact != null && !cited.contains(fact.id())) {
-                    cited.add(fact.id());
-                  }
-                }
-                phrases.put(
-                    question.relationships().get(ref).id(),
-                    new Wordings.Phrase(item.text(), cited));
-              }
-            });
-  }
-
-  /**
-   * A responsibility sentence as the support judge sees it (ADR 0101): the text, and each fact it
-   * cites as the prompt showed it.
-   */
-  private static SupportJudge.Text judged(
-      Question question, EntityId element, WordingAnswer.Item item) {
-    List<String> cited = new ArrayList<>();
-    List<String> lines = question.user().lines().map(String::strip).toList();
-    for (String cite : item.cites()) {
-      String opening = "[" + cite + "] ";
-      lines.stream()
-          .filter(line -> line.startsWith(opening))
-          .findFirst()
-          .filter(line -> !cited.contains(line))
-          .ifPresent(cited::add);
-    }
-    return new SupportJudge.Text(element.toString(), item.text(), cited);
-  }
-
-  private static Optional<String> sentence(Question question, WordingAnswer.Item item) {
-    StringBuilder text = new StringBuilder(item.text());
-    boolean cites = false;
-    for (String cite : item.cites()) {
-      Fact fact = question.facts().get(cite);
-      if (fact != null) {
-        text.append(" [fact:").append(fact.id()).append(']');
-        cites = true;
-      }
-    }
-    return cites ? Optional.of(text.toString()) : Optional.empty();
   }
 }

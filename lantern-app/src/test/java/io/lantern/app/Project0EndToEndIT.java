@@ -139,6 +139,9 @@ class Project0EndToEndIT {
                 if (flows != null) {
                   return flows;
                 }
+                if (request.system().contains(FakeLlmConfiguration.PURPOSE_TASK)) {
+                  return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+                }
                 if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
                   return "{}";
                 }
