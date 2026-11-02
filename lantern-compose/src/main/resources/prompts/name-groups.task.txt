@@ -5,4 +5,5 @@ For each item write:
 - for each line [R..], an intent phrase of at most 7 words, starting with a verb, saying what the group does with the other group and why. Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol.
 If two groups in <groups> look like one area of the system, you may say so in merge, with the other group's reference [G..] and a reason of at most 18 words; it is only a suggestion.
 Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it. Each item cites only the references inside that item: a merge reason rests on this group's own facts and answers, never on another item's.
+Every text is an object holding its text and its citations, such as {"text": "Orders", "cites": ["F2"]}, and a merge is {"with": "G2", "reason": {"text": "…", "cites": ["F3"]}}.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.

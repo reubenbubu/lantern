@@ -1066,7 +1066,7 @@ Derivation stores every candidate flow (section 9). This role decides which are 
 Task: choose the flows worth drawing. The item lists flows that static analysis traced through the system, [W1]..., one for each different shape; each shows what starts it and the steps that cross from one container to another.
 Mark a flow significant when it is architecturally meaningful for this system: it crosses services, hands work on asynchronously, handles a failure or compensates for one, is how people enter or use the system, or is how the system starts, stops or runs on a schedule. Prefer flows that carry a business scenario over ones that only read data. There is no target number: a small system may have two such flows and a large one twenty. Do not mark a flow significant only because it is long.
 For every flow, answer significant true or false, a category (cross-service, async-handoff, failure-handling, entry-by-people, lifecycle, scheduled, data-read, other) and a reason of at most 18 words, naming the services or mechanism that make it matter, citing the [F..] facts it rests on. Then give the significant flows in the order a reader should see them: the one that best explains what the system is for first.
-A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
+Write each flow as {"significant": true, "category": "cross-service", "reason": {"text": "…", "cites": ["F2"]}}: the reason is an object holding its text and its citations, never a string with the citations beside it. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 ```
 
@@ -1232,6 +1232,7 @@ For each item write:
 - for each line [R..], an intent phrase of at most 7 words, starting with a verb, saying what the group does with the other group and why. Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol.
 If two groups in <groups> look like one area of the system, you may say so in merge, with the other group's reference [G..] and a reason of at most 18 words; it is only a suggestion.
 Cite facts [F..] and earlier answers [A..]. [R..] and [G..] are keys, not citations. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it. Each item cites only the references inside that item: a merge reason rests on this group's own facts and answers, never on another item's.
+Every text is an object holding its text and its citations, such as {"text": "Orders", "cites": ["F2"]}, and a merge is {"with": "G2", "reason": {"text": "…", "cites": ["F3"]}}.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 ```
 
