@@ -52,7 +52,7 @@ class ResolvedLinksTest {
         "CALLS_HTTP",
         FactObject.entity(EntityId.parse("external-system:tax.example.com")),
         attributes,
-        new Origin(Origin.Kind.LLM, "link-resolver", "1"),
+        new Origin(Origin.Kind.LLM, "resolve", "1"),
         Evidence.of("shop", "Code.java", null, null),
         0.28,
         Validity.from(1));
@@ -67,7 +67,7 @@ class ResolvedLinksTest {
         "PUBLISHES",
         FactObject.entity(EntityId.parse("topic:kafka:audit")),
         attributes,
-        new Origin(Origin.Kind.LLM, "link-resolver", "1"),
+        new Origin(Origin.Kind.LLM, "resolve", "1"),
         Evidence.of("shop", "Code.java", null, null),
         0.18,
         Validity.from(1));

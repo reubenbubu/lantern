@@ -98,7 +98,7 @@ class LinkRuleTest {
   void theStandardRulesRunUnitsValuesLinksThenTheResolver() {
     Rule resolver =
         new Rule(
-            "link-resolver",
+            "resolve",
             Set.of(CrossRepoLinks.UNRESOLVED_LINK),
             Set.of(CrossRepoLinks.CALLS_HTTP, CrossRepoLinks.SENDS_MESSAGES_TO));
 
@@ -119,7 +119,7 @@ class LinkRuleTest {
             "redis-links",
             ProtocolLinks.OPEN_LINKS,
             People.NAME,
-            "link-resolver");
+            "resolve");
   }
 
   @Test

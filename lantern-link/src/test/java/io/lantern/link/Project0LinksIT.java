@@ -180,7 +180,7 @@ class Project0LinksIT {
     resolved.addAll(result.facts());
     fake.sent().stream()
         .filter(sent -> sent.request().messages().size() == 1)
-        .forEach(sent -> prompts.add(sent.request().messages().getFirst().text()));
+        .forEach(sent -> prompts.addAll(items(sent.request().messages().getFirst().text())));
     conversations.addAll(log.conversations());
     fake.sent().stream()
         .flatMap(sent -> sent.request().messages().stream())
@@ -192,43 +192,97 @@ class Project0LinksIT {
     return links;
   }
 
+  private static final java.util.regex.Pattern ITEM =
+      java.util.regex.Pattern.compile(
+          "<item id=\"(I[0-9]+)\">\n(.*?)\n</item>", java.util.regex.Pattern.DOTALL);
+
+  /** The code an item asks about: {@code made in <code>}. */
+  private static final java.util.regex.Pattern MADE_IN =
+      java.util.regex.Pattern.compile("made in (.+?)(?:, under the view |\n)");
+
+  /** The items of a Resolve request, each its text. */
+  static List<String> items(String prompt) {
+    List<String> items = new ArrayList<>();
+    java.util.regex.Matcher item = ITEM.matcher(prompt);
+    while (item.find()) {
+      items.add(item.group(2));
+    }
+    return items;
+  }
+
+  /** The code an item asks about, or null. */
+  private static String code(String item) {
+    java.util.regex.Matcher made = MADE_IN.matcher(item);
+    return made.find() ? made.group(1) : null;
+  }
+
   /**
-   * The answer a model that knows project-0 gives: the reference of the candidate {@link #ANSWERS}
-   * names for the code the prompt asks about, citing it; unknown for any other prompt.
+   * A model that knows project-0: on its first turn it looks up the facts of each unit it will pick
+   * ({@link #ANSWERS}) with a tool (ADR 0081); on its second it submits, for each item, the
+   * candidate {@link #ANSWERS} names for the code it asks about, citing the calling unit's first
+   * fact and one under the candidate; unknown for any other item.
    */
   private static List<io.lantern.llm.LlmToolCall> lookUpTheAnswer(LlmRequest request) {
-    if (request.messages().size() > 1) {
+    String prompt = request.messages().getFirst().text();
+    if (request.messages().size() == 1) {
+      List<io.lantern.llm.LlmToolCall> calls = new ArrayList<>();
+      java.util.Set<String> units = new java.util.TreeSet<>();
+      for (String item : items(prompt)) {
+        String unit = ANSWERS.get(code(item));
+        if (unit != null && units.add(unit)) {
+          calls.add(
+              new io.lantern.llm.LlmToolCall(
+                  "toolu_" + units.size(),
+                  "facts_about",
+                  FactJson.newObject().put("entity", unit)));
+        }
+      }
+      return calls;
+    }
+    if (request.messages().size() != 3) {
       return List.of();
     }
-    String prompt = request.messages().getFirst().text();
-    for (Map.Entry<String, String> answer : ANSWERS.entrySet()) {
-      if (prompt.contains(", in " + answer.getKey() + ".")) {
-        return List.of(
-            new io.lantern.llm.LlmToolCall(
-                "toolu_1", "facts_about", FactJson.newObject().put("entity", answer.getValue())));
+    java.util.regex.Matcher caller =
+        java.util.regex.Pattern.compile("The calling unit: .*\n.*\n<facts>\n\\[(F[0-9]+)\\]")
+            .matcher(prompt);
+    String callerRef = caller.find() ? caller.group(1) : "F1";
+    List<String> entries = new ArrayList<>();
+    java.util.regex.Matcher item = ITEM.matcher(prompt);
+    while (item.find()) {
+      String unit = ANSWERS.get(code(item.group(2)));
+      String pick = "unknown";
+      String candidateRef = null;
+      for (String line : item.group(2).lines().toList()) {
+        if (line.matches("\\[K\\d+] .*")
+            && (unit == null ? line.contains("[K1]") : line.endsWith("] " + unit))) {
+          pick = unit == null ? "unknown" : line.substring(1, line.indexOf(']'));
+          String rest = item.group(2).substring(item.group(2).indexOf(line) + line.length());
+          java.util.regex.Matcher ref =
+              java.util.regex.Pattern.compile("\\[(F[0-9]+)\\]").matcher(rest);
+          candidateRef = ref.find() ? ref.group(1) : null;
+        }
       }
+      entries.add(
+          "\""
+              + item.group(1)
+              + "\": {\"pick\": \""
+              + pick
+              + "\", \"confidence\": \"high\", \"reason\": \"The answer project-0 documents.\","
+              + " \"cites\": [\""
+              + callerRef
+              + "\", \""
+              + candidateRef
+              + "\"]}");
     }
-    return List.of();
+    return List.of(
+        new io.lantern.llm.LlmToolCall(
+            "toolu_submit",
+            "submit",
+            FactJson.parse("{\"items\": {" + String.join(", ", entries) + "}}")));
   }
 
   private static String knownAnswer(LlmRequest request) {
-    String prompt = request.messages().getFirst().text();
-    for (Map.Entry<String, String> answer : ANSWERS.entrySet()) {
-      if (!prompt.contains(", in " + answer.getKey() + ".")) {
-        continue;
-      }
-      for (String line : prompt.lines().toList()) {
-        if (line.matches("\\[C\\d+] .*") && line.endsWith("] " + answer.getValue())) {
-          String ref = line.substring(1, line.indexOf(']'));
-          return "{\"target\": \""
-              + ref
-              + "\", \"confidence\": \"high\", \"cites\": [\""
-              + ref
-              + "\"], \"rationale\": \"The answer project-0 documents.\"}";
-        }
-      }
-    }
-    return "{\"target\": \"unknown\", \"rationale\": \"Not a project-0 case.\"}";
+    return "Done.";
   }
 
   /**
@@ -387,14 +441,14 @@ class Project0LinksIT {
   void theResolverIsAskedOnceAboutEachLinkLeftOpenWithCandidates() {
     for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
       assertThat(prompts)
-          .extracting(p -> p.substring(p.indexOf(", in ") + 5, p.indexOf(".\n")))
+          .extracting(Project0LinksIT::code)
           .containsExactlyInAnyOrderElementsOf(ANSWERS.keySet());
       // The candidates by unit ID, not ranked (ADR 0045): payments first in every case.
       for (String prompt : prompts) {
         assertThat(prompt)
-            .contains("\n[C1] service:com.acme.shop:payments\n")
-            .contains("\n[C2] service:com.acme.shop:storefront-app\n")
-            .doesNotContain("[C3]");
+            .contains("\n[K1] service:com.acme.shop:payments\n")
+            .contains("\n[K2] service:com.acme.shop:storefront-app\n")
+            .doesNotContain("[K3]");
       }
     }
     assertThat(builtResolved).hasSize(ANSWERS.size());
@@ -403,19 +457,20 @@ class Project0LinksIT {
 
   @Test
   void theResolverLooksUpEachAnswersEndpointsWithAToolFirst() {
-    assertThat(conversations).hasSize(2 * ANSWERS.size());
+    // fulfilment's three open links are one conversation, with builds and without (ADR 0105).
+    assertThat(conversations).hasSize(2);
     assertThat(conversations)
         .allSatisfy(
             c -> {
-              assertThat(c.turns()).isEqualTo(2);
-              assertThat(c.toolCalls()).isEqualTo(Map.of("facts_about", 1));
+              assertThat(c.turns()).isEqualTo(3);
+              assertThat(c.toolCalls()).isEqualTo(Map.of("facts_about", 2, "submit", 1));
               assertThat(c.ending()).isEqualTo(io.lantern.llm.LlmConversation.Ending.ANSWERED);
             });
     // HTTP-7 and MSG-5 pick payments, HTTP-6 the storefront app.
     assertThat(toolResults)
-        .hasSize(2 * ANSWERS.size())
-        .anyMatch(r -> r.startsWith("Facts about service:com.acme.shop:payments:\n[T1] "))
-        .anyMatch(r -> r.startsWith("Facts about service:com.acme.shop:storefront-app:\n[T1] "));
+        .anyMatch(r -> r.startsWith("Facts about service:com.acme.shop:payments:\n[F"))
+        .anyMatch(r -> r.startsWith("Facts about service:com.acme.shop:storefront-app:\n[F"))
+        .anyMatch(r -> r.contains("\"I1\":\"accepted\""));
   }
 
   @Test
@@ -435,12 +490,15 @@ class Project0LinksIT {
           .contains("service:com.acme.shop:storefront-app application-name \"storefront\"");
     }
     assertBothResolved(
+        // The answer cites the candidate's endpoint, so the link names it (ADR 0105).
         "service:~:fulfilment CALLS_HTTP service:~:storefront-app {\"client\":\"web-client\","
+            + "\"endpoint\":\"GET /api/orders/{id}\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
-            + "\"path\":\"/api/orders/{id}\",\"protocol\":\"HTTP\","
-            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":"
+            + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
+            + "\"reason\":\"The answer project-0 documents.\",\"resolves\":"
             + "\"GET http://storefront-web:8080/api/orders/{id}\","
-            + "\"source\":\"method:~.fulfilment.OrderClient#order(long)\"}"
+            + "\"source\":\"method:~.fulfilment.OrderClient#order(long)\","
+            + "\"target\":\"method:~.storefront.web.OrderController#order(long)\"}"
             + " @fulfilment:"
             + J
             + "fulfilment/OrderClient.java#18");
@@ -459,16 +517,18 @@ class Project0LinksIT {
             + "fulfilment/PaymentStatusClient.java#19");
     for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
       assertThat(prompt(prompts, "PaymentStatusClient"))
-          .contains("placeholders no config resolves: PAYMENTS_SERVICE_URL")
+          .contains("placeholders no configuration resolves: PAYMENTS_SERVICE_URL")
           .contains("service:com.acme.shop:payments application-name \"payments\"");
     }
     assertBothResolved(
         "service:~:fulfilment CALLS_HTTP service:~:payments {\"client\":\"web-client\","
+            + "\"endpoint\":\"GET /api/orders/{orderId}\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
-            + "\"path\":\"/api/orders/{id}\",\"protocol\":\"HTTP\","
-            + "\"rationale\":\"The answer project-0 documents.\",\"resolves\":"
+            + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
+            + "\"reason\":\"The answer project-0 documents.\",\"resolves\":"
             + "\"GET ${PAYMENTS_SERVICE_URL}/api/orders/{id}\","
-            + "\"source\":\"method:~.fulfilment.PaymentStatusClient#paymentOf(long)\"}"
+            + "\"source\":\"method:~.fulfilment.PaymentStatusClient#paymentOf(long)\","
+            + "\"target\":\"method:~.payments.OrderPaymentController#payment(long)\"}"
             + " @fulfilment:"
             + J
             + "fulfilment/PaymentStatusClient.java#19");
@@ -494,18 +554,19 @@ class Project0LinksIT {
     // Each candidate's binding is in the prompt, under it: only payments' takes refund keys.
     for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
       String prompt = prompt(prompts, "ReturnsPublisher");
-      int payments = prompt.indexOf("\n[C1] service:com.acme.shop:payments\n");
+      int payments = prompt.indexOf("\n[K1] service:com.acme.shop:payments\n");
       int refund = prompt.indexOf("\"routingKey\":\"refund.*\"");
-      int storefront = prompt.indexOf("\n[C2] service:com.acme.shop:storefront-app\n");
+      int storefront = prompt.indexOf("\n[K2] service:com.acme.shop:storefront-app\n");
       int returned = prompt.indexOf("\"routingKey\":\"return.*\"");
       assertThat(List.of(payments, refund, storefront, returned)).as(prompt).isSorted();
       assertThat(payments).as(prompt).isNotNegative();
     }
     assertBothResolved(
         "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"model\":\"fake/fake\","
-            + "\"protocol\":\"AMQP\",\"rationale\":\"The answer project-0 documents.\","
+            + "\"protocol\":\"AMQP\",\"reason\":\"The answer project-0 documents.\","
             + "\"resolves\":\"shop.returns\","
-            + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\"}"
+            + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\","
+            + "\"target\":\"method:~.payments.RefundListener#refundRequested(java.lang.String)\"}"
             + " @fulfilment:"
             + J
             + "fulfilment/ReturnsPublisher.java#19");

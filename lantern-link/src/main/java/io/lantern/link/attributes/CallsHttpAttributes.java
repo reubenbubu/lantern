@@ -53,8 +53,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     or R2DBC.
  * @param proxy Descriptive. For a frontend's link, the path prefix of the proxy it goes through:
  *     the nginx that serves the frontend, or its development server.
- * @param rationale Descriptive. Why the LLM resolver picked this candidate, in its own words.
- *     Present only on links of origin llm.
+ * @param rationale Descriptive. No longer given since #666: reason replaced it. Why the LLM
+ *     resolver picked this candidate, in its own words; kept so facts stored before stay valid.
  * @param reaches Descriptive. For a frontend's call, the method that handles it: the endpoint's
  *     handler, or the method that registers the WebSocket endpoint, of the unit in reachesUnit (ADR
  *     0047, amendment for #331).
@@ -62,6 +62,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     as that unit serves it, such as POST /api/auth/sign-in, or the WebSocket endpoint's path.
  * @param reachesUnit Descriptive. For a frontend's call that reaches an endpoint, the unit that
  *     serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to.
+ * @param reason Descriptive. What settles the LLM resolver's pick, in at most 30 words of its own.
+ *     Present only on links of origin llm.
  * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
  *     link for. Present only on links of origin llm.
  * @param route Descriptive. The id of the gateway route the link is, for a link from a Spring Cloud
@@ -102,6 +104,7 @@ public record CallsHttpAttributes(
     String reaches,
     String reachesEndpoint,
     String reachesUnit,
+    String reason,
     String resolves,
     String route,
     String source,
@@ -141,6 +144,7 @@ public record CallsHttpAttributes(
         AttributeValues.string(attributes, "reaches"),
         AttributeValues.string(attributes, "reachesEndpoint"),
         AttributeValues.string(attributes, "reachesUnit"),
+        AttributeValues.string(attributes, "reason"),
         AttributeValues.string(attributes, "resolves"),
         AttributeValues.string(attributes, "route"),
         AttributeValues.string(attributes, "source"),
@@ -175,6 +179,7 @@ public record CallsHttpAttributes(
     AttributeValues.put(attributes, "reaches", reaches);
     AttributeValues.put(attributes, "reachesEndpoint", reachesEndpoint);
     AttributeValues.put(attributes, "reachesUnit", reachesUnit);
+    AttributeValues.put(attributes, "reason", reason);
     AttributeValues.put(attributes, "resolves", resolves);
     AttributeValues.put(attributes, "route", route);
     AttributeValues.put(attributes, "source", source);

@@ -31,7 +31,9 @@ import tools.jackson.databind.node.ObjectNode;
  *     HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC.
  * @param queue Descriptive. The entity ID of the queue the listener receives from, when an exchange
  *     routes to it.
- * @param rationale Descriptive. Why the LLM resolver picked this candidate, in its own words.
+ * @param rationale Descriptive. No longer given since #666: reason replaced it. Why the LLM
+ *     resolver picked this candidate, in its own words; kept so facts stored before stay valid.
+ * @param reason Descriptive. What settles the LLM resolver's pick, in at most 30 words of its own.
  *     Present only on links of origin llm.
  * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
  *     link for. Present only on links of origin llm.
@@ -56,6 +58,7 @@ public record SendsMessagesToAttributes(
     String protocol,
     String queue,
     String rationale,
+    String reason,
     String resolves,
     String routingKey,
     String source,
@@ -83,6 +86,7 @@ public record SendsMessagesToAttributes(
         AttributeValues.string(attributes, "protocol"),
         AttributeValues.string(attributes, "queue"),
         AttributeValues.string(attributes, "rationale"),
+        AttributeValues.string(attributes, "reason"),
         AttributeValues.string(attributes, "resolves"),
         AttributeValues.string(attributes, "routingKey"),
         AttributeValues.string(attributes, "source"),
@@ -105,6 +109,7 @@ public record SendsMessagesToAttributes(
     AttributeValues.put(attributes, "protocol", protocol);
     AttributeValues.put(attributes, "queue", queue);
     AttributeValues.put(attributes, "rationale", rationale);
+    AttributeValues.put(attributes, "reason", reason);
     AttributeValues.put(attributes, "resolves", resolves);
     AttributeValues.put(attributes, "routingKey", routingKey);
     AttributeValues.put(attributes, "source", source);

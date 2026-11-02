@@ -401,7 +401,7 @@ class SequenceFlowsTest {
                         + "\", \"source\": \""
                         + SERVICE
                         + "\"}"),
-            new Origin(Origin.Kind.LLM, "link-resolver", "1"),
+            new Origin(Origin.Kind.LLM, "resolve", "1"),
             Evidence.of("front", "Code.java", new Evidence.LineRange(22, 22), null),
             0.28,
             Validity.from(1)));
@@ -859,7 +859,7 @@ class SequenceFlowsTest {
                         + "\", \"source\": \""
                         + SERVICE
                         + "\"}"),
-            new Origin(Origin.Kind.LLM, "link-resolver", "1"),
+            new Origin(Origin.Kind.LLM, "resolve", "1"),
             Evidence.of("front", "Code.java", new Evidence.LineRange(22, 22), null),
             0.18,
             Validity.from(1)));

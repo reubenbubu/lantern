@@ -54,6 +54,7 @@ import tools.jackson.databind.json.JsonMapper;
       "lantern.llm.models.fake.provider=fake",
       "lantern.llm.models.fake.id=fake-model",
       "lantern.llm.models.fake.context-window=1000000",
+      "lantern.llm.models.fake.capabilities=tool-use",
       "lantern.llm.models.fake.prices.input=0",
       "lantern.llm.models.fake.prices.output=0",
       "lantern.llm.tiers.high-volume=fake",

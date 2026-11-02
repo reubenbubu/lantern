@@ -75,6 +75,52 @@ public final class GitSourceFiles implements SourceFiles {
     return cat(repo, blob, path, blob);
   }
 
+  /** A line of a file at a commit that holds a text. */
+  public record Match(String path, int line) {}
+
+  /**
+   * The lines of a repository's text files at a commit that hold a text as written, in the order of
+   * their paths and lines, with {@code git grep}; none if git fails.
+   *
+   * @param max the most to give
+   */
+  public java.util.List<Match> grep(String repo, String commit, String text, int max) {
+    Optional<Path> dir = directories.apply(repo);
+    if (dir.isEmpty() || text.isEmpty() || commit.startsWith("-")) {
+      return java.util.List.of();
+    }
+    Git.Result result;
+    try {
+      result =
+          Git.run(dir.get(), "grep", "-n", "-I", "-F", "--null", "--no-color", "-e", text, commit);
+    } catch (RuntimeException e) {
+      LOG.warn("Cannot search {} at {} in {}", text, commit, repo, e);
+      return java.util.List.of();
+    }
+    if (result.exitCode() != 0) {
+      // 1: nothing holds it.
+      return java.util.List.of();
+    }
+    java.util.List<Match> matches = new java.util.ArrayList<>();
+    String prefix = commit + ":";
+    for (String line : result.out().split("\n")) {
+      // commit:path NUL line NUL text
+      String[] parts = line.split("\u0000", 3);
+      if (parts.length < 3 || !parts[0].startsWith(prefix)) {
+        continue;
+      }
+      try {
+        matches.add(new Match(parts[0].substring(prefix.length()), Integer.parseInt(parts[1])));
+      } catch (NumberFormatException e) {
+        continue;
+      }
+      if (matches.size() == max) {
+        break;
+      }
+    }
+    return matches;
+  }
+
   private Optional<byte[]> cat(String repo, String object, String path, String commit) {
     Optional<Path> dir = directories.apply(repo);
     if (dir.isEmpty()) {

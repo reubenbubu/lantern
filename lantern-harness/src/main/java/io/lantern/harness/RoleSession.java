@@ -881,7 +881,7 @@ public final class RoleSession {
       Map<String, ItemAnswer> accepted,
       Map<String, List<Rejection>> rejected) {
     ItemAnswer answer = role.read(id, item, entry);
-    List<Rejection> found = answer.omitted() ? List.of() : Pipeline.STANDARD.check(answer, inputs);
+    List<Rejection> found = answer.omitted() ? List.of() : role.pipeline().check(answer, inputs);
     if (found.isEmpty()) {
       accepted.put(id, answer);
     } else {
@@ -906,12 +906,26 @@ public final class RoleSession {
       PacketRole role,
       io.lantern.llm.ToolBox tools,
       java.util.function.Supplier<List<FileRead>> filesRead) {
+    return converse(items, role, tools, filesRead, stored -> true);
+  }
+
+  /**
+   * Answers items in one agent conversation, as {@link #converse(List, PacketRole,
+   * io.lantern.llm.ToolBox, java.util.function.Supplier)} does, reusing a cached answer only while
+   * it also holds by the role's own test, such as every fact a tool showed it still holding.
+   */
+  public Map<String, Outcome> converse(
+      List<Item> items,
+      PacketRole role,
+      io.lantern.llm.ToolBox tools,
+      java.util.function.Supplier<List<FileRead>> filesRead,
+      java.util.function.Predicate<StoredAnswer> holds) {
     Map<String, Outcome> outcomes = new LinkedHashMap<>();
     List<Item> packet = new ArrayList<>();
     for (Item item : items) {
       String fingerprint = fingerprint(item);
       Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
-      if (stored.isPresent() && revalidated(stored.get())) {
+      if (stored.isPresent() && revalidated(stored.get()) && holds.test(stored.get())) {
         settle(
             outcomes,
             item,
@@ -942,7 +956,11 @@ public final class RoleSession {
     }
     SubmitTool submit =
         new SubmitTool(
-            tools, packet, ids, role, role.inputs(packet, ids).withSecrets(harness.secrets()));
+            tools,
+            packet,
+            ids,
+            role,
+            index -> role.inputs(packet, ids, index).withSecrets(harness.secrets()));
     LlmRequest request =
         role.layout(packet, ids)
             .request(

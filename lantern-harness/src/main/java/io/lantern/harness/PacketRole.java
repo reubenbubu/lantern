@@ -2,6 +2,7 @@ package io.lantern.harness;
 
 import io.lantern.harness.verify.CheckInputs;
 import io.lantern.harness.verify.ItemAnswer;
+import io.lantern.harness.verify.Pipeline;
 import java.util.List;
 import tools.jackson.databind.JsonNode;
 
@@ -37,6 +38,22 @@ public interface PacketRole {
 
   /** An item's entry, read into the checks' form. */
   ItemAnswer read(String id, Item item, JsonNode entry);
+
+  /**
+   * The checks of each item's answer: by default the standard pipeline; a role with checks of its
+   * own, such as Resolve's, adds them to it.
+   */
+  default Pipeline pipeline() {
+    return Pipeline.STANDARD;
+  }
+
+  /**
+   * The input schema of the {@code submit} tool in an agent conversation: the role's submit schema
+   * as the epic writes it, or null for the answer envelope with any entries.
+   */
+  default JsonNode submitSchema() {
+    return null;
+  }
 
   /** An accepted entry as it is stored (JSON). */
   String store(Item item, ItemAnswer accepted);

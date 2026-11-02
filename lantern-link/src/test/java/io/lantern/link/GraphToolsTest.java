@@ -87,7 +87,7 @@ class GraphToolsTest {
   void offersThreeToolsWithObjectSchemas() {
     assertThat(tools().tools())
         .extracting(LlmTool::name)
-        .containsExactly("facts_about", "search_facts", "read_file");
+        .containsExactly("facts_about", "search_facts", "read_file", "find_in_code");
     assertThat(new GraphTools.Graph(List.of(), GraphTools.RepoFiles.NONE).tools().tools())
         .extracting(LlmTool::name)
         .containsExactly("facts_about", "search_facts");
@@ -106,13 +106,13 @@ class GraphToolsTest {
         .isEqualTo(
             """
             Facts that hold "TAXCLIENT":
-            [T1] method:o.TaxClient#quote() http-call "GET ${clients.tax.url}/v2/quotes" \
+            [F1] method:o.TaxClient#quote() http-call "GET ${clients.tax.url}/v2/quotes" \
             (a:src/main/java/o/TaxClient.java)
-            [T2] module:g:orders contains type:o.TaxClient (a:src/main/java/o/TaxClient.java)
+            [F2] module:g:orders contains type:o.TaxClient (a:src/main/java/o/TaxClient.java)
             """);
-    assertThat(again.content()).contains("[T1] method:o.TaxClient#quote() http-call");
-    assertThat(tools.shown()).containsOnlyKeys("T1", "T2");
-    assertThat(tools.shown().get("T2").predicate()).isEqualTo("contains");
+    assertThat(again.content()).contains("[F1] method:o.TaxClient#quote() http-call");
+    assertThat(tools.shown()).containsOnlyKeys("F1", "F2");
+    assertThat(tools.shown().get("F2").predicate()).isEqualTo("contains");
   }
 
   @Test
@@ -129,7 +129,7 @@ class GraphToolsTest {
                     "{\"entity\": \"service:g:orders\", \"predicate\": \"endpoint\"}"))
             .content();
 
-    assertThat(about).contains("[T1] module:g:orders contains type:o.TaxClient");
+    assertThat(about).contains("[F1] module:g:orders contains type:o.TaxClient");
     assertThat(none).startsWith("No facts about type:o.Nothing.");
     assertThat(filtered).contains("with the predicate endpoint");
   }
@@ -197,7 +197,7 @@ class GraphToolsTest {
 
     String found = tools.run(call("search_facts", "{\"text\": \"component\"}")).content();
 
-    assertThat(found.lines().filter(l -> l.startsWith("[T"))).hasSize(GraphTools.MAX_FACTS);
+    assertThat(found.lines().filter(l -> l.startsWith("[F"))).hasSize(GraphTools.MAX_FACTS);
     assertThat(found).endsWith("... and 5 more; narrow the call, for example with a predicate.\n");
   }
 
@@ -252,10 +252,10 @@ class GraphToolsTest {
 
     String found = tools.run(call("search_facts", "{\"text\": \"component\"}")).content();
 
-    long listed = found.lines().filter(l -> l.startsWith("[T")).count();
+    long listed = found.lines().filter(l -> l.startsWith("[F")).count();
     assertThat(listed).isLessThan(30);
     assertThat(tools.shown()).hasSize((int) listed);
-    assertThat(tools.shown().keySet()).first().isEqualTo("T1");
+    assertThat(tools.shown().keySet()).first().isEqualTo("F1");
   }
 
   @Test

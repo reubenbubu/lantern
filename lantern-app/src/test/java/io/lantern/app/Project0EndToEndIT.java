@@ -79,6 +79,7 @@ import tools.jackson.databind.json.JsonMapper;
       "lantern.llm.models.fake.provider=fake",
       "lantern.llm.models.fake.id=fake-model",
       "lantern.llm.models.fake.context-window=1000000",
+      "lantern.llm.models.fake.capabilities=tool-use",
       "lantern.llm.models.fake.prices.input=0",
       "lantern.llm.models.fake.prices.output=0",
       "lantern.llm.tiers.high-volume=fake",
@@ -121,6 +122,7 @@ class Project0EndToEndIT {
     @Bean
     FakeLlmProvider fakeLlmProvider() {
       return new FakeLlmProvider()
+          .callingTools(FakeLlmConfiguration::toolCalls)
           .answering(
               request -> {
                 String check = FakeLlmConfiguration.modelCheck(request);
@@ -136,7 +138,7 @@ class Project0EndToEndIT {
                   return "{}";
                 }
                 if (request.role() == Role.RESOLVE) {
-                  return "{\"target\": \"unknown\", \"rationale\": \"A fake model.\"}";
+                  return "Done.";
                 }
                 // Summarize in the epic's form (ADR 0104).
                 String summary =
@@ -256,9 +258,10 @@ class Project0EndToEndIT {
             "single-instance/service:com.acme.shop:fulfilment");
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
-    // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5.
+    // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5, all fulfilment's,
+    // so one conversation of two turns: the submit and the turn that ends it (ADR 0105).
     long resolves = fake.sent().stream().filter(s -> s.request().role() == Role.RESOLVE).count();
-    assertThat(resolves).isEqualTo(3);
+    assertThat(resolves).isEqualTo(2);
     assertThat(first.linksAsked()).isEqualTo(3);
     EndToEndIT.assertEveryCallCountedUnderItsRole(first, calls);
     assertEveryPlannedItemCountedOnce(first);

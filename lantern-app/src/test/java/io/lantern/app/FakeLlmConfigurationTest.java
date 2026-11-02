@@ -39,7 +39,37 @@ class FakeLlmConfigurationTest {
                     + "[F1] endpoint\n\nIts steps, in order:\n- shop to db\n"))
         .isEqualTo(
             "{\"title\": {\"text\": \"{{placeholder: scenario title}}\", \"cites\": [\"F1\"]}}");
-    assertThat(answer(Role.RESOLVE, "[C1]")).contains("\"target\": \"unknown\"");
+    assertThat(answer(Role.RESOLVE, "[K1]")).isEqualTo("Done.");
+  }
+
+  /**
+   * A Resolve conversation's first turn submits unknown for every item, citing the calling unit's
+   * first fact and the first candidate's, so the checks accept it and the links stay open.
+   */
+  @Test
+  void submitsUnknownForEveryOpenLinkCitingBothSides() {
+    String prompt =
+        "System map: ...\n<facts>\n</facts>\n\nThe calling unit: service:g:a\nIts facts that bear"
+            + " on addresses:\n<facts>\n[F1] service:g:a deployable-unit \"spring-boot\" (a:pom.xml)\n"
+            + "</facts>\n\n<items>\n<item id=\"I1\">\nOpen link: an HTTP call, GET /x\nCandidates:\n"
+            + "[K1] service:g:b\n<facts>\n[F2] service:g:b deployable-unit \"spring-boot\" (b:pom.xml)\n"
+            + "</facts>\n</item>\n<item id=\"I2\">\nOpen link: a message send, q\nCandidates:\n"
+            + "[K1] service:g:c\n</item>\n</items>";
+    LlmRequest request = LlmRequest.of(Role.RESOLVE, "test", "system", prompt, 500);
+
+    var calls = FakeLlmConfiguration.toolCalls(request);
+
+    assertThat(calls).singleElement().satisfies(c -> assertThat(c.name()).isEqualTo("submit"));
+    assertThat(calls.getFirst().input().toString())
+        .isEqualTo(
+            "{\"items\":{\"I1\":{\"pick\":\"unknown\",\"confidence\":\"low\","
+                + "\"reason\":\"A fake model.\",\"cites\":[\"F1\",\"F2\"]},"
+                + "\"I2\":{\"omitted\":true}}}");
+    assertThat(FakeLlmConfiguration.resolve(request, "K1").getFirst().input().toString())
+        .contains("\"pick\":\"K1\"");
+    // Not for another role.
+    assertThat(FakeLlmConfiguration.toolCalls(LlmRequest.of(Role.COMPOSE, "t", "s", prompt, 9)))
+        .isEmpty();
   }
 
   /** The fake's answer to a Summarize request whose item holds the text. */

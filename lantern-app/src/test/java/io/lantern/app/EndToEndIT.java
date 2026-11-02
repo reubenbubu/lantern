@@ -89,6 +89,7 @@ import tools.jackson.databind.json.JsonMapper;
       "lantern.llm.models.fake.provider=fake",
       "lantern.llm.models.fake.id=fake-model",
       "lantern.llm.models.fake.context-window=1000000",
+      "lantern.llm.models.fake.capabilities=tool-use",
       "lantern.llm.models.fake.prices.input=0",
       "lantern.llm.models.fake.prices.output=0",
       "lantern.llm.tiers.high-volume=fake",
@@ -118,6 +119,8 @@ class EndToEndIT {
     @Bean
     FakeLlmProvider fakeLlmProvider() {
       return new FakeLlmProvider()
+          // A link left open is resolved to its first candidate, through submit (ADR 0105).
+          .callingTools(request -> FakeLlmConfiguration.resolve(request, "K1"))
           .answering(
               request -> {
                 String check = FakeLlmConfiguration.modelCheck(request);
@@ -131,8 +134,7 @@ class EndToEndIT {
                 }
                 String prompt = request.messages().getFirst().text();
                 if (request.role() == Role.RESOLVE) {
-                  return "{\"target\": \"C1\", \"confidence\": \"low\", \"cites\": [\"C1\"],"
-                      + " \"rationale\": \"The first candidate.\"}";
+                  return "Done.";
                 }
                 if (request.role() == Role.COMPOSE) {
                   return "{\"walkthrough\": {\"text\": \"It answers a greeting.\","
@@ -760,9 +762,14 @@ class EndToEndIT {
             byRole.getOrDefault(Role.SUMMARIZE, 0L) + byRole.getOrDefault(Role.SUMMARIZE_TYPES, 0L))
         .as("summaries")
         .isEqualTo(run.summariesGenerated());
-    assertThat(byRole.getOrDefault(Role.RESOLVE, 0L))
-        .as("links left open")
-        .isEqualTo(run.linksAsked());
+    // Resolve asks a unit's links left open in conversations of a few turns each (ADR 0105).
+    long resolveCalls =
+        run.roles().stream()
+            .filter(r -> r.role().equals(io.lantern.link.LinkResolver.ROLE.name()))
+            .mapToLong(io.lantern.harness.RoleRecord::calls)
+            .sum();
+    assertThat(byRole.getOrDefault(Role.RESOLVE, 0L)).as("links left open").isEqualTo(resolveCalls);
+    assertThat(resolveCalls > 0).as("links asked").isEqualTo(run.linksAsked() > 0);
     // Describe asks up to 10 elements a request (ADR 0103), and repairs, so its calls are not
     // its items.
     long wordings =
@@ -785,7 +792,7 @@ class EndToEndIT {
     assertThat(calls)
         .isEqualTo(
             run.summariesGenerated()
-                + run.linksAsked()
+                + resolveCalls
                 + wordings
                 + byRole.getOrDefault(Role.JUDGE, 0L)
                 + byRole.getOrDefault(Role.SCREEN, 0L));
