@@ -73,7 +73,6 @@ class ViewDefinitionTest {
     assertThat(system.sections())
         .containsExactly(
             SectionKind.OVERVIEW,
-            SectionKind.START_HERE,
             SectionKind.CONTEXT,
             SectionKind.CONTAINERS,
             SectionKind.COMPONENTS,
