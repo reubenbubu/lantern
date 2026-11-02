@@ -14,8 +14,9 @@ prompts as they are now in prompts/ (wording-judge-role.task.txt and
 wording-judge-specific.task.txt), and prints, for each question, how many texts the labels
 pass the judge passes, how many the labels fail it fails, and each text it got wrong with its
 reasoning (docs/adr/0113-prompts-folder.md). Edit a prompt and run again: no rebuild. It
-makes real calls on the wording judge's model (about \$0.30 a round on Sonnet); a rerun with
-unchanged prompts reuses the stored answers and costs nothing.
+makes real calls on the model the settings file gives the wording-judge role (about \$0.30 a
+round when that is Sonnet), without asking first; a rerun with unchanged prompts reuses the
+stored answers and costs nothing.
 
 It starts the local database through scripts/launch.sh, which it leaves running; stop it with
 scripts/teardown.sh.
@@ -63,9 +64,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -f "$llm_file" ]] || die "LLM settings file not found: $llm_file (see --help)"
-if [[ -z "${ANTHROPIC_API_KEY:-}" && -f "$key_file" ]]; then
-  ANTHROPIC_API_KEY="$(tr -d '[:space:]' < "$key_file")"
-  export ANTHROPIC_API_KEY
+if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+  if [[ -f "$key_file" ]]; then
+    ANTHROPIC_API_KEY="$(tr -d '[:space:]' < "$key_file")"
+    export ANTHROPIC_API_KEY
+  else
+    echo "judge-labels.sh: no Anthropic key file at $key_file and ANTHROPIC_API_KEY is not set;" \
+      "a model reached through the Anthropic API will refuse the calls" >&2
+  fi
 fi
 
 exec "$REPO/scripts/launch.sh" --yes --llm-properties "$llm_file" \
