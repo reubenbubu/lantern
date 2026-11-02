@@ -73,15 +73,26 @@ source 1 instead), the extended-thinking page, LIFEBench (arXiv 2505.16234) and 
 - **Lead investigations: first-answer rejections fell from 59% to 20%** on both sets, by stating
   that each name must appear in a cited range, that the repository is the name before the first
   colon, and that a tool the cited code does not show must not be named at all.
-- **Flow walkthroughs: rejections fell from 24 to 2**, and the judge found fewer inaccurate
-  statements (32 against 42 on project-4, 20 against 18 on project-2).
+- **Flow walkthroughs: repairs fell from 24 to 3 on project-4 and from 2 to 0 on project-2.** Asked
+  for 70 words of the check's 80, they came out thinner and skipped steps (the judge preferred the
+  old 42 to 21). Asked for 75 words covering every step, saying only what the steps show, and, for
+  a queued message, that it was sent rather than what its receiver does, the judge preferred the new
+  34 to 29, with fewer inaccurate statements (57 against 66).
 - **Asking for much less than the check allows, and banning the words of a part's name, cost
   substance.** The second round asked for 20 words where the check allows 25, 6-word intents where
   it allows 8, and said "do not repeat the words of its name". The judge preferred the old unit
   descriptions 16 to 5 and counted more inaccurate statements in the new (29 against 18): the model
   swapped the code's own terms for vaguer ones ("group" for organization, "forgotten-secret" for
   password) and repeated one generic intent across many interactions. The check behind that rule
-  only rejects a sentence whose first six words mostly repeat the name.
+  only rejects a sentence whose first six words mostly repeat the name. With that clause worded as
+  "do not open by echoing its name", the code's own terms encouraged, and the limits at 22 of 25 and
+  7 of 8 words, the judge preferred the old unit descriptions 10 to 8 with 2 ties, and found fewer
+  inaccurate statements in the new (17 against 22).
+- **The name check itself rejected good sentences.** "Stores and returns each payment's transaction
+  history in time order" and 13 others like it were rejected because two of their first six words
+  were the part's name's. The check now also requires the sentence to add fewer than three content
+  words beyond the name (plurals matched, empty words such as "handles" or "service" not counted),
+  so "Handles orders for the service" is still rejected.
 
 ## Options
 
@@ -97,11 +108,16 @@ source 1 instead), the extended-thinking page, LIFEBench (arXiv 2505.16234) and 
 ## Recommendation
 
 Option 1, with two limits learned from the experiment: ask for about 90% of a word limit (30 of
-35, 22 of 25, 7 of 8, 18 of 20), not less; and word each rule as narrowly as its check: "do not open
-by echoing its name", not "never use its words", with the code's own terms encouraged.
+35, 22 of 25, 7 of 8, 18 of 20, 75 of 80), not less; word each rule as narrowly as its check: "do
+not open by echoing its name", not "never use its words", with the code's own terms encouraged; and
+judge every change for quality against the old answers, since rejections alone rewarded thinner
+texts. The experiment cost about $14 of real calls: the lab $0.72, the judge about $8.70, the runs
+about $4.60.
 
 ## What it changes
 
 Section 11 of `docs/epics/001-knowledge-build.md`: the role instructions state the rules their
-checks reject on, ask for less than the check accepts, and end with a checklist (amended by #685).
+checks reject on, ask for less than the check accepts, and end with a checklist; and the Form
+check's restated-name rule also requires the sentence to add little beyond the name (both amended by
+#685).
 The bar is unchanged.
