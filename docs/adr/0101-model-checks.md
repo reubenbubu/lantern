@@ -1,6 +1,6 @@
 # 0101: Model checks: the support judge and the injection screen
 
-Status: accepted (#526)
+Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier)
 
 ## Context
 

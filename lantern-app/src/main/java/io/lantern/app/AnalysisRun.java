@@ -403,7 +403,10 @@ public final class AnalysisRun {
       // The LLM words the responsibilities of the snapshot's units and components and the intent
       // of their links, and narrates the main flows, from every fact that holds in it, carried
       // forward repositories included (ADR 0050, ADR 0058), and of no other system (ADR 0071).
-      List<Fact> systemFacts = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
+      // The texts an earlier run's roles stored are left out: this run words them again, and the
+      // documents take the words of this run (ADR 0103).
+      List<Fact> systemFacts =
+          Describer.withoutTexts(facts.findValidAt(snapshot.number(), snapshot.commits().keySet()));
       // Each repository's documents are composed from its extracted facts, so its flows are traced
       // from those.
       // Their prompts show the code of components, read from every registered repository, carried
@@ -417,7 +420,25 @@ public final class AnalysisRun {
                           .map(Repo::path))
               .withSecretKeys(secretKeys);
       Describer.Result described =
-          new Describer(harness, allSources).describe(systemFacts, extracted);
+          new Describer(harness, allSources)
+              .describe(systemFacts, extracted, summarized.summaries());
+      // What Describe wrote is stored as claims of origin llm before anything is composed
+      // (knowledge-build epic, section 6, Derived and LLM facts).
+      Map<Origin, List<Fact>> llmFacts = described.facts(snapshot.number());
+      recordLlmFacts(snapshot, llmFacts);
+      Map<String, Long> storedTexts =
+          llmFacts.values().stream()
+              .flatMap(List::stream)
+              .collect(
+                  java.util.stream.Collectors.groupingBy(
+                      Fact::predicate,
+                      java.util.TreeMap::new,
+                      java.util.stream.Collectors.counting()));
+      LOG.info(
+          "Describe stored {}; left {} elements, components and interactions unknown: {}",
+          storedTexts,
+          described.unknown().size(),
+          described.unknown());
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
       List<Fact> screened = screen(harness, snapshot);
@@ -512,6 +533,20 @@ public final class AnalysisRun {
           documents,
           runRecord);
     }
+  }
+
+  /**
+   * Records the facts the LLM roles wrote, each role's by its origin, so that afterwards exactly
+   * these hold in the snapshot: a text the role did not write this time, such as one not asked
+   * under a budget, stops holding and is unknown.
+   */
+  private void recordLlmFacts(Snapshot snapshot, Map<Origin, List<Fact>> byOrigin) {
+    transaction.executeWithoutResult(
+        status ->
+            byOrigin.forEach(
+                (origin, found) ->
+                    facts.recordDerived(
+                        snapshot.number(), origin, snapshot.commits().keySet(), found)));
   }
 
   /** The records, after warning of a role whose items did not each land in one count (#654). */

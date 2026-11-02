@@ -740,9 +740,12 @@ public final class RoleSession {
             .request(
                 spec.modelRole(),
                 spec.name() + " " + packet.size() + " items: " + packet.getFirst().subject(),
-                role.maxOutputTokens(packet.size()),
+                role.maxOutputTokens(packet),
                 List.of());
-    CheckInputs inputs = role.inputs(packet, ids).withSecrets(harness.secrets());
+    List<CheckInputs> inputs = new ArrayList<>();
+    for (int i = 0; i < packet.size(); i++) {
+      inputs.add(role.inputs(packet, ids, i).withSecrets(harness.secrets()));
+    }
     List<Item> missing = new ArrayList<>();
     try {
       long expected = (long) spec.expectedOutputTokens() * packet.size();
@@ -750,6 +753,7 @@ public final class RoleSession {
       Map<String, ItemAnswer> accepted = new LinkedHashMap<>();
       Map<String, List<Rejection>> rejected = new LinkedHashMap<>();
       Optional<Map<String, JsonNode>> entries = Envelope.entries(first.text());
+      Map<String, JsonNode> firstEntries = entries.orElse(Map.of());
       for (int i = 0; i < packet.size(); i++) {
         String id = ids.get(i);
         if (entries.isEmpty()) {
@@ -768,7 +772,7 @@ public final class RoleSession {
           missing.add(packet.get(i));
           continue;
         }
-        check(id, packet.get(i), entry, role, inputs, accepted, rejected);
+        check(id, packet.get(i), entry, role, inputs.get(i), accepted, rejected);
       }
       Map<String, Boolean> repairedIds = new LinkedHashMap<>();
       if (!rejected.isEmpty()) {
@@ -784,10 +788,20 @@ public final class RoleSession {
         Map<String, JsonNode> corrected = Envelope.entries(second.text()).orElse(Map.of());
         for (String id : List.copyOf(rejected.keySet())) {
           Item item = packet.get(ids.indexOf(id));
-          JsonNode entry = corrected.get(id);
+          JsonNode entry = repaired(firstEntries.get(id), rejected.get(id), corrected.get(id));
           Map<String, List<Rejection>> again = new LinkedHashMap<>();
           if (entry != null) {
-            check(id, item, entry, role, inputs, accepted, again);
+            check(id, item, entry, role, inputs.get(ids.indexOf(id)), accepted, again);
+            // A field rejected again is left out, and the rest of the item kept.
+            if (again.containsKey(id) && !Entries.whole(again.get(id))) {
+              JsonNode kept = Entries.without(entry, again.get(id));
+              again.remove(id);
+              if (Entries.empty(kept)) {
+                entry = null;
+              } else {
+                check(id, item, kept, role, inputs.get(ids.indexOf(id)), accepted, again);
+              }
+            }
           }
           if (entry == null || again.containsKey(id)) {
             settle(
@@ -838,6 +852,24 @@ public final class RoleSession {
       return List.of();
     }
     return missing;
+  }
+
+  /**
+   * An item's entry after a repair turn: the first answer without its rejected fields, with the
+   * correction over it; the correction alone when the whole item was rejected; {@code null} when
+   * nothing is left.
+   */
+  private static JsonNode repaired(
+      JsonNode first, List<Rejection> rejections, JsonNode correction) {
+    if (correction != null && correction.isObject() && correction.has("omitted")) {
+      return correction;
+    }
+    if (first == null || !first.isObject() || Entries.whole(rejections)) {
+      return correction;
+    }
+    tools.jackson.databind.node.ObjectNode merged =
+        Entries.overlay(Entries.without(first, rejections), correction);
+    return Entries.empty(merged) ? null : merged;
   }
 
   private static void check(

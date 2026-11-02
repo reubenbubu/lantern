@@ -1,6 +1,6 @@
 # 0083: Frontend containers
 
-Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, amended for #369, amended for #394
+Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, amended for #369, amended for #394, amended by ADR 0103 (#528: a frontend with a responsibility sentence is described by it)
 
 ## Context
 

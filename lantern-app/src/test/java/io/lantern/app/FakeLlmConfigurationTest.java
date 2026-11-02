@@ -40,4 +40,56 @@ class FakeLlmConfigurationTest {
             "{\"title\": {\"text\": \"{{placeholder: scenario title}}\", \"cites\": [\"F1\"]}}");
     assertThat(answer(Role.RESOLVE, "[C1]")).contains("\"target\": \"unknown\"");
   }
+
+  private String describe(String task, String items) {
+    return fake.complete(
+            "fake-model", LlmRequest.of(Role.INFER_INTENT, "test", "Rules.\n\n" + task, items, 500))
+        .text();
+  }
+
+  @Test
+  void describeGetsAPlaceholderForEveryUnitComponentInteractionAndElement() {
+    String units =
+        """
+        <items>
+        <item id="I1">
+        The deployable unit shop.
+        <facts>
+        [F1] service:a:shop deployable-unit "spring-boot" (shop:pom.xml)
+        </facts>
+        Components:
+        [C1] Orders
+        Interactions:
+        [R1] calls pay (an external system)
+        <facts>
+        [F2] service:a:shop CALLS_HTTP external-system:pay (shop:pom.xml)
+        </facts>
+        </item>
+        <item id="I2">
+        The deployable unit shop.
+        Part 2 of the unit: say nothing about the unit itself.
+        <facts>
+        [F3] service:a:shop deployable-unit "spring-boot" (shop:pom.xml)
+        </facts>
+        </item>
+        <item id="I3">
+        The deployable unit empty.
+        </item>
+        </items>""";
+
+    assertThat(describe("Task: describe deployable units. More.", units))
+        .isEqualTo(
+            "{\"items\": {\"I1\": {\"unit\": {\"text\": \"{{placeholder: responsibility}}\","
+                + " \"cites\": [\"F1\"]}, \"components\": {\"C1\": {\"text\":"
+                + " \"{{placeholder: responsibility}}\", \"cites\": [\"F1\"]}},"
+                + " \"interactions\": {\"R1\": {\"text\": \"{{placeholder: intent}}\","
+                + " \"cites\": [\"F1\"]}}}, \"I2\": {}, \"I3\": {\"omitted\": true}}}");
+    assertThat(
+            describe(
+                "Task: describe the elements the units use. More.",
+                "<items>\n<item id=\"I1\">\nThe topic orders.\n[F4] fact\n</item>\n</items>"))
+        .isEqualTo(
+            "{\"items\": {\"I1\": {\"responsibility\": {\"text\":"
+                + " \"{{placeholder: responsibility}}\", \"cites\": [\"F4\"]}}}}");
+  }
 }

@@ -226,6 +226,136 @@ class PacketsTest {
     assertThat(repair).doesNotContain("item=\"I1\"").doesNotContain("item=\"I3\"");
   }
 
+  /** A role whose items each get two optional texts, {@code a} and {@code b}, citing F1 to F3. */
+  static final PacketRole TWO_TEXTS =
+      new PacketRole() {
+        @Override
+        public PromptLayout layout(List<Item> packet, List<String> ids) {
+          return SENTENCES.layout(packet, ids);
+        }
+
+        @Override
+        public int maxOutputTokens(int items) {
+          return 100 * items;
+        }
+
+        @Override
+        public CheckInputs inputs(List<Item> packet, List<String> ids) {
+          return new CheckInputs(
+              JSON.readTree(
+                  """
+                  {"type": "object", "additionalProperties": false,
+                   "properties": {
+                     "a": {"type": "object", "required": ["text", "cites"]},
+                     "b": {"type": "object", "required": ["text", "cites"]}}}
+                  """),
+              Map.of("F1", "a", "F2", "b", "F3", "c"),
+              Set.of('F'),
+              false,
+              (repo, path) -> Optional.empty(),
+              Map.of(),
+              Set.of());
+        }
+
+        @Override
+        public ItemAnswer read(String id, Item item, JsonNode entry) {
+          List<CheckedText> texts = new ArrayList<>();
+          for (String field : List.of("a", "b")) {
+            JsonNode text = entry.path(field);
+            if (text.isObject()) {
+              List<String> cites = new ArrayList<>();
+              text.path("cites").forEach(c -> cites.add(c.asString()));
+              texts.add(
+                  new CheckedText(
+                      field,
+                      CheckedText.Kind.PROSE,
+                      text.path("text").asString(),
+                      cites,
+                      40,
+                      item.subject(),
+                      Set.of()));
+            }
+          }
+          return new ItemAnswer(id, entry, texts, List.of());
+        }
+
+        @Override
+        public String store(Item item, ItemAnswer accepted) {
+          return accepted.raw().toString();
+        }
+      };
+
+  @Test
+  void aRepairCorrectsTheRejectedTextAndKeepsTheAcceptedOne() {
+    FakeLlmProvider fake =
+        answering(
+            request ->
+                request.messages().size() > 1
+                    ? "{\"items\": {\"I1\": {\"b\": {\"text\": \"Fixed\", \"cites\": [\"F2\"]}}}}"
+                    : "{\"items\": {\"I1\": {\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]},"
+                        + " \"b\": {\"text\": \"Bad\", \"cites\": [\"F9\"]}}}}");
+
+    Outcome outcome =
+        harness(client(fake), store)
+            .session(ROLE)
+            .askPackets(List.of(item("orders")), TWO_TEXTS)
+            .get("orders");
+
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(fake.sent().get(1).request().messages().getLast().text())
+        .contains("<rejection item=\"I1\" field=\"b\">")
+        .doesNotContain("field=\"a\"");
+    assertThat(outcome.kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(JSON.readTree(outcome.answer()))
+        .isEqualTo(
+            JSON.readTree(
+                "{\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]},"
+                    + " \"b\": {\"text\": \"Fixed\", \"cites\": [\"F2\"]}}"));
+  }
+
+  @Test
+  void aTextRejectedAgainIsLeftOutAndTheAcceptedOneKept() {
+    FakeLlmProvider fake =
+        answering(
+            request ->
+                request.messages().size() > 1
+                    ? "{\"items\": {\"I1\": {\"b\": {\"text\": \"Bad\", \"cites\": [\"F8\"]}}}}"
+                    : "{\"items\": {\"I1\": {\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]},"
+                        + " \"b\": {\"text\": \"Bad\", \"cites\": [\"F9\"]}}}}");
+
+    Outcome outcome =
+        harness(client(fake), store)
+            .session(ROLE)
+            .askPackets(List.of(item("orders")), TWO_TEXTS)
+            .get("orders");
+
+    assertThat(outcome.kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(JSON.readTree(outcome.answer()))
+        .isEqualTo(JSON.readTree("{\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]}}"));
+    assertThat(store.size()).isEqualTo(1);
+  }
+
+  @Test
+  void aWithdrawnTextIsLeftOutAndTheAcceptedOneKept() {
+    FakeLlmProvider fake =
+        answering(
+            request ->
+                request.messages().size() > 1
+                    ? "{\"items\": {\"I1\": {}}}"
+                    : "{\"items\": {\"I1\": {\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]},"
+                        + " \"b\": {\"text\": \"Bad\", \"cites\": [\"F9\"]}}}}");
+
+    Outcome outcome =
+        harness(client(fake), store)
+            .session(ROLE)
+            .askPackets(List.of(item("orders")), TWO_TEXTS)
+            .get("orders");
+
+    assertThat(outcome.kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(JSON.readTree(outcome.answer()))
+        .isEqualTo(JSON.readTree("{\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]}}"));
+  }
+
   @Test
   void aMissingItemIsAskedAgainAloneOnceThenNotAsked() {
     // The model never answers payments, and answers invoices only when asked alone.

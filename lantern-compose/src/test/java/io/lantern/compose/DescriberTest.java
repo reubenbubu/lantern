@@ -79,12 +79,12 @@ class DescriberTest {
   }
 
   /**
-   * Words each unit, its components and relationships from what its prompt shows: the shop app's
-   * components and its send, the worker's call, each citing the first fact; and the database and
-   * the topic, citing their uses, leaving the external system out; and each flow's title,
-   * walkthrough and post-conditions, citing its entry point and send, leaving its pre-conditions
-   * out; and the system's purpose, citing its README's first claim where it shows one, else the
-   * first fact.
+   * Words each unit, its components and interactions from what its item shows: the shop app, its
+   * first component, its call and send, the worker and its call, each citing a fact of the item;
+   * and the database and the topic, citing their uses, leaving the external system out; and each
+   * flow's title, walkthrough and post-conditions, citing its entry point and send, leaving its
+   * pre-conditions out; and the system's purpose, citing its README's first claim where it shows
+   * one, else the first fact.
    */
   private static String answer(LlmRequest request) {
     String prompt = request.messages().getFirst().text();
@@ -101,34 +101,86 @@ class DescriberTest {
            "postconditions": {"text": "The orders are announced.", "cites": ["F%1$s"]}}"""
           .formatted(ref(prompt, "PUBLISHES"));
     }
-    if (prompt.startsWith("The database")) {
+    java.util.regex.Matcher items =
+        java.util.regex.Pattern.compile(
+                "<item id=\"(I[0-9]+)\">\n(.*?)\n</item>", java.util.regex.Pattern.DOTALL)
+            .matcher(prompt);
+    List<String> entries = new java.util.ArrayList<>();
+    while (items.find()) {
+      String answer = item(items.group(2));
+      entries.add("\"" + items.group(1) + "\": " + answer);
+    }
+    return "{\"items\": {" + String.join(", ", entries) + "}}";
+  }
+
+  /** The answer about one item. */
+  private static String item(String body) {
+    if (body.startsWith("The database")) {
       return """
-          {"element": {"text": "Keeps the shop's orders.", "cites": ["F%s"]}}"""
-          .formatted(ref(prompt, "USES_DATABASE"));
+          {"responsibility": {"text": "Keeps the shop's orders.", "cites": ["F%s"]}}"""
+          .formatted(ref(body, "USES_DATABASE"));
     }
-    if (prompt.startsWith("The topic")) {
+    if (body.startsWith("The topic")) {
       return """
-          {"element": {"text": "Carries new orders to background processing.",
-                       "cites": ["F%s", "F%s"]}}"""
-          .formatted(ref(prompt, "PUBLISHES"), ref(prompt, "CONSUMES"));
+          {"responsibility": {"text": "Carries each new purchase to background processing.",
+                              "cites": ["F%s", "F%s"]}}"""
+          .formatted(ref(body, "PUBLISHES"), ref(body, "CONSUMES"));
     }
-    if (prompt.startsWith("The external system")) {
-      return "{}";
+    if (!body.startsWith("The deployable unit")) {
+      return "{\"omitted\": true}";
     }
-    if (prompt.startsWith("The deployable unit shop-app")) {
+    if (body.startsWith("The deployable unit shop-app")) {
       return """
           {"unit": {"text": "Takes and lists the shop's orders.", "cites": ["F1", "F2"]},
-           "components": {"C1": {"text": "Lists orders for the web shop.", "cites": ["F5"]}},
-           "relationships": {"R1": {"text": "Charges customers' cards", "cites": ["F%s"]},
-                             "R2": {"text": "Announces new orders.", "cites": ["F%s"]}}}
-          """
-          .formatted(ref(prompt, "CALLS_HTTP"), ref(prompt, "PUBLISHES"));
+           "components": {"C1": {"text": "Lists orders for the web shop.", "cites": [%s]}},
+           "interactions": {"%s": {"text": "Charges customers' cards", "cites": ["F%s"]},
+                            "%s": {"text": "Announces new orders.", "cites": ["F%s"]}}}"""
+          .formatted(
+              componentCites(body, "C1"),
+              interaction(body, "CALLS_HTTP"),
+              ref(body, "CALLS_HTTP"),
+              interaction(body, "PUBLISHES"),
+              ref(body, "PUBLISHES"));
     }
     return """
         {"unit": {"text": "Processes orders in the background.", "cites": ["F1"]},
-         "relationships": {"R1": {"text": "Fetches the order list", "cites": ["F%s"]}}}
-        """
-        .formatted(ref(prompt, "CALLS_HTTP"));
+         "interactions": {"%s": {"text": "Fetches the order list", "cites": ["F%s"]}}}"""
+        .formatted(interaction(body, "CALLS_HTTP"), ref(body, "CALLS_HTTP"));
+  }
+
+  /** The key of the first interaction whose fact has the predicate. */
+  private static String interaction(String body, String predicate) {
+    String key = null;
+    for (String line : body.split("\n")) {
+      if (line.startsWith("[R")) {
+        key = line.substring(1, line.indexOf(']'));
+      } else if (key != null && line.contains(" " + predicate + " ")) {
+        return key;
+      }
+    }
+    throw new IllegalStateException("No interaction with " + predicate + " in:\n" + body);
+  }
+
+  /** The first fact shown under the component and its code excerpt, if it shows one. */
+  private static String componentCites(String body, String component) {
+    boolean in = false;
+    List<String> cites = new java.util.ArrayList<>();
+    for (String line : body.split("\n")) {
+      String stripped = line.strip();
+      if (line.startsWith("[" + component + "] ")) {
+        in = true;
+      } else if (in && (line.startsWith("[C") || line.equals("Interactions:"))) {
+        break;
+      } else if (in && cites.isEmpty() && stripped.startsWith("[F")) {
+        cites.add("\"" + stripped.substring(1, stripped.indexOf(']')) + "\"");
+      } else if (in && stripped.startsWith("<code ref=\"")) {
+        cites.add("\"" + stripped.substring(11, stripped.indexOf('"', 11)) + "\"");
+      }
+    }
+    if (cites.isEmpty()) {
+      throw new IllegalStateException("No fact under " + component + " in:\n" + body);
+    }
+    return String.join(", ", cites);
   }
 
   /** The number of the reference of the first fact line in the prompt with the predicate. */
@@ -270,32 +322,34 @@ class DescriberTest {
     assertThat(fake.sent())
         .extracting(s -> s.request().role() + " " + s.request().purpose())
         .containsExactlyInAnyOrder(
-            "INFER_INTENT word unit " + APP,
-            "INFER_INTENT word unit " + WORKER,
-            "INFER_INTENT word element " + DATABASE,
-            "INFER_INTENT word element " + TOPIC,
-            "INFER_INTENT word element " + PAY,
+            "INFER_INTENT describe-unit 1 items: " + APP,
+            "INFER_INTENT describe-unit 1 items: " + WORKER,
+            "DESCRIBE_ELEMENTS describe-element 1 items: " + DATABASE,
+            "DESCRIBE_ELEMENTS describe-element 1 items: " + TOPIC,
+            "DESCRIBE_ELEMENTS describe-element 1 items: " + PAY,
             "COMPOSE narrate flow " + LIST_FLOW,
             "COMPOSE narrate flow " + RUN_FLOW,
             "INFER_INTENT word the system's purpose");
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
-            .filter(p -> p.startsWith("The deployable unit shop-app"))
+            .filter(p -> p.contains("The deployable unit shop-app"))
             .findFirst()
             .orElseThrow();
     assertThat(app)
         .startsWith(
-            "The deployable unit shop-app, built with Spring Boot 3.5.0 / Java 21.\n\n"
-                + "Facts about the unit:\n"
+            "<items>\n<item id=\"I1\">\n"
+                + "The deployable unit shop-app, built with Spring Boot 3.5.0 / Java 21.\n"
+                + "Facts that make it a unit:\n<facts>\n"
                 + "[F1] service:com.example:app application-name \"shop-app\" (shop:pom.xml)\n"
                 + "[F2] service:com.example:app deployable-unit \"spring-boot\" (shop:pom.xml)\n")
         .contains("\nComponents:\n[C1] Controller, Spring MVC REST controller\n")
         .contains("\n[C2] Jobs, Scheduled job\n")
         .contains("\n[C3] JpaOrders, Spring repository\n")
-        .contains("\nRelationships:\n[R1] calls pay.example.com (an external system)\n")
-        .contains("[R2] sends messages to orders (a topic)\n")
-        .contains("[R3] connects to shop on db (a database)\n")
+        .contains("\nInteractions:\n[R1] calls pay.example.com (an external system)\n")
+        .contains("\n[R2] sends messages to orders (a topic)\n")
+        .contains("\n[R3] connects to shop on db (a database)\n")
+        .contains("\n[R4] Controller calls JpaOrders (a component)\n")
         // No fact IDs: they change with every commit.
         .doesNotContain(facts.find(APP.toString(), "CALLS_HTTP").id());
   }
@@ -316,32 +370,41 @@ class DescriberTest {
                 .filter(r -> r.purpose().equals(purpose))
                 .findFirst()
                 .orElseThrow();
-    LlmRequest database = request.apply("word element " + DATABASE);
-    assertThat(database.system()).isEqualTo(WordingPrompt.ELEMENT_SYSTEM);
-    assertThat(database.maxOutputTokens()).isEqualTo(Describer.MAX_ELEMENT_OUTPUT_TOKENS);
+    LlmRequest database = request.apply("describe-element 1 items: " + DATABASE);
+    assertThat(database.system()).contains(DescribeRole.ELEMENT_TASK);
     assertThat(database.messages().getFirst().text())
         .isEqualTo(
             """
+            <items>
+            <item id="I1">
             The database shop on db, PostgreSQL.
-
             Facts about it:
+            <facts>
             [F1] database:db:5432/shop technology "PostgreSQL" (shop:pom.xml)
-
-            Tables of the schemas built in it:
+            </facts>
+            What is built in it:
+            <facts>
             [F2] schema:com.example:app CONTAINS table:com.example:app:orders (shop:pom.xml)
-
-            How it is used:
+            </facts>
+            How the units use it:
             shop-app (a deployable unit) connects to it:
-              [F3] service:com.example:app USES_DATABASE database:db:5432/shop\
+            <facts>
+            [F3] service:com.example:app USES_DATABASE database:db:5432/shop\
              {"protocol":"JDBC","schemas":["schema:com.example:app"]} (shop:pom.xml)
-            """);
-    assertThat(request.apply("word element " + TOPIC).messages().getFirst().text())
-        .startsWith("The topic orders, Kafka topic.\n\nHow it is used:\n")
-        .contains("\nshop-app (a deployable unit) sends messages to it:\n  [F1] ")
-        .contains("\nworker (a deployable unit) receives messages from it:\n  [F2] ");
-    assertThat(request.apply("word element " + PAY).messages().getFirst().text())
-        .startsWith(
-            "The external system pay.example.com.\n\nHow it is used:\n"
+            </facts>
+            What the units that use it do:
+            <answers>
+            [A1] shop-app: Takes and lists the shop's orders.
+            </answers>
+            </item>
+            </items>""");
+    assertThat(request.apply("describe-element 1 items: " + TOPIC).messages().getFirst().text())
+        .contains("The topic orders, Kafka topic.\nHow the units use it:\n")
+        .contains("\nshop-app (a deployable unit) sends messages to it:\n<facts>\n[F1] ")
+        .contains("\nworker (a deployable unit) receives messages from it:\n<facts>\n[F2] ");
+    assertThat(request.apply("describe-element 1 items: " + PAY).messages().getFirst().text())
+        .contains(
+            "The external system pay.example.com.\nHow the units use it:\n"
                 + "shop-app (a deployable unit) calls it:\n");
   }
 
@@ -480,7 +543,8 @@ class DescriberTest {
     DocumentEntity topic =
         document.entities().stream().filter(e -> e.id().equals(TOPIC)).findFirst().orElseThrow();
     assertThat(text(topic.description()))
-        .isEqualTo(Assembler.INFERRED_SENTENCE + " Carries new orders to background processing.");
+        .isEqualTo(
+            Assembler.INFERRED_SENTENCE + " Carries each new purchase to background processing.");
     // Left out by the model: no description, as before.
     assertThat(
             document.entities().stream()
@@ -954,10 +1018,15 @@ class DescriberTest {
         new FakeLlmProvider()
             .answering(
                 request ->
-                    """
-                    {"unit": {"text": "Uses things.", "cites": ["F99"]},
-                     "element": {"text": "Holds things.", "cites": ["F99"]},
-                     "walkthrough": {"text": "Does things.", "cites": ["F99"]}}""");
+                    request.system().contains(DescribeRole.UNIT_TASK)
+                        ? """
+                        {"items": {"I1": {"unit": {"text": "Uses things.", "cites": ["F99"]}}}}"""
+                        : request.system().contains(DescribeRole.ELEMENT_TASK)
+                            ? """
+                            {"items": {"I1":
+                              {"responsibility": {"text": "Holds things.", "cites": ["F99"]}}}}"""
+                            : """
+                            {"walkthrough": {"text": "Does things.", "cites": ["F99"]}}""");
 
     Describer.Result result = describe(fake);
 
@@ -965,8 +1034,8 @@ class DescriberTest {
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
         .contains(
-            "word unit " + APP + " (retry)",
-            "word element " + DATABASE + " (retry)",
+            "describe-unit 1 items: " + APP + " (repair)",
+            "describe-element 1 items: " + DATABASE + " (repair)",
             "narrate flow " + LIST_FLOW + " (retry)");
     assertThat(fake.sent())
         .filteredOn(s -> s.request().purpose().endsWith("(retry)"))
@@ -974,13 +1043,20 @@ class DescriberTest {
             s ->
                 assertThat(s.request().messages().getLast().text())
                     .startsWith(
-                        "Your answer was rejected: the "
-                            + (s.request().purpose().startsWith("word unit")
+                        "Your answer was rejected: the walkthrough cites F99, which is not a fact"
+                            + " in the input."));
+    assertThat(fake.sent())
+        .filteredOn(s -> s.request().purpose().endsWith("(repair)"))
+        .allSatisfy(
+            s ->
+                assertThat(s.request().messages().getLast().text())
+                    .contains(
+                        "<rejection item=\"I1\" field=\""
+                            + (s.request().purpose().startsWith("describe-unit")
                                 ? "unit"
-                                : s.request().purpose().startsWith("narrate")
-                                    ? "walkthrough"
-                                    : "element")
-                            + " cites F99, which is not a fact in the input."));
+                                : "responsibility")
+                            + "\">")
+                    .contains("F99"));
     assertThat(result.rejected())
         .containsExactlyInAnyOrder(APP, WORKER, DATABASE, TOPIC, PAY, LIST, RUN);
     // Without a unit's sentence or a README claim, the system's purpose is not asked about.
@@ -1080,6 +1156,7 @@ class DescriberTest {
     assertThat(fake.sent()).isEmpty();
     assertThat(result.asked()).isZero();
     assertThat(new ArrayList<>(result.wordings().responsibilities().keySet())).isEmpty();
+    assertThat(result.unknown()).containsExactly("service:g:lonely");
   }
 
   @Test
@@ -1244,7 +1321,7 @@ class DescriberTest {
   private static String appPrompt(FakeLlmProvider fake) {
     return fake.sent().stream()
         .map(s -> s.request().messages().getFirst().text())
-        .filter(p -> p.startsWith("The deployable unit shop-app"))
+        .filter(p -> p.contains("The deployable unit shop-app"))
         .reduce((a, b) -> b)
         .orElseThrow();
   }
@@ -1269,30 +1346,25 @@ class DescriberTest {
     Describer.Result result = new Describer(harness(client(fake)), sources).describe(withCode);
 
     String app = appPrompt(fake);
-    String declared =
-        "type:com.example.web.Controller kind \"class\" (shop:" + CONTROLLER_PATH + ")";
     assertThat(app)
         .contains(
-            "] "
-                + declared
-                + "\n  Code of "
+            "</facts>\n<code ref=\"E1\" repo=\"shop\" path=\""
                 + CONTROLLER_PATH
-                + ", without its package and imports:\n"
-                + "```java\n"
-                + "/** Serves the shop's order list to the web shop. */\n"
-                + "@RestController\n"
-                + "class Controller {\n"
-                + "  private String password = \"******\";\n"
-                + "\n"
-                + "  List<String> list() {\n"
-                + "    return List.of();\n"
-                + "  }\n"
-                + "}\n"
-                + "```\n[C2] Jobs")
+                + "\" lines=\"8-16\">\n"
+                + " 8  /** Serves the shop's order list to the web shop. */\n"
+                + " 9  @RestController\n"
+                + "10  class Controller {\n"
+                + "11    private String password = \"******\";\n"
+                + "12  \n"
+                + "13    List<String> list() {\n"
+                + "14      return List.of();\n"
+                + "15    }\n"
+                + "16  }\n"
+                + "</code>\n[C2] Jobs")
         .doesNotContain("hunter2")
         .doesNotContain("Licensed")
         .doesNotContain("import java.util.List")
-        .doesNotContain("Code of " + JOBS_PATH);
+        .doesNotContain("path=\"" + JOBS_PATH);
     assertThat(result.wordings().documented()).containsExactly(controller.id());
   }
 
@@ -1300,7 +1372,7 @@ class DescriberTest {
   void codeIsCutAtALineOnceTheComponentsShareIsReached() {
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
     StringBuilder code = new StringBuilder("class Controller {\n");
-    int lines = Describer.MAX_CODE_CHARS / 20 + 10;
+    int lines = DescribeItems.MAX_CODE_CHARS / 20 + 10;
     for (int i = 0; i < lines; i++) {
       code.append("  int field").append(String.format("%05d", i)).append(" = 1;\n");
     }
@@ -1312,18 +1384,16 @@ class DescriberTest {
         .describe(withCode);
 
     String app = appPrompt(fake);
-    String shown =
-        app.substring(app.indexOf("```java\n") + 8, app.indexOf("\n```", app.indexOf("```java")));
-    assertThat(shown.length()).isLessThanOrEqualTo(Describer.MAX_CODE_CHARS);
-    int left = lines + 2 - shown.split("\n").length;
-    assertThat(left).isPositive();
-    assertThat(app)
-        .contains(
-            "Code of "
-                + CONTROLLER_PATH
-                + ", without its package and imports, the last "
-                + left
-                + " lines left out:\n");
+    int open = app.indexOf("<code ref=\"E1\"");
+    String shown = app.substring(app.indexOf('\n', open) + 1, app.indexOf("\n</code>", open));
+    String range = app.substring(app.indexOf("lines=\"", open) + 7, app.indexOf("\">", open));
+    int last = Integer.parseInt(range.substring(range.indexOf('-') + 1));
+    // The file has the class line, the fields and the closing brace; the excerpt stops before.
+    assertThat(last).isLessThan(lines + 2);
+    assertThat(shown.lines().count()).isEqualTo(last);
+    int width = String.valueOf(last).length() + 2;
+    assertThat(shown.lines().map(l -> l.substring(width)).collect(Collectors.joining("\n")))
+        .hasSizeLessThanOrEqualTo(DescribeItems.MAX_CODE_CHARS);
     assertThat(shown).endsWith(" = 1;");
   }
 
@@ -1359,7 +1429,7 @@ class DescriberTest {
         .hasSize(calls + 1)
         .last()
         .extracting(s -> s.request().purpose())
-        .isEqualTo("word unit " + APP);
+        .isEqualTo("describe-unit 1 items: " + APP);
     assertThat(appPrompt(fake)).contains("orders()");
   }
 
@@ -1403,5 +1473,376 @@ class DescriberTest {
     // The prompt about the system's purpose shows the fact without its code.
     Paragraph first = (Paragraph) documented.sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(Assembler.INFERRED + " Runs an online shop.");
+  }
+
+  /**
+   * The common prompt and Describe's are the epic's, character for character (knowledge-build epic,
+   * sections 11.0 and 11.4).
+   */
+  @Test
+  void theDescribePromptsAreTheEpics() throws Exception {
+    String epic =
+        java.nio.file.Files.readString(
+            java.nio.file.Path.of("../docs/epics/001-knowledge-build.md"));
+
+    for (String prompt :
+        List.of(
+            io.lantern.harness.checks.CommonPrompt.SYSTEM,
+            DescribeRole.UNIT_TASK,
+            DescribeRole.UNIT_SCHEMA,
+            DescribeRole.ELEMENT_TASK,
+            DescribeRole.ELEMENT_SCHEMA)) {
+      assertThat(epic).contains(prompt.strip());
+    }
+  }
+
+  @Test
+  void theSameFactsMakeTheSameRequestsEveryTime() {
+    FakeLlmProvider one = new FakeLlmProvider().answering(DescriberTest::answer);
+    FakeLlmProvider two = new FakeLlmProvider().answering(DescriberTest::answer);
+    List<Fact> shuffled = new ArrayList<>(facts.list());
+    java.util.Collections.reverse(shuffled);
+
+    new Describer(
+            new Harness(
+                client(one), new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+    new Describer(
+            new Harness(
+                client(two), new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(shuffled);
+
+    Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .filter(r -> r.purpose().startsWith("describe-"))
+                .map(r -> r.purpose() + "\n" + r.system() + "\n" + r.messages())
+                .sorted()
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one)).hasSize(5);
+  }
+
+  @Test
+  void aUnitsTextsAreStoredAsResponsibilityAndIntentFacts() {
+    Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
+
+    Map<io.lantern.core.fact.Origin, List<Fact>> stored = result.facts(SNAPSHOT.number());
+    List<Fact> units = stored.get(io.lantern.harness.LlmFacts.origin(DescribeRole.UNITS));
+    List<Fact> elements = stored.get(io.lantern.harness.LlmFacts.origin(DescribeRole.ELEMENTS));
+
+    assertThat(units)
+        .extracting(
+            f -> f.subject() + " " + f.predicate() + " " + f.attributes().get("text").asString())
+        .contains(
+            APP + " responsibility Takes and lists the shop's orders.",
+            "component:"
+                + APP
+                + "/type:com.example.web.Controller responsibility Lists orders for the web shop.",
+            APP + " intent Charges customers' cards",
+            WORKER + " intent Fetches the order list");
+    Fact charge =
+        units.stream()
+            .filter(f -> f.attributes().get("text").asString().equals("Charges customers' cards"))
+            .findFirst()
+            .orElseThrow();
+    Fact call = facts.find(APP.toString(), "CALLS_HTTP");
+    assertThat(charge.object().value())
+        .isEqualTo(call.claimId() != null ? call.claimId() : call.id());
+    assertThat(charge.attributes().get("cites").get(0).asString()).isEqualTo(call.id());
+    assertThat(charge.attributes().get("basis").asString()).isEqualTo("inferred");
+    assertThat(charge.origin().kind()).isEqualTo(io.lantern.core.fact.Origin.Kind.LLM);
+    assertThat(elements)
+        .extracting(f -> f.subject() + " " + f.attributes().get("text").asString())
+        .containsExactlyInAnyOrder(
+            DATABASE + " Keeps the shop's orders.",
+            TOPIC + " Carries each new purchase to background processing.");
+  }
+
+  /** The unit's answer, with the given texts for the unit and its first interaction. */
+  private static Function<LlmRequest, String> unitSaying(String unit, String intent) {
+    return request -> {
+      if (!request.system().contains(DescribeRole.UNIT_TASK)) {
+        return answer(request);
+      }
+      if (request.messages().size() > 1) {
+        return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+      }
+      String body = request.messages().getFirst().text();
+      return """
+          {"items": {"I1": {"unit": {"text": "%s", "cites": ["F1"]},
+            "interactions": {"R1": {"text": "%s", "cites": ["F%s"]}}}}}"""
+          .formatted(unit, intent, ref(body, "CALLS_HTTP"));
+    };
+  }
+
+  private static String repair(FakeLlmProvider fake, EntityId unit) {
+    return fake.sent().stream()
+        .filter(s -> s.request().purpose().equals("describe-unit 1 items: " + unit + " (repair)"))
+        .map(s -> s.request().messages().getLast().text())
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new AssertionError(
+                    fake.sent().stream()
+                        .map(
+                            sent ->
+                                sent.request().purpose()
+                                    + " -> "
+                                    + sent.request().messages().size())
+                        .toList()
+                        .toString()));
+  }
+
+  @Test
+  void aBannedOpeningAProtocolWordAndARestatedNameAreSentBackForRepair() {
+    FakeLlmProvider opening =
+        new FakeLlmProvider()
+            .answering(unitSaying("Shop app for the shop.", "Calls the payment provider"));
+    describe(opening);
+    assertThat(repair(opening, APP))
+        .contains("<rejection item=\"I1\" field=\"unit\">Restates its subject's name")
+        .contains("<rejection item=\"I1\" field=\"interactions.R1\">")
+        .contains("starts with an opening that says nothing about intent");
+
+    FakeLlmProvider protocol =
+        new FakeLlmProvider()
+            .answering(unitSaying("Takes the shop's orders.", "Charges cards over HTTPS"));
+    new Describer(
+            new Harness(
+                client(protocol),
+                new InMemoryAnswerStore(),
+                RunBudget.NONE,
+                BlobLookup.NONE,
+                Set.of()))
+        .describe(facts.list());
+    assertThat(repair(protocol, APP))
+        .contains("names the protocol HTTPS")
+        .doesNotContain("field=\"unit\"");
+  }
+
+  @Test
+  void aComponentMayNameWhatItsCodeShowsWhenItCitesTheCode() {
+    Fact controller = kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, TestFacts.COMMIT);
+    List<Fact> withCode = new ArrayList<>(facts.list());
+    withCode.add(controller);
+    SourceFiles sources = files(Map.of(CONTROLLER_PATH, CONTROLLER_CODE));
+    Function<String, Function<LlmRequest, String>> citing =
+        cites ->
+            request -> {
+              if (!request.system().contains(DescribeRole.UNIT_TASK)
+                  || !request.messages().getFirst().text().contains("shop-app")) {
+                return answer(request);
+              }
+              if (request.messages().size() > 1) {
+                return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+              }
+              return """
+                  {"items": {"I1": {"components":
+                    {"C1": {"text": "Serves the list() of orders to the web shop.", "cites": [%s]}}}}}"""
+                  .formatted(cites);
+            };
+
+    FakeLlmProvider withExcerpt = new FakeLlmProvider().answering(citing.apply("\"F5\", \"E1\""));
+    Describer.Result shown =
+        new Describer(harness(client(withExcerpt)), sources).describe(withCode);
+    assertThat(withExcerpt.sent())
+        .noneMatch(s -> s.request().purpose().endsWith(APP + " (repair)"));
+    assertThat(
+            shown
+                .facts(SNAPSHOT.number())
+                .get(io.lantern.harness.LlmFacts.origin(DescribeRole.UNITS)))
+        .anySatisfy(
+            f -> {
+              assertThat(f.subject().toString()).endsWith("/" + CONTROLLER);
+              // Code with Javadoc counts as what people wrote.
+              assertThat(f.attributes().get("basis").asString()).isEqualTo("evidenced");
+            });
+
+    FakeLlmProvider factsOnly = new FakeLlmProvider().answering(citing.apply("\"F5\""));
+    new Describer(
+            new Harness(
+                client(factsOnly),
+                new InMemoryAnswerStore(),
+                RunBudget.NONE,
+                BlobLookup.NONE,
+                Set.of()),
+            sources)
+        .describe(withCode);
+    assertThat(repair(factsOnly, APP)).contains("field=\"components.C1\">Names list,");
+  }
+
+  @Test
+  void aUnitWithMoreThan25ComponentsIsSplitIntoItemsOverTheSameUnit() {
+    TestFacts many = TestFacts.runtime();
+    for (int i = 0; i < 30; i++) {
+      String type = "type:com.example.web.Service" + i;
+      String component = "component:" + APP + "/" + type;
+      many.relate("shop", "package:com.example:app:com.example.web", "CONTAINS", type)
+          .attribute("shop", type, "stereotype", "service", "{}")
+          .relate("shop", component, "PART_OF", APP.toString(), "{\"role\": \"shared\"}")
+          .relate("shop", component, "ANCHORED_ON", type);
+    }
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.system().contains(DescribeRole.UNIT_TASK)
+                        ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
+                        : answer(request));
+
+    new Describer(harness(client(fake))).describe(many.list());
+
+    Function<String, String> part =
+        subject ->
+            fake.sent().stream()
+                .filter(s -> s.request().purpose().equals("describe-unit 1 items: " + subject))
+                .map(s -> s.request().messages().getFirst().text())
+                .findFirst()
+                .orElseThrow();
+    assertThat(part.apply(APP.toString()))
+        .contains("\n[C25] ")
+        .doesNotContain("[C26] ")
+        .doesNotContain("Interactions:")
+        .doesNotContain("Part ");
+    assertThat(part.apply(APP + "#2"))
+        .contains("Part 2 of the unit: say nothing about the unit itself.")
+        .contains("\n[C8] ")
+        .doesNotContain("[C9] ")
+        .doesNotContain("Interactions:");
+    assertThat(part.apply(APP + "#3"))
+        .contains("Part 3 of the unit")
+        .contains("Interactions:\n[R1] ")
+        .doesNotContain("Components:");
+  }
+
+  @Test
+  void aRerunOverTheStoredTextsMakesNoCall() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    Describer.Result first = describe(fake);
+    int calls = fake.sent().size();
+    List<Fact> withTexts = new ArrayList<>(facts.list());
+    first.facts(SNAPSHOT.number()).values().forEach(withTexts::addAll);
+
+    Describer.Result again = new Describer(harness(client(fake))).describe(withTexts);
+
+    assertThat(fake.sent()).hasSize(calls);
+    assertThat(again.reused()).isEqualTo(first.asked());
+  }
+
+  @Test
+  void aWordedFrontendIsDescribedByItsSentence() {
+    TestFacts withFrontend =
+        TestFacts.runtime()
+            .attribute(
+                "shop",
+                "frontend:shop/web",
+                "frontend-app",
+                "angular",
+                "{\"name\":\"web\",\"directory\":\"web\",\"framework\":\"Angular\","
+                    + "\"version\":\"19.2\",\"server\":\"nginx\","
+                    + "\"technology\":\"Angular 19.2 · nginx\"}")
+            .relate(
+                "shop",
+                "frontend:shop/web",
+                "CALLS_HTTP",
+                "service:com.example:app",
+                "{\"httpMethod\":\"GET\",\"path\":\"/orders\",\"protocol\":\"JSON/HTTP\","
+                    + "\"url\":\"http://shop-app:8080/orders\",\"matchedBy\":\"host\"}");
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.messages().getFirst().text().contains("The deployable unit web")
+                        ? """
+                        {"items": {"I1": {"unit": {"text": "Lets shoppers browse orders.",
+                          "cites": ["F1"]}}}}"""
+                        : answer(request));
+
+    Describer.Result result = new Describer(harness(client(fake))).describe(withFrontend.list());
+    assertThat(result.wordings().responsibilities())
+        .containsKey(EntityId.parse("frontend:shop/web"));
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                withFrontend.list(),
+                Map.of(),
+                result.wordings());
+    assertThat(
+            document.entities().stream()
+                .filter(e -> e.id().toString().equals("frontend:shop/web"))
+                .map(e -> text(e.description()))
+                .findFirst()
+                .orElseThrow())
+        .contains("Lets shoppers browse orders.");
+  }
+
+  @Test
+  void anItemMayNotCiteWhatAnotherItemOfItsRequestShows() {
+    TestFacts two =
+        TestFacts.runtime()
+            .relate(
+                "shop",
+                APP.toString(),
+                "CALLS_HTTP",
+                "external-system:mail.example.com",
+                "{\"protocol\": \"HTTPS\", \"httpMethod\": \"POST\", \"path\": \"/send\"}");
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  if (!request.system().contains(DescribeRole.ELEMENT_TASK)
+                      || !request.messages().getFirst().text().contains("pay.example.com")) {
+                    return answer(request);
+                  }
+                  if (request.messages().size() > 1) {
+                    return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+                  }
+                  // I1's own fact is F1; F2 is what I2 shows.
+                  return """
+                      {"items": {
+                        "I1": {"responsibility": {"text": "Takes card payments.", "cites": ["F2"]}},
+                        "I2": {"responsibility": {"text": "Sends the shop's mail.", "cites": ["F2"]}}}}""";
+                });
+
+    new Describer(harness(client(fake))).describe(two.list());
+
+    String request =
+        fake.sent().stream()
+            .filter(s -> s.request().purpose().startsWith("describe-element 2 items"))
+            .map(s -> s.request().messages().getFirst().text())
+            .findFirst()
+            .orElseThrow();
+    assertThat(request)
+        .contains("<item id=\"I1\">\nThe external system pay.example.com")
+        .contains("<item id=\"I2\">\nThe external system mail.example.com");
+    assertThat(
+            fake.sent().stream()
+                .filter(s -> s.request().purpose().endsWith("(repair)"))
+                .map(s -> s.request().messages().getLast().text())
+                .filter(t -> t.contains("<rejection"))
+                .findFirst()
+                .orElseThrow())
+        .contains("<rejection item=\"I1\" field=\"responsibility\">Cites F2")
+        .doesNotContain("item=\"I2\"");
+  }
+
+  @Test
+  void aUnitsRequestHasRoomForATextPerComponentAndInteraction() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+
+    describe(fake);
+
+    LlmRequest app =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().equals("describe-unit 1 items: " + APP))
+            .findFirst()
+            .orElseThrow();
+    // The unit, 3 components and 5 interactions.
+    assertThat(app.maxOutputTokens()).isGreaterThanOrEqualTo(Math.max(1_000, 150 * 4 + 90 * 5));
   }
 }

@@ -115,13 +115,19 @@ public record LlmProperties(
    */
   ModelSettings modelSettings() {
     for (Tier tier : Tier.values()) {
-      if (!tiers.containsKey(tier)) {
+      // The bulk tier may be left unset: it then uses the high-volume tier's model.
+      if (tier != Tier.BULK && !tiers.containsKey(tier)) {
         throw new IllegalStateException(
             "lantern.llm.tiers." + kebab(tier) + " is not set; every tier needs a model");
       }
     }
     ModelSettings settings =
         ModelSettings.byTier(
+            model(
+                tiers.containsKey(Tier.BULK)
+                    ? "lantern.llm.tiers.bulk"
+                    : "lantern.llm.tiers.high-volume",
+                tiers.getOrDefault(Tier.BULK, tiers.get(Tier.HIGH_VOLUME))),
             model("lantern.llm.tiers.high-volume", tiers.get(Tier.HIGH_VOLUME)),
             model("lantern.llm.tiers.reasoning", tiers.get(Tier.REASONING)));
     for (Map.Entry<Role, String> role : roles.entrySet()) {

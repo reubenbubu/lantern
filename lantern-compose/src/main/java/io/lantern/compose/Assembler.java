@@ -147,8 +147,9 @@ final class Assembler {
         || (C4Views.DESTINATIONS.contains(id.type()) && responsibility(id) != null)
         // A person is described by what the code shows of them (ADR 0074).
         || (id.type().equals(C4Views.PERSON) && personBasis(id) != null)
-        // A frontend by what its manifest and Dockerfile say (ADR 0083).
-        || (id.type().equals(C4Views.FRONTEND) && responsibility(id) == null)) {
+        // A frontend by its responsibility sentence, or else by what its manifest and Dockerfile
+        // say (ADR 0083).
+        || id.type().equals(C4Views.FRONTEND)) {
       undescribed.add(id);
     }
     return id;

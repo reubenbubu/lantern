@@ -17,9 +17,11 @@ import org.springframework.context.annotation.Profile;
  * FakeLlmProvider#NAME} in the LLM settings (ADR 0009), which uses any {@code LlmProvider} bean.
  *
  * <p>It never calls out. A summary cites the first part's summary and the first fact it is given;
- * it words nothing when asked for responsibilities, intent phrases or narration, so documents keep
- * their static labels, except a flow's title, a placeholder in place of the scenario a model would
- * name; and it answers "unknown" to a link left open, so such links stay open.
+ * Describe gets a placeholder responsibility for every unit, component and element and a
+ * placeholder intent for every interaction, each citing the item's first fact; it narrates no flow
+ * and words no purpose, so those keep their static prose, except a flow's title, a placeholder in
+ * place of the scenario a model would name; and it answers "unknown" to a link left open, so such
+ * links stay open.
  *
  * <p>Every text it words is wrapped in {@code {{ }}} with a hint of what a real model would write
  * there, such as {@code {{placeholder: summary of class Order}}}, so a reader of a document made
@@ -47,6 +49,10 @@ class FakeLlmConfiguration {
               String check = modelCheck(request);
               if (check != null) {
                 return check;
+              }
+              String described = describe(request);
+              if (described != null) {
+                return described;
               }
               if (request.role() == Role.COMPOSE && flow(request)) {
                 // A flow's title is a heading: marked as the fake's, so the reader ignores it.
@@ -87,6 +93,20 @@ class FakeLlmConfiguration {
     return null;
   }
 
+  /**
+   * A Describe answer that leaves every item out, for a fake that words nothing, or null for
+   * another request.
+   */
+  static String describeNothing(LlmRequest request) {
+    return describes(request) ? items(request, "{\"omitted\": true}") : null;
+  }
+
+  /** Whether the request asks a Describe role (knowledge-build epic, section 11.4). */
+  private static boolean describes(LlmRequest request) {
+    return request.system().contains("Task: describe deployable units.")
+        || request.system().contains("Task: describe the elements the units use.");
+  }
+
   /** An answer envelope giving every item of the request the same entry. */
   private static String items(LlmRequest request, String entry) {
     java.util.regex.Matcher ids =
@@ -95,6 +115,72 @@ class FakeLlmConfiguration {
     List<String> entries = new ArrayList<>();
     while (ids.find()) {
       entries.add("\"" + ids.group(1) + "\": " + entry);
+    }
+    return "{\"items\": {" + String.join(", ", entries) + "}}";
+  }
+
+  /** The responsibility the fake gives every unit, component and element Describe asks about. */
+  static final String RESPONSIBILITY = "{{placeholder: responsibility}}";
+
+  /** The intent the fake gives every interaction Describe asks about. */
+  static final String INTENT = "{{placeholder: intent}}";
+
+  private static final Pattern ITEM =
+      Pattern.compile("<item id=\"(I[0-9]+)\">\n(.*?)\n</item>", Pattern.DOTALL);
+  private static final Pattern FACT_REF = Pattern.compile("\\[(F[0-9]+)\\]");
+  private static final Pattern KEY = Pattern.compile("(?m)^\\[([CR][0-9]+)\\] ");
+
+  /**
+   * The fake's answer to a Describe request (knowledge-build epic, section 11.4), or null for
+   * another: every unit, component, element and interaction gets a placeholder citing the item's
+   * first fact, so a fake run stores a responsibility or intent for everything Describe asks about.
+   */
+  static String describe(LlmRequest request) {
+    if (!describes(request)) {
+      return null;
+    }
+    boolean elements = request.system().contains("Task: describe the elements the units use.");
+    Matcher items = ITEM.matcher(request.messages().getFirst().text());
+    List<String> entries = new ArrayList<>();
+    while (items.find()) {
+      String body = items.group(2);
+      Matcher fact = FACT_REF.matcher(body);
+      if (!fact.find()) {
+        entries.add("\"" + items.group(1) + "\": {\"omitted\": true}");
+        continue;
+      }
+      String cite = "{\"text\": \"%s\", \"cites\": [\"" + fact.group(1) + "\"]}";
+      if (elements) {
+        entries.add(
+            "\""
+                + items.group(1)
+                + "\": {\"responsibility\": "
+                + cite.formatted(RESPONSIBILITY)
+                + "}");
+        continue;
+      }
+      List<String> fields = new ArrayList<>();
+      if (!body.contains("say nothing about the unit itself")) {
+        fields.add("\"unit\": " + cite.formatted(RESPONSIBILITY));
+      }
+      List<String> components = new ArrayList<>();
+      List<String> interactions = new ArrayList<>();
+      Matcher key = KEY.matcher(body);
+      while (key.find()) {
+        String ref = key.group(1);
+        if (ref.startsWith("C")) {
+          components.add("\"" + ref + "\": " + cite.formatted(RESPONSIBILITY));
+        } else {
+          interactions.add("\"" + ref + "\": " + cite.formatted(INTENT));
+        }
+      }
+      if (!components.isEmpty()) {
+        fields.add("\"components\": {" + String.join(", ", components) + "}");
+      }
+      if (!interactions.isEmpty()) {
+        fields.add("\"interactions\": {" + String.join(", ", interactions) + "}");
+      }
+      entries.add("\"" + items.group(1) + "\": {" + String.join(", ", fields) + "}");
     }
     return "{\"items\": {" + String.join(", ", entries) + "}}";
   }

@@ -113,7 +113,7 @@ class Project0EndToEndIT {
   static class Fake {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, words
-     * nothing when asked for responsibilities and intent phrases (ADR 0050) or to narrate a flow
+     * nothing when asked for responsibilities and intent phrases (ADR 0103) or to narrate a flow
      * (ADR 0058), so the report keeps the static labels and prose this test checks, and answers
      * unknown when asked to resolve a link left open (ADR 0045), so those links stay open; {@code
      * Project0LinksIT} checks the resolver's picks.
@@ -126,6 +126,10 @@ class Project0EndToEndIT {
                 String check = FakeLlmConfiguration.modelCheck(request);
                 if (check != null) {
                   return check;
+                }
+                String nothing = FakeLlmConfiguration.describeNothing(request);
+                if (nothing != null) {
+                  return nothing;
                 }
                 String prompt = request.messages().getFirst().text();
                 if (request.role() == Role.INFER_INTENT || request.role() == Role.COMPOSE) {
