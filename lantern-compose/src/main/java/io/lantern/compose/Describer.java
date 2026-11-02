@@ -178,7 +178,9 @@ public final class Describer {
     }
   }
 
-  /** The facts without the responsibilities, intents and summaries the LLM roles wrote. */
+  /**
+   * The facts without the responsibilities, intents, summaries and group names the LLM roles wrote.
+   */
   public static List<Fact> withoutTexts(Collection<Fact> facts) {
     return facts.stream()
         .filter(
@@ -186,7 +188,8 @@ public final class Describer {
                 f.origin().kind() != io.lantern.core.fact.Origin.Kind.LLM
                     || !(f.predicate().equals(io.lantern.harness.LlmFacts.RESPONSIBILITY)
                         || f.predicate().equals(io.lantern.harness.LlmFacts.INTENT)
-                        || f.predicate().equals(io.lantern.harness.LlmFacts.SUMMARY)))
+                        || f.predicate().equals(io.lantern.harness.LlmFacts.SUMMARY)
+                        || f.predicate().equals(NameGroups.DISPLAY_NAME)))
         .toList();
   }
 

@@ -196,10 +196,7 @@ public final class NameGroups {
         intents.putIfAbsent(fact.object().value().toString(), fact);
       }
     }
-    Set<String> technologies = new TreeSet<>();
-    knowledge
-        .withPredicate("technology")
-        .forEach(f -> technologies.add(f.object().value().toString()));
+    Set<String> technologies = technologies(knowledge);
     List<Named> named = new ArrayList<>();
     for (String kind : List.of(Groups.FEATURE_AREA, Groups.DOMAIN)) {
       List<Groups.Group> groups = Groups.of(knowledge, kind);
@@ -250,9 +247,34 @@ public final class NameGroups {
         "Name groups: {} groups, {} facts written, {} merge suggestions, {} unnamed",
         named.size(),
         written.size(),
-        findings.size(),
+        findings.stream().map(Fact::subject).distinct().count(),
         unknown.size());
-    return new Result(written, findings, unknown);
+    Map<EntityId, Fact> oneEach = new LinkedHashMap<>();
+    findings.forEach(f -> oneEach.putIfAbsent(f.subject(), f));
+    return new Result(written, List.copyOf(oneEach.values()), unknown);
+  }
+
+  /** The predicates whose values name a technology: a product or framework. */
+  static final List<String> TECHNOLOGY_PREDICATES =
+      List.of("technology", "broker-technology", "database-technology");
+
+  /**
+   * The products and frameworks the snapshot's technology facts name, without versions: "Spring
+   * Boot 3.5.14 / Java 21" names Spring Boot and Java.
+   */
+  static Set<String> technologies(Knowledge knowledge) {
+    Set<String> names = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+    for (String predicate : TECHNOLOGY_PREDICATES) {
+      for (Fact fact : knowledge.withPredicate(predicate)) {
+        for (String part : fact.object().value().toString().split("[/,;+()]")) {
+          String product = part.replaceAll("\\s+v?[0-9][0-9A-Za-z.\\-]*", " ").strip();
+          if (product.length() > 2 && !product.matches("[0-9.]+")) {
+            names.add(product);
+          }
+        }
+      }
+    }
+    return names;
   }
 
   /**
@@ -331,7 +353,7 @@ public final class NameGroups {
     text.append("Members:\n");
     List<String> members = new ArrayList<>();
     for (EntityId member : group.members()) {
-      String name = FactLines.oneLine(assembler.name(member));
+      String name = FactLines.oneLine(name(knowledge, assembler, member));
       members.add(name);
       text.append("- ").append(name);
       Fact said = responsibilities.get(member);
@@ -362,7 +384,7 @@ public final class NameGroups {
         text.append('[')
             .append(Refs.token(ref))
             .append("] to ")
-            .append(FactLines.oneLine(endName(assembler, scoped, line.to())))
+            .append(FactLines.oneLine(endName(knowledge, assembler, scoped, line.to())))
             .append(" (")
             .append(line.protocol())
             .append(")\n");
@@ -370,9 +392,9 @@ public final class NameGroups {
           inputs.add(DescribeRole.input(member));
           Fact intent = intents.get(member.claimId() != null ? member.claimId() : member.id());
           String what =
-              FactLines.oneLine(assembler.name(member.subject()))
+              FactLines.oneLine(name(knowledge, assembler, member.subject()))
                   + " -> "
-                  + FactLines.oneLine(assembler.name(Knowledge.object(member)));
+                  + FactLines.oneLine(name(knowledge, assembler, Knowledge.object(member)));
           if (intent != null) {
             String phrase = FactLines.oneLine(intent.attributes().path("text").asString());
             text.append("  [")
@@ -421,11 +443,28 @@ public final class NameGroups {
   }
 
   /** The name of a line's other end: a group by its key's last part, else the element's. */
-  private static String endName(Assembler assembler, List<Groups.Group> groups, EntityId end) {
+  private static String endName(
+      Knowledge knowledge, Assembler assembler, List<Groups.Group> groups, EntityId end) {
     if (groups.stream().anyMatch(g -> g.id().equals(end))) {
       return "the group " + end;
     }
-    return assembler.name(end);
+    return name(knowledge, assembler, end);
+  }
+
+  /**
+   * The name diagrams give an element: a component by its anchor, as the component diagram names
+   * it, the gateway's routes by what they are; anything else as the assembler names it.
+   */
+  static String name(Knowledge knowledge, Assembler assembler, EntityId element) {
+    if (element.type().equals(io.lantern.core.vocabulary.BuiltInTypes.COMPONENT)) {
+      for (Fact anchor : knowledge.relations(element, Components.ANCHORED_ON)) {
+        EntityId main = Knowledge.object(anchor);
+        return main.type().equals(io.lantern.core.vocabulary.BuiltInTypes.MODULE)
+            ? C4Views.CONFIG_ROUTES
+            : assembler.name(main);
+      }
+    }
+    return assembler.name(element);
   }
 
   private static void facts(
@@ -548,7 +587,7 @@ public final class NameGroups {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("about", pair.get(0).toString());
     attributes.put("target", pair.get(1).toString());
-    attributes.put("rule", ROLE.name() + "/" + GROUP_MERGE);
+    attributes.put("rule", Findings.NAME + "/" + GROUP_MERGE);
     attributes.put("reason", reason.text());
     var ids = attributes.putArray("facts");
     new LinkedHashSet<>(reason.facts()).forEach(f -> ids.add(f.id()));
@@ -846,7 +885,7 @@ public final class NameGroups {
           found.add(
               new Rejection(
                   answer.item(),
-                  MERGE + ".with",
+                  MERGE,
                   name(),
                   "Merges with " + with + ", which is not one of this item's groups [G..]."));
         } else if (target.equals(inputs.references().get(SELF))) {

@@ -43,6 +43,10 @@ class NameGroupsTest {
 
   /** Two domains of two units each; the orders API calls payments, and Describe worded both. */
   private static List<Fact> facts() {
+    return facts("Takes customers' orders.");
+  }
+
+  private static List<Fact> facts(String apiSays) {
     TestFacts facts = new TestFacts();
     for (String[] group : new String[][] {{ORDERS, API, WORKER}, {BILLING, PAY, INVOICES}}) {
       String signal = group[0].substring(group[0].lastIndexOf('/') + 1);
@@ -65,7 +69,7 @@ class NameGroupsTest {
             .filter(f -> f.predicate().equals("GROUPS") && f.object().value().equals(API))
             .findFirst()
             .orElseThrow();
-    all.add(said(API, LlmFacts.RESPONSIBILITY, LlmFacts.C4, "Takes customers' orders.", apiGroups));
+    all.add(said(API, LlmFacts.RESPONSIBILITY, LlmFacts.C4, apiSays, apiGroups));
     all.add(
         said(
             API,
@@ -89,7 +93,14 @@ class NameGroupsTest {
         1);
   }
 
+  private Harness last;
+
   private Harness harness(FakeLlmProvider fake) {
+    last = harnessOf(fake);
+    return last;
+  }
+
+  private Harness harnessOf(FakeLlmProvider fake) {
     return new Harness(
         new LlmClient(
             ModelSettings.single(fake.model("fake-model")),
@@ -194,16 +205,50 @@ class NameGroupsTest {
     assertThat(merge.attributes().path("reason").asString())
         .isEqualTo("Both handle money for orders.");
 
+    // The run's record shows the role, its calls and cost.
+    assertThat(last.records())
+        .filteredOn(r -> r.role().equals("name-groups"))
+        .singleElement()
+        .satisfies(r -> assertThat(r.calls()).isEqualTo(1))
+        .satisfies(r -> assertThat(r.costUsd()).isNotNull());
+
     // A second run over the same facts is answered from the cache.
     FakeLlmProvider again = new FakeLlmProvider().answering(r -> "{}");
     NameGroups.Result cached = new NameGroups(harness(again)).name(facts(), 3);
     assertThat(again.sent()).isEmpty();
     assertThat(cached.facts()).hasSize(5);
     assertThat(cached.findings()).hasSize(1);
+    // Billing shared its request with orders, its facts numbered after them; what its cached
+    // answer cites is still its own group-of fact.
+    String billingGroupOf =
+        facts().stream()
+            .filter(f -> f.subject().toString().equals(BILLING))
+            .filter(f -> f.predicate().equals("group-of"))
+            .findFirst()
+            .orElseThrow()
+            .id();
+    assertThat(
+            cached.facts().stream()
+                .filter(f -> f.subject().toString().equals(BILLING))
+                .filter(f -> f.predicate().equals(NameGroups.DISPLAY_NAME))
+                .findFirst()
+                .orElseThrow()
+                .attributes()
+                .path("cites")
+                .toString())
+        .contains(billingGroupOf);
+
+    // A member's responsibility worded anew asks only its group again.
+    FakeLlmProvider changed = new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
+    new NameGroups(harness(changed)).name(facts("Takes and tracks customers' orders."), 4);
+    assertThat(changed.sent()).hasSize(1);
+    assertThat(changed.sent().getFirst().request().messages().getFirst().text())
+        .contains("Group " + ORDERS)
+        .doesNotContain("Group " + BILLING + ",");
   }
 
   @Test
-  void aNameThatIsAMembersOrNamesATechnologyAndAMergeWithAnUnknownGroupAreSentBack() {
+  void aNameThatIsAMembersOrNamesAProtocolAndAMergeWithAnUnknownGroupAreSentBack() {
     FakeLlmProvider fake =
         new FakeLlmProvider()
             .answering(
@@ -228,6 +273,105 @@ class NameGroupsTest {
         .contains("\"Orders API\" is the name of a member, orders-api")
         .contains("Merges with G7, which is not one of this item's groups [G..].")
         .contains("\"Billing over HTTP\" names the protocol HTTP");
+    assertThat(result.unknown()).isEmpty();
+  }
+
+  @Test
+  void aMergeSuggestionRejectedTwiceIsLeftOutAndTheGroupKeepsItsName() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                r ->
+                    answer(
+                        r,
+                        body ->
+                            """
+                            {"name": {"text": "%s", "cites": ["F1"]},
+                             "merge": {"with": "G9", "reason": {"text": "Alike.",
+                                                                "cites": ["F1"]}}}"""
+                                .formatted(
+                                    body.startsWith("Group " + ORDERS) ? "Ordering" : "Billing")));
+
+    NameGroups.Result result = new NameGroups(harness(fake)).name(facts(), 2);
+
+    assertThat(result.unknown()).isEmpty();
+    assertThat(result.findings()).isEmpty();
+  }
+
+  /** Two feature areas of one unit, whose members are components anchored on their classes. */
+  private static List<Fact> featureAreas() {
+    String unit = "service:com.example:billing";
+    String invoices = "group:" + unit + "/area/invoice";
+    String payments = "group:" + unit + "/area/payment";
+    String[][] areas = {
+      {invoices, "com.example.invoice.InvoiceController", "com.example.invoice.InvoiceService"},
+      {payments, "com.example.payment.PaymentController", "com.example.payment.PaymentService"}
+    };
+    TestFacts facts = new TestFacts();
+    facts.attribute("shop", unit, "technology", "Spring Boot 3.5.14 / Java 21");
+    for (String[] area : areas) {
+      String signal = area[0].substring(area[0].lastIndexOf('/') + 1);
+      facts.attribute(
+          "shop",
+          area[0],
+          "group-of",
+          "feature-area",
+          "{\"scope\": \""
+              + unit
+              + "\", \"basis\": \"feature-folder\", \"signal\": \""
+              + signal
+              + "\"}");
+      for (int i = 1; i < area.length; i++) {
+        String component = "component:" + unit + "/type:" + area[i];
+        facts.relate("shop", area[0], "GROUPS", component, "{\"basis\": \"feature-folder\"}");
+        facts.relate("shop", component, "ANCHORED_ON", "type:" + area[i]);
+      }
+    }
+    facts.relate(
+        "shop",
+        "component:" + unit + "/type:com.example.invoice.InvoiceService",
+        "COMPONENT_LINK",
+        "component:" + unit + "/type:com.example.payment.PaymentService",
+        "{\"kind\": \"calls\"}");
+    return facts.list();
+  }
+
+  @Test
+  void aFeatureAreasMembersAreShownByTheirClassesAndANameThatIsOneOrATechnologyIsSentBack() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                r ->
+                    answer(
+                        r,
+                        body ->
+                            r.messages().size() > 1
+                                ? """
+                                {"name": {"text": "%s", "cites": ["F1"]}}"""
+                                    .formatted(
+                                        body.startsWith(
+                                                "Group group:service:com.example:billing/area/invoice")
+                                            ? "Invoicing"
+                                            : "Paying")
+                                : body.startsWith(
+                                        "Group group:service:com.example:billing/area/invoice")
+                                    ? """
+                                    {"name": {"text": "Invoice Controller", "cites": ["F1"]}}"""
+                                    : """
+                                    {"name": {"text": "Spring Boot payments", "cites": ["F1"]}}"""));
+
+    NameGroups.Result result = new NameGroups(harness(fake)).name(featureAreas(), 2);
+
+    String prompt = fake.sent().getFirst().request().messages().getFirst().text();
+    assertThat(prompt)
+        .contains("a feature area of the unit")
+        .contains("- InvoiceController\n")
+        .contains("InvoiceService -> PaymentService")
+        .doesNotContain("- component:");
+    String repair = fake.sent().get(1).request().messages().get(2).text();
+    assertThat(repair)
+        .contains("\"Invoice Controller\" is the name of a member, InvoiceController")
+        .contains("\"Spring Boot payments\" names the technology Spring Boot");
     assertThat(result.unknown()).isEmpty();
   }
 
