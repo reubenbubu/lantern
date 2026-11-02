@@ -365,6 +365,10 @@ final class FlowJudgements {
     }
   }
 
+  /**
+   * Writes each fact's line under its reference; a fact the item showed before is written by its
+   * reference alone, so a fact many steps or flows rest on is shown once.
+   */
   private static void appendFacts(
       StringBuilder text,
       Refs refs,
@@ -372,14 +376,14 @@ final class FlowJudgements {
       List<Fact> facts,
       String indent) {
     for (Fact fact : FactLines.sorted(facts)) {
+      String key = fact.claimId() != null ? fact.claimId() : fact.id();
+      boolean shown = refs.shown('F', key);
       String line = FactLines.line(fact);
-      text.append(indent)
-          .append('[')
-          .append(refs.add('F', fact.claimId() != null ? fact.claimId() : fact.id(), fact, line))
-          .append("] ")
-          .append(line)
-          .append('\n');
-      inputs.add(DescribeRole.input(fact));
+      text.append(indent).append('[').append(refs.add('F', key, fact, line)).append("] ");
+      text.append(shown ? "(as above)" : line).append('\n');
+      if (!shown) {
+        inputs.add(DescribeRole.input(fact));
+      }
     }
   }
 

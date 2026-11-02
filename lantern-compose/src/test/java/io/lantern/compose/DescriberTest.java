@@ -710,10 +710,7 @@ class DescriberTest {
              {"httpMethod":"POST","path":"/charges","profile":"prod","protocol":"HTTPS",\
             "source":"method:com.example.web.Controller#list()"} (shop:pom.xml)
               - orders to worker (a deployable unit), async: Delivers to L.on [Kafka]
-                [F3] service:com.example:app SENDS_MESSAGES_TO service:com.example:worker\
-             {"destination":"topic:kafka:orders","protocol":"Kafka",\
-            "source":"method:com.example.domain.JpaOrders#all()",\
-            "target":"method:com.example.worker.L#on()"} (shop:pom.xml)
+                [F3] (as above)
             What its units do, and what its interactions are for:
             - shop-app: [A1] Takes and lists the shop's orders.
             - worker: [A2] Processes orders in the background.
