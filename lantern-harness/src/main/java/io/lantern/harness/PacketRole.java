@@ -18,8 +18,22 @@ public interface PacketRole {
   /** The most tokens the answer to a packet of that many items may take. */
   int maxOutputTokens(int items);
 
+  /** The most tokens the answer to the packet may take; by default, by its number of items. */
+  default int maxOutputTokens(List<Item> packet) {
+    return maxOutputTokens(packet.size());
+  }
+
   /** What the checks compare the answers of the packet's items with. */
   CheckInputs inputs(List<Item> packet, List<String> ids);
+
+  /**
+   * What the checks compare the answer of the packet's item at the index with; by default what they
+   * compare every item's with. A role whose items number their references one after another gives
+   * each item only its own, so an item cannot cite what another item shows.
+   */
+  default CheckInputs inputs(List<Item> packet, List<String> ids, int index) {
+    return inputs(packet, ids);
+  }
 
   /** An item's entry, read into the checks' form. */
   ItemAnswer read(String id, Item item, JsonNode entry);

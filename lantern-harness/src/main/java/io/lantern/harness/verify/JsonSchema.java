@@ -58,21 +58,34 @@ public final class JsonSchema {
 
   /** What in the value breaks the schema, each with its path; empty if it matches. */
   public static List<String> violations(JsonNode schema, JsonNode value) {
-    List<String> found = new ArrayList<>();
+    return violationsAt(schema, value).stream().map(Violation::message).toList();
+  }
+
+  /**
+   * A way the value breaks the schema.
+   *
+   * @param path where, as a dot path such as {@code components.C3.text}; empty for the whole value
+   * @param message what is wrong, naming the place
+   */
+  public record Violation(String path, String message) {}
+
+  /** The ways the value breaks the schema, each with where. */
+  public static List<Violation> violationsAt(JsonNode schema, JsonNode value) {
+    List<Violation> found = new ArrayList<>();
     check(schema, value, "", found);
     return found;
   }
 
-  private static void check(JsonNode schema, JsonNode value, String path, List<String> found) {
+  private static void check(JsonNode schema, JsonNode value, String path, List<Violation> found) {
     if (schema == null || !schema.isObject()) {
       return;
     }
     String at = path.isEmpty() ? "the answer" : path;
     if (schema.has("oneOf")) {
       int matching = 0;
-      List<String> first = null;
+      List<Violation> first = null;
       for (JsonNode branch : schema.get("oneOf")) {
-        List<String> branchFound = new ArrayList<>();
+        List<Violation> branchFound = new ArrayList<>();
         check(branch, value, path, branchFound);
         if (branchFound.isEmpty()) {
           matching++;
@@ -84,12 +97,12 @@ public final class JsonSchema {
         if (matching == 0 && first != null) {
           found.addAll(first);
         } else {
-          found.add(at + " matches more than one form");
+          found.add(new Violation(path, at + " matches more than one form"));
         }
       }
     }
     if (schema.has("const") && !schema.get("const").equals(value)) {
-      found.add(at + " must be " + schema.get("const"));
+      found.add(new Violation(path, at + " must be " + schema.get("const")));
     }
     if (schema.has("enum")) {
       boolean any = false;
@@ -97,41 +110,49 @@ public final class JsonSchema {
         any |= option.equals(value);
       }
       if (!any) {
-        found.add(at + " must be one of " + schema.get("enum"));
+        found.add(new Violation(path, at + " must be one of " + schema.get("enum")));
       }
     }
     if (schema.has("type") && !typed(schema.get("type").asString(), value)) {
-      found.add(at + " must be of type " + schema.get("type").asString());
+      found.add(new Violation(path, at + " must be of type " + schema.get("type").asString()));
       return;
     }
     if (value.isString()) {
       String text = value.asString();
       int length = text.codePointCount(0, text.length());
       if (schema.has("maxLength") && length > schema.get("maxLength").asInt()) {
-        found.add(at + " is longer than " + schema.get("maxLength").asInt() + " characters");
+        found.add(
+            new Violation(
+                path, at + " is longer than " + schema.get("maxLength").asInt() + " characters"));
       }
       if (schema.has("minLength") && length < schema.get("minLength").asInt()) {
-        found.add(at + " is shorter than " + schema.get("minLength").asInt() + " characters");
+        found.add(
+            new Violation(
+                path, at + " is shorter than " + schema.get("minLength").asInt() + " characters"));
       }
       if (schema.has("pattern")
           && !Pattern.compile(schema.get("pattern").asString()).matcher(text).find()) {
-        found.add(at + " does not match " + schema.get("pattern").asString());
+        found.add(new Violation(path, at + " does not match " + schema.get("pattern").asString()));
       }
     }
     if (value.isNumber()) {
       if (schema.has("minimum") && value.asDouble() < schema.get("minimum").asDouble()) {
-        found.add(at + " is below " + schema.get("minimum"));
+        found.add(new Violation(path, at + " is below " + schema.get("minimum")));
       }
       if (schema.has("maximum") && value.asDouble() > schema.get("maximum").asDouble()) {
-        found.add(at + " is above " + schema.get("maximum"));
+        found.add(new Violation(path, at + " is above " + schema.get("maximum")));
       }
     }
     if (value.isArray()) {
       if (schema.has("minItems") && value.size() < schema.get("minItems").asInt()) {
-        found.add(at + " has fewer than " + schema.get("minItems").asInt() + " entries");
+        found.add(
+            new Violation(
+                path, at + " has fewer than " + schema.get("minItems").asInt() + " entries"));
       }
       if (schema.has("maxItems") && value.size() > schema.get("maxItems").asInt()) {
-        found.add(at + " has more than " + schema.get("maxItems").asInt() + " entries");
+        found.add(
+            new Violation(
+                path, at + " has more than " + schema.get("maxItems").asInt() + " entries"));
       }
       if (schema.has("items")) {
         for (int i = 0; i < value.size(); i++) {
@@ -143,7 +164,7 @@ public final class JsonSchema {
       if (schema.has("required")) {
         for (JsonNode name : schema.get("required")) {
           if (!value.has(name.asString())) {
-            found.add(at + " lacks " + name.asString());
+            found.add(new Violation(path, at + " lacks " + name.asString()));
           }
         }
       }
@@ -154,7 +175,8 @@ public final class JsonSchema {
         if (properties != null && properties.has(field.getKey())) {
           check(properties.get(field.getKey()), field.getValue(), fieldPath, found);
         } else if (additional != null && additional.isBoolean() && !additional.asBoolean()) {
-          found.add(at + " has a field it may not have: " + field.getKey());
+          found.add(
+              new Violation(fieldPath, at + " has a field it may not have: " + field.getKey()));
         } else if (additional != null && additional.isObject()) {
           check(additional, field.getValue(), fieldPath, found);
         }

@@ -740,9 +740,12 @@ public final class RoleSession {
             .request(
                 spec.modelRole(),
                 spec.name() + " " + packet.size() + " items: " + packet.getFirst().subject(),
-                role.maxOutputTokens(packet.size()),
+                role.maxOutputTokens(packet),
                 List.of());
-    CheckInputs inputs = role.inputs(packet, ids).withSecrets(harness.secrets());
+    List<CheckInputs> inputs = new ArrayList<>();
+    for (int i = 0; i < packet.size(); i++) {
+      inputs.add(role.inputs(packet, ids, i).withSecrets(harness.secrets()));
+    }
     List<Item> missing = new ArrayList<>();
     try {
       long expected = (long) spec.expectedOutputTokens() * packet.size();
@@ -769,7 +772,7 @@ public final class RoleSession {
           missing.add(packet.get(i));
           continue;
         }
-        check(id, packet.get(i), entry, role, inputs, accepted, rejected);
+        check(id, packet.get(i), entry, role, inputs.get(i), accepted, rejected);
       }
       Map<String, Boolean> repairedIds = new LinkedHashMap<>();
       if (!rejected.isEmpty()) {
@@ -788,7 +791,7 @@ public final class RoleSession {
           JsonNode entry = repaired(firstEntries.get(id), rejected.get(id), corrected.get(id));
           Map<String, List<Rejection>> again = new LinkedHashMap<>();
           if (entry != null) {
-            check(id, item, entry, role, inputs, accepted, again);
+            check(id, item, entry, role, inputs.get(ids.indexOf(id)), accepted, again);
             // A field rejected again is left out, and the rest of the item kept.
             if (again.containsKey(id) && !Entries.whole(again.get(id))) {
               JsonNode kept = Entries.without(entry, again.get(id));
@@ -796,7 +799,7 @@ public final class RoleSession {
               if (Entries.empty(kept)) {
                 entry = null;
               } else {
-                check(id, item, kept, role, inputs, accepted, again);
+                check(id, item, kept, role, inputs.get(ids.indexOf(id)), accepted, again);
               }
             }
           }

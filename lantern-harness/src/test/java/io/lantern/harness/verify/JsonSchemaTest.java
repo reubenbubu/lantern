@@ -47,4 +47,31 @@ class JsonSchemaTest {
                         """)))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void aViolationSaysWhereItIs() {
+    var schema =
+        JSON.readTree(
+            """
+            {"type": "object", "additionalProperties": false, "properties": {
+              "unit": {"type": "object", "required": ["text", "cites"],
+                       "properties": {"text": {"type": "string", "maxLength": 5}}}}}
+            """);
+
+    assertThat(
+            JsonSchema.violationsAt(
+                schema, JSON.readTree("{\"unit\": {\"text\": \"too long\"}, \"extra\": 1}")))
+        .extracting(JsonSchema.Violation::path)
+        .containsExactlyInAnyOrder("unit", "unit.text", "extra");
+  }
+
+  @Test
+  void aSchemaRejectionNamesTheTextItBreaks() {
+    assertThat(Checks.Schema.field("components.C3.text")).isEqualTo("components.C3");
+    assertThat(Checks.Schema.field("components.C3.cites[0]")).isEqualTo("components.C3");
+    assertThat(Checks.Schema.field("unit")).isEqualTo("unit");
+    assertThat(Checks.Schema.field("sentences[2].text")).isEqualTo("sentences");
+    assertThat(Checks.Schema.field("text")).isEmpty();
+    assertThat(Checks.Schema.field("")).isEmpty();
+  }
 }

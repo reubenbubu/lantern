@@ -179,7 +179,7 @@ public final class Describer {
   }
 
   /** The facts without the responsibilities and intents the LLM roles wrote. */
-  static List<Fact> withoutTexts(Collection<Fact> facts) {
+  public static List<Fact> withoutTexts(Collection<Fact> facts) {
     return facts.stream()
         .filter(
             f ->
@@ -539,9 +539,12 @@ public final class Describer {
               described
                   .interactions()
                   .get(text.field().substring(DescribeRole.INTERACTIONS.length() + 1));
-          phrases.put(
-              interaction.id(),
-              new Wordings.Phrase(text.text(), text.cited().stream().map(Fact::id).toList()));
+          // A person's lines keep their labels: one fact stands for all of a person's uses.
+          if (!text.about().type().equals(C4Views.PERSON)) {
+            phrases.put(
+                interaction.id(),
+                new Wordings.Phrase(text.text(), text.cited().stream().map(Fact::id).toList()));
+          }
         } else {
           EntityId key = element;
           String component =

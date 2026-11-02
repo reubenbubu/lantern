@@ -88,9 +88,30 @@ public final class Checks {
       if (answer.omitted()) {
         return List.of();
       }
-      return JsonSchema.violations(inputs.schema(), answer.raw()).stream()
-          .map(v -> reject(answer, "", this, "Does not match the schema: " + v + "."))
+      return JsonSchema.violationsAt(inputs.schema(), answer.raw()).stream()
+          .map(
+              v ->
+                  reject(
+                      answer,
+                      field(v.path()),
+                      this,
+                      "Does not match the schema: " + v.message() + "."))
           .toList();
+    }
+
+    /**
+     * The field a violation at the path rejects: the text a {@code text} or {@code cites} is part
+     * of, so a repair turn redoes that text and keeps the item's others.
+     */
+    static String field(String path) {
+      // Within a list, the whole list: its entries have no names a repair could keep apart.
+      String field = path.contains("[") ? path.substring(0, path.indexOf('[')) : path;
+      if (field.endsWith(".text") || field.endsWith(".cites")) {
+        field = field.substring(0, field.lastIndexOf('.'));
+      } else if (field.equals("text") || field.equals("cites")) {
+        field = "";
+      }
+      return field;
     }
   }
 

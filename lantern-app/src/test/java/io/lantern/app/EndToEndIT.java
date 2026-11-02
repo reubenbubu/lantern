@@ -766,6 +766,17 @@ class EndToEndIT {
         byRole.getOrDefault(Role.COMPOSE, 0L)
             + byRole.getOrDefault(Role.INFER_INTENT, 0L)
             + byRole.getOrDefault(Role.DESCRIBE_ELEMENTS, 0L);
+    // Each wording call is one the wording roles' records counted.
+    long recorded =
+        run.roles().stream()
+            .filter(
+                r ->
+                    java.util.Set.of(
+                            "describe-unit", "describe-element", "flow-narrative", "purpose")
+                        .contains(r.role()))
+            .mapToLong(io.lantern.harness.RoleRecord::calls)
+            .sum();
+    assertThat(wordings).as("wordings").isEqualTo(recorded);
     assertThat(wordings > 0).as("wordings asked").isEqualTo(run.wordingsAsked() > 0);
     // The model checks (ADR 0101) make the rest.
     assertThat(calls)

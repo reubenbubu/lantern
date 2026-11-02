@@ -107,6 +107,25 @@ final class DescribeRole {
           .withPacketSize(ELEMENT_PACKET);
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
+
+  /** What a unit item's texts may cite, as its task says: facts, code excerpts and summaries. */
+  private static final Set<Character> UNIT_CITABLE = Set.of('F', 'E', 'S');
+
+  /** What an element item's text may cite, as its task says: facts and earlier answers. */
+  private static final Set<Character> ELEMENT_CITABLE = Set.of('F', 'A');
+
+  /** The output room of a request, at least. */
+  private static final int MIN_OUTPUT_TOKENS = 1_000;
+
+  /** The output room of an element's sentence with its citations. */
+  private static final int ELEMENT_OUTPUT_TOKENS = 200;
+
+  /** The output room of a unit's or a component's sentence with its citations. */
+  private static final int SENTENCE_OUTPUT_TOKENS = 100;
+
+  /** The output room of an interaction's phrase with its citations. */
+  private static final int PHRASE_OUTPUT_TOKENS = 60;
+
   private static final JsonNode UNIT_ITEM_SCHEMA =
       JsonSchema.itemSchema(JSON.readTree(UNIT_SCHEMA));
   private static final JsonNode ELEMENT_ITEM_SCHEMA =
@@ -222,16 +241,45 @@ final class DescribeRole {
 
     @Override
     public int maxOutputTokens(int items) {
-      return Math.max(1_000, 3_000 * Math.min(items, 2));
+      return Math.max(MIN_OUTPUT_TOKENS, ELEMENT_OUTPUT_TOKENS * items);
+    }
+
+    /**
+     * Room for every text the packet's items may get: a unit's sentence, one per component and one
+     * per interaction, each with its citations, so the largest unit item is not cut off.
+     */
+    @Override
+    public int maxOutputTokens(List<Item> packet) {
+      int tokens = 0;
+      for (Item item : packet) {
+        Described described = described(item);
+        tokens +=
+            described.kind() == Kind.ELEMENT
+                ? ELEMENT_OUTPUT_TOKENS
+                : SENTENCE_OUTPUT_TOKENS * (1 + described.components().size())
+                    + PHRASE_OUTPUT_TOKENS * described.interactions().size();
+      }
+      return Math.max(MIN_OUTPUT_TOKENS, tokens);
     }
 
     @Override
     public CheckInputs inputs(List<Item> packet, List<String> ids) {
       Refs.Resolved resolved = resolve(packet);
+      return inputs(resolved.references(), described(packet.getFirst()).kind());
+    }
+
+    /** Each item is checked against its own references only, as the request numbers them. */
+    @Override
+    public CheckInputs inputs(List<Item> packet, List<String> ids, int index) {
+      Refs.Resolved resolved = resolve(packet);
+      return inputs(resolved.global().get(index), described(packet.get(index)).kind());
+    }
+
+    private CheckInputs inputs(Map<String, String> references, Kind kind) {
       return new CheckInputs(
           schema,
-          resolved.references(),
-          Refs.CITABLE,
+          references,
+          kind == Kind.ELEMENT ? ELEMENT_CITABLE : UNIT_CITABLE,
           false,
           (repo, path) -> Optional.empty(),
           Map.of(),
@@ -482,6 +530,11 @@ final class DescribeRole {
       Fact interaction =
           described.interactions().get(worded.field().substring(INTERACTIONS.length() + 1));
       object = interaction.claimId() != null ? interaction.claimId() : interaction.id();
+      // A person's use of a frontend rests on the person's one fact, shared by every frontend
+      // they use: the frontend tells their uses apart.
+      if (worded.about().type().equals(C4Views.PERSON)) {
+        object = object + "/" + described.element();
+      }
     } else {
       object = LlmFacts.C4;
     }

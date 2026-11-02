@@ -1779,4 +1779,70 @@ class DescriberTest {
                 .orElseThrow())
         .contains("Lets shoppers browse orders.");
   }
+
+  @Test
+  void anItemMayNotCiteWhatAnotherItemOfItsRequestShows() {
+    TestFacts two =
+        TestFacts.runtime()
+            .relate(
+                "shop",
+                APP.toString(),
+                "CALLS_HTTP",
+                "external-system:mail.example.com",
+                "{\"protocol\": \"HTTPS\", \"httpMethod\": \"POST\", \"path\": \"/send\"}");
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  if (!request.system().contains(DescribeRole.ELEMENT_TASK)
+                      || !request.messages().getFirst().text().contains("pay.example.com")) {
+                    return answer(request);
+                  }
+                  if (request.messages().size() > 1) {
+                    return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+                  }
+                  // I1's own fact is F1; F2 is what I2 shows.
+                  return """
+                      {"items": {
+                        "I1": {"responsibility": {"text": "Takes card payments.", "cites": ["F2"]}},
+                        "I2": {"responsibility": {"text": "Sends the shop's mail.", "cites": ["F2"]}}}}""";
+                });
+
+    new Describer(harness(client(fake))).describe(two.list());
+
+    String request =
+        fake.sent().stream()
+            .filter(s -> s.request().purpose().startsWith("describe-element 2 items"))
+            .map(s -> s.request().messages().getFirst().text())
+            .findFirst()
+            .orElseThrow();
+    assertThat(request)
+        .contains("<item id=\"I1\">\nThe external system pay.example.com")
+        .contains("<item id=\"I2\">\nThe external system mail.example.com");
+    assertThat(
+            fake.sent().stream()
+                .filter(s -> s.request().purpose().endsWith("(repair)"))
+                .map(s -> s.request().messages().getLast().text())
+                .filter(t -> t.contains("<rejection"))
+                .findFirst()
+                .orElseThrow())
+        .contains("<rejection item=\"I1\" field=\"responsibility\">Cites F2")
+        .doesNotContain("item=\"I2\"");
+  }
+
+  @Test
+  void aUnitsRequestHasRoomForATextPerComponentAndInteraction() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+
+    describe(fake);
+
+    LlmRequest app =
+        fake.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().equals("describe-unit 1 items: " + APP))
+            .findFirst()
+            .orElseThrow();
+    // The unit, 3 components and 5 interactions.
+    assertThat(app.maxOutputTokens()).isGreaterThanOrEqualTo(Math.max(1_000, 100 * 4 + 60 * 5));
+  }
 }

@@ -403,7 +403,10 @@ public final class AnalysisRun {
       // The LLM words the responsibilities of the snapshot's units and components and the intent
       // of their links, and narrates the main flows, from every fact that holds in it, carried
       // forward repositories included (ADR 0050, ADR 0058), and of no other system (ADR 0071).
-      List<Fact> systemFacts = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
+      // The texts an earlier run's roles stored are left out: this run words them again, and the
+      // documents take the words of this run (ADR 0103).
+      List<Fact> systemFacts =
+          Describer.withoutTexts(facts.findValidAt(snapshot.number(), snapshot.commits().keySet()));
       // Each repository's documents are composed from its extracted facts, so its flows are traced
       // from those.
       // Their prompts show the code of components, read from every registered repository, carried

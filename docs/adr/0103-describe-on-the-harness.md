@@ -27,7 +27,9 @@ owner's standing go-ahead for milestone 1F.
     them as tokens. Laying out a request numbers the cited letters of its items one after
     another, so an item's text, and its fingerprint, do not depend on which items share its
     request, and a reference never means two things in one request. Keys stay per item, since
-    each item's answer holds its own.
+    each item's answer holds its own. Each item's answer is checked against its own references
+    only, so it cannot cite what another item of its request shows. A role cites only the
+    letters its task names: units `F`, `E`, `S`; elements `F`, `A`.
 - **The answer envelope.** Items answer `{"items": {"I1": {...}}}`, with `{"omitted": true}` for an
   item the model leaves out. Text fields are `{text, cites}`. `basis` is computed, never asked: a
   text is `evidenced` when it cites what people wrote (a README claim, code with Javadoc, or a
@@ -35,13 +37,17 @@ owner's standing go-ahead for milestone 1F.
 - **A field-level repair (amends ADR 0100).** The repair turn lists each rejected field. The
   answer kept is the first answer without its rejected fields, with the correction laid over
   it: a corrected field replaces the rejected one, a field rejected again or withdrawn is left out,
-  and the accepted fields stay. An item with no field left is dropped.
+  and the accepted fields stay. An item with no field left is dropped. A schema violation names
+  the text it breaks (`components.C3` for a bad `components.C3.text`; a whole list for a
+  violation inside one; the whole item for one at its top), so it too is repaired field by field.
 - **LLM facts.** An accepted text is stored as a fact of origin `llm` (role name, prompt version),
   with the attributes `text`, `cites` (the IDs of the facts it cites), `basis` and `model`, the
   cited facts' places as cited evidence, the cited claims as its lineage, and confidence 0.6. A
   responsibility is `(element, responsibility, "c4")`; a component's subject is the component
   entity. An intent is `(source, intent, <the interaction's claim ID>)`, or the interaction
-  fact's ID when it has no claim. The vocabulary types are `responsibility` and `intent`. Each
+  fact's ID when it has no claim. A person's use of a frontend rests on the person's one fact,
+  shared by every frontend they use, so its object adds the frontend (`<claim ID>/<frontend>`), and
+  the report keeps those lines' labels. The vocabulary types are `responsibility` and `intent`. Each
   run's facts replace the role's earlier ones (`recordDerived`, by origin), so a new prompt version
   leaves no stale texts.
 - **The bulk tier.** `bulk` joins `high-volume` and `reasoning`. Left unset, it uses the
@@ -69,9 +75,20 @@ owner's standing go-ahead for milestone 1F.
     stored facts are what later roles and documents read. A frontend with a responsibility
     sentence is described by it, and by what its manifest says only without one (amends ADR
     0083). A person keeps the description of what the code shows of them (ADR 0074).
-  - *Its own output is not its input.* Describe leaves out the `responsibility` and `intent` facts
-    of origin `llm` from what it reads, so a rerun does not show the model its earlier words and
-    re-ask every item they are about.
+  - *Its own output is not its input.* A run leaves out the `responsibility` and `intent` facts
+    of origin `llm` from the facts it reads for Describe and the system's documents, so a rerun
+    does not show the model its earlier words, re-ask every item they are about, or compose a
+    different document from the same snapshot.
+  - *Room to answer.* A unit request's output cap counts a sentence for the unit and each component
+    and a phrase for each interaction, so the largest item is not cut off.
+  - *Code.* Every component shows the first 4,000 characters of its main type's code, as the
+    epic says, whatever the others show. README claims are sorted as fact lines.
+  - *What "every element and interaction" covers.* The container model's: every deployable unit
+    and frontend, its components, every data store, destination and external system a unit links
+    to, every person; and each unit's links to other containers, the lines between its components
+    and the people who use it. A profile-only link that replaces a default one under its profile
+    is a variant of that interaction, not another; a route between an exchange and a queue is not
+    a unit's interaction; a data store no unit links to is not in the container model.
   - *Unknown.* A unit whose facts show nothing to word from is not asked about and is counted
     unknown, with every unit, component, element and interaction the model left out.
   - *Summaries.* A summary an item shows is a fingerprint input by the hash of its text, as

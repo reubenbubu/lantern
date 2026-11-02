@@ -42,9 +42,6 @@ final class DescribeItems {
   /** The most characters of one component's code. */
   static final int MAX_CODE_CHARS = 4_000;
 
-  /** The most characters of code one unit's items show, over all their components. */
-  static final int MAX_UNIT_CODE_CHARS = 40_000;
-
   /** The most facts shown about one element. */
   static final int MAX_ELEMENT_FACTS = 8;
 
@@ -112,7 +109,7 @@ final class DescribeItems {
     List<ComponentShown> components = components(unit);
     List<Interaction> interactions = interactions(unit, components);
     List<Fact> unitFacts = FactLines.sorted(c4.containerFacts(unit));
-    List<Fact> claims = Describer.claims(unit, knowledge);
+    List<Fact> claims = FactLines.sorted(Describer.claims(unit, knowledge));
     List<Fact> entryPoints =
         components.size() > 1
             ? List.of()
@@ -275,13 +272,11 @@ final class DescribeItems {
   /** The unit's components, as stored (#523), each with its facts and code. */
   private List<ComponentShown> components(EntityId unit) {
     List<ComponentShown> result = new ArrayList<>();
-    int codeLeft = MAX_UNIT_CODE_CHARS;
     for (C4Views.Component component : c4.components(unit)) {
       List<Fact> facts = FactLines.sorted(c4.componentFacts(component));
-      Code code = codeLeft > 0 ? code(component.main(), Math.min(MAX_CODE_CHARS, codeLeft)) : null;
-      if (code != null) {
-        codeLeft -= code.text().length();
-      }
+      // Every component shows the start of its own code, whatever the others show, so a
+      // component's excerpt never depends on another's length.
+      Code code = code(component.main(), MAX_CODE_CHARS);
       String name = c4.componentName(component);
       String line = FactLines.oneLine(name);
       if (component.technology() != null && !component.technology().isEmpty()) {
