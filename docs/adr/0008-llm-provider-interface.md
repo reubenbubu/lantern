@@ -119,3 +119,7 @@ minimum is not cached and costs nothing extra.
   Whether a real model then reads from the cache is shown only by a real run's
   `cache_read_input_tokens`.
 
+
+## Amendment for #529
+
+A real run can record every call it makes: `lantern.llm.record-to=<folder>` (`scripts/score-testsets.sh --record-calls`, one folder per set beside its scorecard) wraps every provider in a provider that records every call, request and response, one JSON file a call named by the request's key (a repeat beside it as `<key>-2.json`), with the role and purpose that sent it. It replays nothing, so a run behaves exactly as without it, the second size-1 calibration trial included; a replaying provider reads the folder back with no call. While recording, a model's batch API is not used.

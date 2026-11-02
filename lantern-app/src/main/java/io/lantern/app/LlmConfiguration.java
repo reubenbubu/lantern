@@ -42,8 +42,17 @@ class LlmConfiguration {
 
   @Bean
   LlmAccess llmAccess(
-      LlmProperties properties, ObjectProvider<LlmProvider> providerBeans, JdbcLlmCallLog stored) {
-    return create(properties, providerBeans.orderedStream().toList(), stored, Clock.systemUTC());
+      LlmProperties properties,
+      ObjectProvider<LlmProvider> providerBeans,
+      JdbcLlmCallLog stored,
+      @org.springframework.beans.factory.annotation.Value("${lantern.llm.record-to:}")
+          String recordTo) {
+    return create(
+        properties,
+        providerBeans.orderedStream().toList(),
+        stored,
+        Clock.systemUTC(),
+        recordTo.isBlank() ? null : java.nio.file.Path.of(recordTo).toAbsolutePath());
   }
 
   static LlmAccess create(
@@ -51,6 +60,19 @@ class LlmConfiguration {
       List<LlmProvider> providerBeans,
       JdbcLlmCallLog stored,
       Clock clock) {
+    return create(properties, providerBeans, stored, clock, null);
+  }
+
+  /**
+   * As above; with {@code recordTo} set ({@code lantern.llm.record-to}, #529), every call of every
+   * provider is also written there, request and response, one file a call, replaying nothing.
+   */
+  static LlmAccess create(
+      LlmProperties properties,
+      List<LlmProvider> providerBeans,
+      JdbcLlmCallLog stored,
+      Clock clock,
+      java.nio.file.Path recordTo) {
     if (!properties.tiersConfigured()) {
       return LlmAccess.notConfigured(
           "set lantern.llm.tiers.high-volume and lantern.llm.tiers.reasoning to models defined"
@@ -134,6 +156,11 @@ class LlmConfiguration {
             }
           }
         };
+    if (recordTo != null) {
+      LOG.info("Recording every LLM call, request and response, in {}", recordTo);
+      providers.replaceAll(
+          provider -> io.lantern.llm.RecordReplayLlmProvider.recordingEvery(provider, recordTo));
+    }
     try {
       LlmAccess access =
           LlmAccess.configured(

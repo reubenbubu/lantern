@@ -31,7 +31,11 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>A {@linkplain #replaying replaying} provider only reads files and fails on a request it has no
  * recording for. A {@linkplain #recording recording} provider sends every request to the real
- * provider and writes the answer; recording costs money and needs the user's go-ahead.
+ * provider and writes the answer; recording costs money and needs the user's go-ahead. A provider
+ * {@linkplain #recordingEvery recording every call} replays nothing: it sends every request, so a
+ * run behaves exactly as without it, and writes each to a file of its own, a repeat of one request
+ * beside the first, for a person to read the run's conversations and a test to replay them. Each
+ * file also says which role sent the request and why, outside the key.
  */
 public final class RecordReplayLlmProvider implements LlmProvider {
 
@@ -42,16 +46,19 @@ public final class RecordReplayLlmProvider implements LlmProvider {
   private final String name;
   private final Path directory;
   private final LlmProvider recordFrom;
+  private final boolean every;
 
-  private RecordReplayLlmProvider(String name, Path directory, LlmProvider recordFrom) {
+  private RecordReplayLlmProvider(
+      String name, Path directory, LlmProvider recordFrom, boolean every) {
     this.name = ModelConfig.nonBlank("Provider name", name);
     this.directory = Objects.requireNonNull(directory, "directory");
     this.recordFrom = recordFrom;
+    this.every = every;
   }
 
   /** Answers from the recordings in the directory, standing in for the provider with that name. */
   public static RecordReplayLlmProvider replaying(String name, Path directory) {
-    return new RecordReplayLlmProvider(name, directory, null);
+    return new RecordReplayLlmProvider(name, directory, null, false);
   }
 
   /**
@@ -60,7 +67,17 @@ public final class RecordReplayLlmProvider implements LlmProvider {
    */
   public static RecordReplayLlmProvider recording(LlmProvider provider, Path directory) {
     Objects.requireNonNull(provider, "provider");
-    return new RecordReplayLlmProvider(provider.name(), directory, provider);
+    return new RecordReplayLlmProvider(provider.name(), directory, provider, false);
+  }
+
+  /**
+   * Sends every request to the given provider and records each call in the directory, replaying
+   * nothing (#529): the first call of a request under its key's name, a repeat beside it with a
+   * number ({@code <key>-2.json}).
+   */
+  public static RecordReplayLlmProvider recordingEvery(LlmProvider provider, Path directory) {
+    Objects.requireNonNull(provider, "provider");
+    return new RecordReplayLlmProvider(provider.name(), directory, provider, true);
   }
 
   @Override
@@ -82,13 +99,19 @@ public final class RecordReplayLlmProvider implements LlmProvider {
   private LlmResponse complete(
       String model, LlmRequest request, Thinking thinking, Supplier<LlmResponse> record) {
     ObjectNode key = key(model, request, thinking);
-    Path file = directory.resolve(hash(key) + ".json");
+    String hash = hash(key);
+    Path file = directory.resolve(hash + ".json");
+    if (every) {
+      LlmResponse response = record.get();
+      write(free(hash), key, request, response);
+      return response;
+    }
     if (Files.isRegularFile(file)) {
       return read(file);
     }
     if (recordFrom != null) {
       LlmResponse response = record.get();
-      write(file, key, response);
+      write(file, key, request, response);
       return response;
     }
     throw new LlmException(
@@ -196,8 +219,30 @@ public final class RecordReplayLlmProvider implements LlmProvider {
     return array;
   }
 
-  private static void write(Path file, ObjectNode key, LlmResponse response) {
+  /** The first file name of the key that holds no recording yet, claimed for this call. */
+  private synchronized Path free(String hash) {
+    try {
+      Files.createDirectories(directory);
+      for (int n = 1; ; n++) {
+        Path file = directory.resolve(n == 1 ? hash + ".json" : hash + "-" + n + ".json");
+        try {
+          Files.createFile(file);
+          return file;
+        } catch (java.nio.file.FileAlreadyExistsException taken) {
+          // A call of the same request is recorded there; try the next number.
+        }
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException("Cannot record in " + directory, e);
+    }
+  }
+
+  private static void write(Path file, ObjectNode key, LlmRequest request, LlmResponse response) {
     ObjectNode root = MAPPER.createObjectNode();
+    // Who sent it and why, for a person reading the recording; not part of the key.
+    root.putObject("about")
+        .put("role", request.role() == null ? null : request.role().name())
+        .put("purpose", request.purpose());
     root.set("request", key);
     ObjectNode answer = root.putObject("response");
     answer.put("text", response.text());

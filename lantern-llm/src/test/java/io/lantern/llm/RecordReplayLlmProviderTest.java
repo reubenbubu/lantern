@@ -65,6 +65,33 @@ class RecordReplayLlmProviderTest {
   }
 
   @Test
+  void recordingEveryCallSendsEachRepeatAndKeepsEveryCallReplayable() throws IOException {
+    FakeLlmProvider real = new FakeLlmProvider("anthropic").answering("An order.");
+    RecordReplayLlmProvider recorder = RecordReplayLlmProvider.recordingEvery(real, recordings);
+
+    LlmResponse first = recorder.complete("big", request);
+    real.answering("Something else.");
+    LlmResponse second = recorder.complete("big", request);
+
+    // Nothing replayed: both calls reached the model, each in a file of its own.
+    assertThat(real.sent()).hasSize(2);
+    assertThat(second.text()).isEqualTo("Something else.");
+    List<Path> files;
+    try (var listed = Files.list(recordings)) {
+      files = listed.sorted().toList();
+    }
+    assertThat(files).hasSize(2);
+    Path firstFile =
+        files.stream().filter(f -> !f.getFileName().toString().contains("-")).findFirst().get();
+    assertThat(files).anyMatch(f -> f.getFileName().toString().endsWith("-2.json"));
+    String recorded = Files.readString(firstFile);
+    assertThat(recorded).contains("\"role\" : \"SUMMARIZE\"").contains("summarize Order");
+    // A replay reads the first call of the request.
+    assertThat(RecordReplayLlmProvider.replaying("anthropic", recordings).complete("big", request))
+        .isEqualTo(first);
+  }
+
+  @Test
   void failsWithoutARecording() {
     RecordReplayLlmProvider.recording(new FakeLlmProvider("anthropic"), recordings)
         .complete("big", request);
