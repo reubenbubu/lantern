@@ -111,9 +111,9 @@ class EndToEndIT {
   static class Fake {
     /**
      * A fake model that cites the first fact and the first part's summary it is given, picks the
-     * first candidate of a link left open, citing it, and words a unit, its first component and its
-     * first relationship, a data store or destination, a flow's walkthrough and the system's
-     * purpose, citing the first fact (ADR 0050, ADR 0056, ADR 0058, ADR 0060).
+     * first candidate of a link left open, citing it, answers Describe as the {@code fake-llm}
+     * profile does (ADR 0103), and words a flow's walkthrough and the system's purpose, citing the
+     * first fact (ADR 0058, ADR 0060).
      */
     @Bean
     FakeLlmProvider fakeLlmProvider() {
@@ -123,6 +123,11 @@ class EndToEndIT {
                 String check = FakeLlmConfiguration.modelCheck(request);
                 if (check != null) {
                   return check;
+                }
+                // Describe in the epic's form, as the fake-llm profile answers it (ADR 0103).
+                String described = FakeLlmConfiguration.describe(request);
+                if (described != null) {
+                  return described;
                 }
                 String prompt = request.messages().getFirst().text();
                 if (request.role() == Role.RESOLVE) {
@@ -755,15 +760,19 @@ class EndToEndIT {
     assertThat(byRole.getOrDefault(Role.RESOLVE, 0L))
         .as("links left open")
         .isEqualTo(run.linksAsked());
-    assertThat(byRole.getOrDefault(Role.COMPOSE, 0L) + byRole.getOrDefault(Role.INFER_INTENT, 0L))
-        .as("wordings")
-        .isEqualTo(run.wordingsAsked());
+    // Describe asks up to 10 elements a request (ADR 0103), and repairs, so its calls are not
+    // its items.
+    long wordings =
+        byRole.getOrDefault(Role.COMPOSE, 0L)
+            + byRole.getOrDefault(Role.INFER_INTENT, 0L)
+            + byRole.getOrDefault(Role.DESCRIBE_ELEMENTS, 0L);
+    assertThat(wordings > 0).as("wordings asked").isEqualTo(run.wordingsAsked() > 0);
     // The model checks (ADR 0101) make the rest.
     assertThat(calls)
         .isEqualTo(
             run.summariesGenerated()
                 + run.linksAsked()
-                + run.wordingsAsked()
+                + wordings
                 + byRole.getOrDefault(Role.JUDGE, 0L)
                 + byRole.getOrDefault(Role.SCREEN, 0L));
   }

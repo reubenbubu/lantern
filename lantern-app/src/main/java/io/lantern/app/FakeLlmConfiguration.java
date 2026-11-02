@@ -93,6 +93,20 @@ class FakeLlmConfiguration {
     return null;
   }
 
+  /**
+   * A Describe answer that leaves every item out, for a fake that words nothing, or null for
+   * another request.
+   */
+  static String describeNothing(LlmRequest request) {
+    return describes(request) ? items(request, "{\"omitted\": true}") : null;
+  }
+
+  /** Whether the request asks a Describe role (knowledge-build epic, section 11.4). */
+  private static boolean describes(LlmRequest request) {
+    return request.system().contains("Task: describe deployable units.")
+        || request.system().contains("Task: describe the elements the units use.");
+  }
+
   /** An answer envelope giving every item of the request the same entry. */
   private static String items(LlmRequest request, String entry) {
     java.util.regex.Matcher ids =
@@ -122,11 +136,10 @@ class FakeLlmConfiguration {
    * first fact, so a fake run stores a responsibility or intent for everything Describe asks about.
    */
   static String describe(LlmRequest request) {
-    boolean units = request.system().contains("Task: describe deployable units.");
-    boolean elements = request.system().contains("Task: describe the elements the units use.");
-    if (!units && !elements) {
+    if (!describes(request)) {
       return null;
     }
+    boolean elements = request.system().contains("Task: describe the elements the units use.");
     Matcher items = ITEM.matcher(request.messages().getFirst().text());
     List<String> entries = new ArrayList<>();
     while (items.find()) {

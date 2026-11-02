@@ -385,7 +385,7 @@ final class DescribeItems {
     if (summary.purpose() == Summary.Purpose.EVIDENCED) {
       evidenced.add(local(token));
     }
-    inputs.add(FingerprintInput.answer(summary.key()));
+    inputs.add(FingerprintInput.answer(io.lantern.harness.Fingerprints.sha256(text)));
     return "[" + token + "] " + of + ": " + text;
   }
 
