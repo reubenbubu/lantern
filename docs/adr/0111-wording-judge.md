@@ -53,7 +53,7 @@ already checks whether a text's citations support it; that stays its job.
     stratum each text was drawn from (the verdict when drawn) and how many texts each stratum
     held. The owner labels without opening it.
   - `node lantern-web/scripts/wording.mjs draw <scores folder>` draws them from a scored run's
-    sets: 60 texts per dimension, half the judge passed and half it failed (the other class fills
+    sets: 60 texts per dimension by default (the first labels were drawn at 160; amendment for #668), half the judge passed and half it failed (the other class fills
     in where one is short), taken in turn over set and role, each text once; a third of each class
     to tune the prompt, the rest held out. It refuses to replace a file that holds the owner's
     labels unless given `--force`.

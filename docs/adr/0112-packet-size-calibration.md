@@ -108,7 +108,7 @@ answers.
     epic's estimate of most of $8, which assumed Anthropic prices.
   - Resolve: project-8 has three open links; each answer was rejected for citing a file range it
     read, which the prompt asks for and the check refuses (#703).
-  - Wording judge (#668): the label set, 60 texts per question, is drawn into
+  - Wording judge (#668): the label set, 60 texts per question (drawn again at 160 with #668), is drawn into
     `testsets/wording-labels/` for the owner to label at the 1F test drop. Unvalidated raw pass
     rates: says what it does for the system 96–100%; not true of any Spring application 73–93%.
   - Project-8's other-profiles note repeats each difference twice (#705).
