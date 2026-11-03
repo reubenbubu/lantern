@@ -346,11 +346,10 @@ public final class Describer {
     ArchitectureModel systemModel = new ArchitectureModel(facts);
     Knowledge knowledge = systemModel.knowledge();
     Assembler assembler = new Assembler(systemModel, Set.of(), null, "The system");
-    Elements elements =
-        new Elements(knowledge, systemModel.vocabulary(), assembler.names(), Set.of());
     C4Views c4 =
         new C4Views(knowledge, assembler, RepoSections.SYSTEM, Elements.units(knowledge), Set.of());
-    Set<Fact> alternatives = elements.alternativeLinks().keySet();
+    Elements shown = c4.elements();
+    Set<Fact> alternatives = shown.alternativeLinks().keySet();
     Map<String, Optional<String>> read = new HashMap<>();
     Function<Evidence, Optional<String>> files =
         evidence ->
@@ -364,8 +363,7 @@ public final class Describer {
                   return text;
                 });
     Set<String> documented = new TreeSet<>();
-    DescribeItems describeItems =
-        new DescribeItems(knowledge, assembler, elements, files, summaries);
+    DescribeItems describeItems = new DescribeItems(knowledge, assembler, shown, files, summaries);
     // Units first, frontends included: elements cite the units' responsibilities.
     List<DescribeRole.Described> unitItems = new ArrayList<>();
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);

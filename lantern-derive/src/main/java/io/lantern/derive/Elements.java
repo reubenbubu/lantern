@@ -31,6 +31,12 @@ import tools.jackson.databind.JsonNode;
  */
 public final class Elements {
 
+  /** The relationship of a line from a person to what they use. */
+  public static final String USES = "USES";
+
+  /** The name of a component of the routes a gateway's config defines. */
+  public static final String CONFIG_ROUTES = "Gateway routes";
+
   /** What opens everything Investigate found, in every template (ADR 0110). */
   public static final String FOUND_BY_LLM = "Found by the LLM:";
 
@@ -70,9 +76,9 @@ public final class Elements {
   }
 
   /**
-   * The lines of the container diagrams, in the order they are found: the units' calls, mail,
-   * identity providers, messages, data and other interactions, the frontends' calls, people's
-   * screens, what Investigate found and routes between exchanges and queues.
+   * The lines of the container diagrams, in the order they are found: each unit's calls, mail,
+   * identity providers, messages and data, then the frontends' calls, the units' other
+   * interactions, people's screens, what Investigate found and routes between exchanges and queues.
    */
   public List<Line> lines() {
     return lines;
@@ -103,11 +109,6 @@ public final class Elements {
     C4Level level = vocabulary.c4Level(type).orElse(null);
     return level == C4Level.CONTAINER || level == C4Level.CONTEXT;
   }
-
-  public static final String USES = "USES";
-
-  /** The name of a component of the routes a gateway's config defines. */
-  public static final String CONFIG_ROUTES = "Gateway routes";
 
   /**
    * Each profile-only link that replaces a default link under its profile, with that default; the

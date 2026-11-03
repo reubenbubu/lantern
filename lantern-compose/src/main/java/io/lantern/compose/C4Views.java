@@ -1036,12 +1036,6 @@ final class C4Views {
     return result;
   }
 
-  private List<EntityId> withMethods(EntityId type) {
-    List<EntityId> members = new ArrayList<>(List.of(type));
-    members.addAll(knowledge.parts(type, Types.METHOD));
-    return members;
-  }
-
   private Diagram componentDiagram(String id, EntityId unit, List<Elements.Component> components) {
     Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
     nodes.put(unit, node(unit, elements.technology(unit), null, elements.containerFacts(unit)));

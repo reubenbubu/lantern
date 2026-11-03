@@ -23,7 +23,9 @@ only reads the model. #698 moves the roles; this records where the queries they 
   them.
 - **The composer only draws.** `C4Views` builds diagrams, edges, notes and counts from
   `Elements`, and `Assembler` names entities through `ElementNames`; neither computes a line or a
-  name itself. Describe's items read `Elements` directly, not the composer's views.
+  name itself. Lifting lines to a view's level (the context diagram's lines from the system and
+  from each person, the per-pair edges) and the note on profile alternatives stay with the
+  composer: lines are lifted when a view is composed (`docs/design.md`, Composition). Describe's items read `Elements` directly, not the composer's views.
 - **Nothing a document shows changes.** The queries are the composer's code moved, with the same
   order and words.
 
