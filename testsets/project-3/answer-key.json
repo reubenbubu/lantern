@@ -1,7 +1,7 @@
 {
   "set": "project-3",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "awaiting the owner's check at the 1F test drop",
+  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "mediahub-api-gateway": "3ad3447569811e123d06685e2f99e7d5724a3241",
@@ -185,7 +185,7 @@
     },
     {
       "id": "r9",
-      "reference": "Single instances and a start-up chain: one Eureka with no peers, one config server that every service needs at start",
+      "reference": "Single instances and a start-up chain: one Eureka with no peers, one config server that user-, media- and subscription-service need at start",
       "subjects": [
         "discovery",
         "config",
@@ -215,7 +215,8 @@
         "user-db",
         "media-db",
         "subscription-db",
-        "config"
+        "config",
+        "config-repo"
       ],
       "category": "plaintext-secret",
       "cites": [
@@ -239,7 +240,9 @@
         "frontend",
         "user",
         "media",
-        "subscription"
+        "subscription",
+        "discovery",
+        "config"
       ],
       "category": "other",
       "cites": [
@@ -259,7 +262,12 @@
       "id": "r12",
       "reference": "Framework versions differ: the gateway is on Boot 3.4.3 and Spring Cloud 2024.0.0, everything else on Boot 4.0.3 and",
       "subjects": [
-        "gateway"
+        "gateway",
+        "discovery",
+        "config",
+        "user",
+        "media",
+        "subscription"
       ],
       "category": "version-skew",
       "cites": [
@@ -326,7 +334,8 @@
       "subjects": [
         "user",
         "frontend",
-        "subscription"
+        "subscription",
+        "media"
       ],
       "category": "other",
       "cites": [
@@ -351,7 +360,10 @@
         "user",
         "media",
         "subscription",
-        "gateway"
+        "gateway",
+        "user-db",
+        "media-db",
+        "subscription-db"
       ],
       "category": "schema-unmanaged",
       "cites": [

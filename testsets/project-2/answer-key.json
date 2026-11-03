@@ -1,7 +1,7 @@
 {
   "set": "project-2",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "awaiting the owner's check at the 1F test drop",
+  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "Event-Management-platform": "462516947458d4a161dfa0aef482865d9940e241"
@@ -126,9 +126,10 @@
         "notification",
         "t-attendee",
         "t-payment",
-        "notification-db"
+        "notification-db",
+        "payment"
       ],
-      "category": "plaintext-secret",
+      "category": "other",
       "cites": [
         "Event-Management-platform:attendee-service/src/main/java/com/eventplatform/attendee/application/BookingSagaService.java:214-219",
         "Event-Management-platform:payment-service/src/main/java/com/eventplatform/payment/integration/PaymentLifecycleEvents.java:9-10",
@@ -149,7 +150,12 @@
         "t-event",
         "t-attendee",
         "t-payment",
-        "auth-db"
+        "auth-db",
+        "event-db",
+        "venue-db",
+        "attendee-db",
+        "payment-db",
+        "notification-db"
       ],
       "category": "single-instance",
       "cites": [
@@ -344,7 +350,8 @@
       "id": "r17",
       "reference": "Observability gaps: Grafana has a Loki data source but nothing ships logs to Loki.",
       "subjects": [
-        "notification"
+        "notification",
+        "emp"
       ],
       "category": "other",
       "cites": [

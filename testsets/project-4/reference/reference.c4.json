@@ -3062,9 +3062,9 @@
             ],
             [
               "**High**",
-              "Secrets: one HMAC signing key shared by gateway and auth-service; Gmail SMTP credentials; generated passwords sent in plaintext through RabbitMQ and email; Hibernate bind parameters logged at TRACE (password hashes, refresh tokens); Helm secrets as plaintext `stringData`; test keys committed.",
+              "Secrets: one HMAC signing key shared by gateway and auth-service; Gmail SMTP credentials; generated passwords sent in plaintext through RabbitMQ and email; Hibernate bind parameters logged at TRACE in auth-, main- and file-service (password hashes, refresh tokens); Helm secrets as plaintext `stringData` (`values.yaml` leaves every value empty); test keys committed.",
               "Whoever holds the signing key can mint tokens for any user; logs and the broker carry credentials.",
-              "Auth `application.properties:11,21,35`; Notification `application.properties:10-15`; `templates/secrets.yaml`; `Deployment/README.md:450-458`"
+              "Auth `application.properties:11,21,35`; Main `application.yml:46-52`; File `application.properties:27`; Notification `application.properties:10-15`; `templates/secrets.yaml`; `Deployment/README.md:450-458`"
             ],
             [
               "Medium",
@@ -3110,9 +3110,9 @@
             ],
             [
               "Medium",
-              "The frontend image is built with `--configuration development`, so it calls `http://localhost:8080`; the production configuration uses a hardcoded LAN IP. The API URL is fixed at build time.",
-              "The image only works where the gateway is on the user's own machine.",
-              "FE `Dockerfile:12`; `angular.json:39,59-64,78`; `environment.ts:2`"
+              "The frontend image is built with `--configuration development`, which swaps in `environment.development.ts`, so it calls the hardcoded LAN IP `http://192.168.88.113:8080`; the production configuration calls `http://localhost:8080`. The API URL is fixed at build time.",
+              "The image only works on the network where that address is the gateway; a production build only where the gateway is on the user's own machine.",
+              "FE `Dockerfile:12`; `angular.json:39,59-64,78`; `environment.development.ts:2`; `environment.ts:2`"
             ],
             [
               "Low",
@@ -3137,6 +3137,12 @@
               "No schema migrations anywhere: Hibernate `ddl-auto=update`.",
               "Schema changes are applied implicitly at startup and cannot be reviewed or rolled back.",
               "each service's `application.*`"
+            ],
+            [
+              "**High**",
+              "notification-service checks organization membership only when a subscription names one exact organization topic (`/topic/organizations/<id>/notifications`) and lets every other destination through, while its in-memory broker treats `*` and `**` in a subscription as patterns.",
+              "Any signed-in user can subscribe to `/topic/**` or `/topic/organizations/*/notifications` and receive every organization's notifications.",
+              "`StompAuthChannelInterceptor.java:31-32,66-92`; `WebSocketsConfig.java:37-42`; `NotificationSender.java:45-57`"
             ]
           ]
         },

@@ -411,7 +411,7 @@ test('snapshot-4 project-4 report scores as the assessment counted', () => {
     s.flows.matches.map((m) => m.reference),
     ['Create an organization', 'Invite a member', 'Password reset by email'],
   );
-  assert.equal(counts(s.risks), '0/16 recall, 0/0 precision, 0/0 connected');
+  assert.equal(counts(s.risks), '0/17 recall, 0/0 precision, 0/0 connected');
   assert.equal(counts(s.decisions), '0/9 recall, 0/0 precision, 0/0 connected');
   assert.equal(counts(s.glossary), '0/15 recall, 0/0 precision, 0/0 connected');
   assert.equal(s.outOfScope.length, 12, "project-0's shop is not connected to the reference");

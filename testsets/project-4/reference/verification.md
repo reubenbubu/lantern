@@ -67,8 +67,9 @@ tables) was traced to code, and every file:line the data cites (43 distinct cita
    Risk row and the create-organization sequence note updated.
 3. **Frontend LAN IP.** Before: "the default build hardcodes a LAN IP". After: the default build
    configuration is `local` (`FE/angular.json:78`, localhost); the `production` configuration
-   (`:39`) has no file replacement and so uses `environment.ts:2` (`http://192.168.88.113:8080`).
-   The image uses `development` (`FE/Dockerfile:12`, `angular.json:55-64`).
+   (`:39`) has no file replacement and so uses `environment.ts:2` (`http://localhost:8080`).
+   The image uses `development` (`FE/Dockerfile:12`, `angular.json:55-64`), which swaps in
+   `environment.development.ts:2` (`http://192.168.88.113:8080`).
 4. **Identity-header risk consequence.** Before: anyone "directly on the network or via a public
    route" can act as any user. After: the public routes lead only to `/api/auth/**`,
    `/api/restore-password-request/**` (`A/controller/AuthController.java`,
@@ -97,6 +98,14 @@ tables) was traced to code, and every file:line the data cites (43 distinct cita
 
 ## Additions
 
+- **Risk D (High): any signed-in user can read every organization's notifications** (added for
+  #737, from the blind answer-key check). notification-service checks membership only for a
+  subscription to one exact topic `/topic/organizations/<id>/notifications`
+  (`N/websocket/StompAuthChannelInterceptor.java:31-32,66-92`) and lets every other destination
+  through, while its simple broker (`N/config/WebSocketsConfig.java:37-42`) matches `*` and `**`
+  in a subscription as patterns. So `/topic/**` receives every organization's notifications. This
+  was decoy d2 of the answer key. The secrets risk now also names main- and file-service's TRACE
+  bind logging and that `values.yaml` leaves every Helm secret empty.
 - **Risk A (High): cross-organization permission mix-up.** Main-Service checks membership in the
   path's organization (`M/aspect/OrganizationMembershipControlAspect.java:28-35`, the `@OrganizationId`
   path variable on every guarded endpoint) but the permission from `User-Permissions`
