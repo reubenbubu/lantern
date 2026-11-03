@@ -662,7 +662,9 @@ Each phase delivers something usable on real repos. The knowledge model and stab
    - System scope, audience profiles, granularity switch
    - References, scoring and the LLM judge
 
-   It is delivered in milestones that each deliver one outcome, with its own goal and acceptance criteria in [GitHub](https://github.com/reubenbubu/lantern/milestones), grouped in five parts: **2A** measured on real systems (references, scoring, one named system per analysis), **2B** find the whole system, **2C** compose to the bar, **2D** real-model acceptance (including the held-out sets), **2E** foundations for Phase 3, without changing the output.
+   It is delivered in milestones that each deliver one outcome, with its own goal and acceptance criteria in [GitHub](https://github.com/reubenbubu/lantern/milestones), first grouped in five parts: **2A** measured on real systems (references, scoring, one named system per analysis), **2B** find the whole system, **2C** compose to the bar, **2D** real-model acceptance (including the held-out sets), **2E** foundations for Phase 3, without changing the output.
+
+   On 3 Nov 2026 the milestones still open were renumbered in the same order, from **2.1** Data stores found and named to **2.10** One rendering stack. Real-model acceptance, held-out sets included, is **2.9** As good as the reference. The knowledge-build epic's milestones (1A to 1H) run first.
 3. **Living docs:** versions and human knowledge.
    - Incremental runs, architecture diff, Change Report template
    - Knowledge annotations, questions queue, audit log, sign-in and roles

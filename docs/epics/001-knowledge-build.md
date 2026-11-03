@@ -2,9 +2,9 @@
 
 31 Oct 2026 · reubenbubu
 
-**Status: closed** (3 Nov 2026). The work of milestones 1A to 1G is merged. The note is written now, as 1G's work ends, while the 1F and 1G test drops (#726, #735) wait on the owner's verdict.
+**Status: active.** Milestones 1A to 1H. On 3 Nov 2026 the owner did not accept 1F and 1G (verdicts on #726 and #735); milestone 1H, Remediation of 1F and 1G (#737 to #771), finishes this epic. The note below was written as 1G's work ended and stands as an interim note; the closing note is written when 1H closes (#770).
 
-**Closing note.** What was built:
+**Interim note (3 Nov 2026).** What was built:
 - **Facts with stable identity** (1A): claims and observations, an envelope v2, key attributes per type and generated record types.
 - **Extraction by file** (1B), behind one extractor interface. Values are emitted as written and resolved in linking.
 - **Link rules** (1C). Deployable units, values and addresses are resolved by ordered rules.
@@ -24,8 +24,8 @@
   - Container and component views are drawn at group level, so they stay readable before they split.
 
 What was dropped or moved:
-- **The Unknown caller**, planned in step 4, was not built. It moved to #365 (2B.1).
-- **Readability is counted, not measured.** The limits of 50 elements and 2 lines per element (ADR 0117) are provisional. Measuring the drawn layout is #366 (2C.1).
+- **The Unknown caller**, planned in step 4, was not built. It moved to #365 (2B.1, now 2.2); its Unknown caller part is #766 in 1H.
+- **Readability is counted, not measured.** The limits of 50 elements and 2 lines per element (ADR 0117) are provisional. Measuring the drawn layout is #366, now in 1H; the owner rejected the limits as a cap, and views will group by meaning at a chosen level (#764).
 - **Unknowns stated on other pages** have not moved to the unknowns page yet (#728, Later).
 - **Investigate's PR #328** was closed unmerged. It was replaced by Investigate on the harness (#676, ADR 0110).
 - **Letting the LLM choose its own evidence**, the wording tools, is parked until the owner reopens it.
@@ -1390,7 +1390,7 @@ The work runs in eight steps. Claims and observations come first, because every 
 
 The single-conversation design, its uncached turns and its separate store are what this spec replaces. The real recording's lesson (2 of 7 conversations answered on $4.70) is the reason for Mode A and per-turn caching.
 
-**Milestones.** Decided 31 Oct 2026: the work runs as milestones 1A to 1G, ahead of 2C. 1A Claims and stable identity (#517, #518, #281); 1B Extraction by file (#279, #283, #519, #520); 1C Link rules (#521, #522); 1D Architecture model stored (#523, #524, #535, #271); 1E LLM harness (#525, #526, #527, #42, #349, #357); 1F Roles on the harness (#528, #529, #269, #272, #274, #275, #536); 1G Composer on the model (#530, #280).
+**Milestones.** Decided 31 Oct 2026: the work runs as milestones 1A to 1G, ahead of 2C. 1A Claims and stable identity (#517, #518, #281); 1B Extraction by file (#279, #283, #519, #520); 1C Link rules (#521, #522); 1D Architecture model stored (#523, #524, #535, #271); 1E LLM harness (#525, #526, #527, #42, #349, #357); 1F Roles on the harness (#528, #529, #269, #272, #274, #275, #536); 1G Composer on the model (#530, #280). Added 3 Nov 2026: 1H Remediation of 1F and 1G (milestone 34), after the owner did not accept 1F and 1G. The phase-2 milestones still open were renumbered 2.1 to 2.10 in the same order, so "2C" here is now 2.5 onward.
 
 **Issues.** Each issue above carries its "Accepted when". Steps 1 to 5 hold the fake-model scorecards on project-0 to project-4 and project-8; step 6 records each role's scoring row from approved recordings.
 
