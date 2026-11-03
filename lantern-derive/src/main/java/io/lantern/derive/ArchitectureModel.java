@@ -51,6 +51,7 @@ public final class ArchitectureModel {
   private final Map<EntityId, Fact> summaries = new HashMap<>();
   private final Map<EntityId, List<Fact>> narratives = new HashMap<>();
   private final Map<String, Fact> groupIntents = new HashMap<>();
+  private final Map<EntityId, Fact> displayNames = new HashMap<>();
   private final Map<String, List<Fact>> significance = new HashMap<>();
   private final List<Fact> purposes = new ArrayList<>();
   private final List<Fact> keyFacts = new ArrayList<>();
@@ -121,6 +122,7 @@ public final class ArchitectureModel {
           }
         }
         case LlmFacts.SUMMARY -> summaries.putIfAbsent(text.subject(), text);
+        case LlmFacts.DISPLAY_NAME -> displayNames.putIfAbsent(text.subject(), text);
         case LlmFacts.FLOW_NARRATIVE ->
             narratives.computeIfAbsent(text.subject(), f -> new ArrayList<>()).add(text);
         case LlmFacts.FLOW_SIGNIFICANCE ->
@@ -162,6 +164,15 @@ public final class ArchitectureModel {
     return Optional.ofNullable(intents.get(key))
         .filter(f -> !f.subject().type().equals("person"))
         .map(ArchitectureModel::text);
+  }
+
+  /**
+   * The name Name groups gave a group (section 11.8; ADR 0107), without citations.
+   *
+   * @param group the group
+   */
+  public Optional<String> displayName(EntityId group) {
+    return Optional.ofNullable(displayNames.get(group)).map(f -> text(f).text());
   }
 
   /**

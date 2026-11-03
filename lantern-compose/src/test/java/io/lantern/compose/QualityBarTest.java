@@ -102,7 +102,7 @@ class QualityBarTest {
     List<Fact> facts = List.of(SHOP_UNIT, PAY_UNIT, CALL, AUDIT);
     Map<EntityId, DocumentEntity> entities = new TreeMap<>(Knowledge.BY_ID);
     List<EntityId> ids = new ArrayList<>(List.of(SYSTEM, SHOP, PAY, DB, PACKAGE));
-    for (int i = 0; i < 13; i++) {
+    for (int i = 0; i < C4Views.MAX_ELEMENTS - 2; i++) {
       ids.add(EntityId.parse("topic:kafka:t" + i));
     }
     for (EntityId id : ids) {
@@ -305,7 +305,7 @@ class QualityBarTest {
     nodes.add(node(SHOP, "shop", null, SHOP_UNIT));
     nodes.add(node(DB, "shop on db", "PostgreSQL"));
     nodes.add(node(PACKAGE, "com.example", null, SHOP_UNIT));
-    for (int i = 0; i < 13; i++) {
+    for (int i = 0; i < C4Views.MAX_ELEMENTS - 2; i++) {
       EntityId topic = EntityId.parse("topic:kafka:t" + i);
       nodes.add(node(topic, "t" + i, "Kafka", SHOP_UNIT));
     }
@@ -336,7 +336,7 @@ class QualityBarTest {
         .containsExactly("d: \"Everything\" does not name the diagram's type.");
     assertThat(failed(document, QualityBar.ONE_LEVEL))
         .containsExactly("d: It also shows com.example (package).");
-    assertThat(failed(document, QualityBar.ELEMENTS)).containsExactly("d: It shows 16 elements.");
+    assertThat(failed(document, QualityBar.ELEMENTS)).containsExactly("d: It shows 51 elements.");
     // What a box or line lacks is asked of the model, not of the diagram (UnknownsTest).
     assertThat(failed(document, QualityBar.TECHNOLOGY)).isEmpty();
     assertThat(failed(document, QualityBar.LABELLED))
@@ -350,6 +350,28 @@ class QualityBarTest {
     assertThat(failed(document, QualityBar.PROTOCOL)).isEmpty();
     // The database rests on no fact, not even through a line.
     assertThat(failed(document, QualityBar.CLAIMS)).containsExactly("d: No fact for shop on db.");
+  }
+
+  @Test
+  void aDiagramWithMoreLinesPerElementThanTheThresholdIsNotReadable() {
+    List<Diagram.Edge> edges = new ArrayList<>();
+    for (int i = 0; i <= C4Views.MAX_LINES_PER_ELEMENT * 2; i++) {
+      edges.add(
+          edge("e" + i, i % 2 == 0 ? SHOP : PAY, i % 2 == 0 ? PAY : SHOP, "Asks " + i, "HTTP"));
+    }
+    Diagram diagram =
+        new Diagram(
+            "d",
+            Diagram.Kind.C4_CONTAINER,
+            "Containers of Shop",
+            List.of(
+                node(SYSTEM, "Shop", null), node(SHOP, "shop", "Java"), node(PAY, "pay", "Java")),
+            edges,
+            List.of());
+    Document document = document("c4-model-sequence-diagrams", "a", section("s", "S", diagram));
+
+    assertThat(failed(document, QualityBar.ELEMENTS))
+        .containsExactly("d: It draws 5 lines between 2 elements.");
   }
 
   @Test

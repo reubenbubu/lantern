@@ -80,7 +80,13 @@ final class QualityBar {
   static final String TITLE = "A title naming its type and scope";
   static final String LEGEND = "A legend for every shape, color, line style and arrowhead used";
   static final String ONE_LEVEL = "One abstraction level";
-  static final String ELEMENTS = "At most " + C4Views.MAX_ELEMENTS + " elements";
+  static final String ELEMENTS =
+      "Readable: at most "
+          + C4Views.MAX_ELEMENTS
+          + " elements and "
+          + C4Views.MAX_LINES_PER_ELEMENT
+          + " lines per element";
+  static final String PARTICIPANTS = "At most " + C4Views.MAX_PARTICIPANTS + " participants";
   static final String TECHNOLOGY = "Containers and components have a technology";
   static final String RESPONSIBILITY = "Every element has a responsibility sentence";
   static final String LABELLED = "Every line is labelled with an intent phrase";
@@ -293,8 +299,12 @@ final class QualityBar {
       boolean atLevel =
           switch (diagram.diagramKind()) {
             case C4_CONTEXT -> CONTEXT_TYPES.contains(type);
-            case C4_CONTAINER -> CONTAINER_TYPES.contains(type);
-            case C4_COMPONENT -> type.equals(BuiltInTypes.TYPE) || CONTAINER_TYPES.contains(type);
+            // A domain or feature area stands for its members, at their level (ADR 0117).
+            case C4_CONTAINER -> CONTAINER_TYPES.contains(type) || type.equals(Types.GROUP);
+            case C4_COMPONENT ->
+                type.equals(BuiltInTypes.TYPE)
+                    || CONTAINER_TYPES.contains(type)
+                    || type.equals(Types.GROUP);
             case DEPENDENCY -> true;
           };
       if (!atLevel) {
@@ -306,6 +316,11 @@ final class QualityBar {
     }
     if (elements > C4Views.MAX_ELEMENTS) {
       fail(ELEMENTS, target, "It shows " + elements + " elements.");
+    } else if (diagram.edges().size() > C4Views.MAX_LINES_PER_ELEMENT * elements) {
+      fail(
+          ELEMENTS,
+          target,
+          "It draws " + diagram.edges().size() + " lines between " + elements + " elements.");
     }
     Map<EntityId, String> labels = new HashMap<>();
     diagram.nodes().forEach(n -> labels.put(n.id(), n.label()));
@@ -362,8 +377,8 @@ final class QualityBar {
     if (!OWN_TEMPLATES.contains(template) && !LEGEND_TEMPLATES.contains(template)) {
       fail(LEGEND, target, "The template draws no legend.");
     }
-    if (diagram.participants().size() > C4Views.MAX_ELEMENTS) {
-      fail(ELEMENTS, target, "It shows " + diagram.participants().size() + " participants.");
+    if (diagram.participants().size() > C4Views.MAX_PARTICIPANTS) {
+      fail(PARTICIPANTS, target, "It shows " + diagram.participants().size() + " participants.");
     }
     if (depth(diagram.steps()) > 1) {
       fail(FRAGMENTS, target, "Its fragments nest " + depth(diagram.steps()) + " levels deep.");

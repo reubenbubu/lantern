@@ -73,6 +73,11 @@ public final class ElementNames {
               .or(() -> IdentityProviders.name(key))
               .orElse(key);
       case Types.DECISION -> knowledge.attribute(id, Types.TITLE).orElse(key);
+      // A group no role named is named by its signal, without the kind of signal before it.
+      case Types.GROUP -> {
+        String signal = key.substring(key.lastIndexOf('/') + 1);
+        yield signal.substring(signal.indexOf('-') + 1);
+      }
       case Types.PERSON -> knowledge.attribute(id, Types.DISPLAY_NAME).orElse(key);
       case Types.FRONTEND ->
           knowledge
