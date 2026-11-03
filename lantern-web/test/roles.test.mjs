@@ -7,6 +7,7 @@ import { test } from 'vitest';
 import {
   answerKeyIssues,
   describeRow,
+  isGenericLabel,
   harnessRow,
   investigateRow,
   matchFlows,
@@ -283,6 +284,14 @@ const linked = [
   link('cx', 'READS_TABLE', 'service:a', 'table:t'),
   { id: 'p1', predicate: 'PART_OF', subject: 'component:service:a/type:p.X', object: { kind: 'entity', value: 'service:a' } },
   { id: 'p2', predicate: 'PART_OF', subject: 'component:service:a/type:p.Y', object: { kind: 'entity', value: 'service:a' } },
+  { id: 'p3', predicate: 'PART_OF', subject: 'component:service:a/type:p.Z', object: { kind: 'entity', value: 'service:a' } },
+  { id: 'p4', predicate: 'PART_OF', subject: 'component:service:b/type:q.W', object: { kind: 'entity', value: 'service:b' } },
+  // A line to another unit's component is not one Describe words.
+  link('xw', 'COMPONENT_LINK', 'component:service:a/type:p.X', 'component:service:b/type:q.W', { kind: 'calls' }),
+  // a's call to b's sandbox holds by default; under the profile prod it calls b's live host instead,
+  // an alternative Describe leaves out.
+  link('sandbox', 'CALLS_HTTP', 'service:a', 'external-system:sandbox', { absentIn: ['prod'], alternates: ['external-system:live'] }),
+  link('live', 'CALLS_HTTP', 'service:a', 'external-system:live', { view: 'prod', alternates: ['external-system:sandbox'] }),
 ];
 const run = {
   harness: [{ role: 'describe-unit', askedSubjects: ['service:a'], cachedSubjects: ['service:b'], unaskedSubjects: ['service:c'] }],
@@ -293,26 +302,32 @@ test('Describe in the model: each interaction right, generic (wrong), "don\'t kn
     intentFor('c-ab', 'Looks up prices [fact:1]'), // right
     intentFor('c-xy', 'Calls validate'), // a generic opening: wrong
     intentFor('c-ab2', 'Announces new orders', 'name-groups'), // not Describe's: "don't know"
-    // b -> a has none: "don't know"; c -> b: c was not asked.
+    // Two intents, one generic: right.
+    intentFor('c-sandbox', 'Uses the sandbox'),
+    intentFor('c-sandbox', 'Charges cards in the sandbox'),
+    // b -> a has none: "don't know"; c -> b: c was not asked; the live call is an alternative.
   ];
   const row = describeRow({ elements: {}, pages: [] }, linked, llm, run);
   assert.deepEqual(
     { ...row.model, genericItems: undefined },
     {
-      interactions: 4,
-      own: 1,
+      interactions: 5,
+      own: 2,
       generic: 1,
       unknown: 2,
       notAsked: 1,
-      coverage: 0.25,
-      penalized: 0,
+      coverage: 0.4,
+      penalized: 0.2,
       penalty: 1,
       genericItems: undefined,
     },
   );
   assert.deepEqual(row.model.genericItems, ['Calls validate']);
-  assert.equal(row.scores['interaction:c-ab'], 1);
-  assert.equal(row.scores['interaction:c-xy'], -1);
+  assert.equal(row.scores['interaction:f-ab'], 1);
+  assert.equal(row.scores['interaction:f-xy'], -1);
+  assert.equal(row.scores['interaction:f-sandbox'], 1);
+  assert.equal(row.scores['interaction:f-live'], undefined);
+  assert.equal(row.scores['interaction:f-xw'], undefined);
   // Without the run's record of Describe, the model cannot be scored.
   assert.equal(describeRow({ elements: {}, pages: [] }, linked, llm, null).model.measured, false);
 });
@@ -395,4 +410,13 @@ test("Describe on the page: a consumer's line runs from what it reads, and a lin
   assert.equal(row.scores['line:service-b->exchange-events'], 0);
   assert.equal(row.scores['line:service-a->service-b'], 1);
   assert.equal(row.model.own, 2);
+});
+
+test('a generic label is empty or opens with a verb that only says there is a relationship', () => {
+  for (const t of ['', 'Uses', 'Uses, through the web app', 'Calls write, flush', 'Depends on b', 'Connects to the broker', 'Accesses data', 'Only with the Spring profile dev']) {
+    assert.equal(isGenericLabel(t), true, t);
+  }
+  for (const t of ['Callbacks the payer', 'Useful lookups of prices', 'Looks up prices (only with the Spring profile dev)', 'Reads and writes']) {
+    assert.equal(isGenericLabel(t), false, t);
+  }
 });

@@ -169,9 +169,11 @@ three numbers (`lantern-web/scripts/roles.mjs`, `describeRow`):
 - **Elements**, as before: the share of the report's elements with a responsibility it wrote.
 - **Model coverage.** Each interaction Describe words, rebuilt from `linked.jsonl.gz` as Describe
   builds its items:
-  - each unit's links of the kinds Describe words (`Describer.LINKS`);
-  - the lines between components other than to code at the end of a call, a component's unit by
-    `PART_OF`.
+  - each unit's links of the kinds Describe words (`Describer.LINKS`), other than a profile's
+    alternative to a default link (the rule of `Screens.alternatives`, which Describe skips);
+  - the lines between two components of the same unit other than to code at the end of a call, a
+    component's unit by `PART_OF`;
+  - not a person's use of a unit, which Describe also words but whose line keeps a fixed label.
 
   Each is scored with three outcomes, a wrong answer costing one point (p = 1):
   - right when one of its intents opens with something other than a generic verb;
@@ -179,7 +181,11 @@ three numbers (`lantern-web/scripts/roles.mjs`, `describeRow`):
   - "don't know" when it has none.
 
   An interaction of a unit Describe did not ask about (budget, a failure; `run.json`) is not asked
-  and counted apart.
+  and counted apart. Each linker fact is its own item in the paired comparison.
+
+  The checks here are only that the intent exists and does not open with a generic verb, so on a
+  run that answered everything the model coverage is near 100%. Whether the intent says something
+  true and specific is the wording judge's row (#668, #757).
 - **Drawn coverage.** Of the lines the report draws, a person's left out, the share labelled with
   the intent Describe wrote for a link of their own.
   - A line's own link runs between its two ends, or between elements inside or around them, since
@@ -187,9 +193,13 @@ three numbers (`lantern-web/scripts/roles.mjs`, `describeRow`):
   - A consumer's line runs from any queue, exchange or topic to the consumer, since a view draws
     the exchange a queue is bound to.
   - The label is read without citation markers or the note " (only with the Spring profile x)".
-  - The rest are split into generic labels and others.
+  - The rest are split into generic labels and others. The others are mostly the composer's labels
+    for lines no intent words, such as "Reads and writes" to a database or "Routes <key>" between
+    an exchange and a queue.
 
 Only Describe's intents count, not those Name groups writes for lines leaving a group. The scorer's
 line-label check counts a label as generic when it is empty or opens with a generic verb, so the
-fallback "Calls <methods>" fails it as "Uses" did. Both coverages keep their items' scores for the
+fallback "Calls <methods>" fails it as "Uses" did. A person's lines are still checked: their fixed
+"Uses" and "Uses, through <frontend>" fail it as the bare "Uses" did before, which is what the bar
+says of them until people's lines are worded. Both coverages keep their items' scores for the
 paired comparison.

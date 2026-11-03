@@ -173,25 +173,54 @@ const MESSAGING_KINDS = new Set(['queue', 'exchange', 'topic']);
 /** The report IDs an entity of the facts may be drawn under: its own, or its type's for a component. */
 const drawnIds = (entity) => [reportId(entity), reportId(String(entity).split('/').pop())];
 
+const list = (v) => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]);
+
 /**
- * The interactions Describe words, from the linker's facts: each unit's links of the kinds above,
- * and the lines between components other than to code at the end of a call. Each with its unit (a
- * component's, by PART_OF) and the claim and fact IDs an intent's object may name.
+ * Whether a unit's link is the alternative of a default one under a Spring profile, which Describe
+ * leaves out (Screens.alternatives): it holds only under a profile, and a link of the same unit and
+ * kind holds by default, is absent under that profile and has the same origin (each names the other
+ * as an alternate, or both come from the same source or key).
+ */
+function isAlternative(link, sameKind) {
+  const profile = link.attributes?.view;
+  if (!profile) return false;
+  return sameKind.some(
+    (f) =>
+      f !== link &&
+      !f.attributes?.view &&
+      list(f.attributes?.absentIn).includes(profile) &&
+      (list(link.attributes?.alternates).includes(f.object?.value) ||
+        ['source', 'key'].some((k) => link.attributes?.[k] !== undefined && link.attributes[k] === f.attributes?.[k])),
+  );
+}
+
+/**
+ * The interactions Describe words (DescribeItems.interactions), from the linker's facts: each unit's
+ * links of the kinds above other than a profile's alternative, and the lines between two components
+ * of the same unit other than to code at the end of a call. A person's use of a unit, which Describe
+ * also words, is left out, as the drawn lines leave it out. Each with its unit (a component's, by
+ * PART_OF) and the claim and fact IDs an intent's object may name.
  */
 function interactionsOf(linked, units) {
   const unitOf = new Map();
   for (const f of linked) if (f.predicate === 'PART_OF') unitOf.set(f.subject, f.object?.value);
-  const result = [];
+  const byUnitAndKind = new Map();
   for (const f of linked) {
-    const unit =
-      DESCRIBED_LINKS.has(f.predicate) && units.has(f.subject)
-        ? f.subject
-        : f.predicate === 'COMPONENT_LINK' &&
-            f.attributes?.kind !== 'code-end' &&
-            String(f.object?.value ?? '').startsWith('component:')
-          ? unitOf.get(f.subject)
-          : null;
-    if (unit) result.push({ fact: f, unit, keys: [f.claim, f.id].filter(Boolean) });
+    if (!DESCRIBED_LINKS.has(f.predicate) || !units.has(f.subject)) continue;
+    const key = `${f.subject} ${f.predicate}`;
+    if (!byUnitAndKind.has(key)) byUnitAndKind.set(key, []);
+    byUnitAndKind.get(key).push(f);
+  }
+  const result = [];
+  for (const facts of byUnitAndKind.values()) {
+    for (const f of facts) {
+      if (!isAlternative(f, facts)) result.push({ fact: f, unit: f.subject, keys: [f.claim, f.id].filter(Boolean) });
+    }
+  }
+  for (const f of linked) {
+    if (f.predicate !== 'COMPONENT_LINK' || f.attributes?.kind === 'code-end') continue;
+    const unit = unitOf.get(f.subject);
+    if (unit && unitOf.get(f.object?.value) === unit) result.push({ fact: f, unit, keys: [f.claim, f.id].filter(Boolean) });
   }
   return result;
 }
@@ -249,7 +278,7 @@ export function describeRow(report, linked, llm, run = null) {
           : asked.has(unit)
             ? 'abstained'
             : 'notAsked';
-      return { id: `interaction:${fact.claim ?? fact.id}`, outcome, unknown: false, text };
+      return { id: `interaction:${fact.id}`, outcome, unknown: false, text };
     });
     const row = threeOutcomes(items, PENALTY.describe);
     Object.assign(scores, row.scores);
