@@ -83,7 +83,8 @@ class GroupViewsTest {
               "shop", i % 2 == 0 ? first : second, "GROUPS", unit, "{\"basis\": \"repository\"}");
     }
 
-    Section containers = section(system(many.list()), "containers");
+    Document document = system(many.list());
+    Section containers = section(document, "containers");
 
     Diagram overview = block(containers, Diagram.class);
     assertThat(overview.title()).endsWith(", by domain");
@@ -92,6 +93,9 @@ class GroupViewsTest {
         .contains(first, second, APP, WORKER)
         .doesNotContain("service:com.example:u0");
     assertThat(C4Views.fits(overview)).isTrue();
+    // A domain stands for its units, at their level.
+    assertThat(QualityBar.failures(document))
+        .noneMatch(f -> f.check().equals(QualityBar.ONE_LEVEL));
     assertThat(containers.sections()).hasSize(2);
     Diagram firstPage = block(containers.sections().getFirst(), Diagram.class);
     assertThat(firstPage.nodes())

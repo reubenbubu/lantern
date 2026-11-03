@@ -371,8 +371,9 @@ test('snapshot-4 project-4 report scores as the assessment counted', () => {
   assert.equal(s.outOfScope.length, 12, "project-0's shop is not connected to the reference");
   assert.ok(s.elements.containers.extra.includes('storefront'), 'and counts as extra');
   const failing = s.checks.filter((c) => !c.pass).map((c) => c.id);
-  assert.deepEqual(failing, ['diagram-size', 'decisions', 'risks', 'glossary']);
-  assert.ok(s.checks[0].failures.includes('main-service / Components of main-service (45 elements)'));
+  // Its largest diagram, main-service's 45 components, is readable at the provisional threshold
+  // (ADR 0117).
+  assert.deepEqual(failing, ['decisions', 'risks', 'glossary']);
 });
 
 test('the command line reads HTML reports and writes the scorecard, and compares two', () => {

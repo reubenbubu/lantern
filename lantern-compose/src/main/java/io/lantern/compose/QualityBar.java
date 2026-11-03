@@ -299,8 +299,12 @@ final class QualityBar {
       boolean atLevel =
           switch (diagram.diagramKind()) {
             case C4_CONTEXT -> CONTEXT_TYPES.contains(type);
-            case C4_CONTAINER -> CONTAINER_TYPES.contains(type);
-            case C4_COMPONENT -> type.equals(BuiltInTypes.TYPE) || CONTAINER_TYPES.contains(type);
+            // A domain or feature area stands for its members, at their level (ADR 0117).
+            case C4_CONTAINER -> CONTAINER_TYPES.contains(type) || type.equals(Types.GROUP);
+            case C4_COMPONENT ->
+                type.equals(BuiltInTypes.TYPE)
+                    || CONTAINER_TYPES.contains(type)
+                    || type.equals(Types.GROUP);
             case DEPENDENCY -> true;
           };
       if (!atLevel) {
