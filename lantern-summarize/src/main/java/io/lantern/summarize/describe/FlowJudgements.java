@@ -56,7 +56,7 @@ import tools.jackson.databind.node.ObjectNode;
 public final class FlowJudgements {
 
   /** The version of the significance prompt. */
-  static final String SIGNIFICANCE_VERSION = "5";
+  static final String SIGNIFICANCE_VERSION = "6";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
   static final String NARRATIVE_VERSION = "8";
@@ -82,6 +82,19 @@ public final class FlowJudgements {
   public static final String NONE_SIGNIFICANT =
       "No flow is marked significant, yet some cross a unit boundary. Mark the ones that are, or"
           + " answer the same again to confirm.";
+
+  /**
+   * The output room of a significance answer for each flow it judges: a reason with its citations.
+   */
+  static final int TOKENS_PER_JUDGED_FLOW = 250;
+
+  /**
+   * The output room of a scope's significance answer: about 200 tokens a flow as measured, with
+   * room to spare, and its order (#730). The model's thinking headroom comes on top.
+   */
+  static int significanceOutputTokens(int flows) {
+    return Math.max(1_500, TOKENS_PER_JUDGED_FLOW * flows + 1_000);
+  }
 
   /** The significance role: a judgement on the reasoning tier, with thinking. */
   public static final RoleSpec SIGNIFICANCE =
@@ -449,7 +462,7 @@ public final class FlowJudgements {
 
     @Override
     public int maxOutputTokens(int items) {
-      return narrative ? 1_500 : Math.max(1_500, 120 * asked.flows().size() + 500);
+      return narrative ? 1_500 : significanceOutputTokens(asked.flows().size());
     }
 
     @Override

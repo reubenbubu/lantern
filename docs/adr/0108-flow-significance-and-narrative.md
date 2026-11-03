@@ -94,3 +94,7 @@ content hash of the flow's steps as they are; it is no longer looked up by the p
 for it. The narrative stores what each of its texts cites in `fieldCites`, so each text keeps its
 own citations. Where one flow holds several narratives, the most confident is shown, the first by
 fact ID on a tie.
+
+## Amendment (#730): room for a reason a flow
+
+A scope's significance answer had 120 tokens of output a flow, plus 500. On the 1F drop's DeepSeek runs, the whole system's answer on project-2 (51 flows) and project-4 (41 flows) used its whole limit and was cut off, so those documents drew by rank. A reason with its citations takes about 200 tokens a flow, as measured on #529's project-4 recording. The room is now 250 tokens a flow plus 1,000 for the order, at least 1,500, with the model's thinking headroom on top. The prompt version goes from 5 to 6, so the judgements dropped for a cut-off answer are asked again rather than repeated from the cache.
