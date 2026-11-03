@@ -476,9 +476,12 @@ export function qualityChecks(data) {
     const ids = diagramElements(section);
     ids.forEach((id) => shown.add(id));
     // Readable by the signals measured before layout (docs/design.md, Readable diagrams; ADR 0117).
-    if (ids.size > MAX_ELEMENTS) {
-      failures['diagram-size'].push(`${where} (${ids.size} elements)`);
-    } else if (section.relationships.length > MAX_LINES_PER_ELEMENT * ids.size) {
+    // Boundaries, the system and what others are drawn in, are not counted, as the composer does.
+    const inside = new Set([...ids].map((id) => data.elements[id]?.parent).filter(Boolean));
+    const drawn = [...ids].filter((id) => data.elements[id]?.kind !== 'system' && !inside.has(id));
+    if (drawn.length > MAX_ELEMENTS) {
+      failures['diagram-size'].push(`${where} (${drawn.length} elements)`);
+    } else if (section.relationships.length > MAX_LINES_PER_ELEMENT * drawn.length) {
       failures['diagram-size'].push(`${where} (${section.relationships.length} lines)`);
     }
     for (const r of section.relationships) {

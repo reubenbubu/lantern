@@ -23,7 +23,6 @@ import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
@@ -539,13 +538,16 @@ final class C4Views {
 
   /**
    * The container view of the whole system: one diagram of the scope's units and frontends and what
-   * they connect to, inside the system. Above {@link #MAX_ELEMENTS} elements it is split by
-   * concern, one page each, from the entry inward: requests and data, then messaging; a view still
-   * above splits requests from data, and one still above that is drawn per unit with its neighbours
-   * in that concern, from the entry inward, leaving out a unit whose view shows nothing a view
-   * before it does not. A per-unit view still above is drawn whole and fails "At most 15 elements"
-   * in the document's quality report (ADR 0046). What is not at a C4 level, the deployment table,
-   * the decision records and the links not resolved, is in sections of its own (ADR 0086).
+   * they connect to, inside the system. When it is not readable ({@link #fits}), in order, stopping
+   * at the first readable view (ADR 0117): topics and queues from one unit to one other become
+   * "via" labels, with a note and the messaging view one page away; else the domains are drawn in
+   * place of their units, with a page per domain; else it is split by concern, one page each, from
+   * the entry inward: requests and data, then messaging; a view still not readable splits requests
+   * from data, and one still not readable that is drawn per unit with its neighbours in that
+   * concern, leaving out a unit whose view shows nothing a view before it does not. A per-unit view
+   * still not readable is drawn whole and fails the readability check in the document's quality
+   * report (ADR 0046). What is not at a C4 level, the deployment table, the decision records and
+   * the links not resolved, is in sections of its own (ADR 0086).
    *
    * @param section the containers section's ID
    * @param blocks receives the blocks of the section itself
@@ -599,9 +601,20 @@ final class C4Views {
     drawing = links;
     Map<EntityId, EntityId> domainOf = domainOf(shown);
     if (!domainOf.isEmpty()) {
-      domains(section, shown, domainOf, blocks, subsections);
-      profiles.ifPresent(blocks::add);
-      return;
+      Diagram byDomain =
+          containerDiagram(
+              assembler.id(section, "diagram"),
+              shown,
+              "Containers of " + assembler.name(system) + ", by domain",
+              null,
+              true,
+              domainOf);
+      if (fits(byDomain)) {
+        blocks.add(byDomain);
+        domains(section, shown, domainOf, subsections);
+        profiles.ifPresent(blocks::add);
+        return;
+      }
     }
     List<Diagram> drawn = new ArrayList<>();
     split(section, shown, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
@@ -626,25 +639,15 @@ final class C4Views {
   }
 
   /**
-   * The container view at domain level (ADR 0117): one overview of the system showing each domain
-   * instead of its units, units in no domain drawn as themselves, and then one page per domain,
-   * from the entry inward, with its units and their neighbours outside it, lifted to their domains.
-   * A domain page above {@link #MAX_ELEMENTS} elements is split by concern.
+   * The pages of the container view at domain level (ADR 0117), after its readable overview: one
+   * page per domain, from the entry inward, with its units and their neighbours outside it, lifted
+   * to their domains. A domain page that is not readable is split by concern.
    */
   private void domains(
       String section,
       SortedSet<EntityId> shown,
       Map<EntityId, EntityId> domainOf,
-      List<Block> blocks,
       List<Section> subsections) {
-    blocks.add(
-        containerDiagram(
-            assembler.id(section, "diagram"),
-            shown,
-            "Containers of " + assembler.name(system) + ", by domain",
-            null,
-            true,
-            domainOf));
     // Each domain's units, from the entry inward; the domains in the order of their first unit.
     Map<EntityId, SortedSet<EntityId>> members = new java.util.LinkedHashMap<>();
     for (EntityId unit : shown) {
@@ -745,11 +748,10 @@ final class C4Views {
   }
 
   /**
-   * The lines with each topic or queue folded away that carries messages from units to units, from
-   * which the units publishing to it and consuming from it are not the same, and whose lines to
-   * draw its senders to its receivers directly are no more than its own (C4: queues and topics as
-   * "via" labels where the coupling is point to point). A topic with other lines, such as routes,
-   * stays an element.
+   * The lines with each topic or queue folded away that carries messages from one unit to one other
+   * unit and has no other lines (C4: queues and topics as "via" labels where the coupling is point
+   * to point). A topic with more senders or receivers is a coupling point and stays an element, as
+   * does one with other lines, such as routes.
    *
    * @param folded receives the topics and queues folded
    */
@@ -784,8 +786,7 @@ final class C4Views {
       entry.getValue().forEach(l -> senders.add(l.from()));
       Set<EntityId> receivers = new HashSet<>();
       in.forEach(l -> receivers.add(l.to()));
-      if (Collections.disjoint(senders, receivers)
-          && senders.size() * receivers.size() <= senders.size() + receivers.size()) {
+      if (senders.size() == 1 && receivers.size() == 1 && !senders.equals(receivers)) {
         folded.add(topic);
       }
     }

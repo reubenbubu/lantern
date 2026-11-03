@@ -158,7 +158,25 @@ For the hard case, steps 2 and 3 remove up to 13 topic nodes and up to 6 store n
 
 ## Judgement (#699)
 
-The recommendation is adopted in its order of fold steps and its rejection of automatic clustering. One part waits for a decision of the owner: the gates measured on the laid-out diagram need the layout run where the composer runs, and the layout (ELK) runs only in the report's browser code today. Running it in the composer adds a dependency, which `CLAUDE.md` puts to the owner. Until that is decided, a view passes on measures taken before layout, reported with the view, and element and line counts stay signals, not a cap.
+Adopted (ADR 0117):
+- The order of fold steps.
+- The rejection of automatic clustering.
+- The "via" fold, narrowed to one sender and one receiver: the rule above would also fold one
+  sender to many receivers, which is the fan-out it means to keep.
+
+Not adopted:
+- Folding a store used by one unit into that unit. The bar's Container row keeps each service's
+  schema as its own data store.
+
+The measured gates on the laid-out diagram wait for #366, since the layout runs only in the
+report's browser code today. Until then, element and line counts are used as provisional gates,
+not only as signals:
+- at most 50 elements, the least size at which the studies above saw readers struggle with dense
+  lines;
+- at most 2 lines per element, the top of the sparse band.
+
+This departs from the recommendation to keep counts as signals only. It is stated as provisional
+in the ADR and the design, and #366 replaces it.
 
 ## Sources read
 

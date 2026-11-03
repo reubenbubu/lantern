@@ -353,6 +353,28 @@ class QualityBarTest {
   }
 
   @Test
+  void aDiagramWithMoreLinesPerElementThanTheThresholdIsNotReadable() {
+    List<Diagram.Edge> edges = new ArrayList<>();
+    for (int i = 0; i <= C4Views.MAX_LINES_PER_ELEMENT * 2; i++) {
+      edges.add(
+          edge("e" + i, i % 2 == 0 ? SHOP : PAY, i % 2 == 0 ? PAY : SHOP, "Asks " + i, "HTTP"));
+    }
+    Diagram diagram =
+        new Diagram(
+            "d",
+            Diagram.Kind.C4_CONTAINER,
+            "Containers of Shop",
+            List.of(
+                node(SYSTEM, "Shop", null), node(SHOP, "shop", "Java"), node(PAY, "pay", "Java")),
+            edges,
+            List.of());
+    Document document = document("c4-model-sequence-diagrams", "a", section("s", "S", diagram));
+
+    assertThat(failed(document, QualityBar.ELEMENTS))
+        .containsExactly("d: It draws 5 lines between 2 elements.");
+  }
+
+  @Test
   void aFailureNamesTenElementsAndCountsTheRest() {
     List<Table.Row> rows = new ArrayList<>();
     for (int i = 0; i < 12; i++) {

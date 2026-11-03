@@ -30,15 +30,16 @@ is #366's.
   - A sequence diagram keeps its own limit of 15 participants.
 - **Container views, in a fixed order.** Stop at the first step that gives a readable view.
   1. The whole system, with lines merged per ordered pair and protocol.
-  2. Detail folded away: a topic or queue is drawn as "via" on the line between its senders and
-     receivers. This applies when only units send to and receive from it, no unit does both, it
-     has no other lines, and senders × receivers ≤ senders + receivers, so the fold adds no
-     lines.
+  2. Detail folded away: a topic or queue is drawn as "via" on the line from its one sender to
+     its one receiver. This applies when exactly one unit sends to it, exactly one other unit
+     receives from it, and it has no other lines. A topic with more senders or receivers is a
+     coupling point and stays an element. (The research note's rule, senders × receivers ≤
+     senders + receivers, would also fold one sender to many receivers, which is fan-out.)
      - A note under the overview names what was folded.
      - A messaging view one page away draws every topic and queue as an element, split per unit
        when that view is not readable either.
   3. Domains (#535, named by Name groups) in place of their units, when the scope has domains
-     with at least two of its units. Lines are lifted to the domain, and a line whose ends become
+     with at least two of its units and that overview is readable. Lines are lifted to the domain, and a line whose ends become
      one is dropped. Each domain then gets a page of its units and their neighbours, split by
      concern when that page is not readable.
   4. Split by concern, then per unit, as before.
@@ -56,6 +57,10 @@ is #366's.
   a group is labelled with the intent Name groups stored for it, else as other lines are.
 
 ## Consequences
+
+- On the development test sets, every whole-system overview is readable at 50 elements, so neither
+  the fold nor the domain view runs there yet; only the feature-area step does. The fold and the
+  domain view are covered by tests.
 
 - project-8's eleven units fit one container overview of 38 elements and 54 lines, and
   workorder-service's 56 components become an overview of its feature areas plus a page per

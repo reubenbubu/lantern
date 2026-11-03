@@ -62,6 +62,57 @@ class GroupViewsTest {
   }
 
   @Test
+  void aTopicWithOneSenderAndSeveralReceiversStaysAnElement() {
+    TestFacts many = TestFacts.runtime();
+    String other = "service:com.example:other";
+    many.attribute("shop", other, "deployable-unit", "spring-boot", "{}")
+        .attribute("shop", other, "application-name", "other", "{}")
+        .relate("shop", other, "CONSUMES", "topic:kafka:orders", "{\"protocol\": \"Kafka\"}");
+    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+      many.relate("shop", APP, "PUBLISHES", "topic:kafka:e" + i, "{\"protocol\": \"Kafka\"}")
+          .relate("base", WORKER, "CONSUMES", "topic:kafka:e" + i, "{\"protocol\": \"Kafka\"}");
+    }
+
+    Diagram overview = block(section(system(many.list()), "containers"), Diagram.class);
+
+    // orders has two receivers, worker and other: a coupling point, still drawn.
+    assertThat(overview.nodes()).anyMatch(n -> n.id().toString().equals("topic:kafka:orders"));
+    assertThat(overview.nodes()).noneMatch(n -> n.id().toString().equals("topic:kafka:e0"));
+  }
+
+  @Test
+  void anOverviewByDomainThatIsNotReadableEitherIsSplitByConcern() {
+    TestFacts many = TestFacts.runtime();
+    String domain = "group:system/domain/pair";
+    many.attribute(
+            "shop",
+            domain,
+            "group-of",
+            "domain",
+            "{\"scope\": \"system\", \"basis\": \"repository\", \"signal\": \"pair\"}")
+        .relate("shop", domain, "GROUPS", APP, "{\"basis\": \"repository\"}")
+        .relate("shop", domain, "GROUPS", WORKER, "{\"basis\": \"repository\"}");
+    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+      many.relate(
+          "base",
+          WORKER,
+          "CALLS_HTTP",
+          "external-system:x" + i + ".example.com",
+          "{\"protocol\": \"HTTPS\", \"httpMethod\": \"GET\", \"path\": \"/\"}");
+    }
+
+    Section containers = section(system(many.list()), "containers");
+
+    assertThat(containers.blocks()).noneMatch(Diagram.class::isInstance);
+    assertThat(containers.sections()).isNotEmpty();
+    assertThat(containers.sections())
+        .flatExtracting(Section::blocks)
+        .filteredOn(Diagram.class::isInstance)
+        .extracting(b -> ((Diagram) b).title())
+        .noneMatch(t -> t.endsWith(", by domain"));
+  }
+
+  @Test
   void aSystemAboveTheThresholdShowsItsDomainsInPlaceOfTheirUnitsThenAPageEach() {
     TestFacts many = TestFacts.runtime();
     String first = "group:system/domain/first";
