@@ -282,4 +282,16 @@ What changes:
 
   The share's rounds price items the same way, so a budget no longer admits more than it can pay for. A batched request is reserved at its thinking as well.
 
-Modelled on the four recorded runs, the new estimate is 0.95, 0.92, 1.09 and 0.83 of the spend on project-1 to project-4, against 0.44 to 0.55 before. That is in-sample for DeepSeek. Haiku 5.5, which also has headroom, takes the same values until a run measures it.
+Modelled on the four recorded runs, the new estimate is 0.95, 0.92, 1.09 and 0.83 of the spend on project-1 to project-4, against 0.44 to 0.55 before. That is in-sample.
+
+- **A model's own tokens.** Lantern counts four characters as a token. That matches DeepSeek's tokenizer, but Claude's counts about 1.6 times as many tokens for the same prompts. A model's `estimate-token-scale` setting, 1 if not set, multiplies every token count of its estimates and reservations. For Claude models it is 1.55, measured on the Haiku run below.
+
+New runs of project-4, each with the rounds fully asked:
+
+| Model | Estimate | Spent | Spent / estimate |
+| --- | --- | --- | --- |
+| DeepSeek V4.1 Flash (scale 1) | $0.70 | $0.63 | 0.90, was 2.0 on #529 |
+| Haiku 5.5, before the scale | $0.43 | $0.67 | 1.56 |
+| Haiku 5.5 at scale 1.55 | $0.67 (computed) | $0.67 | 1.0 |
+
+On DeepSeek no share waited and nothing was skipped. The Haiku run had a $1.50 budget, so its shares were small. At scale 1 its low estimate let the flows use their share before the purpose and 16 narratives were asked, the failure #694 names. Its counts above are of the roles that were fully asked. The scale multiplies every token count of the estimate, so the Haiku estimate at 1.55 is computed from that run, not run again.

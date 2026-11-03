@@ -286,6 +286,7 @@ public final class RoleSession {
     }
     TokenUsage expected = expected(input, write, read, toAsk, requests);
     input = expected.input();
+    write = expected.cacheWrite();
     read = expected.cacheRead();
     long output = expected.output();
     BigDecimal usd;
@@ -1280,6 +1281,7 @@ public final class RoleSession {
     }
     TokenUsage expected = expected(input, write, read, entries.size(), requests);
     input = expected.input();
+    write = expected.cacheWrite();
     read = expected.cacheRead();
     long output = expected.output();
     if (batching()) {
@@ -1341,7 +1343,12 @@ public final class RoleSession {
         input += resent;
       }
     }
-    return new TokenUsage(input, output, write, read);
+    double scale = model.estimateTokenScale();
+    return new TokenUsage(
+        Math.round(input * scale),
+        Math.round(output * scale),
+        Math.round(write * scale),
+        Math.round(read * scale));
   }
 
   /** What the model is expected to think in the given number of requests or turns (#694). */
@@ -1351,7 +1358,8 @@ public final class RoleSession {
 
   /** The output one request of the given items is expected to take, its thinking included. */
   long expectedOutput(int items) {
-    return (long) items * spec.expectedOutputTokens() + thinking(1);
+    return Math.round(
+        ((long) items * spec.expectedOutputTokens() + thinking(1)) * model.estimateTokenScale());
   }
 
   /**

@@ -200,6 +200,8 @@ public record LlmProperties(
    *     model that thinks anyway; none if not set
    * @param thinkingOffSwitch how the model turns thinking off ({@code disabled}, {@code
    *     between-tools} or {@code none}); {@code disabled} if not set
+   * @param estimateTokenScale how many of the model's tokens one token of Lantern's estimates comes
+   *     to, as measured (1.55 for Claude models, ADR 0100, amendment for #694); 1 if not set
    */
   public record Model(
       String provider,
@@ -211,7 +213,8 @@ public record LlmProperties(
       Integer requestsPerMinute,
       Boolean disableThinking,
       Integer thinkingHeadroomTokens,
-      Thinking.OffSwitch thinkingOffSwitch) {
+      Thinking.OffSwitch thinkingOffSwitch,
+      Double estimateTokenScale) {
 
     ModelConfig toConfig(String property) {
       require(property + ".provider", provider);
@@ -229,7 +232,19 @@ public record LlmProperties(
               supported.contains(Capability.PROMPT_CACHING),
               io.lantern.llm.anthropic.AnthropicProvider.NAME.equals(provider)),
           limits(property),
-          thinking(property));
+          thinking(property),
+          estimateTokenScale(property));
+    }
+
+    private double estimateTokenScale(String property) {
+      if (estimateTokenScale == null) {
+        return 1.0;
+      }
+      if (!(estimateTokenScale > 0)) {
+        throw new IllegalStateException(
+            property + ".estimate-token-scale must be positive: " + estimateTokenScale);
+      }
+      return estimateTokenScale;
     }
 
     private Thinking thinking(String property) {

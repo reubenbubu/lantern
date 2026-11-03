@@ -365,6 +365,23 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void theEstimateTokenScaleIsReadAndIsOneIfNotSet() {
+    model("haiku", "fake", "haiku-model");
+    model("deepseek", "fake", "deepseek-model");
+    tiers("haiku", "deepseek");
+    values.put("lantern.llm.models.haiku.estimate-token-scale", "1.55");
+
+    ModelSettings settings = bind().modelSettings();
+
+    assertThat(settings.forRole(Role.COMPOSE).estimateTokenScale()).isEqualTo(1.55);
+    assertThat(settings.forRole(Role.RESOLVE).estimateTokenScale()).isEqualTo(1.0);
+
+    values.put("lantern.llm.models.haiku.estimate-token-scale", "0");
+    assertThatThrownBy(this::bindAndBuild)
+        .hasMessageContaining("lantern.llm.models.haiku.estimate-token-scale must be positive");
+  }
+
+  @Test
   void theThinkingOffSwitchIsReadAndAModelWithoutOneIsNotAskedToTurnThinkingOff() {
     model("sonnet", "fake", "sonnet-model");
     model("opus", "fake", "opus-model");

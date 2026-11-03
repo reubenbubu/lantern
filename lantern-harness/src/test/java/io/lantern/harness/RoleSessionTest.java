@@ -308,6 +308,24 @@ class RoleSessionTest {
   }
 
   @Test
+  void thePlanCountsInTheModelsOwnTokens() {
+    // A model whose tokenizer counts more tokens for the same text is estimated at its scale.
+    List<Item> items = List.of(item("a"), item("b"));
+    Estimate plain =
+        harness(client(fake, TestHarness.priced(fake)), store)
+            .session(role())
+            .plan(items, 0, 0, 0, 10);
+    Estimate scaled =
+        harness(client(fake, TestHarness.priced(fake).withEstimateTokenScale(2)), store)
+            .session(role())
+            .plan(items, 0, 0, 0, 10);
+    assertThat(scaled.outputTokens()).isEqualTo(2 * plain.outputTokens());
+    assertThat(scaled.inputTokens()).isEqualTo(2 * plain.inputTokens());
+    assertThat(scaled.cacheWriteTokens()).isEqualTo(2 * plain.cacheWriteTokens());
+    assertThat(scaled.usd()).isEqualByComparingTo(plain.usd().multiply(java.math.BigDecimal.TWO));
+  }
+
+  @Test
   void thePlanCountsEveryTurnOfAConversation() {
     // Each turn after the first sends the conversation so far again, read from the prompt cache,
     // with what the turn before added (#694).
