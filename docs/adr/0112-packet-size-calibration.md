@@ -125,3 +125,12 @@ The calibration is instead run from the caches of #756's baseline runs, where it
 calibrated roles' calls. Until then, the sizes kept on DeepSeek stay as provisional.
 Investigate's leads already ask one item a request, the least size, so its answers cannot get
 worse for a size.
+
+## Amendment (#737): calibration counts only on Haiku and Sonnet
+
+The owner's decision of 3 Nov 2026 (ADR 0070, amendment for #737): a calibration counts only on
+Claude Haiku 5.5 or Claude Sonnet 5.5, reached through OpenRouter with the owner's Anthropic key
+as BYOK (ADR 0102, amendment for #754). The sizes kept by #529 were measured on DeepSeek V4.1 Flash
+and stay in `application.properties` as provisional until the calibration of #756 (amendment for
+#754 above) measures them on Haiku and Sonnet and replaces them. DeepSeek serves only smoke runs
+from here on.

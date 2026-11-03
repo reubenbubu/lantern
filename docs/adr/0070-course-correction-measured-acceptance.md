@@ -144,3 +144,21 @@ references' recall within the budget is only known from 2D's runs.
 
 ADRs are no longer the user's to review: an ADR records a decision that follows `docs/quality-bar.md`
 and `docs/design.md` and is accepted as written (`CLAUDE.md`, When to stop and ask).
+
+## Amendment (#737): the models testing counts on
+
+On 3 Nov 2026 the owner decided which models a result that counts comes from:
+
+- **All testing that counts runs on Claude Haiku 5.5 and Claude Sonnet 5.5**, through OpenRouter:
+  Lantern's Anthropic connection with the base URL `https://openrouter.ai/api`, the owner's
+  Anthropic key used as BYOK, falling back to OpenRouter's own Anthropic capacity when the key's
+  allowance is empty or rate limited (the route: ADR 0102, amendment for #754). That
+  covers every scorecard, baseline, calibration and test drop. The roles keep their split from
+  decision 2: Haiku for the high-volume roles, Sonnet for Investigate, the judge and the reasoning
+  roles.
+- **DeepSeek, or any other non-Claude model, only for smoke runs**: a run that checks the wiring
+  and whose numbers are never reported as a result. The DeepSeek measurements of #529 (ADR 0112)
+  stay as a record and are measured again on Haiku and Sonnet (#756).
+- **Lantern ships tuned for Haiku and Sonnet**: the prompts, packet sizes and checks are set on
+  them; other models remain configurable but untuned.
+- Real calls still cost money and are asked for first (`CLAUDE.md`, When to stop and ask).

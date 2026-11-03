@@ -68,3 +68,16 @@ is #366's.
 - Until #366 measures after layout, a 50-element overview may still need zooming on a small
   screen. The thresholds are named constants, `C4Views.MAX_ELEMENTS` and
   `MAX_LINES_PER_ELEMENT`, so #366 changes them in one place.
+
+## Amendment (#737): the limits are a warning, not a cap
+
+On 3 Nov 2026, after the 1G review, the owner decided that no hard element limit decides
+grouping. 50 elements and 2 lines per element are rejected as a cap. Views are to be grouped by
+meaning, at a level chosen among groupings the code proves, with size only a warning and
+readability measured after layout (#764, with #366).
+
+- Until #764 lands, the two values stay where they are, as the quality check "Readable" and the
+  scorer's diagram-size check: a warning on the report, never a reason to drop or hide content.
+  The fold, domain and feature-area steps above keep running as they do, since #764 replaces them.
+- No new work uses `C4Views.MAX_ELEMENTS` or `MAX_LINES_PER_ELEMENT` to decide how a view is
+  grouped or split.
