@@ -11,11 +11,13 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
 import io.lantern.derive.DeploymentInstances;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.Screens;
+import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -51,34 +53,8 @@ import tools.jackson.databind.JsonNode;
  */
 final class C4Views {
 
-  static final String DEPLOYABLE_UNIT = "deployable-unit";
-  static final String APPLICATION_NAME = "application-name";
-  static final String TECHNOLOGY = "technology";
-  static final String BUNDLES = "BUNDLES";
-  static final String CALLS_HTTP = "CALLS_HTTP";
-  static final String SENDS_MAIL = "SENDS_MAIL";
-  static final String USES_IDENTITY_PROVIDER = "USES_IDENTITY_PROVIDER";
-  static final String PUBLISHES = "PUBLISHES";
-  static final String CONSUMES = "CONSUMES";
-  static final String ROUTES_TO = "ROUTES_TO";
-  static final String USES_DATABASE = "USES_DATABASE";
-  static final String ACCESSES_DATA_OF = "ACCESSES_DATA_OF";
-  static final String UNRESOLVED_LINK = "unresolved-link";
-  static final String DATABASE = "database";
-  static final String TOPIC = "topic";
-  static final String QUEUE = "queue";
-  static final String EXCHANGE = "exchange";
-  static final String EXTERNAL_SYSTEM = "external-system";
-  static final String DECISION = "decision";
-  static final String PERSON = "person";
-  static final String PERSON_BASIS = "person-basis";
   static final String USES = "USES";
-  static final String FRONTEND = "frontend";
-  static final String FRONTEND_APP = "frontend-app";
   static final String ROUTE = "route";
-
-  /** The kinds of container that are not deployable units: data stores and destinations. */
-  static final Set<String> DESTINATIONS = Set.of(DATABASE, TOPIC, QUEUE, EXCHANGE, EXTERNAL_SYSTEM);
 
   /** A decision record's rationale when it has no context section. */
   static final String NOT_RECORDED = "Not recorded.";
@@ -89,22 +65,8 @@ final class C4Views {
   /** How many details an edge label names before it counts the rest. */
   private static final int NAMED = 2;
 
-  private static final String METHOD = "method";
-  private static final String STEREOTYPE = "stereotype";
-  private static final String ENDPOINT = "endpoint";
-  private static final String MESSAGE_LISTENER = "message-listener";
-  private static final String SCHEDULED = "scheduled";
-  private static final String BACKGROUND_JOB = "background-job";
-  private static final String GATEWAY_ROUTE = "gateway-route";
-  private static final String GATEWAY_FILTER = "gateway-filter";
-
   /** The name of a component of the routes a gateway's config defines. */
   static final String CONFIG_ROUTES = "Gateway routes";
-
-  private static final String HTTP_CLIENT = "http-client";
-  private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
-  private static final String ASPECT = "aspect";
-  private static final String ADVISES = "ADVISES";
 
   private final Knowledge knowledge;
   private final Assembler assembler;
@@ -137,7 +99,7 @@ final class C4Views {
     this.units = units;
     this.repos = repos;
     this.frontends = new TreeSet<>(Knowledge.BY_ID);
-    for (Fact app : knowledge.withPredicate(FRONTEND_APP)) {
+    for (Fact app : knowledge.withPredicate(Types.FRONTEND_APP)) {
       if (repos.isEmpty() || repos.contains(app.evidence().repo())) {
         frontends.add(app.subject());
       }
@@ -180,7 +142,7 @@ final class C4Views {
         continue;
       }
       for (EntityId end : List.of(link.from, link.to)) {
-        if (DESTINATIONS.contains(end.type())) {
+        if (assembler.destination(end)) {
           result.add(end);
         }
       }
@@ -196,7 +158,7 @@ final class C4Views {
     Set<EntityId> drawn = destinations();
     List<Neighbour> result = new ArrayList<>();
     for (Link link : links) {
-      if (link.relationship.equals(ROUTES_TO)
+      if (link.relationship.equals(Types.ROUTES_TO)
           && !(drawn.contains(link.from) && drawn.contains(link.to))) {
         continue;
       }
@@ -210,14 +172,14 @@ final class C4Views {
   }
 
   /** Whether an element is a container that runs code: a deployable unit or a frontend. */
-  private static boolean runsCode(EntityId element) {
-    return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(FRONTEND);
+  static boolean runsCode(EntityId element) {
+    return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(Types.FRONTEND);
   }
 
   /** Every frontend of the knowledge (ADR 0083). */
   static SortedSet<EntityId> frontends(Knowledge knowledge) {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(FRONTEND_APP).forEach(f -> result.add(f.subject()));
+    knowledge.withPredicate(Types.FRONTEND_APP).forEach(f -> result.add(f.subject()));
     return result;
   }
 
@@ -233,7 +195,7 @@ final class C4Views {
 
   static Optional<Fact> frontendApp(Knowledge knowledge, EntityId frontend) {
     return knowledge.attributes(frontend).stream()
-        .filter(f -> f.predicate().equals(FRONTEND_APP))
+        .filter(f -> f.predicate().equals(Types.FRONTEND_APP))
         .findFirst();
   }
 
@@ -242,7 +204,7 @@ final class C4Views {
   /** Every deployable unit of the knowledge. */
   static SortedSet<EntityId> units(Knowledge knowledge) {
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
+    knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
     return units;
   }
 
@@ -268,7 +230,7 @@ final class C4Views {
   /** The name a unit runs under in Spring's default profile, if it has one. */
   static Optional<String> applicationName(Knowledge knowledge, EntityId unit) {
     return knowledge.attributes(unit).stream()
-        .filter(f -> f.predicate().equals(APPLICATION_NAME) && Knowledge.view(f) == null)
+        .filter(f -> f.predicate().equals(Types.APPLICATION_NAME) && Knowledge.view(f) == null)
         .map(f -> f.object().value())
         .findFirst();
   }
@@ -278,25 +240,25 @@ final class C4Views {
     return knowledge.attributes(entity).stream()
         .filter(
             f ->
-                f.predicate().equals(DEPLOYABLE_UNIT)
-                    || f.predicate().equals(FRONTEND_APP)
-                    || f.predicate().equals(TECHNOLOGY)
-                    || (f.predicate().equals(APPLICATION_NAME) && Knowledge.view(f) == null))
+                f.predicate().equals(Types.DEPLOYABLE_UNIT)
+                    || f.predicate().equals(Types.FRONTEND_APP)
+                    || f.predicate().equals(Types.TECHNOLOGY)
+                    || (f.predicate().equals(Types.APPLICATION_NAME) && Knowledge.view(f) == null))
         .toList();
   }
 
   /** The technology line of a container: what it is built with, or what kind of store it is. */
   String technology(EntityId entity) {
-    Optional<String> technology = knowledge.attribute(entity, TECHNOLOGY);
+    Optional<String> technology = knowledge.attribute(entity, Types.TECHNOLOGY);
     String broker = entity.key().substring(0, Math.max(entity.key().indexOf(':'), 0));
     return switch (entity.type()) {
-      case BuiltInTypes.SERVICE, DATABASE -> technology.orElse(null);
-      case FRONTEND -> frontendApp(entity).map(f -> attribute(f, TECHNOLOGY)).orElse(null);
-      case TOPIC -> brokerName(broker) + " topic";
-      case QUEUE -> brokerName(broker) + " queue";
-      case EXCHANGE -> {
+      case BuiltInTypes.SERVICE, Types.DATABASE -> technology.orElse(null);
+      case Types.FRONTEND -> frontendApp(entity).map(f -> attribute(f, "technology")).orElse(null);
+      case Types.TOPIC -> brokerName(broker) + " topic";
+      case Types.QUEUE -> brokerName(broker) + " queue";
+      case Types.EXCHANGE -> {
         String type =
-            knowledge.relations(entity, ROUTES_TO).stream()
+            knowledge.relations(entity, Types.ROUTES_TO).stream()
                 .map(f -> attribute(f, "exchangeType"))
                 .filter(Objects::nonNull)
                 .sorted()
@@ -375,17 +337,17 @@ final class C4Views {
       Fact fallback = entry.getValue();
       EntityId target = Knowledge.object(profiled);
       if (!of.contains(profiled.subject())
-          || (externalOnly && !target.type().equals(EXTERNAL_SYSTEM))) {
+          || (externalOnly && !target.type().equals(Types.EXTERNAL_SYSTEM))) {
         continue;
       }
       String verb =
           switch (profiled.predicate()) {
-            case CALLS_HTTP -> "calls";
-            case SENDS_MAIL -> "sends mail through";
-            case USES_IDENTITY_PROVIDER -> "uses as its identity provider";
-            case PUBLISHES -> "sends to";
-            case CONSUMES -> "listens on";
-            case USES_DATABASE -> "connects to";
+            case Types.CALLS_HTTP -> "calls";
+            case Types.SENDS_MAIL -> "sends mail through";
+            case Types.USES_IDENTITY_PROVIDER -> "uses as its identity provider";
+            case Types.PUBLISHES -> "sends to";
+            case Types.CONSUMES -> "listens on";
+            case Types.USES_DATABASE -> "connects to";
             default -> "reads tables of";
           };
       assembler.entity(target);
@@ -424,13 +386,13 @@ final class C4Views {
     Set<EntityId> folded = foldedQueues();
     List<Link> result = new ArrayList<>();
     for (EntityId unit : units(knowledge)) {
-      for (Fact fact : knowledge.relations(unit, CALLS_HTTP)) {
+      for (Fact fact : knowledge.relations(unit, Types.CALLS_HTTP)) {
         List<String> paths = strings(fact, "paths");
         boolean route = attribute(fact, "route") != null;
         result.add(
             link(
                 unit,
-                CALLS_HTTP,
+                Types.CALLS_HTTP,
                 Knowledge.object(fact),
                 route ? "Routes requests" : "Calls",
                 route ? "Routes" : "Calls",
@@ -438,11 +400,11 @@ final class C4Views {
                 protocol(fact),
                 fact));
       }
-      for (Fact fact : knowledge.relations(unit, SENDS_MAIL)) {
+      for (Fact fact : knowledge.relations(unit, Types.SENDS_MAIL)) {
         result.add(
             link(
                 unit,
-                SENDS_MAIL,
+                Types.SENDS_MAIL,
                 Knowledge.object(fact),
                 "Sends mail through",
                 "Sends mail",
@@ -450,12 +412,12 @@ final class C4Views {
                 protocol(fact),
                 fact));
       }
-      for (Fact fact : knowledge.relations(unit, USES_IDENTITY_PROVIDER)) {
+      for (Fact fact : knowledge.relations(unit, Types.USES_IDENTITY_PROVIDER)) {
         String[] words = identityWords(attribute(fact, "purpose"));
         result.add(
             link(
                 unit,
-                USES_IDENTITY_PROVIDER,
+                Types.USES_IDENTITY_PROVIDER,
                 Knowledge.object(fact),
                 words[0],
                 words[1],
@@ -463,11 +425,11 @@ final class C4Views {
                 protocol(fact),
                 fact));
       }
-      for (Fact fact : knowledge.relations(unit, PUBLISHES)) {
+      for (Fact fact : knowledge.relations(unit, Types.PUBLISHES)) {
         result.add(
             link(
                 unit,
-                PUBLISHES,
+                Types.PUBLISHES,
                 Knowledge.object(fact),
                 "Sends messages",
                 "Sends",
@@ -475,18 +437,26 @@ final class C4Views {
                 protocol(fact),
                 fact));
       }
-      for (Fact fact : knowledge.relations(unit, CONSUMES)) {
+      for (Fact fact : knowledge.relations(unit, Types.CONSUMES)) {
         EntityId queue = Knowledge.object(fact);
         if (!folded.contains(queue)) {
           result.add(
-              link(queue, CONSUMES, unit, "Delivers messages", null, null, protocol(fact), fact));
+              link(
+                  queue,
+                  Types.CONSUMES,
+                  unit,
+                  "Delivers messages",
+                  null,
+                  null,
+                  protocol(fact),
+                  fact));
           continue;
         }
         for (Fact route : routesTo(queue)) {
           result.add(
               link(
                       route.subject(),
-                      CONSUMES,
+                      Types.CONSUMES,
                       unit,
                       "Delivers messages",
                       "Delivers",
@@ -496,12 +466,12 @@ final class C4Views {
                   .via(assembler.name(queue), route));
         }
       }
-      for (Fact fact : knowledge.relations(unit, USES_DATABASE)) {
+      for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
         boolean ownsSchema = !strings(fact, "schemas").isEmpty();
         result.add(
             link(
                 unit,
-                USES_DATABASE,
+                Types.USES_DATABASE,
                 Knowledge.object(fact),
                 ownsSchema ? "Stores its data in" : "Connects to",
                 null,
@@ -509,7 +479,7 @@ final class C4Views {
                 protocol(fact),
                 fact));
       }
-      for (Fact fact : knowledge.relations(unit, ACCESSES_DATA_OF)) {
+      for (Fact fact : knowledge.relations(unit, Types.ACCESSES_DATA_OF)) {
         List<String> reads = strings(fact, "reads");
         List<String> writes = strings(fact, "writes");
         String verb =
@@ -522,7 +492,7 @@ final class C4Views {
         Link access =
             link(
                 unit,
-                ACCESSES_DATA_OF,
+                Types.ACCESSES_DATA_OF,
                 Knowledge.object(fact),
                 verb,
                 null,
@@ -544,7 +514,7 @@ final class C4Views {
       }
     }
     for (EntityId frontend : frontends(knowledge)) {
-      for (Fact fact : knowledge.relations(frontend, CALLS_HTTP)) {
+      for (Fact fact : knowledge.relations(frontend, Types.CALLS_HTTP)) {
         String proxy = attribute(fact, "proxy");
         boolean socket = "WebSocket".equals(attribute(fact, "protocol"));
         boolean passed =
@@ -552,7 +522,7 @@ final class C4Views {
         result.add(
             link(
                 frontend,
-                CALLS_HTTP,
+                Types.CALLS_HTTP,
                 Knowledge.object(fact),
                 passed ? "Passes requests on to" : socket ? "Opens a socket to" : "Calls",
                 passed ? "Passes on" : socket ? "Opens" : "Calls",
@@ -561,15 +531,16 @@ final class C4Views {
                 fact));
       }
     }
+    result.addAll(otherLinks());
     result.addAll(peopleLinks());
     // What Investigate found, marked as such on every line that draws it (ADR 0110).
     for (EntityId unit : units(knowledge)) {
-      for (Fact fact : knowledge.relations(unit, InvestigatedFindings.CONNECTION)) {
+      for (Fact fact : knowledge.relations(unit, Types.INVESTIGATED_CONNECTION)) {
         if (Knowledge.isEntity(fact)) {
           result.add(
               link(
                   unit,
-                  InvestigatedFindings.CONNECTION,
+                  Types.INVESTIGATED_CONNECTION,
                   Knowledge.object(fact),
                   InvestigatedFindings.FOUND_BY_LLM + " " + attribute(fact, "description"),
                   null,
@@ -579,18 +550,67 @@ final class C4Views {
         }
       }
     }
-    for (Fact route : knowledge.withPredicate(ROUTES_TO)) {
+    for (Fact route : knowledge.withPredicate(Types.ROUTES_TO)) {
       if (Knowledge.isEntity(route) && !folded.contains(Knowledge.object(route))) {
         result.add(
             link(
                 route.subject(),
-                ROUTES_TO,
+                Types.ROUTES_TO,
                 Knowledge.object(route),
                 "Routes messages",
                 "Routes",
                 attribute(route, "bindingKey"),
                 protocol(route),
                 route));
+      }
+    }
+    return result;
+  }
+
+  /**
+   * The interactions the lines above draw their own way; a unit's use of its message broker, whose
+   * topics, queues and exchanges the diagrams draw instead of one broker box; and its use of
+   * infrastructure servers, which the diagrams keep apart from its business dependencies.
+   */
+  private static final Set<String> DRAWN_OTHERWISE =
+      Set.of(
+          Types.CALLS_HTTP,
+          Types.SENDS_MAIL,
+          Types.USES_IDENTITY_PROVIDER,
+          Types.PUBLISHES,
+          Types.CONSUMES,
+          Types.ROUTES_TO,
+          Types.USES_DATABASE,
+          Types.ACCESSES_DATA_OF,
+          Types.INVESTIGATED_CONNECTION,
+          Types.USES_BROKER,
+          Types.USES_INFRASTRUCTURE);
+
+  /**
+   * Every other interaction of a unit with an element at the container or context level, drawn as
+   * what it is a kind of, a line from the unit (ADR 0114): the vocabulary, not this class, decides
+   * what a type is, so a type that extends {@code container} is drawn as one.
+   */
+  private List<Link> otherLinks() {
+    Vocabulary vocabulary = assembler.vocabulary();
+    List<Link> result = new ArrayList<>();
+    for (EntityId unit : units(knowledge)) {
+      for (Fact fact : knowledge.about(unit)) {
+        if (Knowledge.isEntity(fact)
+            && !DRAWN_OTHERWISE.contains(fact.predicate())
+            && vocabulary.isA(fact.predicate(), BuiltInTypes.INTERACTS_WITH)
+            && assembler.destination(Knowledge.object(fact))) {
+          result.add(
+              link(
+                  unit,
+                  fact.predicate(),
+                  Knowledge.object(fact),
+                  "Uses",
+                  "Uses",
+                  null,
+                  protocol(fact),
+                  fact));
+        }
       }
     }
     return result;
@@ -685,11 +705,11 @@ final class C4Views {
    */
   private Set<EntityId> foldedQueues() {
     Set<EntityId> sentTo = new HashSet<>();
-    knowledge.withPredicate(PUBLISHES).stream()
+    knowledge.withPredicate(Types.PUBLISHES).stream()
         .filter(Knowledge::isEntity)
         .forEach(f -> sentTo.add(Knowledge.object(f)));
     Set<EntityId> folded = new HashSet<>();
-    for (Fact route : knowledge.withPredicate(ROUTES_TO)) {
+    for (Fact route : knowledge.withPredicate(Types.ROUTES_TO)) {
       if (Knowledge.isEntity(route) && !sentTo.contains(Knowledge.object(route))) {
         folded.add(Knowledge.object(route));
       }
@@ -698,7 +718,7 @@ final class C4Views {
   }
 
   private List<Fact> routesTo(EntityId queue) {
-    return knowledge.withPredicate(ROUTES_TO).stream()
+    return knowledge.withPredicate(Types.ROUTES_TO).stream()
         .filter(f -> Knowledge.isEntity(f) && Knowledge.object(f).equals(queue))
         .toList();
   }
@@ -925,7 +945,7 @@ final class C4Views {
     Edges edges = new Edges();
     for (Link link : links) {
       if ((units.contains(link.from) || frontends.contains(link.from))
-          && link.to.type().equals(EXTERNAL_SYSTEM)) {
+          && link.to.type().equals(Types.EXTERNAL_SYSTEM)) {
         nodes.computeIfAbsent(link.to, e -> node(e, null, null, List.of()));
         EdgeBuilder edge = edges.get(system, link.relationship, link.to);
         edge.add(link.plain, link.prefix, link.detail, null, link.profile);
@@ -1018,7 +1038,7 @@ final class C4Views {
     List<Fact> unitFacts = new ArrayList<>();
     units.forEach(u -> unitFacts.addAll(containerFacts(u)));
     Map<String, SortedMap<EntityId, List<Fact>>> used = new TreeMap<>();
-    for (String kind : List.of(DATABASE, QUEUE, EXTERNAL_SYSTEM)) {
+    for (String kind : List.of(Types.DATABASE, Types.QUEUE, Types.EXTERNAL_SYSTEM)) {
       used.put(kind, new TreeMap<>(Knowledge.BY_ID));
     }
     for (Link link : links) {
@@ -1026,9 +1046,9 @@ final class C4Views {
         EntityId other = end.equals(link.from) ? link.to : link.from;
         String kind =
             switch (end.type()) {
-              case DATABASE -> DATABASE;
-              case TOPIC, QUEUE, EXCHANGE -> QUEUE;
-              case EXTERNAL_SYSTEM -> EXTERNAL_SYSTEM;
+              case Types.DATABASE -> Types.DATABASE;
+              case Types.TOPIC, Types.QUEUE, Types.EXCHANGE -> Types.QUEUE;
+              case Types.EXTERNAL_SYSTEM -> Types.EXTERNAL_SYSTEM;
               default -> null;
             };
         if (kind != null && (units.contains(other) || frontends.contains(other))) {
@@ -1043,9 +1063,9 @@ final class C4Views {
       frontends.forEach(f -> frontendApp(f).ifPresent(apps::add));
       items.add(metric("Frontends", frontends.size(), apps));
     }
-    items.add(metric("Databases", used.get(DATABASE)));
-    items.add(metric("Topics, queues and exchanges", used.get(QUEUE)));
-    items.add(metric("External systems", used.get(EXTERNAL_SYSTEM)));
+    items.add(metric("Databases", used.get(Types.DATABASE)));
+    items.add(metric("Topics, queues and exchanges", used.get(Types.QUEUE)));
+    items.add(metric("External systems", used.get(Types.EXTERNAL_SYSTEM)));
     if (!people.isEmpty()) {
       items.add(metric("People", people.size(), List.copyOf(people.values())));
     }
@@ -1078,10 +1098,13 @@ final class C4Views {
   }
 
   private static final Concern REQUESTS =
-      new Concern("Requests", Set.of(CALLS_HTTP, USES, SENDS_MAIL, USES_IDENTITY_PROVIDER));
-  private static final Concern DATA = new Concern("Data", Set.of(USES_DATABASE, ACCESSES_DATA_OF));
+      new Concern(
+          "Requests",
+          Set.of(Types.CALLS_HTTP, USES, Types.SENDS_MAIL, Types.USES_IDENTITY_PROVIDER));
+  private static final Concern DATA =
+      new Concern("Data", Set.of(Types.USES_DATABASE, Types.ACCESSES_DATA_OF));
   private static final Concern MESSAGING =
-      new Concern("Messaging", Set.of(PUBLISHES, CONSUMES, ROUTES_TO));
+      new Concern("Messaging", Set.of(Types.PUBLISHES, Types.CONSUMES, Types.ROUTES_TO));
 
   /**
    * The container view of the whole system: one diagram of the scope's units and frontends and what
@@ -1358,8 +1381,8 @@ final class C4Views {
     }
     // Routes between exchanges and queues both drawn already.
     for (Link link : links) {
-      if (link.relationship.equals(ROUTES_TO)
-          && (concern == null || concern.relationships.contains(ROUTES_TO))
+      if (link.relationship.equals(Types.ROUTES_TO)
+          && (concern == null || concern.relationships.contains(Types.ROUTES_TO))
           && nodes.containsKey(link.from)
           && nodes.containsKey(link.to)) {
         edges.add(link);
@@ -1388,7 +1411,7 @@ final class C4Views {
       Set<EntityId> called = new HashSet<>();
       List<EntityId> gateways = new ArrayList<>();
       for (Link link : links) {
-        if (link.relationship.equals(CALLS_HTTP) && runsCode(link.to)) {
+        if (link.relationship.equals(Types.CALLS_HTTP) && runsCode(link.to)) {
           called.add(link.to);
           if ("Routes".equals(link.prefix)) {
             gateways.add(link.from);
@@ -1408,7 +1431,7 @@ final class C4Views {
       while (!queue.isEmpty()) {
         EntityId from = queue.poll();
         for (Link link : links) {
-          if (link.relationship.equals(CALLS_HTTP)
+          if (link.relationship.equals(Types.CALLS_HTTP)
               && link.from.equals(from)
               && runsCode(link.to)
               && depth.putIfAbsent(link.to, depth.get(from) + 1) == null) {
@@ -1417,7 +1440,7 @@ final class C4Views {
         }
       }
       entryFirst =
-          Comparator.comparing((EntityId e) -> !e.type().equals(FRONTEND))
+          Comparator.comparing((EntityId e) -> !e.type().equals(Types.FRONTEND))
               .thenComparing(e -> depth.getOrDefault(e, Integer.MAX_VALUE))
               .thenComparing(Knowledge.BY_ID);
     }
@@ -1433,8 +1456,8 @@ final class C4Views {
     }
     // Inside the system's boundary where the diagram draws it.
     EntityId parent =
-        entity.type().equals(EXTERNAL_SYSTEM)
-                || entity.type().equals(PERSON)
+        entity.type().equals(Types.EXTERNAL_SYSTEM)
+                || entity.type().equals(Types.PERSON)
                 || !nodes.containsKey(system)
             ? null
             : system;
@@ -1451,7 +1474,7 @@ final class C4Views {
       // the facts' IDs (#605).
       List<Fact> open =
           knowledge.attributes(unit).stream()
-              .filter(f -> f.predicate().equals(UNRESOLVED_LINK) && !knowledge.resolved(f))
+              .filter(f -> f.predicate().equals(Types.UNRESOLVED_LINK) && !knowledge.resolved(f))
               .sorted(
                   Comparator.comparing((Fact f) -> f.object().value())
                       .thenComparing(f -> Objects.toString(attribute(f, "source"), ""))
@@ -1501,10 +1524,10 @@ final class C4Views {
    */
   Optional<Block> decisions(String section) {
     SortedSet<EntityId> decisions = new TreeSet<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate("title")) {
+    for (Fact fact : knowledge.withPredicate(Types.TITLE)) {
       EntityId subject = fact.subject();
       String key = subject.key();
-      if (subject.type().equals(DECISION)
+      if (subject.type().equals(Types.DECISION)
           && key.contains(":")
           && repos.contains(key.substring(0, key.indexOf(':')))) {
         decisions.add(subject);
@@ -1534,15 +1557,15 @@ final class C4Views {
     List<Table.Row> rows = new ArrayList<>();
     for (EntityId decision : decisions) {
       assembler.entity(decision);
-      Optional<String> number = knowledge.attribute(decision, "decision-number");
+      Optional<String> number = knowledge.attribute(decision, Types.DECISION_NUMBER);
       rows.add(
           new Table.Row(
               decision,
               List.of(
                   cell(number.map(n -> "ADR " + n).orElse(null)),
                   cell(assembler.name(decision)),
-                  cell(knowledge.attribute(decision, "decision-status").orElse(null)),
-                  cell(knowledge.attribute(decision, "decision-outcome").orElse(null)),
+                  cell(knowledge.attribute(decision, Types.DECISION_STATUS).orElse(null)),
+                  cell(knowledge.attribute(decision, Types.DECISION_OUTCOME).orElse(null)),
                   cell(rationale(decision))),
               assembler.facts(knowledge.attributes(decision))));
     }
@@ -1571,7 +1594,7 @@ final class C4Views {
   /** The first paragraph of a decision record's context section, or that it has none. */
   private String rationale(EntityId decision) {
     return knowledge
-        .attribute(decision, "decision-context")
+        .attribute(decision, Types.DECISION_CONTEXT)
         .map(String::strip)
         .filter(c -> !c.isEmpty())
         .map(c -> c.split("\\n\\s*\\n", 2)[0].strip().replaceAll("\\s*\\n\\s*", " "))
@@ -1580,7 +1603,7 @@ final class C4Views {
 
   private int number(EntityId decision) {
     return knowledge
-        .attribute(decision, "decision-number")
+        .attribute(decision, Types.DECISION_NUMBER)
         .map(n -> n.matches("[0-9]{1,9}") ? Integer.parseInt(n) : Integer.MAX_VALUE)
         .orElse(Integer.MAX_VALUE);
   }
@@ -1689,7 +1712,7 @@ final class C4Views {
 
   private List<EntityId> withMethods(EntityId type) {
     List<EntityId> members = new ArrayList<>(List.of(type));
-    members.addAll(knowledge.parts(type, METHOD));
+    members.addAll(knowledge.parts(type, Types.METHOD));
     return members;
   }
 
@@ -1733,7 +1756,7 @@ final class C4Views {
           continue;
         }
         String relationship =
-            ComponentInteractions.ADVISES_KIND.equals(kind) ? ADVISES : BuiltInTypes.CALLS;
+            ComponentInteractions.ADVISES_KIND.equals(kind) ? Types.ADVISES : BuiltInTypes.CALLS;
         String plain =
             switch (kind) {
               case ComponentInteractions.APPLIES -> "Applies";
@@ -1763,7 +1786,8 @@ final class C4Views {
         for (Fact fact : link.facts) {
           String side = fact.subject().equals(unit) ? "source" : "target";
           EntityId to = codeEnds.get(side + " " + fact.id());
-          if (to != null && link.relationship.equals(CONSUMES) == fact.subject().equals(unit)) {
+          if (to != null
+              && link.relationship.equals(Types.CONSUMES) == fact.subject().equals(unit)) {
             container(nodes, link.from);
             edges.add(link.to(to));
           }
@@ -1780,9 +1804,9 @@ final class C4Views {
         continue;
       }
       for (Link link : links) {
-        if (link.from.equals(unit) && link.relationship.equals(USES_DATABASE)) {
+        if (link.from.equals(unit) && link.relationship.equals(Types.USES_DATABASE)) {
           container(nodes, link.to);
-          EdgeBuilder edge = edges.get(component.main, USES_DATABASE, link.to);
+          EdgeBuilder edge = edges.get(component.main, Types.USES_DATABASE, link.to);
           edge.add(access, null, null, link.technology, link.profile);
           edge.facts.addAll(link.facts);
           edge.phrased(null);
@@ -1804,21 +1828,21 @@ final class C4Views {
     for (EntityId member : withMethods(component.main)) {
       for (Fact fact : knowledge.attributes(member)) {
         switch (fact.predicate()) {
-          case STEREOTYPE,
-              HTTP_CLIENT,
-              ENDPOINT,
-              MESSAGE_LISTENER,
-              SCHEDULED,
-              BACKGROUND_JOB,
-              ASPECT,
-              GATEWAY_ROUTE,
-              GATEWAY_FILTER ->
+          case Types.STEREOTYPE,
+              Types.HTTP_CLIENT,
+              Types.ENDPOINT,
+              Types.MESSAGE_LISTENER,
+              Types.SCHEDULED,
+              Types.BACKGROUND_JOB,
+              Types.ASPECT,
+              Types.GATEWAY_ROUTE,
+              Types.GATEWAY_FILTER ->
               facts.add(fact);
           default -> {}
         }
       }
     }
-    facts.addAll(knowledge.relations(component.main, REPOSITORY_FOR));
+    facts.addAll(knowledge.relations(component.main, Types.REPOSITORY_FOR));
     return facts;
   }
 

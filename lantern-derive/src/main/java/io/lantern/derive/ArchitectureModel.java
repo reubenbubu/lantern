@@ -2,6 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.harness.LlmFacts;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,10 +30,14 @@ import tools.jackson.databind.JsonNode;
  */
 public final class ArchitectureModel {
 
+  /** The scope of the system's documents among the flows' significance facts. */
+  public static final String SYSTEM_SCOPE = "system";
+
   /** The ordering of texts: the most confident first, then by fact ID. */
   private static final Comparator<Fact> PREFERRED =
       Comparator.comparingDouble(Fact::confidence).reversed().thenComparing(Fact::id);
 
+  private final Vocabulary vocabulary;
   private final Knowledge knowledge;
   private final Map<EntityId, Fact> responsibilities = new HashMap<>();
   private final Map<String, Fact> intents = new HashMap<>();
@@ -45,9 +50,22 @@ public final class ArchitectureModel {
   private final Set<String> documented = new TreeSet<>();
 
   /**
+   * The model of the facts, with this version of Lantern's vocabulary ({@link
+   * Vocabularies#standard()}).
+   *
    * @param facts the facts that hold in a snapshot, the roles' texts included
    */
   public ArchitectureModel(Collection<Fact> facts) {
+    this(Vocabularies.standard(), facts);
+  }
+
+  /**
+   * @param vocabulary the vocabulary the snapshot's facts were recorded with, which says how each
+   *     type is drawn (ADR 0114)
+   * @param facts the facts that hold in a snapshot, the roles' texts included
+   */
+  public ArchitectureModel(Vocabulary vocabulary, Collection<Fact> facts) {
+    this.vocabulary = Objects.requireNonNull(vocabulary, "vocabulary");
     Objects.requireNonNull(facts, "facts");
     List<Fact> others = new ArrayList<>();
     List<Fact> texts = new ArrayList<>();
@@ -114,6 +132,11 @@ public final class ArchitectureModel {
   /** The stored facts, without the roles' texts. */
   public Knowledge knowledge() {
     return knowledge;
+  }
+
+  /** The vocabulary, which says what each type is a kind of and how it is drawn. */
+  public Vocabulary vocabulary() {
+    return vocabulary;
   }
 
   /**

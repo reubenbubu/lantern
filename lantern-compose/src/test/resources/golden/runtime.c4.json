@@ -20,63 +20,77 @@
   "entities" : [ {
     "id" : "database:db:5432/shop",
     "name" : "shop on db",
-    "facts" : [ "610c8075e5ae48819017ac8bcbdc84d16df61fa7342cbef0594270596b0732c1" ]
+    "facts" : [ "610c8075e5ae48819017ac8bcbdc84d16df61fa7342cbef0594270596b0732c1" ],
+    "kind" : "database"
   }, {
     "id" : "decision:shop:docs/adr/0001-kafka.md",
     "name" : "Use Kafka",
-    "facts" : [ "39b98ed64ff6fcc31704c09ecacced9683d2db9563d803d2cb58627708310131", "bbaa4508203f03e16418d65826b56904626cd1fd037d57580d03d509e96df2af", "c3071f3edd38d992a0ce916c5521c87439e51b040d3f24f7937e60e1ba0c4fc9", "ec151ada00c729e542bf4b6c4382174a78da04d070787fd28146aa899267a97d" ]
+    "facts" : [ "39b98ed64ff6fcc31704c09ecacced9683d2db9563d803d2cb58627708310131", "bbaa4508203f03e16418d65826b56904626cd1fd037d57580d03d509e96df2af", "c3071f3edd38d992a0ce916c5521c87439e51b040d3f24f7937e60e1ba0c4fc9", "ec151ada00c729e542bf4b6c4382174a78da04d070787fd28146aa899267a97d" ],
+    "kind" : "decision",
+    "tag" : "Decision"
   }, {
     "id" : "external-system:pay.example.com",
     "name" : "pay.example.com",
-    "facts" : [ ]
+    "facts" : [ ],
+    "kind" : "external"
   }, {
     "id" : "library:com.example:common",
     "name" : "common",
     "parent" : "repo:base",
-    "facts" : [ "6a8392e4ce8cbe79cf60b8f68bd9b5ece02cd2c656649748b41cd86e4855e219" ]
+    "facts" : [ "6a8392e4ce8cbe79cf60b8f68bd9b5ece02cd2c656649748b41cd86e4855e219" ],
+    "tag" : "Library"
   }, {
     "id" : "module:com.example:app",
     "name" : "app",
     "parent" : "repo:shop",
-    "facts" : [ "6418c883e7bbab0df59f19a4f5e807a64da41f64741e118d9d21c29d6dd29609" ]
+    "facts" : [ "6418c883e7bbab0df59f19a4f5e807a64da41f64741e118d9d21c29d6dd29609" ],
+    "tag" : "Module"
   }, {
     "id" : "module:com.example:common",
     "name" : "common",
     "parent" : "repo:base",
-    "facts" : [ "5d70cb6d00bf3c91e02643fc911fa172ae64343111f114b6c05596992ef4b975" ]
+    "facts" : [ "5d70cb6d00bf3c91e02643fc911fa172ae64343111f114b6c05596992ef4b975" ],
+    "tag" : "Module"
   }, {
     "id" : "module:com.example:worker",
     "name" : "worker",
     "parent" : "repo:base",
-    "facts" : [ "a3bf203c3c149f9ca412b144e31ff80a6c574b0fcd3f6314017097f23def65bf" ]
+    "facts" : [ "a3bf203c3c149f9ca412b144e31ff80a6c574b0fcd3f6314017097f23def65bf" ],
+    "tag" : "Module"
   }, {
     "id" : "package:com.example:app:com.example.domain",
     "name" : "com.example.domain",
     "parent" : "module:com.example:app",
-    "facts" : [ "f8d0cc45ceebce3cd830aa8e8f18b44af4d1449163157e3e506d2f4fb5c92dec" ]
+    "facts" : [ "f8d0cc45ceebce3cd830aa8e8f18b44af4d1449163157e3e506d2f4fb5c92dec" ],
+    "tag" : "Package"
   }, {
     "id" : "package:com.example:app:com.example.web",
     "name" : "com.example.web",
     "parent" : "module:com.example:app",
-    "facts" : [ "4f862d43a849f0877b51809fdff53fa0f800570b403307e349deffc0f802bbdb" ]
+    "facts" : [ "4f862d43a849f0877b51809fdff53fa0f800570b403307e349deffc0f802bbdb" ],
+    "tag" : "Package"
   }, {
     "id" : "repo:base",
     "name" : "base",
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "repo:shop",
     "name" : "shop",
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "service:com.example:app",
     "name" : "shop-app",
     "parent" : "repo:shop",
-    "facts" : [ "5460bae37808b4553f286492dddd2635bbed2e498036815e02dabe1c36a8c8c3", "5b9e55a21e6aa702334924dbdf6e00c36351fa766ee6eec11f938074d18b0e98", "60ab8fb615ea262d55a5ed344b123a12e75bbe4f2cc7a4ec9d3fa6819de7375f", "648da25dcc289d9add64cb22a9995b9ac81de90a9de33a4775545499ea656e44", "975f1838a442b752839606f49a22c4e650cd13fd6f83f91b5cb09ac8fa6108b6", "b0eb5400d240445c0940cf27c4580af2d3f2a8891341164f1cc0a3a8c9bc9f7b" ]
+    "facts" : [ "5460bae37808b4553f286492dddd2635bbed2e498036815e02dabe1c36a8c8c3", "5b9e55a21e6aa702334924dbdf6e00c36351fa766ee6eec11f938074d18b0e98", "60ab8fb615ea262d55a5ed344b123a12e75bbe4f2cc7a4ec9d3fa6819de7375f", "648da25dcc289d9add64cb22a9995b9ac81de90a9de33a4775545499ea656e44", "975f1838a442b752839606f49a22c4e650cd13fd6f83f91b5cb09ac8fa6108b6", "b0eb5400d240445c0940cf27c4580af2d3f2a8891341164f1cc0a3a8c9bc9f7b" ],
+    "tag" : "Service"
   }, {
     "id" : "service:com.example:worker",
     "name" : "worker",
     "parent" : "repo:base",
-    "facts" : [ "14b57f614700605dbc03ec55d088d210571daf29a7f3795edf18828e86817cf5", "2932a0605c6c48541c33327d725f279f3ae1922455f977ea867bcd4f19520a04", "fe767333948ac67cbd40c3772ba794f9480aedcbae03744d9c4f0fa549ce7e53" ]
+    "facts" : [ "14b57f614700605dbc03ec55d088d210571daf29a7f3795edf18828e86817cf5", "2932a0605c6c48541c33327d725f279f3ae1922455f977ea867bcd4f19520a04", "fe767333948ac67cbd40c3772ba794f9480aedcbae03744d9c4f0fa549ce7e53" ],
+    "tag" : "Service"
   }, {
     "id" : "system:snapshot",
     "name" : "base and shop",
@@ -84,7 +98,9 @@
   }, {
     "id" : "topic:kafka:orders",
     "name" : "orders",
-    "facts" : [ ]
+    "facts" : [ ],
+    "kind" : "queue",
+    "tag" : "Topic"
   }, {
     "id" : "type:com.example.domain.JpaOrders",
     "name" : "JpaOrders",

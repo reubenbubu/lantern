@@ -5,6 +5,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Item;
@@ -45,6 +46,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class PurposeRole {
 
+  /** The field of the answer that holds the purpose. */
+  static final String PURPOSE_FIELD = "purpose";
+
   /** The prompt version; change it whenever the role's prompt or what an item shows changes. */
   static final String VERSION = "4";
 
@@ -56,15 +60,7 @@ final class PurposeRole {
   static final String TASK = DescribeRole.prompt("purpose.task.txt");
   static final String SCHEMA = DescribeRole.prompt("purpose.schema.json");
 
-  /** The answer's fields. */
-  static final String PURPOSE = "purpose";
-
   static final String KEY_FACT = "keyFact";
-
-  /** The predicates of the claims. */
-  static final String PURPOSE_PREDICATE = LlmFacts.PURPOSE;
-
-  static final String KEY_FACT_PREDICATE = LlmFacts.KEY_FACT;
 
   /** The role: one call, on the reasoning tier, in the group it shares with the flows. */
   static final RoleSpec ROLE =
@@ -282,7 +278,7 @@ final class PurposeRole {
     public ItemAnswer read(String id, Item item, JsonNode entry) {
       List<CheckedText> texts = new ArrayList<>();
       if (entry != null && entry.isObject() && !entry.has("omitted")) {
-        for (String field : List.of(PURPOSE, KEY_FACT)) {
+        for (String field : List.of(PURPOSE_FIELD, KEY_FACT)) {
           JsonNode node = entry.get(field);
           if (node != null && node.isObject() && node.path("text").isString()) {
             List<String> cites = new ArrayList<>();
@@ -293,7 +289,7 @@ final class PurposeRole {
                     CheckedText.Kind.PROSE,
                     node.path("text").stringValue().strip(),
                     cites,
-                    field.equals(PURPOSE) ? PURPOSE_WORDS : KEY_FACT_WORDS,
+                    field.equals(PURPOSE_FIELD) ? PURPOSE_WORDS : KEY_FACT_WORDS,
                     "",
                     Set.of()));
           }
@@ -342,7 +338,7 @@ final class PurposeRole {
   static Map<String, Worded> worded(Asked asked, String stored) {
     JsonNode answer = JSON.readTree(stored);
     Map<String, Worded> worded = new LinkedHashMap<>();
-    for (String field : List.of(PURPOSE, KEY_FACT)) {
+    for (String field : List.of(PURPOSE_FIELD, KEY_FACT)) {
       JsonNode node = answer.get(field);
       if (node == null || !node.path("text").isString()) {
         continue;
@@ -355,7 +351,7 @@ final class PurposeRole {
           if (!facts.contains(fact)) {
             facts.add(fact);
           }
-          evidenced |= fact.predicate().equals("claim");
+          evidenced |= fact.predicate().equals(Types.CLAIM);
         } else if (thing.isPresent() && thing.get() instanceof DescribeRole.Answered answered) {
           // A sentence stands for the facts it cites, a README claim among them too, as the
           // documents read it (ADR 0060).
@@ -363,7 +359,7 @@ final class PurposeRole {
             if (!facts.contains(fact)) {
               facts.add(fact);
             }
-            evidenced |= fact.predicate().equals("claim");
+            evidenced |= fact.predicate().equals(Types.CLAIM);
           }
         }
       }
@@ -390,7 +386,7 @@ final class PurposeRole {
           Fact fact =
               Fact.create(
                   RepoSections.SYSTEM,
-                  field.equals(PURPOSE) ? PURPOSE_PREDICATE : KEY_FACT_PREDICATE,
+                  field.equals(PURPOSE_FIELD) ? LlmFacts.PURPOSE : LlmFacts.KEY_FACT,
                   FactObject.string(LlmFacts.C4),
                   attributes,
                   LlmFacts.origin(ROLE),

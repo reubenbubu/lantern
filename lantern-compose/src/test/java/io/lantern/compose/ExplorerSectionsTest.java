@@ -21,6 +21,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.attributes.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -281,7 +282,7 @@ class ExplorerSectionsTest {
   @Test
   void aScopeWithoutDecisionRecordsSaysWhyItIsBuiltSoIsNotKnown() {
     List<Fact> facts =
-        facts().stream().filter(f -> !f.subject().type().equals(C4Views.DECISION)).toList();
+        facts().stream().filter(f -> !f.subject().type().equals(Types.DECISION)).toList();
 
     Callout note =
         blocks(section(explorer(facts), "decisions"), Callout.class).stream()

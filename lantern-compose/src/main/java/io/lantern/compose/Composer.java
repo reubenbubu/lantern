@@ -6,7 +6,9 @@ import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
+import io.lantern.derive.Vocabularies;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -34,11 +36,25 @@ public final class Composer {
   static final String QUALITY = "quality";
 
   private final String toolVersion;
+  private final Vocabulary vocabulary;
 
   /**
+   * A composer that draws each type as this version of Lantern's vocabulary says, the one every
+   * analyze run applies ({@link Vocabularies#bySource()}).
+   *
    * @param toolVersion the Lantern version, recorded in each document's source
    */
   public Composer(String toolVersion) {
+    this(toolVersion, Vocabularies.standard());
+  }
+
+  /**
+   * @param toolVersion the Lantern version, recorded in each document's source
+   * @param vocabulary the vocabulary that says what each type is a kind of and how it is drawn (ADR
+   *     0114)
+   */
+  public Composer(String toolVersion, Vocabulary vocabulary) {
+    this.vocabulary = Objects.requireNonNull(vocabulary, "vocabulary");
     this.toolVersion = Objects.requireNonNull(toolVersion, "toolVersion");
     if (toolVersion.isBlank()) {
       throw new IllegalArgumentException("Tool version must not be blank");
@@ -84,7 +100,7 @@ public final class Composer {
         facts.stream().filter(f -> f.validity().contains(snapshot.number())).toList();
     RepoSections composition =
         new RepoSections(
-            new ArchitectureModel(valid),
+            new ArchitectureModel(vocabulary, valid),
             repo,
             new TreeSet<>(snapshot.commits().keySet()),
             systemName,

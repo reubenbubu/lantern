@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Item;
@@ -108,9 +109,6 @@ final class FlowJudgements {
           RunMode.BULK,
           750);
 
-  static final String FLOW_SIGNIFICANCE = LlmFacts.FLOW_SIGNIFICANCE;
-  static final String FLOW_NARRATIVE = LlmFacts.FLOW_NARRATIVE;
-
   static final String TITLE = "title";
   static final String WALKTHROUGH = "walkthrough";
   static final String PRECONDITIONS = "preconditions";
@@ -182,7 +180,8 @@ final class FlowJudgements {
    * the facts behind them, its asynchronous hand-offs, and the responsibilities of the units the
    * flows cross.
    *
-   * @param scope the scope's key, {@link Wordings#SYSTEM_SCOPE} or a repository's name
+   * @param scope the scope's key, {@link io.lantern.derive.ArchitectureModel#SYSTEM_SCOPE} or a
+   *     repository's name
    * @param title how the item names the scope, such as {@code the system}
    * @param candidates the flows, one for each shape
    * @param responsibilities the units' responsibility sentences, Describe's
@@ -726,7 +725,13 @@ final class FlowJudgements {
               attributes.put("model", model);
               content(knowledge, candidate.flow()).ifPresent(c -> attributes.put("content", c));
               facts.add(
-                  fact(candidate.flow(), FLOW_SIGNIFICANCE, scope, attributes, cited, snapshot));
+                  fact(
+                      candidate.flow(),
+                      LlmFacts.FLOW_SIGNIFICANCE,
+                      scope,
+                      attributes,
+                      cited,
+                      snapshot));
             });
     return new Judged(order, facts);
   }
@@ -781,7 +786,8 @@ final class FlowJudgements {
             marked(texts.get(POSTCONDITIONS)),
             title == null ? null : title.text().replaceAll("[.\\s]+$", ""));
     return Optional.of(
-        new Narrative(wording, fact(flow, FLOW_NARRATIVE, LlmFacts.C4, attributes, all, snapshot)));
+        new Narrative(
+            wording, fact(flow, LlmFacts.FLOW_NARRATIVE, LlmFacts.C4, attributes, all, snapshot)));
   }
 
   /** A text with the citation markers documents read, {@code [fact:<fact ID>]}. */
@@ -797,7 +803,7 @@ final class FlowJudgements {
   /** The content hash of the flow's steps a judgement holds for (epic, section 9; #615). */
   static Optional<String> content(Knowledge knowledge, EntityId flow) {
     return knowledge.about(flow).stream()
-        .filter(f -> f.predicate().equals("flow-shape"))
+        .filter(f -> f.predicate().equals(Types.FLOW_SHAPE))
         .map(f -> f.attributes().path("content").asString(""))
         .filter(c -> !c.isEmpty())
         .findFirst();
@@ -810,7 +816,7 @@ final class FlowJudgements {
       ObjectNode attributes,
       List<Fact> cited,
       long snapshot) {
-    RoleSpec role = predicate.equals(FLOW_SIGNIFICANCE) ? SIGNIFICANCE : NARRATIVE;
+    RoleSpec role = predicate.equals(LlmFacts.FLOW_SIGNIFICANCE) ? SIGNIFICANCE : NARRATIVE;
     Fact fact =
         Fact.create(
             flow,

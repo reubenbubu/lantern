@@ -11,6 +11,7 @@ import io.lantern.derive.Components;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Groups;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;
@@ -72,6 +73,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class NameGroups {
 
+  /** The field of an answer that holds a group's sentence. */
+  static final String RESPONSIBILITY_FIELD = "responsibility";
+
   /** The prompt version, part of every answer's cache key. */
   static final String VERSION = "5";
 
@@ -94,9 +98,6 @@ public final class NameGroups {
   /** The answer schema, as the epic writes it. */
   static final String SCHEMA = DescribeRole.prompt("name-groups.schema.json");
 
-  /** The display name of a group: {@code (group, display-name, "c4")}. */
-  public static final String DISPLAY_NAME = LlmFacts.DISPLAY_NAME;
-
   /** The kind of finding a merge suggestion is. */
   public static final String GROUP_MERGE = "group-merge";
 
@@ -113,7 +114,6 @@ public final class NameGroups {
           .withPacketSize(PACKET);
 
   static final String NAME = "name";
-  static final String RESPONSIBILITY = "responsibility";
   static final String LINES = "lines";
   static final String MERGE = "merge";
 
@@ -264,7 +264,7 @@ public final class NameGroups {
 
   /** The predicates whose values name a technology: a product or framework. */
   static final List<String> TECHNOLOGY_PREDICATES =
-      List.of("technology", "broker-technology", "database-technology");
+      List.of(Types.TECHNOLOGY, "broker-technology", "database-technology");
 
   /**
    * The products and frameworks the snapshot's technology facts name, without versions: "Spring
@@ -512,7 +512,7 @@ public final class NameGroups {
       List<Fact> findings) {
     EntityId group = n.group().id();
     boolean hasName = false;
-    for (String field : List.of(NAME, RESPONSIBILITY)) {
+    for (String field : List.of(NAME, RESPONSIBILITY_FIELD)) {
       Optional<Cited> text = cited(n, answer.get(field));
       if (text.isPresent()) {
         written.add(
@@ -520,7 +520,7 @@ public final class NameGroups {
                 ROLE,
                 model,
                 group,
-                field.equals(NAME) ? DISPLAY_NAME : LlmFacts.RESPONSIBILITY,
+                field.equals(NAME) ? LlmFacts.DISPLAY_NAME : LlmFacts.RESPONSIBILITY,
                 LlmFacts.C4,
                 text.get().text(),
                 text.get().facts(),
@@ -727,12 +727,12 @@ public final class NameGroups {
         String signal = signal(n.group().id());
         text(entry.get(NAME))
             .ifPresent(t -> texts.add(checked(NAME, CheckedText.Kind.PROSE, t, NAME_WORDS, "")));
-        text(entry.get(RESPONSIBILITY))
+        text(entry.get(RESPONSIBILITY_FIELD))
             .ifPresent(
                 t ->
                     texts.add(
                         checked(
-                            RESPONSIBILITY,
+                            RESPONSIBILITY_FIELD,
                             CheckedText.Kind.RESPONSIBILITY,
                             t,
                             SENTENCE_WORDS,

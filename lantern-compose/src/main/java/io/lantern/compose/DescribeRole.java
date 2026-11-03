@@ -2,6 +2,7 @@ package io.lantern.compose;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Item;
 import io.lantern.harness.LlmFacts;
@@ -46,6 +47,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class DescribeRole {
 
+  /** The field of an answer that holds the sentence. */
+  static final String RESPONSIBILITY_FIELD = "responsibility";
+
   /** The prompt version of the unit role. */
   static final String UNIT_VERSION = "7";
 
@@ -70,7 +74,6 @@ final class DescribeRole {
   static final String UNIT = "unit";
   static final String COMPONENTS = "components";
   static final String INTERACTIONS = "interactions";
-  static final String RESPONSIBILITY = "responsibility";
 
   /** Block 2 of a unit request. */
   static final String UNIT_TASK = prompt("describe-units.task.txt");
@@ -306,12 +309,12 @@ final class DescribeRole {
       List<CheckedText> texts = new ArrayList<>();
       if (entry != null && entry.isObject() && !entry.has("omitted")) {
         if (described.kind() == Kind.ELEMENT) {
-          text(entry.get(RESPONSIBILITY))
+          text(entry.get(RESPONSIBILITY_FIELD))
               .ifPresent(
                   t ->
                       texts.add(
                           checked(
-                              RESPONSIBILITY,
+                              RESPONSIBILITY_FIELD,
                               CheckedText.Kind.RESPONSIBILITY,
                               t,
                               SENTENCE_WORDS,
@@ -442,8 +445,8 @@ final class DescribeRole {
     JsonNode answer = JSON.readTree(stored);
     List<Worded> result = new ArrayList<>();
     if (described.kind() == Kind.ELEMENT) {
-      text(answer.get(RESPONSIBILITY))
-          .flatMap(t -> worded(described, described.element(), RESPONSIBILITY, t, summaries))
+      text(answer.get(RESPONSIBILITY_FIELD))
+          .flatMap(t -> worded(described, described.element(), RESPONSIBILITY_FIELD, t, summaries))
           .ifPresent(result::add);
       return result;
     }
@@ -546,7 +549,7 @@ final class DescribeRole {
       object = interaction.claimId() != null ? interaction.claimId() : interaction.id();
       // A person's use of a frontend rests on the person's one fact, shared by every frontend
       // they use: the frontend tells their uses apart.
-      if (worded.about().type().equals(C4Views.PERSON)) {
+      if (worded.about().type().equals(Types.PERSON)) {
         object = object + "/" + described.element();
       }
     } else {

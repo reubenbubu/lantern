@@ -19,12 +19,14 @@
   "entities" : [ {
     "id" : "database:orders-db",
     "name" : "orders-db",
-    "facts" : [ ]
+    "facts" : [ ],
+    "kind" : "database"
   }, {
     "id" : "library:orders-lib",
     "name" : "orders-lib",
     "parent" : "service:orders",
-    "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5", "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
+    "facts" : [ "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5", "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ],
+    "tag" : "Library"
   }, {
     "id" : "service:orders",
     "name" : "orders",
@@ -35,7 +37,8 @@
       "kind" : "citation",
       "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
     } ],
-    "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ]
+    "facts" : [ "7335c4eb14e9b0eb3637d5866468b06ee41baff8970b6e42c14334ed9f5067a4" ],
+    "tag" : "Service"
   } ],
   "facts" : [ {
     "id" : "29791f130746b985a0bcd6db105cecbdf57ff05e072e3071ff7ced07dd737cc5",

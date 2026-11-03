@@ -7,6 +7,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Item;
 import io.lantern.harness.render.Blocks;
@@ -391,7 +392,7 @@ final class DescribeItems {
   private Code code(EntityId type, int max) {
     List<Fact> declarations =
         knowledge.attributes(type).stream()
-            .filter(f -> f.predicate().equals("kind") && f.evidence().path() != null)
+            .filter(f -> f.predicate().equals(Types.KIND) && f.evidence().path() != null)
             .sorted(
                 java.util.Comparator.comparing((Fact f) -> f.evidence().repo())
                     .thenComparing(f -> f.evidence().path())
@@ -447,7 +448,7 @@ final class DescribeItems {
     String name = assembler.name(element);
     String kind = Describer.noun(element);
     text.append("The ").append(kind).append(' ').append(FactLines.oneLine(name));
-    String technology = element.type().equals(C4Views.PERSON) ? null : c4.technology(element);
+    String technology = element.type().equals(Types.PERSON) ? null : c4.technology(element);
     if (technology != null) {
       text.append(", ").append(FactLines.oneLine(technology));
     }
@@ -516,7 +517,7 @@ final class DescribeItems {
   /** The units at the other end of the element's lines, or the frontends a person uses. */
   private SortedSet<EntityId> users(EntityId element) {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
-    if (element.type().equals(C4Views.PERSON)) {
+    if (element.type().equals(Types.PERSON)) {
       Fact basis = c4.people().get(element);
       if (basis != null) {
         List<String> names = C4Views.strings(basis, "frontends");
@@ -536,7 +537,7 @@ final class DescribeItems {
 
   private Map<String, List<Fact>> uses(EntityId element) {
     Map<String, List<Fact>> uses = new TreeMap<>();
-    if (element.type().equals(C4Views.PERSON)) {
+    if (element.type().equals(Types.PERSON)) {
       return uses;
     }
     for (C4Views.Neighbour neighbour : c4.neighbours(element)) {
@@ -553,19 +554,19 @@ final class DescribeItems {
 
   private List<Fact> tables(EntityId element) {
     SortedSet<EntityId> schemas = new TreeSet<>(Knowledge.BY_ID);
-    if (element.type().equals(C4Views.PERSON)) {
+    if (element.type().equals(Types.PERSON)) {
       return List.of();
     }
     for (C4Views.Neighbour neighbour : c4.neighbours(element)) {
       for (Fact fact : neighbour.facts()) {
-        if (fact.predicate().equals(C4Views.USES_DATABASE)) {
+        if (fact.predicate().equals(Types.USES_DATABASE)) {
           C4Views.strings(fact, "schemas").forEach(id -> schemas.add(EntityId.parse(id)));
         }
       }
     }
     List<Fact> tables = new ArrayList<>();
     for (EntityId schema : schemas) {
-      for (EntityId table : knowledge.parts(schema, "table")) {
+      for (EntityId table : knowledge.parts(schema, Types.TABLE)) {
         tables.addAll(knowledge.containsFacts(schema, table));
       }
     }

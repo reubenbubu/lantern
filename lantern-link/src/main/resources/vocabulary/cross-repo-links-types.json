@@ -3,6 +3,7 @@
     "name": "topic",
     "kind": "entity",
     "parent": "container",
+    "shape": "pipe",
     "description": "A Kafka topic, a container of the system. Its key is the broker kind, ':' and the topic name, such as kafka:payments.completed.",
     "attributeSchema": {
       "additionalProperties": false
@@ -12,6 +13,7 @@
     "name": "queue",
     "kind": "entity",
     "parent": "container",
+    "shape": "pipe",
     "description": "A message queue, a container of the system. Its key is the broker kind (rabbitmq or jms), ':' and the queue or JMS destination name, such as rabbitmq:payments.order-events.",
     "attributeSchema": {
       "additionalProperties": false
@@ -21,6 +23,7 @@
     "name": "exchange",
     "kind": "entity",
     "parent": "container",
+    "shape": "pipe",
     "description": "A RabbitMQ exchange, a container of the system, routing messages to the queues bound to it. Its key is rabbitmq, ':' and the exchange name, such as rabbitmq:shop.orders.",
     "attributeSchema": {
       "additionalProperties": false
@@ -30,6 +33,7 @@
     "name": "database",
     "kind": "entity",
     "parent": "container",
+    "shape": "cylinder",
     "description": "A database that units' datasources point to, a data store and so a container. Its key is the server (host and port, as the URL gives them), '/' and the database name, such as shop-db:5432/shop, so units on the same database share it; an embedded database without a server is keyed by its unit's key instead.",
     "attributeSchema": {
       "additionalProperties": false

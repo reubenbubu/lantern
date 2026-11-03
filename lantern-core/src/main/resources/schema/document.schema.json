@@ -112,7 +112,15 @@
           "$ref": "#/$defs/entityId"
         },
         "description": { "$ref": "#/$defs/content" },
-        "facts": { "$ref": "#/$defs/factIds" }
+        "facts": { "$ref": "#/$defs/factIds" },
+        "kind": {
+          "description": "What its type makes it, whatever diagram shows it; absent when it is shown as what the diagram's level makes it (ADR 0114).",
+          "enum": ["database", "queue", "external", "person", "decision"]
+        },
+        "tag": {
+          "description": "The name of its type a reader sees beside its name, such as Topic.",
+          "$ref": "#/$defs/nonBlankText"
+        }
       }
     },
     "section": {

@@ -8,6 +8,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -35,18 +36,6 @@ final class InvestigatedFindings {
   /** What opens a fixed check's finding the LLM worded. */
   static final String WORDED_BY_LLM = "Found by a fixed check, worded by the LLM:";
 
-  /** Investigate's risk facts (lantern-link's {@code Investigator.RISK}). */
-  static final String RISK = "investigated-risk";
-
-  /** Investigate's wordings of findings (lantern-link's {@code Investigator.FINDING_WORDING}). */
-  static final String WORDING = "finding-wording";
-
-  /** Investigate's connection facts (lantern-link's {@code Investigator.CONNECTION}). */
-  static final String CONNECTION = "INVESTIGATED_CONNECTION";
-
-  /** What Investigate left out (lantern-link's {@code Investigator.NOT_INVESTIGATED}). */
-  static final String NOT_INVESTIGATED = "not-investigated";
-
   /** The title of the table of risks and findings. */
   static final String TITLE = "Risks and findings";
 
@@ -62,7 +51,7 @@ final class InvestigatedFindings {
     this.knowledge = knowledge;
     this.assembler = assembler;
     List<Fact> found = new ArrayList<>();
-    for (String predicate : List.of(RISK, WORDING)) {
+    for (String predicate : List.of(Types.INVESTIGATED_RISK, Types.FINDING_WORDING)) {
       for (Fact fact : knowledge.withPredicate(predicate)) {
         if (units(fact).stream().anyMatch(units::contains)) {
           found.add(fact);
@@ -75,7 +64,7 @@ final class InvestigatedFindings {
             .thenComparing(Fact::id));
     this.risks = List.copyOf(found);
     Set<EntityId> left = new TreeSet<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(NOT_INVESTIGATED)) {
+    for (Fact fact : knowledge.withPredicate(Types.NOT_INVESTIGATED)) {
       if (units.contains(fact.subject())) {
         left.add(fact.subject());
       }
@@ -182,7 +171,7 @@ final class InvestigatedFindings {
 
   /** A risk's opening: found by the LLM, or a fixed check's finding the LLM worded. */
   private static String opening(Fact fact) {
-    return fact.predicate().equals(WORDING) ? WORDED_BY_LLM : FOUND_BY_LLM;
+    return fact.predicate().equals(Types.FINDING_WORDING) ? WORDED_BY_LLM : FOUND_BY_LLM;
   }
 
   /**
@@ -192,9 +181,9 @@ final class InvestigatedFindings {
   private List<Fact> facts(Fact fact) {
     List<Fact> facts = new ArrayList<>();
     facts.add(fact);
-    if (fact.predicate().equals(WORDING)) {
+    if (fact.predicate().equals(Types.FINDING_WORDING)) {
       knowledge.about(fact.subject()).stream()
-          .filter(f -> f.predicate().equals("finding-raised"))
+          .filter(f -> f.predicate().equals(Types.FINDING_RAISED))
           .forEach(facts::add);
     }
     return facts;
@@ -214,7 +203,7 @@ final class InvestigatedFindings {
 
   private static List<EntityId> units(Fact fact) {
     List<EntityId> units = new ArrayList<>();
-    if (fact.predicate().equals(RISK)) {
+    if (fact.predicate().equals(Types.INVESTIGATED_RISK)) {
       units.add(fact.subject());
     }
     for (JsonNode unit : fact.attributes().path("units")) {

@@ -132,22 +132,6 @@ public final class C4ReportRenderer {
   // The C4 kinds the diagrams draw elements as, widest first.
   private static final List<String> KINDS = List.of("system", "container", "component");
 
-  /**
-   * The kinds Lantern's types of data stores, queues and systems outside the scope are drawn as,
-   * whatever level they are drawn at.
-   */
-  private static final Map<String, String> TYPE_KINDS =
-      Map.of(
-          "database", "database",
-          "topic", "queue",
-          "queue", "queue",
-          "exchange", "queue",
-          "external-system", "external",
-          "person", "person");
-
-  /** Lantern types not shown as a tag: a component's main Java type, an external system. */
-  private static final Set<String> UNTAGGED = Set.of("type", "external-system");
-
   /** The catalogues after a diagram: the element kinds each lists, its title and its columns. */
   private record Catalogue(String suffix, Set<String> kinds, String title, List<String> columns) {}
 
@@ -520,7 +504,12 @@ public final class C4ReportRenderer {
     }
 
     private Element element(EntityId id) {
-      return elements.computeIfAbsent(id, Element::new);
+      return elements.computeIfAbsent(
+          id,
+          e -> {
+            DocumentEntity entity = entities.get(e);
+            return new Element(e, entity == null ? null : entity.kind());
+          });
     }
 
     private static Set<EntityId> parents(Diagram diagram) {
@@ -659,10 +648,10 @@ public final class C4ReportRenderer {
       if (parent != null) {
         node.put("parent", elementIds.find(parent.toString()));
       }
-      String type = element.id.type();
-      // A queue element is a topic, queue or exchange: the tag says which.
-      if ((!type.equals(kind) || kind.equals("queue")) && !UNTAGGED.contains(type)) {
-        node.put("tag", tag(type));
+      // The composer names the type, if a reader is to see it: a queue element is a topic, queue
+      // or exchange, and its tag says which.
+      if (entity.tag() != null) {
+        node.put("tag", entity.tag());
       }
       if (element.technology != null) {
         node.put("technology", element.technology);
@@ -677,17 +666,6 @@ public final class C4ReportRenderer {
         node.put("llm", true);
       }
       return node;
-    }
-
-    private static String tag(String type) {
-      if (type.equals("repo")) {
-        return "Repository";
-      }
-      if (type.equals("frontend")) {
-        return "Single-Page App";
-      }
-      String words = type.replace('-', ' ');
-      return words.substring(0, 1).toUpperCase(Locale.ROOT) + words.substring(1);
     }
 
     private ObjectNode pageNode(PagePlan page) {
@@ -813,10 +791,14 @@ public final class C4ReportRenderer {
     }
 
     /** Whether every row of a table is about a decision record, so it is a decisions section. */
-    private static boolean isDecisions(Table table) {
+    private boolean isDecisions(Table table) {
       return !table.rows().isEmpty()
           && table.rows().stream()
-              .allMatch(row -> row.entity() != null && row.entity().type().equals("decision"))
+              .allMatch(
+                  row ->
+                      row.entity() != null
+                          && entities.containsKey(row.entity())
+                          && entities.get(row.entity()).kind() == DocumentEntity.Kind.DECISION)
           && table.columns().stream().anyMatch(c -> c.label().equals("Decision"));
     }
 
@@ -1232,8 +1214,12 @@ public final class C4ReportRenderer {
     private final Map<Integer, EntityId> parentByRank = new HashMap<>();
     String technology;
 
-    Element(EntityId id) {
+    /** What the composer says its type makes it, whatever it is drawn as, or null. */
+    private final DocumentEntity.Kind fixed;
+
+    Element(EntityId id, DocumentEntity.Kind fixed) {
       this.id = id;
+      this.fixed = fixed;
     }
 
     /**
@@ -1258,9 +1244,8 @@ public final class C4ReportRenderer {
      * container.
      */
     String kind() {
-      String byType = TYPE_KINDS.get(id.type());
-      if (byType != null) {
-        return byType;
+      if (fixed != null && fixed != DocumentEntity.Kind.DECISION) {
+        return fixed.jsonName();
       }
       return rank == Integer.MAX_VALUE ? "container" : KINDS.get(rank);
     }

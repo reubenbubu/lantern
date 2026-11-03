@@ -20,7 +20,8 @@
     "id" : "library:com.example.orders:orders",
     "name" : "orders",
     "parent" : "repo:orders",
-    "facts" : [ "84449a047e11a8a0d58c30f76f3527ddfc3134c4fc8f5134e16b813fc394be96" ]
+    "facts" : [ "84449a047e11a8a0d58c30f76f3527ddfc3134c4fc8f5134e16b813fc394be96" ],
+    "tag" : "Library"
   }, {
     "id" : "module:com.example.orders:orders",
     "name" : "orders",
@@ -45,7 +46,8 @@
       "kind" : "citation",
       "facts" : [ "84449a047e11a8a0d58c30f76f3527ddfc3134c4fc8f5134e16b813fc394be96" ]
     } ],
-    "facts" : [ "3275996755e67a332f7f17843cb8e0d500a6ee2e24556fbb8ed597985c439585", "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02", "e25cb748a3113a39eb7d839365f05c9210d6c5a32368285823a5c2998db8be75" ]
+    "facts" : [ "3275996755e67a332f7f17843cb8e0d500a6ee2e24556fbb8ed597985c439585", "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02", "e25cb748a3113a39eb7d839365f05c9210d6c5a32368285823a5c2998db8be75" ],
+    "tag" : "Module"
   }, {
     "id" : "package:com.example.orders:orders:com.example.orders",
     "name" : "com.example.orders",
@@ -70,7 +72,8 @@
       "kind" : "citation",
       "facts" : [ "80abdd650814d977c8cebb12093a8768c47e5c8641fabda690a40e6a76179f68" ]
     } ],
-    "facts" : [ "b4dd028fcf6fa5e0b4140c8e58c97f8fc015991f2867f78b5a56b6aa9c2ee078" ]
+    "facts" : [ "b4dd028fcf6fa5e0b4140c8e58c97f8fc015991f2867f78b5a56b6aa9c2ee078" ],
+    "tag" : "Package"
   }, {
     "id" : "repo:orders",
     "name" : "orders",
@@ -94,7 +97,8 @@
       "kind" : "citation",
       "facts" : [ "5d8c8cc546d8aa714e44c375939125c189d986206055d419766baf60d2f08f02" ]
     } ],
-    "facts" : [ ]
+    "facts" : [ ],
+    "tag" : "Repository"
   }, {
     "id" : "system:snapshot",
     "name" : "greeting-lib, greeting-service, orders and shop",

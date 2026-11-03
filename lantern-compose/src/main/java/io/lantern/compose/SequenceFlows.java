@@ -13,6 +13,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.derive.FlowModel;
 import io.lantern.derive.Flows;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.attributes.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -55,11 +56,6 @@ final class SequenceFlows {
 
   /** The fewest flows a scope shows; flows that reach only databases fill up to it. */
   static final int MIN_FLOWS = 3;
-
-  private static final String ENDPOINT = "endpoint";
-  private static final String MESSAGE_LISTENER = "message-listener";
-  private static final String STOMP_MAPPING = "stomp-mapping";
-  private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
 
   private static final String UNKNOWN = "Not known from the code.";
 
@@ -749,7 +745,7 @@ final class SequenceFlows {
       }
       Set<String> tables = new TreeSet<>(part.what());
       List<String> info = new ArrayList<>();
-      for (Fact shared : knowledge.relations(unit, C4Views.ACCESSES_DATA_OF)) {
+      for (Fact shared : knowledge.relations(unit, Types.ACCESSES_DATA_OF)) {
         if (c4.alternativeLinks().containsKey(shared)) {
           continue;
         }
@@ -957,7 +953,7 @@ final class SequenceFlows {
                 p ->
                     p.equals(trace.entry.unit)
                         || p.equals(gateway)
-                        || p.type().equals(C4Views.DATABASE));
+                        || p.type().equals(Types.DATABASE));
   }
 
   /**
@@ -998,8 +994,8 @@ final class SequenceFlows {
    */
   private static int tier(Trace trace) {
     return switch (trace.entry.fact.predicate()) {
-      case ENDPOINT, WEBSOCKET_ENDPOINT, STOMP_MAPPING -> 0;
-      case MESSAGE_LISTENER -> 1;
+      case Types.ENDPOINT, Types.WEBSOCKET_ENDPOINT, Types.STOMP_MAPPING -> 0;
+      case Types.MESSAGE_LISTENER -> 1;
       default -> 2;
     };
   }
@@ -1039,7 +1035,7 @@ final class SequenceFlows {
         return false;
       }
       path = attribute(trace.start.link, "path");
-    } else if (trace.entry.fact.predicate().equals(ENDPOINT)) {
+    } else if (trace.entry.fact.predicate().equals(Types.ENDPOINT)) {
       String request = trace.entry.fact.object().value();
       path = request.substring(request.indexOf(' ') + 1);
     } else {
@@ -1172,7 +1168,7 @@ final class SequenceFlows {
       if (trace.participants.stream().noneMatch(scope::contains)) {
         continue;
       }
-      String shape = knowledge.attribute(flow.id(), "flow-shape").orElse("flow " + flow.id());
+      String shape = knowledge.attribute(flow.id(), Types.FLOW_SHAPE).orElse("flow " + flow.id());
       Trace held = byShape.get(shape);
       if (held == null || flow.id().toString().compareTo(held.flow.id().toString()) < 0) {
         byShape.put(shape, trace);
@@ -1283,17 +1279,17 @@ final class SequenceFlows {
     String handler = methodName(entry.method);
     String value = entry.fact.object().value();
     return switch (entry.fact.predicate()) {
-      case ENDPOINT ->
+      case Types.ENDPOINT ->
           new Heading(
               value + " on " + nameOf(entry.unit),
               value + " (" + handler + ")",
               nameOf(entry.unit) + " receives " + value);
-      case MESSAGE_LISTENER ->
+      case Types.MESSAGE_LISTENER ->
           new Heading(
               "Message on " + value + " to " + nameOf(entry.unit),
               "A message on " + value + " (" + handler + ")",
               "a message arrives on " + value + " for " + nameOf(entry.unit));
-      case STOMP_MAPPING -> {
+      case Types.STOMP_MAPPING -> {
         boolean subscribe = "subscribe".equals(attribute(entry.fact, "kind"));
         String what = subscribe ? "STOMP subscription to " : "STOMP message to ";
         yield new Heading(
@@ -1303,7 +1299,7 @@ final class SequenceFlows {
                 ? "a client subscribes to " + value + " on " + nameOf(entry.unit)
                 : "a client sends a STOMP message to " + value + " on " + nameOf(entry.unit));
       }
-      case WEBSOCKET_ENDPOINT ->
+      case Types.WEBSOCKET_ENDPOINT ->
           new Heading(
               "WebSocket connection to " + value + " on " + nameOf(entry.unit),
               "A WebSocket connection to " + value + " (" + handler + ")",

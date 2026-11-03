@@ -182,7 +182,7 @@ class NameGroupsTest {
     Fact name =
         result.facts().stream()
             .filter(f -> f.subject().toString().equals(ORDERS))
-            .filter(f -> f.predicate().equals(NameGroups.DISPLAY_NAME))
+            .filter(f -> f.predicate().equals(LlmFacts.DISPLAY_NAME))
             .findFirst()
             .orElseThrow();
     assertThat(name.attributes().path("text").asString()).isEqualTo("Ordering");
@@ -230,7 +230,7 @@ class NameGroupsTest {
     assertThat(
             cached.facts().stream()
                 .filter(f -> f.subject().toString().equals(BILLING))
-                .filter(f -> f.predicate().equals(NameGroups.DISPLAY_NAME))
+                .filter(f -> f.predicate().equals(LlmFacts.DISPLAY_NAME))
                 .findFirst()
                 .orElseThrow()
                 .attributes()

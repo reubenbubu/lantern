@@ -328,9 +328,13 @@ final class SampleDocument {
                 "orders",
                 null,
                 List.of(TextRun.of("Takes orders."), new Citation(facts(BUILDS))),
-                facts(BUILDS)),
-            new DocumentEntity(LIB, "orders-lib", ORDERS, List.of(), facts(BUILDS, READS)),
-            new DocumentEntity(DB, "orders-db", null, List.of(), List.of())),
+                facts(BUILDS),
+                null,
+                "Service"),
+            new DocumentEntity(
+                LIB, "orders-lib", ORDERS, List.of(), facts(BUILDS, READS), null, "Library"),
+            new DocumentEntity(
+                DB, "orders-db", null, List.of(), List.of(), DocumentEntity.Kind.DATABASE, null)),
         List.of(READS, BUILDS),
         List.of(overview, flows));
   }
