@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,9 +83,12 @@ class OpenAiBatchParityIT {
         : Files.isDirectory(Path.of(System.getProperty("lantern.test.set")));
   }
 
+  /** The run's workspace, its builds and documents: about 265 MB, deleted when the class ends. */
+  private static Path workspace;
+
   @DynamicPropertySource
   static void workspace(DynamicPropertyRegistry registry) throws IOException {
-    Path workspace = Files.createTempDirectory("lantern-openai-parity");
+    workspace = Files.createTempDirectory("lantern-openai-parity");
     registry.add("lantern.workspace", workspace::toString);
     String file = System.getProperty("lantern.test.properties");
     if (file == null || file.isBlank()) {
@@ -93,6 +98,18 @@ class OpenAiBatchParityIT {
     if (mirror != null) {
       registry.add(MavenMirror.PROPERTY + ".id", mirror::id);
       registry.add(MavenMirror.PROPERTY + ".url", () -> mirror.url().toString());
+    }
+  }
+
+  @AfterAll
+  static void deleteWorkspace() throws IOException {
+    if (workspace == null || !Files.exists(workspace)) {
+      return;
+    }
+    try (var paths = Files.walk(workspace)) {
+      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+        Files.deleteIfExists(path);
+      }
     }
   }
 
