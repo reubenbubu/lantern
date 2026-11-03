@@ -11,7 +11,7 @@ changes them. This file covers only how you work.
   Short sentences, plain words, the point first. No walls of text.
 - Say what something does before giving its name or number: "the task that stores fewer boxes
   per service (#271)", not "#271". Never answer with bare issue numbers, milestone codes
-  ("1B", "2E.1") or class names alone.
+  ("1B", "2.10") or class names alone.
 - No jargon or internal shorthand in chat (fingerprints, observations, packets, lineage) unless
   the user used it first; if a term is needed, explain it in a few words the first time.
 - Tables only when comparing several things side by side; otherwise short sentences or a short
@@ -24,7 +24,7 @@ changes them. This file covers only how you work.
 ## How work is organized
 
 - Tasks are GitHub issues in `reubenbubu/lantern`, grouped in milestones. A milestone delivers
-  one specific outcome of a phase (named like `2C.2 Flows that tell the story`), and its
+  one specific outcome of a phase (named like `2.5 Flows that tell the story`), and its
   description holds its own "Goal" and "Accepted when"; how many issues it has does not matter.
   One milestone is in progress at a time, unless the user says otherwise; work on it
   before issues of other milestones.
@@ -67,9 +67,9 @@ changes them. This file covers only how you work.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
   picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
-  milestone's test drop runs all development sets, and held-out ones only in milestone 2D.2.
+  milestone's test drop runs all development sets, and held-out ones only in milestone 2.9.
 - Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
-  analyzes them or looks at their output until milestone 2D.2, where they are scored and judged
+  analyzes them or looks at their output until milestone 2.9, where they are scored and judged
   once.
 - Each chat works on one issue at a time and does the work itself: design, code, tests, PR,
   merge and cleanup.
@@ -169,7 +169,7 @@ changes them. This file covers only how you work.
   issue opens it. When the milestone's other issues are merged, the chat that takes the
   test-drop issue writes the drop to
   `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's documents and the
-  reference side by side, the scorecards (from 2D.2 also the judge's verdicts), and a README with
+  reference side by side, the scorecards (from 2.9 also the judge's verdicts), and a README with
   what the milestone set out to do, a checklist of what to try, the known gaps, the reassessment
   of the test sets (`docs/design.md`, Test sets), and the commits and models used. Its path goes
   on the test-drop issue, and the user is told. The user's verdict, recorded on that issue,
