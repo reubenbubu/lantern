@@ -472,6 +472,8 @@ test('the command line reads HTML reports and writes the scorecard, and compares
     assert.match(side, /\| COMPOSE \| fake\/fake-model \(4 calls, \$0\) \| fake\/fake-model \(4 calls, \$0\) \|/);
     assert.match(side, /\| Run cost \| \$0 \(10 calls\) \| \$0\.12 \(10 calls\) \|/);
     assert.match(side, /\| Container connections \| 16\/28 recall, 16\/37 precision \| 16\/28 recall, 16\/37 precision \|/);
+    assert.match(side, /\| Components \| 0\/38 by name, 95 drawn \| 0\/38 by name, 95 drawn \|/);
+    assert.doesNotMatch(side, /None|undefined/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

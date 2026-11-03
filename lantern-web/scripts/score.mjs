@@ -1034,6 +1034,10 @@ export function compareMarkdown(a, b, labelA = 'A', labelB = 'B') {
   for (const [key] of ELEMENT_CATEGORIES) {
     lines.push(`| ${CATEGORY_LABELS[key]} | ${cell(a.scores.elements[key])} | ${cell(b.scores.elements[key])} |`);
   }
+  // Components are matched by name within each matched container, not one by one (#758).
+  const components = (c) =>
+    `${(c.byContainer ?? []).reduce((n, x) => n + (x.matchedByName ?? 0), 0)}/${c.reference} by name, ${c.report} drawn`;
+  lines.push(`| Components | ${components(a.scores.components)} | ${components(b.scores.components)} |`);
   for (const key of ['connections', 'flows', 'risks', 'decisions', 'glossary']) {
     lines.push(`| ${CATEGORY_LABELS[key]} | ${cell(a.scores[key])} | ${cell(b.scores[key])} |`);
   }
