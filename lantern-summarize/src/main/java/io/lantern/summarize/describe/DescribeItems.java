@@ -8,7 +8,7 @@ import io.lantern.derive.Components;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Item;
 import io.lantern.harness.render.Blocks;

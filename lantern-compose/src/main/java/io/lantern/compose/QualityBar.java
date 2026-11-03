@@ -25,7 +25,7 @@ import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Unknowns;
 import io.lantern.derive.Vocabularies;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;

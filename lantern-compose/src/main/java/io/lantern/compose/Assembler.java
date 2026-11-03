@@ -13,7 +13,7 @@ import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Groups;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;

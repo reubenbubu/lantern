@@ -13,7 +13,7 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Groups;
 import io.lantern.derive.Knowledge;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;

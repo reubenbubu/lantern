@@ -9,7 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;

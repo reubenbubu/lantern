@@ -6,7 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
 import io.lantern.derive.ArchitectureModel;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Item;

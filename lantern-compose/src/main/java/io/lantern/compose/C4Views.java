@@ -19,7 +19,7 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.Elements.Line;
 import io.lantern.derive.Groups;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;

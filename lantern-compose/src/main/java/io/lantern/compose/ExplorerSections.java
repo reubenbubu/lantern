@@ -14,7 +14,7 @@ import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ConfigValues;
 import io.lantern.derive.Elements;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;

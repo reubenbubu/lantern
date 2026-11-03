@@ -5,7 +5,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.Vocabulary;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;

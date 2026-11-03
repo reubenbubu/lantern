@@ -31,7 +31,7 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.derive.Derivation;
 import io.lantern.derive.Vocabularies;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;

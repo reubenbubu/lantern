@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;

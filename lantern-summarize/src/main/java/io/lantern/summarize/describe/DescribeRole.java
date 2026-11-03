@@ -2,7 +2,7 @@ package io.lantern.summarize.describe;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Item;
 import io.lantern.harness.LlmFacts;

@@ -9,7 +9,7 @@ import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
 import io.lantern.harness.Outcome;

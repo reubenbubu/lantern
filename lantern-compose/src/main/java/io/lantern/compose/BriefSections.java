@@ -16,7 +16,7 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.TechnologyCurrency;
 import io.lantern.derive.TestEvidence;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;

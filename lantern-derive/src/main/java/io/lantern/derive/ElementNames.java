@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.vocabulary.BuiltInTypes;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.util.Objects;
 import java.util.Optional;
 
