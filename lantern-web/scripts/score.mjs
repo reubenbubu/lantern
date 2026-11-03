@@ -268,6 +268,7 @@ export function protocolOf(fromKind, toKind, technology) {
 function matchElements(report, reference, aliases) {
   const byName = new Map();
   for (const [id, element] of Object.entries(reference.elements)) {
+    if (element.tag === FEATURE_AREA_TAG) continue; // a feature area is no component (#549)
     byName.set(`${element.kind}:${normalizeName(element.name)}`, id);
     byName.set(`${element.kind}:${normalizeName(id)}`, id);
     // A reference element the alias table allows in other kinds too matches by name there as well.
@@ -290,6 +291,7 @@ function matchElements(report, reference, aliases) {
   const exchange = (element) => /\bexchange\b/i.test(element.technology ?? '');
   const sameName = new Map();
   for (const [id, element] of Object.entries(reference.elements)) {
+    if (element.tag === FEATURE_AREA_TAG) continue;
     const key = `${element.kind}:${normalizeName(element.name)}`;
     sameName.set(key, [...(sameName.get(key) ?? []), id]);
   }

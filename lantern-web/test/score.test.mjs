@@ -274,13 +274,19 @@ test('a line label that opens with a generic verb fails the line-label check (#7
   assert.deepEqual(checks['line-labels'].failures, ['p / d: a -> b', 'p / d: b -> c']);
 });
 
-test("a reference's feature areas, drawn as component boxes, are not counted as components (#549)", () => {
-  const before = score(report, reference, aliases).components;
+test("a reference's feature areas, drawn as component boxes, are not counted or matched as components (#549)", () => {
+  const before = score(report, reference, aliases);
   const withArea = structuredClone(reference);
-  const [containerId] = Object.entries(withArea.elements).find(([, e]) => e.kind === 'container');
-  withArea.elements['area-orders'] = { kind: 'component', tag: 'Feature area', name: 'Orders', parent: containerId };
-  const after = score(report, withArea, aliases).components;
-  assert.deepEqual(after, before);
+  withArea.elements['area-dispatch'] = { kind: 'component', tag: 'Feature area', name: 'Dispatch', parent: 'orders' };
+  assert.deepEqual(score(report, withArea, aliases), before);
+  // A report component named like the area matches nothing, so its line matches no area line.
+  withArea.pages[1].sections[0].relationships.push({ from: 'area-dispatch', to: 'events', label: 'Publishes', technology: 'AMQP' });
+  const named = structuredClone(report);
+  named.elements.oc = { kind: 'component', name: 'Dispatch', parent: 'o', technology: 'MVC', description: 'Orders.' };
+  named.pages[0].sections[0].relationships.push({ from: 'oc', to: 'e', label: 'Publishes', technology: 'AMQP' });
+  const after = score(named, withArea, aliases);
+  assert.equal(after.connections.matched, before.connections.matched);
+  assert.equal(after.components.reference, before.components.reference);
   assert.equal(isComponent({ kind: 'component', tag: 'Feature area' }), false);
   assert.equal(isComponent({ kind: 'component' }), true);
 });
