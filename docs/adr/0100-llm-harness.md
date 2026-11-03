@@ -292,6 +292,6 @@ New runs of project-4, each with the rounds fully asked:
 | --- | --- | --- | --- |
 | DeepSeek V4.1 Flash (scale 1) | $0.70 | $0.63 | 0.90, was 2.0 on #529 |
 | Haiku 5.5, before the scale | $0.43 | $0.67 | 1.56 |
-| Haiku 5.5 at scale 1.55 | $0.67 (computed) | $0.67 | 1.0 |
+| Haiku 5.5 at scale 1.55, budget $0.70 (fully asked roles) | $0.092 | $0.102 | 1.11 |
 
-On DeepSeek no share waited and nothing was skipped. The Haiku run had a $1.50 budget, so its shares were small. At scale 1 its low estimate let the flows use their share before the purpose and 16 narratives were asked, the failure #694 names. Its counts above are of the roles that were fully asked. The scale multiplies every token count of the estimate, so the Haiku estimate at 1.55 is computed from that run, not run again.
+On DeepSeek no share waited and nothing was skipped. The Haiku run had a $1.50 budget, so its shares were small. At scale 1 its low estimate let the flows use their share before the purpose and 16 narratives were asked, the failure #694 names. Its counts above are of the roles that were fully asked, and the scale was fitted on them, so 1.55 is in-sample. A second Haiku run at 1.55 had a $0.70 budget, to stay within the owner's $1.50 for this check. Most roles stopped at their shares, as a budget that tight must, and summarize spent 7% over its share. The roles it asked in full spent 1.11 of their estimate, and the purpose, first on its share, was asked. Haiku spend: $1.18.
