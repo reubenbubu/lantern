@@ -241,3 +241,45 @@ measure.
     unjudged.
   - Reference flows no candidate starts are listed apart, such as one started by a listener, a
     WebSocket or a client outside the code.
+
+## Amendment (#755): both harness gates in every drop
+
+The harness row's two gates (knowledge-build epic, section 13) are now measured on every run that
+asks for them, and the one-file change is checked against the items it may re-ask.
+
+- **What the run records.** For each item the harness asks rather than answer from its cache, it
+  compares the item's fingerprint inputs with those of the answer it stored last for the same role
+  and subject (`io.lantern.harness.AskedWhy`), before this run's answer takes that place.
+  `run.json` lists, per role, `askedWhy` for each asked subject:
+  - `new` when nothing was stored for it before;
+  - otherwise the files (`repo:path`) whose claims or text changed, including the files a
+    tool-using item read;
+  - how many earlier answers it shows changed (`answers`), other changed inputs (`other`);
+  - whether its prompt or its model changed.
+- **The gate** (`roles.mjs`, `changeGate`). Given the changed file (`--change-file repo:path`), an
+  asked item is expected when everything that changed comes from that file or is an earlier answer
+  it shows. Any other reason makes it unexpected and fails the gate, listed by item:
+  - a new item;
+  - another file;
+  - a prompt or model change;
+  - another input;
+  - no recorded reason.
+
+  The row reads, for example, "one-file change 3 calls, 3 items, 3 expected (gate passed)", with
+  how many were re-asked only through a reworded answer.
+- **The runs.** `scripts/score-testsets.sh --gates` follows each set's analysis with:
+  - a warm rerun of the same repositories (`warm.run.json`, gate: no call);
+  - a rerun with a one-line comment committed to one Java file in a temporary clone of its
+    repository (`change.run.json`, `change-file.txt`).
+
+  The file is `--change-file` where the set has that repository, else the first controller of the
+  set's repositories, which its type's summary and its unit's description rest on, else the first
+  Java file. Scoring picks up these files from the set's score
+  folder, so `--score-only` under the same label scores them again.
+- **project-0** checks the same record: its one-file change test (`Project0EndToEndIT`) asserts that
+  every item asked after the change gives only the changed file, or an answer it shows, as its
+  reason.
+
+Until #722 keeps a sentence's wording while its evidence is unchanged, a real model rewords
+re-asked answers, and the items showing them are expected through a reworded answer. The gate
+counts them as expected, as the epic does, and the row shows how many there were.

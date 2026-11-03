@@ -531,6 +531,7 @@ public final class RoleSession {
       settledWithoutAsking(item);
       return outcome;
     }
+    missed(item);
     if (!admitted(item)) {
       Outcome outcome =
           Outcome.of(
@@ -648,6 +649,7 @@ public final class RoleSession {
       if (stored.isPresent() && revalidated(stored.get())) {
         settleReused(outcomes, item, reused(stored.get()));
       } else {
+        missed(item);
         misses.add(item);
       }
     }
@@ -978,6 +980,7 @@ public final class RoleSession {
       if (stored.isPresent() && revalidated(stored.get()) && holdsOrDropped(stored.get(), holds)) {
         settleReused(outcomes, item, reused(stored.get()));
       } else {
+        missed(item);
         packet.add(item);
       }
     }
@@ -1192,6 +1195,22 @@ public final class RoleSession {
   }
 
   /** Whether every file the answer's tools read still has the blob it read. */
+  /**
+   * Notes why an item the cache does not answer is asked (#755): what changed since the answer
+   * stored last for its subject, before this run's answer takes that place.
+   */
+  private void missed(Item item) {
+    record.why(
+        item.subject(),
+        AskedWhy.of(
+            harness.answers().latest(spec.name(), item.subject()),
+            item.inputs(),
+            cacheVersion(),
+            model.provider(),
+            model.model(),
+            harness.blobs()::blob));
+  }
+
   private boolean revalidated(StoredAnswer answer) {
     for (FileRead file : answer.filesRead()) {
       Optional<String> now = harness.blobs().blob(file.repo(), file.path());

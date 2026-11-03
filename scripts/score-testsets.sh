@@ -58,6 +58,13 @@ Options:
   --held-out                Allow the held-out sets project-5 to project-7. Nobody analyzes
                             them before Phase 2's real-model acceptance (docs/design.md, Test
                             sets); without this option they are refused.
+  --gates                   After each set's run, check the harness's two gates (docs/adr/0072-scoring-harness.md,
+                            amendment for #755): rerun it unchanged (warm.run.json; it should make no
+                            call), then with a one-line comment committed to one Java file in a
+                            temporary clone of its repository (change.run.json and change-file.txt;
+                            it should re-ask only the items resting on that file). The file is the
+                            first controller of the set's repositories, else the first Java file.
+  --change-file REPO:PATH   The file --gates changes, in the sets that have that repository.
   --score-only              Do not analyze: score each set's newest report as it is, the
                             one whose run.json was written last (the highest-numbered folder
                             when none has a run.json). The sets need not be set up.
@@ -89,6 +96,8 @@ score_only=false
 fake_llm=false
 judge_wording=false
 record_calls=false
+gates=false
+change_file=""
 held_out=false
 assume_yes=false
 sets=()
@@ -127,6 +136,9 @@ while [[ $# -gt 0 ]]; do
     --held-out) held_out=true; shift ;;
     --judge-wording) judge_wording=true; shift ;;
     --record-calls) record_calls=true; shift ;;
+    --gates) gates=true; shift ;;
+    --change-file) [[ $# -ge 2 && "$2" == ?*:?* ]] || die "--change-file needs REPO:PATH"; change_file="$2"; shift 2 ;;
+    --change-file=?*:?*) change_file="${1#*=}"; shift ;;
     -y | --yes) assume_yes=true; shift ;;
     -h | --help) usage; exit 0 ;;
     -*) die "unknown option $1 (see --help)" ;;
@@ -173,10 +185,12 @@ reference_dir() {
   fi
 }
 
-# Temporary files, removed however the script ends.
+# Temporary files and folders, removed however the script ends.
 temporary=()
+temporary_dirs=()
 cleanup() {
   [[ ${#temporary[@]} -eq 0 ]] || rm -f "${temporary[@]}"
+  [[ ${#temporary_dirs[@]} -eq 0 ]] || rm -rf "${temporary_dirs[@]}"
 }
 trap cleanup EXIT
 
@@ -258,6 +272,47 @@ run_documents() {
   echo "${folders[0]}"
 }
 
+# The file --gates changes in a set: --change-file where the set has its repository, else the first
+# controller of its repositories in their order, else the first repository's first Java file; as
+# repo:path. A controller is one most items rest on: its type's summary and its unit's description.
+gate_file() {
+  local name path file pattern
+  if [[ -n "$change_file" ]]; then
+    for entry in "$@"; do
+      name="${entry%%=*}"
+      if [[ "$name" == "${change_file%%:*}" ]]; then
+        echo "$change_file"
+        return 0
+      fi
+    done
+  fi
+  for pattern in '*Controller.java' '*.java'; do
+    for entry in "$@"; do
+      name="${entry%%=*}"
+      path="${entry#*=}"
+      file="$(git -C "$path" ls-files -- "$pattern" | grep '/src/main/java/\|^src/main/java/' | sort | head -n 1 || true)"
+      if [[ -n "$file" ]]; then
+        echo "$name:$file"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+# Analyzes a set's repositories once more for a gate and copies the run's record to the file given.
+gate_run() {
+  local set="$1" out="$2" since documents
+  shift 2
+  since="$(mktemp "${TMPDIR:-/tmp}/lantern-score-started-XXXXXX")"
+  temporary+=("$since")
+  LANTERN_WORKSPACE="$workspace" "${gate_launch[@]}" ${overrides[@]+"${overrides[@]}"} -- "$@" ||
+    die "$set: the gate's analysis failed"
+  documents="$(run_documents "$set" "$since")" || exit 1
+  [[ -f "$documents/run.json" ]] || die "$set: the gate's run wrote no run.json"
+  cp "$documents/run.json" "$out"
+}
+
 mkdir -p "$scores"
 for set in "${sets[@]}"; do
   if ! $score_only; then
@@ -280,6 +335,8 @@ for set in "${sets[@]}"; do
     launch=("$REPO/scripts/launch.sh" --yes --system "$set")
     [[ -n "$llm_file" ]] && launch+=(--llm-properties "$llm_file")
     [[ -n "$mirror_file" ]] && launch+=(--mirror-properties "$mirror_file")
+    # The gates' runs record no calls of their own.
+    gate_launch=("${launch[@]}")
     # Each set's calls get their own folder, so one set's or one run's never mix with another's.
     if [[ "$record_calls" == true ]]; then
       [[ -z "$(ls -A "$scores/$set/calls" 2>/dev/null)" ]] ||
@@ -292,6 +349,31 @@ for set in "${sets[@]}"; do
     LANTERN_WORKSPACE="$workspace" "${launch[@]}" ${overrides[@]+"${overrides[@]}"} -- "${repos[@]}" ||
       die "$set: the analysis failed"
     documents="$(run_documents "$set" "$started")" || exit 1
+    if $gates; then
+      mkdir -p "$scores/$set"
+      info "$set: the warm rerun gate (an unchanged rerun should make no call)"
+      gate_run "$set" "$scores/$set/warm.run.json" "${repos[@]}"
+      target="$(gate_file "${repos[@]}")" || die "$set: no Java file to change for the one-file change gate"
+      changed_repo="${target%%:*}"
+      changed_path="${target#*:}"
+      clones="$(mktemp -d "${TMPDIR:-/tmp}/lantern-change-XXXXXX")"
+      temporary_dirs+=("$clones")
+      changed_repos=()
+      for entry in "${repos[@]}"; do
+        if [[ "${entry%%=*}" == "$changed_repo" ]]; then
+          git clone --quiet "${entry#*=}" "$clones/$changed_repo"
+          printf '// A comment the harness gate adds (#755).\n' >> "$clones/$changed_repo/$changed_path"
+          git -C "$clones/$changed_repo" -c user.name="Lantern gate" -c user.email=gate@lantern.invalid \
+            commit --quiet -am "A one-line change for the harness gate"
+          changed_repos+=("$changed_repo=$clones/$changed_repo")
+        else
+          changed_repos+=("$entry")
+        fi
+      done
+      info "$set: the one-file change gate (a comment in $target)"
+      gate_run "$set" "$scores/$set/change.run.json" "${changed_repos[@]}"
+      echo "$target" > "$scores/$set/change-file.txt"
+    fi
   else
     documents="$(newest_documents "$set")"
   fi
@@ -315,6 +397,12 @@ for set in "${sets[@]}"; do
   done
   if [[ -f "$REPO/testsets/$set/answer-key.json" ]]; then
     run_args+=(--answer-key "$REPO/testsets/$set/answer-key.json")
+  fi
+  # The gates' runs, made by --gates now or before under the same label (#755).
+  [[ -f "$scores/$set/warm.run.json" ]] && run_args+=(--warm "$scores/$set/warm.run.json")
+  if [[ -f "$scores/$set/change.run.json" ]]; then
+    run_args+=(--change "$scores/$set/change.run.json")
+    [[ -f "$scores/$set/change-file.txt" ]] && run_args+=(--change-file "$(cat "$scores/$set/change-file.txt")")
   fi
   "$node_bin" "$REPO/lantern-web/scripts/score.mjs" "$scores/$set/_system.c4.html" "$(reference_dir "$set")" \
     ${run_args[@]+"${run_args[@]}"} --out "$scores/$set" >&2
