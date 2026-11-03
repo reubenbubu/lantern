@@ -1,7 +1,7 @@
 {
   "set": "project-4",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "awaiting the owner's check at the 1F test drop",
+  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); d2 (the WebSocket route) became risk r17",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "Auth-Service": "6cb4edae467de8eaddd30ed4f528636e5f053114",
@@ -251,7 +251,7 @@
     },
     {
       "id": "r12",
-      "reference": "The frontend image is built with `--configuration development`, so it calls `http://localhost:8080`...",
+      "reference": "The frontend image is built with `--configuration development`, which swaps in `environment.development.ts`, so it calls the hardcoded LAN IP...",
       "subjects": [
         "frontend"
       ],
@@ -259,12 +259,14 @@
       "cites": [
         "CRM-Frontend:Dockerfile:12-12",
         "CRM-Frontend:src/environments/environment.ts:1-3",
+        "CRM-Frontend:src/environments/environment.development.ts:1-3",
         "CRM-Frontend:angular.json:55-64"
       ],
       "names": [
         "--configuration development",
         "apiUrl",
-        "environment.development.ts"
+        "environment.development.ts",
+        "192.168.88.113"
       ],
       "how": "The build bakes an environment file with a fixed API URL into the image."
     },
@@ -334,7 +336,10 @@
       "subjects": [
         "auth-db",
         "main-db",
-        "file-db"
+        "file-db",
+        "auth",
+        "main",
+        "file"
       ],
       "category": "schema-unmanaged",
       "cites": [
@@ -347,6 +352,25 @@
         "update"
       ],
       "how": "Each service lets Hibernate update the schema; no migration tool is present."
+    },
+    {
+      "id": "r17",
+      "reference": "notification-service checks organization membership only when a subscription names one exact organization topic...",
+      "subjects": [
+        "notification"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:31-32",
+        "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:66-92",
+        "Notification-Service:src/main/java/com/crm/notification/notification_service/config/WebSocketsConfig.java:37-42"
+      ],
+      "names": [
+        "ORGANIZATION_NOTIFICATION_TOPIC_PATTERN",
+        "handleSubscribeMessage",
+        "enableSimpleBroker"
+      ],
+      "how": "The subscribe check only covers exact organization topics and passes every other destination, and the simple broker matches * and ** in a subscription as patterns, so any signed-in user can subscribe to every organization's notifications."
     }
   ],
   "decoys": [
@@ -366,25 +390,6 @@
       "names": [
         "POSTGRES_PASSWORD",
         "RABBITMQ_DEFAULT_PASS"
-      ]
-    },
-    {
-      "id": "d2",
-      "looksLike": "The public gateway route /ws-notifications/** has no authentication filter.",
-      "safeBecause": "notification-service authenticates every STOMP CONNECT through the auth service and checks organization membership on SUBSCRIBE, and rejects client SEND.",
-      "subjects": [
-        "notification"
-      ],
-      "category": "weak-access-check",
-      "cites": [
-        "Discovery-and-Gateway:api-gateway/src/main/java/com/crm/gateway/config/RouteConfig.java:34-37",
-        "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:41-61",
-        "Notification-Service:src/main/java/com/crm/notification/notification_service/websocket/StompAuthChannelInterceptor.java:83-88"
-      ],
-      "names": [
-        "/ws-notifications/**",
-        "handleConnectMessage",
-        "isUserExistsInOrganization"
       ]
     }
   ]

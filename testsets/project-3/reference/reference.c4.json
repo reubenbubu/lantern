@@ -2418,8 +2418,8 @@
             ],
             [
               "Medium",
-              "Single instances and a start-up chain: one Eureka with no peers, one config server that every service needs at start (fail-fast, 5 retries), one gateway.",
-              "If the config server is down no service can start or restart; if the gateway is down the system is unreachable.",
+              "Single instances and a start-up chain: one Eureka with no peers, one config server that user-, media- and subscription-service need at start (fail-fast, 5 retries), one gateway.",
+              "If the config server is down those services cannot start or restart; if the gateway is down the system is unreachable.",
               "discovery-server `application.yaml:8-15`; user `bootstrap.yaml:4-9`; media and subscription `application.yaml:4-9`; `docker-compose.yml:44-48,112-118`"
             ],
             [

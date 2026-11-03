@@ -1,7 +1,7 @@
 {
   "set": "project-8",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "awaiting the owner's check at the 1F test drop",
+  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); r23 to r25 came from the check",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "billing-service": "79446bfa58100fac4150b3389b4aa364bf53d78e",
@@ -218,9 +218,10 @@
       "names": [
         "X-User-Id",
         "X-Roles",
-        "headers.add"
+        "headers.add",
+        "getHeader"
       ],
-      "how": "Work-order binds X-User-Id and X-Roles from the request while the gateway adds (not replaces) those headers."
+      "how": "Work-order binds X-User-Id and X-Roles from the request with getHeader, which returns the first value, while the gateway adds (not replaces) those headers, so a client's own values win through the gateway too."
     },
     {
       "id": "r8",
@@ -302,7 +303,8 @@
         "postgresql-server",
         "mongodb",
         "redis",
-        "minio"
+        "minio",
+        "keycloak"
       ],
       "category": "plaintext-secret",
       "cites": [
@@ -324,7 +326,10 @@
       "subjects": [
         "postgresql-server",
         "mongodb",
-        "redis"
+        "redis",
+        "elasticsearch",
+        "minio",
+        "keycloak"
       ],
       "category": "single-instance",
       "cites": [
@@ -436,7 +441,7 @@
         "notification-service",
         "edge-gateway"
       ],
-      "category": "weak-access-check",
+      "category": "contract-mismatch",
       "cites": [
         "fleetcare-web:staff-angular/src/work-order-events.service.ts:7-13",
         "notification-service:src/main/java/io/fleetcare/notification/push/PushWebSocketConfiguration.java:20-28"
@@ -455,7 +460,7 @@
         "customer-portal-bff",
         "workorder-service"
       ],
-      "category": "weak-access-check",
+      "category": "contract-mismatch",
       "cites": [
         "fleetcare-web:customer-react/src/portal.tsx:11-16",
         "customer-portal-bff:src/main/java/io/fleetcare/portal/client/WorkOrderClient.java:11-14",
@@ -493,19 +498,77 @@
     },
     {
       "id": "r22",
-      "reference": "The work-order production profile enables SQL bind TRACE logging; sensitive bound values may be written to logs.",
+      "reference": "The work-order and billing production profiles enable SQL bind TRACE logging; sensitive bound values may be written to logs.",
       "subjects": [
-        "workorder-service"
+        "workorder-service",
+        "billing-service"
       ],
       "category": "other",
       "cites": [
-        "workorder-service:src/main/resources/application-prod.yml:1-7"
+        "workorder-service:src/main/resources/application-prod.yml:1-7",
+        "billing-service:src/main/resources/application-prod.yml:1-6"
       ],
       "names": [
         "org.hibernate.orm.jdbc.bind",
-        "org.hibernate.SQL"
+        "org.hibernate.SQL",
+        "StatementCreatorUtils"
       ],
-      "how": "The prod profile turns on show-sql and TRACE logging of SQL bind values."
+      "how": "The work-order and billing prod profiles turn on TRACE logging of SQL and its bound values."
+    },
+    {
+      "id": "r23",
+      "reference": "Notification-service marks four endpoints with the shared role annotation but neither imports nor scans the permission aspect that enforces it, so those role checks do not run.",
+      "subjects": [
+        "notification-service"
+      ],
+      "category": "weak-access-check",
+      "cites": [
+        "notification-service:src/main/java/io/fleetcare/notification/api/NotificationController.java:21-42",
+        "notification-service:src/main/java/io/fleetcare/notification/NotificationApplication.java:1-14"
+      ],
+      "names": [
+        "@RequiresFleetRole",
+        "@SpringBootApplication"
+      ],
+      "how": "The endpoints carry @RequiresFleetRole, but the application neither imports PermissionAspect nor scans io.fleetcare.commons, so nothing enforces the annotation."
+    },
+    {
+      "id": "r24",
+      "reference": "Billing declares only the work-order read DataSource as a bean, so Spring Boot does not create the billing DataSource its configuration describes; the billing JDBC client, Flyway and transactions would bind to the workorder database.",
+      "subjects": [
+        "billing-service",
+        "billing-database",
+        "workorder-database"
+      ],
+      "category": "other",
+      "cites": [
+        "billing-service:src/main/java/io/fleetcare/billing/data/BillingDataConfiguration.java:11-21",
+        "billing-service:src/main/java/io/fleetcare/billing/payment/BillingClientConfiguration.java:29-30",
+        "billing-service:src/main/resources/application.yml:6-11"
+      ],
+      "names": [
+        "workOrderReadDataSource",
+        "billingJdbcClient",
+        "datasource"
+      ],
+      "how": "The only DataSource bean points at the workorder database, so Boot's own DataSource backs off and billing's JDBC client, Flyway and transactions use that one."
+    },
+    {
+      "id": "r25",
+      "reference": "PartnerStatusClient is a component that resolves `accounting.status-host` and `accounting.status-api-version` in its constructor; no configuration in the set defines them, so billing fails to start unless an outside source supplies them.",
+      "subjects": [
+        "billing-service"
+      ],
+      "category": "other",
+      "cites": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PartnerStatusClient.java:11-20",
+        "billing-service:src/main/resources/application.yml:33-44"
+      ],
+      "names": [
+        "accounting.status-host",
+        "accounting"
+      ],
+      "how": "The component's constructor needs two properties that no configuration file of the set defines, so the context fails to start without an outside value."
     }
   ],
   "decoys": [
@@ -563,5 +626,5 @@
       ]
     }
   ],
-  "source": "lantern-test-fleetcare@8e0425b23c81cf5513a72b0714dc03fc5ec6a153 (testsets/project-8/pins.txt); its setup.sh makes the repositories at the commits above"
+  "source": "lantern-test-fleetcare@c21cda1007321aaaefc96d4b47b08afaa096f5ee (testsets/project-8/pins.txt); its setup.sh makes the repositories at the commits above"
 }
