@@ -145,3 +145,7 @@ already checks whether a text's citations support it; that stays its job.
   | Purpose, the key fact (1) | 100%; raw 100% | 100%; raw 100% |
 
   For "specific", Describe's corrected score is well above its raw 84%. The labels show the judge fails texts the owner would pass (TPR 84%), and the correction accounts for that. It divides by TPR + TNR − 1 = 0.73, so it magnifies errors about 1.4 times and lands near the 100% clamp. The interval stays wide because only 14 failing labels back the TNR. Name groups and the key fact are too few texts to read much into. The judge's validation is closed by #668. Total Sonnet spend on #668: $1.25.
+
+## Baseline (#756)
+
+The 1H baseline (#756): Haiku 5.5 and Sonnet 5.5 through OpenRouter, Anthropic only, on project-1, project-2, project-3, project-4 and project-8. This role's reference is in `~/workspace/lantern-test-drops/1H/baseline/` (cold run, completion, warm reruns; README there). The minimums re-check is in ADR 0118.
