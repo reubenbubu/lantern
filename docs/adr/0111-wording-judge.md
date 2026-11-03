@@ -132,7 +132,7 @@ already checks whether a text's citations support it; that stays its job.
   | "says what it does for the system" | 96 / 10 | 1.00 (0.99 to 1.00) | 1.00 (1.00 to 1.00) |
   | "specific to this system" | 92 / 14 | 0.84 (0.76 to 0.92) | 0.89 (0.64 to 1.00) |
 
-  Unweighted, the judge got 3 and 31 of the 106 wrong. Most of the specific question's misses fail short phrases that the labels pass, which weigh little. Both questions pass the 0.8 bar, so a run judged by this judge and prompt version shows a corrected score.
+  Unweighted, the judge got 3 and 31 of the 106 wrong. Most of the specific question's misses fail short phrases that the labels pass, which weigh little. Both questions pass the 0.8 bar on their point estimates, so a run judged by this judge and prompt version shows a corrected score.
 
   The specific question's TNR rests on 14 failing labels, and its interval reaches down to 0.64. More failing labels would narrow it.
 - **Spend.** Sonnet 5.5, $0.48 in all: three tuning rounds of about $0.10 each, and $0.18 for the held-out texts.
@@ -144,4 +144,4 @@ already checks whether a text's citations support it; that stays its job.
   | Name groups (10) | 90% (70% to 100%); raw 90% | 67% (12% to 100%); raw 60% |
   | Purpose, the key fact (1) | 100%; raw 100% | 100%; raw 100% |
 
-  For "specific", Describe's corrected score is well above its raw 84%. The labels show the judge fails texts the owner would pass (TPR 84%), and the correction accounts for that. The interval stays wide because only 14 failing labels back the TNR. Name groups and the key fact are too few texts to read much into. The judge's validation is closed by #668. Total Sonnet spend on #668: $1.25.
+  For "specific", Describe's corrected score is well above its raw 84%. The labels show the judge fails texts the owner would pass (TPR 84%), and the correction accounts for that. It divides by TPR + TNR − 1 = 0.73, so it magnifies errors about 1.4 times and lands near the 100% clamp. The interval stays wide because only 14 failing labels back the TNR. Name groups and the key fact are too few texts to read much into. The judge's validation is closed by #668. Total Sonnet spend on #668: $1.25.
