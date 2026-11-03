@@ -103,3 +103,9 @@ Six roles asked for one size and accepted another without a written reason. For 
 - `WordingPrompt`'s old flow sizes (8, 100 and 30 words) are not a contract; removing them is #775.
 - The quality score is reasoned, not fitted. CheckEval found fitted weights gained nothing for most judges. The weights change only through an issue.
 - The epic's section 11 is a closed record; its limits now live in the contracts.
+
+## Re-check on the 1H baseline (#756)
+
+The minimums re-checked by #760's method on the texts of the 1H baseline (#756): `complete` run, the five sets, Haiku 5.5 and Sonnet 5.5. Every rule's texts stay above its accepted minimum, so no check changes. The requested minimums and the accepted minimums would move as below. Nothing changes in the prompts or contracts here: a requested range is stated in the prompt, so moving one raises the role's prompt version and asks the model again. The owner decides whether to move them, in its own issue.
+
+| Rule | Texts | Requested min now -> 5th percentile | Accepted min now -> 99

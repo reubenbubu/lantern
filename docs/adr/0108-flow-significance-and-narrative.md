@@ -102,3 +102,7 @@ A scope's significance answer had 120 tokens of output a flow, plus 500. On the 
 ## Amendment (#760): limits in the role's contract
 
 This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.
+
+## Baseline (#756)
+
+The 1H baseline (#756): Haiku 5.5 and Sonnet 5.5 through OpenRouter, Anthropic only, on project-1, project-2, project-3, project-4 and project-8. This role's reference is in `~/workspace/lantern-test-drops/1H/baseline/` (cold run, completion, warm reruns; README there). The minimums re-check is in ADR 0118.
