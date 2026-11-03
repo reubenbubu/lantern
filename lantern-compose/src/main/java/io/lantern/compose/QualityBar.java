@@ -176,11 +176,6 @@ final class QualityBar {
   private final Map<String, Fact> facts = new HashMap<>();
   private final List<QualityReport.Failure> failures = new ArrayList<>();
 
-  /** Whether a type is one of the types or extends one of them (ADR 0114). */
-  private boolean extendsOneOf(String type, Set<String> types) {
-    return types.stream().anyMatch(t -> type.equals(t) || vocabulary.isA(type, t));
-  }
-
   private QualityBar(Document document, Vocabulary vocabulary) {
     this.document = document;
     this.vocabulary = vocabulary;
@@ -235,6 +230,11 @@ final class QualityBar {
       bar.fail(PROTOCOL, null, "No protocol on " + names(noProtocol) + ".");
     }
     return List.copyOf(bar.failures);
+  }
+
+  /** Whether a type is one of the types or extends one of them (ADR 0114). */
+  private boolean extendsOneOf(String type, Set<String> types) {
+    return types.stream().anyMatch(t -> type.equals(t) || vocabulary.isA(type, t));
   }
 
   /** The checks the document fails, in the order of the document, its own checks last. */

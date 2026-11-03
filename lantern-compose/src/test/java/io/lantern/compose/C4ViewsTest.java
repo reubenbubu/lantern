@@ -1145,7 +1145,7 @@ class C4ViewsTest {
     assertThat(nodes(block(section(document, "containers"), Diagram.class)))
         .anyMatch(n -> n.startsWith("graph-database:") && n.contains("[Neo4j]"));
     assertThat(qualityChecks(document)).doesNotContain(QualityBar.ONE_LEVEL);
-    // Counted as a database: the system context's "Databases" count goes from none to one.
+    // Counted as a database: the system context's "Databases" count goes from one to two.
     assertThat(block(section(document, "context"), Metrics.class).items())
         .extracting(i -> i.label() + " " + i.value())
         .contains("Databases 2");

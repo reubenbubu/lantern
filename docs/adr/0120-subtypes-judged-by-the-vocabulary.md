@@ -30,6 +30,14 @@ treated an external-system subtype as inside the system's boundary.
 
 ## Consequences
 
+- Not changed here, and to follow: other exact-name comparisons that a new subtype could still
+  trip on: `Assembler` (the person and frontend checks), `ScopeFlows` (database), `FlowTracer`
+  (external system), `BriefSections` (the technology and person checks), and `ElementNames` (a
+  switch on the type). They keep their exact names until a follow-up issue covers them.
+- A subtype of `topic`, `queue`, `exchange` or `frontend` gets the plain technology attribute,
+  not the broker or frontend wording, since the switch matches exact names first. No such subtype
+  exists in Lantern's own vocabulary.
+
 - Output of Lantern's own types is unchanged: the fake-model documents of project-0, project-1,
   project-2, project-3, project-4 and project-8 are byte-identical (123 files).
 - Tests in `C4ViewsTest` add a type under `container`, under `database` and under
