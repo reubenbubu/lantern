@@ -50,6 +50,7 @@ public final class Contract {
   private final double tolerance;
   private final List<String> prompts;
   private final Map<String, Field> fields;
+  private final Map<String, Integer> counts;
 
   private Contract(String role, JsonNode json) {
     this.role = role;
@@ -76,12 +77,23 @@ public final class Contract {
               words.path("enforced").asBoolean(true)));
     }
     this.fields = Map.copyOf(read);
+    Map<String, Integer> limits = new LinkedHashMap<>();
+    json.path("counts")
+        .forEach(c -> limits.put(c.path("name").asString(), c.path("requested").asInt()));
+    this.counts = Map.copyOf(limits);
   }
 
   /** The role's contract, read once from {@code <role>.contract.json} in the prompts folder. */
   public static Contract of(String role) {
     return CONTRACTS.computeIfAbsent(
         role, r -> new Contract(r, JSON.readTree(Prompts.text(r + ".contract.json"))));
+  }
+
+  /**
+   * Forgets the contracts read so far, when the prompts folder changes ({@link Prompts#useFolder}).
+   */
+  static void forget() {
+    CONTRACTS.clear();
   }
 
   /**
@@ -123,6 +135,15 @@ public final class Contract {
       throw new IllegalStateException(role + ".contract.json gives " + field + " no word limit");
     }
     return accepted;
+  }
+
+  /** The most of the named count the prompt asks for and the checks keep, such as proposals. */
+  public int count(String name) {
+    Integer count = counts.get(name);
+    if (count == null) {
+      throw new IllegalStateException(role + ".contract.json has no count " + name);
+    }
+    return count;
   }
 
   /** The most words the prompt asks for in the field. */

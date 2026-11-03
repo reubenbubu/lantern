@@ -94,7 +94,9 @@ function rejectedField(reason) {
  * Each size rule split three ways over a run: the stored texts within the requested range, those
  * beyond it but accepted, and the answers the checks rejected for their length. A rule without a
  * requested size counts every stored text as requested; a rule that is only measured counts a text
- * over its accepted size as over, since nothing rejected it.
+ * over its accepted size as over, since nothing rejected it. Rejections are counted apart from the
+ * stored texts, a first answer and its repair separately, since a rejected answer that is repaired
+ * is also stored and a rule such as Resolve's reason stores no texts at all.
  *
  * @param llm the run's facts of origin llm (llm.jsonl.gz), or null
  * @param rejections every rejected answer and dropped item (rejections.jsonl.gz), or null
@@ -105,7 +107,7 @@ export function sizeRows(contracts, llm, rejections) {
   for (const c of Object.values(contracts)) {
     for (const f of c.fields ?? []) {
       if (!f.words) continue;
-      const counts = { within: 0, beyond: 0, over: 0, rejected: 0 };
+      const counts = { within: 0, beyond: 0, over: 0, rejected: 0, rejectedAgain: 0 };
       for (const fact of llm ?? []) {
         if (!storedIn(f, fact)) continue;
         for (const text of textsAt(fact, f.facts.attribute)) {
@@ -120,10 +122,12 @@ export function sizeRows(contracts, llm, rejections) {
         if (!(c.harnessRoles ?? []).includes(r.role) || !answer || (r.kind && r.kind !== 'rejected')) continue;
         for (const reason of r.reasons ?? []) {
           const hit = rejectedField(reason);
-          if (hit && answer.test(hit.field)) counts.rejected++;
+          if (!hit || !answer.test(hit.field)) continue;
+          if ((r.attempt ?? 1) > 1) counts.rejectedAgain++;
+          else counts.rejected++;
         }
       }
-      const total = counts.within + counts.beyond + counts.over + counts.rejected;
+      const total = counts.within + counts.beyond + counts.over;
       rows.push({
         role: c.role,
         field: f.name,
@@ -138,15 +142,19 @@ export function sizeRows(contracts, llm, rejections) {
   return rows;
 }
 
-/** The contract field a judged text of the wording judge belongs to, or null. */
+/**
+ * The contract field a judged text of the wording judge belongs to, or null when none or more than
+ * one could hold it (fields stored in one fact's attributes cannot be told apart by the verdict).
+ */
 function fieldOfJudged(contracts, j) {
+  const found = [];
   for (const c of Object.values(contracts)) {
     if (!(c.harnessRoles ?? []).includes(j.role)) continue;
     for (const f of c.fields ?? []) {
-      if (storedIn(f, { predicate: j.predicate, subject: j.subject, attributes: {} })) return { contract: c, field: f };
+      if (storedIn(f, { predicate: j.predicate, subject: j.subject, attributes: {} })) found.push({ contract: c, field: f });
     }
   }
-  return null;
+  return found.length === 1 ? found[0] : null;
 }
 
 /** Whether the text passes the deterministic check of the given id. */
@@ -252,18 +260,19 @@ export function contractLines(sizes, quality, tolerancePoints) {
     lines.push('Not measured: the run left no llm.jsonl.gz or rejections.jsonl.gz beside the report.');
   } else {
     lines.push(
-      'Each size rule of `prompts/<role>.contract.json`: of the texts stored and the answers rejected for their length, the share within the requested size, beyond it but accepted, and rejected.',
+      'Each size rule of `prompts/<role>.contract.json`: of the texts stored, the share within the requested size and beyond it but accepted; and how many answers the checks rejected for their length, first answers and then repairs (a repaired answer is also stored).',
       '',
-      '| Role | Field | Requested | Accepted | Texts | Within requested | Accepted beyond | Rejected |',
+      '| Role | Field | Requested | Accepted | Texts | Within requested | Accepted beyond | Rejected for length (first, repair) |',
       '| --- | --- | --- | --- | --- | --- | --- | --- |',
     );
-    for (const r of sizes.filter((s) => s.total > 0)) {
+    const shown = (s) => s.total + s.rejected + s.rejectedAgain > 0;
+    for (const r of sizes.filter(shown)) {
       const beyond = r.beyond + r.over;
       lines.push(
-        `| ${r.role} | ${r.field} | ${r.requested ?? '-'} | ${r.accepted ?? '-'}${r.enforced ? '' : ' (measured)'} | ${r.total} | ${pct(r.within, r.total)} | ${pct(beyond, r.total)}${r.over > 0 ? ` (${r.over} over)` : ''} | ${pct(r.rejected, r.total)} |`,
+        `| ${r.role} | ${r.field} | ${r.requested ?? '-'} | ${r.accepted ?? '-'}${r.enforced ? '' : ' (measured)'} | ${r.total} | ${pct(r.within, r.total)} | ${pct(beyond, r.total)}${r.over > 0 ? ` (${r.over} over)` : ''} | ${r.rejected}, ${r.rejectedAgain} |`,
       );
     }
-    const silent = sizes.filter((s) => s.total === 0).map((s) => `${s.role} ${s.field}`);
+    const silent = sizes.filter((s) => !shown(s)).map((s) => `${s.role} ${s.field}`);
     if (silent.length > 0) lines.push('', `No texts this run: ${silent.join(', ')}.`);
   }
   lines.push('', '### Quality score', '');

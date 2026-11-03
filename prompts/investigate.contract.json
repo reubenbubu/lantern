@@ -21,7 +21,10 @@
       },
       "words": {
         "requested": 7,
-        "stated": "at most 7 words"
+        "stated": "a title of at most 7 words",
+        "restated": [
+          "the title has at most 7 words"
+        ]
       }
     },
     {
@@ -40,7 +43,7 @@
           1,
           2
         ],
-        "stated": "one or two sentences",
+        "stated": "the finding, what the code does, in one or two sentences",
         "enforced": false
       },
       "note": "No word count is stated; the check accepts 70 words (ADR 0110). State one when the prompt next changes (#743)."
@@ -61,7 +64,7 @@
           1,
           2
         ],
-        "stated": "one or two sentences",
+        "stated": "the consequence, what can happen because of it, in one or two sentences",
         "enforced": false
       },
       "note": "As finding."

@@ -18,7 +18,7 @@
       },
       "words": {
         "requested": 5,
-        "stated": "at most 5 words"
+        "stated": "a title of at most 5 words"
       },
       "cites": [
         "F",
@@ -35,7 +35,7 @@
       },
       "words": {
         "requested": 75,
-        "stated": "at most 75 words",
+        "stated": "at most 75 words in all",
         "accepted": 80
       },
       "sentences": {
@@ -43,7 +43,7 @@
           2,
           4
         ],
-        "stated": "two to four plain sentences",
+        "stated": "a walkthrough of two to four plain sentences",
         "enforced": false
       },
       "cites": [
@@ -62,7 +62,7 @@
       },
       "words": {
         "requested": 22,
-        "stated": "at most 22 words"
+        "stated": "pre-conditions, at most 22 words"
       },
       "cites": [
         "F",
@@ -79,7 +79,7 @@
       },
       "words": {
         "requested": 22,
-        "stated": "at most 22 words"
+        "stated": "post-conditions, at most 22 words"
       },
       "cites": [
         "F",

@@ -92,3 +92,7 @@ Responsibility sentences for databases, queues and external systems (ADR 0056); 
 keeps its summary or has no description, as before).
 
 ## Amendment (#369): labels that name two intents and count the rest are replaced by ADR 0088: a line says one thing, one intent phrase.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there. Where they differ from the numbers above, the contract's hold.

@@ -93,3 +93,7 @@ milestone 1F.
 ## Amendment for #529: four links a conversation, unmeasured
 
 No development set has an open link in its answer key, so the calibration runs asked Resolve nothing to score (ADR 0112, amendment for #529). It keeps the epic's starting size of 4 (`lantern.harness.items-per-request.resolve=4`), to be measured on a set with open links.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there. Where they differ from the numbers above, the contract's hold.

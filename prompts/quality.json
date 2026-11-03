@@ -2,6 +2,21 @@
   "about": "The 0 to 10 quality score of an LLM-written text (ADR 0118; docs/research/quality-score.md): the sum of the weights of the yes/no checks it passes. Judged checks are the wording judge's verdicts on one question each; the judge is never asked for a score. A text whose gate check fails scores at most gateCap.",
   "gateCap": 4,
   "tolerancePoints": 7,
+  "pending": {
+    "about": "Judged checks the owner decided on (#760) that the wording judge does not ask yet. #757 labels them blind (CLAUDE.md), adds them to the judge and sets their weights in the kinds below; until then the score leaves them out and `filler` stands in for padding.",
+    "questions": [
+      {
+        "id": "terms",
+        "name": "uses the code's own terms",
+        "question": "Does the text name the system's things (its services, data, messages and operations) by the names the cited code gives them, rather than by generic or invented names? Answer fail only when it renames or blurs something the code names."
+      },
+      {
+        "id": "padding",
+        "name": "no padding",
+        "question": "Does every phrase of the text tell the reader something about this part, with no filler, restatement of its name or kind, or generic wording such as \"responsible for\" or \"various\"? Answer fail when a phrase could be removed without losing anything."
+      }
+    ]
+  },
   "filler": [
     "responsible for",
     "is used to",

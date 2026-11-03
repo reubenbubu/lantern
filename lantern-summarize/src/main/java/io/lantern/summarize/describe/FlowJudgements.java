@@ -79,8 +79,10 @@ public final class FlowJudgements {
       io.lantern.harness.Contract.of("flow-narrative").acceptedWords("title");
   static final int WALKTHROUGH_WORDS =
       io.lantern.harness.Contract.of("flow-narrative").acceptedWords("walkthrough");
-  static final int CONDITION_WORDS =
+  static final int PRECONDITION_WORDS =
       io.lantern.harness.Contract.of("flow-narrative").acceptedWords("preconditions");
+  static final int POSTCONDITION_WORDS =
+      io.lantern.harness.Contract.of("flow-narrative").acceptedWords("postconditions");
 
   /** The repair turn when no flow is significant while some cross a unit boundary (the epic's). */
   public static final String NONE_SIGNIFICANT =
@@ -510,7 +512,8 @@ public final class FlowJudgements {
                                 switch (field) {
                                   case TITLE -> TITLE_WORDS;
                                   case WALKTHROUGH -> WALKTHROUGH_WORDS;
-                                  default -> CONDITION_WORDS;
+                                  case PRECONDITIONS -> PRECONDITION_WORDS;
+                                  default -> POSTCONDITION_WORDS;
                                 },
                                 "",
                                 Set.of())));

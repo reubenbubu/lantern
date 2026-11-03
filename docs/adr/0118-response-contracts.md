@@ -35,7 +35,8 @@ Six roles asked for one size and accepted another without a written reason. For 
   - A sentence count is requested only and measured, not enforced.
   - A rule marked `"enforced": false` is measured only. This applies to the injection screen's quote, which must never hide a suspected injection.
 - **The checks read the contracts.** Each role's word limit is `Contract.of(role).acceptedWords(field)`, so a contract edit changes what the checks accept. This covers Describe, Name groups, Flow significance and narrative, Purpose, Resolve, Investigate, Summarize and the wording judge's longest text.
-  - Summarize states its requested size in each request from the contract (`Prompt.length`).
+  - Summarize states its requested size in each request from the contract (`Prompt.length`). The other prompts state theirs in their own text, which the test below holds to the contract.
+  - Counts the checks keep read it too (`Contract.count`, Investigate's proposals).
 - **A contract is not part of a prompt version.**
   - A contract changes what is accepted, not what a model is asked, so editing one asks nothing again.
   - Stored answers are checked again when reused.
@@ -49,15 +50,16 @@ Six roles asked for one size and accepted another without a written reason. For 
 
   Every other rule takes the default, which reproduces each earlier margin except three that had none. Purpose's purpose now accepts 29 instead of 25, its key fact 35 instead of 30, and Resolve's reason 35 instead of 30. The owner's 15% default now covers them too.
 - **A test ties prompts to contracts.**
-  - `ContractTest` fails if a prompt does not state a contract's requested size in the contract's words, or states another number.
+  - `ContractTest` fails if a prompt does not state a contract's requested size in the contract's words, or states another number. Each stated phrase must occur once in the role's prompts; a size the prompts state again elsewhere is listed under `restated`; and any other "at most N" or sentence count in the prompts fails, so a size changed or added on another line is caught.
   - `PromptTest` checks the same for Summarize's request.
-- **The scorecard reads them** (`lantern-web/scripts/contracts.mjs`). Its "Response contracts" section reports each size rule three ways over a run's stored texts (`llm.jsonl.gz`) and its rejections (`rejections.jsonl.gz`): within the requested size, accepted beyond it, and rejected for its length.
+- **The scorecard reads them** (`lantern-web/scripts/contracts.mjs`). Its "Response contracts" section reports each size rule three ways over a run's stored texts (`llm.jsonl.gz`) and its rejections (`rejections.jsonl.gz`): of the stored texts, the share within the requested size and accepted beyond it; and the answers rejected for their length, counted apart as first answers and repairs. Counted apart because a rejected answer that is repaired is stored too, and a rule such as Resolve's reason stores no texts at all.
 - **The quality score** (`prompts/quality.json`; research in `docs/research/quality-score.md`).
   - Per kind of text (responsibility, intent, name, prose), weighted yes/no checks sum to 10.
   - The judged checks are the wording judge's two questions. "Says what it does" weighs 3 and is a gate: a text that fails it scores at most 4. "Specific to this system" weighs 2, or 3 for a name.
   - The deterministic checks cover the length within the requested size, the requested sentences, an opening that is not a pronoun or a restated kind, an intent that opens with a verb and names no protocol, and no filler phrases.
   - The scorecard gives per role the mean over the texts judged on both questions, how many the gate capped, and the points lost per check, most first.
   - A difference under 0.7 is within the paired rule's tolerance of 7 points in 100.
+  - The owner's other two judged checks, "uses the code's own terms" and "no padding", are written as questions under `pending` in `prompts/quality.json`. #757 labels them blind, adds them to the wording judge and gives them weights; until then the score leaves them out and the filler list stands in for padding.
 
 ## Consequences
 

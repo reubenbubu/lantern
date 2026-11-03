@@ -18,14 +18,17 @@
       },
       "words": {
         "requested": 22,
-        "stated": "at most 22 words"
+        "stated": "one plain sentence of at most 22 words",
+        "restated": [
+          "and has at most 22 words"
+        ]
       },
       "sentences": {
         "requested": [
           1,
           1
         ],
-        "stated": "one plain sentence",
+        "stated": "a responsibility sentence: one plain sentence",
         "enforced": false
       },
       "cites": [

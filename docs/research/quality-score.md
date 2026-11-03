@@ -54,7 +54,7 @@ A weighted sum with a gate cap:
 - **The gate.** A text that fails the gate scores at most 4.
 - **Deterministic checks** make up the rest: within the requested length, the requested number of sentences, an opening that is not a pronoun or a restated kind, an intent that opens with a verb and names no protocol, and no filler phrases.
 
-The research also suggested judged checks for "uses the code's own terms" and "no padding". Those would need new judge questions and labels (#757), so for now "no padding" is a deterministic filler list.
+The issue also names judged checks for "uses the code's own terms" and "no padding". They need new judge questions and labels, so their questions are written now under `pending` in `prompts/quality.json`, and #757 labels them blind, adds them to the judge and sets their weights. Until then the score leaves them out and a deterministic filler list stands in for padding.
 
 The scorecard gives per role:
 - the mean score;

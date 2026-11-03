@@ -80,3 +80,7 @@ Error flows (ADR 0047); the glossary in the prompt (annotations, Phase 3); a min
 previous text when a flow changes (design, Prose stability).
 
 ## Amendment (#369): "at most seven per scope" in the cost estimate no longer holds: the number of flows is not fixed (ADR 0047, amendment for #369), so the estimate counts the flows the LLM keeps.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there. Where they differ from the numbers above, the contract's hold.

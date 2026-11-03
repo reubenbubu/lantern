@@ -55,6 +55,7 @@ public final class Prompts {
     folder = dir;
     resolved = true;
     TEXTS.clear();
+    Contract.forget();
   }
 
   /** The folder prompts are read from, or {@code null} when only the built-in copies are used. */

@@ -29,19 +29,24 @@ test('a size rule counts texts within the requested size, beyond it, and rejecte
     intent('group:service:a/area/x', 'Notify users of new tasks'), // a group's line: name-groups
   ];
   const rejections = [
-    { role: 'describe-unit', kind: 'rejected', reasons: ['interactions.R2: Has 11 words; the limit is 8.'] },
-    { role: 'describe-unit', kind: 'dropped', reasons: ['interactions.R2: Has 11 words; the limit is 8.'] },
-    { role: 'describe-unit', kind: 'rejected', reasons: ['interactions.R3: Names Kafka, which none of its citations show.'] },
+    { role: 'describe-unit', kind: 'rejected', attempt: 1, reasons: ['interactions.R2: Has 11 words; the limit is 8.'] },
+    // Its repair is rejected again; then the item is dropped. Each is counted once, apart.
+    { role: 'describe-unit', kind: 'rejected', attempt: 2, reasons: ['interactions.R2: Has 10 words; the limit is 8.'] },
+    { role: 'describe-unit', kind: 'dropped', attempt: 0, reasons: ['interactions.R2: Has 10 words; the limit is 8.'] },
+    { role: 'describe-unit', kind: 'rejected', attempt: 1, reasons: ['interactions.R3: Names Kafka, which none of its citations show.'] },
+    // A rule that stores no texts still shows its rejections, as a count.
+    { role: 'resolve', kind: 'rejected', attempt: 1, reasons: ['reason: Has 40 words; the limit is 35.'] },
   ];
   const rows = sizeRows(contracts, llm, rejections);
   const row = rows.find((r) => r.role === 'describe-units' && r.field === 'intent');
   assert.deepEqual(
-    { within: row.within, beyond: row.beyond, rejected: row.rejected, total: row.total },
-    { within: 1, beyond: 1, rejected: 1, total: 3 },
+    { within: row.within, beyond: row.beyond, rejected: row.rejected, again: row.rejectedAgain, total: row.total },
+    { within: 1, beyond: 1, rejected: 1, again: 1, total: 2 },
   );
   assert.equal(rows.find((r) => r.role === 'name-groups' && r.field === 'intent').within, 1);
   const md = contractLines(rows, null, 7).join('\n');
-  assert.match(md, /\| describe-units \| intent \| 7 \| 8 \| 3 \| 33% \| 33% \| 33% \|/);
+  assert.match(md, /\| describe-units \| intent \| 7 \| 8 \| 2 \| 50% \| 50% \| 1, 1 \|/);
+  assert.match(md, /\| resolve \| reason \| 30 \| 35 \| 0 \| - \| - \| 1, 0 \|/);
 });
 
 test('words and sentences are counted as the checks count them', () => {

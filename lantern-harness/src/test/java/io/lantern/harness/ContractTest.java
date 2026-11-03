@@ -63,25 +63,39 @@ class ContractTest {
     int checked = 0;
     for (Path file : contracts()) {
       JsonNode contract = JSON.readTree(file.toFile());
+      // The prompt files, one after another, each on its own so a phrase they share is fine.
       StringBuilder prompts = new StringBuilder();
-      contract.path("prompts").forEach(p -> prompts.append(Prompts.text(p.asString())));
+      List<int[]> files = new ArrayList<>();
+      contract
+          .path("prompts")
+          .forEach(
+              p -> {
+                int from = prompts.length();
+                prompts.append(Prompts.text(p.asString()).replaceAll("\\s+", " ")).append('\u0000');
+                files.add(new int[] {from, prompts.length()});
+              });
       if (prompts.isEmpty()) {
         continue;
       }
-      String text = prompts.toString().replaceAll("\\s+", " ");
+      String text = prompts.toString();
+      boolean[] covered = new boolean[text.length()];
       for (JsonNode field : contract.path("fields")) {
         String where = file.getFileName() + " " + field.path("name").asString();
         JsonNode words = field.path("words");
+        List<String> phrases = new ArrayList<>();
         if (words.has("stated")) {
-          String stated = words.get("stated").asString();
-          assertThat(text).as(where + ": the prompt states its size").contains(stated);
+          phrases.add(words.get("stated").asString());
+        }
+        words.path("restated").forEach(r -> phrases.add(r.asString()));
+        for (String stated : phrases) {
+          cover(text, files, stated, covered, where);
           assertThat(number(stated)).as(where).isEqualTo(words.path("requested").asInt());
           checked++;
         }
         JsonNode sentences = field.path("sentences");
         if (sentences.has("stated")) {
           String stated = sentences.get("stated").asString();
-          assertThat(text).as(where + ": the prompt states its sentences").contains(stated);
+          cover(text, files, stated, covered, where);
           assertThat(range(stated))
               .as(where)
               .containsExactly(
@@ -92,14 +106,54 @@ class ContractTest {
       }
       for (JsonNode count : contract.path("counts")) {
         String stated = count.path("stated").asString();
-        assertThat(text)
-            .as(file.getFileName() + " " + count.path("name").asString())
-            .contains(stated);
-        assertThat(number(stated)).isEqualTo(count.path("requested").asInt());
+        String where = file.getFileName() + " " + count.path("name").asString();
+        cover(text, files, stated, covered, where);
+        assertThat(number(stated)).as(where).isEqualTo(count.path("requested").asInt());
         checked++;
+      }
+      // Every size the prompts state is one the contract knows: a size changed or added on another
+      // line than the contract's phrase fails here.
+      Matcher size = SIZE.matcher(text);
+      while (size.find()) {
+        assertThat(covered[size.start()])
+            .as(
+                file.getFileName()
+                    + ": the prompts state \""
+                    + size.group()
+                    + "\" where no stated or restated size of the contract is")
+            .isTrue();
       }
     }
     assertThat(checked).isGreaterThan(20);
+  }
+
+  /** A size the prompts state: "at most N" (of anything but cited lines) or a sentence count. */
+  private static final Pattern SIZE =
+      Pattern.compile(
+          "at most \\d+\\b(?! lines)|\\b(?:one|two|three|four|five)"
+              + "(?: (?:or|to) (?:one|two|three|four|five))?(?: plain)? sentences?\\b",
+          Pattern.CASE_INSENSITIVE);
+
+  /**
+   * Marks where the prompts state the phrase: it must occur in at least one prompt file, and at
+   * most once in each, so that it names one place.
+   */
+  private static void cover(
+      String text, List<int[]> files, String phrase, boolean[] covered, String where) {
+    int found = 0;
+    for (int[] file : files) {
+      String part = text.substring(file[0], file[1]);
+      int at = part.indexOf(phrase);
+      if (at < 0) {
+        continue;
+      }
+      assertThat(part.indexOf(phrase, at + 1))
+          .as(where + ": \"" + phrase + "\" occurs once in each prompt")
+          .isNegative();
+      java.util.Arrays.fill(covered, file[0] + at, file[0] + at + phrase.length(), true);
+      found++;
+    }
+    assertThat(found).as(where + ": the prompt states \"" + phrase + "\"").isPositive();
   }
 
   @Test
@@ -132,7 +186,7 @@ class ContractTest {
   /** The least and most of a stated count, such as "two to four" or "one plain sentence". */
   private static List<Integer> range(String stated) {
     List<Integer> found = new ArrayList<>();
-    for (String word : stated.toLowerCase(java.util.Locale.ROOT).split("\\s+")) {
+    for (String word : stated.toLowerCase(java.util.Locale.ROOT).split("[\\s,:]+")) {
       int at = WORDS.indexOf(word);
       if (at >= 0) {
         found.add(at + 1);
