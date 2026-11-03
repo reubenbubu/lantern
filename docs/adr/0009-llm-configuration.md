@@ -61,3 +61,7 @@ app; model identifiers, prices and keys must not be in the code.
 
 The cost estimate before a run and run budgets from configuration (#42), and encrypted key
 storage with provider management in the app (#41).
+
+## Amendment (#694): a model's estimate token scale
+
+- Per-model `estimate-token-scale` (default 1): how many of the model's tokens one token of Lantern's estimates (four characters) comes to, measured. Every token count of the model's estimates and budget reservations is multiplied by it. Claude models: 1.55. DeepSeek V4.1 Flash: 1 (ADR 0100, amendment for #694).

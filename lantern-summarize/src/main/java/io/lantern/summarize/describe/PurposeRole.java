@@ -66,12 +66,14 @@ public final class PurposeRole {
   /** The role: one call, on the reasoning tier, in the group it shares with the flows. */
   static final RoleSpec ROLE =
       RoleSpec.single(
-          "purpose",
-          Role.INFER_INTENT,
-          Prompts.version(VERSION, "common.system.txt", "purpose.task.txt", "purpose.schema.json"),
-          "flows-and-purpose",
-          RunMode.INTERACTIVE,
-          500);
+              "purpose",
+              Role.INFER_INTENT,
+              Prompts.version(
+                  VERSION, "common.system.txt", "purpose.task.txt", "purpose.schema.json"),
+              "flows-and-purpose",
+              RunMode.INTERACTIVE,
+              500)
+          .withThinking(730);
 
   /** The README claims an item shows of each repository, at most. */
   static final int MAX_CLAIMS = 8;

@@ -162,7 +162,9 @@ public final class LinkResolver implements LinkRule.OverFacts {
               RunMode.INTERACTIVE,
               300)
           .withPacketSize(PACKET_SIZE)
-          .withTools(List.of(), LIMITS);
+          .withTools(List.of(), LIMITS)
+          .withThinking(200)
+          .withTurns(6.5, 1_500);
 
   private final Harness harness;
   private final GraphTools.RepoFiles files;

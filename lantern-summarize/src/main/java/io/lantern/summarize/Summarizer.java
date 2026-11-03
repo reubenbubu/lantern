@@ -136,12 +136,14 @@ public final class Summarizer {
    * on the high-volume tier (knowledge-build epic, section 11.0, Default models).
    */
   public static final RoleSpec ROLE =
-      RoleSpec.single("summarize", Role.SUMMARIZE, Prompt.KEY, "summarize", RunMode.BULK, 300);
+      RoleSpec.single("summarize", Role.SUMMARIZE, Prompt.KEY, "summarize", RunMode.BULK, 300)
+          .withThinking(640);
 
   /** The role that summarizes types, the most numerous units: on the bulk tier. */
   public static final RoleSpec TYPES =
       RoleSpec.single(
-          "summarize-type", Role.SUMMARIZE_TYPES, Prompt.KEY, "summarize", RunMode.BULK, 300);
+              "summarize-type", Role.SUMMARIZE_TYPES, Prompt.KEY, "summarize", RunMode.BULK, 300)
+          .withThinking(300);
 
   /** The role that summarizes units of the level. */
   public static RoleSpec role(SummaryLevel level) {

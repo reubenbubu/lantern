@@ -15,6 +15,8 @@ import java.util.Set;
  * @param limits how many calls to the model may be in flight at once and how often they may start
  * @param thinking whether to turn the model's thinking off and how many extra output tokens to give
  *     it for thinking
+ * @param estimateTokenScale how many of the model's tokens one token of Lantern's estimates (about
+ *     four characters) comes to, measured; 1 where the model's tokenizer matches it (#694)
  */
 public record ModelConfig(
     String provider,
@@ -23,7 +25,8 @@ public record ModelConfig(
     int contextWindow,
     Pricing pricing,
     CallLimits limits,
-    Thinking thinking) {
+    Thinking thinking,
+    double estimateTokenScale) {
 
   public ModelConfig {
     provider = nonBlank("Provider", provider);
@@ -38,6 +41,22 @@ public record ModelConfig(
     Objects.requireNonNull(pricing, "pricing");
     Objects.requireNonNull(limits, "limits");
     Objects.requireNonNull(thinking, "thinking");
+    if (!(estimateTokenScale > 0)) {
+      throw new IllegalArgumentException(
+          "Estimate token scale must be positive: " + estimateTokenScale);
+    }
+  }
+
+  /** A model whose tokens match Lantern's estimates. */
+  public ModelConfig(
+      String provider,
+      String model,
+      Set<Capability> capabilities,
+      int contextWindow,
+      Pricing pricing,
+      CallLimits limits,
+      Thinking thinking) {
+    this(provider, model, capabilities, contextWindow, pricing, limits, thinking, 1.0);
   }
 
   /** A model with thinking left as the provider has it. */
@@ -66,12 +85,34 @@ public record ModelConfig(
 
   /** The same model with other limits. */
   public ModelConfig withLimits(CallLimits limits) {
-    return new ModelConfig(provider, model, capabilities, contextWindow, pricing, limits, thinking);
+    return new ModelConfig(
+        provider,
+        model,
+        capabilities,
+        contextWindow,
+        pricing,
+        limits,
+        thinking,
+        estimateTokenScale);
+  }
+
+  /** The same model with another estimate token scale. */
+  public ModelConfig withEstimateTokenScale(double scale) {
+    return new ModelConfig(
+        provider, model, capabilities, contextWindow, pricing, limits, thinking, scale);
   }
 
   /** The same model with other thinking settings. */
   public ModelConfig withThinking(Thinking thinking) {
-    return new ModelConfig(provider, model, capabilities, contextWindow, pricing, limits, thinking);
+    return new ModelConfig(
+        provider,
+        model,
+        capabilities,
+        contextWindow,
+        pricing,
+        limits,
+        thinking,
+        estimateTokenScale);
   }
 
   /**

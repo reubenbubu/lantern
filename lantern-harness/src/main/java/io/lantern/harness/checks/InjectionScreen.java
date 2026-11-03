@@ -45,7 +45,7 @@ public final class InjectionScreen {
                   "injection-screen.schema.json"),
               "model-checks",
               RunMode.BULK,
-              60)
+              25)
           .withPacketSize(10);
 
   /** The most lines one chunk holds. */

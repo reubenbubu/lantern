@@ -261,3 +261,37 @@ The rest come from rewording. An answer is a fingerprint input of every item tha
 The repairs make up the difference between calls and items. The re-asked notification-service description reworded its unit sentence, 9 component sentences and 16 interaction phrases, almost none of which cite `EmailService`.
 
 The harness follows its rule, and the epic's gate now names the cascade. It is a known limit, not the aim. Reruns stay costly on a real model until a sentence keeps its wording while what it cites is unchanged (#722).
+
+## Amendment (#694): the estimate counts thinking and every turn of a conversation.
+
+On #529's DeepSeek V4.1 Flash runs, the plan's estimate was about half the spend: $0.38 against $0.77 on project-4. Two things were not counted.
+- **Thinking.** A model that thinks before it answers is billed for the thinking as output. It is several times the answer: 200 to 4,300 tokens a request, depending on the role.
+- **Turns.** Each turn after the first in a tool conversation sends the whole conversation again. The plan counted only the first turn. An Investigate conversation takes about 15 turns.
+
+What changes:
+- **The role says what to expect.** Each `RoleSpec` gives, beside the answer's tokens per item:
+  - `expectedThinkingTokens`: the tokens thought before each request, or each turn;
+  - for a role that converses, `expectedTurns` (turns per conversation) and `expectedTurnTokens` (tokens each later turn adds, its tool results and the output before it).
+
+  Each value is measured from #529's recorded calls on project-1 to project-4, at DeepSeek's default effort, and rounded. Thinking per request is the measured output, less the answer's estimate. The turns and turn tokens are averaged over that role's conversations. Injection screen's answer estimate drops from 60 to 25 tokens an item, as measured. The wording judge, not yet measured, takes the support judge's 650.
+- **The model says whether it thinks.** A model with thinking headroom (`thinking-headroom-tokens`) is one that thinks even when asked not to, so its estimate counts the role's thinking. A model without headroom is expected to answer alone, so a model that thinks by default must be given headroom to be estimated right.
+- **A conversation's cost.** A role that converses expects, for each conversation of first turn S, with T turns adding g tokens each:
+  - uncached input of (T−1)·g;
+  - cache reads of (T−1)·S + g·(T−1)(T−2)/2, or the same as uncached input on a model without a prompt cache;
+  - T times the thinking.
+
+  The share's rounds price items the same way, so a budget no longer admits more than it can pay for. A batched request is reserved at its thinking as well, up to the output limit with its headroom.
+
+Modelled on the four recorded runs, the new estimate is 0.95, 0.92, 1.09 and 0.83 of the spend on project-1 to project-4, against 0.44 to 0.55 before. That is in-sample.
+
+- **A model's own tokens.** Lantern counts four characters as a token. That matches DeepSeek's tokenizer, but Claude's counts about 1.6 times as many tokens for the same prompts. A model's `estimate-token-scale` setting, 1 if not set, multiplies every token count of its estimates and reservations. For Claude models it is 1.55, measured on the Haiku run below.
+
+New runs of project-4, each with the rounds fully asked:
+
+| Model | Estimate | Spent | Spent / estimate |
+| --- | --- | --- | --- |
+| DeepSeek V4.1 Flash (scale 1) | $0.70 | $0.63 | 0.90, was 2.0 on #529 |
+| Haiku 5.5, before the scale | $0.43 | $0.67 | 1.56 |
+| Haiku 5.5 at scale 1.55, budget $0.70 (fully asked roles) | $0.092 | $0.102 | 1.11 |
+
+On DeepSeek no share waited and nothing was skipped. The Haiku run had a $1.50 budget, so its shares were small. At scale 1 its low estimate let the flows use their share before the purpose and 16 narratives were asked, the failure #694 names. Its counts above are of the roles that were fully asked, and the scale was fitted on them, so 1.55 is in-sample. A second Haiku run at 1.55 had a $0.70 budget, to stay within the owner's $1.50 for this check. Most roles stopped at their shares, as a budget that tight must, and summarize spent 7% over its share. The roles it asked in full spent 1.11 of their estimate, and the purpose, first on its share, was asked. Haiku spend: $1.18.

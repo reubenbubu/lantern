@@ -93,16 +93,17 @@ public final class DescribeRole {
   /** The role that words units, their components and interactions. */
   public static final RoleSpec UNITS =
       RoleSpec.single(
-          "describe-unit",
-          Role.INFER_INTENT,
-          Prompts.version(
-              UNIT_VERSION,
-              "common.system.txt",
-              "describe-units.task.txt",
-              "describe-units.schema.json"),
-          "describe",
-          RunMode.BULK,
-          1500);
+              "describe-unit",
+              Role.INFER_INTENT,
+              Prompts.version(
+                  UNIT_VERSION,
+                  "common.system.txt",
+                  "describe-units.task.txt",
+                  "describe-units.schema.json"),
+              "describe",
+              RunMode.BULK,
+              1500)
+          .withThinking(2_700);
 
   /** The role that words data stores, destinations, external systems and people. */
   public static final RoleSpec ELEMENTS =
@@ -117,7 +118,8 @@ public final class DescribeRole {
               "describe",
               RunMode.BULK,
               120)
-          .withPacketSize(ELEMENT_PACKET);
+          .withPacketSize(ELEMENT_PACKET)
+          .withThinking(290);
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
 

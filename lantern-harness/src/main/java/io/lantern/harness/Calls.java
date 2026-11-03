@@ -38,7 +38,7 @@ public final class Calls {
 
   /** Sends one request. */
   public LlmResponse call(LlmRequest request) {
-    return session.send(client, request, session.spec().expectedOutputTokens());
+    return session.send(client, request, session.expectedOutput(1));
   }
 
   /**

@@ -146,7 +146,9 @@ public final class Investigator {
               RunMode.INTERACTIVE,
               1_500)
           .withPacketSize(LEADS_PER_PACKET)
-          .withTools(List.of(), LEAD_LIMITS);
+          .withTools(List.of(), LEAD_LIMITS)
+          .withThinking(210)
+          .withTurns(6.2, 1_800);
 
   /** Mode B as the harness runs it. */
   public static final RoleSpec UNITS =
@@ -161,7 +163,9 @@ public final class Investigator {
               NAME,
               RunMode.INTERACTIVE,
               3_000)
-          .withTools(List.of(), EXPLORE_LIMITS);
+          .withTools(List.of(), EXPLORE_LIMITS)
+          .withThinking(560)
+          .withTurns(14.8, 2_150);
 
   /** Mode C as the harness runs it. */
   public static final RoleSpec SYSTEM_ROLE =
@@ -176,7 +180,9 @@ public final class Investigator {
               NAME,
               RunMode.INTERACTIVE,
               3_000)
-          .withTools(List.of(), EXPLORE_LIMITS);
+          .withTools(List.of(), EXPLORE_LIMITS)
+          .withThinking(560)
+          .withTurns(15, 3_000);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.LLM, NAME, InvestigatePrompt.VERSION);
 
