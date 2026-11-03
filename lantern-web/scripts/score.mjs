@@ -34,6 +34,7 @@ import {
   flowsRow,
   harnessRow,
   investigateRow,
+  isGenericLabel,
   itemPairs,
   nameGroupsRow,
   notMeasured,
@@ -488,7 +489,8 @@ export function qualityChecks(data) {
     for (const r of section.relationships) {
       const label = String(r.label ?? '').trim();
       const name = `${data.elements[r.from]?.name} -> ${data.elements[r.to]?.name}`;
-      if (label === '' || /^(uses|depends on|calls)$/i.test(label)) {
+      // Empty, or opening only with a generic verb, such as the fallback "Calls write" (#742).
+      if (isGenericLabel(label)) {
         failures['line-labels'].push(`${where}: ${name}`);
       }
       if (page.level === 'containers' && !String(r.technology ?? '').trim()) {
@@ -525,7 +527,7 @@ export function qualityChecks(data) {
     ['diagram-size', `Every diagram has at most ${MAX_ELEMENTS} elements and ${MAX_LINES_PER_ELEMENT} lines per element`],
     ['element-descriptions', 'Every element shown has a description'],
     ['technology', 'Every container and component shown has a technology'],
-    ['line-labels', 'Every line has an intent phrase, not just "uses"'],
+    ['line-labels', 'Every line has an intent phrase, not one that opens with "uses" or "calls"'],
     ['line-protocols', 'Every line between containers names a protocol'],
     ['no-repeated-diagram', 'No diagram repeated across sections'],
   ].map(([id, description]) => ({
@@ -759,7 +761,7 @@ function roleRows(report, reference, matched, repFlows, inputs) {
   }));
   return {
     resolve: resolveRow(answerKey, linked, llm, run),
-    describe: withJudge(describeRow(report, linked, llm), judged.describe),
+    describe: withJudge(describeRow(report, linked, llm, run), judged.describe),
     flows: flowsRow(flowsOf(reference), roleFlows),
     investigate: investigateRow(
       answerKey,
@@ -799,6 +801,12 @@ function conversations(c) {
 /** A share as a percentage, or "-" when there was nothing to count. */
 const percent = (x) => (x === null || x === undefined ? '-' : `${Math.round(x * 100)}%`);
 
+/** Describe's model coverage as one phrase (#742). */
+function describeModelCell(m) {
+  if (!m || m.measured === false) return `model: not measured (${m?.why ?? 'no run files'})`;
+  return `model: ${m.own}/${m.interactions} interactions with their own intent (${percent(m.coverage)}), ${m.generic} generic, ${m.unknown} don't know, penalized ${percent(m.penalized)} (p = ${m.penalty})${m.notAsked ? `; ${m.notAsked} not asked` : ''}`;
+}
+
 /** Each row per role as one line of text: what it measured, or why it could not. */
 export function roleCells(roles) {
   if (!roles) return {};
@@ -813,7 +821,7 @@ export function roleCells(roles) {
   const d = roles.describe;
   cell.Describe = !d.measured
     ? why(d)
-    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}), interactions ${d.interactionsIntended}/${d.interactions} (${percent(d.interactionCoverage)}); judge ${judgedCell(d.judge)}`;
+    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}); ${describeModelCell(d.model)}; drawn: ${d.drawn.own}/${d.drawn.lines} lines with their own intent (${percent(d.drawn.coverage)}), ${d.drawn.generic} generic; judge ${judgedCell(d.judge)}`;
   const f = roles.flows;
   cell.Flows = !f.measured
     ? why(f)
