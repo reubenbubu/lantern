@@ -2,7 +2,7 @@
 
 31 Oct 2026 · reubenbubu
 
-**Status: closed** (3 Nov 2026). The work of milestones 1A to 1G is merged. The 1F and 1G test drops (#726, #735) wait on the owner's verdict.
+**Status: closed** (3 Nov 2026). The work of milestones 1A to 1G is merged. The note is written now, as 1G's work ends, while the 1F and 1G test drops (#726, #735) wait on the owner's verdict.
 
 **Closing note.** What was built:
 - **Facts with stable identity** (1A): claims and observations, an envelope v2, key attributes per type and generated record types.
@@ -25,12 +25,12 @@
 
 What was dropped or moved:
 - **The Unknown caller**, planned in step 4, was not built. It moved to #365 (2B.1).
-- **Readability is counted, not measured.** The limits of 50 elements and 2 lines per element are provisional. Measuring the drawn layout is #366 (2C.1).
+- **Readability is counted, not measured.** The limits of 50 elements and 2 lines per element (ADR 0117) are provisional. Measuring the drawn layout is #366 (2C.1).
 - **Unknowns stated on other pages** have not moved to the unknowns page yet (#728, Later).
-- **Investigate's PR #328** was closed unmerged. Its useful pieces were harvested into 1F.
+- **Investigate's PR #328** was closed unmerged. It was replaced by Investigate on the harness (#676, ADR 0110).
 - **Letting the LLM choose its own evidence**, the wording tools, is parked until the owner reopens it.
 
-ADRs that followed: 0089 to 0117.
+ADRs that followed: 0090 to 0117.
 
 The rest of this file is the spec as planned and is kept as the record. `docs/quality-bar.md` and `docs/design.md` are the target; this epic was the step toward them. Where this epic and the design differed, this epic won, and each issue that landed part of it brought the design in line. The prompts, schemas, checks and limits of the LLM roles (section 11) change only through an issue that shows the effect on the test sets.
 
