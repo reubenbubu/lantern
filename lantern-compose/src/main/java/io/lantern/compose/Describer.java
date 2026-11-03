@@ -5,6 +5,7 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import io.lantern.harness.Harness;
@@ -346,8 +347,9 @@ public final class Describer {
     Knowledge knowledge = systemModel.knowledge();
     Assembler assembler = new Assembler(systemModel, Set.of(), null, "The system");
     C4Views c4 =
-        new C4Views(knowledge, assembler, RepoSections.SYSTEM, C4Views.units(knowledge), Set.of());
-    Set<Fact> alternatives = c4.alternativeLinks().keySet();
+        new C4Views(knowledge, assembler, RepoSections.SYSTEM, Elements.units(knowledge), Set.of());
+    Elements shown = c4.elements();
+    Set<Fact> alternatives = shown.alternativeLinks().keySet();
     Map<String, Optional<String>> read = new HashMap<>();
     Function<Evidence, Optional<String>> files =
         evidence ->
@@ -361,12 +363,12 @@ public final class Describer {
                   return text;
                 });
     Set<String> documented = new TreeSet<>();
-    DescribeItems describeItems = new DescribeItems(knowledge, assembler, c4, files, summaries);
+    DescribeItems describeItems = new DescribeItems(knowledge, assembler, shown, files, summaries);
     // Units first, frontends included: elements cite the units' responsibilities.
     List<DescribeRole.Described> unitItems = new ArrayList<>();
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-    units.addAll(C4Views.units(knowledge));
-    units.addAll(C4Views.frontends(knowledge));
+    units.addAll(Elements.units(knowledge));
+    units.addAll(Elements.frontends(knowledge));
     List<EntityId> nothingToWord = new ArrayList<>();
     for (EntityId unit : units) {
       List<DescribeRole.Described> items = describeItems.unit(unit);
@@ -731,14 +733,14 @@ public final class Describer {
             knowledge,
             assembler,
             c4,
-            C4Views.units(knowledge)));
+            Elements.units(knowledge)));
     ArchitectureModel repoModel = new ArchitectureModel(repoFacts);
     Knowledge repoKnowledge = repoModel.knowledge();
     Assembler repoAssembler = new Assembler(repoModel, Set.of(), null, "The system");
     SortedSet<String> repos = new TreeSet<>();
     repoFacts.forEach(f -> repos.add(f.evidence().repo()));
     for (String repo : repos) {
-      SortedSet<EntityId> units = C4Views.units(repoKnowledge, repoKnowledge.modules(repo));
+      SortedSet<EntityId> units = Elements.units(repoKnowledge, repoKnowledge.modules(repo));
       if (units.isEmpty()) {
         continue;
       }
@@ -1112,7 +1114,7 @@ public final class Describer {
   }
 
   /** What the other end of a line does with the data store or destination at this end. */
-  static String use(C4Views.Neighbour neighbour) {
+  static String use(Elements.Neighbour neighbour) {
     if (!neighbour.incoming()) {
       return switch (neighbour.relationship()) {
         case Types.CONSUMES ->
@@ -1148,7 +1150,7 @@ public final class Describer {
   /** The endpoints, listeners and scheduled jobs of the unit's code, by method ID, at most some. */
   static List<Fact> entryPoints(EntityId unit, Knowledge knowledge) {
     SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
-    for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+    for (EntityId module : Elements.codeModules(knowledge, unit)) {
       code.addAll(knowledge.typesWithin(module));
       for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
         code.addAll(knowledge.typesWithin(pkg));

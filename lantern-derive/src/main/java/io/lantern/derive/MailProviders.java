@@ -1,4 +1,4 @@
-package io.lantern.compose;
+package io.lantern.derive;
 
 import java.util.Locale;
 import java.util.Map;
@@ -8,7 +8,7 @@ import java.util.Optional;
  * The names people know well-known mail servers by (ADR 0076), so the external system for {@code
  * smtp.gmail.com} reads as "Gmail SMTP". A host not listed keeps its host as its name.
  */
-final class MailProviders {
+public final class MailProviders {
 
   private static final Map<String, String> BY_HOST =
       Map.ofEntries(
@@ -27,7 +27,7 @@ final class MailProviders {
   private MailProviders() {}
 
   /** The name of a well-known mail server by its host, if it is one. */
-  static Optional<String> name(String host) {
+  public static Optional<String> name(String host) {
     String lower = host.toLowerCase(Locale.ROOT);
     String known = BY_HOST.get(lower);
     if (known != null) {

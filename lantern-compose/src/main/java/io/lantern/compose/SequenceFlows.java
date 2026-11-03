@@ -10,6 +10,7 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.Elements;
 import io.lantern.derive.FlowModel;
 import io.lantern.derive.Flows;
 import io.lantern.derive.Knowledge;
@@ -170,7 +171,8 @@ final class SequenceFlows {
         // with most screens on it, by ID among equals.
         EntityId person = null;
         List<Fact> personFacts = List.of();
-        for (Map.Entry<EntityId, List<Fact>> e : c4.screensOn(stored.frontend()).entrySet()) {
+        for (Map.Entry<EntityId, List<Fact>> e :
+            c4.elements().screensOn(stored.frontend()).entrySet()) {
           if (person == null || e.getValue().size() > personFacts.size()) {
             person = e.getKey();
             personFacts = e.getValue();
@@ -376,9 +378,9 @@ final class SequenceFlows {
               attribute(first, "protocol"),
               SequenceDiagram.MessageKind.ASYNC,
               profiles,
-              C4Views.resolution(first) == null
+              Elements.resolution(first) == null
                   ? null
-                  : capitalize(C4Views.resolution(first)) + ".",
+                  : capitalize(Elements.resolution(first)) + ".",
               all,
               plain,
               facts);
@@ -596,11 +598,11 @@ final class SequenceFlows {
       if (protocol != null) {
         info.add("Over " + protocol + ".");
       }
-      String resolution = C4Views.resolution(link);
+      String resolution = Elements.resolution(link);
       if (resolution != null) {
         info.add(capitalize(resolution) + ".");
       }
-      for (Map.Entry<Fact, Fact> alternative : c4.alternativeLinks().entrySet()) {
+      for (Map.Entry<Fact, Fact> alternative : c4.elements().alternativeLinks().entrySet()) {
         if (alternative.getValue().equals(link)) {
           Fact other = alternative.getKey();
           info.add(
@@ -701,7 +703,7 @@ final class SequenceFlows {
       text.append(", which Lantern could not link");
       if (reason != null) {
         text.append(" (").append(reason.replace('-', ' '));
-        List<String> keys = C4Views.strings(fact, "unresolved");
+        List<String> keys = Elements.strings(fact, "unresolved");
         if (!keys.isEmpty()) {
           text.append(" ").append(String.join(", ", keys));
         }
@@ -746,11 +748,11 @@ final class SequenceFlows {
       Set<String> tables = new TreeSet<>(part.what());
       List<String> info = new ArrayList<>();
       for (Fact shared : knowledge.relations(unit, Types.ACCESSES_DATA_OF)) {
-        if (c4.alternativeLinks().containsKey(shared)) {
+        if (c4.elements().alternativeLinks().containsKey(shared)) {
           continue;
         }
         SortedSet<String> theirs = new TreeSet<>();
-        C4Views.strings(shared, part.verb().equals("Reads") ? "reads" : "writes")
+        Elements.strings(shared, part.verb().equals("Reads") ? "reads" : "writes")
             .forEach(t -> theirs.add(tableName(t)));
         theirs.retainAll(tables);
         if (!theirs.isEmpty()) {
@@ -838,7 +840,7 @@ final class SequenceFlows {
 
   private String deliveryInfo(Fact link) {
     String binding = bindingInfo(link);
-    String resolution = C4Views.resolution(link);
+    String resolution = Elements.resolution(link);
     if (resolution == null) {
       return binding;
     }
@@ -1174,7 +1176,7 @@ final class SequenceFlows {
         byShape.put(shape, trace);
       }
     }
-    Set<EntityId> units = C4Views.units(knowledge);
+    Set<EntityId> units = Elements.units(knowledge);
     List<Candidate> result = new ArrayList<>();
     for (Trace trace : byShape.values()) {
       result.add(candidate(trace, units));
@@ -1223,7 +1225,7 @@ final class SequenceFlows {
 
   /** The flows this scope shows, for the narrative role, in the order shown. */
   List<Narrated> narrated() {
-    Set<EntityId> units = C4Views.units(knowledge);
+    Set<EntityId> units = Elements.units(knowledge);
     return chosen().stream()
         .map(t -> new Narrated(Wordings.flowKey(question(t).user()), candidate(t, units)))
         .toList();
@@ -1473,9 +1475,9 @@ final class SequenceFlows {
           new SequenceDiagram.Participant(
               participant,
               null,
-              c4.technology(participant),
+              c4.elements().technology(participant),
               null,
-              assembler.facts(c4.containerFacts(participant))));
+              assembler.facts(c4.elements().containerFacts(participant))));
     }
     blocks.add(
         new SequenceDiagram(

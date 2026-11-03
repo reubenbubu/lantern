@@ -10,6 +10,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import java.net.URLDecoder;
@@ -71,7 +72,7 @@ final class ExplorerSections {
     this.flows = flows;
     this.units = units;
     this.repos = repos;
-    this.alternatives = c4.alternativeLinks().keySet();
+    this.alternatives = c4.elements().alternativeLinks().keySet();
   }
 
   /** An entry point of a unit in scope. */
@@ -97,7 +98,7 @@ final class ExplorerSections {
   /** The types whose code runs in the unit. */
   private SortedSet<EntityId> code(EntityId unit) {
     SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
-    for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+    for (EntityId module : Elements.codeModules(knowledge, unit)) {
       code.addAll(knowledge.typesWithin(module));
       for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
         code.addAll(knowledge.typesWithin(pkg));
@@ -283,9 +284,9 @@ final class ExplorerSections {
               List.of(
                   List.of(entity(unit)),
                   text("Deployable unit"),
-                  text(c4.technology(unit)),
+                  text(c4.elements().technology(unit)),
                   List.of()),
-              c4.containerFacts(unit)));
+              c4.elements().containerFacts(unit)));
       for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
         if (!alternatives.contains(fact)) {
           EntityId database = Knowledge.object(fact);
@@ -297,14 +298,14 @@ final class ExplorerSections {
     databases.forEach(
         (database, facts) -> {
           List<Fact> cited = new ArrayList<>(facts);
-          cited.addAll(c4.containerFacts(database));
+          cited.addAll(c4.elements().containerFacts(database));
           rows.add(
               row(
                   database,
                   List.of(
                       List.of(entity(database)),
                       text("Database"),
-                      text(c4.technology(database)),
+                      text(c4.elements().technology(database)),
                       entities(usedBy.get(database))),
                   cited));
         });
@@ -316,7 +317,7 @@ final class ExplorerSections {
   private Optional<Table> componentsTable(String section) {
     List<Table.Row> rows = new ArrayList<>();
     for (EntityId unit : units) {
-      for (C4Views.Component component : c4.components(unit)) {
+      for (Elements.Component component : c4.elements().components(unit)) {
         rows.add(
             row(
                 component.main(),
@@ -324,7 +325,7 @@ final class ExplorerSections {
                     List.of(entity(component.main())),
                     text(component.technology()),
                     List.of(entity(unit))),
-                c4.componentFacts(component)));
+                c4.elements().componentFacts(component)));
       }
     }
     return table(section, "components", "Components", rows, "Component", "Role", "Container");
@@ -399,7 +400,7 @@ final class ExplorerSections {
                     destination,
                     List.of(
                         List.of(entity(destination)),
-                        text(c4.technology(destination)),
+                        text(c4.elements().technology(destination)),
                         entities(senders.get(destination)),
                         entities(receivers.get(destination))),
                     cited)));
@@ -422,7 +423,7 @@ final class ExplorerSections {
     SortedMap<EntityId, SortedSet<EntityId>> containers = new TreeMap<>(Knowledge.BY_ID);
     SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId unit : units) {
-      for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+      for (EntityId module : Elements.codeModules(knowledge, unit)) {
         for (EntityId schema : knowledge.parts(module, Types.SCHEMA)) {
           for (EntityId table : knowledge.parts(schema, Types.TABLE)) {
             containers.computeIfAbsent(table, t -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
@@ -471,7 +472,7 @@ final class ExplorerSections {
   private Optional<Table> configTable(String section) {
     SortedMap<EntityId, SortedSet<EntityId>> unitsOf = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId unit : units) {
-      for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+      for (EntityId module : Elements.codeModules(knowledge, unit)) {
         unitsOf.computeIfAbsent(module, m -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
       }
     }
@@ -624,7 +625,7 @@ final class ExplorerSections {
    */
   private Optional<ListBlock.Item> migrationExample() {
     for (EntityId unit : units) {
-      for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+      for (EntityId module : Elements.codeModules(knowledge, unit)) {
         for (EntityId schema : knowledge.parts(module, Types.SCHEMA)) {
           Optional<Fact> kind =
               knowledge.attributes(schema).stream()
@@ -664,7 +665,7 @@ final class ExplorerSections {
   private Optional<ListBlock.Item> settingExample() {
     Map<String, List<Fact>> byFile = new TreeMap<>();
     for (EntityId unit : units) {
-      for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+      for (EntityId module : Elements.codeModules(knowledge, unit)) {
         for (Fact fact : knowledge.attributes(module)) {
           if (fact.predicate().equals(Types.CONFIG_VALUE)
               && !fact.attributes().has("profile")

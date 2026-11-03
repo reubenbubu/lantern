@@ -1,4 +1,4 @@
-package io.lantern.compose;
+package io.lantern.derive;
 
 import java.util.Locale;
 import java.util.Map;
@@ -8,7 +8,7 @@ import java.util.Optional;
  * The names people know well-known identity providers by (ADR 0085), so the external system for
  * {@code accounts.google.com} reads as "Google". A host not listed keeps its host as its name.
  */
-final class IdentityProviders {
+public final class IdentityProviders {
 
   private static final Map<String, String> BY_HOST =
       Map.of(
@@ -20,7 +20,7 @@ final class IdentityProviders {
   private IdentityProviders() {}
 
   /** The name of a well-known identity provider by its host, if it is one. */
-  static Optional<String> name(String host) {
+  public static Optional<String> name(String host) {
     String lower = host.toLowerCase(Locale.ROOT);
     String known = BY_HOST.get(lower);
     if (known != null) {

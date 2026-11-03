@@ -19,6 +19,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
+import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
@@ -111,7 +112,7 @@ final class RepoSections {
     if (repo == null) {
       repos.forEach(r -> inScope.add(Assembler.repo(r)));
     }
-    this.units = repo == null ? C4Views.units(knowledge) : C4Views.units(knowledge, modules);
+    this.units = repo == null ? Elements.units(knowledge) : Elements.units(knowledge, modules);
     inScope.addAll(containers);
     inScope.addAll(units);
     this.assembler =
@@ -260,7 +261,7 @@ final class RepoSections {
               repo == null ? assembler.name(SYSTEM) : repo,
               modules,
               units,
-              c4.alternativeLinks().keySet(),
+              c4.elements().alternativeLinks().keySet(),
               asOf,
               EndOfLife.BUNDLED);
     }
@@ -327,7 +328,7 @@ final class RepoSections {
       content.add(new CrossReference(name, CrossReference.Target.entity(id)));
       List<EntityId> units = new ArrayList<>();
       List<Fact> facts = new ArrayList<>();
-      for (EntityId unit : C4Views.units(knowledge)) {
+      for (EntityId unit : Elements.units(knowledge)) {
         for (EntityId module : knowledge.parts(unit, BuiltInTypes.MODULE)) {
           if (knowledge.repos(module).contains(name) && !units.contains(unit)) {
             units.add(unit);
