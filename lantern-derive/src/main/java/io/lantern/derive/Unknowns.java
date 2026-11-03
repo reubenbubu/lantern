@@ -278,7 +278,8 @@ public final class Unknowns {
     return components.size() > 1 ? components : List.of();
   }
 
-  private static boolean isOutside(EntityId element) {
-    return element.type().equals(Types.EXTERNAL_SYSTEM) || element.type().equals(Types.PERSON);
+  private boolean isOutside(EntityId element) {
+    return elements.isType(element.type(), Types.EXTERNAL_SYSTEM)
+        || elements.isType(element.type(), Types.PERSON);
   }
 }

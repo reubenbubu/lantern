@@ -158,14 +158,15 @@ public final class Composer {
    * report when it passes every check the composer makes; then the README claims the code
    * contradicts (ADR 0051).
    */
-  private static Section qualitySection(Document document, List<QualityReport.Failure> claims) {
+  private Section qualitySection(Document document, List<QualityReport.Failure> claims) {
     Set<String> ids = new HashSet<>();
     collectIds(document.sections(), ids);
     String id = QUALITY;
     for (int n = 2; ids.contains(id) || ids.contains(id + ".report"); n++) {
       id = QUALITY + "-" + n;
     }
-    List<QualityReport.Failure> failures = new ArrayList<>(QualityBar.failures(document));
+    List<QualityReport.Failure> failures =
+        new ArrayList<>(QualityBar.failures(document, vocabulary));
     failures.addAll(claims);
     QualityReport report = new QualityReport(id + ".report", null, failures, List.of());
     return new Section(id, "Quality report", Set.of(), null, List.of(), List.of(report), List.of());
