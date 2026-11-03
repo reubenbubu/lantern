@@ -36,9 +36,12 @@ Options:
                             model named in the LLM settings. Repeatable.
   --auto-port               If the database port is taken, use the next free port instead
                             of failing.
-  --rebuild                 Build the app jar even if one exists. An existing jar is not
-                            rebuilt otherwise, so pass this after changing the code.
+  --rebuild                 Build the app jar even if one exists. Without it the jar is built
+                            when it is missing or older than any source file or pom.xml of the
+                            app's modules (#785).
   --db-only                 Only start the database; do not build or analyze.
+  --build-only              Only build the app jar, when missing or out of date; start no
+                            database and analyze nothing.
   --judge-labels            Judge the labelled wording texts instead of analyzing.
   -y, --yes                 Do not ask before running analyze (a real model costs money).
                             Needed when not at a terminal.
@@ -71,6 +74,7 @@ title=""
 title_given=false
 rebuild=false
 db_only=false
+build_only=false
 assume_yes=false
 app_options=()
 args=()
@@ -111,6 +115,7 @@ while [[ $# -gt 0 ]]; do
     --auto-port) auto_port=true; shift ;;
     --rebuild) rebuild=true; shift ;;
     --db-only) db_only=true; shift ;;
+    --build-only) build_only=true; shift ;;
     --judge-labels) command="judge-labels"; shift ;;
     -y | --yes) assume_yes=true; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -136,7 +141,7 @@ check_properties_file() {
   echo "$path"
 }
 
-if ! $db_only; then
+if ! $db_only && ! $build_only; then
   if [[ "$command" == analyze ]]; then
     [[ ${#args[@]} -gt 0 ]] || die "no repositories to analyze given (see --help), or use --db-only"
   fi
@@ -150,18 +155,79 @@ if ! $db_only; then
   fi
 fi
 
+# --- App jar (the functions) -----------------------------------------------------------
+
+# Prints the newest app jar, or nothing if there is none.
+find_jar() {
+  local jar newest=""
+  for jar in "$REPO"/lantern-app/target/lantern-app-*-exec.jar; do
+    [[ -f "$jar" ]] || continue
+    if [[ -z "$newest" || "$jar" -nt "$newest" ]]; then
+      newest="$jar"
+    fi
+  done
+  echo "$newest"
+}
+
+# Prints a source file or pom.xml of the app's modules newer than the jar given, or nothing.
+newer_source() {
+  local sources=("$REPO/pom.xml")
+  local module
+  for module in "$REPO"/lantern-*; do
+    [[ -f "$module/pom.xml" ]] && sources+=("$module/pom.xml")
+    [[ -d "$module/src/main" ]] && sources+=("$module/src/main")
+  done
+  # The report template, built into the jar from the frontend's sources and its build files, and
+  # the report specifications the app copies in.
+  local extra
+  for extra in lantern-web/src lantern-web/package.json lantern-web/package-lock.json \
+    lantern-web/vite.config.ts lantern-web/index.html lantern-web/tsconfig.json report-specs; do
+    [[ -e "$REPO/$extra" ]] && sources+=("$REPO/$extra")
+  done
+  find "${sources[@]}" -type f -newer "$1" -print -quit 2>/dev/null
+}
+
+# Sets jar to the app jar, building it first when it is missing, out of date or --rebuild asks.
+ensure_jar() {
+  jar="$(find_jar)"
+  local why=""
+  if $rebuild; then
+    why="--rebuild"
+  elif [[ -z "$jar" ]]; then
+    why="no jar yet"
+  else
+    local newer
+    newer="$(newer_source "$jar")"
+    [[ -z "$newer" ]] || why="${newer#"$REPO"/} is newer than the jar"
+  fi
+  if [[ -n "$why" ]]; then
+    info "building the app jar ($why; ./mvnw install -DskipTests)"
+    (cd "$REPO" && ./mvnw -q install -DskipTests) >&2 || die "the build failed"
+    jar="$(find_jar)"
+    [[ -n "$jar" ]] || die "the build finished but no lantern-app-*-exec.jar is in lantern-app/target"
+  fi
+}
+
 # --- Prerequisites -------------------------------------------------------------------
 
 command -v git >/dev/null 2>&1 || die "git is not on the PATH"
-command -v docker >/dev/null 2>&1 || die "docker is not on the PATH"
-docker info >/dev/null 2>&1 || die "the Docker daemon is not reachable (is it running, and may you use it?)"
-docker compose version >/dev/null 2>&1 || die "the docker compose plugin is not installed"
+if ! $build_only; then
+  command -v docker >/dev/null 2>&1 || die "docker is not on the PATH"
+  docker info >/dev/null 2>&1 || die "the Docker daemon is not reachable (is it running, and may you use it?)"
+  docker compose version >/dev/null 2>&1 || die "the docker compose plugin is not installed"
+fi
 if ! $db_only; then
   command -v java >/dev/null 2>&1 || die "java is not on the PATH; Lantern needs JDK 21 or later"
   java_version="$(java -XshowSettings:properties -version 2>&1 |
     sed -n 's/^ *java\.specification\.version = //p')"
   [[ "$java_version" =~ ^[0-9]+$ ]] || die "could not read the Java version from 'java -version'"
   ((java_version >= 21)) || die "java is version $java_version; Lantern needs JDK 21 or later"
+fi
+
+if $build_only; then
+  ensure_jar
+  info "app jar: $jar"
+  exit 0
 fi
 
 compose() {
@@ -234,6 +300,23 @@ fi
 export LANTERN_DB_PORT="$port"
 info "starting the database of project $PROJECT on port $port"
 compose up -d --wait postgres >&2 || die "the database did not start or did not become healthy; see 'docker compose -p $PROJECT logs postgres'"
+# Healthy inside its container is not yet reachable from the host: under rootless Docker the port
+# is forwarded a moment later, longer when several databases start at once (#785).
+# Postgres itself must answer: an SSL request, which it answers with one byte, N or S, while a
+# forwarder that is not ready yet accepts the connection and closes it.
+postgres_answers() {
+  local reply=""
+  exec 3<>"/dev/tcp/127.0.0.1/$1" || return 1
+  printf '\x00\x00\x00\x08\x04\xd2\x16\x2f' >&3
+  IFS= read -r -n 1 -t 2 reply <&3 || true
+  exec 3<&- 3>&-
+  [[ "$reply" == N || "$reply" == S ]]
+}
+for ((waited = 0; waited < 60; waited++)); do
+  postgres_answers "$port" 2>/dev/null && break
+  sleep 1
+done
+((waited < 60)) || die "the database is healthy but port $port did not accept a connection within 60 s"
 export LANTERN_DB_URL="jdbc:postgresql://localhost:$port/lantern"
 info "database ready at $LANTERN_DB_URL"
 
@@ -243,25 +326,7 @@ fi
 
 # --- App jar -------------------------------------------------------------------------
 
-# Prints the newest app jar, or nothing if there is none.
-find_jar() {
-  local jar newest=""
-  for jar in "$REPO"/lantern-app/target/lantern-app-*-exec.jar; do
-    [[ -f "$jar" ]] || continue
-    if [[ -z "$newest" || "$jar" -nt "$newest" ]]; then
-      newest="$jar"
-    fi
-  done
-  echo "$newest"
-}
-
-jar="$(find_jar)"
-if $rebuild || [[ -z "$jar" ]]; then
-  info "building the app jar (./mvnw install -DskipTests)"
-  (cd "$REPO" && ./mvnw -q install -DskipTests) >&2 || die "the build failed"
-  jar="$(find_jar)"
-  [[ -n "$jar" ]] || die "the build finished but no lantern-app-*-exec.jar is in lantern-app/target"
-fi
+ensure_jar
 
 # --- Analyze -------------------------------------------------------------------------
 
