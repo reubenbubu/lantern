@@ -9,6 +9,7 @@ import {
   describeRow,
   flowSelectionRow,
   isGenericLabel,
+  changeGate,
   harnessRow,
   investigateRow,
   matchFlows,
@@ -186,6 +187,68 @@ test('the harness row reads the run record, and the warm rerun gate needs zero c
   assert.equal(row.warm.gate, true);
   assert.equal(row.oneFileChange.measured, false);
   assert.equal(reportId('service:com.crm:file'), 'service-com-crm-file');
+});
+
+test('the one-file change gate: an item may be re-asked only for the changed file or a reworded answer', () => {
+  const file = 'shop:src/A.java';
+  const change = {
+    calls: 6,
+    harness: [
+      {
+        role: 'summarize-type',
+        askedSubjects: ['type:A', 'type:B'],
+        askedWhy: [
+          { subject: 'type:A', files: [file] }, // its own file: expected
+          { subject: 'type:B', files: ['shop:src/B.java'] }, // another file: not expected
+        ],
+      },
+      {
+        role: 'describe-unit',
+        askedSubjects: ['service:shop', 'service:other', 'service:new', 'service:unknown'],
+        askedWhy: [
+          { subject: 'service:shop', files: [file], answers: 1 }, // the file and an answer: expected
+          { subject: 'service:other', answers: 2 }, // a reworded answer it shows: expected
+          { subject: 'service:new', new: true }, // never asked before: not expected
+          // service:unknown has no reason recorded: not expected
+        ],
+      },
+      { role: 'purpose', askedSubjects: ['system'], askedWhy: [{ subject: 'system', answers: 1, prompt: true }] },
+    ],
+  };
+  const row = harnessRow({ calls: 1, harness: [] }, null, change, file);
+  assert.deepEqual(
+    { items: row.oneFileChange.items, expected: row.oneFileChange.expected, through: row.oneFileChange.throughAnswers, gate: row.oneFileChange.gate },
+    { items: 7, expected: 3, through: 1, gate: false },
+  );
+  assert.deepEqual(row.oneFileChange.unexpected, [
+    'summarize-type type:B: inputs from shop:src/B.java changed',
+    'describe-unit service:new: never asked before',
+    'describe-unit service:unknown: no reason recorded',
+    'purpose system: its prompt changed',
+  ]);
+  assert.equal(changeGate({ harness: [{ role: 'r', askedSubjects: ['x'], askedWhy: [{ subject: 'x', files: [file] }] }] }, file).gate, true);
+  // Without the changed file only the calls are given.
+  assert.equal(harnessRow({ harness: [] }, null, change).oneFileChange.gate, null);
+});
+
+test('the one-file change gate: retries, judges of reworded texts and answers that no longer hold', () => {
+  const file = 'shop:src/A.java';
+  const gate = (harness) => changeGate({ harness }, file);
+  // A retry alone is judged by its item's reason; a subject listed twice counts once.
+  const retried = gate([
+    { role: 'investigate-leads', askedSubjects: ['lead:x', 'lead:x (again)', 'lead:x'], askedWhy: [{ subject: 'lead:x', files: [file] }, { subject: 'lead:x (again)', new: true }] },
+  ]);
+  assert.deepEqual({ items: retried.items, gate: retried.gate }, { items: 2, gate: true });
+  // A judge's item on a new or changed text is expected once a writing role re-asked for the file...
+  const judges = [{ role: 'support-judge', askedSubjects: ['text:1', 'text:2'], askedWhy: [{ subject: 'text:1', new: true }, { subject: 'text:2', other: 1 }] }];
+  const withWriter = gate([{ role: 'summarize-type', askedSubjects: ['type:A'], askedWhy: [{ subject: 'type:A', files: [file] }] }, ...judges]);
+  assert.deepEqual({ gate: withWriter.gate, through: withWriter.throughAnswers }, { gate: true, through: 2 });
+  // ...and not when nothing was re-asked for it.
+  assert.equal(gate(judges).gate, false);
+  // A stored answer refused because a fact it cites no longer holds is named as such.
+  assert.deepEqual(gate([{ role: 'resolve', askedSubjects: ['link:1'], askedWhy: [{ subject: 'link:1', unheld: true }] }]).unexpected, [
+    'resolve link:1: a fact its stored answer cites no longer holds',
+  ]);
 });
 
 // Every committed answer key is well formed: who prepared it and its status, each repository's

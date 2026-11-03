@@ -5,7 +5,10 @@ import io.lantern.llm.LlmCallLog;
 import io.lantern.llm.LlmConversation;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -45,6 +48,7 @@ public final class RoleRecord implements LlmCallLog {
   private final List<String> asked = new ArrayList<>();
   private final List<String> unasked = new ArrayList<>();
   private final List<String> reused = new ArrayList<>();
+  private final Map<String, AskedWhy> why = new HashMap<>();
 
   RoleRecord(String role, String provider, String model) {
     this.role = role;
@@ -131,6 +135,16 @@ public final class RoleRecord implements LlmCallLog {
       case NOT_ASKED, FAILED -> unasked.add(subject);
       default -> asked.add(subject);
     }
+  }
+
+  /** Notes why an item the cache did not answer is asked (#755). */
+  synchronized void why(String subject, AskedWhy reason) {
+    why.put(subject, reason);
+  }
+
+  /** Why the item of the subject was asked, if the cache did not answer it this run. */
+  public synchronized Optional<AskedWhy> why(String subject) {
+    return Optional.ofNullable(why.get(subject));
   }
 
   /** How many calls the role made, batched ones included. */

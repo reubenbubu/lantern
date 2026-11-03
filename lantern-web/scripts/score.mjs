@@ -780,7 +780,7 @@ function roleRows(report, reference, matched, repFlows, inputs, spell = normaliz
     ),
     nameGroups: withJudge(nameGroupsRow(run), judged.nameGroups),
     purpose: judged.purpose,
-    harness: harnessRow(run, warm, change),
+    harness: harnessRow(run, warm, change, inputs.changeFile ?? null),
   };
 }
 
@@ -808,6 +808,17 @@ function conversations(c) {
 
 /** A share as a percentage, or "-" when there was nothing to count. */
 const percent = (x) => (x === null || x === undefined ? '-' : `${Math.round(x * 100)}%`);
+
+/** The one-file change gate as one phrase (#755). */
+function changeCell(c, why) {
+  if (c.measured === false) return why(c);
+  if (c.gate === null || c.gate === undefined) return `${c.calls} calls (${c.why})`;
+  const shown = c.unexpected.slice(0, 5).join('; ');
+  const more = c.unexpected.length > 5 ? ` and ${c.unexpected.length - 5} more` : '';
+  return `${c.calls} calls, ${c.items} items, ${c.expected} expected${c.throughAnswers ? ` (${c.throughAnswers} through a reworded answer)` : ''}${
+    c.gate ? ' (gate passed)' : ` (gate FAILED: ${shown}${more})`
+  }`;
+}
 
 /** Describe's model coverage as one phrase (#742). */
 function describeModelCell(m) {
@@ -852,7 +863,7 @@ export function roleCells(roles) {
     ? why(h)
     : `$${h.costUsd}, ${h.calls} calls, tokens in ${h.tokens.input} / out ${h.tokens.output} / cache read ${h.tokens.cacheRead} / cache write ${h.tokens.cacheWrite}; cache hit rate ${percent(h.cacheHitRate)} of ${h.items} items; warm ${
         h.warm.measured === false ? why(h.warm) : `${h.warm.calls} calls${h.warm.gate ? ' (gate passed)' : ' (gate FAILED: not zero)'}`
-      }; one-file change ${h.oneFileChange.measured === false ? why(h.oneFileChange) : `${h.oneFileChange.calls} calls`}`;
+      }; one-file change ${changeCell(h.oneFileChange, why)}`;
   return cell;
 }
 
@@ -964,7 +975,7 @@ export function readRun(path) {
  * Scores the report file against the set's reference and returns the scorecard.
  *
  * @param options `answerKey` (default `<set>/answer-key.json`), `warm` and `change` (run records
- *     of a warm rerun and of a one-file change), `labels` (the owner's wording labels, default
+ *     of a warm rerun and of a one-file change), `changeFile` (the file changed, `repo:path`), `labels` (the owner's wording labels, default
  *     testsets/wording-labels); the run's facts (linked.jsonl.gz, llm.jsonl.gz) and the wording
  *     judge's verdicts (wording.jsonl.gz) are read beside run.json, or beside the report without one
  */
@@ -981,6 +992,7 @@ export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
     run: runPath ? readRun(runPath) : null,
     warm: options.warm ? readRun(options.warm) : null,
     change: options.change ? readRun(options.change) : null,
+    changeFile: options.changeFile ?? null,
     wording: readLines(join(beside, 'wording.jsonl.gz')),
     rejections: readLines(join(beside, 'rejections.jsonl.gz')),
     labels: readLabels(options.labels),
@@ -1140,17 +1152,19 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       const answerKey = option(args, '--answer-key');
       const warm = option(args, '--warm');
       const change = option(args, '--change');
+      const changeFile = option(args, '--change-file');
       const labels = option(args, '--labels');
       const [reportPath, setDir] = args;
       if (!reportPath || !setDir) {
         throw new Error(
-          'usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--answer-key <file>] [--warm <run.json>] [--change <run.json>] [--labels <folder>] [--out <prefix>]',
+          'usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--answer-key <file>] [--warm <run.json>] [--change <run.json> --change-file <repo>:<path>] [--labels <folder>] [--out <prefix>]',
         );
       }
       const card = scoreFiles(reportPath, setDir, run, {
         answerKey: answerKey ?? undefined,
         warm,
         change,
+        changeFile: changeFile ?? undefined,
         labels: labels ?? undefined,
       });
       const prefix = out ?? reportPath.replace(/\.(html|json)$/, '');

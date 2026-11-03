@@ -445,6 +445,33 @@ class Project0EndToEndIT {
             "describe-unit service:com.acme.shop:payments");
     assertThat(asked.stream().map(row -> row.get("role") + " " + row.get("subject")))
         .containsExactlyInAnyOrderElementsOf(askedByRecord);
+    // The run's record says why each was asked (#755): only for the changed file's claims and text,
+    // or for an answer it shows that changed.
+    JSON.readTree(Files.readString(changed.runRecord()))
+        .get("harness")
+        .forEach(
+            role ->
+                role.get("askedWhy")
+                    .forEach(
+                        why -> {
+                          String item =
+                              role.get("role").asString() + " " + why.get("subject").asString();
+                          assertThat(
+                                  why.has("new")
+                                      || why.has("unheld")
+                                      || why.has("other")
+                                      || why.has("prompt")
+                                      || why.has("model"))
+                              .as(item + " asked for " + why)
+                              .isFalse();
+                          java.util.List<String> files = new java.util.ArrayList<>();
+                          why.path("files").forEach(f -> files.add(f.asString()));
+                          // The changed file, or only an earlier answer it shows that changed.
+                          assertThat(files.isEmpty() ? why.path("answers").asInt() > 0 : true)
+                              .as(item + " asked for " + why)
+                              .isTrue();
+                          assertThat(files).as(item).isSubsetOf(repo + ":" + path);
+                        }));
     // What the change re-asked, for the run's evidence.
     Files.createDirectories(OUT);
     Files.write(

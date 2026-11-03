@@ -154,6 +154,11 @@ final class RunRecord {
       record.asked().stream().sorted().forEach(entry.putArray("askedSubjects")::add);
       record.unasked().stream().sorted().forEach(entry.putArray("unaskedSubjects")::add);
       record.reused().stream().sorted().forEach(entry.putArray("cachedSubjects")::add);
+      // Why each item was asked rather than answered from the cache (#755).
+      ArrayNode why = entry.putArray("askedWhy");
+      for (String subject : record.asked().stream().sorted().distinct().toList()) {
+        record.why(subject).ifPresent(reason -> why.add(whyJson(subject, reason)));
+      }
       harnessRoles.add(entry);
     }
     ArrayNode byModel = root.putArray("byModel");
@@ -200,6 +205,38 @@ final class RunRecord {
       }
     }
     return root;
+  }
+
+  /**
+   * Why one item was asked (#755): {@code new} when nothing was stored for it before, {@code
+   * unheld} when its stored answer cites a fact that no longer holds; otherwise the files whose
+   * claims or text changed, how many answers it shows changed, other changed inputs, and whether
+   * the prompt or the model changed, each only when it did.
+   */
+  static ObjectNode whyJson(String subject, io.lantern.harness.AskedWhy why) {
+    ObjectNode node = MAPPER.createObjectNode().put("subject", subject);
+    if (why.isNew()) {
+      return node.put("new", true);
+    }
+    if (why.unheld()) {
+      return node.put("unheld", true);
+    }
+    if (!why.files().isEmpty()) {
+      why.files().forEach(node.putArray("files")::add);
+    }
+    if (why.answers() > 0) {
+      node.put("answers", why.answers());
+    }
+    if (why.other() > 0) {
+      node.put("other", why.other());
+    }
+    if (why.prompt()) {
+      node.put("prompt", true);
+    }
+    if (why.model()) {
+      node.put("model", true);
+    }
+    return node;
   }
 
   /** Writes the record into the directory and returns the file. */

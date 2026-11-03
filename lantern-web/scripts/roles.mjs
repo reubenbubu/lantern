@@ -696,11 +696,69 @@ function totals(run) {
 }
 
 /**
- * The harness (section 13): dollars and tokens of the run, the share of planned items the answer
- * cache answered, and, when their run records are given, the warm rerun's and the one-file
- * change's calls. Its gates: a warm rerun makes zero calls.
+ * The roles that judge or screen texts other roles wrote: a judge's item is about a text, and a
+ * text reworded for the change, or sampled for the first time once reworded, makes it new to them.
  */
-export function harnessRow(run, warm = null, change = null) {
+const JUDGING_ROLES = new Set(['support-judge', 'wording-judge-role', 'wording-judge-specific']);
+
+/**
+ * The one-file change gate (knowledge-build epic, section 13; #755): each item the changed run asked
+ * may have been re-asked only for the changed file's claims and text, or for an earlier answer it
+ * shows that was worded differently. Read from the run record's `askedWhy` (RunRecord, #755).
+ *
+ * - An item retried alone after its packet left it out, "X (again)", is judged by X's reason.
+ * - A judge's item asked for a new or changed text is expected through a reworded answer when the
+ *   change re-asked some writing role's item for the file, and counted with those.
+ *
+ * @param change the changed run's record
+ * @param file the changed file, as `repo:path`
+ */
+export function changeGate(change, file) {
+  const items = [];
+  const judged = [];
+  for (const role of change?.harness ?? []) {
+    const why = new Map((role.askedWhy ?? []).map((w) => [w.subject, w]));
+    for (const subject of [...new Set(role.askedSubjects ?? [])]) {
+      const again = subject.endsWith(' (again)') ? subject.slice(0, -' (again)'.length) : null;
+      const w = (again !== null && why.get(again)) || why.get(subject);
+      const item = `${role.role} ${subject}`;
+      let reason = null;
+      if (!w) reason = 'no reason recorded';
+      else if (w.new) reason = 'never asked before';
+      else if (w.unheld) reason = 'a fact its stored answer cites no longer holds';
+      else if (w.prompt) reason = 'its prompt changed';
+      else if (w.model) reason = 'its model changed';
+      else if (w.other) reason = `${w.other} other input${w.other === 1 ? '' : 's'} changed`;
+      else {
+        const others = (w.files ?? []).filter((f) => f !== file);
+        if (others.length > 0) reason = `inputs from ${others.join(', ')} changed`;
+        else if (!(w.files ?? []).includes(file) && !w.answers) reason = 'nothing it rests on changed';
+      }
+      const entry = { item, expected: reason === null, reason, byAnswer: !!w?.answers && !(w.files ?? []).includes(file) };
+      if (JUDGING_ROLES.has(role.role) && (w?.new || w?.other) && !w?.prompt && !w?.model) judged.push(entry);
+      else items.push(entry);
+    }
+  }
+  // A judge's item on a reworded text is expected when a writing role re-asked an item for the file.
+  const rewrote = items.some((i) => i.expected);
+  for (const j of judged) items.push(rewrote ? { ...j, expected: true, reason: null, byAnswer: true } : j);
+  const unexpected = items.filter((i) => !i.expected);
+  return {
+    file,
+    items: items.length,
+    expected: items.length - unexpected.length,
+    throughAnswers: items.filter((i) => i.expected && i.byAnswer).length,
+    unexpected: unexpected.map((i) => `${i.item}: ${i.reason}`),
+    gate: unexpected.length === 0,
+  };
+}
+
+/**
+ * The harness (section 13): dollars and tokens of the run, the share of planned items the answer
+ * cache answered, and, when their run records are given, the warm rerun's calls (gate: zero) and
+ * the one-file change's, checked by `changeGate` when the changed file is given.
+ */
+export function harnessRow(run, warm = null, change = null, changedFile = null) {
   if (!run) return notMeasured('no run.json given');
   const t = totals(run);
   const row = {
@@ -717,9 +775,14 @@ export function harnessRow(run, warm = null, change = null) {
   } else {
     row.warm = notMeasured('no warm rerun given (--warm <run.json>)');
   }
-  row.oneFileChange = change
-    ? { calls: change.calls ?? totals(change).calls }
-    : notMeasured('no one-file change run given (--change <run.json>)');
+  row.oneFileChange = !change
+    ? notMeasured('no one-file change run given (--change <run.json>)')
+    : {
+        calls: change.calls ?? totals(change).calls,
+        ...(changedFile
+          ? changeGate(change, changedFile)
+          : { gate: null, why: 'the changed file was not given (--change-file <repo>:<path>)' }),
+      };
   return row;
 }
 

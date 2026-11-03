@@ -29,6 +29,22 @@ public final class InMemoryAnswerStore implements AnswerStore {
   }
 
   @Override
+  public synchronized Optional<StoredAnswer> previous(
+      String role, String subject, String promptVersion, String provider, String model) {
+    for (int i = order.size() - 1; i >= 0; i--) {
+      StoredAnswer answer = order.get(i);
+      if (answer.role().equals(role)
+          && answer.subject().equals(subject)
+          && answer.promptVersion().equals(promptVersion)
+          && answer.provider().equals(provider)
+          && answer.model().equals(model)) {
+        return Optional.of(answer);
+      }
+    }
+    return Optional.empty();
+  }
+
+  @Override
   public synchronized void save(StoredAnswer answer) {
     StoredAnswer earlier = answers.put(answer.fingerprint(), answer);
     if (earlier != null) {

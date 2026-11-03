@@ -15,6 +15,16 @@ public interface AnswerStore {
   Optional<StoredAnswer> latest(String role, String subject);
 
   /**
+   * The answer, or the drop, stored last for the role's subject under the given prompt version and
+   * model, whatever its fingerprint, if any: what a rerun on the same model compares an item with
+   * (#755). A store that cannot tell finds none, and its callers fall back to {@link #latest}.
+   */
+  default Optional<StoredAnswer> previous(
+      String role, String subject, String promptVersion, String provider, String model) {
+    return Optional.empty();
+  }
+
+  /**
    * Stores an answer. One already stored under its fingerprint is replaced and becomes the latest:
    * the harness asks again under an unchanged fingerprint only when the stored answer no longer
    * holds (a file it read changed), so the new answer must take its place.
