@@ -242,6 +242,48 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void withAReplayFolderCallsAreAnsweredOnlyFromItsRecordings(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path calls) throws Exception {
+    model("fast", "fake", "fast-model");
+    tiers("fast", "fast");
+    LlmRequest recorded = LlmRequest.of(Role.COMPOSE, "replay test", null, "Write", 10);
+    LlmConfiguration.create(
+            bind(),
+            List.of(new FakeLlmProvider().answering("from the recording")),
+            stored,
+            Clock.systemUTC(),
+            calls)
+        .client()
+        .call(recorded);
+
+    // The provider bean is left out: a replay never sends a request on.
+    FakeLlmProvider live = new FakeLlmProvider().answering("live");
+    LlmAccess replay =
+        LlmConfiguration.create(bind(), List.of(live), stored, Clock.systemUTC(), null, calls);
+
+    assertThat(replay.client().call(recorded).text()).isEqualTo("from the recording");
+    assertThatThrownBy(
+            () ->
+                replay
+                    .client()
+                    .call(LlmRequest.of(Role.COMPOSE, "replay test", null, "Not recorded", 10)))
+        .hasMessageContaining("No recording");
+    assertThat(live.sent()).isEmpty();
+  }
+
+  @Test
+  void aReplayNeedsNoApiKey(@org.junit.jupiter.api.io.TempDir java.nio.file.Path calls) {
+    model("fast", "anthropic", "some-model");
+    tiers("fast", "fast");
+
+    LlmAccess replay =
+        LlmConfiguration.create(bind(), List.of(), stored, Clock.systemUTC(), null, calls);
+
+    assertThat(replay.isConfigured()).isTrue();
+    assertThat(replay.client().model(Role.RESOLVE).provider()).isEqualTo("anthropic");
+  }
+
+  @Test
   void anthropicModelsWithAnApiKeyGetAnAnthropicProvider() throws Exception {
     model("fast", "anthropic", "some-model");
     tiers("fast", "fast");

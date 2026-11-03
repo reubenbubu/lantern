@@ -46,13 +46,16 @@ class LlmConfiguration {
       ObjectProvider<LlmProvider> providerBeans,
       JdbcLlmCallLog stored,
       @org.springframework.beans.factory.annotation.Value("${lantern.llm.record-to:}")
-          String recordTo) {
+          String recordTo,
+      @org.springframework.beans.factory.annotation.Value("${lantern.llm.replay-from:}")
+          String replayFrom) {
     return create(
         properties,
         providerBeans.orderedStream().toList(),
         stored,
         Clock.systemUTC(),
-        recordTo.isBlank() ? null : java.nio.file.Path.of(recordTo).toAbsolutePath());
+        recordTo.isBlank() ? null : java.nio.file.Path.of(recordTo).toAbsolutePath(),
+        replayFrom.isBlank() ? null : java.nio.file.Path.of(replayFrom).toAbsolutePath());
   }
 
   static LlmAccess create(
@@ -73,19 +76,46 @@ class LlmConfiguration {
       JdbcLlmCallLog stored,
       Clock clock,
       java.nio.file.Path recordTo) {
+    return create(properties, providerBeans, stored, clock, recordTo, null);
+  }
+
+  /**
+   * As above; with {@code replayFrom} set ({@code lantern.llm.replay-from}, #759), every provider
+   * the configured models use answers only from the recordings in that folder (a {@code record-to}
+   * folder) and fails a request it has none for: no call goes out and nothing is spent.
+   */
+  static LlmAccess create(
+      LlmProperties properties,
+      List<LlmProvider> providerBeans,
+      JdbcLlmCallLog stored,
+      Clock clock,
+      java.nio.file.Path recordTo,
+      java.nio.file.Path replayFrom) {
     if (!properties.tiersConfigured()) {
       return LlmAccess.notConfigured(
           "set lantern.llm.tiers.high-volume and lantern.llm.tiers.reasoning to models defined"
               + " under lantern.llm.models (see docs/adr/0009-llm-configuration.md)");
     }
     ModelSettings settings = properties.modelSettings();
-    List<LlmProvider> providers = new ArrayList<>(providerBeans);
+    if (replayFrom != null && !java.nio.file.Files.isDirectory(replayFrom)) {
+      throw new IllegalStateException("lantern.llm.replay-from is not a folder: " + replayFrom);
+    }
+    // A replay serves every provider in use from the recordings, and builds no real one.
+    List<LlmProvider> providers = new ArrayList<>(replayFrom == null ? providerBeans : List.of());
     Set<String> available = new HashSet<>();
-    providerBeans.forEach(provider -> available.add(provider.name()));
+    providers.forEach(provider -> available.add(provider.name()));
     AnthropicProvider anthropic = null;
     OpenAiProvider openai = null;
+    if (replayFrom != null) {
+      LOG.info("Replaying LLM calls from {}; a request with no recording fails", replayFrom);
+    }
     for (String name : properties.providersInUse(settings)) {
       if (available.contains(name)) {
+        continue;
+      }
+      if (replayFrom != null) {
+        providers.add(io.lantern.llm.RecordReplayLlmProvider.replaying(name, replayFrom));
+        available.add(name);
         continue;
       }
       if (name.equals(OpenAiProvider.NAME)) {
