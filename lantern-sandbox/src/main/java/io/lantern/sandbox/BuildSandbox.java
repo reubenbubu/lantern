@@ -9,7 +9,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -1751,7 +1751,10 @@ public class BuildSandbox {
         }
         Files.move(partial, directory, StandardCopyOption.ATOMIC_MOVE);
         return;
-      } catch (NoSuchFileException | FileAlreadyExistsException | DirectoryNotEmptyException e) {
+      } catch (FileSystemException e) {
+        // A missing directory, or one already there: moving onto a directory that is not empty
+        // fails on Linux with a plain FileSystemException ("Directory not empty"), not a
+        // DirectoryNotEmptyException.
         if (attempt == REPLACE_ATTEMPTS) {
           throw e;
         }

@@ -1,6 +1,7 @@
 package io.lantern.sandbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -65,6 +66,34 @@ class BuildStoreTest {
         current.replaceFirst(
             "\"buildStep\" : \\d+", "\"buildStep\" : " + (BuildSandbox.BUILD_STEP_VERSION + 1)));
     assertThat(sandbox.find("repo", COMMIT)).isEmpty();
+  }
+
+  @Test
+  void aMoveOntoAFullDirectoryFailsAsReplaceExpectsAndReplaceStillStoresOurs() throws IOException {
+    Path directory = builds.resolve("repo").resolve(COMMIT);
+    Files.createDirectories(directory.getParent());
+    Path partial = Files.createTempDirectory(directory.getParent(), ".partial-");
+    Files.writeString(partial.resolve(BuildSandbox.RESULT_FILE), "ours");
+    // The other process's build is already in place, and moving onto a full directory fails.
+    stored("theirs");
+    Path other = Files.createTempDirectory(directory.getParent(), ".other-");
+    Files.writeString(other.resolve(BuildSandbox.RESULT_FILE), "x");
+    assertThatThrownBy(
+            () -> Files.move(other, directory, java.nio.file.StandardCopyOption.ATOMIC_MOVE))
+        .isInstanceOf(java.nio.file.FileSystemException.class);
+    deleteTree(other);
+
+    BuildSandbox.replace(partial, directory);
+
+    assertThat(Files.readString(directory.resolve(BuildSandbox.RESULT_FILE))).isEqualTo("ours");
+  }
+
+  private static void deleteTree(Path root) throws IOException {
+    try (var paths = Files.walk(root)) {
+      for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+        Files.delete(path);
+      }
+    }
   }
 
   @Test
