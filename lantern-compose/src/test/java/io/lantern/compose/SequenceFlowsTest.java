@@ -799,6 +799,63 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void ofTwoFlowsOfOneShapeBothJudgedSignificantOnlyTheFirstIsDrawn() {
+    // ship's status and track endpoints read its database: the same picture, though the messages
+    // they follow differ, so the model is shown both and keeps both, track first (#701).
+    String track = "method:x.ship.Status#track()";
+    relate("ship", "type:x.ship.Status", "CONTAINS", track, "{}", 0);
+    attribute("ship", track, "endpoint", "GET /track", "{}", 0);
+    relate("ship", STATUS, "READS_TABLE", "table:x:ship:parcel", "{}", 4);
+    relate("ship", track, "READS_TABLE", "table:x:ship:parcel", "{}", 5);
+    judgeSignificant(track, STATUS);
+    assertThat(flows(system(facts)).sections())
+        .extracting(SequenceFlowsTest::trigger)
+        .containsExactly("GET /track on ship");
+  }
+
+  /** The flow significance role's answer for the system: the flows of these endpoints, in order. */
+  private void judgeSignificant(String... endpoints) {
+    for (int rank = 0; rank < endpoints.length; rank++) {
+      String endpoint = endpoints[rank];
+      Fact trigger =
+          facts.stream()
+              .filter(
+                  f -> f.subject().toString().equals(endpoint) && f.predicate().equals("endpoint"))
+              .findFirst()
+              .orElseThrow();
+      facts.add(
+          Fact.create(
+              io.lantern.derive.Flows.id(EntityId.parse(SHIP), trigger),
+              io.lantern.harness.LlmFacts.FLOW_SIGNIFICANCE,
+              FactObject.string(Wordings.SYSTEM_SCOPE),
+              (ObjectNode)
+                  FactJson.parse(
+                      "{\"significant\": true, \"rank\": "
+                          + rank
+                          + ", \"category\": \"read\", \"text\": \"It shows a read.\"}"),
+              new Origin(Origin.Kind.LLM, "flow-significance", "1"),
+              Evidence.of("ship", "Code.java", null, null),
+              1.0,
+              Validity.from(1)));
+    }
+  }
+
+  @Test
+  void ofTheFlowsTheModelKeepsOnlyItsFirstOfEachShapeIsDrawn() {
+    // As project-4's PUT and DELETE of a member's role, judged significant both (#701).
+    List<String> kept =
+        SequenceFlows.firstOfEachShape(
+            List.of("PUT role", "sign up", "DELETE role", "reset password", "upload"),
+            flow ->
+                switch (flow) {
+                  case "PUT role", "DELETE role" -> "member, main-service, auth-service";
+                  case "sign up", "reset password" -> "member, auth-service, mail";
+                  default -> "member, file-service";
+                });
+    assertThat(kept).containsExactly("PUT role", "sign up", "upload");
+  }
+
+  @Test
   void aFrontendNoPersonUsesStartsTheFlowItself() {
     attribute(
         "front",
