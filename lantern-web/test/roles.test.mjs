@@ -7,6 +7,7 @@ import { test } from 'vitest';
 import {
   answerKeyIssues,
   describeRow,
+  isGenericLabel,
   harnessRow,
   investigateRow,
   matchFlows,
@@ -233,12 +234,112 @@ test('Investigate: a wording of a fixed check\'s finding is of the key\'s catego
   assert.equal(row.tprMinusFpr, null);
 });
 
-test('Describe: elements with a responsibility, components by their anchor type, lines labelled by an intent', () => {
+test('Describe: elements with a responsibility, components by their anchor type', () => {
   const report = {
     elements: {
       'service-a': { kind: 'container', name: 'a' },
-      'type-x-y': { kind: 'component', name: 'Y' },
+      'type-x-y': { kind: 'component', name: 'Y', parent: 'service-a' },
       'service-b': { kind: 'container', name: 'b' },
+      'person-u': { kind: 'person', name: 'User' },
+    },
+    pages: [],
+  };
+  const llm = [
+    { predicate: 'responsibility', subject: 'service:a', attributes: {} },
+    { predicate: 'responsibility', subject: 'component:service:a/type:x.Y', attributes: {} },
+  ];
+  const row = describeRow(report, [], llm);
+  assert.equal(row.elementsDescribed, 2);
+  assert.equal(row.elements, 4);
+  assert.deepEqual(row.undescribed.sort(), ['User', 'b']);
+});
+
+/** A fact of the linker. */
+const link = (id, predicate, subject, object, attributes = {}) => ({
+  id: `f-${id}`,
+  claim: `c-${id}`,
+  predicate,
+  subject,
+  object: { kind: 'entity', value: object },
+  attributes,
+});
+
+/** An intent Describe (or another role) wrote for the link of the given claim. */
+const intentFor = (claim, text, role = 'describe-unit') => ({
+  predicate: 'intent',
+  subject: 'service:a',
+  object: { kind: 'string', value: claim },
+  attributes: { text },
+  origin: { kind: 'llm', name: role },
+});
+
+// Units a and b; a has components X and Y; c is a unit Describe did not ask about.
+const linked = [
+  link('ab', 'CALLS_HTTP', 'service:a', 'service:b'),
+  link('ab2', 'PUBLISHES', 'service:a', 'queue:orders'),
+  link('ba', 'CALLS_HTTP', 'service:b', 'service:a'),
+  link('xy', 'COMPONENT_LINK', 'component:service:a/type:p.X', 'component:service:a/type:p.Y', { kind: 'calls' }),
+  link('end', 'COMPONENT_LINK', 'component:service:a/type:p.X', 'component:service:a/type:p.Z', { kind: 'code-end' }),
+  link('cb', 'CALLS_HTTP', 'service:c', 'service:b'),
+  link('cx', 'READS_TABLE', 'service:a', 'table:t'),
+  { id: 'p1', predicate: 'PART_OF', subject: 'component:service:a/type:p.X', object: { kind: 'entity', value: 'service:a' } },
+  { id: 'p2', predicate: 'PART_OF', subject: 'component:service:a/type:p.Y', object: { kind: 'entity', value: 'service:a' } },
+  { id: 'p3', predicate: 'PART_OF', subject: 'component:service:a/type:p.Z', object: { kind: 'entity', value: 'service:a' } },
+  { id: 'p4', predicate: 'PART_OF', subject: 'component:service:b/type:q.W', object: { kind: 'entity', value: 'service:b' } },
+  // A line to another unit's component is not one Describe words.
+  link('xw', 'COMPONENT_LINK', 'component:service:a/type:p.X', 'component:service:b/type:q.W', { kind: 'calls' }),
+  // a's call to b's sandbox holds by default; under the profile prod it calls b's live host instead,
+  // an alternative Describe leaves out.
+  link('sandbox', 'CALLS_HTTP', 'service:a', 'external-system:sandbox', { absentIn: ['prod'], alternates: ['external-system:live'] }),
+  link('live', 'CALLS_HTTP', 'service:a', 'external-system:live', { view: 'prod', alternates: ['external-system:sandbox'] }),
+];
+const run = {
+  harness: [{ role: 'describe-unit', askedSubjects: ['service:a'], cachedSubjects: ['service:b'], unaskedSubjects: ['service:c'] }],
+};
+
+test('Describe in the model: each interaction right, generic (wrong), "don\'t know" or not asked', () => {
+  const llm = [
+    intentFor('c-ab', 'Looks up prices [fact:1]'), // right
+    intentFor('c-xy', 'Calls validate'), // a generic opening: wrong
+    intentFor('c-ab2', 'Announces new orders', 'name-groups'), // not Describe's: "don't know"
+    // Two intents, one generic: right.
+    intentFor('c-sandbox', 'Uses the sandbox'),
+    intentFor('c-sandbox', 'Charges cards in the sandbox'),
+    // b -> a has none: "don't know"; c -> b: c was not asked; the live call is an alternative.
+  ];
+  const row = describeRow({ elements: {}, pages: [] }, linked, llm, run);
+  assert.deepEqual(
+    { ...row.model, genericItems: undefined },
+    {
+      interactions: 5,
+      own: 2,
+      generic: 1,
+      unknown: 2,
+      notAsked: 1,
+      coverage: 0.4,
+      penalized: 0.2,
+      penalty: 1,
+      genericItems: undefined,
+    },
+  );
+  assert.deepEqual(row.model.genericItems, ['Calls validate']);
+  assert.equal(row.scores['interaction:f-ab'], 1);
+  assert.equal(row.scores['interaction:f-xy'], -1);
+  assert.equal(row.scores['interaction:f-sandbox'], 1);
+  assert.equal(row.scores['interaction:f-live'], undefined);
+  assert.equal(row.scores['interaction:f-xw'], undefined);
+  // Without the run's record of Describe, the model cannot be scored.
+  assert.equal(describeRow({ elements: {}, pages: [] }, linked, llm, null).model.measured, false);
+});
+
+test('Describe on the page: a line counts when labelled with the intent of its own link', () => {
+  const report = {
+    elements: {
+      'service-a': { kind: 'container', name: 'a' },
+      'service-b': { kind: 'container', name: 'b' },
+      'queue-orders': { kind: 'queue', name: 'orders' },
+      'type-p-x': { kind: 'component', name: 'X', parent: 'service-a' },
+      'type-p-y': { kind: 'component', name: 'Y', parent: 'service-a' },
       'person-u': { kind: 'person', name: 'User' },
     },
     pages: [
@@ -247,23 +348,75 @@ test('Describe: elements with a responsibility, components by their anchor type,
           {
             type: 'diagram',
             relationships: [
-              { from: 'service-a', to: 'service-b', label: 'Sends orders to' },
-              { from: 'service-b', to: 'service-a', label: 'Calls' },
+              // Its own link's intent, with a profile note: counts.
+              { from: 'service-a', to: 'service-b', label: 'Looks up prices (only with the Spring profile prod)' },
+              // Another link's intent: does not count, and is not generic.
+              { from: 'service-b', to: 'service-a', label: 'Looks up prices' },
+              // A component's link lifted to its container: counts.
+              { from: 'service-a', to: 'queue-orders', label: 'Announces new orders' },
+              // The fallback label: generic.
+              { from: 'type-p-x', to: 'type-p-y', label: 'Calls validate, check' },
+              // A person's line keeps its fixed label and is left out.
               { from: 'person-u', to: 'service-a', label: 'Uses' },
+            ],
+          },
+        ],
+      },
+      // The same line on another page, without its intent: still counted once, as its own.
+      { sections: [{ type: 'diagram', relationships: [{ from: 'service-a', to: 'service-b', label: 'Calls get' }] }] },
+    ],
+  };
+  const lifted = link('xq', 'PUBLISHES', 'component:service:a/type:p.X', 'queue:orders');
+  const llm = [intentFor('c-ab', 'Looks up prices'), intentFor('c-xq', 'Announces new orders')];
+  const row = describeRow(report, [...linked, lifted], llm, run);
+  assert.deepEqual(row.drawn, { lines: 4, own: 2, generic: 1, other: 1, coverage: 0.5 });
+  assert.equal(row.scores['line:service-a->service-b'], 1);
+  assert.equal(row.scores['line:service-b->service-a'], 0);
+});
+
+test("Describe on the page: a consumer's line runs from what it reads, and a link may have several intents", () => {
+  const report = {
+    elements: {
+      'service-a': { kind: 'container', name: 'a' },
+      'service-b': { kind: 'container', name: 'b' },
+      'exchange-events': { kind: 'queue', name: 'events', tag: 'Exchange' },
+    },
+    pages: [
+      {
+        sections: [
+          {
+            type: 'diagram',
+            relationships: [
+              // b consumes a queue bound to the events exchange, which the view draws instead.
+              { from: 'exchange-events', to: 'service-b', label: 'Reads new orders to bill them' },
+              // The same text drawn from b to the exchange is not its line.
+              { from: 'service-b', to: 'exchange-events', label: 'Reads new orders to bill them' },
+              // The second of the link's two intents.
+              { from: 'service-a', to: 'service-b', label: 'Fetches current prices' },
             ],
           },
         ],
       },
     ],
   };
+  const consumes = link('bq', 'CONSUMES', 'service:b', 'queue:orders');
   const llm = [
-    { predicate: 'responsibility', subject: 'service:a', attributes: {} },
-    { predicate: 'responsibility', subject: 'component:service:a/type:x.Y', attributes: {} },
-    { predicate: 'intent', subject: 'service:a', attributes: { text: 'Sends orders to [fact:abc]' } },
+    intentFor('c-bq', 'Reads new orders to bill them'),
+    intentFor('c-ab', 'Looks up prices'),
+    intentFor('c-ab', 'Fetches current prices'),
   ];
-  const row = describeRow(report, [], llm);
-  assert.equal(row.elementsDescribed, 2);
-  assert.equal(row.elements, 4);
-  assert.equal(row.interactions, 2);
-  assert.equal(row.interactionsIntended, 1);
+  const row = describeRow(report, [...linked, consumes], llm, run);
+  assert.equal(row.scores['line:exchange-events->service-b'], 1);
+  assert.equal(row.scores['line:service-b->exchange-events'], 0);
+  assert.equal(row.scores['line:service-a->service-b'], 1);
+  assert.equal(row.model.own, 2);
+});
+
+test('a generic label is empty or opens with a verb that only says there is a relationship', () => {
+  for (const t of ['', 'Uses', 'Uses, through the web app', 'Calls write, flush', 'Depends on b', 'Connects to the broker', 'Accesses data', 'Only with the Spring profile dev']) {
+    assert.equal(isGenericLabel(t), true, t);
+  }
+  for (const t of ['Callbacks the payer', 'Useful lookups of prices', 'Looks up prices (only with the Spring profile dev)', 'Reads and writes']) {
+    assert.equal(isGenericLabel(t), false, t);
+  }
 });

@@ -126,7 +126,7 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
 - **Describe**: the share of the report's containers, stores, queues, external systems, people and
   components (by their anchor type's ID) with a responsibility of origin llm, and of the lines the
   report draws, a person's left out (they keep their fixed labels), whose label is an intent it
-  wrote, citation markers aside: what a reader sees worded. Its judge score comes with #668.
+  wrote, citation markers aside: what a reader sees worded. Its judge score comes with #668. (#742 replaced the line count; see its amendment.)
 - **Flows**: a report flow matches a reference flow when its trigger is the same entry point and
   their participants overlap by at least two thirds of the larger set, one to one, best overlap
   first; recall and precision of the flows the report draws. The scorecard's older flow count
@@ -159,3 +159,47 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
 The judged rows (Describe's wording, Name groups' names, Purpose's key fact) read the wording
 judge's verdicts, `wording.jsonl.gz` beside the run's documents, and the owner's labels in
 `testsets/wording-labels/`; they say "not validated" until the labels validate the judge (ADR 0111).
+
+## Amendment (#742): Describe's intent coverage in the model and on the page
+
+The Describe row above counted drawn lines whose label equalled any intent text of any role, so a
+line showing another link's intent counted, and one carrying a profile note did not. It now gives
+three numbers (`lantern-web/scripts/roles.mjs`, `describeRow`):
+
+- **Elements**, as before: the share of the report's elements with a responsibility it wrote.
+- **Model coverage.** Each interaction Describe words, rebuilt from `linked.jsonl.gz` as Describe
+  builds its items:
+  - each unit's links of the kinds Describe words (`Describer.LINKS`), other than a profile's
+    alternative to a default link (the rule of `Screens.alternatives`, which Describe skips);
+  - the lines between two components of the same unit other than to code at the end of a call, a
+    component's unit by `PART_OF`;
+  - not a person's use of a unit, which Describe also words but whose line keeps a fixed label.
+
+  Each is scored with three outcomes, a wrong answer costing one point (p = 1):
+  - right when one of its intents opens with something other than a generic verb;
+  - wrong when its intent opens with one, such as "Uses" or "Calls";
+  - "don't know" when it has none.
+
+  An interaction of a unit Describe did not ask about (budget, a failure; `run.json`) is not asked
+  and counted apart. Each linker fact is its own item in the paired comparison.
+
+  The checks here are only that the intent exists and does not open with a generic verb, so on a
+  run that answered everything the model coverage is near 100%. Whether the intent says something
+  true and specific is the wording judge's row (#668, #757).
+- **Drawn coverage.** Of the lines the report draws, a person's left out, the share labelled with
+  the intent Describe wrote for a link of their own.
+  - A line's own link runs between its two ends, or between elements inside or around them, since
+    a view draws a link between the boxes it shows.
+  - A consumer's line runs from any queue, exchange or topic to the consumer, since a view draws
+    the exchange a queue is bound to.
+  - The label is read without citation markers or the note " (only with the Spring profile x)".
+  - The rest are split into generic labels and others. The others are mostly the composer's labels
+    for lines no intent words, such as "Reads and writes" to a database or "Routes <key>" between
+    an exchange and a queue.
+
+Only Describe's intents count, not those Name groups writes for lines leaving a group. The scorer's
+line-label check counts a label as generic when it is empty or opens with a generic verb, so the
+fallback "Calls <methods>" fails it as "Uses" did. A person's lines are still checked: their fixed
+"Uses" and "Uses, through <frontend>" fail it as the bare "Uses" did before, which is what the bar
+says of them until people's lines are worded. Both coverages keep their items' scores for the
+paired comparison.

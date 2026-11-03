@@ -19,6 +19,7 @@ import {
   scorecardMarkdown,
   subjectOverlap,
   subjectWords,
+  qualityChecks,
 } from '../scripts/score.mjs';
 
 const testsets = fileURLToPath(new URL('../../testsets/', import.meta.url));
@@ -245,6 +246,33 @@ test('flows match by trigger and are compared by participants', () => {
   assert.deepEqual(missed.missing, ['Place an order (POST /api/orders/{}/items)']);
 });
 
+test('a line label that opens with a generic verb fails the line-label check (#742)', () => {
+  const data = {
+    document: { title: 't' },
+    elements: { a: { kind: 'container', name: 'a' }, b: { kind: 'container', name: 'b' }, c: { kind: 'container', name: 'c' } },
+    pages: [
+      {
+        title: 'p',
+        level: 'components',
+        sections: [
+          {
+            type: 'diagram',
+            id: 'd',
+            nodes: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+            relationships: [
+              { from: 'a', to: 'b', label: 'Calls write, flush' },
+              { from: 'b', to: 'c', label: 'Only with the Spring profile dev' },
+              { from: 'a', to: 'c', label: 'Looks up prices (only with the Spring profile dev)' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const checks = Object.fromEntries(qualityChecks(data).map((c) => [c.id, c]));
+  assert.deepEqual(checks['line-labels'].failures, ['p / d: a -> b', 'p / d: b -> c']);
+});
+
 test('risks match by subject, decisions and glossary terms are counted', () => {
   const s = score(report, reference, aliases);
   assert.equal(s.risks.matched, 1);
@@ -372,8 +400,8 @@ test('snapshot-4 project-4 report scores as the assessment counted', () => {
   assert.ok(s.elements.containers.extra.includes('storefront'), 'and counts as extra');
   const failing = s.checks.filter((c) => !c.pass).map((c) => c.id);
   // Its largest diagram, main-service's 45 components, is readable at the provisional threshold
-  // (ADR 0117).
-  assert.deepEqual(failing, ['decisions', 'risks', 'glossary']);
+  // (ADR 0117). Its lines between components labelled "Calls <methods>" carry no intent (#742).
+  assert.deepEqual(failing, ['line-labels', 'decisions', 'risks', 'glossary']);
 });
 
 test('the command line reads HTML reports and writes the scorecard, and compares two', () => {

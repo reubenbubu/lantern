@@ -127,33 +127,206 @@ export function resolveRow(key, linked, llm, run) {
   return row;
 }
 
-/** A text as a line's label shows it: citation markers dropped, spaces folded. */
-const label = (text) =>
+/**
+ * A text as a line's label shows it: citation markers dropped, spaces folded, and the note a line
+ * drawn only under some Spring profiles carries, " (only with the Spring profile x)", left off.
+ */
+export const label = (text) =>
   String(text ?? '')
     .replace(/\[(fact|summary):[^\]]*\]/g, '')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    .replace(/^Only with the Spring profiles? .*$/, '')
+    .replace(/ \(only with the Spring profiles? [^)]*\)$/, '');
+
+/**
+ * The openings that say only that there is a relationship, not what it is for: those Describe's
+ * prompt forbids an intent to start with, and "accesses", which the quality bar's check of line
+ * labels also counts as generic.
+ */
+const GENERIC_OPENING =
+  /^(uses|use|calls|depends on|connects to|talks to|communicates with|interacts with|accesses)\b/i;
+
+/** Whether a line label or an intent is empty or opens only with a generic verb. */
+export const isGenericLabel = (text) => {
+  const plain = label(text);
+  return plain === '' || GENERIC_OPENING.test(plain);
+};
 
 /** The kinds of report element Describe gives a responsibility. */
 const DESCRIBED_KINDS = new Set(['container', 'database', 'queue', 'external', 'component', 'person']);
 
+/** The links between units Describe words an intent for (Describer.LINKS). */
+const DESCRIBED_LINKS = new Set([
+  'CALLS_HTTP',
+  'SENDS_MAIL',
+  'USES_IDENTITY_PROVIDER',
+  'PUBLISHES',
+  'CONSUMES',
+  'USES_DATABASE',
+  'ACCESSES_DATA_OF',
+]);
+
+/** The kinds of report element a message passes through. */
+const MESSAGING_KINDS = new Set(['queue', 'exchange', 'topic']);
+
+/** The report IDs an entity of the facts may be drawn under: its own, or its type's for a component. */
+const drawnIds = (entity) => [reportId(entity), reportId(String(entity).split('/').pop())];
+
+const list = (v) => (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v]);
+
 /**
- * Describe's coverage (section 13): the share of the report's elements with a responsibility it
- * wrote, and of the lines the report draws whose label is an intent it wrote (a person's lines keep
- * their fixed labels, so they are left out). Its wording's judge score is added by the scorecard
- * (wording.mjs, judgedRows).
+ * Whether a unit's link is the alternative of a default one under a Spring profile, which Describe
+ * leaves out (Screens.alternatives): it holds only under a profile, and a link of the same unit and
+ * kind holds by default, is absent under that profile and has the same origin (each names the other
+ * as an alternate, or both come from the same source or key).
  */
-export function describeRow(report, linked, llm) {
+function isAlternative(link, sameKind) {
+  const profile = link.attributes?.view;
+  if (!profile) return false;
+  return sameKind.some(
+    (f) =>
+      f !== link &&
+      !f.attributes?.view &&
+      list(f.attributes?.absentIn).includes(profile) &&
+      (list(link.attributes?.alternates).includes(f.object?.value) ||
+        ['source', 'key'].some((k) => link.attributes?.[k] !== undefined && link.attributes[k] === f.attributes?.[k])),
+  );
+}
+
+/**
+ * The interactions Describe words (DescribeItems.interactions), from the linker's facts: each unit's
+ * links of the kinds above other than a profile's alternative, and the lines between two components
+ * of the same unit other than to code at the end of a call. A person's use of a unit, which Describe
+ * also words, is left out, as the drawn lines leave it out. Each with its unit (a component's, by
+ * PART_OF) and the claim and fact IDs an intent's object may name.
+ */
+function interactionsOf(linked, units) {
+  const unitOf = new Map();
+  for (const f of linked) if (f.predicate === 'PART_OF') unitOf.set(f.subject, f.object?.value);
+  const byUnitAndKind = new Map();
+  for (const f of linked) {
+    if (!DESCRIBED_LINKS.has(f.predicate) || !units.has(f.subject)) continue;
+    const key = `${f.subject} ${f.predicate}`;
+    if (!byUnitAndKind.has(key)) byUnitAndKind.set(key, []);
+    byUnitAndKind.get(key).push(f);
+  }
+  const result = [];
+  for (const facts of byUnitAndKind.values()) {
+    for (const f of facts) {
+      if (!isAlternative(f, facts)) result.push({ fact: f, unit: f.subject, keys: [f.claim, f.id].filter(Boolean) });
+    }
+  }
+  for (const f of linked) {
+    if (f.predicate !== 'COMPONENT_LINK' || f.attributes?.kind === 'code-end') continue;
+    const unit = unitOf.get(f.subject);
+    if (unit && unitOf.get(f.object?.value) === unit) result.push({ fact: f, unit, keys: [f.claim, f.id].filter(Boolean) });
+  }
+  return result;
+}
+
+/**
+ * Describe's coverage (section 13; #742). Three numbers:
+ *
+ * - elements: the share of the report's elements with a responsibility it wrote;
+ * - model: each interaction Describe words (`interactionsOf`), scored right when it has an intent
+ *   of its own that does not open with a generic verb, wrong when its intent does (a point lost,
+ *   PENALTY.describe), "don't know" when it has none, and not asked when Describe never asked
+ *   about its unit (budget or a failure);
+ * - drawn: of the lines the report draws, other than a person's (whose labels are fixed), those
+ *   labelled with the intent Describe wrote for a link running between the line's two ends, or
+ *   elements inside them; and of the rest, those whose label is generic.
+ *
+ * Only Describe's intents count, not those Name groups writes for lines leaving a group. Its
+ * wording's judge score is added by the scorecard (wording.mjs, judgedRows).
+ */
+export function describeRow(report, linked, llm, run = null) {
   if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
   // A component is drawn under its anchor type's ID (component:<unit>/type:<type> as type-<type>).
-  const described = new Set(
-    llm
-      .filter((f) => f.predicate === 'responsibility')
-      .flatMap((f) => [reportId(f.subject), reportId(String(f.subject).split('/').pop())]),
-  );
+  const described = new Set(llm.filter((f) => f.predicate === 'responsibility').flatMap((f) => drawnIds(f.subject)));
   const elements = Object.entries(report.elements).filter(([, e]) => DESCRIBED_KINDS.has(e.kind));
   const withText = elements.filter(([id]) => described.has(id));
-  const intents = new Set(llm.filter((f) => f.predicate === 'intent').map((f) => label(f.attributes?.text)));
+  const scores = {};
+  for (const [id] of elements) scores[`element:${id}`] = withText.some(([w]) => w === id) ? 1 : 0;
+
+  // Describe's intents, by the claim or fact of the link each words; a link worded in more than one
+  // item, or again by a later run whose answer is in the snapshot too, has several.
+  const intentOf = new Map();
+  for (const f of llm) {
+    if (f.predicate !== 'intent' || f.origin?.name !== 'describe-unit') continue;
+    const key = f.object?.value;
+    if (!intentOf.has(key)) intentOf.set(key, new Set());
+    intentOf.get(key).add(label(f.attributes?.text));
+  }
+
+  // The model: each interaction scored right, wrong or "don't know".
+  const record = (run?.harness ?? []).find((r) => r.role === 'describe-unit') ?? null;
+  const unasked = new Set(record?.unaskedSubjects ?? []);
+  const asked = new Set([...(record?.askedSubjects ?? []), ...(record?.cachedSubjects ?? [])]);
+  const units = new Set([...asked, ...unasked]);
+  let model = null;
+  if (linked && record) {
+    const items = interactionsOf(linked, units).map(({ fact, unit, keys }) => {
+      const texts = keys.flatMap((k) => [...(intentOf.get(k) ?? [])]);
+      // Right when one of its intents is not generic.
+      const text = texts.find((t) => !isGenericLabel(t)) ?? texts[0];
+      const outcome =
+        text !== undefined
+          ? isGenericLabel(text)
+            ? 'wrong'
+            : 'correct'
+          : asked.has(unit)
+            ? 'abstained'
+            : 'notAsked';
+      return { id: `interaction:${fact.id}`, outcome, unknown: false, text };
+    });
+    const row = threeOutcomes(items, PENALTY.describe);
+    Object.assign(scores, row.scores);
+    model = {
+      interactions: row.items,
+      own: row.correct,
+      generic: row.wrong,
+      unknown: row.abstained,
+      notAsked: row.notAsked,
+      coverage: ratio(row.correct, row.items),
+      penalized: row.penalized,
+      penalty: row.penalty,
+      genericItems: items.filter((i) => i.outcome === 'wrong').map((i) => i.text),
+    };
+  }
+
+  // The page: each line drawn, once, with its own link's intent or not. A line and a link share an
+  // end when one is the other or lies inside it: a view draws a link between the boxes it shows,
+  // a container for its component or a component for its unit. A consumer's line is drawn from
+  // what it reads, the queue or the exchange the queue is bound to, so any messaging box is that
+  // end.
+  const chain = (id) => {
+    const result = [];
+    for (let at = id; at && !result.includes(at); at = report.elements[at]?.parent) result.push(at);
+    return result;
+  };
+  const related = (box, ids) => chain(box).some((a) => ids.includes(a)) || ids.some((id) => chain(id).includes(box));
+  const worded = [];
+  if (linked) {
+    const byKey = new Map();
+    for (const f of linked) for (const k of [f.claim, f.id]) if (k) byKey.set(k, f);
+    for (const [key, texts] of intentOf) {
+      const link = byKey.get(key);
+      if (link) {
+        worded.push({ texts, consumes: link.predicate === 'CONSUMES', source: drawnIds(link.subject), target: drawnIds(link.object?.value) });
+      }
+    }
+  }
+  const ownLink = (r) => {
+    const text = label(r.label);
+    return worded.some((w) =>
+      !w.texts.has(text)
+        ? false
+        : w.consumes
+          ? MESSAGING_KINDS.has(report.elements[r.from]?.kind) && related(r.to, w.source)
+          : related(r.from, w.source) && related(r.to, w.target),
+    );
+  };
   const lines = new Map();
   for (const page of report.pages) {
     for (const section of page.sections) {
@@ -161,23 +334,30 @@ export function describeRow(report, linked, llm) {
       for (const r of section.relationships) {
         if (report.elements[r.from]?.kind === 'person') continue;
         const key = `${r.from}->${r.to}`;
-        lines.set(key, (lines.get(key) ?? false) || intents.has(label(r.label)));
+        const own = ownLink(r);
+        const was = lines.get(key) ?? { own: false, generic: true };
+        lines.set(key, { own: was.own || own, generic: was.generic && !own && isGenericLabel(r.label) });
       }
     }
   }
-  const interactions = { size: lines.size };
-  const intended = [...lines.values()].filter(Boolean);
-  const scores = {};
-  for (const [id] of elements) scores[`element:${id}`] = withText.some(([w]) => w === id) ? 1 : 0;
-  for (const [key, has] of lines) scores[`line:${key}`] = has ? 1 : 0;
+  const drawnOwn = [...lines.values()].filter((l) => l.own).length;
+  const drawnGeneric = [...lines.values()].filter((l) => !l.own && l.generic).length;
+  for (const [key, l] of lines) scores[`line:${key}`] = l.own ? 1 : 0;
   return {
     measured: true,
     elements: elements.length,
     elementsDescribed: withText.length,
     elementCoverage: ratio(withText.length, elements.length),
-    interactions: interactions.size,
-    interactionsIntended: intended.length,
-    interactionCoverage: ratio(intended.length, interactions.size),
+    model:
+      model ??
+      notMeasured(!linked ? 'the run wrote no linked.jsonl.gz' : 'run.json has no record of describe-unit'),
+    drawn: {
+      lines: lines.size,
+      own: drawnOwn,
+      generic: drawnGeneric,
+      other: lines.size - drawnOwn - drawnGeneric,
+      coverage: ratio(drawnOwn, lines.size),
+    },
     undescribed: elements.filter(([id]) => !withText.some(([w]) => w === id)).map(([, e]) => e.name),
     scores,
   };
