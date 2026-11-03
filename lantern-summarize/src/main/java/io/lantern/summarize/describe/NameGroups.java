@@ -85,11 +85,14 @@ public final class NameGroups {
   static final int PACKET = 8;
 
   /** The most words of a name, a responsibility, an intent and a merge reason. */
-  static final int NAME_WORDS = 4;
+  static final int NAME_WORDS = io.lantern.harness.Contract.of("name-groups").acceptedWords("name");
 
-  static final int SENTENCE_WORDS = 25;
-  static final int PHRASE_WORDS = 8;
-  static final int REASON_WORDS = 20;
+  static final int SENTENCE_WORDS =
+      io.lantern.harness.Contract.of("name-groups").acceptedWords("responsibility");
+  static final int PHRASE_WORDS =
+      io.lantern.harness.Contract.of("name-groups").acceptedWords("intent");
+  static final int REASON_WORDS =
+      io.lantern.harness.Contract.of("name-groups").acceptedWords("mergeReason");
 
   /** The most other groups an item lists for a merge suggestion. */
   static final int MAX_OTHERS = 30;

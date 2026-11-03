@@ -65,7 +65,9 @@ class ResolvePromptTest {
             + " "
             + LinkResolver.PACKET_SIZE
             + " "
-            + ResolvePrompt.REASON_WORDS
+            // The size the prompt asks for; what the check accepts is the contract's, not part of
+            // the prompt (ADR 0118).
+            + io.lantern.harness.Contract.of("resolve").requestedWords("reason")
             + "\n--\n"
             + new GraphTools.Graph(List.of(), (repo, path) -> java.util.Optional.empty())
                 .tools()

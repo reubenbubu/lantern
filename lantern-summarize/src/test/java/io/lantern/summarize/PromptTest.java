@@ -299,4 +299,16 @@ class PromptTest {
         "fake",
         "m");
   }
+
+  @Test
+  void theSentenceLimitTheRequestStatesIsItsContracts() {
+    // Summarize's prompt files state no limit: each request states its contract's (ADR 0118).
+    io.lantern.harness.Contract contract = io.lantern.harness.Contract.of("summarize");
+    String stated = contract.field("sentence").stated();
+    org.assertj.core.api.Assertions.assertThat(Prompt.length(SummaryLevel.TYPE)).contains(stated);
+    org.assertj.core.api.Assertions.assertThat(stated)
+        .contains(String.valueOf(contract.requestedWords("sentence")));
+    org.assertj.core.api.Assertions.assertThat(Prompt.SENTENCE_WORDS)
+        .isEqualTo(contract.acceptedWords("sentence"));
+  }
 }

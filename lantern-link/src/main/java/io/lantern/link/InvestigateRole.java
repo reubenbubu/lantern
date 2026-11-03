@@ -77,11 +77,14 @@ final class InvestigateRole implements PacketRole {
   static final int MAX_PROPOSALS = 10;
 
   /** The most words of a title, and of a finding or consequence. */
-  static final int TITLE_WORDS = 8;
+  static final int TITLE_WORDS =
+      io.lantern.harness.Contract.of("investigate").acceptedWords("title");
 
-  static final int SENTENCES_WORDS = 70;
+  static final int SENTENCES_WORDS =
+      io.lantern.harness.Contract.of("investigate").acceptedWords("finding");
 
-  static final int DESCRIPTION_WORDS = 15;
+  static final int DESCRIPTION_WORDS =
+      io.lantern.harness.Contract.of("investigate").acceptedWords("description");
 
   /** A proposal's number in a Mode B or C entry, such as {@code proposals.P3}. */
   private static final Pattern PROPOSAL =

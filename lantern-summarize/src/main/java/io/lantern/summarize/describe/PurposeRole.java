@@ -54,9 +54,11 @@ public final class PurposeRole {
   static final String VERSION = "4";
 
   /** The most words of the purpose and of the key fact. */
-  static final int PURPOSE_WORDS = 25;
+  static final int PURPOSE_WORDS =
+      io.lantern.harness.Contract.of("purpose").acceptedWords("purpose");
 
-  static final int KEY_FACT_WORDS = 30;
+  static final int KEY_FACT_WORDS =
+      io.lantern.harness.Contract.of("purpose").acceptedWords("keyFact");
 
   public static final String TASK = DescribeRole.prompt("purpose.task.txt");
   public static final String SCHEMA = DescribeRole.prompt("purpose.schema.json");

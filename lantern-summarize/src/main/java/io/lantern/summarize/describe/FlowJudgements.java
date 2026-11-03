@@ -73,10 +73,14 @@ public final class FlowJudgements {
   /** The flows a unit's first-pass item keeps for the system's item. */
   public static final int KEPT_PER_UNIT = 15;
 
-  static final int REASON_WORDS = 20;
-  static final int TITLE_WORDS = 6;
-  static final int WALKTHROUGH_WORDS = 80;
-  static final int CONDITION_WORDS = 25;
+  static final int REASON_WORDS =
+      io.lantern.harness.Contract.of("flow-significance").acceptedWords("reason");
+  static final int TITLE_WORDS =
+      io.lantern.harness.Contract.of("flow-narrative").acceptedWords("title");
+  static final int WALKTHROUGH_WORDS =
+      io.lantern.harness.Contract.of("flow-narrative").acceptedWords("walkthrough");
+  static final int CONDITION_WORDS =
+      io.lantern.harness.Contract.of("flow-narrative").acceptedWords("preconditions");
 
   /** The repair turn when no flow is significant while some cross a unit boundary (the epic's). */
   public static final String NONE_SIGNIFICANT =

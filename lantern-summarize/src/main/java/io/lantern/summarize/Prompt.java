@@ -76,13 +76,15 @@ final class Prompt {
   static final String ITEM = "I1";
 
   /** The most words of one sentence the checks accept; the schema's 300 characters bound it too. */
-  static final int SENTENCE_WORDS = 35;
+  static final int SENTENCE_WORDS =
+      io.lantern.harness.Contract.of("summarize").acceptedWords("sentence");
 
   /**
    * The most words of one sentence the prompt asks for: fewer than the checks accept, unsaid, so a
    * sentence a little over what was asked is not sent back (#685).
    */
-  static final int ASKED_WORDS = 30;
+  static final int ASKED_WORDS =
+      io.lantern.harness.Contract.of("summarize").requestedWords("sentence");
 
   private static final Pattern MARKER = Pattern.compile("\\s*\\[(?:fact|summary):[^\\]\\s]+\\]");
 
