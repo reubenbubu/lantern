@@ -94,9 +94,9 @@ final class UnknownsPage {
                 + " to a risk:"));
     // Leads of one kind about the same units, unclear for the same reason, read as one line.
     Map<List<String>, Integer> lines = new LinkedHashMap<>();
-    List<Fact> facts = new ArrayList<>();
+    // A note: what the investigator could not decide cites nothing (Quality bar, ADR 0046); its
+    // verdicts name the model that was asked, which a report reads the same whichever it was.
     for (Unknowns.Lead lead : leads) {
-      facts.add(lead.verdict());
       String about =
           ScopeFlows.list(lead.units().stream().map(assembler::name).toList())
               + ": "
@@ -119,7 +119,7 @@ final class UnknownsPage {
             null,
             "Not decided",
             content,
-            assembler.facts(facts)));
+            List.of()));
   }
 
   /** The units, and the system, the LLM investigator did not look at. */
