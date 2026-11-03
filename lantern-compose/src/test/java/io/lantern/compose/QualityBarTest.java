@@ -337,8 +337,8 @@ class QualityBarTest {
     assertThat(failed(document, QualityBar.ONE_LEVEL))
         .containsExactly("d: It also shows com.example (package).");
     assertThat(failed(document, QualityBar.ELEMENTS)).containsExactly("d: It shows 16 elements.");
-    assertThat(failed(document, QualityBar.TECHNOLOGY))
-        .containsExactly("d: No technology for com.example and shop.");
+    // What a box or line lacks is asked of the model, not of the diagram (ModelChecksTest).
+    assertThat(failed(document, QualityBar.TECHNOLOGY)).isEmpty();
     assertThat(failed(document, QualityBar.LABELLED))
         .containsExactly(
             "d: Labelled only with a generic verb or not at all: shop to shop on db"
@@ -347,8 +347,7 @@ class QualityBarTest {
         .containsExactly("d: No facts behind shop to shop on db.");
     assertThat(failed(document, QualityBar.CONDITIONAL))
         .containsExactly("d: Holds only under a profile it does not name: shop to t0 (audit).");
-    assertThat(failed(document, QualityBar.PROTOCOL))
-        .containsExactly("d: No protocol on shop to shop on db.");
+    assertThat(failed(document, QualityBar.PROTOCOL)).isEmpty();
     // The database rests on no fact, not even through a line.
     assertThat(failed(document, QualityBar.CLAIMS)).containsExactly("d: No fact for shop on db.");
   }

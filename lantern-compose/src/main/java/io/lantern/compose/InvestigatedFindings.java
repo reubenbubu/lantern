@@ -17,7 +17,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.TreeSet;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -26,8 +25,8 @@ import tools.jackson.databind.JsonNode;
  * risk it found opens with {@value #FOUND_BY_LLM}, emphasized, and shows the file:line ranges
  * Lantern verified, so a reader can tell it from what static analysis found; a finding it worded
  * keeps the fixed check as its source and says the wording is the LLM's. The Executive Brief shows
- * them as risk callouts among its own; the other templates in a table of risks and findings, which
- * also names the units Investigate did not look at.
+ * them as risk callouts among its own; the other templates in a table of risks and findings. The
+ * units Investigate did not look at are on the unknowns page ({@link UnknownsPage}).
  */
 final class InvestigatedFindings {
 
@@ -43,7 +42,6 @@ final class InvestigatedFindings {
   private final Knowledge knowledge;
   private final Assembler assembler;
   private final List<Fact> risks;
-  private final Set<EntityId> notInvestigated;
 
   /**
    * @param units the deployable units in scope; a risk is shown if it concerns one of them
@@ -64,13 +62,6 @@ final class InvestigatedFindings {
             .thenComparing(f -> text(f, "title"))
             .thenComparing(Fact::id));
     this.risks = List.copyOf(found);
-    Set<EntityId> left = new TreeSet<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(Types.NOT_INVESTIGATED)) {
-      if (units.contains(fact.subject())) {
-        left.add(fact.subject());
-      }
-    }
-    this.notInvestigated = left;
   }
 
   /** Whether Investigate found any risk in scope. */
@@ -148,23 +139,6 @@ final class InvestigatedFindings {
                   new Table.Column("Confidence"),
                   new Table.Column("Evidence")),
               rows,
-              List.of()));
-    }
-    if (!notInvestigated.isEmpty()) {
-      List<String> names = notInvestigated.stream().map(assembler::name).sorted().toList();
-      blocks.add(
-          new Callout(
-              assembler.id(section, "not-investigated"),
-              Callout.Variant.NOTE,
-              null,
-              "Not investigated",
-              List.of(
-                  TextRun.of(
-                      "The LLM investigator did not look at "
-                          + String.join(", ", names)
-                          + ": a budget or the model left "
-                          + (names.size() == 1 ? "it" : "them")
-                          + " out, so risks there are unknown.")),
               List.of()));
     }
     return blocks;

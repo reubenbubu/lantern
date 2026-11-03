@@ -1,6 +1,6 @@
 # 0046: The Quality bar checks the composer makes
 
-Status: accepted (#163), amended by ADR 0048 (#97), ADR 0051 (#159), ADR 0052 (#164), ADR 0062 (#186) and ADR 0063 (#178), amended for #369
+Status: accepted (#163), amended by ADR 0048 (#97), ADR 0051 (#159), ADR 0052 (#164), ADR 0062 (#186) and ADR 0063 (#178), amended for #369 and #700
 
 ## Context
 
@@ -76,3 +76,14 @@ ADR 0052, quality evidence in ADR 0062).
 
 - no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold. The check reports a diagram over any readability threshold.
 - The Architecture Explorer and Executive Brief checks stay as built, but those documents are out of scope for now (`docs/design.md`, Non-goals).
+
+## Amendment (#700): checks of what elements and lines lack are queries on the model.
+
+- *Technology*, *responsibility* and *protocol* are asked of the stored model for the document's scope (`Unknowns` in `lantern-derive`; knowledge-build epic, section 12), not of the diagrams' boxes and lines:
+  - containers without a technology: the scope's units and frontends and the data stores they use; topics, queues and exchanges are named by their broker; external systems and people need none;
+  - components without a technology, of units with more than one component (those the component views draw);
+  - a new check, *Every element has a responsibility sentence* (Quality bar, Every diagram): the same containers, the external systems and people at the other end of their lines, and those components, when neither a responsibility sentence nor a unit's summary describes them;
+  - lines between two containers (neither end an external system or a person) without a protocol, whichever view draws them.
+- Each of these fails once for the document, naming no block, since it holds for the scope whichever diagram draws the element; the C4 report puts such failures on its first page (above).
+- **The unknowns page.** The decisions and unknowns section lists, after the decision records, what the model holds as open, each once and from the same queries: links left open ("Not linked", moved from the container views), leads Investigate left unclear or was not asked about ("Not decided"), the units it did not look at ("Not investigated", moved from the findings table) and elements without a responsibility ("Responsibility not known", a note citing nothing). The unknown caller is not in the model yet (#365).
+
