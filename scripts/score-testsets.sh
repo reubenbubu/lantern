@@ -65,6 +65,12 @@ Options:
                             it should re-ask only the items resting on that file). The file is the
                             first controller of the set's repositories, else the first Java file.
   --change-file REPO:PATH   The file --gates changes, in the sets that have that repository.
+  --jobs N                  Analyze up to N sets at once (#785). Each set runs as its own call of
+                            this script, on a database of its own (compose project
+                            <COMPOSE_PROJECT_NAME>-<set> on a free port, stopped when the set ends,
+                            its data kept), and writes its log to <scores>/<set>.log. Lantern's jar
+                            is built first, once, when it is missing or older than its sources.
+                            Default 1: one set after another on one database.
   --score-only              Do not analyze: score each set's newest report as it is, the
                             one whose run.json was written last (the highest-numbered folder
                             when none has a run.json). The sets need not be set up.
@@ -100,7 +106,10 @@ gates=false
 change_file=""
 held_out=false
 assume_yes=false
+jobs=1
 sets=()
+# Every argument but the sets and --jobs, for the call per set that --jobs makes.
+passthrough=()
 
 # A role or tier override as the app's property, e.g. summarize=haiku as
 # lantern.llm.roles.summarize=haiku.
@@ -114,7 +123,12 @@ override() {
 }
 
 while [[ $# -gt 0 ]]; do
+  token=("${@:1:2}")
+  before=$#
+  positional=false
   case "$1" in
+    --jobs) [[ $# -ge 2 && "$2" =~ ^[1-9][0-9]*$ ]] || die "--jobs needs a number from 1"; jobs="$2"; shift 2; continue ;;
+    --jobs=*) [[ "${1#*=}" =~ ^[1-9][0-9]*$ ]] || die "--jobs needs a number from 1"; jobs="${1#*=}"; shift; continue ;;
     --llm-properties) [[ $# -ge 2 ]] || die "--llm-properties needs a file"; llm_file="$2"; shift 2 ;;
     --llm-properties=*) llm_file="${1#*=}"; shift ;;
     --mirror-properties) [[ $# -ge 2 ]] || die "--mirror-properties needs a file"; mirror_file="$2"; shift 2 ;;
@@ -142,8 +156,9 @@ while [[ $# -gt 0 ]]; do
     -y | --yes) assume_yes=true; shift ;;
     -h | --help) usage; exit 0 ;;
     -*) die "unknown option $1 (see --help)" ;;
-    *) sets+=("$1"); shift ;;
+    *) sets+=("$1"); positional=true; shift ;;
   esac
+  $positional || passthrough+=("${token[@]:0:$((before - $#))}")
 done
 [[ ${#sets[@]} -gt 0 ]] || sets=(project-1 project-2 project-3 project-4)
 [[ "$label" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "a label is letters, digits, '.', '_' and '-': '$label'"
@@ -233,6 +248,60 @@ if ! $score_only && ! $assume_yes; then
   answer=""
   read -r -p "Analyze ${#sets[@]} test set(s) with the models of ${llm_file:-<no settings file>}${overrides[*]:+ and ${overrides[*]}}? [y/N] " answer || true
   [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || die "cancelled"
+fi
+
+# --jobs: each set as its own call of this script, on a database of its own (#785).
+if ((jobs > 1)) && ((${#sets[@]} > 1)) && ! $score_only; then
+  base_project="${COMPOSE_PROJECT_NAME:-lantern}"
+  # Lantern's jar is built here, once, so the calls per set never build it at the same time.
+  "$REPO/scripts/launch.sh" --build-only >&2 || die "the app jar could not be built"
+  mkdir -p "$scores"
+  # A free port for each set's database, none handed out twice, unless its database already runs.
+  free_port() {
+    local port="$1"
+    while ((port <= 65535)); do
+      if [[ " ${taken[*]-} " != *" $port "* ]] && ! (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+        echo "$port"
+        return 0
+      fi
+      ((port++))
+    done
+    return 1
+  }
+  taken=()
+  next_port=$((${LANTERN_DB_PORT:-5432} + 1))
+  declare -A pid_of=()
+  started_at=$SECONDS
+  for set in "${sets[@]}"; do
+    while (($(jobs -rp | wc -l) >= jobs)); do
+      wait -n || true
+    done
+    project="$base_project-$set"
+    port=""
+    if [[ -z "$(COMPOSE_PROJECT_NAME="$project" docker compose -f "$REPO/docker-compose.yml" -p "$project" ps -q --status running postgres 2>/dev/null)" ]]; then
+      port="$(free_port "$next_port")" || die "no free port for the database of $set"
+      taken+=("$port")
+      next_port=$((port + 1))
+    fi
+    info "$set: analyzing on its own database (project $project${port:+, port $port}); log in $scores/$set.log"
+    (
+      export COMPOSE_PROJECT_NAME="$project"
+      [[ -n "$port" ]] && export LANTERN_DB_PORT="$port"
+      status=0
+      "$0" ${passthrough[@]+"${passthrough[@]}"} --yes "$set" > "$scores/$set.log" 2>&1 || status=$?
+      "$REPO/scripts/teardown.sh" >> "$scores/$set.log" 2>&1 || true
+      exit "$status"
+    ) &
+    pid_of[$set]=$!
+  done
+  failed=()
+  for set in "${sets[@]}"; do
+    wait "${pid_of[$set]}" || failed+=("$set")
+  done
+  info "${#sets[@]} sets in $((SECONDS - started_at)) s, up to $jobs at once"
+  [[ ${#failed[@]} -eq 0 ]] || die "failed: ${failed[*]} (see $scores/<set>.log)"
+  info "scorecards are in $scores"
+  exit 0
 fi
 
 # The snapshot folders of a system's documents whose run.json was written after the file given,
