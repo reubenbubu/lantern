@@ -381,8 +381,10 @@ function flowTriggers(linked, spell) {
   for (const f of linked) {
     if (f.predicate === 'endpoint') add(f.subject, f.object?.value);
     else if (f.predicate === 'routed-endpoint') add(f.attributes?.endpoint, f.object?.value);
-    else if (f.predicate === 'CALLS_HTTP' && String(f.subject).startsWith('frontend:') && f.attributes?.path) {
-      add(f.attributes.reaches, `${f.attributes.httpMethod ?? ''} ${f.attributes.path}`.trim());
+    else if (f.predicate === 'CALLS_HTTP' && String(f.subject).startsWith('frontend:')) {
+      // As the composer names the request: its path, or its URL when the path is not known.
+      const where = f.attributes?.path ?? f.attributes?.url;
+      if (where) add(f.attributes?.reaches, `${f.attributes?.httpMethod ?? ''} ${where}`.trim());
     }
   }
   return (flow) => {
@@ -393,13 +395,14 @@ function flowTriggers(linked, spell) {
 
 /**
  * The model's choice of flows (#746), apart from whether derivation traced their participants (the
- * Flows row). The system's candidates are matched to the reference's flows by trigger:
+ * Flows row). The candidates are every flow a significance judge saw, in any scope, or every traced
+ * flow when none did, one per shape; they are matched to the reference's flows by trigger. The
+ * chosen ones:
  *
- * - judged: the flows the significance judge was asked about for the whole system, the chosen ones
- *   those it marked significant;
+ * - judged: those the judge of the whole system marked significant, so a flow a unit's pass or the
+ *   system's first pass dropped is a candidate not chosen;
  * - rank: the system's choice fell back to the derived rank (the judge failed or was not asked),
- *   so the candidates are every flow a judge saw, or every traced flow when none did, and the
- *   chosen ones those the report draws.
+ *   so those the report draws.
  *
  * Each reference flow that was a candidate is an item: right when a candidate of its trigger was
  * chosen, wrong when none was (p = 1); a reference flow no candidate starts is apart, and a chosen
@@ -417,20 +420,39 @@ export function flowSelectionRow(refFlows, drawnTriggers, llm, linked, spell) {
   const judgements = llm.filter((f) => f.predicate === 'flow-significance');
   const system = judgements.filter((f) => f.object?.value === 'system');
   const mode = system.length > 0 ? 'judged' : 'rank';
-  const flows =
-    mode === 'judged'
-      ? system
-      : judgements.length > 0
-        ? judgements
-        : linked.filter((f) => f.predicate === 'flow-shape');
+  // Flows of one shape are one candidate (ScopeFlows.candidates keeps the smallest ID), started by
+  // the requests of each of them.
+  const sameAs = new Map();
+  for (const f of linked) if (f.predicate === 'SAME_SHAPE_AS') sameAs.set(f.subject, f.object?.value);
+  const shapeOf = (flow) => {
+    const seen = new Set();
+    let at = flow;
+    while (sameAs.has(at) && !seen.has(at)) {
+      seen.add(at);
+      at = sameAs.get(at);
+    }
+    return at;
+  };
   const triggersOf = flowTriggers(linked, spell);
+  const startedBy = new Map();
+  for (const f of linked) {
+    if (f.predicate !== 'flow-shape') continue;
+    const shape = shapeOf(f.subject);
+    if (!startedBy.has(shape)) startedBy.set(shape, new Set());
+    for (const t of triggersOf(f.subject)) startedBy.get(shape).add(t);
+  }
+  // The candidates: every flow a judge saw, in any scope (the system's own first pass, on a large
+  // system, is not stored, but each unit's pass is), or every traced flow when none did.
+  const seenFlows = judgements.length > 0 ? judgements.map((f) => f.subject) : [...startedBy.keys()];
   const drawn = new Set(drawnTriggers.filter(Boolean));
+  const significant = new Set(system.filter((f) => f.attributes?.significant === true).map((f) => shapeOf(f.subject)));
   const candidates = new Map();
-  for (const f of flows) {
-    const triggers = triggersOf(f.subject);
-    const chosen = mode === 'judged' ? f.attributes?.significant === true : triggers.some((t) => drawn.has(t));
-    const was = candidates.get(f.subject);
-    candidates.set(f.subject, { triggers, chosen: (was?.chosen ?? false) || chosen });
+  for (const flow of seenFlows) {
+    const shape = shapeOf(flow);
+    if (candidates.has(shape)) continue;
+    const triggers = [...new Set([...(startedBy.get(shape) ?? []), ...triggersOf(flow)])];
+    const chosen = mode === 'judged' ? significant.has(shape) : triggers.some((t) => drawn.has(t));
+    candidates.set(shape, { triggers, chosen });
   }
   const all = [...candidates.values()];
   const items = [];

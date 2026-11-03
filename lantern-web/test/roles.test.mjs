@@ -467,19 +467,45 @@ test("flow selection, judged: each reference flow among the candidates is right 
     verdict('pay', 'system', false), // a reference flow left out: wrong
     verdict('login', 'system', true), // started by the browser's call
     verdict('health', 'system', true), // chosen, in no reference flow: unjudged, lowers precision
-    verdict('list', 'service:a', true), // a unit's verdict: not the system's choice, not a candidate
+    verdict('list', 'service:a', true), // a unit's verdict: a candidate, not the system's choice
   ];
   const row = flowSelectionRow(selectionRef, [], llm, selectionLinked, spell);
   assert.equal(row.mode, 'judged');
   assert.deepEqual(
     { candidates: row.candidates, chosen: row.chosen, items: row.items, right: row.right, chosenMatching: row.chosenMatching },
-    { candidates: 4, chosen: 3, items: 3, right: 2, chosenMatching: 2 },
+    { candidates: 5, chosen: 3, items: 3, right: 2, chosenMatching: 2 },
   );
   assert.equal(row.precision, 2 / 3);
   assert.equal(row.penalized, (2 - 1) / 3);
   assert.deepEqual(row.missed, ['Pay']);
   assert.deepEqual(row.notCandidates, ['Stream updates (stomp)']);
   assert.deepEqual(row.scores, { 'POST /api/orders#0': 1, 'POST /pay/api/payments#1': -1, 'GET /bff/login#2': 1 });
+});
+
+test('flow selection: a flow a unit pass dropped is missed, and a flow of the same shape starts its twin', () => {
+  const linked = [
+    ...selectionLinked,
+    // "refund" has the shape of "pay": one candidate, started by either request.
+    ...flowFacts('refund', 'POST /api/refunds'),
+    { id: 'same', predicate: 'SAME_SHAPE_AS', subject: 'flow:service:a/entry-refund', object: { kind: 'entity', value: 'flow:service:a/entry-pay' }, attributes: {} },
+    // A frontend call known only by its URL.
+    { id: 'h2', predicate: 'CALLS_HTTP', subject: 'frontend:web', object: { kind: 'entity', value: 'service:a' }, attributes: { httpMethod: 'POST', url: 'POST-ONLY-URL', reaches: 'method:C#order()' } },
+  ];
+  const llm = [
+    verdict('order', 'service:a', false), // dropped in the unit's pass: never reached the system judge
+    verdict('pay', 'system', true),
+    verdict('login', 'system', false),
+  ];
+  const ref = [
+    { title: 'Place an order', trigger: 'POST /api/orders' },
+    { title: 'Refund', trigger: 'POST /api/refunds' },
+    { title: 'Order by URL', trigger: 'POST POST-ONLY-URL' },
+  ];
+  const row = flowSelectionRow(ref, [], llm, linked, spell);
+  assert.equal(row.candidates, 3);
+  assert.deepEqual(row.missed, ['Place an order', 'Order by URL']);
+  assert.equal(row.right, 1); // the refund, by its twin's verdict
+  assert.deepEqual(row.notCandidates, []);
 });
 
 test('flow selection, rank fallback: without the system judge the chosen flows are those the report draws', () => {
@@ -492,6 +518,7 @@ test('flow selection, rank fallback: without the system judge the chosen flows a
   // With no judgement at all, every traced flow is a candidate.
   const none = flowSelectionRow(selectionRef, ['POST /api/orders'], [], selectionLinked, spell);
   assert.equal(none.candidates, 5);
+  // Every traced flow, one per shape.
   assert.equal(none.right, 1);
   assert.equal(flowSelectionRow([], [], [], [], spell).measured, false);
   assert.equal(flowSelectionRow(selectionRef, [], null, selectionLinked, spell).measured, false);
