@@ -69,7 +69,7 @@ test('a size rule counts texts too short and too long apart: within, accepted ou
   assert.equal(rows.find((r) => r.role === 'name-groups' && r.field === 'intent').within, 1);
   const md = contractLines(rows, null, 7).join('\n');
   assert.match(md, /\| describe-units \| intent \| words \| 4 to 7 \| 3 to 8 \| 4 \| 25% \| 25% \| 25% \| 1, 0 \| 1, 1 \| 1, 0 \|/);
-  assert.match(md, /\| resolve \| reason \| words \| 8 to 30 \| 7 to 35 \| 0 \| - \| - \| - \| 0, 0 \| 0, 0 \| 1, 0 \|/);
+  assert.match(md, /\| resolve \| reason \| words \| 7 to 30 \| 6 to 35 \| 0 \| - \| - \| - \| 0, 0 \| 0, 0 \| 1, 0 \|/);
 });
 
 test('words and sentences are counted as the checks count them', () => {

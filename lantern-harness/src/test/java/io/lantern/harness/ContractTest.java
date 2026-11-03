@@ -131,12 +131,15 @@ class ContractTest {
   }
 
   /**
-   * A size the prompts state: "N to M" or "at most N" (of anything but cited lines) or a sentence
-   * count.
+   * A size the prompts state: "N to M", "at most N" (of anything but cited lines), a text's name
+   * followed by a number ("title 5"), or a sentence count.
    */
   private static final Pattern SIZE =
       Pattern.compile(
-          "\\b\\d+ to \\d+\\b|at most \\d+\\b(?! lines)|\\b(?:one|two|three|four|five)"
+          "\\b\\d+ to \\d+\\b|at most \\d+\\b(?! lines)"
+              + "|\\b(?:title|walkthrough|conditions?|reason|name|phrase|quote|finding|consequence"
+              + "|description|sentence|purpose|fact)s? \\d+\\b"
+              + "|\\b(?:one|two|three|four|five)"
               + "(?: (?:or|to) (?:one|two|three|four|five))?(?: plain)? sentences?\\b",
           Pattern.CASE_INSENSITIVE);
 

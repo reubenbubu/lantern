@@ -21,7 +21,10 @@
           3,
           5
         ],
-        "stated": "a title of 3 to 5 words"
+        "stated": "a title of 3 to 5 words",
+        "restated": [
+          "title 3 to 5"
+        ]
       },
       "cites": [
         "F",
@@ -45,7 +48,10 @@
           25,
           80
         ],
-        "stated": "30 to 75 words in all"
+        "stated": "30 to 75 words in all",
+        "restated": [
+          "walkthrough 30 to 75"
+        ]
       },
       "sentences": {
         "requested": [
@@ -74,7 +80,10 @@
           6,
           22
         ],
-        "stated": "pre-conditions, 6 to 22 words"
+        "stated": "pre-conditions, 6 to 22 words",
+        "restated": [
+          "pre-conditions 6 to 22"
+        ]
       },
       "cites": [
         "F",
@@ -94,7 +103,10 @@
           10,
           22
         ],
-        "stated": "post-conditions, 10 to 22 words"
+        "stated": "post-conditions, 10 to 22 words",
+        "restated": [
+          "post-conditions 10 to 22"
+        ]
       },
       "cites": [
         "F",

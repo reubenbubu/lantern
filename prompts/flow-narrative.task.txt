@@ -7,4 +7,4 @@ For each item write:
 Leave out any of these that the facts do not show.
 Cite the facts [F..] and earlier answers [A..] each text rests on. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
-Before you answer, check each text against its word limit: title 5, walkthrough 75, each condition 22; and that each text names no protocol or technology its citations do not show.
+Before you answer, check each text against its word range: title 3 to 5, walkthrough 30 to 75, pre-conditions 6 to 22, post-conditions 10 to 22; and that each text names no protocol or technology its citations do not show.

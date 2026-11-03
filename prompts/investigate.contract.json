@@ -57,7 +57,7 @@
         "stated": "the finding, what the code does, in one or two sentences",
         "enforced": false
       },
-      "note": "No word count is stated; the check accepts 70 words (ADR 0110). State one when the prompt next changes (#743)."
+      "note": "Stated in both prompts; the check accepts up to 70 words (ADR 0110)."
     },
     {
       "name": "consequence",
@@ -107,7 +107,7 @@
         ],
         "stated": "a description of 3 to 12 words"
       },
-      "note": "Not stated in the prompt; the check accepts 15 words."
+      "note": "Stated in the explore prompt; the check accepts up to 15 words."
     }
   ],
   "counts": [
