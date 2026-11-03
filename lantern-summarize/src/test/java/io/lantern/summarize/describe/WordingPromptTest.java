@@ -1,10 +1,10 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.lantern.compose.WordingPrompt.Question;
 import io.lantern.core.fact.EntityId;
 import io.lantern.derive.ScopeFlows;
+import io.lantern.summarize.describe.WordingPrompt.Question;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

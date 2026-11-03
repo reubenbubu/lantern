@@ -1,10 +1,11 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
+import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
@@ -67,6 +68,9 @@ import org.slf4j.LoggerFactory;
  * again. Calls run in parallel on virtual threads, bounded by the client's limits.
  */
 public final class Describer {
+
+  /** The name of the software system, as the documents name it when no other is known. */
+  static final String SYSTEM_NAME = "The system";
 
   /** The most entry points of a unit without components the prompt shows. */
   static final int MAX_ENTRY_POINTS = 15;
@@ -201,7 +205,7 @@ public final class Describer {
         }
       }
       Map<String, Fact> flows = new LinkedHashMap<>();
-      Verdict purpose = verdicts.get(RepoSections.SYSTEM.toString());
+      Verdict purpose = verdicts.get(ArchitectureModel.SYSTEM.toString());
       flowFacts.forEach(
           f ->
               f.apply(snapshot)
@@ -346,10 +350,9 @@ public final class Describer {
     repoFacts = withoutTexts(repoFacts);
     ArchitectureModel systemModel = new ArchitectureModel(facts);
     Knowledge knowledge = systemModel.knowledge();
-    Assembler assembler = new Assembler(systemModel, Set.of(), null, "The system");
-    C4Views c4 =
-        new C4Views(knowledge, assembler, RepoSections.SYSTEM, Elements.units(knowledge), Set.of());
-    Elements shown = c4.elements();
+    // Elements are named as the documents name them, and are those the diagrams show.
+    ElementNames names = new ElementNames(knowledge, SYSTEM_NAME);
+    Elements shown = new Elements(knowledge, systemModel.vocabulary(), names, Set.of());
     Set<Fact> alternatives = shown.alternativeLinks().keySet();
     Map<String, Optional<String>> read = new HashMap<>();
     Function<Evidence, Optional<String>> files =
@@ -364,7 +367,7 @@ public final class Describer {
                   return text;
                 });
     Set<String> documented = new TreeSet<>();
-    DescribeItems describeItems = new DescribeItems(knowledge, assembler, shown, files, summaries);
+    DescribeItems describeItems = new DescribeItems(knowledge, names, shown, files, summaries);
     // Units first, frontends included: elements cite the units' responsibilities.
     List<DescribeRole.Described> unitItems = new ArrayList<>();
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
@@ -470,7 +473,7 @@ public final class Describer {
     // from the units' sentences and the interactions' phrases (knowledge-build epic, section 11.5;
     // ADR 0108).
     Map<String, List<String>> chosen =
-        flows(repoFacts, knowledge, assembler, c4, unitAnswers, tally);
+        flows(repoFacts, knowledge, names, shown, unitAnswers, tally);
     // The system's purpose and key fact rest on all of these, so they are asked about last
     // (knowledge-build epic, section 11.6; ADR 0109).
     Optional<PurposeRole.Asked> purpose =
@@ -490,21 +493,22 @@ public final class Describer {
           count(tally, outcome);
           if (outcome == null || outcome.answer() == null) {
             if (outcome != null && outcome.kind() == Outcome.Kind.DROPPED) {
-              tally.rejected.add(RepoSections.SYSTEM);
+              tally.rejected.add(ArchitectureModel.SYSTEM);
             } else if (outcome == null
                 || outcome.kind() == Outcome.Kind.NOT_ASKED
                 || outcome.kind() == Outcome.Kind.FAILED) {
-              tally.skipped.add(RepoSections.SYSTEM);
+              tally.skipped.add(ArchitectureModel.SYSTEM);
             }
             return;
           }
           Map<String, PurposeRole.Worded> worded = PurposeRole.worded(asked, outcome.answer());
           PurposeRole.Worded said = worded.get(PurposeRole.PURPOSE_FIELD);
           if (said != null) {
-            tally.responsibilities.put(RepoSections.SYSTEM, said.marked());
+            tally.responsibilities.put(ArchitectureModel.SYSTEM, said.marked());
             tally.judgeable.put(
-                RepoSections.SYSTEM,
-                new SupportJudge.Text(RepoSections.SYSTEM.toString(), said.text(), said.lines()));
+                ArchitectureModel.SYSTEM,
+                new SupportJudge.Text(
+                    ArchitectureModel.SYSTEM.toString(), said.text(), said.lines()));
           }
           PurposeRole.Worded key = worded.get(PurposeRole.KEY_FACT);
           if (key != null) {
@@ -711,38 +715,29 @@ public final class Describer {
       String key,
       String title,
       Knowledge knowledge,
-      Assembler assembler,
-      C4Views c4,
-      SortedSet<EntityId> units) {
-
-    SequenceFlows flows(List<String> judged) {
-      return new SequenceFlows(knowledge, assembler, c4, units, judged);
-    }
-
-    /** The flows the scope may draw, as the model gives them. */
-    ScopeFlows candidates() {
-      return new ScopeFlows(knowledge, c4.elements(), units);
-    }
-  }
+      ElementNames names,
+      ScopeFlows flows,
+      SortedSet<EntityId> units) {}
 
   /**
    * The scopes whose documents draw flows: the system, from its facts, and each repository with a
    * unit, from the facts its documents are composed from.
    */
   private static List<Scope> scopes(
-      Collection<Fact> repoFacts, Knowledge knowledge, Assembler assembler, C4Views c4) {
+      Collection<Fact> repoFacts, Knowledge knowledge, ElementNames names, Elements elements) {
     List<Scope> scopes = new ArrayList<>();
+    SortedSet<EntityId> systemUnits = Elements.units(knowledge);
     scopes.add(
         new Scope(
             ArchitectureModel.SYSTEM_SCOPE,
             "the system",
             knowledge,
-            assembler,
-            c4,
-            Elements.units(knowledge)));
+            names,
+            new ScopeFlows(knowledge, elements, systemUnits),
+            systemUnits));
     ArchitectureModel repoModel = new ArchitectureModel(repoFacts);
     Knowledge repoKnowledge = repoModel.knowledge();
-    Assembler repoAssembler = new Assembler(repoModel, Set.of(), null, "The system");
+    ElementNames repoNames = new ElementNames(repoKnowledge, SYSTEM_NAME);
     SortedSet<String> repos = new TreeSet<>();
     repoFacts.forEach(f -> repos.add(f.evidence().repo()));
     for (String repo : repos) {
@@ -750,11 +745,16 @@ public final class Describer {
       if (units.isEmpty()) {
         continue;
       }
-      C4Views repoViews =
-          new C4Views(repoKnowledge, repoAssembler, RepoSections.SYSTEM, units, Set.of(repo));
+      Elements repoElements =
+          new Elements(repoKnowledge, repoModel.vocabulary(), repoNames, Set.of(repo));
       scopes.add(
           new Scope(
-              repo, "the repository " + repo, repoKnowledge, repoAssembler, repoViews, units));
+              repo,
+              "the repository " + repo,
+              repoKnowledge,
+              repoNames,
+              new ScopeFlows(repoKnowledge, repoElements, units),
+              units));
     }
     return scopes;
   }
@@ -770,18 +770,15 @@ public final class Describer {
   private Map<String, List<String>> flows(
       Collection<Fact> repoFacts,
       Knowledge knowledge,
-      Assembler assembler,
-      C4Views c4,
+      ElementNames names,
+      Elements elements,
       Map<EntityId, DescribeRole.Answered> responsibilities,
       Tally tally) {
-    List<Scope> scopes = scopes(repoFacts, knowledge, assembler, c4);
+    List<Scope> scopes = scopes(repoFacts, knowledge, names, elements);
     RoleSession significance = harness.session(FlowJudgements.SIGNIFICANCE);
     Map<Scope, List<ScopeFlows.Candidate>> candidates = new LinkedHashMap<>();
-    Map<Scope, ScopeFlows> queries = new LinkedHashMap<>();
     for (Scope scope : scopes) {
-      ScopeFlows flows = scope.candidates();
-      queries.put(scope, flows);
-      List<ScopeFlows.Candidate> found = flows.candidates();
+      List<ScopeFlows.Candidate> found = scope.flows().candidates();
       if (!found.isEmpty()) {
         candidates.put(scope, found);
       }
@@ -793,10 +790,7 @@ public final class Describer {
           // Each unit's flows in rank order (ADR 0047), so one left unjudged passes on its best.
           List<FlowJudgements.Asked> byUnit =
               FlowJudgements.firstPass(
-                  scope.key(),
-                  queries.get(scope).byRank(found),
-                  responsibilities,
-                  scope.assembler()::name);
+                  scope.key(), scope.flows().byRank(found), responsibilities, scope.names()::name);
           if (!byUnit.isEmpty()) {
             firstPass.put(scope, byUnit);
           }
@@ -814,7 +808,7 @@ public final class Describer {
               });
           FlowJudgements.Asked second =
               FlowJudgements.significance(
-                  scope.key(), scope.title(), expected, responsibilities, scope.assembler()::name);
+                  scope.key(), scope.title(), expected, responsibilities, scope.names()::name);
           planned.add(
               RoleSession.Planned.predicted(scope.key(), Tokens.estimate(second.item().rendering()))
                   .after(unitItems.stream().map(a -> a.item().subject()).toList()));
@@ -825,7 +819,7 @@ public final class Describer {
           if (!firstPass.containsKey(scope)) {
             FlowJudgements.Asked asked =
                 FlowJudgements.significance(
-                    scope.key(), scope.title(), found, responsibilities, scope.assembler()::name);
+                    scope.key(), scope.title(), found, responsibilities, scope.names()::name);
             items.put(scope, asked);
             planned.add(RoleSession.Planned.of(asked.item()));
           }
@@ -848,7 +842,7 @@ public final class Describer {
           }
           FlowJudgements.Asked asked =
               FlowJudgements.significance(
-                  scope.key(), scope.title(), kept, responsibilities, scope.assembler()::name);
+                  scope.key(), scope.title(), kept, responsibilities, scope.names()::name);
           items.put(scope, asked);
         });
     Map<FlowJudgements.Asked, Outcome> judged =
@@ -876,10 +870,11 @@ public final class Describer {
         });
     // The narrative of each flow a scope draws, each flow once.
     Map<String, FlowJudgements.Asked> narratives = new LinkedHashMap<>();
-    Map<String, SequenceFlows.Narrated> narrated = new LinkedHashMap<>();
+    Map<String, FlowJudgements.Narrated> narrated = new LinkedHashMap<>();
     Map<String, Scope> scopeOf = new LinkedHashMap<>();
     for (Scope scope : scopes) {
-      for (SequenceFlows.Narrated flow : scope.flows(chosen.get(scope.key())).narrated()) {
+      for (FlowJudgements.Narrated flow :
+          FlowJudgements.narrated(scope.flows(), chosen.get(scope.key()))) {
         if (scope.key().equals(ArchitectureModel.SYSTEM_SCOPE)) {
           tally.systemFlows.add(flow.key());
         }
@@ -892,7 +887,7 @@ public final class Describer {
                   responsibilities,
                   tally.phrases,
                   scope.knowledge()::fact,
-                  scope.assembler()::name));
+                  scope.names()::name));
         }
       }
     }

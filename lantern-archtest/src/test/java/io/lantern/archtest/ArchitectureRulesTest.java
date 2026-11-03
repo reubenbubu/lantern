@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.lantern.app.archfixture.FactReadingRenderer;
+import io.lantern.compose.archfixture.ComposerCallingLlm;
 import io.lantern.compose.archfixture.ComposerCopyingTypeNames;
 import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
@@ -14,6 +15,7 @@ import io.lantern.link.archfixture.FakeLinker;
 import io.lantern.link.archfixture.LinkerReadingAttributes;
 import io.lantern.link.archfixture.LinkerReadingComposer;
 import io.lantern.llm.archfixture.FakeLlmClient;
+import io.lantern.summarize.archfixture.FakeRole;
 import org.junit.jupiter.api.Test;
 
 /** Proves the rules catch violations, using deliberately bad fixture classes. */
@@ -27,6 +29,27 @@ class ArchitectureRulesTest {
     assertThatThrownBy(() -> ArchitectureRules.EXTRACTORS_MUST_NOT_DEPEND_ON_LLM.check(classes))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("ExtractorCallingLlm");
+  }
+
+  @Test
+  void aComposerCallingTheLlmOrARoleIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(ComposerCallingLlm.class, FakeLlmClient.class, FakeRole.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.COMPOSER_CALLS_NO_LLM.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("FakeLlmClient")
+        .hasMessageContaining("FakeRole");
+  }
+
+  @Test
+  void aComposerReadingAnEarlierStageIsAccepted() {
+    JavaClasses classes =
+        new ClassFileImporter().importClasses(FakeComposer.class, FakeLinker.class);
+
+    assertThatCode(() -> ArchitectureRules.COMPOSER_CALLS_NO_LLM.check(classes))
+        .doesNotThrowAnyException();
   }
 
   @Test

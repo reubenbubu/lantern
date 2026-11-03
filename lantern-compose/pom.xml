@@ -20,7 +20,10 @@
     </dependency>
     <dependency>
       <groupId>io.lantern</groupId>
+      <!-- Only the tests run the LLM roles, whose stored texts the composer reads; the composer's
+           own code depends on no LLM, harness or role code (ADR 0116). -->
       <artifactId>lantern-summarize</artifactId>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <!-- The composer draws the architecture model derivation stored. Derivation brings the

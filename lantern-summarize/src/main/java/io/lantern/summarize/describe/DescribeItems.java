@@ -1,11 +1,11 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
-import io.lantern.compose.DescribeRole.Described;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
+import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
@@ -15,6 +15,7 @@ import io.lantern.harness.render.Blocks;
 import io.lantern.harness.render.FactLines;
 import io.lantern.harness.render.Refs;
 import io.lantern.summarize.Summary;
+import io.lantern.summarize.describe.DescribeRole.Described;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -36,13 +37,13 @@ import java.util.regex.Pattern;
  * and one per data store, destination, external system and person. Each item's rendering numbers
  * its references from 1, so it is the same text whichever items share its request.
  */
-final class DescribeItems {
+public final class DescribeItems {
 
   /** The most facts shown about one component. */
   static final int MAX_COMPONENT_FACTS = 8;
 
   /** The most characters of one component's code. */
-  static final int MAX_CODE_CHARS = 4_000;
+  public static final int MAX_CODE_CHARS = 4_000;
 
   /** The most facts shown about one element. */
   static final int MAX_ELEMENT_FACTS = 8;
@@ -56,7 +57,7 @@ final class DescribeItems {
   private static final Pattern MARKER = Pattern.compile("\\s*\\[(fact|summary):[^\\]\\s]+\\]");
 
   private final Knowledge knowledge;
-  private final Assembler assembler;
+  private final ElementNames assembler;
   private final Elements elements;
   private final Set<Fact> alternatives;
   private final Function<Evidence, Optional<String>> files;
@@ -64,7 +65,7 @@ final class DescribeItems {
 
   DescribeItems(
       Knowledge knowledge,
-      Assembler assembler,
+      ElementNames assembler,
       Elements elements,
       Function<Evidence, Optional<String>> files,
       Map<EntityId, Summary> summaries) {
@@ -326,7 +327,7 @@ final class DescribeItems {
       for (Fact line :
           FactLines.sorted(
               knowledge.relations(component.entity(), ComponentInteractions.COMPONENT_LINK))) {
-        if ("code-end".equals(RepoSections.attribute(line, "kind", ""))) {
+        if ("code-end".equals(Elements.attribute(line, "kind", ""))) {
           continue;
         }
         String other = componentNames.get(Knowledge.object(line));
@@ -338,7 +339,7 @@ final class DescribeItems {
                 component.entity(),
                 FactLines.oneLine(component.name())
                     + ' '
-                    + RepoSections.attribute(line, "kind", "calls")
+                    + Elements.attribute(line, "kind", "calls")
                     + ' '
                     + FactLines.oneLine(other)
                     + " (a component)",

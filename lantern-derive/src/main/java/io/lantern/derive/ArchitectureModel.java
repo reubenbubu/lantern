@@ -2,6 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.harness.LlmFacts;
 import java.util.ArrayList;
@@ -32,6 +33,12 @@ public final class ArchitectureModel {
 
   /** The scope of the system's documents among the flows' significance facts. */
   public static final String SYSTEM_SCOPE = "system";
+
+  /** The software system all repositories of a snapshot form, the system scope's subject. */
+  public static final EntityId SYSTEM = new EntityId(BuiltInTypes.SYSTEM, "snapshot");
+
+  /** The entity type of repository summaries, which have no entity in the fact store. */
+  public static final String REPO_ENTITY_TYPE = "repo";
 
   /** The ordering of texts: the most confident first, then by fact ID. */
   private static final Comparator<Fact> PREFERRED =
@@ -297,6 +304,11 @@ public final class ArchitectureModel {
     public boolean unsupported() {
       return "unsupported".equals(support);
     }
+
+    /** Whether it rests on what people wrote, not only on what the code shows. */
+    public boolean evidenced() {
+      return basis == LlmFacts.Basis.EVIDENCED;
+    }
   }
 
   /**
@@ -317,6 +329,11 @@ public final class ArchitectureModel {
     /** Its sentences, each followed by its citation markers. */
     public String marked() {
       return String.join(" ", sentences.stream().map(Text::marked).toList());
+    }
+
+    /** Whether its first sentence rests on what people wrote, not only on what the code shows. */
+    public boolean evidenced() {
+      return basis == LlmFacts.Basis.EVIDENCED;
     }
   }
 

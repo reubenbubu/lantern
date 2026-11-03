@@ -50,7 +50,7 @@ final class RepoSections {
   private static final Set<String> TRANSITIVE_SCOPES = Set.of("compile", "runtime");
 
   /** The software system all repositories of a snapshot form, the system scope's subject. */
-  static final EntityId SYSTEM = new EntityId(BuiltInTypes.SYSTEM, "snapshot");
+  static final EntityId SYSTEM = ArchitectureModel.SYSTEM;
 
   /**
    * What the system's overview says when no purpose is known: plainly, without a reason, since the
