@@ -98,8 +98,8 @@ class DescriberTest {
     String prompt = request.messages().getFirst().text();
     if (request.system().contains(PurposeRole.TASK)) {
       return """
-          {"items": {"I1": {"purpose": {"text": "Runs an online shop's orders.", "cites": ["%s"]},
-           "keyFact": {"text": "Card payments go to pay.example.com.", "cites": ["F%s"]}}}}"""
+          {"items": {"I1": {"purpose": {"text": "Runs an online shop's orders from the cart to the card payment.", "cites": ["%s"]},
+           "keyFact": {"text": "Card payments go to pay.example.com, the one outside service the shop calls.", "cites": ["F%s"]}}}}"""
           .formatted(
               prompt.contains(" claim ") ? "F" + ref(prompt, "claim") : "A1",
               // The external system's line: "- pay.example.com: [F4] ... CALLS_HTTP ...".
@@ -132,9 +132,9 @@ class DescriberTest {
                 + "\": "
                 + """
                 {"title": {"text": "Shop lists its orders.", "cites": ["F1"]},
-                 "walkthrough": {"text": "Lists the orders and announces them for background work.",
+                 "walkthrough": {"text": "Lists the orders the shop has taken so far, then announces each new order so that the work on it can carry on later in the background.",
                                  "cites": ["F1", "F%1$s"]},
-                 "postconditions": {"text": "The orders are announced.", "cites": ["F%1$s"]}}"""
+                 "postconditions": {"text": "The orders are announced for the work that follows in the background.", "cites": ["F%1$s"]}}"""
                     .formatted(send));
       }
       return "{\"items\": {" + String.join(", ", entries) + "}}";
@@ -181,7 +181,7 @@ class DescriberTest {
   private static String item(String body) {
     if (body.startsWith("The database")) {
       return """
-          {"responsibility": {"text": "Keeps the shop's orders.", "cites": ["F%s"]}}"""
+          {"responsibility": {"text": "Keeps the shop's orders and their lines.", "cites": ["F%s"]}}"""
           .formatted(ref(body, "USES_DATABASE"));
     }
     if (body.startsWith("The topic")) {
@@ -195,8 +195,8 @@ class DescriberTest {
     }
     if (body.startsWith("The deployable unit shop-app")) {
       return """
-          {"unit": {"text": "Takes and lists the shop's orders.", "cites": ["F1", "F2"]},
-           "components": {"C1": {"text": "Lists orders for the web shop.", "cites": [%s]}},
+          {"unit": {"text": "Takes and lists the shop's orders for its web customers.", "cites": ["F1", "F2"]},
+           "components": {"C1": {"text": "Lists the orders the web shop has taken so far.", "cites": [%s]}},
            "interactions": {"%s": {"text": "Charges customers' cards", "cites": ["F%s"]},
                             "%s": {"text": "Announces new orders.", "cites": ["F%s"]}}}"""
           .formatted(
@@ -207,7 +207,7 @@ class DescriberTest {
               ref(body, "PUBLISHES"));
     }
     return """
-        {"unit": {"text": "Processes orders in the background.", "cites": ["F1"]},
+        {"unit": {"text": "Processes the shop's orders in the background after they are announced.", "cites": ["F1"]},
          "interactions": {"%s": {"text": "Fetches the order list", "cites": ["F%s"]}}}"""
         .formatted(interaction(body, "CALLS_HTTP"), ref(body, "CALLS_HTTP"));
   }
@@ -418,7 +418,9 @@ class DescriberTest {
             "FLOW_SIGNIFICANCE flow-significance 1 items: shop",
             "COMPOSE flow-narrative 1 items: F",
             "COMPOSE flow-narrative 1 items: F",
-            "INFER_INTENT purpose 1 items: " + RepoSections.SYSTEM);
+            "INFER_INTENT purpose 1 items: " + RepoSections.SYSTEM,
+            // The support judge's deterministic 10% sample takes the topic's sentence (ADR 0101).
+            "JUDGE support-judge 1 items: " + TOPIC);
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
@@ -483,7 +485,7 @@ class DescriberTest {
             </facts>
             What the units that use it do:
             <answers>
-            [A1] shop-app: Takes and lists the shop's orders.
+            [A1] shop-app: Takes and lists the shop's orders for its web customers.
             </answers>
             </item>
             </items>""");
@@ -535,11 +537,11 @@ class DescriberTest {
             Assembler.UNSUPPORTED
                 + " "
                 + Assembler.INFERRED_SENTENCE
-                + " Takes and lists the shop's orders.");
+                + " Takes and lists the shop's orders for its web customers.");
     DocumentEntity database =
         document.entities().stream().filter(e -> e.id().equals(DATABASE)).findFirst().orElseThrow();
     assertThat(text(database.description()))
-        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders and their lines.");
   }
 
   @Test
@@ -625,7 +627,10 @@ class DescriberTest {
                   List<String> entries = new ArrayList<>();
                   while (items.find()) {
                     String verdict =
-                        items.group(2).contains("Takes and lists the shop's orders.")
+                        items
+                                .group(2)
+                                .contains(
+                                    "Takes and lists the shop's orders for its web customers.")
                             ? "unsupported"
                             : "supported";
                     entries.add(
@@ -646,7 +651,7 @@ class DescriberTest {
             .findFirst()
             .orElseThrow();
     assertThat(judged.messages().getFirst().text())
-        .contains("<text>Takes and lists the shop's orders.</text>")
+        .contains("<text>Takes and lists the shop's orders for its web customers.</text>")
         .contains("[F1] service:com.example:app application-name \"shop-app\"");
     assertThat(result.wordings().unsupported()).containsExactly(APP);
     // Stored on the sentence's observation, its confidence halved (epic, section 11.7).
@@ -667,7 +672,7 @@ class DescriberTest {
             Assembler.UNSUPPORTED
                 + " "
                 + Assembler.INFERRED_SENTENCE
-                + " Takes and lists the shop's orders.");
+                + " Takes and lists the shop's orders for its web customers.");
   }
 
   @Test
@@ -682,7 +687,9 @@ class DescriberTest {
     assertThat(app.description().getFirst())
         .isEqualTo(new TextRun(Assembler.INFERRED_SENTENCE, TextRun.Style.EMPHASIS));
     assertThat(text(app.description()))
-        .isEqualTo(Assembler.INFERRED_SENTENCE + " Takes and lists the shop's orders.");
+        .isEqualTo(
+            Assembler.INFERRED_SENTENCE
+                + " Takes and lists the shop's orders for its web customers.");
     assertThat(app.description().getLast())
         .isEqualTo(
             new Citation(
@@ -698,11 +705,12 @@ class DescriberTest {
             .findFirst()
             .orElseThrow();
     assertThat(text(controller.description()))
-        .isEqualTo(Assembler.INFERRED_SENTENCE + " Lists orders for the web shop.");
+        .isEqualTo(
+            Assembler.INFERRED_SENTENCE + " Lists the orders the web shop has taken so far.");
     DocumentEntity database =
         document.entities().stream().filter(e -> e.id().equals(DATABASE)).findFirst().orElseThrow();
     assertThat(text(database.description()))
-        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders and their lines.");
     assertThat(database.description().getLast())
         .isEqualTo(new Citation(List.of(facts.find(APP.toString(), "USES_DATABASE").id())));
     DocumentEntity topic =
@@ -818,8 +826,8 @@ class DescriberTest {
               - orders to worker (a deployable unit), async: Delivers to L.on [Kafka]
                 [F3] (as above)
             What its units do, and what its interactions are for:
-            - shop-app: [A1] Takes and lists the shop's orders.
-            - worker: [A2] Processes orders in the background.
+            - shop-app: [A1] Takes and lists the shop's orders for its web customers.
+            - worker: [A2] Processes the shop's orders in the background after they are announced.
             - [A3] shop-app to orders (a topic), async: Announces new orders
             - [A4] shop-app to pay.example.com (an external system), sync: Charges customers' cards
 
@@ -838,18 +846,21 @@ class DescriberTest {
     String endpoint = facts.find(LIST.toString(), "endpoint").id();
     String send = facts.find(APP.toString(), "PUBLISHES").id();
     assertThat(text(prose.content()))
-        .isEqualTo("Lists the orders and announces them for background work.");
+        .isEqualTo(
+            "Lists the orders the shop has taken so far, then announces each new order so that the work on it can carry on later in the background.");
     assertThat(prose.content().getLast())
         .isEqualTo(new Citation(Stream.of(endpoint, send).sorted().toList()));
     assertThat(prose.facts()).contains(endpoint, send);
     Table.Row row = overview(flow);
     // Left out by the model: not known, as before.
     assertThat(text(row.cells().get(1))).isEqualTo("Not known from the code.");
-    assertThat(text(row.cells().get(2))).isEqualTo("The orders are announced.");
+    assertThat(text(row.cells().get(2)))
+        .isEqualTo("The orders are announced for the work that follows in the background.");
     assertThat(row.cells().get(2).getLast()).isEqualTo(new Citation(List.of(send)));
     assertThat(row.facts()).contains(endpoint, send);
     assertThat(text(((Paragraph) flowSection(document, RUN_FLOW).blocks().getFirst()).content()))
-        .isEqualTo("Lists the orders and announces them for background work.");
+        .isEqualTo(
+            "Lists the orders the shop has taken so far, then announces each new order so that the work on it can carry on later in the background.");
   }
 
   @Test
@@ -926,10 +937,10 @@ class DescriberTest {
             <item id="I1">
             The software system.
             Its deployable units, each with what it does:
-            - shop-app: [A1] Takes and lists the shop's orders.
+            - shop-app: [A1] Takes and lists the shop's orders for its web customers.
               [F1] service:com.example:app application-name "shop-app" (shop:pom.xml)
               [F2] service:com.example:app deployable-unit "spring-boot" (shop:pom.xml)
-            - worker: [A2] Processes orders in the background.
+            - worker: [A2] Processes the shop's orders in the background after they are announced.
               [F3] service:com.example:worker deployable-unit "spring-boot" (base:pom.xml)
             The external systems it uses:
             - pay.example.com: [F4] service:com.example:app CALLS_HTTP\
@@ -945,7 +956,7 @@ class DescriberTest {
             </items>""");
     assertThat(result.wordings().responsibilities().get(RepoSections.SYSTEM))
         .isEqualTo(
-            "Runs an online shop's orders. [fact:"
+            "Runs an online shop's orders from the cart to the card payment. [fact:"
                 + withClaim.stream()
                     .filter(f -> f.predicate().equals("claim"))
                     .findFirst()
@@ -1015,8 +1026,9 @@ class DescriberTest {
         .extracting(s -> s.request().purpose())
         .contains("purpose 1 items: " + RepoSections.SYSTEM + " (repair)");
     assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
-    // Ten answers and the purpose's drop, which a rerun repeats without a call (#682).
-    assertThat(store.size()).isEqualTo(11);
+    // Ten answers, the support judge's on its sample and the purpose's drop, which a rerun repeats
+    // without a call (#682).
+    assertThat(store.size()).isEqualTo(12);
     Callout first = (Callout) system(result).sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
   }
@@ -1043,7 +1055,7 @@ class DescriberTest {
                     + facts.find(WORKER.toString(), "deployable-unit").id()
                     + "] [fact:gone-claim]",
                 DATABASE,
-                "Keeps the shop's orders. [fact:"
+                "Keeps the shop's orders and their lines. [fact:"
                     + facts.find(APP.toString(), "USES_DATABASE").id()
                     + "]"),
             Map.of());
@@ -1069,7 +1081,7 @@ class DescriberTest {
     assertThat(text(description.apply(WORKER)).strip())
         .isEqualTo(Assembler.INFERRED_SENTENCE + " Processes new orders.");
     assertThat(text(description.apply(DATABASE)))
-        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders.");
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders and their lines.");
   }
 
   @Test
@@ -1081,7 +1093,7 @@ class DescriberTest {
         new Wordings(
             Map.of(
                 RepoSections.SYSTEM,
-                "Runs an online shop's orders. [fact:"
+                "Runs an online shop's orders from the cart to the card payment. [fact:"
                     + facts.find(APP.toString(), "application-name").id()
                     + "] [fact:"
                     + claim.id()
@@ -1096,7 +1108,8 @@ class DescriberTest {
                 TestTexts.with(withClaim, wordings));
 
     Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
-    assertThat(text(first.content())).isEqualTo("Runs an online shop's orders.");
+    assertThat(text(first.content()))
+        .isEqualTo("Runs an online shop's orders from the cart to the card payment.");
     assertThat(first.facts()).contains(claim.id());
   }
 
@@ -1118,7 +1131,8 @@ class DescriberTest {
     // The purpose, then the key fact, in one paragraph, each cited.
     Paragraph first = (Paragraph) document.sections().getFirst().blocks().getFirst();
     assertThat(text(first.content()))
-        .isEqualTo("Runs an online shop's orders. Card payments go to pay.example.com.");
+        .isEqualTo(
+            "Runs an online shop's orders from the cart to the card payment. Card payments go to pay.example.com, the one outside service the shop calls.");
     assertThat(first.content().getLast()).isInstanceOf(Citation.class);
     assertThat(first.content()).filteredOn(Citation.class::isInstance).hasSizeGreaterThan(1);
     DocumentEntity system =
@@ -1126,7 +1140,8 @@ class DescriberTest {
             .filter(e -> e.id().equals(RepoSections.SYSTEM))
             .findFirst()
             .orElseThrow();
-    assertThat(text(system.description())).isEqualTo("Runs an online shop's orders.");
+    assertThat(text(system.description()))
+        .isEqualTo("Runs an online shop's orders from the cart to the card payment.");
   }
 
   @Test
@@ -1142,7 +1157,7 @@ class DescriberTest {
     assertThat(text(first.content()))
         .isEqualTo(
             Assembler.INFERRED
-                + " Runs an online shop's orders. Card payments go to pay.example.com.");
+                + " Runs an online shop's orders from the cart to the card payment. Card payments go to pay.example.com, the one outside service the shop calls.");
     assertThat(
             text(
                 document.entities().stream()
@@ -1150,7 +1165,9 @@ class DescriberTest {
                     .findFirst()
                     .orElseThrow()
                     .description()))
-        .isEqualTo(Assembler.INFERRED + " Runs an online shop's orders.");
+        .isEqualTo(
+            Assembler.INFERRED
+                + " Runs an online shop's orders from the cart to the card payment.");
     assertThat(first.facts())
         .contains(
             facts.find(APP.toString(), "application-name").id(),
@@ -1183,10 +1200,10 @@ class DescriberTest {
         .extracting(f -> f.attributes().path("basis").asString())
         .containsExactly("evidenced", "inferred");
     assertThat(claims.get(1).attributes().path("text").asString())
-        .isEqualTo("Card payments go to pay.example.com.");
+        .isEqualTo("Card payments go to pay.example.com, the one outside service the shop calls.");
     assertThat(result.wordings().keyFact())
         .isEqualTo(
-            "Card payments go to pay.example.com. [fact:"
+            "Card payments go to pay.example.com, the one outside service the shop calls. [fact:"
                 + facts.find(APP.toString(), "CALLS_HTTP").id()
                 + "]");
     for (Fact claim : claims) {
@@ -1214,7 +1231,7 @@ class DescriberTest {
     List<io.lantern.core.document.Block> blocks = document.sections().getFirst().blocks();
     assertThat(text(((Callout) blocks.get(0)).content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
     assertThat(text(((Paragraph) blocks.get(1)).content()))
-        .isEqualTo("Card payments go to pay.example.com.");
+        .isEqualTo("Card payments go to pay.example.com, the one outside service the shop calls.");
   }
 
   @Test
@@ -1846,7 +1863,7 @@ class DescriberTest {
     starts.forEach(
         (w, line) ->
             flows.add(
-                "\"%s\": {\"significant\": %s, \"category\": \"scheduled\", \"reason\": {\"text\": \"It runs on its own.\", \"cites\": [\"%s\"]}}"
+                "\"%s\": {\"significant\": %s, \"category\": \"scheduled\", \"reason\": {\"text\": \"It runs on its own schedule in the shop.\", \"cites\": [\"%s\"]}}"
                     .formatted(w, order.contains("\"" + w + "\""), entry.get(w))));
     return "{\"items\": {\""
         + "I1"
@@ -1888,8 +1905,8 @@ class DescriberTest {
         .contains("  Hands work on asynchronously through: orders\n")
         .contains(
             "What the units these flows cross do:\n"
-                + "- shop-app: [A1] Takes and lists the shop's orders.\n"
-                + "- worker: [A2] Processes orders in the background.\n");
+                + "- shop-app: [A1] Takes and lists the shop's orders for its web customers.\n"
+                + "- worker: [A2] Processes the shop's orders in the background after they are announced.\n");
     // Only the flow chosen is narrated, once for all scopes, and drawn without the rank's note.
     assertThat(fake.sent())
         .filteredOn(s -> s.request().purpose().startsWith("flow-narrative"))
@@ -1915,7 +1932,9 @@ class DescriberTest {
                     + f.attributes().path("rank").asInt(0)
                     + " "
                     + f.attributes().path("text").asString())
-        .containsExactlyInAnyOrder("true 1 It runs on its own.", "false 0 It runs on its own.");
+        .containsExactlyInAnyOrder(
+            "true 1 It runs on its own schedule in the shop.",
+            "false 0 It runs on its own schedule in the shop.");
     assertThat(judged).extracting(f -> f.object().value()).contains("system", "shop", "base");
     List<Fact> narrated =
         result.facts(2).get(io.lantern.harness.LlmFacts.origin(FlowJudgements.NARRATIVE));
@@ -2135,10 +2154,10 @@ class DescriberTest {
         .extracting(
             f -> f.subject() + " " + f.predicate() + " " + f.attributes().get("text").asString())
         .contains(
-            APP + " responsibility Takes and lists the shop's orders.",
+            APP + " responsibility Takes and lists the shop's orders for its web customers.",
             "component:"
                 + APP
-                + "/type:com.example.web.Controller responsibility Lists orders for the web shop.",
+                + "/type:com.example.web.Controller responsibility Lists the orders the web shop has taken so far.",
             APP + " intent Charges customers' cards",
             WORKER + " intent Fetches the order list");
     Fact charge =
@@ -2155,7 +2174,7 @@ class DescriberTest {
     assertThat(elements)
         .extracting(f -> f.subject() + " " + f.attributes().get("text").asString())
         .containsExactlyInAnyOrder(
-            DATABASE + " Keeps the shop's orders.",
+            DATABASE + " Keeps the shop's orders and their lines.",
             TOPIC + " Carries each new purchase to background processing.");
   }
 
@@ -2195,6 +2214,48 @@ class DescriberTest {
   }
 
   @Test
+  void aResponsibilityOrFlowTitleShorterThanItsContractAcceptsIsSentBackNamingTheRange() {
+    // Describe's unit responsibility asks 10 to 22 words and accepts 8 to 25 (ADR 0118).
+    FakeLlmProvider responsibility =
+        new FakeLlmProvider().answering(unitSaying("Takes orders.", "Charges customers' cards"));
+    describe(responsibility);
+    assertThat(repair(responsibility, APP))
+        .contains(
+            "<rejection item=\"I1\" field=\"unit\">Has 2 words; the accepted range is 8 to 25"
+                + " words, so say more.</rejection>");
+
+    // A flow's title asks 3 to 5 words and accepts 2 to 6.
+    FakeLlmProvider title =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.system().contains("Task: narrate flows.")
+                            && request.messages().size() == 1
+                        ? answer(request).replace("\"Shop lists its orders.\"", "\"Orders.\"")
+                        : answer(request));
+    new Describer(
+            new Harness(
+                client(title),
+                new InMemoryAnswerStore(),
+                RunBudget.NONE,
+                BlobLookup.NONE,
+                Set.of()))
+        .describe(facts.list());
+    assertThat(title.sent())
+        .filteredOn(
+            s ->
+                s.request().purpose().startsWith("flow-narrative")
+                    && s.request().purpose().endsWith("(repair)"))
+        .isNotEmpty()
+        .allSatisfy(
+            s ->
+                assertThat(s.request().messages().getLast().text())
+                    .contains(
+                        "field=\"title\">Has 1 words; the accepted range is 2 to 6 words, so say"
+                            + " more.</rejection>"));
+  }
+
+  @Test
   void aBannedOpeningAProtocolWordAndARestatedNameAreSentBackForRepair() {
     FakeLlmProvider opening =
         new FakeLlmProvider()
@@ -2207,7 +2268,10 @@ class DescriberTest {
 
     FakeLlmProvider protocol =
         new FakeLlmProvider()
-            .answering(unitSaying("Takes the shop's orders.", "Charges cards over HTTPS"));
+            .answering(
+                unitSaying(
+                    "Takes the shop's orders from its customers on the web.",
+                    "Charges cards over HTTPS"));
     new Describer(
             new Harness(
                 client(protocol),
@@ -2355,7 +2419,7 @@ class DescriberTest {
                 request ->
                     request.messages().getFirst().text().contains("The deployable unit web")
                         ? """
-                        {"items": {"I1": {"unit": {"text": "Lets shoppers browse orders.",
+                        {"items": {"I1": {"unit": {"text": "Lets shoppers browse the orders they placed with the shop.",
                           "cites": ["F1"]}}}}"""
                         : answer(request));
 
@@ -2375,7 +2439,7 @@ class DescriberTest {
                 .map(e -> text(e.description()))
                 .findFirst()
                 .orElseThrow())
-        .contains("Lets shoppers browse orders.");
+        .contains("Lets shoppers browse the orders they placed with the shop.");
   }
 
   @Test
@@ -2402,8 +2466,8 @@ class DescriberTest {
                   // I1's own fact is F1; F2 is what I2 shows.
                   return """
                       {"items": {
-                        "I1": {"responsibility": {"text": "Takes card payments.", "cites": ["F2"]}},
-                        "I2": {"responsibility": {"text": "Sends the shop's mail.", "cites": ["F2"]}}}}""";
+                        "I1": {"responsibility": {"text": "Takes card payments for the orders the shop sends it.", "cites": ["F2"]}},
+                        "I2": {"responsibility": {"text": "Sends the shop's mail to customers about their orders.", "cites": ["F2"]}}}}""";
                 });
 
     new Describer(harness(client(fake))).describe(two.list());

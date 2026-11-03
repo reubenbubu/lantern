@@ -74,19 +74,20 @@ final class InvestigateRole implements PacketRole {
   static final Set<String> VERDICTS = Set.of("confirmed", "refuted", "unclear");
 
   /** The most proposals a Mode B or C conversation keeps. */
-  static final int MAX_PROPOSALS = io.lantern.harness.Contract.of("investigate").count("proposals");
+  static final int MAX_PROPOSALS =
+      io.lantern.harness.Contract.of("investigate").count("proposals").max();
 
   /** The most words of a title, a finding, a consequence and a description: their contract's. */
-  static final int TITLE_WORDS =
+  static final io.lantern.harness.Contract.Range TITLE_WORDS =
       io.lantern.harness.Contract.of("investigate").acceptedWords("title");
 
-  static final int FINDING_WORDS =
+  static final io.lantern.harness.Contract.Range FINDING_WORDS =
       io.lantern.harness.Contract.of("investigate").acceptedWords("finding");
 
-  static final int CONSEQUENCE_WORDS =
+  static final io.lantern.harness.Contract.Range CONSEQUENCE_WORDS =
       io.lantern.harness.Contract.of("investigate").acceptedWords("consequence");
 
-  static final int DESCRIPTION_WORDS =
+  static final io.lantern.harness.Contract.Range DESCRIPTION_WORDS =
       io.lantern.harness.Contract.of("investigate").acceptedWords("description");
 
   /** A proposal's number in a Mode B or C entry, such as {@code proposals.P3}. */
@@ -372,7 +373,15 @@ final class InvestigateRole implements PacketRole {
         names.add(name.stringValue());
       }
     }
-    texts.add(new CheckedText(at(field, "cites"), CheckedText.Kind.PROSE, "", cites, 1, "", names));
+    texts.add(
+        new CheckedText(
+            at(field, "cites"),
+            CheckedText.Kind.PROSE,
+            "",
+            cites,
+            io.lantern.harness.Contract.Range.ANY,
+            "",
+            names));
     text(entry, field, "title", TITLE_WORDS, cites, texts);
     text(entry, field, "finding", FINDING_WORDS, cites, texts);
     text(entry, field, "consequence", CONSEQUENCE_WORDS, cites, texts);
@@ -383,7 +392,7 @@ final class InvestigateRole implements PacketRole {
       JsonNode entry,
       String field,
       String name,
-      int words,
+      io.lantern.harness.Contract.Range words,
       List<String> cites,
       List<CheckedText> texts) {
     if (entry.path(name).isString()) {

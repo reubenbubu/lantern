@@ -20,10 +20,13 @@
         "attribute": "title"
       },
       "words": {
-        "requested": 7,
-        "stated": "a title of at most 7 words",
+        "requested": [
+          5,
+          7
+        ],
+        "stated": "a title of 5 to 7 words",
         "restated": [
-          "the title has at most 7 words"
+          "the title has 5 to 7 words"
         ]
       }
     },
@@ -36,7 +39,15 @@
         "attribute": "finding"
       },
       "words": {
-        "accepted": 70
+        "requested": [
+          20,
+          60
+        ],
+        "accepted": [
+          17,
+          70
+        ],
+        "stated": "in one or two sentences of 20 to 60 words"
       },
       "sentences": {
         "requested": [
@@ -57,7 +68,15 @@
         "attribute": "consequence"
       },
       "words": {
-        "accepted": 70
+        "requested": [
+          22,
+          60
+        ],
+        "accepted": [
+          19,
+          70
+        ],
+        "stated": "in one or two sentences of 22 to 60 words"
       },
       "sentences": {
         "requested": [
@@ -78,7 +97,15 @@
         "attribute": "description"
       },
       "words": {
-        "accepted": 15
+        "requested": [
+          3,
+          12
+        ],
+        "accepted": [
+          2,
+          15
+        ],
+        "stated": "a description of 3 to 12 words"
       },
       "note": "Not stated in the prompt; the check accepts 15 words."
     }
@@ -86,9 +113,16 @@
   "counts": [
     {
       "name": "proposals",
-      "requested": 10,
+      "requested": [
+        0,
+        10
+      ],
       "stated": "at most 10 things",
-      "note": "The schema allows 12; the check keeps the first 10."
+      "note": "The schema allows 12; the check keeps the first 10.",
+      "accepted": [
+        0,
+        10
+      ]
     }
   ],
   "judged": [],

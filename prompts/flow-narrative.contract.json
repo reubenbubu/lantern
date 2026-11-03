@@ -17,8 +17,11 @@
         "attribute": "title"
       },
       "words": {
-        "requested": 5,
-        "stated": "a title of at most 5 words"
+        "requested": [
+          3,
+          5
+        ],
+        "stated": "a title of 3 to 5 words"
       },
       "cites": [
         "F",
@@ -34,9 +37,15 @@
         "attribute": "walkthrough"
       },
       "words": {
-        "requested": 75,
-        "stated": "at most 75 words in all",
-        "accepted": 80
+        "requested": [
+          30,
+          75
+        ],
+        "accepted": [
+          25,
+          80
+        ],
+        "stated": "30 to 75 words in all"
       },
       "sentences": {
         "requested": [
@@ -61,8 +70,11 @@
         "attribute": "preconditions"
       },
       "words": {
-        "requested": 22,
-        "stated": "pre-conditions, at most 22 words"
+        "requested": [
+          6,
+          22
+        ],
+        "stated": "pre-conditions, 6 to 22 words"
       },
       "cites": [
         "F",
@@ -78,8 +90,11 @@
         "attribute": "postconditions"
       },
       "words": {
-        "requested": 22,
-        "stated": "post-conditions, at most 22 words"
+        "requested": [
+          10,
+          22
+        ],
+        "stated": "post-conditions, 10 to 22 words"
       },
       "cites": [
         "F",

@@ -294,7 +294,7 @@ class LinkResolverTest {
         + entry(
             candidate(r, "service:g:tax"),
             "high",
-            "Only tax serves GET /v2/quotes.",
+            "Only tax serves GET /v2/quotes among the candidates shown.",
             ref(r, "http-call"),
             ref(r, "t.TaxController#quotes() endpoint"))
         + "}";
@@ -381,7 +381,8 @@ class LinkResolverTest {
     assertThat(link.subject()).isEqualTo(EntityId.parse("service:g:orders"));
     assertThat(link.predicate()).isEqualTo(CrossRepoLinks.CALLS_HTTP);
     assertThat(link.object().value()).isEqualTo("service:g:tax");
-    assertThat(link.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "resolve", "6"));
+    assertThat(link.origin())
+        .isEqualTo(new Origin(Origin.Kind.LLM, "resolve", ResolvePrompt.VERSION));
     assertThat(link.confidence()).isEqualTo(0.5);
     assertThat(link.evidence()).isEqualTo(unresolved.evidence());
     ObjectNode attributes = link.attributes().deepCopy();
@@ -392,7 +393,7 @@ class LinkResolverTest {
         .isEqualTo(
             "{\"client\":\"rest-client\",\"endpoint\":\"GET /v2/quotes\",\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"llm\",\"model\":\"fake/m\",\"path\":\"/v2/quotes\","
-                + "\"protocol\":\"JSON/HTTP\",\"reason\":\"Only tax serves GET /v2/quotes.\","
+                + "\"protocol\":\"JSON/HTTP\",\"reason\":\"Only tax serves GET /v2/quotes among the candidates shown.\","
                 + "\"source\":\"method:o.TaxClient#quote()\","
                 + "\"target\":\"method:t.TaxController#quotes()\"}");
     // The facts of both ends: the link left open, the call and the endpoint cited.
@@ -475,7 +476,11 @@ class LinkResolverTest {
             r ->
                 turn(r) <= 2
                     ? "{\"I1\": "
-                        + entry("K7", "high", "Payments computes tax.", ref(first(r), "http-call"))
+                        + entry(
+                            "K7",
+                            "high",
+                            "Payments computes tax, so the caller asks it for quotes.",
+                            ref(first(r), "http-call"))
                         + "}"
                     : null);
 
@@ -517,7 +522,11 @@ class LinkResolverTest {
                 switch (turn(r)) {
                   case 1 ->
                       "{\"I1\": "
-                          + entry("K7", "high", "Tax serves it.", ref(r, "http-call"))
+                          + entry(
+                              "K7",
+                              "high",
+                              "Tax serves the path the caller requests here.",
+                              ref(r, "http-call"))
                           + "}";
                   case 2 -> pickTax(first(r));
                   default -> null;
@@ -543,7 +552,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "Tax serves GET /v2/quotes.",
+                        "Tax serves GET /v2/quotes, the path the caller requests.",
                         ref(r, "t.TaxController#quotes() endpoint"))
                     + "}");
     assertThat(resolve(calleeOnly).facts()).isEmpty();
@@ -557,7 +566,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "It calls GET /v2/quotes.",
+                        "It calls GET /v2/quotes, which the candidate serves.",
                         ref(r, "http-call"),
                         ref(r, "b.BillingController#quotes() endpoint"))
                     + "}");
@@ -591,7 +600,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "Tax serves it.",
+                        "Tax serves the path the caller requests here.",
                         "m:config/clients.yml:1-3")
                     + "}");
 
@@ -608,7 +617,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "Tax serves it.",
+                        "Tax serves the path the caller requests here.",
                         "m:config/clients.yml:1-3",
                         ref(r, "t.TaxController#quotes() endpoint"))
                     + "}");
@@ -629,7 +638,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "The shared hosts name tax.",
+                        "The shared hosts name tax as the service called here.",
                         ref(r, "http-call"),
                         "c:src/main/java/c/Hosts.java:1-2")
                     + "}");
@@ -644,7 +653,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "Tax serves GET /v2/quotes.",
+                        "Tax serves GET /v2/quotes, the path the caller requests.",
                         ref(r, "http-call"),
                         "c:src/main/java/c/Hosts.java:1-2",
                         ref(r, "t.TaxController#quotes() endpoint"))
@@ -663,7 +672,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "Only tax is named for it.",
+                        "Only tax is named for it in the caller's configuration.",
                         ref(r, "http-call"),
                         ref(r, "service:g:tax application-name"))
                     + "}");
@@ -684,7 +693,7 @@ class LinkResolverTest {
                 + entry(
                     candidate(r, "service:g:tax"),
                     "high",
-                    "Only tax serves GET /v2/quotes.",
+                    "Only tax serves GET /v2/quotes among the candidates shown.",
                     ref(r, "http-call"),
                     ref(r, "t.TaxController#quotes() endpoint"),
                     "t:src/main/java/t/TaxController.java:3-6")
@@ -716,7 +725,7 @@ class LinkResolverTest {
                 + entry(
                     candidate(r, "service:g:tax"),
                     "high",
-                    "Only tax serves GET /v2/quotes.",
+                    "Only tax serves GET /v2/quotes among the candidates shown.",
                     ref(r, "http-call"),
                     ref(r, "t.TaxController#quotes() endpoint"),
                     "t:src/main/java/t/TaxController.java:4")
@@ -757,7 +766,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "Tax serves it.",
+                        "Tax serves the path the caller requests here.",
                         ref(r, "http-call"),
                         "F42")
                     + "}");
@@ -777,7 +786,7 @@ class LinkResolverTest {
                     + entry(
                         "unknown",
                         "low",
-                        "Both serve the path and nothing names either.",
+                        "Both serve the path and nothing in the code names either.",
                         ref(r, "http-call"),
                         ref(r, "t.TaxController#quotes() endpoint"))
                     + "}");
@@ -988,7 +997,9 @@ class LinkResolverTest {
     Function<LlmRequest, String> wrong =
         r ->
             turn(r) <= 2
-                ? "{\"I1\": " + entry("K9", "high", "x", ref(first(r), "http-call")) + "}"
+                ? "{\"I1\": "
+                    + entry("K9", "high", "x x x x x x x x", ref(first(r), "http-call"))
+                    + "}"
                 : null;
 
     model = "m2";
@@ -1082,7 +1093,7 @@ class LinkResolverTest {
                   + entry(
                       "K1",
                       "medium",
-                      "Only worker listens on a queue bound to direct.x.",
+                      "Only worker listens on a queue bound to direct.x here.",
                       ref(r, "s.Publisher#unknown()"),
                       ref(r, "w.Config#direct() message-binding"),
                       ref(r, "w.Listener#direct() message-listener"))
@@ -1413,7 +1424,7 @@ class LinkResolverTest {
                     + entry(
                         candidate(r, "service:g:tax"),
                         "high",
-                        "Seen in a tool.",
+                        "Seen in a tool result that the caller's code shows.",
                         ref(r, "http-call"),
                         ref(r, "t.TaxController#quotes() endpoint"),
                         "F40")

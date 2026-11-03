@@ -226,7 +226,9 @@ class FakeLlmConfiguration {
           callerRef != null && candidate.find()
               ? "{\"pick\": \""
                   + pick
-                  + "\", \"confidence\": \"low\", \"reason\": \"A fake model.\","
+                  + "\", \"confidence\": \"low\", \"reason\": \""
+                  + RESOLVE_REASON
+                  + "\","
                   + " \"cites\": [\""
                   + callerRef
                   + "\", \""
@@ -244,11 +246,19 @@ class FakeLlmConfiguration {
                 .readTree("{\"items\": {" + String.join(", ", entries) + "}}")));
   }
 
+  /**
+   * The reason the fake gives every pick: long enough for Resolve's contract, like every text the
+   * fake writes (ADR 0118).
+   */
+  static final String RESOLVE_REASON =
+      "A fake model picks this candidate without reading the code.";
+
   /** The responsibility the fake gives every unit, component and element Describe asks about. */
-  static final String RESPONSIBILITY = "{{placeholder: responsibility}}";
+  static final String RESPONSIBILITY =
+      "{{placeholder: the responsibility a model words from the facts of this part}}";
 
   /** The intent the fake gives every interaction Describe asks about. */
-  static final String INTENT = "{{placeholder: intent}}";
+  static final String INTENT = "{{placeholder: intent of this interaction}}";
 
   private static final Pattern ITEM =
       Pattern.compile("<item id=\"(I[0-9]+)\">\n(.*?)\n</item>", Pattern.DOTALL);
@@ -314,7 +324,8 @@ class FakeLlmConfiguration {
   static final String GROUP_NAME = "{{placeholder: group name}}";
 
   /** The responsibility the fake gives every group. */
-  static final String GROUP_RESPONSIBILITY = "{{placeholder: group responsibility}}";
+  static final String GROUP_RESPONSIBILITY =
+      "{{placeholder: the responsibility a model words for this group from its facts}}";
 
   private static final Pattern LINE_KEY = Pattern.compile("(?m)^\\[(R[0-9]+)\\] ");
 

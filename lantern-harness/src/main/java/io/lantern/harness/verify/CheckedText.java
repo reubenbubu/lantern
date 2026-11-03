@@ -1,5 +1,6 @@
 package io.lantern.harness.verify;
 
+import io.lantern.harness.Contract;
 import java.util.List;
 import java.util.Set;
 
@@ -10,7 +11,8 @@ import java.util.Set;
  * @param kind what kind of text it is, which decides the Form rules
  * @param text the text, without citations
  * @param cites the references it cites, such as {@code F1} or {@code repo:path:10-20}
- * @param wordLimit the most words it may have
+ * @param words the words it may have, its contract's accepted range ({@link Contract.Range#ANY} for
+ *     a text no size rule applies to)
  * @param subjectName the name of what it is about, for the rule that a responsibility must not
  *     restate it; empty if none
  * @param names the code names a proposal declares it names, for the Coverage check; empty for other
@@ -21,7 +23,7 @@ public record CheckedText(
     Kind kind,
     String text,
     List<String> cites,
-    int wordLimit,
+    Contract.Range words,
     String subjectName,
     Set<String> names) {
 
@@ -41,6 +43,7 @@ public record CheckedText(
   }
 
   public CheckedText {
+    java.util.Objects.requireNonNull(words, "words");
     cites = List.copyOf(cites);
     subjectName = subjectName == null ? "" : subjectName;
     names = Set.copyOf(names);

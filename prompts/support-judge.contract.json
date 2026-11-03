@@ -11,9 +11,16 @@
   "counts": [
     {
       "name": "claims",
-      "requested": 6,
-      "stated": "at most 6",
-      "note": "Bounded by the schema only."
+      "requested": [
+        1,
+        6
+      ],
+      "stated": "1 to 6 of them",
+      "note": "The schema allows 1 to 6; the check enforces nothing more.",
+      "accepted": [
+        1,
+        6
+      ]
     }
   ],
   "judged": [],

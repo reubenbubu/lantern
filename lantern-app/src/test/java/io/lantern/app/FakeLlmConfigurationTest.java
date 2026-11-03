@@ -80,7 +80,9 @@ class FakeLlmConfigurationTest {
     assertThat(calls.getFirst().input().toString())
         .isEqualTo(
             "{\"items\":{\"I1\":{\"pick\":\"unknown\",\"confidence\":\"low\","
-                + "\"reason\":\"A fake model.\",\"cites\":[\"F1\",\"F2\"]},"
+                + "\"reason\":\""
+                + FakeLlmConfiguration.RESOLVE_REASON
+                + "\",\"cites\":[\"F1\",\"F2\"]},"
                 + "\"I2\":{\"omitted\":true}}}");
     assertThat(FakeLlmConfiguration.resolve(request, "K1").getFirst().input().toString())
         .contains("\"pick\":\"K1\"");
@@ -135,8 +137,12 @@ class FakeLlmConfigurationTest {
         .isEqualTo(
             "{\"items\": {\"I1\": {\"name\": {\"text\": \"{{placeholder: group name}}\","
                 + " \"cites\": [\"F1\"]}, \"responsibility\": {\"text\":"
-                + " \"{{placeholder: group responsibility}}\", \"cites\": [\"F1\"]},"
-                + " \"lines\": {\"R1\": {\"text\": \"{{placeholder: intent}}\","
+                + " \""
+                + FakeLlmConfiguration.GROUP_RESPONSIBILITY
+                + "\", \"cites\": [\"F1\"]},"
+                + " \"lines\": {\"R1\": {\"text\": \""
+                + FakeLlmConfiguration.INTENT
+                + "\","
                 + " \"cites\": [\"F1\"]}}}, \"I2\": {\"omitted\": true}}}");
   }
 
@@ -172,10 +178,16 @@ class FakeLlmConfigurationTest {
 
     assertThat(describe("Task: describe deployable units. More.", units))
         .isEqualTo(
-            "{\"items\": {\"I1\": {\"unit\": {\"text\": \"{{placeholder: responsibility}}\","
+            "{\"items\": {\"I1\": {\"unit\": {\"text\": \""
+                + FakeLlmConfiguration.RESPONSIBILITY
+                + "\","
                 + " \"cites\": [\"F1\"]}, \"components\": {\"C1\": {\"text\":"
-                + " \"{{placeholder: responsibility}}\", \"cites\": [\"F1\"]}},"
-                + " \"interactions\": {\"R1\": {\"text\": \"{{placeholder: intent}}\","
+                + " \""
+                + FakeLlmConfiguration.RESPONSIBILITY
+                + "\", \"cites\": [\"F1\"]}},"
+                + " \"interactions\": {\"R1\": {\"text\": \""
+                + FakeLlmConfiguration.INTENT
+                + "\","
                 + " \"cites\": [\"F1\"]}}}, \"I2\": {}, \"I3\": {\"omitted\": true}}}");
     assertThat(
             describe(
@@ -183,6 +195,8 @@ class FakeLlmConfigurationTest {
                 "<items>\n<item id=\"I1\">\nThe topic orders.\n[F4] fact\n</item>\n</items>"))
         .isEqualTo(
             "{\"items\": {\"I1\": {\"responsibility\": {\"text\":"
-                + " \"{{placeholder: responsibility}}\", \"cites\": [\"F4\"]}}}}");
+                + " \""
+                + FakeLlmConfiguration.RESPONSIBILITY
+                + "\", \"cites\": [\"F4\"]}}}}");
   }
 }

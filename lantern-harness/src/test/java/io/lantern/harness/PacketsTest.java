@@ -94,7 +94,7 @@ class PacketsTest {
                     CheckedText.Kind.RESPONSIBILITY,
                     text.path("text").asString(),
                     cites,
-                    40,
+                    new io.lantern.harness.Contract.Range(1, 40),
                     item.subject(),
                     Set.of()));
           }
@@ -316,7 +316,7 @@ class PacketsTest {
                       CheckedText.Kind.PROSE,
                       text.path("text").asString(),
                       cites,
-                      40,
+                      new io.lantern.harness.Contract.Range(1, 40),
                       item.subject(),
                       Set.of()));
             }

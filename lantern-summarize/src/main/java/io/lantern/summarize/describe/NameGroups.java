@@ -79,19 +79,20 @@ public final class NameGroups {
   static final String RESPONSIBILITY_FIELD = "responsibility";
 
   /** The prompt version, part of every answer's cache key. */
-  static final String VERSION = "5";
+  static final String VERSION = "6";
 
   /** The most groups a request holds, a starting size to calibrate. */
   static final int PACKET = 8;
 
   /** The most words of a name, a responsibility, an intent and a merge reason. */
-  static final int NAME_WORDS = io.lantern.harness.Contract.of("name-groups").acceptedWords("name");
+  static final io.lantern.harness.Contract.Range NAME_WORDS =
+      io.lantern.harness.Contract.of("name-groups").acceptedWords("name");
 
-  static final int SENTENCE_WORDS =
+  static final io.lantern.harness.Contract.Range SENTENCE_WORDS =
       io.lantern.harness.Contract.of("name-groups").acceptedWords("responsibility");
-  static final int PHRASE_WORDS =
+  static final io.lantern.harness.Contract.Range PHRASE_WORDS =
       io.lantern.harness.Contract.of("name-groups").acceptedWords("intent");
-  static final int REASON_WORDS =
+  static final io.lantern.harness.Contract.Range REASON_WORDS =
       io.lantern.harness.Contract.of("name-groups").acceptedWords("mergeReason");
 
   /** The most other groups an item lists for a merge suggestion. */
@@ -799,7 +800,11 @@ public final class NameGroups {
   }
 
   private static CheckedText checked(
-      String field, CheckedText.Kind kind, DescribeRole.Text text, int words, String subject) {
+      String field,
+      CheckedText.Kind kind,
+      DescribeRole.Text text,
+      io.lantern.harness.Contract.Range words,
+      String subject) {
     return new CheckedText(field, kind, text.text(), text.cites(), words, subject, Set.of());
   }
 

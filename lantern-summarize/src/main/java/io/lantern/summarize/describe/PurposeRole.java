@@ -51,13 +51,13 @@ public final class PurposeRole {
   static final String PURPOSE_FIELD = "purpose";
 
   /** The prompt version; change it whenever the role's prompt or what an item shows changes. */
-  static final String VERSION = "4";
+  static final String VERSION = "5";
 
   /** The most words of the purpose and of the key fact. */
-  static final int PURPOSE_WORDS =
+  static final io.lantern.harness.Contract.Range PURPOSE_WORDS =
       io.lantern.harness.Contract.of("purpose").acceptedWords("purpose");
 
-  static final int KEY_FACT_WORDS =
+  static final io.lantern.harness.Contract.Range KEY_FACT_WORDS =
       io.lantern.harness.Contract.of("purpose").acceptedWords("keyFact");
 
   public static final String TASK = DescribeRole.prompt("purpose.task.txt");

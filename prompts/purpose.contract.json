@@ -16,8 +16,11 @@
         "predicate": "purpose"
       },
       "words": {
-        "requested": 25,
-        "stated": "one plain sentence of at most 25 words"
+        "requested": [
+          10,
+          25
+        ],
+        "stated": "one plain sentence of 10 to 25 words"
       },
       "sentences": {
         "requested": [
@@ -40,8 +43,11 @@
         "predicate": "key-fact"
       },
       "words": {
-        "requested": 30,
-        "stated": "one plain sentence of at most 30 words"
+        "requested": [
+          10,
+          30
+        ],
+        "stated": "one plain sentence of 10 to 30 words"
       },
       "sentences": {
         "requested": [

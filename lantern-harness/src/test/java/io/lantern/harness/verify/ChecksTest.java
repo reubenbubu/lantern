@@ -41,11 +41,16 @@ class ChecksTest {
         Set.of("hunter22secret"));
   }
 
+  /** The words the helper's texts may have. */
+  private static final io.lantern.harness.Contract.Range WORDS =
+      new io.lantern.harness.Contract.Range(1, 12);
+
   private static ItemAnswer text(CheckedText.Kind kind, String text, String... cites) {
     return new ItemAnswer(
         "I1",
         JSON.readTree("{\"text\": \"x\"}"),
-        List.of(new CheckedText("text", kind, text, List.of(cites), 12, "OrderService", Set.of())),
+        List.of(
+            new CheckedText("text", kind, text, List.of(cites), WORDS, "OrderService", Set.of())),
         List.of());
   }
 
@@ -172,7 +177,7 @@ class ChecksTest {
                     CheckedText.Kind.PROSE,
                     "OrderService has no transaction",
                     List.of("shop:src/OrderService.java:1-1"),
-                    40,
+                    io.lantern.harness.Contract.Range.ANY,
                     "",
                     Set.of("OrderService"))),
             List.of());
@@ -202,7 +207,7 @@ class ChecksTest {
                     CheckedText.Kind.PROSE,
                     "place has no transaction",
                     List.of("shop:src/OrderService.java:2-3"),
-                    40,
+                    io.lantern.harness.Contract.Range.ANY,
                     "",
                     Set.of("place"))),
             List.of());
@@ -217,7 +222,7 @@ class ChecksTest {
                     CheckedText.Kind.PROSE,
                     "refund has no transaction",
                     List.of("shop:src/OrderService.java:1-1"),
-                    40,
+                    io.lantern.harness.Contract.Range.ANY,
                     "",
                     Set.of("refund"))),
             List.of());
@@ -226,6 +231,38 @@ class ChecksTest {
         .containsExactly(
             "Declares the name refund, which its cited lines do not hold.",
             "Cites shop:src/OrderService.java:1-1, which holds none of its declared names.");
+  }
+
+  @Test
+  void aTextBelowItsAcceptedMinimumIsRejectedLikeOneAboveItsMaximum() {
+    Check check = new Checks.Form();
+    io.lantern.harness.Contract.Range range = new io.lantern.harness.Contract.Range(3, 6);
+    java.util.function.Function<String, List<String>> form =
+        t ->
+            reasons(
+                check,
+                new ItemAnswer(
+                    "I1",
+                    JSON.readTree("{}"),
+                    List.of(
+                        new CheckedText(
+                            "title",
+                            CheckedText.Kind.PROSE,
+                            t,
+                            List.of("F1"),
+                            range,
+                            "",
+                            Set.of())),
+                    List.of()));
+    assertThat(form.apply("Orders"))
+        .containsExactly("Has 1 words; the accepted range is 3 to 6 words, so say more.");
+    assertThat(form.apply("  "))
+        .containsExactly("Has 0 words; the accepted range is 3 to 6 words, so say more.");
+    assertThat(form.apply("Customer places order")).isEmpty();
+    assertThat(form.apply("Customer places an order for delivery")).isEmpty();
+    assertThat(form.apply("Customer places an order for home delivery"))
+        .containsExactly(
+            "Has 7 words; the accepted range is 3 to 6 words, so say it in fewer words.");
   }
 
   @Test
@@ -246,7 +283,8 @@ class ChecksTest {
                     CheckedText.Kind.PROSE,
                     "one two three four five six seven eight nine ten eleven twelve thirteen",
                     "F1")))
-        .containsExactly("Has 13 words; the limit is 12.");
+        .containsExactly(
+            "Has 13 words; the accepted range is 1 to 12 words, so say it in fewer words.");
     assertThat(
             reasons(
                 check,

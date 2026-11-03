@@ -36,7 +36,7 @@ import java.util.regex.Pattern;
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "17";
+  static final String VERSION = "18";
 
   /**
    * The version answers are keyed by: {@link #VERSION}, with a digest of the prompt files when one
@@ -75,15 +75,15 @@ final class Prompt {
   /** The item's ID in the request: every request holds one unit. */
   static final String ITEM = "I1";
 
-  /** The most words of one sentence the checks accept; the schema's 300 characters bound it too. */
-  static final int SENTENCE_WORDS =
+  /** The words of one sentence the checks accept; the schema's 300 characters bound it too. */
+  static final io.lantern.harness.Contract.Range SENTENCE_WORDS =
       io.lantern.harness.Contract.of("summarize").acceptedWords("sentence");
 
   /**
-   * The most words of one sentence the prompt asks for: fewer than the checks accept, unsaid, so a
-   * sentence a little over what was asked is not sent back (#685).
+   * The words of one sentence the prompt asks for: a narrower range than the checks accept, unsaid,
+   * so a sentence a little outside what was asked is not sent back (#685).
    */
-  static final int ASKED_WORDS =
+  static final io.lantern.harness.Contract.Range ASKED_WORDS =
       io.lantern.harness.Contract.of("summarize").requestedWords("sentence");
 
   private static final Pattern MARKER = Pattern.compile("\\s*\\[(?:fact|summary):[^\\]\\s]+\\]");
@@ -206,7 +206,7 @@ final class Prompt {
         // A unit with one part would only restate it at full length.
         text.append("Write ")
             .append(SummaryLevel.ONE_PART_SENTENCES)
-            .append(" sentences of at most ")
+            .append(" sentences of ")
             .append(ASKED_WORDS)
             .append(" words each. It contains only one unit [S1]: say what it adds to that unit,")
             .append(" such as its dependencies, and do not restate that unit's summary.\n");
@@ -220,7 +220,7 @@ final class Prompt {
           .append(part.number())
           .append(". Write ")
           .append(SummaryLevel.ONE_PART_SENTENCES)
-          .append(" sentences of at most ")
+          .append(" sentences of ")
           .append(ASKED_WORDS)
           .append(" words each on what this part shows about it; the summaries of the parts are")
           .append(" merged later.\n");
@@ -244,7 +244,7 @@ final class Prompt {
     return level.minSentences()
         + " to "
         + level.maxSentences()
-        + " sentences of at most "
+        + " sentences of "
         + ASKED_WORDS
         + " words each";
   }

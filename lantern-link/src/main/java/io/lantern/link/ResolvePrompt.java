@@ -32,7 +32,7 @@ import tools.jackson.databind.JsonNode;
 final class ResolvePrompt {
 
   /** The prompt's version, part of every answer's cache key and the version of the facts. */
-  static final String VERSION = "6";
+  static final String VERSION = "7";
 
   /** Block 2's instructions, as the epic writes them. */
   static final String TASK = resource("resolve.task.txt");
@@ -53,7 +53,8 @@ final class ResolvePrompt {
   static final JsonNode ITEM_SCHEMA = JsonSchema.itemSchema(SUBMIT_SCHEMA);
 
   /** The most words of a reason. */
-  static final int REASON_WORDS = io.lantern.harness.Contract.of("resolve").acceptedWords("reason");
+  static final io.lantern.harness.Contract.Range REASON_WORDS =
+      io.lantern.harness.Contract.of("resolve").acceptedWords("reason");
 
   /** The pick of an answer that picks no candidate. */
   static final String UNKNOWN = "unknown";

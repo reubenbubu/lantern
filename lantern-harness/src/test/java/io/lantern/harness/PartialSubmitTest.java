@@ -101,7 +101,7 @@ class PartialSubmitTest {
                 CheckedText.Kind.PROSE,
                 part.getValue().path("text").asString(""),
                 cites,
-                20,
+                new io.lantern.harness.Contract.Range(1, 20),
                 "",
                 Set.of()));
       }

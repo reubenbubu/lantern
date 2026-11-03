@@ -35,13 +35,13 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "Builds on its parts."
+      "text" : "Builds on its parts, as the summaries of what it contains say."
     }, {
       "kind" : "citation",
       "facts" : [ "29f66eb7fd9adcc691657a91921cf4570c1a7e5a1d34386338ce96397eb3fee7", "be9d05f2581e4c1190b99aed08beaeb72f262c5301c4c8054df9b4b87bab052a" ]
     }, {
       "kind" : "text",
-      "text" : " Described by its facts."
+      "text" : " Described by its facts, as the analysis of its code found them."
     }, {
       "kind" : "citation",
       "facts" : [ "35197b6d2c53fa32112518e0dc19e3312280803a0156bd1272d1e64f2e91cc14" ]
@@ -61,13 +61,13 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "Builds on its parts."
+      "text" : "Builds on its parts, as the summaries of what it contains say."
     }, {
       "kind" : "citation",
       "facts" : [ "29f66eb7fd9adcc691657a91921cf4570c1a7e5a1d34386338ce96397eb3fee7" ]
     }, {
       "kind" : "text",
-      "text" : " Described by its facts."
+      "text" : " Described by its facts, as the analysis of its code found them."
     }, {
       "kind" : "citation",
       "facts" : [ "be9d05f2581e4c1190b99aed08beaeb72f262c5301c4c8054df9b4b87bab052a" ]
@@ -91,13 +91,13 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "Builds on its parts."
+      "text" : "Builds on its parts, as the summaries of what it contains say."
     }, {
       "kind" : "citation",
       "facts" : [ "29f66eb7fd9adcc691657a91921cf4570c1a7e5a1d34386338ce96397eb3fee7", "35197b6d2c53fa32112518e0dc19e3312280803a0156bd1272d1e64f2e91cc14", "be9d05f2581e4c1190b99aed08beaeb72f262c5301c4c8054df9b4b87bab052a" ]
     }, {
       "kind" : "text",
-      "text" : " Described by its facts."
+      "text" : " Described by its facts, as the analysis of its code found them."
     }, {
       "kind" : "citation",
       "facts" : [ "e787e5194c9255b5869aee2754132af8a76436ef621683764652712db2e3ed47" ]
@@ -117,13 +117,13 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "Builds on its parts."
+      "text" : "Builds on its parts, as the summaries of what it contains say."
     }, {
       "kind" : "citation",
       "facts" : [ "357ba57017f1eb68ed86218e300d3fffc36fe4d88db8b2cf29ccf6cf919c1d3f", "9529541987bf914281f83580270c724c886029ebbfe296e9f30c2ac85830e941" ]
     }, {
       "kind" : "text",
-      "text" : " Described by its facts."
+      "text" : " Described by its facts, as the analysis of its code found them."
     }, {
       "kind" : "citation",
       "facts" : [ "573617e48c5b15a141fd18dc754815fa97a97484b8a952fd81d772d2274950f4" ]
@@ -147,7 +147,7 @@
       "text" : " "
     }, {
       "kind" : "text",
-      "text" : "Described by its facts."
+      "text" : "Described by its facts, as the analysis of its code found them."
     }, {
       "kind" : "citation",
       "facts" : [ "29f66eb7fd9adcc691657a91921cf4570c1a7e5a1d34386338ce96397eb3fee7" ]
@@ -700,13 +700,13 @@
         "text" : " "
       }, {
         "kind" : "text",
-        "text" : "Builds on its parts."
+        "text" : "Builds on its parts, as the summaries of what it contains say."
       }, {
         "kind" : "citation",
         "facts" : [ "29f66eb7fd9adcc691657a91921cf4570c1a7e5a1d34386338ce96397eb3fee7", "35197b6d2c53fa32112518e0dc19e3312280803a0156bd1272d1e64f2e91cc14", "be9d05f2581e4c1190b99aed08beaeb72f262c5301c4c8054df9b4b87bab052a" ]
       }, {
         "kind" : "text",
-        "text" : " Described by its facts."
+        "text" : " Described by its facts, as the analysis of its code found them."
       }, {
         "kind" : "citation",
         "facts" : [ "e787e5194c9255b5869aee2754132af8a76436ef621683764652712db2e3ed47" ]

@@ -56,10 +56,10 @@ import tools.jackson.databind.node.ObjectNode;
 public final class FlowJudgements {
 
   /** The version of the significance prompt. */
-  static final String SIGNIFICANCE_VERSION = "6";
+  static final String SIGNIFICANCE_VERSION = "7";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
-  static final String NARRATIVE_VERSION = "8";
+  static final String NARRATIVE_VERSION = "9";
 
   public static final String SIGNIFICANCE_TASK = DescribeRole.prompt("flow-significance.task.txt");
   public static final String SIGNIFICANCE_SCHEMA =
@@ -73,15 +73,15 @@ public final class FlowJudgements {
   /** The flows a unit's first-pass item keeps for the system's item. */
   public static final int KEPT_PER_UNIT = 15;
 
-  static final int REASON_WORDS =
+  static final io.lantern.harness.Contract.Range REASON_WORDS =
       io.lantern.harness.Contract.of("flow-significance").acceptedWords("reason");
-  static final int TITLE_WORDS =
+  static final io.lantern.harness.Contract.Range TITLE_WORDS =
       io.lantern.harness.Contract.of("flow-narrative").acceptedWords("title");
-  static final int WALKTHROUGH_WORDS =
+  static final io.lantern.harness.Contract.Range WALKTHROUGH_WORDS =
       io.lantern.harness.Contract.of("flow-narrative").acceptedWords("walkthrough");
-  static final int PRECONDITION_WORDS =
+  static final io.lantern.harness.Contract.Range PRECONDITION_WORDS =
       io.lantern.harness.Contract.of("flow-narrative").acceptedWords("preconditions");
-  static final int POSTCONDITION_WORDS =
+  static final io.lantern.harness.Contract.Range POSTCONDITION_WORDS =
       io.lantern.harness.Contract.of("flow-narrative").acceptedWords("postconditions");
 
   /** The repair turn when no flow is significant while some cross a unit boundary (the epic's). */

@@ -16,8 +16,11 @@
         "attribute": "sentences[].text"
       },
       "words": {
-        "requested": 30,
-        "stated": "of at most 30 words each"
+        "requested": [
+          10,
+          30
+        ],
+        "stated": "of 10 to 30 words each"
       },
       "cites": [
         "F",
