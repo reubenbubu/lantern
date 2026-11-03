@@ -187,6 +187,13 @@ three numbers (`lantern-web/scripts/roles.mjs`, `describeRow`):
   Messages sent to another unit (`SENDS_MESSAGES_TO`) count though the views draw them through the
   queue lines, since both ends are drawn and the model holds no intent for them.
 
+  Three items are named here rather than read from the vocabulary, because they are not
+  relationship types below `INTERACTS_WITH`: `COMPONENT_LINK` (a structural type with no parent)
+  and the attributes `data-access` and `person-basis`. A component's data access counts only toward
+  a database its unit's drawn link reaches, since without that box no view draws the line. A person
+  who names no frontend the report draws has no owner and is not asked; on the 1F runs that is
+  every person of project-8 and both of project-1, whose model names no frontend for them.
+
   Each is scored with three outcomes, a wrong answer costing one point (p = 1):
   - right when one of its intents opens with something other than a generic verb;
   - wrong when its intent opens with one, such as "Uses" or "Calls";
