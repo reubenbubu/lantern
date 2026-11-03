@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import {
   compareMarkdown,
+  isComponent,
   normalizeName,
   normalizeTrigger,
   protocolOf,
@@ -271,6 +272,17 @@ test('a line label that opens with a generic verb fails the line-label check (#7
   };
   const checks = Object.fromEntries(qualityChecks(data).map((c) => [c.id, c]));
   assert.deepEqual(checks['line-labels'].failures, ['p / d: a -> b', 'p / d: b -> c']);
+});
+
+test("a reference's feature areas, drawn as component boxes, are not counted as components (#549)", () => {
+  const before = score(report, reference, aliases).components;
+  const withArea = structuredClone(reference);
+  const [containerId] = Object.entries(withArea.elements).find(([, e]) => e.kind === 'container');
+  withArea.elements['area-orders'] = { kind: 'component', tag: 'Feature area', name: 'Orders', parent: containerId };
+  const after = score(report, withArea, aliases).components;
+  assert.deepEqual(after, before);
+  assert.equal(isComponent({ kind: 'component', tag: 'Feature area' }), false);
+  assert.equal(isComponent({ kind: 'component' }), true);
 });
 
 test('risks match by subject, decisions and glossary terms are counted', () => {
