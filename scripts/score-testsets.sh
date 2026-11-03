@@ -314,7 +314,7 @@ if ((max_jobs > 1)) && ((${#sets[@]} > 1)) && ! $score_only; then
     done
     project="$base_project-$set"
     port=""
-    if [[ -z "$(docker compose -p "$project" ps -q --status running postgres 2>/dev/null)" ]]; then
+    if [[ -z "$(docker compose -f "$REPO/compose.yaml" -p "$project" ps -q --status running postgres 2>/dev/null)" ]]; then
       port="$(free_port "$next_port")" || die "no free port for the database of $set"
       taken+=("$port")
       next_port=$((port + 1))
