@@ -191,6 +191,45 @@ class PacketsTest {
   }
 
   @Test
+  void theRolesFirstRequestGoesAloneAlsoWhenSeveralScopesAreAskedAtOnce() throws Exception {
+    java.util.concurrent.atomic.AtomicInteger inFlight =
+        new java.util.concurrent.atomic.AtomicInteger();
+    java.util.concurrent.atomic.AtomicInteger seenDuringFirst =
+        new java.util.concurrent.atomic.AtomicInteger();
+    java.util.concurrent.atomic.AtomicInteger calls =
+        new java.util.concurrent.atomic.AtomicInteger();
+    FakeLlmProvider fake =
+        answering(
+            request -> {
+              inFlight.incrementAndGet();
+              try {
+                if (calls.incrementAndGet() == 1) {
+                  Thread.sleep(300);
+                  seenDuringFirst.set(inFlight.get());
+                }
+                return "{\"items\": {\"I1\": " + good("Holds what customers bought") + "}}";
+              } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+              } finally {
+                inFlight.decrementAndGet();
+              }
+            });
+    RoleSession session = harness(client(fake), store).session(ROLE.withPacketSize(1));
+    try (java.util.concurrent.ExecutorService scopes =
+        java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+      List<java.util.concurrent.Future<Map<String, Outcome>>> asked = new ArrayList<>();
+      for (String scope : List.of("orders", "payments", "invoices")) {
+        asked.add(scopes.submit(() -> session.askPackets(List.of(item(scope)), SENTENCES)));
+      }
+      for (java.util.concurrent.Future<Map<String, Outcome>> each : asked) {
+        assertThat(each.get().values()).allMatch(o -> o.kind() == Outcome.Kind.ANSWERED);
+      }
+    }
+    assertThat(calls.get()).isEqualTo(3);
+    assertThat(seenDuringFirst.get()).isEqualTo(1);
+  }
+
+  @Test
   void aPacketWithOneBadItemKeepsTheOthers() {
     FakeLlmProvider fake =
         answering(
