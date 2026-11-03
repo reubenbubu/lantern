@@ -27,7 +27,7 @@
 | Glossary terms | 5/14 (36%) | 5/18 (28%) | same |
 
 Connections by protocol (matched/reference, report): person 0/1, 0; HTTP 7/14, 20; other 0/8, 0; data store 6/12, 9; messaging 13/39, 25; email 0/1, 0.
-Components (report/reference): 119/132; Staff web app 0/3, Customer web app 0/2, Edge gateway 4/3, Customer portal BFF 3/3, Platform discovery 0/0, Platform config 0/0, Work order service 47/59, Technician service 10/10, Parts inventory 6/7, Telematics ingest 5/7, Billing service 32/30, Notification service 12/8, Fleet audit 0/0, Keycloak 0/0, PostgreSQL server 0/0.
+Components (report/reference): 119/117; Staff web app 0/3, Customer web app 0/2, Edge gateway 4/3, Customer portal BFF 3/3, Platform discovery 0/0, Platform config 0/0, Work order service 47/48, Technician service 10/10, Parts inventory 6/7, Telematics ingest 5/7, Billing service 32/26, Notification service 12/8, Fleet audit 0/0, Keycloak 0/0, PostgreSQL server 0/0.
 
 ## Flows found
 

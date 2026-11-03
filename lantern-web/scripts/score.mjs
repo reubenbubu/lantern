@@ -268,6 +268,7 @@ export function protocolOf(fromKind, toKind, technology) {
 function matchElements(report, reference, aliases) {
   const byName = new Map();
   for (const [id, element] of Object.entries(reference.elements)) {
+    if (element.tag === FEATURE_AREA_TAG) continue; // a feature area is no component (#549)
     byName.set(`${element.kind}:${normalizeName(element.name)}`, id);
     byName.set(`${element.kind}:${normalizeName(id)}`, id);
     // A reference element the alias table allows in other kinds too matches by name there as well.
@@ -290,6 +291,7 @@ function matchElements(report, reference, aliases) {
   const exchange = (element) => /\bexchange\b/i.test(element.technology ?? '');
   const sameName = new Map();
   for (const [id, element] of Object.entries(reference.elements)) {
+    if (element.tag === FEATURE_AREA_TAG) continue;
     const key = `${element.kind}:${normalizeName(element.name)}`;
     sameName.set(key, [...(sameName.get(key) ?? []), id]);
   }
@@ -354,6 +356,12 @@ function inScope(report, matched) {
   }
   return scope;
 }
+
+/** The tag a reference gives a unit's feature area drawn as a component box (#548). */
+export const FEATURE_AREA_TAG = 'Feature area';
+
+/** Whether an element is a component, not a feature area drawn as one (#549). */
+export const isComponent = (element) => element.kind === 'component' && element.tag !== FEATURE_AREA_TAG;
 
 function ratio(numerator, denominator) {
   return denominator === 0 ? null : Math.round((numerator / denominator) * 1000) / 1000;
@@ -610,15 +618,15 @@ export function score(report, reference, aliases = {}, inputs = {}) {
     );
   }
 
-  // Components: counted per container; names rarely agree, so matches are only by name.
+  // Components: counted per container; names rarely agree, so matches are only by name. A unit's
+  // feature areas, which a reference draws as component boxes tagged "Feature area" for want of a
+  // group element, are groups, not components (#549).
   const componentsOf = (data, parent) =>
-    Object.entries(data.elements).filter(([, e]) => e.kind === 'component' && e.parent === parent);
+    Object.entries(data.elements).filter(([, e]) => isComponent(e) && e.parent === parent);
   result.components = {
-    reference: Object.values(reference.elements).filter((e) => e.kind === 'component').length,
-    report: Object.values(report.elements).filter((e) => e.kind === 'component').length,
-    reportConnected: Object.entries(report.elements).filter(
-      ([id, e]) => e.kind === 'component' && scope.has(id),
-    ).length,
+    reference: Object.values(reference.elements).filter(isComponent).length,
+    report: Object.values(report.elements).filter(isComponent).length,
+    reportConnected: Object.entries(report.elements).filter(([id, e]) => isComponent(e) && scope.has(id)).length,
     byContainer: Object.entries(reference.elements)
       .filter(([, e]) => e.kind === 'container')
       .map(([refId, container]) => {
