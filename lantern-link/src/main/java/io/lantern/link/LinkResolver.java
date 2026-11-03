@@ -103,8 +103,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
 
   private static final Logger LOG = LoggerFactory.getLogger(LinkResolver.class);
 
-  /** A file range as an answer cites it. */
-  private static final Pattern RANGE = Pattern.compile("^[^:\\s]+:[^:\\s]+:\\d+-\\d+$");
+  /** A file range as an answer cites it, or one line (#703). */
+  private static final Pattern RANGE = Pattern.compile("^[^:\\s]+:[^:\\s]+:\\d+(?:-\\d+)?$");
 
   /** A config key a placeholder names: {@code ${clients.tax.url}} or {@code ${TAX_URL:default}}. */
   private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}:\\s]+)");

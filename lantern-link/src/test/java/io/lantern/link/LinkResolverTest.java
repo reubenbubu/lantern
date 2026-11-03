@@ -707,6 +707,27 @@ class LinkResolverTest {
   }
 
   @Test
+  void aCachedAnswerCitingOneLineIsNotAskedAgain() {
+    // A single cited line is a range of that line, in the check and in the cache (#703).
+    taxCall();
+    Function<LlmRequest, String> citingOneLine =
+        r ->
+            "{\"I1\": "
+                + entry(
+                    candidate(r, "service:g:tax"),
+                    "high",
+                    "Only tax serves GET /v2/quotes.",
+                    ref(r, "http-call"),
+                    ref(r, "t.TaxController#quotes() endpoint"),
+                    "t:src/main/java/t/TaxController.java:4")
+                + "}";
+    assertThat(resolveWithFiles(submittingOnce(citingOneLine)).facts()).isNotEmpty();
+    FakeLlmProvider unchanged = model(r -> List.of());
+    resolveWithFiles(unchanged);
+    assertThat(unchanged.sent()).isEmpty();
+  }
+
+  @Test
   void aReasonNamingWhatItDoesNotCiteIsRejected() {
     taxCall();
     FakeLlmProvider fake =

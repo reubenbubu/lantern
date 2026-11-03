@@ -112,6 +112,13 @@ class ChecksTest {
             reasons(
                 check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:2-3")))
         .isEmpty();
+    // One line is a range of that line (#703).
+    assertThat(
+            reasons(check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:4")))
+        .isEmpty();
+    assertThat(
+            reasons(check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:5")))
+        .containsExactly("Cites shop:src/OrderService.java:5, outside the file's 4 lines.");
     assertThat(
             reasons(
                 check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:3-9")))
