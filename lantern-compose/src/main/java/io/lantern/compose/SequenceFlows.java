@@ -29,6 +29,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -911,7 +912,10 @@ final class SequenceFlows {
           kept.add(trace);
         }
       }
-      return kept;
+      // The model is shown one flow for each stored shape, which tells flows apart by the messages
+      // they follow; two it keeps may still be one picture with other labels (a PUT and a DELETE of
+      // the same resource), so only its first of each drawn shape is drawn (#701).
+      return firstOfEachShape(kept, SequenceFlows::shape);
     }
     List<Trace> first = new ArrayList<>();
     // Business weight (ADR 0070): how a person signs in, and the socket a frontend opens for the
@@ -998,6 +1002,18 @@ final class SequenceFlows {
       case MESSAGE_LISTENER -> 1;
       default -> 2;
     };
+  }
+
+  /** The first of each shape, in the order given. */
+  static <T> List<T> firstOfEachShape(List<T> ordered, Function<T, ?> shape) {
+    Set<Object> seen = new HashSet<>();
+    List<T> first = new ArrayList<>();
+    for (T item : ordered) {
+      if (seen.add(shape.apply(item))) {
+        first.add(item);
+      }
+    }
+    return first;
   }
 
   /** What makes two flows look the same: how they start and their lifelines, in order. */

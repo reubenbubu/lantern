@@ -799,6 +799,21 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void ofTheFlowsTheModelKeepsOnlyItsFirstOfEachShapeIsDrawn() {
+    // As project-4's PUT and DELETE of a member's role, judged significant both (#701).
+    List<String> kept =
+        SequenceFlows.firstOfEachShape(
+            List.of("PUT role", "sign up", "DELETE role", "reset password", "upload"),
+            flow ->
+                switch (flow) {
+                  case "PUT role", "DELETE role" -> "member, main-service, auth-service";
+                  case "sign up", "reset password" -> "member, auth-service, mail";
+                  default -> "member, file-service";
+                });
+    assertThat(kept).containsExactly("PUT role", "sign up", "upload");
+  }
+
+  @Test
   void aFrontendNoPersonUsesStartsTheFlowItself() {
     attribute(
         "front",
