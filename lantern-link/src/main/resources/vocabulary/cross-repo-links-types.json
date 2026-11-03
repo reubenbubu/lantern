@@ -3,7 +3,7 @@
     "name": "topic",
     "kind": "entity",
     "parent": "container",
-    "shape": "queue",
+    "shape": "pipe",
     "description": "A Kafka topic, a container of the system. Its key is the broker kind, ':' and the topic name, such as kafka:payments.completed.",
     "attributeSchema": {
       "additionalProperties": false
@@ -13,7 +13,7 @@
     "name": "queue",
     "kind": "entity",
     "parent": "container",
-    "shape": "queue",
+    "shape": "pipe",
     "description": "A message queue, a container of the system. Its key is the broker kind (rabbitmq or jms), ':' and the queue or JMS destination name, such as rabbitmq:payments.order-events.",
     "attributeSchema": {
       "additionalProperties": false
@@ -23,7 +23,7 @@
     "name": "exchange",
     "kind": "entity",
     "parent": "container",
-    "shape": "queue",
+    "shape": "pipe",
     "description": "A RabbitMQ exchange, a container of the system, routing messages to the queues bound to it. Its key is rabbitmq, ':' and the exchange name, such as rabbitmq:shop.orders.",
     "attributeSchema": {
       "additionalProperties": false

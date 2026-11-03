@@ -95,9 +95,6 @@ public final class NameGroups {
   /** The answer schema, as the epic writes it. */
   static final String SCHEMA = DescribeRole.prompt("name-groups.schema.json");
 
-  /** The display name of a group: {@code (group, display-name, "c4")}. */
-  public static final String DISPLAY_NAME = LlmFacts.DISPLAY_NAME;
-
   /** The kind of finding a merge suggestion is. */
   public static final String GROUP_MERGE = "group-merge";
 
@@ -520,7 +517,7 @@ public final class NameGroups {
                 ROLE,
                 model,
                 group,
-                field.equals(NAME) ? DISPLAY_NAME : LlmFacts.RESPONSIBILITY,
+                field.equals(NAME) ? LlmFacts.DISPLAY_NAME : LlmFacts.RESPONSIBILITY,
                 LlmFacts.C4,
                 text.get().text(),
                 text.get().facts(),

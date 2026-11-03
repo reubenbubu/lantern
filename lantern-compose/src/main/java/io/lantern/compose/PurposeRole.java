@@ -59,11 +59,6 @@ final class PurposeRole {
 
   static final String KEY_FACT = "keyFact";
 
-  /** The predicates of the claims. */
-  static final String PURPOSE_PREDICATE = LlmFacts.PURPOSE;
-
-  static final String KEY_FACT_PREDICATE = LlmFacts.KEY_FACT;
-
   /** The role: one call, on the reasoning tier, in the group it shares with the flows. */
   static final RoleSpec ROLE =
       RoleSpec.single(
@@ -388,7 +383,7 @@ final class PurposeRole {
           Fact fact =
               Fact.create(
                   RepoSections.SYSTEM,
-                  field.equals(Types.PURPOSE) ? PURPOSE_PREDICATE : KEY_FACT_PREDICATE,
+                  field.equals(Types.PURPOSE) ? LlmFacts.PURPOSE : LlmFacts.KEY_FACT,
                   FactObject.string(LlmFacts.C4),
                   attributes,
                   LlmFacts.origin(ROLE),

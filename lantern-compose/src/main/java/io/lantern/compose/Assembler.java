@@ -673,7 +673,7 @@ final class Assembler {
     if (shape.equals(CYLINDER)) {
       return DocumentEntity.Kind.DATABASE;
     }
-    if (shape.equals(QUEUE_SHAPE)) {
+    if (shape.equals(PIPE)) {
       return DocumentEntity.Kind.QUEUE;
     }
     if (vocabulary.isA(type, BuiltInTypes.ACTOR)) {
@@ -720,7 +720,7 @@ final class Assembler {
   private static final String CYLINDER = "cylinder";
 
   /** The shape the vocabulary draws topics, queues and exchanges with. */
-  private static final String QUEUE_SHAPE = "queue";
+  private static final String PIPE = "pipe";
 
   /** The connections Investigate found to an entity (ADR 0110). */
   private List<Fact> investigatedTo(EntityId id) {

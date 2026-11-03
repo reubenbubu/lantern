@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.lantern.app.archfixture.FactReadingRenderer;
+import io.lantern.compose.archfixture.ComposerCopyingTypeNames;
 import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
 import io.lantern.extract.archfixture.ExtractorResolvingPlaceholders;
@@ -46,6 +47,19 @@ class ArchitectureRulesTest {
 
     assertThatCode(() -> ArchitectureRules.STAGES_DEPEND_ONLY_ON_EARLIER_STAGES.check(classes))
         .doesNotThrowAnyException();
+  }
+
+  @Test
+  void composerCodeCopyingATypesNameIsRejected() {
+    JavaClasses classes = new ClassFileImporter().importClasses(ComposerCopyingTypeNames.class);
+
+    assertThatThrownBy(
+            () -> ArchitectureRules.COMPOSE_NAMES_TYPES_THROUGH_THE_TYPED_LAYER.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining(
+            "ComposerCopyingTypeNames.CALLS_HTTP holds the type name 'CALLS_HTTP'")
+        .hasMessageContaining("ComposerCopyingTypeNames.DATABASE holds the type name 'database'")
+        .hasMessageNotContaining("HEADING");
   }
 
   @Test

@@ -1,15 +1,26 @@
 package io.lantern.archtest;
 
 import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaField;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.CompositeArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
+import io.lantern.core.vocabulary.VocabularyType;
+import io.lantern.derive.Vocabularies;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /** Architecture rules shared by the tests. */
 final class ArchitectureRules {
@@ -259,6 +270,76 @@ final class ArchitectureRules {
       all = all.and(rule);
     }
     return all;
+  }
+
+  /**
+   * Constants of the composer and the renderers whose value only happens to be a type's name: the
+   * fields of an LLM role's answer, which #698 moves out of the composer.
+   */
+  static final Set<String> NOT_TYPE_NAMES =
+      Set.of("io.lantern.compose.FlowJudgements.TITLE", "io.lantern.compose.WordingPrompt.TITLE");
+
+  /**
+   * The composer and the renderers define no constant holding a vocabulary type's name: they name
+   * predicates and entity types through the generated {@code Types}, the typed layer, so a type is
+   * named in one place (ADR 0114).
+   */
+  static final ArchRule COMPOSE_NAMES_TYPES_THROUGH_THE_TYPED_LAYER =
+      fields()
+          .that()
+          .areStatic()
+          .and()
+          .areFinal()
+          .and()
+          .haveRawType(String.class)
+          .and()
+          .areDeclaredInClassesThat(
+              DescribedPredicate.or(resideInAnyPackage("io.lantern.compose.."), RENDERERS))
+          .should(
+              new ArchCondition<JavaField>("not hold a vocabulary type's name") {
+                @Override
+                public void check(JavaField field, ConditionEvents events) {
+                  String name = field.getOwner().getName() + "." + field.getName();
+                  if (NOT_TYPE_NAMES.contains(name)) {
+                    return;
+                  }
+                  Object value = value(field);
+                  if (value instanceof String text && TYPE_NAMES.get().contains(text)) {
+                    events.add(
+                        SimpleConditionEvent.violated(
+                            field,
+                            name + " holds the type name '" + text + "'; name it through Types"));
+                  }
+                }
+              })
+          .allowEmptyShould(true)
+          .because("the typed layer names every vocabulary type in one place (ADR 0114)");
+
+  /** The names of this version of Lantern's vocabulary types, read when first needed. */
+  static final Supplier<Set<String>> TYPE_NAMES =
+      new Supplier<>() {
+        private Set<String> names;
+
+        @Override
+        public synchronized Set<String> get() {
+          if (names == null) {
+            names =
+                Vocabularies.standard().types().stream()
+                    .map(VocabularyType::name)
+                    .collect(Collectors.toUnmodifiableSet());
+          }
+          return names;
+        }
+      };
+
+  private static Object value(JavaField field) {
+    try {
+      Field reflected = field.reflect();
+      reflected.setAccessible(true);
+      return reflected.get(null);
+    } catch (ReflectiveOperationException | RuntimeException e) {
+      return null;
+    }
   }
 
   private static boolean isRenderer(JavaClass c) {

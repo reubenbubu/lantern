@@ -109,9 +109,6 @@ final class FlowJudgements {
           RunMode.BULK,
           750);
 
-  static final String FLOW_SIGNIFICANCE = LlmFacts.FLOW_SIGNIFICANCE;
-  static final String FLOW_NARRATIVE = LlmFacts.FLOW_NARRATIVE;
-
   static final String TITLE = "title";
   static final String WALKTHROUGH = "walkthrough";
   static final String PRECONDITIONS = "preconditions";
@@ -727,7 +724,13 @@ final class FlowJudgements {
               attributes.put("model", model);
               content(knowledge, candidate.flow()).ifPresent(c -> attributes.put("content", c));
               facts.add(
-                  fact(candidate.flow(), FLOW_SIGNIFICANCE, scope, attributes, cited, snapshot));
+                  fact(
+                      candidate.flow(),
+                      LlmFacts.FLOW_SIGNIFICANCE,
+                      scope,
+                      attributes,
+                      cited,
+                      snapshot));
             });
     return new Judged(order, facts);
   }
@@ -782,7 +785,8 @@ final class FlowJudgements {
             marked(texts.get(POSTCONDITIONS)),
             title == null ? null : title.text().replaceAll("[.\\s]+$", ""));
     return Optional.of(
-        new Narrative(wording, fact(flow, FLOW_NARRATIVE, LlmFacts.C4, attributes, all, snapshot)));
+        new Narrative(
+            wording, fact(flow, LlmFacts.FLOW_NARRATIVE, LlmFacts.C4, attributes, all, snapshot)));
   }
 
   /** A text with the citation markers documents read, {@code [fact:<fact ID>]}. */
@@ -811,7 +815,7 @@ final class FlowJudgements {
       ObjectNode attributes,
       List<Fact> cited,
       long snapshot) {
-    RoleSpec role = predicate.equals(FLOW_SIGNIFICANCE) ? SIGNIFICANCE : NARRATIVE;
+    RoleSpec role = predicate.equals(LlmFacts.FLOW_SIGNIFICANCE) ? SIGNIFICANCE : NARRATIVE;
     Fact fact =
         Fact.create(
             flow,
