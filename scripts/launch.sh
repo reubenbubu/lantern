@@ -120,13 +120,19 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Resolves a properties file to an absolute path and refuses one inside the repository.
+# Resolves a properties file to an absolute path and refuses one inside the repository, unless
+# keys_only is "keyless-ok" and the file sets no property whose name ends in an API key, a
+# secret, a password or a token, in any spelling Spring accepts: the committed LLM settings of the
+# lantern-commands skill (docs/adr/0102-batch-api-and-openai.md, amendment for #754) hold none.
 check_properties_file() {
-  local what="$1" file="$2" path
+  local what="$1" file="$2" keys_only="${3:-}" path
   [[ -f "$file" && -r "$file" ]] || die "$what file not found or not readable: $file"
   path="$(realpath "$file")"
-  [[ "$path" == "$REPO" || "$path" == "$REPO"/* ]] &&
-    die "$what file $path is inside the repository; keep it outside so it is never committed"
+  if [[ "$path" == "$REPO" || "$path" == "$REPO"/* ]]; then
+    if [[ "$keys_only" != "keyless-ok" ]] || grep -Eiq '^[[:space:]]*[^#![:space:]][^=:]*(api[-_.]?key|secret|password|token)[[:space:]]*[=:]' "$path"; then
+      die "$what file $path is inside the repository; keep it outside so it is never committed"
+    fi
+  fi
   echo "$path"
 }
 
@@ -135,7 +141,7 @@ if ! $db_only; then
     [[ ${#args[@]} -gt 0 ]] || die "no repositories to analyze given (see --help), or use --db-only"
   fi
   [[ -n "$llm_file" ]] || die "no LLM properties file; pass --llm-properties FILE or set LANTERN_LLM_PROPERTIES"
-  llm_file="$(check_properties_file "LLM properties" "$llm_file")"
+  llm_file="$(check_properties_file "LLM properties" "$llm_file" keyless-ok)"
   if [[ -n "$mirror_file" ]]; then
     mirror_file="$(check_properties_file "Mirror properties" "$mirror_file")"
   fi

@@ -99,6 +99,8 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
   private final AnthropicClient client;
   private final boolean ownsClient;
   private final Duration batchPoll;
+  private final boolean batchApi;
+  private final List<String> onlyProviders;
 
   /** Uses the given SDK client; the caller closes it. */
   public AnthropicProvider(AnthropicClient client) {
@@ -111,9 +113,20 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
   }
 
   private AnthropicProvider(AnthropicClient client, boolean ownsClient, Duration batchPoll) {
+    this(client, ownsClient, batchPoll, true, List.of());
+  }
+
+  private AnthropicProvider(
+      AnthropicClient client,
+      boolean ownsClient,
+      Duration batchPoll,
+      boolean batchApi,
+      List<String> onlyProviders) {
     this.client = Objects.requireNonNull(client, "client");
     this.ownsClient = ownsClient;
     this.batchPoll = Objects.requireNonNull(batchPoll, "batchPoll");
+    this.batchApi = batchApi;
+    this.onlyProviders = List.copyOf(onlyProviders);
   }
 
   /**
@@ -131,6 +144,24 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
    * status at the given interval.
    */
   public static AnthropicProvider create(String apiKey, String baseUrl, Duration batchPoll) {
+    return create(apiKey, baseUrl, batchPoll, List.of());
+  }
+
+  /**
+   * A provider with its own SDK client, which {@link #close()} closes. Only Anthropic's own API has
+   * the Message Batches API: at any other base URL, such as OpenRouter's, the provider {@linkplain
+   * #batches() batches} nothing (ADR 0102, amendment for #754). With provider names, every request
+   * carries OpenRouter's provider routing, {@code "provider": {"only": [...], "allow_fallbacks":
+   * false}}, so only those providers serve it.
+   *
+   * @param apiKey the API key
+   * @param baseUrl the API's base URL, or {@code null} for Anthropic's
+   * @param batchPoll how often a running batch's status is read
+   * @param onlyProviders the router's providers allowed to serve a request; empty to send no
+   *     routing
+   */
+  public static AnthropicProvider create(
+      String apiKey, String baseUrl, Duration batchPoll, List<String> onlyProviders) {
     if (apiKey == null || apiKey.isBlank()) {
       throw new IllegalArgumentException("Anthropic API key must not be blank");
     }
@@ -139,7 +170,20 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
     if (baseUrl != null) {
       builder.baseUrl(baseUrl);
     }
-    return new AnthropicProvider(builder.build(), true, batchPoll);
+    return new AnthropicProvider(
+        builder.build(), true, batchPoll, anthropicsOwn(baseUrl), onlyProviders);
+  }
+
+  /** Whether the base URL is Anthropic's own API, the only one with a Message Batches API. */
+  static boolean anthropicsOwn(String baseUrl) {
+    if (baseUrl == null || baseUrl.isBlank()) {
+      return true;
+    }
+    try {
+      return "api.anthropic.com".equalsIgnoreCase(java.net.URI.create(baseUrl.trim()).getHost());
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
   }
 
   @Override
@@ -156,13 +200,13 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
 
   @Override
   public LlmResponse complete(String model, LlmRequest request) {
-    return send(params(model, request, Thinking.DEFAULT, request.cacheSystem()));
+    return send(routed(params(model, request, Thinking.DEFAULT, request.cacheSystem())));
   }
 
   @Override
   public LlmResponse complete(ModelConfig model, LlmRequest request) {
     LlmResponse response =
-        send(params(model.model(), request, model.thinking(), model.cachesSystem(request)));
+        send(routed(params(model.model(), request, model.thinking(), model.cachesSystem(request))));
     if (model.supports(Capability.PROMPT_CACHING)) {
       return response;
     }
@@ -174,12 +218,24 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
         response.stopReason(),
         response.usage().cacheAsInput(),
         response.toolCalls(),
-        response.thinking());
+        response.thinking(),
+        response.servedBy());
+  }
+
+  /** The params with the router's provider routing, when the provider has any. */
+  private MessageCreateParams routed(MessageCreateParams params) {
+    if (onlyProviders.isEmpty()) {
+      return params;
+    }
+    return params.toBuilder()
+        .putAdditionalBodyProperty(
+            "provider", JsonValue.from(Map.of("only", onlyProviders, "allow_fallbacks", false)))
+        .build();
   }
 
   @Override
   public boolean batches() {
-    return true;
+    return batchApi;
   }
 
   /**
@@ -572,6 +628,32 @@ public final class AnthropicProvider implements LlmProvider, AutoCloseable {
             usage.cacheReadInputTokens().orElse(0L),
             writtenLong),
         calls,
-        calls.isEmpty() ? List.of() : thought);
+        calls.isEmpty() ? List.of() : thought,
+        servedBy(message));
+  }
+
+  /** The value as the given type, or {@code null} when it is not of that type. */
+  private static <T> T convert(JsonValue value, Class<T> type) {
+    try {
+      return value.convert(type);
+    } catch (RuntimeException notOfType) {
+      return null;
+    }
+  }
+
+  /**
+   * Who served the call, when OpenRouter says so: its {@code provider} field and whether the
+   * owner's own key paid ({@code usage.is_byok}), as {@code Anthropic, own key} or {@code
+   * Anthropic, OpenRouter credits}; {@code null} from Anthropic's own API, which reports neither.
+   */
+  static String servedBy(Message message) {
+    JsonValue provider = message._additionalProperties().get("provider");
+    String name = provider == null ? null : convert(provider, String.class);
+    if (name == null || name.isBlank()) {
+      return null;
+    }
+    JsonValue byok = message.usage()._additionalProperties().get("is_byok");
+    Boolean own = byok == null ? null : convert(byok, Boolean.class);
+    return own == null ? name : name + (own ? ", own key" : ", OpenRouter credits");
   }
 }

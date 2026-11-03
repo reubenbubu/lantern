@@ -721,12 +721,27 @@ public final class RoleSession {
     }
   }
 
-  /** Runs the packets: the first alone, the rest in parallel once it is done. */
+  /**
+   * Runs the packets: the first alone, the rest in parallel once it is done. The role's first
+   * packet of all goes before any other, also of the role's other calls running at the same time
+   * (one per scope, for flow significance), so every later request reads the prompt's start from
+   * the provider's cache instead of all writing it at once (#357, #754).
+   */
   private void run(List<List<Item>> packets, java.util.function.Consumer<List<Item>> ask) {
     if (packets.isEmpty()) {
       return;
     }
-    ask.accept(packets.getFirst());
+    if (warming.compareAndSet(false, true)) {
+      record.warmUp(packets.getFirst().getFirst().subject());
+      try {
+        ask.accept(packets.getFirst());
+      } finally {
+        warmed.complete(null);
+      }
+    } else {
+      awaitWarmed();
+      ask.accept(packets.getFirst());
+    }
     try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
       List<Future<?>> futures = new ArrayList<>();
       for (List<Item> packet : packets.subList(1, packets.size())) {
@@ -1347,7 +1362,7 @@ public final class RoleSession {
     double scale = model.estimateTokenScale();
     return new TokenUsage(
         Math.round(input * scale),
-        Math.round(output * scale),
+        Math.round(output * model.estimateOutputScale()),
         Math.round(write * scale),
         Math.round(read * scale));
   }
@@ -1360,7 +1375,7 @@ public final class RoleSession {
   /** The output one request of the given items is expected to take, its thinking included. */
   long expectedOutput(int items) {
     return Math.round(
-        ((long) items * spec.expectedOutputTokens() + thinking(1)) * model.estimateTokenScale());
+        ((long) items * spec.expectedOutputTokens() + thinking(1)) * model.estimateOutputScale());
   }
 
   /**

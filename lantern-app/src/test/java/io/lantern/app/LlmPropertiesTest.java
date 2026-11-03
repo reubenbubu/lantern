@@ -257,6 +257,16 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void theProvidersARouterMayUseAreReadAsAList() {
+    model("fast", "anthropic", "some-model");
+    tiers("fast", "fast");
+    assertThat(bind().anthropic().onlyProviders()).isEmpty();
+
+    values.put("lantern.llm.anthropic.only-providers", "anthropic, google-vertex");
+    assertThat(bind().anthropic().onlyProviders()).containsExactly("anthropic", "google-vertex");
+  }
+
+  @Test
   void openAiModelsWithAnApiKeyGetAnOpenAiProviderAndWithoutOneAreNotConfigured() throws Exception {
     model("fast", "openai", "some-model");
     model("deep", "anthropic", "other-model");
@@ -379,6 +389,26 @@ class LlmPropertiesTest {
     values.put("lantern.llm.models.haiku.estimate-token-scale", "0");
     assertThatThrownBy(this::bindAndBuild)
         .hasMessageContaining("lantern.llm.models.haiku.estimate-token-scale must be positive");
+  }
+
+  @Test
+  void theEstimateOutputScaleIsReadAndIsTheTokenScaleIfNotSet() {
+    model("haiku", "fake", "haiku-model");
+    model("sonnet", "fake", "sonnet-model");
+    tiers("haiku", "sonnet");
+    values.put("lantern.llm.models.haiku.estimate-token-scale", "1.86");
+    values.put("lantern.llm.models.sonnet.estimate-token-scale", "2.48");
+    values.put("lantern.llm.models.sonnet.estimate-output-scale", "0.31");
+
+    ModelSettings settings = bind().modelSettings();
+
+    assertThat(settings.forRole(Role.COMPOSE).estimateOutputScale()).isEqualTo(1.86);
+    assertThat(settings.forRole(Role.RESOLVE).estimateTokenScale()).isEqualTo(2.48);
+    assertThat(settings.forRole(Role.RESOLVE).estimateOutputScale()).isEqualTo(0.31);
+
+    values.put("lantern.llm.models.sonnet.estimate-output-scale", "-1");
+    assertThatThrownBy(this::bindAndBuild)
+        .hasMessageContaining("lantern.llm.models.sonnet.estimate-output-scale must be positive");
   }
 
   @Test

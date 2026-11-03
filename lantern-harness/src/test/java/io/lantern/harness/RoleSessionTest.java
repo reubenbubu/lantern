@@ -326,6 +326,29 @@ class RoleSessionTest {
   }
 
   @Test
+  void thePlanScalesTheOutputByItsOwnScale() {
+    // A model that writes and thinks less than the role expects has its output scaled apart from
+    // its input (ADR 0100, amendment for #754).
+    List<Item> items = List.of(item("a"), item("b"));
+    io.lantern.llm.ModelConfig model = TestHarness.priced(fake);
+    Estimate plain = harness(client(fake, model), store).session(role()).plan(items, 0, 0, 0, 10);
+    io.lantern.llm.ModelConfig terse =
+        new io.lantern.llm.ModelConfig(
+            model.provider(),
+            model.model(),
+            model.capabilities(),
+            model.contextWindow(),
+            model.pricing(),
+            model.limits(),
+            model.thinking(),
+            2,
+            0.5);
+    Estimate scaled = harness(client(fake, terse), store).session(role()).plan(items, 0, 0, 0, 10);
+    assertThat(scaled.inputTokens()).isEqualTo(2 * plain.inputTokens());
+    assertThat(scaled.outputTokens()).isEqualTo(Math.round(plain.outputTokens() * 0.5));
+  }
+
+  @Test
   void thePlanCountsEveryTurnOfAConversation() {
     // Each turn after the first sends the conversation so far again, read from the prompt cache,
     // with what the turn before added (#694).

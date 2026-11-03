@@ -13,13 +13,16 @@ import java.util.Objects;
  * @param toolCalls the tool calls it asked for, in order; empty when it answered
  * @param thinking the thinking blocks it gave, kept only so an answer that asks for tools can be
  *     sent back whole; never part of the text
+ * @param servedBy who served the call when a router in front of the provider says so, such as
+ *     {@code Anthropic, own key} through OpenRouter; {@code null} when not reported
  */
 public record LlmResponse(
     String text,
     String stopReason,
     TokenUsage usage,
     List<LlmToolCall> toolCalls,
-    List<LlmThinking> thinking) {
+    List<LlmThinking> thinking,
+    String servedBy) {
 
   /** The stop reason of an answer cut off at its output limit, as Anthropic reports it. */
   public static final String MAX_TOKENS = "max_tokens";
@@ -38,6 +41,16 @@ public record LlmResponse(
     Objects.requireNonNull(usage, "usage");
     toolCalls = List.copyOf(Objects.requireNonNull(toolCalls, "toolCalls"));
     thinking = List.copyOf(Objects.requireNonNull(thinking, "thinking"));
+  }
+
+  /** An answer whose serving route is not reported. */
+  public LlmResponse(
+      String text,
+      String stopReason,
+      TokenUsage usage,
+      List<LlmToolCall> toolCalls,
+      List<LlmThinking> thinking) {
+    this(text, stopReason, usage, toolCalls, thinking, null);
   }
 
   /** An answer without tool calls or kept thinking. */

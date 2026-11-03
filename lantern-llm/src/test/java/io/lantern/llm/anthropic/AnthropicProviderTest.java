@@ -131,6 +131,79 @@ class AnthropicProviderTest {
     assertThat(sent.at("/messages/2/content").asString()).isEqualTo("No.");
   }
 
+  /** OpenRouter's answer through its Messages endpoint: who served it and whether the key paid. */
+  private static final String OPENROUTER_ANSWER =
+      """
+      {"id": "msg_or", "type": "message", "role": "assistant", "model": "anthropic/claude-haiku-5.5",
+       "content": [{"type": "text", "text": "Hi"}],
+       "stop_reason": "end_turn", "stop_sequence": null,
+       "usage": {"input_tokens": 12, "output_tokens": 1, "cost": 0, "is_byok": %s},
+       "provider": "Anthropic"}
+      """;
+
+  private static LlmRequest hello() {
+    return new LlmRequest(
+        Role.SUMMARIZE, "say hi", null, List.of(LlmMessage.user("Say hi")), 10, false);
+  }
+
+  @Test
+  void aRouterGetsItsProviderRoutingAndSaysWhoServedTheCall() {
+    responseBody = OPENROUTER_ANSWER.formatted("true");
+    String url = "http://127.0.0.1:" + server.getAddress().getPort();
+    LlmResponse response;
+    try (AnthropicProvider provider =
+        AnthropicProvider.create(
+            "stub-key", url, AnthropicProvider.BATCH_POLL, List.of("anthropic"))) {
+      response = provider.complete("anthropic/claude-haiku-5.5", hello());
+      assertThat(provider.batches()).isFalse();
+    }
+
+    JsonNode sent = JSON.readTree(requestBody.get());
+    assertThat(sent.at("/provider/only/0").asString()).isEqualTo("anthropic");
+    assertThat(sent.at("/provider/only")).hasSize(1);
+    assertThat(sent.at("/provider/allow_fallbacks").asBoolean()).isFalse();
+    assertThat(response.servedBy()).isEqualTo("Anthropic, own key");
+
+    responseBody = OPENROUTER_ANSWER.formatted("false");
+    try (AnthropicProvider provider =
+        AnthropicProvider.create(
+            "stub-key", url, AnthropicProvider.BATCH_POLL, List.of("anthropic"))) {
+      assertThat(provider.complete("anthropic/claude-haiku-5.5", hello()).servedBy())
+          .isEqualTo("Anthropic, OpenRouter credits");
+    }
+  }
+
+  @Test
+  void withoutRoutingNothingIsAddedAndAnthropicsOwnAnswerNamesNoServer() {
+    responseBody =
+        """
+        {"id": "msg_1", "type": "message", "role": "assistant", "model": "stub-model",
+         "content": [{"type": "text", "text": "Hi"}], "stop_reason": "end_turn",
+         "stop_sequence": null, "usage": {"input_tokens": 12, "output_tokens": 1}}
+        """;
+    LlmResponse response;
+    try (AnthropicProvider provider = provider()) {
+      response = provider.complete("stub-model", hello());
+    }
+    assertThat(JSON.readTree(requestBody.get()).has("provider")).isFalse();
+    assertThat(response.servedBy()).isNull();
+  }
+
+  @Test
+  void onlyAnthropicsOwnApiBatches() {
+    assertThat(AnthropicProvider.anthropicsOwn(null)).isTrue();
+    assertThat(AnthropicProvider.anthropicsOwn("https://api.anthropic.com")).isTrue();
+    assertThat(AnthropicProvider.anthropicsOwn("https://openrouter.ai/api")).isFalse();
+    assertThat(AnthropicProvider.anthropicsOwn("http://127.0.0.1:9")).isFalse();
+    try (AnthropicProvider own = AnthropicProvider.create("stub-key", null)) {
+      assertThat(own.batches()).isTrue();
+    }
+    try (AnthropicProvider router =
+        AnthropicProvider.create("stub-key", "https://openrouter.ai/api")) {
+      assertThat(router.batches()).isFalse();
+    }
+  }
+
   /**
    * A local Anthropic-compatible server (llama.cpp style) reports the whole prompt as cache writes
    * and one input token, although no caching was asked for (#298).

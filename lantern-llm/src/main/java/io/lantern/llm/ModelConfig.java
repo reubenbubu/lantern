@@ -17,6 +17,10 @@ import java.util.Set;
  *     it for thinking
  * @param estimateTokenScale how many of the model's tokens one token of Lantern's estimates (about
  *     four characters) comes to, measured; 1 where the model's tokenizer matches it (#694)
+ * @param estimateOutputScale the same for the output an estimate expects, answers and thinking: how
+ *     many of the model's output tokens one token of a role's expected output comes to, measured,
+ *     since models of one tokenizer write and think at different lengths (ADR 0100, amendment for
+ *     #754)
  */
 public record ModelConfig(
     String provider,
@@ -26,7 +30,8 @@ public record ModelConfig(
     Pricing pricing,
     CallLimits limits,
     Thinking thinking,
-    double estimateTokenScale) {
+    double estimateTokenScale,
+    double estimateOutputScale) {
 
   public ModelConfig {
     provider = nonBlank("Provider", provider);
@@ -45,6 +50,32 @@ public record ModelConfig(
       throw new IllegalArgumentException(
           "Estimate token scale must be positive: " + estimateTokenScale);
     }
+    if (!(estimateOutputScale > 0)) {
+      throw new IllegalArgumentException(
+          "Estimate output scale must be positive: " + estimateOutputScale);
+    }
+  }
+
+  /** A model whose output an estimate scales as its input. */
+  public ModelConfig(
+      String provider,
+      String model,
+      Set<Capability> capabilities,
+      int contextWindow,
+      Pricing pricing,
+      CallLimits limits,
+      Thinking thinking,
+      double estimateTokenScale) {
+    this(
+        provider,
+        model,
+        capabilities,
+        contextWindow,
+        pricing,
+        limits,
+        thinking,
+        estimateTokenScale,
+        estimateTokenScale);
   }
 
   /** A model whose tokens match Lantern's estimates. */
@@ -93,13 +124,14 @@ public record ModelConfig(
         pricing,
         limits,
         thinking,
-        estimateTokenScale);
+        estimateTokenScale,
+        estimateOutputScale);
   }
 
-  /** The same model with another estimate token scale. */
+  /** The same model with another estimate token scale, its output scaled the same. */
   public ModelConfig withEstimateTokenScale(double scale) {
     return new ModelConfig(
-        provider, model, capabilities, contextWindow, pricing, limits, thinking, scale);
+        provider, model, capabilities, contextWindow, pricing, limits, thinking, scale, scale);
   }
 
   /** The same model with other thinking settings. */
@@ -112,7 +144,8 @@ public record ModelConfig(
         pricing,
         limits,
         thinking,
-        estimateTokenScale);
+        estimateTokenScale,
+        estimateOutputScale);
   }
 
   /**

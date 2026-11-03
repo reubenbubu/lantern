@@ -65,3 +65,12 @@ storage with provider management in the app (#41).
 ## Amendment (#694): a model's estimate token scale
 
 - Per-model `estimate-token-scale` (default 1): how many of the model's tokens one token of Lantern's estimates (four characters) comes to, measured. Every token count of the model's estimates and budget reservations is multiplied by it. Claude models: 1.55. DeepSeek V4.1 Flash: 1 (ADR 0100, amendment for #694).
+
+## Amendment (#754): output scale and provider routing
+
+- Per-model `estimate-output-scale` (default: the model's `estimate-token-scale`) scales the
+  output an estimate expects. `estimate-token-scale` now scales only input, cache writes and cache
+  reads (ADR 0100, amendment for #754).
+- `lantern.llm.anthropic.only-providers` sends OpenRouter's provider routing with every Anthropic
+  request, and the Anthropic provider batches only at Anthropic's own base URL (ADR 0102,
+  amendment for #754).
