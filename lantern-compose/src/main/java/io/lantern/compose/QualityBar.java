@@ -20,9 +20,11 @@ import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Unknowns;
+import io.lantern.derive.Vocabularies;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -144,6 +146,7 @@ final class QualityBar {
 
   private static final Set<String> CONTAINER_TYPES =
       Set.of(
+          BuiltInTypes.CONTAINER,
           BuiltInTypes.SERVICE,
           Types.FRONTEND,
           Types.DATABASE,
@@ -168,12 +171,14 @@ final class QualityBar {
   private static final Pattern WORD = Pattern.compile("\\S+");
 
   private final Document document;
+  private final Vocabulary vocabulary;
   private final Map<EntityId, DocumentEntity> entities = new HashMap<>();
   private final Map<String, Fact> facts = new HashMap<>();
   private final List<QualityReport.Failure> failures = new ArrayList<>();
 
-  private QualityBar(Document document) {
+  private QualityBar(Document document, Vocabulary vocabulary) {
     this.document = document;
+    this.vocabulary = vocabulary;
     if (document != null) {
       document.entities().forEach(e -> entities.put(e.id(), e));
       document.facts().forEach(f -> facts.put(f.id(), f));
@@ -191,10 +196,11 @@ final class QualityBar {
    * @param component the name of a component
    */
   static List<QualityReport.Failure> model(
+      Vocabulary vocabulary,
       Unknowns unknowns,
       Function<EntityId, String> name,
       Function<Unknowns.Part, String> component) {
-    QualityBar bar = new QualityBar(null);
+    QualityBar bar = new QualityBar(null, vocabulary);
     List<String> noTechnology = new ArrayList<>();
     unknowns.containersWithoutTechnology().forEach(e -> noTechnology.add(name.apply(e)));
     unknowns.componentsWithoutTechnology().forEach(p -> noTechnology.add(component.apply(p)));
@@ -226,9 +232,22 @@ final class QualityBar {
     return List.copyOf(bar.failures);
   }
 
+  /** Whether a type is one of the types or extends one of them (ADR 0114). */
+  private boolean extendsOneOf(String type, Set<String> types) {
+    return types.stream().anyMatch(t -> type.equals(t) || vocabulary.isA(type, t));
+  }
+
   /** The checks the document fails, in the order of the document, its own checks last. */
   static List<QualityReport.Failure> failures(Document document) {
-    QualityBar bar = new QualityBar(Objects.requireNonNull(document, "document"));
+    return failures(document, Vocabularies.standard());
+  }
+
+  /**
+   * The failures of the document, judging each type's level by the vocabulary: a type that extends
+   * one of a diagram's types is drawn at its level (ADR 0114).
+   */
+  static List<QualityReport.Failure> failures(Document document, Vocabulary vocabulary) {
+    QualityBar bar = new QualityBar(Objects.requireNonNull(document, "document"), vocabulary);
     bar.check();
     return List.copyOf(bar.failures);
   }
@@ -299,12 +318,12 @@ final class QualityBar {
       String type = node.id().type();
       boolean atLevel =
           switch (diagram.diagramKind()) {
-            case C4_CONTEXT -> CONTEXT_TYPES.contains(type);
+            case C4_CONTEXT -> extendsOneOf(type, CONTEXT_TYPES);
             // A domain or feature area stands for its members, at their level (ADR 0117).
-            case C4_CONTAINER -> CONTAINER_TYPES.contains(type) || type.equals(Types.GROUP);
+            case C4_CONTAINER -> extendsOneOf(type, CONTAINER_TYPES) || type.equals(Types.GROUP);
             case C4_COMPONENT ->
                 type.equals(BuiltInTypes.TYPE)
-                    || CONTAINER_TYPES.contains(type)
+                    || extendsOneOf(type, CONTAINER_TYPES)
                     || type.equals(Types.GROUP);
             case DEPENDENCY -> true;
           };

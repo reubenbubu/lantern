@@ -362,12 +362,19 @@ public final class Elements {
         .toList();
   }
 
+  /**
+   * Whether a type is the given type or extends it, as the vocabulary says (ADR 0114): a type that
+   * extends container is a container wherever the composer draws one.
+   */
+  public boolean isType(String type, String ancestor) {
+    return type.equals(ancestor) || vocabulary.isA(type, ancestor);
+  }
+
   /** The technology line of a container: what it is built with, or what kind of store it is. */
   public String technology(EntityId entity) {
     Optional<String> technology = knowledge.attribute(entity, Types.TECHNOLOGY);
     String broker = entity.key().substring(0, Math.max(entity.key().indexOf(':'), 0));
     return switch (entity.type()) {
-      case BuiltInTypes.SERVICE, Types.DATABASE -> technology.orElse(null);
       case Types.FRONTEND -> frontendApp(entity).map(f -> attribute(f, "technology")).orElse(null);
       case Types.TOPIC -> brokerName(broker) + " topic";
       case Types.QUEUE -> brokerName(broker) + " queue";
@@ -381,7 +388,13 @@ public final class Elements {
                 .orElse(null);
         yield brokerName(broker) + (type == null ? "" : " " + type) + " exchange";
       }
-      default -> null;
+      // A service, a data store or any other container states its technology.
+      default ->
+          isType(entity.type(), BuiltInTypes.SERVICE)
+                  || isType(entity.type(), Types.DATABASE)
+                  || isType(entity.type(), BuiltInTypes.CONTAINER)
+              ? technology.orElse(null)
+              : null;
     };
   }
 

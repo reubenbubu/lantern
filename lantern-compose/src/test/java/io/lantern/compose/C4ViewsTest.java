@@ -31,6 +31,7 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.derive.Derivation;
 import io.lantern.derive.Vocabularies;
+import io.lantern.derive.attributes.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1062,5 +1063,116 @@ class C4ViewsTest {
 
     assertThat(text(block(containers, Callout.class).content()))
         .isEqualTo("No deployable unit was found in the code.");
+  }
+
+  /** A vocabulary with one type under the given parent, and the relation that reaches it. */
+  private static Vocabulary subtypes(String name, String parent, String relation) {
+    List<VocabularyType> types = new ArrayList<>(Vocabularies.standard().types());
+    types.add(
+        new VocabularyType(
+            name,
+            TypeKind.ENTITY,
+            parent,
+            null,
+            null,
+            null,
+            "A test subtype.",
+            new AttributeSchema(Map.of(), Set.of(), false)));
+    types.add(
+        new VocabularyType(
+            relation,
+            TypeKind.RELATIONSHIP,
+            BuiltInTypes.INTERACTS_WITH,
+            null,
+            null,
+            null,
+            "The subject unit reaches the object.",
+            new AttributeSchema(Map.of(), Set.of(), true)));
+    return new Vocabulary(2, types);
+  }
+
+  /** The checks the quality report of a composed document fails, by name. */
+  private static List<String> qualityChecks(Document document) {
+    QualityReport report = block(document.sections().getLast(), QualityReport.class);
+    return report.failures().stream().map(QualityReport.Failure::check).toList();
+  }
+
+  @Test
+  void aTypeUnderAContainerIsDrawnAtTheContainerLevelWithItsTechnology() {
+    Vocabulary vocabulary = subtypes("search-index", BuiltInTypes.CONTAINER, "QUERIES_INDEX");
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "QUERIES_INDEX",
+            "search-index:products",
+            "{\"protocol\": \"HTTPS\"}")
+        .attribute("shop", "search-index:products", "technology", "Elasticsearch", "{}");
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(more.list(), 1));
+
+    assertThat(nodes(block(section(document, "containers"), Diagram.class)))
+        .anyMatch(n -> n.startsWith("search-index:products") && n.contains("[Elasticsearch]"));
+    assertThat(qualityChecks(document))
+        .doesNotContain(QualityBar.ONE_LEVEL)
+        .noneMatch(c -> c.contains("technology"));
+  }
+
+  @Test
+  void aTypeUnderADataStoreIsCountedAmongTheDatabases() {
+    Vocabulary vocabulary = subtypes("graph-database", Types.DATABASE, "USES_GRAPH");
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "USES_GRAPH",
+            "graph-database:neo4j:7687/shop",
+            "{\"protocol\": \"Bolt\"}")
+        .attribute("shop", "graph-database:neo4j:7687/shop", "technology", "Neo4j", "{}");
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(more.list(), 1));
+
+    assertThat(nodes(block(section(document, "containers"), Diagram.class)))
+        .anyMatch(n -> n.startsWith("graph-database:") && n.contains("[Neo4j]"));
+    assertThat(qualityChecks(document)).doesNotContain(QualityBar.ONE_LEVEL);
+    // Counted as a database: the system context's "Databases" count goes from one to two.
+    assertThat(block(section(document, "context"), Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("Databases 2");
+  }
+
+  @Test
+  void aTypeUnderAnExternalSystemIsDrawnOutsideTheSystem() {
+    Vocabulary vocabulary = subtypes("payment-gateway", Types.EXTERNAL_SYSTEM, "CALLS_GATEWAY");
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+        "shop",
+        "service:com.example:app",
+        "CALLS_GATEWAY",
+        "payment-gateway:pay.example.com",
+        "{\"protocol\": \"HTTPS\"}");
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(more.list(), 1));
+
+    List<String> nodes = nodes(block(section(document, "containers"), Diagram.class));
+    assertThat(nodes)
+        .anyMatch(n -> n.startsWith("payment-gateway:pay.example.com"))
+        .noneMatch(n -> n.startsWith("payment-gateway:") && n.contains("in system:"));
+    assertThat(qualityChecks(document)).doesNotContain(QualityBar.ONE_LEVEL);
   }
 }

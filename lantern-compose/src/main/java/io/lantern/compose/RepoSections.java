@@ -245,7 +245,7 @@ final class RepoSections {
    */
   List<QualityReport.Failure> modelFailures() {
     UnknownsPage page = unknownsPage();
-    return QualityBar.model(unknowns(), assembler::name, page::componentName);
+    return QualityBar.model(model.vocabulary(), unknowns(), assembler::name, page::componentName);
   }
 
   /** What the LLM investigator found in scope (ADR 0110), built once per document. */

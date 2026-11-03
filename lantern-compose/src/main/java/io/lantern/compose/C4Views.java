@@ -143,7 +143,7 @@ final class C4Views {
       Fact fallback = entry.getValue();
       EntityId target = ArchitectureModel.object(profiled);
       if (!of.contains(profiled.subject())
-          || (externalOnly && !target.type().equals(Types.EXTERNAL_SYSTEM))) {
+          || (externalOnly && !isType(target.type(), Types.EXTERNAL_SYSTEM))) {
         continue;
       }
       String verb =
@@ -379,7 +379,7 @@ final class C4Views {
     Edges edges = new Edges();
     for (Line link : links) {
       if ((units.contains(link.from()) || frontends.contains(link.from()))
-          && link.to().type().equals(Types.EXTERNAL_SYSTEM)) {
+          && isType(link.to().type(), Types.EXTERNAL_SYSTEM)) {
         nodes.computeIfAbsent(link.to(), e -> node(e, null, null, List.of()));
         EdgeBuilder edge = edges.get(system, link.relationship(), link.to());
         edge.add(link.plain(), link.prefix(), link.detail(), null, link.profile());
@@ -448,12 +448,13 @@ final class C4Views {
       for (EntityId end : List.of(link.from(), link.to())) {
         EntityId other = end.equals(link.from()) ? link.to() : link.from();
         String kind =
-            switch (end.type()) {
-              case Types.DATABASE -> Types.DATABASE;
-              case Types.TOPIC, Types.QUEUE, Types.EXCHANGE -> Types.QUEUE;
-              case Types.EXTERNAL_SYSTEM -> Types.EXTERNAL_SYSTEM;
-              default -> null;
-            };
+            isType(end.type(), Types.DATABASE)
+                ? Types.DATABASE
+                : isType(end.type(), Types.TOPIC)
+                        || isType(end.type(), Types.QUEUE)
+                        || isType(end.type(), Types.EXCHANGE)
+                    ? Types.QUEUE
+                    : isType(end.type(), Types.EXTERNAL_SYSTEM) ? Types.EXTERNAL_SYSTEM : null;
         if (kind != null && (units.contains(other) || frontends.contains(other))) {
           used.get(kind).computeIfAbsent(end, e -> new ArrayList<>()).addAll(link.facts());
         }
@@ -792,8 +793,8 @@ final class C4Views {
     return result;
   }
 
-  private static boolean isTopic(EntityId element) {
-    return element.type().equals(Types.TOPIC) || element.type().equals(Types.QUEUE);
+  private boolean isTopic(EntityId element) {
+    return isType(element.type(), Types.TOPIC) || isType(element.type(), Types.QUEUE);
   }
 
   /**
@@ -862,6 +863,11 @@ final class C4Views {
     return diagram.nodes().stream().allMatch(n -> nodes.contains(n.id()))
         && diagram.edges().stream()
             .allMatch(e -> edges.contains(e.from() + " " + e.relationship() + " " + e.to()));
+  }
+
+  /** Whether a type is the given type or extends it, as the model's vocabulary says (ADR 0114). */
+  private boolean isType(String type, String ancestor) {
+    return type.equals(ancestor) || model.vocabulary().isA(type, ancestor);
   }
 
   private static String slug(String title) {
@@ -1042,8 +1048,8 @@ final class C4Views {
     }
     // Inside the system's boundary where the diagram draws it.
     EntityId parent =
-        entity.type().equals(Types.EXTERNAL_SYSTEM)
-                || entity.type().equals(Types.PERSON)
+        isType(entity.type(), Types.EXTERNAL_SYSTEM)
+                || isType(entity.type(), Types.PERSON)
                 || !nodes.containsKey(system)
             ? null
             : system;
