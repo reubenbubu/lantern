@@ -54,15 +54,17 @@ public final class Elements {
   private final Map<Fact, Fact> alternatives;
 
   /**
+   * The elements of the model, with the names of the document's entities.
+   *
    * @param names the names of the elements, which a line through a folded queue names
    * @param repos the repositories in scope, whose frontends and people are drawn; empty for all
    */
-  /** The elements of the model, with the names of the document's entities. */
   public Elements(
       ArchitectureModel model, Vocabulary vocabulary, ElementNames names, Set<String> repos) {
     this(model.index(), vocabulary, names, repos);
   }
 
+  /** As the other constructor, over the index of facts. */
   public Elements(
       Knowledge knowledge, Vocabulary vocabulary, ElementNames names, Set<String> repos) {
     this.knowledge = Objects.requireNonNull(knowledge, "knowledge");
@@ -319,6 +321,7 @@ public final class Elements {
     return units(model.index(), modules);
   }
 
+  /** The deployable units whose code is in one of the modules, over the index of facts. */
   public static SortedSet<EntityId> units(Knowledge knowledge, Set<EntityId> modules) {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
     for (EntityId unit : units(knowledge)) {
@@ -334,6 +337,7 @@ public final class Elements {
     return codeModules(model.index(), unit);
   }
 
+  /** The modules whose code runs in the unit, over the index of facts. */
   public static SortedSet<EntityId> codeModules(Knowledge knowledge, EntityId unit) {
     return Components.codeModules(knowledge, unit);
   }

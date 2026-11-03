@@ -20,7 +20,6 @@ import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -47,11 +46,6 @@ final class BriefSections {
 
   /** The factor a Java risk's confidence gets: the Java runtime a unit runs on is not recorded. */
   private static final BigDecimal JAVA_FACTOR = new BigDecimal("0.5");
-
-  private static final DateTimeFormatter DATE =
-      DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
-
-  private static final String SPRING_GROUP = "org.springframework:spring-";
 
   private final ArchitectureModel model;
   private final Assembler assembler;

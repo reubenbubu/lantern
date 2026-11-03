@@ -43,6 +43,15 @@ the model reads already (ADR 0116).
 
 ## Consequences
 
+- Four composer classes still branch on a fact's predicate name, through the record
+  `ArchitectureModel.statement(fact)`: `C4Views` (the relation's verb), `ExplorerSections` (entry
+  point kinds) and `ClaimContradictions` (wording a fact). The rule holds, since the composer
+  calls no `Fact.predicate()`, but the names are still read by the composer. Replacing those
+  switches with typed queries is a follow-up (not in #761).
+- The model keeps public pass-throughs of the index's queries (`about`, `attributes`,
+  `withPredicate`, `relations`, `withOrigin`). Composer code filters through them. Narrowing
+  them is a follow-up.
+
 - The composer still depends on `lantern-derive` and `lantern-summarize` (for `Describer.Phrase`
   and `FlowJudgements.Flow`, and for the stage's descriptions in the document model). Moving
   derivation out of composition is the epic's later milestones (#554 waits for that).

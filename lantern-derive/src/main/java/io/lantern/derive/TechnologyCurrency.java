@@ -95,7 +95,7 @@ public final class TechnologyCurrency {
         if (target.type().equals(Types.ARTIFACT)
             && target.key().startsWith(SPRING_GROUP)
             && version != null
-            && !isTestScope(fact)) {
+            && !ArchitectureModel.isTestScope(fact)) {
           version(
               table,
               found,
@@ -252,11 +252,6 @@ public final class TechnologyCurrency {
       facts.addAll(Findings.cited(model, finding));
     }
     return facts;
-  }
-
-  /** Whether a dependency is for tests only, not in the code the unit runs. */
-  static boolean isTestScope(Fact fact) {
-    return Elements.attribute(fact, "scope", "compile").equals("test");
   }
 
   private static void version(

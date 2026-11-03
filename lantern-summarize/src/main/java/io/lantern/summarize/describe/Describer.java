@@ -523,14 +523,12 @@ public final class Describer {
                     ArchitectureModel.SYSTEM.toString(), said.text(), said.lines()));
           }
           PurposeRole.Worded key = worded.get(PurposeRole.KEY_FACT);
-          if (key != null) {
-            tally.keyFact = key.marked();
-          }
+          if (key != null) {}
           String model = purposeSession.model().provider() + "/" + purposeSession.model().model();
           tally.flowFacts.add(snapshot -> PurposeRole.facts(worded, model, snapshot));
         });
     LOG.info(
-        "Wordings: {} units, data stores, destinations, external systems, people, flows and the"
+        "Texts: {} units, data stores, destinations, external systems, people, flows and the"
             + " system asked, {} cached, {} rejected, {} skipped",
         tally.asked,
         tally.reused,
@@ -589,8 +587,6 @@ public final class Describer {
     final List<java.util.function.LongFunction<List<Fact>>> flowFacts = new ArrayList<>();
     // The keys of the flows the system's documents draw, in order.
     final List<String> systemFlows = new ArrayList<>();
-    // The system's key fact, with citation markers, if the model wrote one.
-    String keyFact;
     int asked;
     int reused;
 

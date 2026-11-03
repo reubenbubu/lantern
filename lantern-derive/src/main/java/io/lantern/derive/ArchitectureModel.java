@@ -27,10 +27,10 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>It is read-only and built only from what is stored: the facts that hold in a snapshot, those
  * of origin llm included. The roles' texts (responsibilities, intents, summaries, group names, flow
- * judgements and narratives, purpose and key fact) are not among {@link #knowledge()}'s facts, so
- * what is drawn does not depend on whether they were written; they are read through the methods
- * below. Where one thing holds several texts, the one with the highest confidence is read, the
- * first by fact ID on a tie, so the same facts always give the same texts.
+ * judgements and narratives, purpose and key fact) are not among {@link #index()}'s facts, so what
+ * is drawn does not depend on whether they were written; they are read through the methods below.
+ * Where one thing holds several texts, the one with the highest confidence is read, the first by
+ * fact ID on a tie, so the same facts always give the same texts.
  */
 public final class ArchitectureModel {
 

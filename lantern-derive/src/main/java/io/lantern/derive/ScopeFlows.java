@@ -81,12 +81,6 @@ public final class ScopeFlows {
   /** The deployable units, once read. */
   private Set<EntityId> units;
 
-  /**
-   * @param elements the elements the scope's diagrams show, for the people who use a frontend and
-   *     the links that are another's alternative under a profile
-   * @param scope the deployable units in scope; flows that start in or pass through one are shown
-   * @param names names an element as the document does; a composer also adds it to its document
-   */
   /** As the other constructor, with the names the composer gives elements. */
   public ScopeFlows(
       ArchitectureModel model,
@@ -96,6 +90,12 @@ public final class ScopeFlows {
     this(model.index(), elements, scope, names);
   }
 
+  /**
+   * @param elements the elements the scope's diagrams show, for the people who use a frontend and
+   *     the links that are another's alternative under a profile
+   * @param scope the deployable units in scope; flows that start in or pass through one are shown
+   * @param names names an element as the document does; a composer also adds it to its document
+   */
   public ScopeFlows(
       Knowledge knowledge,
       Elements elements,
