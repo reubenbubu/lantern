@@ -20,7 +20,8 @@ All nine checkouts are clean and at the commits `notes.md` lists: api-gateway `3
 4. **Monitoring risk: none of the five application targets can be scraped, not two.** In compose, user-, media- and subscription-service publish no ports (`docker-compose.yml:103-158`), so `prometheus.yml`'s `host.docker.internal:8081-8083` targets fail too. I updated the Low monitoring risk and its evidence.
 5. **Config exposure risk (High): the config server's port 8888 is published as well** (`docker-compose.yml:18-19`). So the configuration is readable even if the discovery-locator route does not exist (see judgement call 2). I added this to the finding and the evidence.
 6. **Error-handling risk (Low):** besides a malformed id, an unknown path also becomes 500 in every service, because all three catch `Exception`. I added the media-service handler `GlobalExceptionHandler.java:50-56` to the evidence.
-7. Fact-file citations fixed (they did not reach the report): `app.log:88` → `:98` (Eureka registration of media- and subscription-service); `config.log` lines 106-109 → 106-117; the web app README for `ng serve` and port 4200 is `README.md:10-13`, not `:47-55` (that is the e2e section).
+7. **Start-up chain (#737, from the blind answer-key check).** Before: "one config server that every service needs at start". After: user-, media- and subscription-service need it; the gateway and discovery-server import no config.
+8. Fact-file citations fixed (they did not reach the report): `app.log:88` → `:98` (Eureka registration of media- and subscription-service); `config.log` lines 106-109 → 106-117; the web app README for `ng serve` and port 4200 is `README.md:10-13`, not `:47-55` (that is the e2e section).
 
 ## Additions
 

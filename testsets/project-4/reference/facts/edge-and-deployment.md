@@ -46,9 +46,9 @@ Scope: Discovery-and-Gateway (HEAD 62649cb, 2026-06-04), CRM-Frontend (0797125, 
 - **Tech:** Angular ^19.2, PrimeNG ^19 (Aura theme), Tailwind 4, `@stomp/stompjs` ^7.2.1, TypeScript ~5.7 (`FE/package.json:12-42`). Standalone bootstrap with HTTP interceptors (`FE/src/app/app.config.ts:13-32`).
 - **Serving:** a multi-stage image. Stage 1 is `node:24.3.0-alpine3.22` running `ng build --configuration development`; stage 2 is `nginx:alpine3.22` (`FE/Dockerfile:1-21`). nginx listens on **4200** and serves only static files with an SPA fallback (`try_files … /index.html`). There is **no reverse proxy to the API** (`FE/nginx.conf:1-13`). `EXPOSE 82` in the Dockerfile (:19) is misleading, since compose maps `82:4200` (`DEP/docker-compose.dev.yml:16-17`).
 - **Backend base URL:** the browser calls the gateway directly at `environment.apiUrl`:
-  - development: `http://localhost:8080` (`FE/src/environments/environment.development.ts:2`), which is what the image uses.
+  - development: hardcoded LAN IP `http://192.168.88.113:8080` (`FE/src/environments/environment.development.ts:2`), which is what the image uses.
   - local: `http://localhost:8080` (`environment.local.ts:2`).
-  - default/production: hardcoded LAN IP `http://192.168.88.113:8080` (`environment.ts:2`).
+  - default/production: `http://localhost:8080` (`environment.ts:2`).
   - File replacements are in `FE/angular.json:59-75`.
 - **Auth handling:**
   - Login: `POST /api/auth/sign-in`. Also `sign-up`, `refresh` and `logout` (`FE/src/app/core/services/auth.service.ts:16-41`).
@@ -223,7 +223,7 @@ None of the deployment files have **MinIO/S3, MailHog, Keycloak, Loki, Zipkin/Te
   - The kustomize Postgres pod needs `POSTGRES_DATASOURCE_USERNAME/PASSWORD` keys that the Helm Secret does not define.
 - **Committed secrets or hardcoded values:**
   - A test JWT key in `DG/api-gateway/src/test/resources/application-test.properties:11` (test only).
-  - The LAN IP `192.168.88.113` in `FE/src/environments/environment.ts:2`.
+  - The LAN IP `192.168.88.113` in `FE/src/environments/environment.development.ts:2`.
   - No real `.env` files are committed (`DEP/.gitignore`).
 - **Frontend:**
   - The production image is built with `--configuration development` (`FE/Dockerfile:12`), so it targets `localhost:8080`, and the API URL is fixed at build time.

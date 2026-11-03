@@ -98,6 +98,14 @@ tables) was traced to code, and every file:line the data cites (43 distinct cita
 
 ## Additions
 
+- **Risk D (High): any signed-in user can read every organization's notifications** (added for
+  #737, from the blind answer-key check). notification-service checks membership only for a
+  subscription to one exact topic `/topic/organizations/<id>/notifications`
+  (`N/websocket/StompAuthChannelInterceptor.java:31-32,66-92`) and lets every other destination
+  through, while its simple broker (`N/config/WebSocketsConfig.java:37-42`) matches `*` and `**`
+  in a subscription as patterns. So `/topic/**` receives every organization's notifications. This
+  was decoy d2 of the answer key. The secrets risk now also names main- and file-service's TRACE
+  bind logging and that `values.yaml` leaves every Helm secret empty.
 - **Risk A (High): cross-organization permission mix-up.** Main-Service checks membership in the
   path's organization (`M/aspect/OrganizationMembershipControlAspect.java:28-35`, the `@OrganizationId`
   path variable on every guarded endpoint) but the permission from `User-Permissions`
