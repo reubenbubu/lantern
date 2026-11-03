@@ -53,7 +53,7 @@ final class ResolvePrompt {
   static final JsonNode ITEM_SCHEMA = JsonSchema.itemSchema(SUBMIT_SCHEMA);
 
   /** The most words of a reason. */
-  static final int REASON_WORDS = 30;
+  static final int REASON_WORDS = io.lantern.harness.Contract.of("resolve").acceptedWords("reason");
 
   /** The pick of an answer that picks no candidate. */
   static final String UNKNOWN = "unknown";

@@ -68,3 +68,7 @@ the epic left open. The agent decided these under the owner's standing go-ahead 
   rerun over unchanged facts makes none.
 - The recordings on project-4 and project-8 that the issue's acceptance names need a real model;
   they come with #529.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.

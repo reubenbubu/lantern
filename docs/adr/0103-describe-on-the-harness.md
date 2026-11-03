@@ -127,3 +127,7 @@ Size 1 trial a cost $0.009. 217 elements were scored.
 
 - **Kept: 10 elements a request** (`lantern.harness.items-per-request.describe-element=10`). Every size passes, but the score only says whether an element was described, not how well. Describe writes prose, and the epic caps such a role below 20 unless the middle positions of a size-20 request are shown no worse than its ends; this score cannot show that, so the size stays at 10. The two size-1 runs never differed, so a size truly equal to 1 is never rejected by this score: it has no power, which is why it needs the wording judge's scores.
 - To be measured again with the wording judge's scores once they are validated (#668).
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.

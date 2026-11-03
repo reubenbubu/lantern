@@ -56,11 +56,17 @@ public final class DescribeRole {
   /** The prompt version of the element role. */
   static final String ELEMENT_VERSION = "7";
 
-  /** The most words of a responsibility sentence. */
-  static final int SENTENCE_WORDS = 25;
+  /** The most words of a unit's or component's responsibility sentence (its contract). */
+  static final int SENTENCE_WORDS =
+      io.lantern.harness.Contract.of("describe-units").acceptedWords("responsibility");
 
-  /** The most words of an intent phrase. */
-  static final int PHRASE_WORDS = 8;
+  /** The most words of an element's responsibility sentence (its contract). */
+  static final int ELEMENT_SENTENCE_WORDS =
+      io.lantern.harness.Contract.of("describe-elements").acceptedWords("responsibility");
+
+  /** The most words of an intent phrase (its contract). */
+  static final int PHRASE_WORDS =
+      io.lantern.harness.Contract.of("describe-units").acceptedWords("intent");
 
   /** The most components of one unit item. */
   static final int MAX_COMPONENTS = 25;
@@ -319,7 +325,7 @@ public final class DescribeRole {
                               RESPONSIBILITY_FIELD,
                               CheckedText.Kind.RESPONSIBILITY,
                               t,
-                              SENTENCE_WORDS,
+                              ELEMENT_SENTENCE_WORDS,
                               described.name())));
         } else {
           if (described.asksUnit()) {

@@ -85,3 +85,7 @@ standing go-ahead for milestone 1F.
   (prompt version 16).
 - The summary text the documents fall back on keeps its form, sentences with `[fact:]` and
   `[summary:]` markers, so composition is unchanged.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.

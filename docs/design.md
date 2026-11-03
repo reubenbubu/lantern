@@ -327,6 +327,14 @@ The LLM handles understanding that static analysis can't provide, and finds what
 
 **Prompts** live in one folder, `prompts/` at the repository's root: each role's task, answer schema and closing, the common system prompt every role shares, and the wording and support judges' and the injection screen's tasks and schemas. A run reads them from there, so the owner tunes a prompt by editing its file, and the jar carries the same files as built-in copies for a run without the folder. A role's answers are keyed by its prompt version plus, when a file it uses differs from the SHA-256 pinned for it (`prompts.sha256`, not the built-in copy, which a rebuild makes equal to an edit), a digest of that file, so an edit re-asks that role's items and nothing else. `judge-labels` judges the owner's labelled wording texts with the current judge prompts and prints its agreement with the labels, for tuning the judge without a full run (ADR 0113).
 
+**Response contracts.** Each role's rules for what it writes live in its contract, `prompts/<role>.contract.json`, which the checks, the scorer and the wording judge read and the prompts are tested against (ADR 0118):
+- per text, a size the prompt requests and a larger one the check accepts, by default 15% more and at least one unit;
+- strict rules that allow no tolerance;
+- the judged questions;
+- when not answering is right.
+
+A test fails when a prompt states another size than its contract. The scorecard splits each size rule three ways (within the requested size, accepted beyond it, rejected for length) and gives each judged text a quality score of 0 to 10 from weighted yes/no checks (`prompts/quality.json`). The score is never asked of a judge, and a failed "says what it does" caps it at 4.
+
 **Provider interface**
 
 - A thin Java interface over the official Anthropic and OpenAI SDKs, with an OpenAI-compatible endpoint option for gateways. The roles send the same requests to either; the OpenAI provider maps cache hints to a stable prefix and `prompt_cache_key`, and both record usage in one form: uncached input, cache write (five-minute and one-hour, each at its own price), cache read, output (ADR 0102).

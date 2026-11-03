@@ -59,3 +59,7 @@ under the owner's standing go-ahead for milestone 1F.
 - The recordings that accept the first paragraph on the test sets need a real model; they come
   with #529.
 - Supersedes ADR 0060 for how the purpose is asked; its rules for marking and stating it stand.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there. Where they differ from the numbers above, the contract's hold.

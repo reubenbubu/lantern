@@ -73,12 +73,6 @@ class InvestigatePromptTest {
             + " "
             + InvestigateRole.MAX_PROPOSALS
             + " "
-            + InvestigateRole.TITLE_WORDS
-            + " "
-            + InvestigateRole.SENTENCES_WORDS
-            + " "
-            + InvestigateRole.DESCRIPTION_WORDS
-            + " "
             + InvestigatePrompt.MAX_CODE_LINES
             + " "
             + InvestigatePrompt.MAX_FACTS;
@@ -90,7 +84,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("4 8c0ce4c9e5a6f2c2c619e7a6f147891dbb15b46d9345e71244b6508f84a4c0f8");
+        .isEqualTo("4 3e3d549dfb398e60cae4c7b507a3eaf758561094d47b08756e8bb8bb2b62dcf6");
   }
 
   /**

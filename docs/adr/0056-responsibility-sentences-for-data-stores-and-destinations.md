@@ -63,3 +63,7 @@ facts, at most 1,000 output tokens.
 
 Code in the Describer's unit prompt, for generically named components (ADR 0069); the glossary in
 the prompt (annotations, Phase 3).
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there. Where they differ from the numbers above, the contract's hold.

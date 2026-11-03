@@ -74,14 +74,20 @@ final class InvestigateRole implements PacketRole {
   static final Set<String> VERDICTS = Set.of("confirmed", "refuted", "unclear");
 
   /** The most proposals a Mode B or C conversation keeps. */
-  static final int MAX_PROPOSALS = 10;
+  static final int MAX_PROPOSALS = io.lantern.harness.Contract.of("investigate").count("proposals");
 
-  /** The most words of a title, and of a finding or consequence. */
-  static final int TITLE_WORDS = 8;
+  /** The most words of a title, a finding, a consequence and a description: their contract's. */
+  static final int TITLE_WORDS =
+      io.lantern.harness.Contract.of("investigate").acceptedWords("title");
 
-  static final int SENTENCES_WORDS = 70;
+  static final int FINDING_WORDS =
+      io.lantern.harness.Contract.of("investigate").acceptedWords("finding");
 
-  static final int DESCRIPTION_WORDS = 15;
+  static final int CONSEQUENCE_WORDS =
+      io.lantern.harness.Contract.of("investigate").acceptedWords("consequence");
+
+  static final int DESCRIPTION_WORDS =
+      io.lantern.harness.Contract.of("investigate").acceptedWords("description");
 
   /** A proposal's number in a Mode B or C entry, such as {@code proposals.P3}. */
   private static final Pattern PROPOSAL =
@@ -368,8 +374,8 @@ final class InvestigateRole implements PacketRole {
     }
     texts.add(new CheckedText(at(field, "cites"), CheckedText.Kind.PROSE, "", cites, 1, "", names));
     text(entry, field, "title", TITLE_WORDS, cites, texts);
-    text(entry, field, "finding", SENTENCES_WORDS, cites, texts);
-    text(entry, field, "consequence", SENTENCES_WORDS, cites, texts);
+    text(entry, field, "finding", FINDING_WORDS, cites, texts);
+    text(entry, field, "consequence", CONSEQUENCE_WORDS, cites, texts);
     text(entry, field, "description", DESCRIPTION_WORDS, cites, texts);
   }
 

@@ -26,7 +26,7 @@ class PromptTest {
   private static final String VERSION = "17";
 
   private static final String FINGERPRINT =
-      "9c8c8bf2825fe3d6249403b8a3e80081df00c81d180ca27d532198f4a938e4e8";
+      "8c8aad3a65186839bf984c58537cdae85c64bd986d44e89ca03269e8bbb1d614";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -42,7 +42,8 @@ class PromptTest {
           .append(level.maxOutputTokens());
     }
     all.append(SummaryLevel.ONE_PART_SENTENCES).append(SummaryLevel.ONE_PART_SENTENCE_COUNT);
-    all.append(Prompt.SENTENCE_WORDS);
+    // The size the request asks for; the size the checks accept is the contract's (ADR 0118).
+    all.append(Prompt.ASKED_WORDS);
     Summary child = summary(order.children().getFirst().entity(), SummaryLevel.TYPE);
     // How a type's source file is shown.
     List<Excerpts.Excerpt> excerpts = excerpts();
@@ -298,5 +299,17 @@ class PromptTest {
         "1",
         "fake",
         "m");
+  }
+
+  @Test
+  void theSentenceLimitTheRequestStatesIsItsContracts() {
+    // Summarize's prompt files state no limit: each request states its contract's (ADR 0118).
+    io.lantern.harness.Contract contract = io.lantern.harness.Contract.of("summarize");
+    String stated = contract.field("sentence").stated();
+    org.assertj.core.api.Assertions.assertThat(Prompt.length(SummaryLevel.TYPE)).contains(stated);
+    org.assertj.core.api.Assertions.assertThat(stated)
+        .contains(String.valueOf(contract.requestedWords("sentence")));
+    org.assertj.core.api.Assertions.assertThat(Prompt.SENTENCE_WORDS)
+        .isEqualTo(contract.acceptedWords("sentence"));
   }
 }
