@@ -827,7 +827,7 @@ class SequenceFlowsTest {
           Fact.create(
               io.lantern.derive.Flows.id(EntityId.parse(SHIP), trigger),
               io.lantern.harness.LlmFacts.FLOW_SIGNIFICANCE,
-              FactObject.string(Wordings.SYSTEM_SCOPE),
+              FactObject.string(io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE),
               (ObjectNode)
                   FactJson.parse(
                       "{\"significant\": true, \"rank\": "
