@@ -20,9 +20,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Wires the build sandbox and the analysis run. Build outputs go to {@code <workspace>/builds} and
- * rendered documents to {@code <workspace>/documents}, where the workspace is {@code
- * lantern.workspace} (ADR 0016).
+ * Wires the build sandbox and the analysis run. Build outputs go to {@code
+ * lantern.sandbox.builds-dir}, by default {@code <workspace>/builds}, and rendered documents to
+ * {@code <workspace>/documents}, where the workspace is {@code lantern.workspace} (ADR 0016).
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(SandboxProperties.class)
@@ -34,9 +34,12 @@ class AnalysisConfiguration {
     return new BuildSandbox(sandboxSettings(workspace, sandbox));
   }
 
-  /** The sandbox settings: the defaults, with builds in the workspace and the configured ones. */
+  /**
+   * The sandbox settings: the defaults, with builds in the configured builds directory, else in the
+   * workspace, and the configured ones.
+   */
   static SandboxSettings sandboxSettings(Path workspace, SandboxProperties sandbox) {
-    return SandboxSettings.defaults(absolute(workspace).resolve("builds"))
+    return SandboxSettings.defaults(buildsDirectory(sandbox.buildsDir(), workspace))
         .withMavenCacheDirectory(mavenCacheDirectory(sandbox.mavenCacheDir()))
         .withMavenRepositories(sandbox.mavenRepositories())
         .withMavenMirror(sandbox.mavenMirror());
@@ -210,6 +213,21 @@ class AnalysisConfiguration {
     if (setting == null || setting.isBlank()) {
       return SandboxSettings.defaultMavenCacheDirectory();
     }
+    return hostDirectory(setting);
+  }
+
+  /**
+   * The builds directory a setting names, read as {@link #mavenCacheDirectory} reads its setting;
+   * {@code <workspace>/builds} if not set (#786).
+   */
+  static Path buildsDirectory(String setting, Path workspace) {
+    if (setting == null || setting.isBlank()) {
+      return absolute(workspace).resolve("builds");
+    }
+    return hostDirectory(setting);
+  }
+
+  private static Path hostDirectory(String setting) {
     String home = System.getProperty("user.home");
     if (setting.equals("~")) {
       return absolute(Path.of(home));

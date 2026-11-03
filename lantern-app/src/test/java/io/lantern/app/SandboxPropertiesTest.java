@@ -109,6 +109,31 @@ class SandboxPropertiesTest {
   }
 
   @Test
+  void buildsGoToTheWorkspaceUnlessABuildsDirectoryIsSet() throws IOException {
+    Map<String, String> defaults;
+    try (InputStream in = getClass().getResourceAsStream("/application.properties")) {
+      defaults = load(in);
+    }
+    Path home = Path.of(System.getProperty("user.home")).toAbsolutePath().normalize();
+    Path workspace = Path.of("/var/lantern");
+
+    assertThat(AnalysisConfiguration.sandboxSettings(workspace, bind(defaults)).buildsDirectory())
+        .isEqualTo(Path.of("/var/lantern/builds"));
+    assertThat(
+            AnalysisConfiguration.sandboxSettings(
+                    workspace,
+                    bind(
+                        Map.of("lantern.sandbox.builds-dir", "~/workspace/lantern-builds"),
+                        defaults))
+                .buildsDirectory())
+        .isEqualTo(home.resolve("workspace/lantern-builds"));
+    assertThat(AnalysisConfiguration.buildsDirectory("/srv/builds", workspace))
+        .isEqualTo(Path.of("/srv/builds"));
+    assertThat(AnalysisConfiguration.buildsDirectory(" ", workspace))
+        .isEqualTo(Path.of("/var/lantern/builds"));
+  }
+
+  @Test
   void aListSetElsewhereReplacesTheDefaultWhole() throws IOException {
     Map<String, String> defaults;
     try (InputStream in = getClass().getResourceAsStream("/application.properties")) {

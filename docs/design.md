@@ -237,7 +237,7 @@ Lantern works like a build system: every derived artifact records its inputs, an
 
 | Artifact | Keyed by |
 | --- | --- |
-| Build outputs | Repo commit + JDK image + `settings.xml` hash |
+| Build outputs | Repo commit + JDK image + `settings.xml` hash + the build step's version; one store may serve every workspace on the host (ADR 0016, amendment for #786) |
 | Static facts | The unit the extractor declares (ADR 0092): a file's blob, a repository's git tree and build fingerprint, or every repository's; plus the extractor's name, version and code digest, and the IDs of the facts it reads |
 | Linked graph | Set of observation IDs in scope + linker version; observation IDs leave the commit out, so an unchanged repository at a new commit keeps them (ADR 0091) |
 | LLM answers (summaries, wordings, link resolutions) | The item's fingerprint: role, prompt version, provider, model, tool definitions, and its inputs, which are the claim IDs it shows, the blobs of the files whose text it shows and the text of the child answers it shows, plus a hash of its rendering; a tool answer also needs the files it read at the same blobs (ADR 0100) |

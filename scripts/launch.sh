@@ -50,7 +50,10 @@ Options:
 Environment:
   LANTERN_DB_PORT           Host port of the database. Default 5432.
   COMPOSE_PROJECT_NAME      Compose project to use. Default lantern.
-  LANTERN_WORKSPACE         Where builds and documents go. Default <repository>/workspace.
+  LANTERN_WORKSPACE         Where documents go. Default <repository>/workspace.
+  LANTERN_BUILDS            Where the builds of the analyzed repositories are kept, shared by
+                            every checkout, so a commit already built is not compiled again.
+                            Default ~/workspace/lantern-builds.
 
 Both properties files must be outside the repository.
 EOF
@@ -353,6 +356,8 @@ options=()
 $title_given && options+=("--title=$title")
 # The prompts of this repository, read at run time (docs/adr/0113-prompts-folder.md).
 app_options+=("--lantern.prompts.dir=$REPO/prompts")
+# One build store for every checkout on the machine (#786).
+app_options+=("--lantern.sandbox.builds-dir=${LANTERN_BUILDS:-$HOME/workspace/lantern-builds}")
 if [[ "$command" == judge-labels ]]; then
   cd "$REPO"
   exec java -jar "$jar" --spring.config.additional-location="$locations" \

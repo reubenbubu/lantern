@@ -95,4 +95,27 @@ class BuildJsonTest {
     assertThat(old.upstream()).isEmpty();
     assertThat(old.shadowed()).isEmpty();
   }
+
+  @Test
+  void recordsTheBuildStepThatStoredIt() {
+    String stored =
+        BuildJson.write(
+            new BuildResult(
+                "repo",
+                "c".repeat(40),
+                BuildStatus.FAILED,
+                "No pom.xml at the top of the repository",
+                0,
+                "not chosen",
+                null,
+                null,
+                Instant.parse("2026-10-28T10:15:30Z"),
+                Duration.ZERO,
+                null,
+                List.of(),
+                DIR));
+
+    assertThat(BuildJson.buildStep(stored)).isEqualTo(BuildSandbox.BUILD_STEP_VERSION);
+    assertThat(BuildJson.buildStep("{\"repo\": \"repo\"}")).isZero();
+  }
 }

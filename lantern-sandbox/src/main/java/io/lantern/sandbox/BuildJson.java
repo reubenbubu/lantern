@@ -19,6 +19,7 @@ final class BuildJson {
 
   static String write(BuildResult result) {
     ObjectNode json = MAPPER.createObjectNode();
+    json.put("buildStep", BuildSandbox.BUILD_STEP_VERSION);
     json.put("repo", result.repo());
     json.put("commit", result.commit());
     json.put("status", result.status().name());
@@ -51,6 +52,12 @@ final class BuildJson {
     result.upstream().stream().sorted().forEach(json.putArray("upstream")::add);
     result.shadowed().forEach(json.putArray("shadowed")::add);
     return MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(json) + "\n";
+  }
+
+  /** The version of the build step that stored the build, or 0 if it does not say. */
+  static int buildStep(String text) {
+    JsonNode step = MAPPER.readTree(text).get("buildStep");
+    return step != null && step.isInt() ? step.intValue() : 0;
   }
 
   static BuildResult read(String text, Path directory) {

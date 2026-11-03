@@ -150,3 +150,30 @@ only in subfolders still has no Maven build, and gets the warning. The sandbox i
 repository without a `pom.xml`, it still stores a failed build (ADR 0005).
 
 ## Amendment (#369): steps 2 and 7's carrying forward is within one named system, and a repository can be removed from it (ADR 0071).
+
+## Amendment (#786): one build store for every workspace, and a build-step version
+
+Builds were found only in `<workspace>/builds`, and each checkout has its own workspace, so a run
+in a new worktree, or a before/after comparison of two Lantern versions, compiled every repository
+again although its commit had not changed. Compiling is about half of an analysis (78 of about 150
+seconds on project-8). The owner asked on 3 Nov 2026 that runs be made faster and approved that a
+build be reused whichever database or workspace a run uses.
+
+- **The builds directory is a setting,** `lantern.sandbox.builds-dir`, read as
+  `lantern.sandbox.maven-cache-dir` is (`~` is the home directory). Without it, builds stay in
+  `<workspace>/builds`. `scripts/launch.sh`, and with it `scripts/score-testsets.sh`, set it to
+  `LANTERN_BUILDS`, by default `~/workspace/lantern-builds`, so every checkout on the machine
+  shares one store. Reuse keeps the rules above: the same `repo@commit`, and for a successful
+  build the same builds of other repositories.
+- **Each stored build records the version of the build step that made it** (`buildStep` in
+  `build.json`, `BuildSandbox.BUILD_STEP_VERSION`). A stored build of another version, or of none,
+  counts as missing and is built again, so a change to how builds run or what they store never
+  reaches a run through an older build. The version is raised with any such change; it starts at
+  1, and the builds stored before it are built once more.
+- **Two processes may store the same build at the same moment.** Each still builds into its own
+  temporary folder; moving it into place is tried again when the other process's move gets in the
+  way, so the last one stored wins and neither run fails. A run that reads a stored build while
+  another process replaces it could lose files it has not yet read; that needs two runs of the
+  same commit at once that disagree on the build (another build-step version or other upstream
+  builds), which the parallel test-set runs, each set with its own repositories and one checkout's
+  Lantern, do not do.
