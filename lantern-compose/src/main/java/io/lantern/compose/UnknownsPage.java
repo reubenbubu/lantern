@@ -9,8 +9,10 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.Unknowns;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -90,20 +92,26 @@ final class UnknownsPage {
             "The LLM investigator could not say whether "
                 + (leads.size() == 1 ? "this lead points" : "these leads point")
                 + " to a risk:"));
+    // Leads of one kind about the same units, unclear for the same reason, read as one line.
+    Map<List<String>, Integer> lines = new LinkedHashMap<>();
     List<Fact> facts = new ArrayList<>();
     for (Unknowns.Lead lead : leads) {
       facts.add(lead.verdict());
-      StringBuilder text =
-          new StringBuilder(" ")
-              .append(ScopeFlows.list(lead.units().stream().map(assembler::name).toList()))
-              .append(": ")
-              .append(lead.kind().replace('-', ' '));
-      if (lead.reason() != null) {
-        text.append(" (").append(lead.reason()).append(")");
-      }
-      text.append('.');
-      content.add(TextRun.of(text.toString()));
+      String about =
+          ScopeFlows.list(lead.units().stream().map(assembler::name).toList())
+              + ": "
+              + lead.kind().replace('-', ' ');
+      lines.merge(List.of(about, lead.reason() == null ? "" : lead.reason()), 1, Integer::sum);
     }
+    lines.forEach(
+        (line, count) ->
+            content.add(
+                TextRun.of(
+                    " "
+                        + line.get(0)
+                        + (count == 1 ? "" : ", " + count + " leads")
+                        + (line.get(1).isEmpty() ? "" : " (" + line.get(1) + ")")
+                        + ".")));
     return Optional.of(
         new Callout(
             assembler.id(section, "unclear-leads"),

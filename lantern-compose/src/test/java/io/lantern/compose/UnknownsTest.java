@@ -70,15 +70,38 @@ class UnknownsTest {
 
   @Test
   void aLeadInvestigateLeftUnclearIsOnTheUnknownsPageWithItsReason() {
-    EntityId lead = new EntityId(Types.LEAD, "missing-auth/list");
+    unclearLead("missing-auth/list", "missing-auth");
+
+    assertThat(callout(compose(), "decisions.unclear-leads"))
+        .isEqualTo(
+            "The LLM investigator could not say whether this lead points to a risk:"
+                + " shop-app: missing auth (not answered).");
+  }
+
+  @Test
+  void leadsOfOneKindAboutTheSameUnitReadAsOneLineWithTheirCount() {
+    unclearLead("missing-auth/list", "missing-auth");
+    unclearLead("missing-auth/get", "missing-auth");
+    unclearLead("plaintext-secret/db", "plaintext-secret");
+
+    assertThat(callout(compose(), "decisions.unclear-leads"))
+        .isEqualTo(
+            "The LLM investigator could not say whether these leads point to a risk:"
+                + " shop-app: missing auth, 2 leads (not answered)."
+                + " shop-app: plaintext secret (not answered).");
+  }
+
+  /** A lead about shop-app that Investigate did not answer. */
+  private void unclearLead(String key, String kind) {
+    EntityId lead = new EntityId(Types.LEAD, key);
     ObjectNode trigger = FactJson.newObject();
-    trigger.put("trigger", "an endpoint with no security");
+    trigger.put("trigger", "what the lead rule saw");
     trigger.putArray("units").add(APP);
     facts.add(
         Fact.create(
             lead,
             Types.LEAD_TRIGGER,
-            FactObject.string("missing-auth"),
+            FactObject.string(kind),
             trigger,
             new Origin(Origin.Kind.STATIC, "leads", "1"),
             Evidence.of("shop", "pom.xml", null, null),
@@ -86,7 +109,7 @@ class UnknownsTest {
             Validity.from(1)));
     ObjectNode verdict = FactJson.newObject();
     verdict.put("reason", "not answered");
-    Fact unclear =
+    facts.add(
         Fact.create(
             lead,
             Types.LEAD_VERDICT,
@@ -95,15 +118,7 @@ class UnknownsTest {
             INVESTIGATE,
             Evidence.of("shop", "pom.xml", null, null),
             0.6,
-            Validity.from(1));
-    facts.add(unclear);
-
-    Document document = compose();
-
-    assertThat(callout(document, "decisions.unclear-leads"))
-        .isEqualTo(
-            "The LLM investigator could not say whether this lead points to a risk:"
-                + " shop-app: missing auth (not answered).");
+            Validity.from(1)));
   }
 
   private Document compose() {
