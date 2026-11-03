@@ -687,7 +687,7 @@ class C4ViewsTest {
   }
 
   @Test
-  void aContainerDiagramOfMoreThanFifteenElementsIsSplitByConcernThenPerUnit() {
+  void aContainerDiagramAboveTheReadabilityThresholdIsSplitByConcernThenPerUnit() {
     TestFacts many = TestFacts.runtime();
     // A profile alternative, for the note.
     many.relate(
@@ -704,7 +704,7 @@ class C4ViewsTest {
             "database:db:5432/shop",
             "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
                 + " \"absentIn\": [\"local\"]}");
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
       many.relate(
           "shop",
           "service:com.example:app",
@@ -741,10 +741,10 @@ class C4ViewsTest {
     assertThat(containers.blocks()).isEmpty();
     assertThat(containers.sections().getFirst().blocks())
         .anyMatch(b -> b instanceof Callout c && "Under other profiles".equals(c.title()));
-    // shop-app's own messaging still has more than 15 elements: a quality gap, not hidden.
+    // shop-app's own messaging is still above the threshold: a quality gap, not hidden.
     QualityReport gaps = block(document.sections().getLast(), QualityReport.class);
     assertThat(gaps.failures())
-        .filteredOn(f -> f.check().equals("At most 15 elements"))
+        .filteredOn(f -> f.check().equals(QualityBar.ELEMENTS))
         .singleElement()
         .satisfies(
             f ->
@@ -766,7 +766,7 @@ class C4ViewsTest {
             "CALLS_HTTP",
             audit,
             "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"POST /audit\"}");
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
       many.relate(
           "shop",
           "service:com.example:app",

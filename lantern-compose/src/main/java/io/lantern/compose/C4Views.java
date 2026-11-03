@@ -18,10 +18,12 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.Elements.Line;
 import io.lantern.derive.Groups;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
@@ -57,8 +59,22 @@ final class C4Views {
   /** A decision record's rationale when it has no context section. */
   static final String NOT_RECORDED = "Not recorded.";
 
-  /** The most elements a diagram shows before it is split (docs/design.md, Quality bar). */
-  static final int MAX_ELEMENTS = 15;
+  /**
+   * The most elements a container or component diagram shows before detail is folded away or it is
+   * split (docs/design.md, Readable diagrams; ADR 0117): the least size at which the studies saw
+   * readers struggle, with dense lines (docs/research/readable-large-diagrams.md). Provisional
+   * until #366 measures readability after layout.
+   */
+  static final int MAX_ELEMENTS = 50;
+
+  /**
+   * The most lines per element such a diagram draws before it is folded or split: the upper end of
+   * what the studies call sparse (docs/research/readable-large-diagrams.md). Provisional, as above.
+   */
+  static final int MAX_LINES_PER_ELEMENT = 2;
+
+  /** The most participants a sequence diagram shows (docs/design.md, Sequence diagrams). */
+  static final int MAX_PARTICIPANTS = 15;
 
   /** How many details an edge label names before it counts the rest. */
   private static final int NAMED = 2;
@@ -74,6 +90,13 @@ final class C4Views {
   private final Elements elements;
 
   private final List<Line> links;
+
+  /**
+   * The lines the container views draw: {@link #links}, or with topics and queues between one
+   * sender and one receiver folded into "via" labels when the whole system's view is not readable
+   * without (ADR 0117).
+   */
+  private List<Line> drawing;
 
   /** Each profile-only link that replaces a default one under its profile, with that default. */
   private final Map<Fact, Fact> alternatives;
@@ -99,6 +122,7 @@ final class C4Views {
     this.repos = repos;
     this.elements = new Elements(knowledge, assembler.vocabulary(), assembler.names(), repos);
     this.links = elements.lines();
+    this.drawing = links;
     this.alternatives = elements.alternativeLinks();
     this.frontends = elements.frontends();
   }
@@ -552,6 +576,27 @@ final class C4Views {
       profiles.ifPresent(blocks::add);
       return;
     }
+    // Detail folded away before the view is split (docs/design.md, Readable diagrams): topics and
+    // queues between one sender and one receiver become "via" labels, as C4 allows.
+    SortedSet<EntityId> folded = new TreeSet<>(Knowledge.BY_ID);
+    drawing = foldTopics(folded);
+    Optional<Callout> foldNote = foldNote(assembler.id(section, "folded"), folded);
+    if (!folded.isEmpty()) {
+      whole = containerDiagram(assembler.id(section, "diagram"), shown, "Containers", null, true);
+      if (fits(whole)) {
+        blocks.add(whole);
+        foldNote.ifPresent(blocks::add);
+        profiles.ifPresent(blocks::add);
+        // The detail folded away stays one page away: the messaging view draws every topic and
+        // queue as an element, split per unit when it is not readable either.
+        drawing = links;
+        List<Diagram> drawn = new ArrayList<>(List.of(whole));
+        split(section, shown, MESSAGING, List.of(), false, drawn, subsections);
+        return;
+      }
+    }
+    // Folding was not enough: the views below draw every topic and queue, by domain or concern.
+    drawing = links;
     Map<EntityId, EntityId> domainOf = domainOf(shown);
     if (!domainOf.isEmpty()) {
       domains(section, shown, domainOf, blocks, subsections);
@@ -669,7 +714,7 @@ final class C4Views {
     }
     // Per unit, with only its neighbours in this concern.
     Set<EntityId> lined = new HashSet<>();
-    for (Line link : links) {
+    for (Line link : drawing) {
       if (concern.relationships.contains(link.relationship())) {
         lined.add(link.from());
         lined.add(link.to());
@@ -678,7 +723,7 @@ final class C4Views {
     for (EntityId unit : shown) {
       boolean alone =
           everyContainer
-              && links.stream().noneMatch(l -> l.from().equals(unit) || l.to().equals(unit));
+              && drawing.stream().noneMatch(l -> l.from().equals(unit) || l.to().equals(unit));
       if (!lined.contains(unit) && !alone) {
         continue;
       }
@@ -699,16 +744,139 @@ final class C4Views {
     }
   }
 
+  /**
+   * The lines with each topic or queue folded away that carries messages from units to units, from
+   * which the units publishing to it and consuming from it are not the same, and whose lines to
+   * draw its senders to its receivers directly are no more than its own (C4: queues and topics as
+   * "via" labels where the coupling is point to point). A topic with other lines, such as routes,
+   * stays an element.
+   *
+   * @param folded receives the topics and queues folded
+   */
+  private List<Line> foldTopics(SortedSet<EntityId> folded) {
+    Map<EntityId, List<Line>> sent = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, List<Line>> delivered = new TreeMap<>(Knowledge.BY_ID);
+    Set<EntityId> kept = new HashSet<>();
+    for (Line link : links) {
+      if (isTopic(link.to())
+          && link.relationship().equals(Types.PUBLISHES)
+          && Elements.runsCode(link.from())) {
+        sent.computeIfAbsent(link.to(), t -> new ArrayList<>()).add(link);
+      } else if (isTopic(link.from())
+          && link.relationship().equals(Types.CONSUMES)
+          && Elements.runsCode(link.to())) {
+        delivered.computeIfAbsent(link.from(), t -> new ArrayList<>()).add(link);
+      } else {
+        for (EntityId end : List.of(link.from(), link.to())) {
+          if (isTopic(end)) {
+            kept.add(end);
+          }
+        }
+      }
+    }
+    for (Map.Entry<EntityId, List<Line>> entry : sent.entrySet()) {
+      EntityId topic = entry.getKey();
+      List<Line> in = delivered.get(topic);
+      if (in == null || kept.contains(topic)) {
+        continue;
+      }
+      Set<EntityId> senders = new HashSet<>();
+      entry.getValue().forEach(l -> senders.add(l.from()));
+      Set<EntityId> receivers = new HashSet<>();
+      in.forEach(l -> receivers.add(l.to()));
+      if (Collections.disjoint(senders, receivers)
+          && senders.size() * receivers.size() <= senders.size() + receivers.size()) {
+        folded.add(topic);
+      }
+    }
+    if (folded.isEmpty()) {
+      return links;
+    }
+    List<Line> result = new ArrayList<>();
+    for (Line link : links) {
+      if (folded.contains(link.to()) && link.relationship().equals(Types.PUBLISHES)) {
+        for (Line delivery : delivered.get(link.to())) {
+          List<Fact> facts = new ArrayList<>(link.facts());
+          facts.addAll(delivery.facts());
+          result.add(
+              new Line(
+                  link.from(),
+                  link.relationship(),
+                  delivery.to(),
+                  link.plain(),
+                  link.prefix(),
+                  link.detail(),
+                  link.technology(),
+                  assembler.name(link.to()),
+                  link.profile() != null ? link.profile() : delivery.profile(),
+                  facts));
+        }
+      } else if (!folded.contains(link.from()) && !folded.contains(link.to())) {
+        result.add(link);
+      }
+    }
+    return result;
+  }
+
+  private static boolean isTopic(EntityId element) {
+    return element.type().equals(Types.TOPIC) || element.type().equals(Types.QUEUE);
+  }
+
+  /**
+   * What the overview folded away, said under it (docs/design.md, Readable diagrams): a note, since
+   * it states how the view is drawn, not a claim about the system.
+   */
+  private Optional<Callout> foldNote(String id, SortedSet<EntityId> folded) {
+    if (folded.isEmpty()) {
+      return Optional.empty();
+    }
+    List<String> names = folded.stream().map(assembler::name).toList();
+    return Optional.of(
+        new Callout(
+            id,
+            Callout.Variant.NOTE,
+            null,
+            null,
+            List.of(
+                TextRun.of(
+                    (names.size() == 1 ? "The topic or queue " : "The topics and queues ")
+                        + ScopeFlows.list(names)
+                        + (names.size() == 1 ? " carries" : " carry")
+                        + " messages from one sender to one receiver, so the views draw "
+                        + (names.size() == 1 ? "it" : "them")
+                        + " as \"via\" on the line between them; the messaging view draws"
+                        + (names.size() == 1 ? " it" : " them")
+                        + " in full.")),
+            List.of()));
+  }
+
   private Section subsection(String id, String title, EntityId entity, Diagram diagram) {
     return new Section(
         id, title, SectionKind.CONTAINERS.levels(), entity, List.of(), List.of(diagram), List.of());
   }
 
   /**
-   * Whether a container diagram shows at most {@link #MAX_ELEMENTS} elements besides the system.
+   * Whether a container or component diagram is readable by the signals measured before layout: at
+   * most {@link #MAX_ELEMENTS} elements besides the boundaries it draws others in, and at most
+   * {@link #MAX_LINES_PER_ELEMENT} lines per element (docs/design.md, Readable diagrams).
    */
-  private static boolean fits(Diagram diagram) {
-    return diagram.nodes().size() - 1 <= MAX_ELEMENTS;
+  static boolean fits(Diagram diagram) {
+    int elements = elements(diagram);
+    return elements <= MAX_ELEMENTS && diagram.edges().size() <= MAX_LINES_PER_ELEMENT * elements;
+  }
+
+  /** The elements a diagram draws, the boundaries others are drawn in not counted. */
+  static int elements(Diagram diagram) {
+    Set<EntityId> boundaries = new HashSet<>();
+    diagram
+        .nodes()
+        .forEach(
+            n -> {
+              if (n.parent() != null) {
+                boundaries.add(n.parent());
+              }
+            });
+    return (int) diagram.nodes().stream().filter(n -> !boundaries.contains(n.id())).count();
   }
 
   /** Whether a diagram shows nothing another does not: its elements and lines are among its. */
@@ -861,7 +1029,7 @@ final class C4Views {
       shown.forEach(unit -> container(nodes, lift.getOrDefault(unit, unit)));
     }
     Edges edges = new Edges();
-    for (Line link : links) {
+    for (Line link : drawing) {
       EntityId from = lift.getOrDefault(link.from(), link.from());
       EntityId to = lift.getOrDefault(link.to(), link.to());
       if ((concern == null || concern.relationships.contains(link.relationship()))
@@ -873,7 +1041,7 @@ final class C4Views {
       }
     }
     // Routes between exchanges and queues both drawn already.
-    for (Line link : links) {
+    for (Line link : drawing) {
       if (link.relationship().equals(Types.ROUTES_TO)
           && (concern == null || concern.relationships.contains(Types.ROUTES_TO))
           && nodes.containsKey(link.from())

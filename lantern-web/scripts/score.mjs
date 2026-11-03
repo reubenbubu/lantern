@@ -153,6 +153,13 @@ function diagrams(data) {
   );
 }
 
+/**
+ * The readability thresholds the composer splits or folds views by, before layout
+ * (docs/design.md, Readable diagrams; ADR 0117); provisional until #366 measures them after layout.
+ */
+const MAX_ELEMENTS = 50;
+const MAX_LINES_PER_ELEMENT = 2;
+
 /** The element ids a diagram shows: those its lines use and the extra ones it lists. */
 function diagramElements(section) {
   const ids = new Set(section.elements ?? []);
@@ -468,7 +475,12 @@ export function qualityChecks(data) {
     const where = `${page.title} / ${section.title ?? section.id}`;
     const ids = diagramElements(section);
     ids.forEach((id) => shown.add(id));
-    if (ids.size > 15) failures['diagram-size'].push(`${where} (${ids.size} elements)`);
+    // Readable by the signals measured before layout (docs/design.md, Readable diagrams; ADR 0117).
+    if (ids.size > MAX_ELEMENTS) {
+      failures['diagram-size'].push(`${where} (${ids.size} elements)`);
+    } else if (section.relationships.length > MAX_LINES_PER_ELEMENT * ids.size) {
+      failures['diagram-size'].push(`${where} (${section.relationships.length} lines)`);
+    }
     for (const r of section.relationships) {
       const label = String(r.label ?? '').trim();
       const name = `${data.elements[r.from]?.name} -> ${data.elements[r.to]?.name}`;
@@ -506,7 +518,7 @@ export function qualityChecks(data) {
   ].join('\n');
   const has = (type) => data.pages.some((p) => p.sections.some((s) => s.type === type));
   const checks = [
-    ['diagram-size', 'Every diagram has at most 15 elements'],
+    ['diagram-size', `Every diagram has at most ${MAX_ELEMENTS} elements and ${MAX_LINES_PER_ELEMENT} lines per element`],
     ['element-descriptions', 'Every element shown has a description'],
     ['technology', 'Every container and component shown has a technology'],
     ['line-labels', 'Every line has an intent phrase, not just "uses"'],
