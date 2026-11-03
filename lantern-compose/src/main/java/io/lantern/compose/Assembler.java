@@ -12,6 +12,7 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
+import io.lantern.derive.Groups;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import java.util.ArrayDeque;
@@ -132,7 +133,9 @@ final class Assembler {
         // say (ADR 0083).
         || id.type().equals(Types.FRONTEND)
         // An element only Investigate found, by the connections it found (ADR 0110).
-        || (responsibility(id) == null && foundOnlyByTheInvestigator(id))) {
+        || (responsibility(id) == null && foundOnlyByTheInvestigator(id))
+        // A domain or feature area a diagram draws, by what Name groups wrote of it (ADR 0107).
+        || (id.type().equals(Types.GROUP) && responsibility(id) != null)) {
       undescribed.add(id);
     }
     return id;
@@ -165,6 +168,10 @@ final class Assembler {
 
   /** The name a reader sees for an entity ({@link ElementNames#name}). */
   String name(EntityId id) {
+    if (id.type().equals(Types.GROUP)) {
+      // The name Name groups gave it (ADR 0107).
+      return model.displayName(id).orElse(names.name(id));
+    }
     return names.name(id);
   }
 
@@ -198,6 +205,11 @@ final class Assembler {
           wholes = knowledge.wholes(id, BuiltInTypes.MODULE);
         }
         yield wholes.isEmpty() ? null : wholes.first();
+      }
+      // A feature area is under the unit whose components it groups; a domain under none.
+      case Types.GROUP -> {
+        int area = id.key().indexOf("/area/");
+        yield area < 0 ? null : EntityId.parse(id.key().substring(0, area));
       }
       case Types.FRONTEND ->
           Elements.frontendApp(knowledge, id)
@@ -432,7 +444,20 @@ final class Assembler {
    * still used: its line or message cites the link fact it words.
    */
   Phrased phrase(Fact link) {
-    ArchitectureModel.Text phrase = model.intent(link).orElse(null);
+    return phrased(model.intent(link).orElse(null));
+  }
+
+  /**
+   * The intent Name groups stored for a line leaving a group (ADR 0107), and the facts it cites
+   * that are in the snapshot, or {@code null} if it stored none.
+   *
+   * @param otherEnd what the line leads to, with its relationship: {@code "<other end> <type>"}
+   */
+  Phrased groupIntent(EntityId group, String otherEnd) {
+    return phrased(model.groupIntent(group, otherEnd).orElse(null));
+  }
+
+  private Phrased phrased(ArchitectureModel.Text phrase) {
     if (phrase == null) {
       return null;
     }
@@ -655,6 +680,9 @@ final class Assembler {
     }
     if (type.equals(Types.FRONTEND)) {
       return "Single-Page App";
+    }
+    if (type.equals(Types.GROUP)) {
+      return id.key().contains("/" + Groups.DOMAIN + "/") ? "Domain" : "Feature area";
     }
     String words = type.replace('-', ' ');
     return words.substring(0, 1).toUpperCase(Locale.ROOT) + words.substring(1);
