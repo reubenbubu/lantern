@@ -4,7 +4,7 @@ Oct 29, 2026
 
 ## Overview
 
-> **Active epic.** [`docs/epics/001-knowledge-build.md`](epics/001-knowledge-build.md) changes parts of this design (knowledge model, extraction, linking, derivation, LLM roles, composition). Where the two differ, the epic wins until its issues land and bring this document in line.
+> **Epic.** No epic is active. The last one, [`docs/epics/001-knowledge-build.md`](epics/001-knowledge-build.md), is closed. Its issues have brought this document in line, and the sections that cite it link to it as the record.
 
 Lantern is a hosted service that analyzes the local repositories of a named software system, mostly Java, builds a versioned knowledge model of that system, and generates architecture documents for different audiences from that model.
 

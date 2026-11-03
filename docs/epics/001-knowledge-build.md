@@ -2,7 +2,37 @@
 
 31 Oct 2026 · reubenbubu
 
-**Status: active.** Milestones 1A to 1G. `docs/quality-bar.md` and `docs/design.md` are the target; this epic is the step toward them being built now. Where this epic and the design differ, this epic wins, and each issue that lands part of it brings the design in line. When 1G closes, a closing note goes here. The prompts, schemas, checks and limits of the LLM roles (section 11) change only through an issue that shows the effect on the test sets.
+**Status: closed** (3 Nov 2026). The work of milestones 1A to 1G is merged. The 1F and 1G test drops (#726, #735) wait on the owner's verdict.
+
+**Closing note.** What was built:
+- **Facts with stable identity** (1A): claims and observations, an envelope v2, key attributes per type and generated record types.
+- **Extraction by file** (1B), behind one extractor interface. Values are emitted as written and resolved in linking.
+- **Link rules** (1C). Deployable units, values and addresses are resolved by ordered rules.
+- **The architecture model, stored by a derive stage** (1D): components, flows, leads and groups.
+- **The LLM harness** (1E). It covers:
+  - items and packets, with a cached prompt layout;
+  - one verification pipeline every answer passes through;
+  - run modes and budgets;
+  - record and replay;
+  - model checks;
+  - an OpenAI provider, with a batch API.
+- **Every LLM role on the harness** (1F): Resolve, Investigate, Summarize, Describe, flow significance and narrative, Purpose and key fact, and Name groups. A wording judge checks their output, and each role's packet size is calibrated.
+- **The composer reads only the stored model** (1G).
+  - Predicate strings live only in a typed layer.
+  - The LLM roles left the composer.
+  - Quality checks and the unknowns page are queries on the model.
+  - Container and component views are drawn at group level, so they stay readable before they split.
+
+What was dropped or moved:
+- **The Unknown caller**, planned in step 4, was not built. It moved to #365 (2B.1).
+- **Readability is counted, not measured.** The limits of 50 elements and 2 lines per element are provisional. Measuring the drawn layout is #366 (2C.1).
+- **Unknowns stated on other pages** have not moved to the unknowns page yet (#728, Later).
+- **Investigate's PR #328** was closed unmerged. Its useful pieces were harvested into 1F.
+- **Letting the LLM choose its own evidence**, the wording tools, is parked until the owner reopens it.
+
+ADRs that followed: 0089 to 0117.
+
+The rest of this file is the spec as planned and is kept as the record. `docs/quality-bar.md` and `docs/design.md` are the target; this epic was the step toward them. Where this epic and the design differed, this epic won, and each issue that landed part of it brought the design in line. The prompts, schemas, checks and limits of the LLM roles (section 11) change only through an issue that shows the effect on the test sets.
 
 ## 1. Summary
 
