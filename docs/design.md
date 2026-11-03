@@ -479,7 +479,7 @@ A reference is a report of a test set written by hand from cited code facts (fil
 
 Change-history measures (activity level, hotspots of complex code that changes often) need git history beyond the snapshot and come later. Until then the Brief doesn't present static findings as ranked debt.
 
-**Readable diagrams.** The bar sets no element cap. A view has detail folded away, is drawn at group level, or is split at the same level, in that order, when a readability signal passes its threshold: the number of elements, the number of lines, and line crossings after layout, each threshold a named value (configurable with #366). Until #366 measures them after layout, a container or component view is readable with at most 50 elements and 2 lines per element, the sizes at which studies first saw readers struggle and the top of what they call sparse (`docs/research/readable-large-diagrams.md`; ADR 0117); a sequence diagram shows at most 15 participants.
+**Readable diagrams.** The bar sets no element cap. A view has detail folded away, is drawn at group level, or is split at the same level, in that order, when a readability signal passes its threshold: the number of elements, the number of lines, and line crossings after layout, each threshold a named value (configurable with #366). No hard element limit decides grouping (ADR 0117, amendment for #737): views are to be grouped by meaning, at a level chosen among groupings the code proves (#764). Until then, 50 elements and 2 lines per element, the sizes at which studies first saw readers struggle and the top of what they call sparse (`docs/research/readable-large-diagrams.md`), are only a quality warning; a sequence diagram shows at most 15 participants.
 
 ## Derivation
 

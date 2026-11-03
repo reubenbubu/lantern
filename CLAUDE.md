@@ -71,6 +71,17 @@ changes them. This file covers only how you work.
 - Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
   analyzes them or looks at their output until milestone 2.9, where they are scored and judged
   once.
+- Answer keys and wording labels are checked blind (owner's decision of 3 Nov 2026):
+  - Whenever an answer key (`testsets/*/answer-key.json`) is created or changed, a read-only
+    `opus` subagent re-derives every new or changed entry from the test set's code and reference,
+    without seeing the key, and lists where it disagrees. The owner settles each disagreement and
+    spot-checks about 10 agreed entries; the settlement is recorded in the key's `status`.
+  - Whenever wording labels (`testsets/wording-labels/`) are created or added, a read-only `opus`
+    subagent labels them blind. The owner settles disagreements and spot-checks about 15 agreed
+    ones. Each judged question has at least 30 bad examples.
+- Testing that counts runs on Claude Haiku 5.5 and Sonnet 5.5 through OpenRouter
+  (`docs/adr/0070-course-correction-measured-acceptance.md`, amendment for #737); DeepSeek and
+  other models only for smoke runs whose numbers are never reported as results.
 - Each chat works on one issue at a time and does the work itself: design, code, tests, PR,
   merge and cleanup.
 - Subagents get only low-impact work: read-only searches across many files, mechanical chores
