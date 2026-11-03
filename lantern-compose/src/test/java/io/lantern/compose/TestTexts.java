@@ -6,15 +6,18 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.harness.LlmFacts;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.checks.SupportJudge;
 import io.lantern.summarize.Summary;
 import io.lantern.summarize.describe.DescribeRole;
-import io.lantern.summarize.describe.Wordings;
+import io.lantern.summarize.describe.Describer;
+import io.lantern.summarize.describe.FlowJudgements;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -37,17 +40,17 @@ final class TestTexts {
 
   /** The facts with the summaries as stored summary facts. */
   static List<Fact> with(Collection<Fact> facts, Map<EntityId, Summary> summaries) {
-    return with(facts, summaries, Wordings.NONE);
+    return with(facts, summaries, Written.NONE);
   }
 
   /** The facts with the wordings as stored text facts. */
-  static List<Fact> with(Collection<Fact> facts, Wordings wordings) {
+  static List<Fact> with(Collection<Fact> facts, Written wordings) {
     return with(facts, Map.of(), wordings);
   }
 
   /** The facts with the summaries and the wordings as stored text facts. */
   static List<Fact> with(
-      Collection<Fact> facts, Map<EntityId, Summary> summaries, Wordings wordings) {
+      Collection<Fact> facts, Map<EntityId, Summary> summaries, Written wordings) {
     Map<String, Fact> byId = new HashMap<>();
     facts.forEach(f -> byId.putIfAbsent(f.id(), f));
     List<Fact> all = new ArrayList<>(facts);
@@ -91,7 +94,7 @@ final class TestTexts {
     ordered.put(summary.entity(), summary);
   }
 
-  private static List<Fact> wordings(Wordings wordings, Map<String, Fact> byId) {
+  private static List<Fact> wordings(Written wordings, Map<String, Fact> byId) {
     List<Fact> out = new ArrayList<>();
     wordings
         .responsibilities()
@@ -181,7 +184,7 @@ final class TestTexts {
   }
 
   /** A stored narrative of the flow, as the flow narrative role writes it. */
-  static Fact narrative(EntityId flow, Wordings.Flow wording, Collection<Fact> facts) {
+  static Fact narrative(EntityId flow, FlowJudgements.Flow wording, Collection<Fact> facts) {
     Map<String, Fact> byId = new HashMap<>();
     facts.forEach(f -> byId.putIfAbsent(f.id(), f));
     ObjectNode attributes = FactJson.newObject();
@@ -260,5 +263,158 @@ final class TestTexts {
       }
     }
     return cited;
+  }
+
+  /**
+   * What the LLM's texts say, as the tests read or write them: the responsibility sentences, the
+   * intent phrases, the flows' wordings, the documented facts, the unsupported elements, the flows
+   * chosen per scope and the key fact. Built from a run's stored texts ({@link #written}), or
+   * written into facts for the composer ({@link #with}).
+   */
+  record Written(
+      Map<EntityId, String> responsibilities,
+      Map<String, Describer.Phrase> phrases,
+      Map<String, FlowJudgements.Flow> flows,
+      Set<String> documented,
+      Set<EntityId> unsupported,
+      Map<String, List<String>> chosen,
+      String keyFact) {
+
+    /** No wording: documents keep summaries as descriptions and static labels. */
+    static final Written NONE = new Written(Map.of(), Map.of());
+
+    Written {
+      responsibilities = Map.copyOf(responsibilities);
+      phrases = Map.copyOf(phrases);
+      flows = Map.copyOf(flows);
+      documented = Set.copyOf(documented);
+      unsupported = Set.copyOf(unsupported);
+      chosen = Map.copyOf(chosen);
+    }
+
+    Written(
+        Map<EntityId, String> responsibilities,
+        Map<String, Describer.Phrase> phrases,
+        Map<String, FlowJudgements.Flow> flows,
+        Set<String> documented,
+        Set<EntityId> unsupported,
+        Map<String, List<String>> chosen) {
+      this(responsibilities, phrases, flows, documented, unsupported, chosen, null);
+    }
+
+    Written(
+        Map<EntityId, String> responsibilities,
+        Map<String, Describer.Phrase> phrases,
+        Map<String, FlowJudgements.Flow> flows,
+        Set<String> documented,
+        Set<EntityId> unsupported) {
+      this(responsibilities, phrases, flows, documented, unsupported, Map.of());
+    }
+
+    Written(
+        Map<EntityId, String> responsibilities,
+        Map<String, Describer.Phrase> phrases,
+        Map<String, FlowJudgements.Flow> flows,
+        Set<String> documented) {
+      this(responsibilities, phrases, flows, documented, Set.of());
+    }
+
+    Written(
+        Map<EntityId, String> responsibilities,
+        Map<String, Describer.Phrase> phrases,
+        Map<String, FlowJudgements.Flow> flows) {
+      this(responsibilities, phrases, flows, Set.of());
+    }
+
+    Written(Map<EntityId, String> responsibilities, Map<String, Describer.Phrase> phrases) {
+      this(responsibilities, phrases, Map.of());
+    }
+
+    /** The same texts, with the elements whose sentence the support judge found unsupported. */
+    Written withUnsupported(Set<EntityId> elements) {
+      return new Written(responsibilities, phrases, flows, documented, elements, chosen, keyFact);
+    }
+  }
+
+  /**
+   * The texts a run stored, as the run's {@code Describer.Result} holds them, read back through the
+   * model the composer reads (ADR 0116).
+   */
+  static Written written(Describer.Result result) {
+    List<Fact> texts = new ArrayList<>();
+    result.facts(1).values().forEach(texts::addAll);
+    ArchitectureModel model = new ArchitectureModel(texts);
+    Map<EntityId, String> responsibilities = new HashMap<>();
+    Set<EntityId> unsupported = new HashSet<>();
+    Set<EntityId> subjects = new java.util.LinkedHashSet<>();
+    for (Fact fact : texts) {
+      if (fact.predicate().equals(LlmFacts.RESPONSIBILITY)) {
+        subjects.add(fact.subject());
+      }
+    }
+    for (EntityId subject : subjects) {
+      model
+          .responsibility(subject)
+          .ifPresent(
+              text -> {
+                responsibilities.put(subject, text.marked());
+                if (text.unsupported()) {
+                  unsupported.add(subject);
+                }
+              });
+    }
+    model
+        .purpose()
+        .ifPresent(
+            text -> {
+              responsibilities.put(ArchitectureModel.SYSTEM, text.marked());
+              if (text.unsupported()) {
+                unsupported.add(ArchitectureModel.SYSTEM);
+              }
+            });
+    Map<String, Describer.Phrase> phrases = new HashMap<>();
+    for (Fact fact : texts) {
+      if (fact.predicate().equals(LlmFacts.INTENT) && !fact.subject().type().equals("person")) {
+        // The stored phrase, keyed as the model keys the phrases of the interactions.
+        String phrase = fact.attributes().path("text").asString("");
+        if (!phrase.isBlank()) {
+          phrases.put(
+              fact.object().value(), new Describer.Phrase(phrase, ArchitectureModel.cites(fact)));
+        }
+      }
+    }
+    Map<String, FlowJudgements.Flow> flows = new HashMap<>();
+    Set<EntityId> narrated = new java.util.LinkedHashSet<>();
+    for (Fact fact : texts) {
+      if (fact.predicate().equals(LlmFacts.FLOW_NARRATIVE)) {
+        narrated.add(fact.subject());
+      }
+    }
+    for (EntityId flow : narrated) {
+      model
+          .narrative(flow, null)
+          .ifPresent(
+              n ->
+                  flows.put(
+                      flow.toString(),
+                      new FlowJudgements.Flow(
+                          n.walkthrough() == null ? null : n.walkthrough().marked(),
+                          n.preconditions() == null ? null : n.preconditions().marked(),
+                          n.postconditions() == null ? null : n.postconditions().marked(),
+                          n.title())));
+    }
+    Map<String, List<String>> chosen = new HashMap<>();
+    Set<String> scopes = new java.util.TreeSet<>();
+    for (Fact fact : texts) {
+      if (fact.predicate().equals(LlmFacts.FLOW_SIGNIFICANCE)) {
+        scopes.add(fact.object().value());
+      }
+    }
+    for (String scope : scopes) {
+      model.significantFlows(scope).ifPresent(order -> chosen.put(scope, order));
+    }
+    String keyFact = model.keyFact().map(ArchitectureModel.Text::marked).orElse(null);
+    return new Written(
+        responsibilities, phrases, flows, result.documented(), unsupported, chosen, keyFact);
   }
 }

@@ -832,6 +832,11 @@ public final class Groups implements LinkRule.OverFacts {
   public record Group(
       EntityId id, String kind, String scope, String basis, SortedSet<EntityId> members) {}
 
+  /** The groups of a kind the model holds. */
+  public static List<Group> of(ArchitectureModel model, String kind) {
+    return of(model.index(), kind);
+  }
+
   /** The stored groups of a kind, by ID. */
   public static List<Group> of(Knowledge knowledge, String kind) {
     List<Group> groups = new ArrayList<>();

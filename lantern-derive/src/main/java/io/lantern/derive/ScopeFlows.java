@@ -81,6 +81,15 @@ public final class ScopeFlows {
   /** The deployable units, once read. */
   private Set<EntityId> units;
 
+  /** As the other constructor, with the names the composer gives elements. */
+  public ScopeFlows(
+      ArchitectureModel model,
+      Elements elements,
+      Set<EntityId> scope,
+      Function<EntityId, String> names) {
+    this(model.index(), elements, scope, names);
+  }
+
   /**
    * @param elements the elements the scope's diagrams show, for the people who use a frontend and
    *     the links that are another's alternative under a profile
@@ -96,6 +105,11 @@ public final class ScopeFlows {
     this.elements = elements;
     this.scope = Set.copyOf(scope);
     this.names = names;
+  }
+
+  /** The flows of the model's scope, traced from the model's facts (ADR 0115). */
+  public ScopeFlows(ArchitectureModel model, Elements elements, Set<EntityId> scope) {
+    this(model.index(), elements, scope);
   }
 
   /** As the other constructor, naming elements as {@link Elements#names} does. */

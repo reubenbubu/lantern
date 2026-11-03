@@ -104,9 +104,25 @@ public final class Describer {
   private static final int LOGGED_ANSWER = 1_000;
 
   /**
+   * An intent phrase, which labels a line of a flow or a link in a diagram.
+   *
+   * @param text the phrase, such as {@code Looks up product prices}
+   * @param facts the IDs of the facts it cites
+   */
+  public record Phrase(String text, List<String> facts) {
+
+    public Phrase {
+      Objects.requireNonNull(text, "text");
+      if (text.isBlank()) {
+        throw new IllegalArgumentException("A phrase must not be blank");
+      }
+      facts = List.copyOf(facts);
+    }
+  }
+
+  /**
    * What a run did.
    *
-   * @param wordings the responsibility sentences and intent phrases, for the composer
    * @param asked how many units, data stores, destinations and flows, and the system for its
    *     purpose, the model was asked about in this run
    * @param reused how many answers came from the cache
@@ -117,7 +133,6 @@ public final class Describer {
    *     capabilities refused the call or the provider failed
    */
   public record Result(
-      Wordings wordings,
       int asked,
       int reused,
       List<EntityId> rejected,
@@ -125,7 +140,8 @@ public final class Describer {
       List<LlmText> texts,
       List<String> unknown,
       List<java.util.function.LongFunction<List<Fact>>> flowFacts,
-      Map<String, Verdict> verdicts) {
+      Map<String, Verdict> verdicts,
+      Set<String> documented) {
 
     /**
      * The support judge's verdict on a sentence it checked (ADR 0101), by the key it judged it
@@ -137,7 +153,6 @@ public final class Describer {
 
     /** A run's outcome without verdicts. */
     public Result(
-        Wordings wordings,
         int asked,
         int reused,
         List<EntityId> rejected,
@@ -145,35 +160,33 @@ public final class Describer {
         List<LlmText> texts,
         List<String> unknown,
         List<java.util.function.LongFunction<List<Fact>>> flowFacts) {
-      this(wordings, asked, reused, rejected, skipped, texts, unknown, flowFacts, Map.of());
+      this(asked, reused, rejected, skipped, texts, unknown, flowFacts, Map.of(), Set.of());
     }
 
     /** A run's outcome without flow judgements. */
     public Result(
-        Wordings wordings,
         int asked,
         int reused,
         List<EntityId> rejected,
         List<EntityId> skipped,
         List<LlmText> texts,
         List<String> unknown) {
-      this(wordings, asked, reused, rejected, skipped, texts, unknown, List.of());
+      this(asked, reused, rejected, skipped, texts, unknown, List.of());
     }
 
     public Result {
-      Objects.requireNonNull(wordings, "wordings");
       rejected = List.copyOf(rejected);
       skipped = List.copyOf(skipped);
       texts = List.copyOf(texts);
       unknown = List.copyOf(unknown);
       flowFacts = List.copyOf(flowFacts);
       verdicts = Map.copyOf(verdicts);
+      documented = Set.copyOf(documented);
     }
 
     /** A run's outcome without stored texts, as before the roles stored claims. */
-    public Result(
-        Wordings wordings, int asked, int reused, List<EntityId> rejected, List<EntityId> skipped) {
-      this(wordings, asked, reused, rejected, skipped, List.of(), List.of());
+    public Result(int asked, int reused, List<EntityId> rejected, List<EntityId> skipped) {
+      this(asked, reused, rejected, skipped, List.of(), List.of());
     }
 
     /**
@@ -349,7 +362,7 @@ public final class Describer {
     facts = withoutTexts(facts);
     repoFacts = withoutTexts(repoFacts);
     ArchitectureModel systemModel = new ArchitectureModel(facts);
-    Knowledge knowledge = systemModel.knowledge();
+    Knowledge knowledge = new Knowledge(facts);
     // Elements are named as the documents name them, and are those the diagrams show.
     ElementNames names = new ElementNames(knowledge, SYSTEM_NAME);
     Elements shown = new Elements(knowledge, systemModel.vocabulary(), names, Set.of());
@@ -472,8 +485,7 @@ public final class Describer {
     // Then the flows: which are worth drawing in each scope, then the narrative of each one drawn,
     // from the units' sentences and the interactions' phrases (knowledge-build epic, section 11.5;
     // ADR 0108).
-    Map<String, List<String>> chosen =
-        flows(repoFacts, knowledge, names, shown, unitAnswers, tally);
+    flows(repoFacts, knowledge, names, shown, unitAnswers, tally);
     // The system's purpose and key fact rest on all of these, so they are asked about last
     // (knowledge-build epic, section 11.6; ADR 0109).
     Optional<PurposeRole.Asked> purpose =
@@ -511,14 +523,12 @@ public final class Describer {
                     ArchitectureModel.SYSTEM.toString(), said.text(), said.lines()));
           }
           PurposeRole.Worded key = worded.get(PurposeRole.KEY_FACT);
-          if (key != null) {
-            tally.keyFact = key.marked();
-          }
+          if (key != null) {}
           String model = purposeSession.model().provider() + "/" + purposeSession.model().model();
           tally.flowFacts.add(snapshot -> PurposeRole.facts(worded, model, snapshot));
         });
     LOG.info(
-        "Wordings: {} units, data stores, destinations, external systems, people, flows and the"
+        "Texts: {} units, data stores, destinations, external systems, people, flows and the"
             + " system asked, {} cached, {} rejected, {} skipped",
         tally.asked,
         tally.reused,
@@ -550,14 +560,6 @@ public final class Describer {
           }
         });
     return new Result(
-        new Wordings(
-            tally.responsibilities,
-            tally.phrases,
-            tally.flows,
-            documented,
-            unsupported,
-            chosen,
-            tally.keyFact),
         tally.asked,
         tally.reused,
         tally.rejected,
@@ -565,7 +567,8 @@ public final class Describer {
         tally.texts,
         tally.unknown,
         tally.flowFacts,
-        stored);
+        stored,
+        documented);
   }
 
   /** What the answers of a run add up to. */
@@ -573,8 +576,8 @@ public final class Describer {
     final Map<EntityId, String> responsibilities = new HashMap<>();
     final Map<EntityId, SupportJudge.Text> judgeable =
         new java.util.TreeMap<>(java.util.Comparator.comparing(EntityId::toString));
-    final Map<String, Wordings.Phrase> phrases = new HashMap<>();
-    final Map<String, Wordings.Flow> flows = new HashMap<>();
+    final Map<String, Phrase> phrases = new HashMap<>();
+    final Map<String, FlowJudgements.Flow> flows = new HashMap<>();
     final List<EntityId> rejected = new ArrayList<>();
     final List<EntityId> skipped = new ArrayList<>();
     final List<LlmText> texts = new ArrayList<>();
@@ -584,8 +587,6 @@ public final class Describer {
     final List<java.util.function.LongFunction<List<Fact>>> flowFacts = new ArrayList<>();
     // The keys of the flows the system's documents draw, in order.
     final List<String> systemFlows = new ArrayList<>();
-    // The system's key fact, with citation markers, if the model wrote one.
-    String keyFact;
     int asked;
     int reused;
 
@@ -593,7 +594,7 @@ public final class Describer {
     List<String> systemFlowTitles() {
       List<String> titles = new ArrayList<>();
       for (String key : systemFlows) {
-        Wordings.Flow flow = flows.get(key);
+        FlowJudgements.Flow flow = flows.get(key);
         if (flow != null && flow.title() != null && !titles.contains(flow.title())) {
           titles.add(flow.title());
         }
@@ -660,7 +661,7 @@ public final class Describer {
           if (!text.about().type().equals(Types.PERSON)) {
             phrases.put(
                 interaction.id(),
-                new Wordings.Phrase(text.text(), text.cited().stream().map(Fact::id).toList()));
+                new Phrase(text.text(), text.cited().stream().map(Fact::id).toList()));
           }
         } else {
           EntityId key = element;
@@ -736,7 +737,7 @@ public final class Describer {
             new ScopeFlows(knowledge, elements, systemUnits),
             systemUnits));
     ArchitectureModel repoModel = new ArchitectureModel(repoFacts);
-    Knowledge repoKnowledge = repoModel.knowledge();
+    Knowledge repoKnowledge = new Knowledge(repoFacts);
     ElementNames repoNames = new ElementNames(repoKnowledge, SYSTEM_NAME);
     SortedSet<String> repos = new TreeSet<>();
     repoFacts.forEach(f -> repos.add(f.evidence().repo()));

@@ -50,8 +50,8 @@ final class UnknownsPage {
     List<Inline> content = new ArrayList<>();
     List<Fact> facts = unknowns.openLinks();
     for (Fact fact : facts) {
-      String reason = Elements.attribute(fact, "reason", null);
-      List<String> keys = Elements.strings(fact, "unresolved");
+      String reason = Unknowns.reason(fact);
+      List<String> keys = Unknowns.unresolvedKeys(fact);
       StringBuilder text =
           new StringBuilder(content.isEmpty() ? "" : " ")
               .append(assembler.name(fact.subject()))

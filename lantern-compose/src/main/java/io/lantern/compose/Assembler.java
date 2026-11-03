@@ -13,7 +13,6 @@ import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Groups;
-import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -24,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
@@ -62,7 +62,6 @@ final class Assembler {
 
   private static final Pattern NOT_ID_CHAR = Pattern.compile("[^A-Za-z0-9._:-]");
 
-  private final Knowledge knowledge;
   private final ArchitectureModel model;
   private final Set<EntityId> described;
   private final String repo;
@@ -70,7 +69,7 @@ final class Assembler {
   private final ElementNames names;
   private final Set<EntityId> adding = new HashSet<>();
   private final Deque<EntityId> undescribed = new ArrayDeque<>();
-  private final Map<EntityId, DocumentEntity> entities = new TreeMap<>(Knowledge.BY_ID);
+  private final Map<EntityId, DocumentEntity> entities = new TreeMap<>(ArchitectureModel.BY_ID);
   private final Set<String> factIds = new TreeSet<>();
   private final Set<String> elementIds = new HashSet<>();
 
@@ -84,11 +83,10 @@ final class Assembler {
    */
   Assembler(ArchitectureModel model, Set<EntityId> described, String repo, String systemName) {
     this.model = model;
-    this.knowledge = model.knowledge();
     this.described = described;
     this.repo = repo;
     this.systemName = systemName;
-    this.names = new ElementNames(knowledge, systemName);
+    this.names = new ElementNames(model, systemName);
   }
 
   /** The text of a rich-text element and the facts it cites. */
@@ -109,15 +107,15 @@ final class Assembler {
       throw new IllegalArgumentException("CONTAINS facts form a cycle at " + id);
     }
     EntityId parent = parent(id);
-    List<Fact> facts = new ArrayList<>(knowledge.attributes(id));
+    List<Fact> facts = new ArrayList<>(model.attributes(id));
     if (id.type().equals(BuiltInTypes.SERVICE) || id.type().equals(BuiltInTypes.LIBRARY)) {
-      for (EntityId module : knowledge.parts(id, BuiltInTypes.MODULE)) {
-        facts.addAll(knowledge.containsFacts(id, module));
+      for (EntityId module : model.parts(id, BuiltInTypes.MODULE)) {
+        facts.addAll(model.containsFacts(id, module));
       }
     }
     if (parent != null) {
       entity(parent);
-      facts.addAll(knowledge.containsFacts(parent, id));
+      facts.addAll(model.containsFacts(parent, id));
     }
     entities.put(
         id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts), kind(id), tag(id)));
@@ -154,15 +152,11 @@ final class Assembler {
     if (!id.type().equals(BuiltInTypes.SERVICE)) {
       return id;
     }
-    for (Fact fact : knowledge.relations(id, Types.BUNDLES)) {
-      if (RepoSections.attribute(fact, "main", "false").equals("true")) {
-        SortedSet<EntityId> modules = knowledge.parts(Knowledge.object(fact), BuiltInTypes.MODULE);
-        if (!modules.isEmpty()) {
-          return modules.first();
-        }
-      }
+    Optional<EntityId> main = model.mainLibraryModule(id);
+    if (main.isPresent()) {
+      return main.get();
     }
-    SortedSet<EntityId> modules = knowledge.parts(id, BuiltInTypes.MODULE);
+    SortedSet<EntityId> modules = model.parts(id, BuiltInTypes.MODULE);
     return modules.isEmpty() ? id : modules.first();
   }
 
@@ -185,24 +179,24 @@ final class Assembler {
     return switch (id.type()) {
       case ArchitectureModel.REPO_ENTITY_TYPE, Types.ARTIFACT -> null;
       case BuiltInTypes.MODULE -> {
-        SortedSet<EntityId> aggregators = knowledge.wholes(id, BuiltInTypes.MODULE);
+        SortedSet<EntityId> aggregators = model.wholes(id, BuiltInTypes.MODULE);
         if (!aggregators.isEmpty()) {
           yield aggregators.first();
         }
-        yield repoOf(knowledge.repos(id));
+        yield repoOf(model.repos(id));
       }
       case BuiltInTypes.SERVICE, BuiltInTypes.LIBRARY -> {
         SortedSet<String> repos = new TreeSet<>();
-        for (EntityId module : knowledge.parts(id, BuiltInTypes.MODULE)) {
-          repos.addAll(knowledge.repos(module));
+        for (EntityId module : model.parts(id, BuiltInTypes.MODULE)) {
+          repos.addAll(model.repos(module));
         }
         yield repoOf(repos);
       }
       case BuiltInTypes.TYPE -> {
-        SortedSet<EntityId> wholes = knowledge.wholes(id, BuiltInTypes.PACKAGE);
-        wholes.addAll(knowledge.wholes(id, BuiltInTypes.TYPE));
+        SortedSet<EntityId> wholes = model.wholes(id, BuiltInTypes.PACKAGE);
+        wholes.addAll(model.wholes(id, BuiltInTypes.TYPE));
         if (wholes.isEmpty()) {
-          wholes = knowledge.wholes(id, BuiltInTypes.MODULE);
+          wholes = model.wholes(id, BuiltInTypes.MODULE);
         }
         yield wholes.isEmpty() ? null : wholes.first();
       }
@@ -212,11 +206,11 @@ final class Assembler {
         yield area < 0 ? null : EntityId.parse(id.key().substring(0, area));
       }
       case Types.FRONTEND ->
-          Elements.frontendApp(knowledge, id)
+          Elements.frontendApp(model, id)
               .map(f -> repoOf(new TreeSet<>(Set.of(f.evidence().repo()))))
               .orElse(null);
       default -> {
-        SortedSet<EntityId> wholes = knowledge.wholes(id);
+        SortedSet<EntityId> wholes = model.wholes(id);
         yield wholes.isEmpty() ? null : wholes.first();
       }
     };
@@ -359,11 +353,11 @@ final class Assembler {
    */
   private boolean evidenced(Text text, boolean code) {
     return text.facts().stream()
-        .map(knowledge::fact)
+        .map(model::fact)
         .anyMatch(
             f ->
                 f != null
-                    && (f.predicate().equals(Types.CLAIM)
+                    && (ArchitectureModel.isClaim(f)
                         || code && model.documented().contains(f.id())));
   }
 
@@ -403,7 +397,7 @@ final class Assembler {
     boolean cites = false;
     int last = 0;
     while (matcher.find()) {
-      boolean known = !matcher.group(1).equals("fact") || knowledge.fact(matcher.group(2)) != null;
+      boolean known = !matcher.group(1).equals("fact") || model.fact(matcher.group(2)) != null;
       cites |= known;
       kept.append(text, last, matcher.start());
       last = matcher.end();
@@ -463,7 +457,7 @@ final class Assembler {
     }
     List<Fact> facts = new ArrayList<>();
     for (String id : phrase.cites()) {
-      Fact fact = knowledge.fact(id);
+      Fact fact = model.fact(id);
       if (fact != null) {
         facts.add(fact);
       }
@@ -488,7 +482,7 @@ final class Assembler {
         out.text(between);
       }
       if (fact) {
-        Fact cited = knowledge.fact(matcher.group(2));
+        Fact cited = model.fact(matcher.group(2));
         if (cited == null) {
           throw new IllegalArgumentException(
               "The summary of "
@@ -506,7 +500,7 @@ final class Assembler {
     out.flushCitation();
     out.text(text.substring(last));
     out.flushText();
-    return new Text(out.content, facts(out.cited.stream().map(knowledge::fact).toList()));
+    return new Text(out.content, facts(out.cited.stream().map(model::fact).toList()));
   }
 
   /** Builds rich text from text, citations and cross-references. */
@@ -707,14 +701,14 @@ final class Assembler {
 
   /** The connections Investigate found to an entity (ADR 0110). */
   private List<Fact> investigatedTo(EntityId id) {
-    return knowledge.withPredicate(Types.INVESTIGATED_CONNECTION).stream()
-        .filter(f -> Knowledge.isEntity(f) && Knowledge.object(f).equals(id))
+    return model.withPredicate(Types.INVESTIGATED_CONNECTION).stream()
+        .filter(f -> ArchitectureModel.isEntity(f) && ArchitectureModel.object(f).equals(id))
         .toList();
   }
 
   /** Whether only Investigate's connections know the entity: no fact is about it. */
   private boolean foundOnlyByTheInvestigator(EntityId id) {
-    return destination(id) && knowledge.about(id).isEmpty() && !investigatedTo(id).isEmpty();
+    return destination(id) && model.about(id).isEmpty() && !investigatedTo(id).isEmpty();
   }
 
   /**
@@ -729,7 +723,7 @@ final class Assembler {
       text.append(text.isEmpty() ? "" : " ")
           .append(name(fact.subject()))
           .append(": ")
-          .append(fact.attributes().path("description").asString(""))
+          .append(ArchitectureModel.description(fact))
           .append('.');
     }
     List<String> ids = facts(found);
@@ -743,24 +737,22 @@ final class Assembler {
    * Dockerfile say, citing its {@code frontend-app} fact, and what it calls.
    */
   private Text frontend(EntityId id) {
-    Fact app = Elements.frontendApp(knowledge, id).orElse(null);
+    Elements.FrontendApp app = Elements.frontendAppOf(model, id).orElse(null);
     if (app == null) {
       return new Text(List.of(), List.of());
     }
     StringBuilder text = new StringBuilder("A single-page app built with ");
-    text.append(RepoSections.attribute(app, "framework", "a framework"));
-    String version = RepoSections.attribute(app, "version", null);
-    if (version != null) {
-      text.append(' ').append(version);
+    text.append(app.framework());
+    if (app.version() != null) {
+      text.append(' ').append(app.version());
     }
-    String server = RepoSections.attribute(app, "server", null);
-    if (server != null) {
-      text.append(", served by ").append(server);
+    if (app.server() != null) {
+      text.append(", served by ").append(app.server());
     }
-    List<Fact> cited = new ArrayList<>(List.of(app));
+    List<Fact> cited = new ArrayList<>(List.of(app.fact()));
     SortedSet<String> called = new TreeSet<>();
-    for (Fact call : knowledge.relations(id, Types.CALLS_HTTP)) {
-      called.add(name(Knowledge.object(call)));
+    for (Fact call : model.relations(id, Types.CALLS_HTTP)) {
+      called.add(name(ArchitectureModel.object(call)));
       if (cited.size() < 6) {
         cited.add(call);
       }
@@ -777,10 +769,7 @@ final class Assembler {
 
   /** The fact saying what a person rests on, or {@code null}. */
   private Fact personBasis(EntityId id) {
-    return knowledge.attributes(id).stream()
-        .filter(f -> f.predicate().equals(Types.PERSON_BASIS))
-        .findFirst()
-        .orElse(null);
+    return Elements.personBasis(model, id);
   }
 
   /**
@@ -791,15 +780,15 @@ final class Assembler {
   private Text person(EntityId id) {
     Fact basis = personBasis(id);
     List<Fact> cited = new ArrayList<>(List.of(basis));
-    for (String factId : Elements.strings(basis, "cites")) {
-      Fact fact = knowledge.fact(factId);
+    for (String factId : ArchitectureModel.cites(basis)) {
+      Fact fact = model.fact(factId);
       if (fact != null) {
         cited.add(fact);
       }
     }
     List<String> ids = facts(cited);
     List<Inline> content =
-        new ArrayList<>(asCode(basis.attributes().path("description").asString(), roles(cited)));
+        new ArrayList<>(asCode(ArchitectureModel.description(basis), roles(cited)));
     content.add(new Citation(ids));
     return opened(INFERRED_SENTENCE, new Text(content, ids));
   }
@@ -811,12 +800,7 @@ final class Assembler {
   private static Set<String> roles(List<Fact> facts) {
     Set<String> roles = new HashSet<>();
     for (Fact fact : facts) {
-      if (fact.predicate().equals(Types.PERSON_EVIDENCE) && fact.object().value().equals(ROLE)) {
-        String name = fact.attributes().path("name").asString("");
-        if (!name.isBlank()) {
-          roles.add(name);
-        }
-      }
+      Elements.roleEvidence(fact).filter(name -> !name.isBlank()).ifPresent(roles::add);
     }
     return roles;
   }
@@ -892,6 +876,6 @@ final class Assembler {
   /** The facts the document refers to, including those its entities' descriptions cite. */
   List<Fact> documentFacts() {
     entities();
-    return factIds.stream().map(knowledge::fact).toList();
+    return factIds.stream().map(model::fact).toList();
   }
 }

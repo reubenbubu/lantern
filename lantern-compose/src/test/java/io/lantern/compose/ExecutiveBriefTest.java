@@ -21,7 +21,9 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Derivation;
+import io.lantern.derive.TestEvidence;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -750,7 +752,7 @@ class ExecutiveBriefTest {
   @Test
   void qualityEvidenceWithoutTestLibrariesSaysSo() {
     List<Fact> facts =
-        TestFacts.shop().list().stream().filter(f -> !RepoSections.isTestScope(f)).toList();
+        TestFacts.shop().list().stream().filter(f -> !ArchitectureModel.isTestScope(f)).toList();
     List<Block> blocks = section(compose(facts), "quality_evidence").blocks();
 
     assertThat(notes(blocks)).containsExactly("quality_evidence.none", "quality_evidence.goals");
@@ -825,7 +827,9 @@ class ExecutiveBriefTest {
   void qualityEvidenceWithOnlyACoverageToolSaysNoTestClassesWereFound() {
     List<Fact> facts =
         new ArrayList<>(
-            TestFacts.shop().list().stream().filter(f -> !RepoSections.isTestScope(f)).toList());
+            TestFacts.shop().list().stream()
+                .filter(f -> !ArchitectureModel.isTestScope(f))
+                .toList());
     facts.addAll(
         new TestFacts()
             .attribute("shop", APP, "coverage-tool", "org.codehaus.mojo:cobertura-maven-plugin")
@@ -869,7 +873,7 @@ class ExecutiveBriefTest {
             .list()
             .getFirst();
 
-    assertThat(BriefSections.minimums(fact))
+    assertThat(TestEvidence.minimums(fact))
         .containsExactly("75.5% of branches", "100% of instructions", "60% of methods");
   }
 

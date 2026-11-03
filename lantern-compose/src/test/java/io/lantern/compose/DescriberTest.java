@@ -40,7 +40,6 @@ import io.lantern.summarize.describe.DescribeRole;
 import io.lantern.summarize.describe.Describer;
 import io.lantern.summarize.describe.FlowJudgements;
 import io.lantern.summarize.describe.PurposeRole;
-import io.lantern.summarize.describe.Wordings;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
@@ -360,7 +359,7 @@ class DescriberTest {
     return all;
   }
 
-  private Document system(Wordings wordings) {
+  private Document system(TestTexts.Written wordings) {
     return new Composer("1")
         .compose(
             ViewDefinition.c4System("system:c4", "System", TEMPLATE),
@@ -521,9 +520,8 @@ class DescriberTest {
 
   @Test
   void aSentenceTheSupportJudgeFoundUnsupportedIsMarkedAndKept() {
-    Wordings wordings =
-        describe(new FakeLlmProvider().answering(DescriberTest::answer))
-            .wordings()
+    TestTexts.Written wordings =
+        TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)))
             .withUnsupported(Set.of(APP));
 
     Document document = system(wordings);
@@ -549,7 +547,7 @@ class DescriberTest {
     // Documents read only what is stored (knowledge-build epic, section 12): every sentence,
     // phrase, choice of flows and key fact Describe worded is read back from its facts.
     Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
-    Wordings worded = result.wordings();
+    TestTexts.Written worded = TestTexts.written(result);
 
     io.lantern.derive.ArchitectureModel model =
         new io.lantern.derive.ArchitectureModel(stored(facts.list(), result));
@@ -653,7 +651,7 @@ class DescriberTest {
     assertThat(judged.messages().getFirst().text())
         .contains("<text>Takes and lists the shop's orders for its web customers.</text>")
         .contains("[F1] service:com.example:app application-name \"shop-app\"");
-    assertThat(result.wordings().unsupported()).containsExactly(APP);
+    assertThat(TestTexts.written(result).unsupported()).containsExactly(APP);
     // Stored on the sentence's observation, its confidence halved (epic, section 11.7).
     Fact sentence =
         result.facts(1).values().stream()
@@ -677,7 +675,8 @@ class DescriberTest {
 
   @Test
   void documentsUseTheSentencesAsDescriptionsAndThePhrasesAsLabels() {
-    Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
+    TestTexts.Written wordings =
+        TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)));
 
     Document document = system(wordings);
 
@@ -871,8 +870,8 @@ class DescriberTest {
     List<Fact> repoFacts =
         facts.list().stream().filter(f -> !f.predicate().equals("SENDS_MESSAGES_TO")).toList();
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
-    Wordings both =
-        new Describer(harness(client(fake))).describe(facts.list(), repoFacts).wordings();
+    TestTexts.Written both =
+        TestTexts.written(new Describer(harness(client(fake))).describe(facts.list(), repoFacts));
 
     Document repo =
         new Composer("1")
@@ -888,9 +887,10 @@ class DescriberTest {
 
   @Test
   void aFlowNotWordedAsTracedOrCitingNoFactOfTheSnapshotKeepsItsProse() {
-    Wordings worded = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
+    TestTexts.Written worded =
+        TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)));
     String unknown = " [fact:" + "f".repeat(64) + "]";
-    Map<String, Wordings.Flow> citingNothing = new java.util.HashMap<>();
+    Map<String, FlowJudgements.Flow> citingNothing = new java.util.HashMap<>();
     worded
         .flows()
         .keySet()
@@ -898,13 +898,14 @@ class DescriberTest {
             key ->
                 citingNothing.put(
                     key,
-                    new Wordings.Flow(
+                    new FlowJudgements.Flow(
                         "Lists orders." + unknown, null, "Orders announced." + unknown)));
-    Map<String, Wordings.Flow> otherTrace =
+    Map<String, FlowJudgements.Flow> otherTrace =
         Map.of("0".repeat(64), worded.flows().values().iterator().next());
 
-    for (Map<String, Wordings.Flow> flows : List.of(citingNothing, otherTrace)) {
-      Section flow = flowSection(system(new Wordings(Map.of(), Map.of(), flows)), LIST_FLOW);
+    for (Map<String, FlowJudgements.Flow> flows : List.of(citingNothing, otherTrace)) {
+      Section flow =
+          flowSection(system(new TestTexts.Written(Map.of(), Map.of(), flows)), LIST_FLOW);
 
       assertThat(text(((Paragraph) flow.blocks().getFirst()).content()))
           .startsWith("Starts when shop-app receives GET /orders, handled by Controller.list.");
@@ -954,7 +955,7 @@ class DescriberTest {
               [F5] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
             </item>
             </items>""");
-    assertThat(result.wordings().responsibilities().get(RepoSections.SYSTEM))
+    assertThat(TestTexts.written(result).responsibilities().get(RepoSections.SYSTEM))
         .isEqualTo(
             "Runs an online shop's orders from the cart to the card payment. [fact:"
                 + withClaim.stream()
@@ -1005,7 +1006,7 @@ class DescriberTest {
               [F2] readme:shop:README.md claim "The app keeps its orders in MySQL." (shop:README.md)
             </item>
             </items>""");
-    assertThat(result.wordings().responsibilities()).containsKey(RepoSections.SYSTEM);
+    assertThat(TestTexts.written(result).responsibilities()).containsKey(RepoSections.SYSTEM);
   }
 
   @Test
@@ -1025,7 +1026,7 @@ class DescriberTest {
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
         .contains("purpose 1 items: " + RepoSections.SYSTEM + " (repair)");
-    assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
+    assertThat(TestTexts.written(result).responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
     // Ten answers, the support judge's on its sample and the purpose's drop, which a rerun repeats
     // without a call (#682).
     assertThat(store.size()).isEqualTo(12);
@@ -1038,8 +1039,8 @@ class DescriberTest {
     List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
     Fact claim =
         withClaim.stream().filter(f -> f.predicate().equals("claim")).findFirst().orElseThrow();
-    Wordings wordings =
-        new Wordings(
+    TestTexts.Written wordings =
+        new TestTexts.Written(
             Map.of(
                 APP,
                 "Takes the shop's orders. [fact:"
@@ -1089,8 +1090,8 @@ class DescriberTest {
     List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
     Fact claim =
         withClaim.stream().filter(f -> f.predicate().equals("claim")).findFirst().orElseThrow();
-    Wordings wordings =
-        new Wordings(
+    TestTexts.Written wordings =
+        new TestTexts.Written(
             Map.of(
                 RepoSections.SYSTEM,
                 "Runs an online shop's orders from the cart to the card payment. [fact:"
@@ -1116,10 +1117,10 @@ class DescriberTest {
   @Test
   void aPurposeFromAReadmeClaimOpensTheSystemsOverviewAndDescribesTheSystem() {
     List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
-    Wordings wordings =
-        new Describer(harness(client(new FakeLlmProvider().answering(DescriberTest::answer))))
-            .describe(withClaim)
-            .wordings();
+    TestTexts.Written wordings =
+        TestTexts.written(
+            new Describer(harness(client(new FakeLlmProvider().answering(DescriberTest::answer))))
+                .describe(withClaim));
 
     Document document =
         new Composer("1")
@@ -1146,7 +1147,8 @@ class DescriberTest {
 
   @Test
   void aPurposeCitingNoReadmeClaimIsMarkedAsInferred() {
-    Wordings wordings = describe(new FakeLlmProvider().answering(DescriberTest::answer)).wordings();
+    TestTexts.Written wordings =
+        TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)));
 
     Document document = system(wordings);
 
@@ -1201,7 +1203,7 @@ class DescriberTest {
         .containsExactly("evidenced", "inferred");
     assertThat(claims.get(1).attributes().path("text").asString())
         .isEqualTo("Card payments go to pay.example.com, the one outside service the shop calls.");
-    assertThat(result.wordings().keyFact())
+    assertThat(TestTexts.written(result).keyFact())
         .isEqualTo(
             "Card payments go to pay.example.com, the one outside service the shop calls. [fact:"
                 + facts.find(APP.toString(), "CALLS_HTTP").id()
@@ -1272,7 +1274,7 @@ class DescriberTest {
     Document document = system(result);
 
     assertThat(result.asked()).isEqualTo(11);
-    assertThat(result.wordings().responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
+    assertThat(TestTexts.written(result).responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
     Callout first = (Callout) document.sections().getFirst().blocks().getFirst();
     assertThat(first.variant()).isEqualTo(Callout.Variant.NOTE);
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
@@ -1288,7 +1290,7 @@ class DescriberTest {
   @Test
   void aSecondRunOverTheSameFactsMakesNoCall() {
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
-    Wordings first = describe(fake).wordings();
+    TestTexts.Written first = TestTexts.written(describe(fake));
     int calls = fake.sent().size();
 
     Describer.Result second = describe(fake);
@@ -1296,7 +1298,7 @@ class DescriberTest {
     assertThat(fake.sent()).hasSize(calls);
     assertThat(second.asked()).isZero();
     assertThat(second.reused()).isEqualTo(11);
-    assertThat(second.wordings()).isEqualTo(first);
+    assertThat(TestTexts.written(second)).isEqualTo(first);
   }
 
   @Test
@@ -1356,7 +1358,7 @@ class DescriberTest {
     assertThat(fake.sent())
         .extracting(s -> s.request().purpose())
         .noneMatch(p -> p.contains("purpose"));
-    assertThat(result.wordings()).isEqualTo(Wordings.NONE);
+    assertThat(TestTexts.written(result)).isEqualTo(TestTexts.Written.NONE);
     // Only the drops are stored, which a rerun repeats without a call (#682).
     assertThat(store.size()).isEqualTo(10);
     // The documents keep summaries and static labels.
@@ -1380,18 +1382,18 @@ class DescriberTest {
     assertThat(result.skipped()).contains(APP, WORKER, DATABASE, TOPIC, PAY).hasSize(7);
     assertThat(result.skipped().subList(5, 7))
         .allSatisfy(flow -> assertThat(flow.toString()).startsWith("flow:" + APP + "/"));
-    assertThat(result.wordings()).isEqualTo(Wordings.NONE);
+    assertThat(TestTexts.written(result)).isEqualTo(TestTexts.Written.NONE);
   }
 
   @Test
   void aCitationOfAFactNotInTheDocumentsFactsIsLeftOutAndWithoutAnyTheSummaryStays() {
     Fact deployable = facts.find(APP.toString(), "deployable-unit");
-    Wordings wordings =
-        new Wordings(
+    TestTexts.Written wordings =
+        new TestTexts.Written(
             Map.of(APP, "Takes orders. [fact:" + "f".repeat(64) + "]"),
             Map.of(
                 facts.find(APP.toString(), "PUBLISHES").id(),
-                new Wordings.Phrase("Announces orders", List.of("e".repeat(64)))));
+                new Describer.Phrase("Announces orders", List.of("e".repeat(64)))));
 
     Document document = system(wordings);
 
@@ -1416,8 +1418,8 @@ class DescriberTest {
     Fact gone = facts.find(WORKER.toString(), "deployable-unit");
     String good = "[fact:" + facts.find(APP.toString(), "deployable-unit").id() + "]";
     String bad = "[fact:" + gone.id() + "]";
-    Wordings wordings =
-        new Wordings(
+    TestTexts.Written wordings =
+        new TestTexts.Written(
             Map.of(
                 APP, "Takes orders. " + bad + " " + good + " " + bad,
                 WORKER, "Stores orders and ships them. " + bad + " " + good),
@@ -1459,7 +1461,7 @@ class DescriberTest {
 
     assertThat(fake.sent()).isEmpty();
     assertThat(result.asked()).isZero();
-    assertThat(new ArrayList<>(result.wordings().responsibilities().keySet())).isEmpty();
+    assertThat(new ArrayList<>(TestTexts.written(result).responsibilities().keySet())).isEmpty();
     assertThat(result.unknown()).containsExactly("service:g:lonely");
   }
 
@@ -1495,7 +1497,7 @@ class DescriberTest {
     assertThat(fake.sent()).hasSize(calls);
     assertThat(second.reused()).isEqualTo(11);
     // The answers cite the new commit's facts.
-    assertThat(second.wordings().phrases())
+    assertThat(TestTexts.written(second).phrases())
         .containsKey(
             moved.stream()
                 .filter(f -> f.subject().equals(APP) && f.predicate().equals("PUBLISHES"))
@@ -1518,7 +1520,7 @@ class DescriberTest {
             .filter(f -> f.subject().equals(APP) && f.predicate().equals("PUBLISHES"))
             .toList();
     assertThat(sends).hasSize(2);
-    Function<Wordings, String> label =
+    Function<TestTexts.Written, String> label =
         wordings ->
             diagrams(
                     new Composer("1")
@@ -1537,19 +1539,20 @@ class DescriberTest {
 
     assertThat(
             label.apply(
-                new Wordings(
+                new TestTexts.Written(
                     Map.of(),
-                    Map.of(sends.get(0).id(), new Wordings.Phrase("Announces orders", List.of())))))
+                    Map.of(
+                        sends.get(0).id(), new Describer.Phrase("Announces orders", List.of())))))
         .isEqualTo("Sends order.paid");
     assertThat(
             label.apply(
-                new Wordings(
+                new TestTexts.Written(
                     Map.of(),
                     Map.of(
                         sends.get(0).id(),
-                        new Wordings.Phrase("Announces orders", List.of()),
+                        new Describer.Phrase("Announces orders", List.of()),
                         sends.get(1).id(),
-                        new Wordings.Phrase("Reports payments", List.of())))))
+                        new Describer.Phrase("Reports payments", List.of())))))
         .isEqualTo("Announces orders");
   }
 
@@ -1667,7 +1670,7 @@ class DescriberTest {
         .doesNotContain("Licensed")
         .doesNotContain("import java.util.List")
         .doesNotContain("path=\"" + JOBS_PATH);
-    assertThat(result.wordings().documented()).containsExactly(controller.id());
+    assertThat(TestTexts.written(result).documented()).containsExactly(controller.id());
   }
 
   @Test
@@ -1713,7 +1716,7 @@ class DescriberTest {
     Describer.Result same = new Describer(harness(client(fake)), files(files)).describe(moved);
 
     assertThat(fake.sent()).hasSize(calls);
-    assertThat(same.wordings().documented())
+    assertThat(TestTexts.written(same).documented())
         .containsExactly(
             moved.stream()
                 .filter(f -> f.predicate().equals("kind"))
@@ -1746,7 +1749,7 @@ class DescriberTest {
             "Lists the shop's orders. [fact:" + controller.id() + "]",
             RepoSections.SYSTEM,
             "Runs an online shop. [fact:" + controller.id() + "]");
-    Function<Wordings, Document> compose =
+    Function<TestTexts.Written, Document> compose =
         wordings ->
             new Composer("1")
                 .compose(
@@ -1764,8 +1767,9 @@ class DescriberTest {
 
     Document documented =
         compose.apply(
-            new Wordings(sentences, Map.of(), Map.of(), java.util.Set.of(controller.id())));
-    Document undocumented = compose.apply(new Wordings(sentences, Map.of()));
+            new TestTexts.Written(
+                sentences, Map.of(), Map.of(), java.util.Set.of(controller.id())));
+    Document undocumented = compose.apply(new TestTexts.Written(sentences, Map.of()));
 
     assertThat(description.apply(documented)).isEqualTo("Lists the shop's orders.");
     assertThat(description.apply(undocumented))
@@ -2069,7 +2073,7 @@ class DescriberTest {
     Section sequences = sequences(system(result));
     assertThat(sequences.sections()).hasSize(2);
     assertThat(callouts(sequences)).containsExactly(SequenceFlows.CHOSEN_BY_RANK);
-    assertThat(result.wordings().chosen()).isEmpty();
+    assertThat(TestTexts.written(result).chosen()).isEmpty();
     assertThat(result.facts(2).get(io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE)))
         .isEmpty();
   }
@@ -2424,7 +2428,7 @@ class DescriberTest {
                         : answer(request));
 
     Describer.Result result = new Describer(harness(client(fake))).describe(withFrontend.list());
-    assertThat(result.wordings().responsibilities())
+    assertThat(TestTexts.written(result).responsibilities())
         .containsKey(EntityId.parse("frontend:shop/web"));
 
     Document document =
@@ -2432,7 +2436,7 @@ class DescriberTest {
             .compose(
                 ViewDefinition.c4System("system:c4", "System", TEMPLATE),
                 SNAPSHOT,
-                TestTexts.with(withFrontend.list(), result.wordings()));
+                TestTexts.with(withFrontend.list(), TestTexts.written(result)));
     assertThat(
             document.entities().stream()
                 .filter(e -> e.id().toString().equals("frontend:shop/web"))

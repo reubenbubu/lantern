@@ -31,8 +31,8 @@ class ArchitectureModelTest {
 
     ArchitectureModel read = new ArchitectureModel(with(sentence));
 
-    assertThat(read.knowledge().fact(sentence.id())).isNull();
-    assertThat(read.knowledge().fact(unit.id())).isNotNull();
+    assertThat(read.fact(sentence.id())).isNull();
+    assertThat(read.fact(unit.id())).isNotNull();
     assertThat(read.responsibility(UNIT).orElseThrow().marked())
         .isEqualTo("Takes orders. [fact:" + unit.id() + "]");
   }

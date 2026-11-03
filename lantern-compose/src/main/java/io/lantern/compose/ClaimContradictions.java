@@ -9,8 +9,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
-import io.lantern.derive.Elements;
-import io.lantern.derive.Knowledge;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.attributes.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -18,7 +17,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
-import tools.jackson.databind.JsonNode;
 
 /**
  * The README claims of the scope's repositories that the code contradicts, as the claim checks
@@ -56,7 +54,7 @@ final class ClaimContradictions {
           Types.USES_BROKER,
           "uses");
 
-  private final Knowledge knowledge;
+  private final ArchitectureModel model;
   private final Assembler assembler;
   private final List<Flag> flags = new ArrayList<>();
 
@@ -65,12 +63,16 @@ final class ClaimContradictions {
     final Fact contradiction;
     final Fact claim;
     final List<Fact> contradictedBy;
+    final String stated;
+    final List<String> found;
     String callout;
 
-    Flag(Fact contradiction, Fact claim, List<Fact> contradictedBy) {
-      this.contradiction = contradiction;
-      this.claim = claim;
-      this.contradictedBy = contradictedBy;
+    Flag(ArchitectureModel.Contradiction contradiction) {
+      this.contradiction = contradiction.fact();
+      this.claim = contradiction.claim();
+      this.contradictedBy = contradiction.contradictedBy();
+      this.stated = contradiction.stated();
+      this.found = contradiction.found();
     }
 
     List<Fact> facts() {
@@ -85,34 +87,11 @@ final class ClaimContradictions {
   /**
    * @param repos the repositories in scope, whose READMEs' contradicted claims are shown
    */
-  ClaimContradictions(Knowledge knowledge, Assembler assembler, SortedSet<String> repos) {
-    this.knowledge = knowledge;
+  ClaimContradictions(ArchitectureModel model, Assembler assembler, SortedSet<String> repos) {
+    this.model = model;
     this.assembler = assembler;
-    for (Fact fact : knowledge.withPredicate(Types.CLAIM_CONTRADICTION)) {
-      if (Knowledge.isEntity(fact) || !repos.contains(fact.evidence().repo())) {
-        continue;
-      }
-      Fact claim = knowledge.fact(RepoSections.attribute(fact, "claim", ""));
-      List<Fact> by = new ArrayList<>();
-      JsonNode entries = fact.attributes().get("contradictedBy");
-      if (entries != null && entries.isArray()) {
-        for (JsonNode entry : entries) {
-          JsonNode id = entry.get("fact");
-          Fact found = id == null ? null : knowledge.fact(id.asString());
-          if (found != null && found.predicate().equals(Types.UNRESOLVED_LINK)) {
-            // A call the resolver linked is shown as the link it picked.
-            Fact resolution = knowledge.resolution(found);
-            found = resolution == null ? found : resolution;
-          }
-          if (found != null && !by.contains(found)) {
-            by.add(found);
-          }
-        }
-      }
-      // Both sides must hold in the snapshot to be shown and cited.
-      if (claim != null && !by.isEmpty()) {
-        flags.add(new Flag(fact, claim, by));
-      }
+    for (ArchitectureModel.Contradiction contradiction : model.contradictions(repos)) {
+      flags.add(new Flag(contradiction));
     }
     flags.sort(
         Comparator.comparing((Flag f) -> f.claim.evidence().repo())
@@ -132,12 +111,14 @@ final class ClaimContradictions {
       content.add(TextRun.of(" says: “" + quote(flag) + "”"));
       content.add(new Citation(assembler.facts(List.of(flag.claim))));
       content.add(TextRun.of("."));
-      String stated = RepoSections.attribute(flag.contradiction, "stated", null);
-      List<String> found = Elements.strings(flag.contradiction, "found");
-      if (stated != null && !found.isEmpty()) {
+      if (flag.stated != null && !flag.found.isEmpty()) {
         content.add(
             TextRun.of(
-                " It states " + stated + "; the code shows " + String.join(", ", found) + "."));
+                " It states "
+                    + flag.stated
+                    + "; the code shows "
+                    + String.join(", ", flag.found)
+                    + "."));
       }
       content.add(TextRun.of(" The code shows otherwise: "));
       for (int i = 0; i < flag.contradictedBy.size(); i++) {
@@ -201,18 +182,19 @@ final class ClaimContradictions {
 
   /** How a fact on the code's side reads: what relates to what, or what an entity has. */
   private List<Inline> reads(Fact fact) {
+    ArchitectureModel.Statement statement = ArchitectureModel.statement(fact);
     List<Inline> content = new ArrayList<>();
-    content.add(reference(fact.subject()));
-    if (Knowledge.isEntity(fact)) {
-      String verb = VERBS.getOrDefault(fact.predicate(), words(fact.predicate()));
+    content.add(reference(statement.subject()));
+    if (statement.entity() != null) {
+      String verb = VERBS.getOrDefault(statement.predicate(), words(statement.predicate()));
       content.add(TextRun.of(" " + verb + " "));
-      content.add(reference(Knowledge.object(fact)));
-    } else if (fact.predicate().equals(Types.UNRESOLVED_LINK)) {
-      content.add(TextRun.of(" makes a call Lantern could not link: " + fact.object().value()));
+      content.add(reference(statement.entity()));
+    } else if (statement.predicate().equals(Types.UNRESOLVED_LINK)) {
+      content.add(TextRun.of(" makes a call Lantern could not link: " + statement.value()));
     } else {
-      content.add(TextRun.of("'s " + words(fact.predicate()) + " is " + fact.object().value()));
+      content.add(TextRun.of("'s " + words(statement.predicate()) + " is " + statement.value()));
     }
-    String profile = Knowledge.view(fact);
+    String profile = statement.view();
     if (profile != null) {
       content.add(TextRun.of(" under the " + profile + " profile"));
     }

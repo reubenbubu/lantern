@@ -21,13 +21,11 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
-import io.lantern.derive.Knowledge;
 import io.lantern.derive.Unknowns;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,7 +35,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import tools.jackson.databind.JsonNode;
 
 /**
  * Builds the sections of a document about one repository (see ADR 0012).
@@ -62,13 +59,12 @@ final class RepoSections {
   /** How many repositories the system's name lists before it counts them instead. */
   private static final int NAMED_REPOS = 4;
 
-  private final Knowledge knowledge;
   private final ArchitectureModel model;
   private final String repo;
   private final EntityId repoId;
   private final SortedSet<String> repos;
-  private final SortedSet<EntityId> modules = new TreeSet<>(Knowledge.BY_ID);
-  private final SortedSet<EntityId> containers = new TreeSet<>(Knowledge.BY_ID);
+  private final SortedSet<EntityId> modules = new TreeSet<>(ArchitectureModel.BY_ID);
+  private final SortedSet<EntityId> containers = new TreeSet<>(ArchitectureModel.BY_ID);
   private final Assembler assembler;
   private final C4Views c4;
   private final SortedSet<EntityId> units;
@@ -95,34 +91,33 @@ final class RepoSections {
       String systemName,
       LocalDate asOf) {
     this.model = model;
-    this.knowledge = model.knowledge();
     this.asOf = asOf;
     this.repo = repo;
     this.repoId = repo == null ? SYSTEM : Assembler.repo(repo);
     this.repos = repo == null ? snapshotRepos : new TreeSet<>(Set.of(repo));
-    this.repos.forEach(r -> modules.addAll(knowledge.modules(r)));
-    SortedSet<EntityId> inScope = new TreeSet<>(Knowledge.BY_ID);
+    this.repos.forEach(r -> modules.addAll(model.modules(r)));
+    SortedSet<EntityId> inScope = new TreeSet<>(ArchitectureModel.BY_ID);
     inScope.add(repoId);
     for (EntityId module : modules) {
       inScope.add(module);
-      containers.addAll(knowledge.containers(module));
-      inScope.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+      containers.addAll(model.containers(module));
+      inScope.addAll(model.typesWithin(module));
+      for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
         inScope.add(pkg);
-        inScope.addAll(knowledge.typesWithin(pkg));
+        inScope.addAll(model.typesWithin(pkg));
       }
     }
     if (repo == null) {
       repos.forEach(r -> inScope.add(Assembler.repo(r)));
     }
-    this.units = repo == null ? Elements.units(knowledge) : Elements.units(knowledge, modules);
+    this.units = repo == null ? Elements.units(model) : Elements.units(model, modules);
     inScope.addAll(containers);
     inScope.addAll(units);
     this.assembler =
         new Assembler(
             model, inScope, repo, systemName == null ? systemName(snapshotRepos) : systemName);
     inScope.forEach(assembler::entity);
-    this.c4 = new C4Views(knowledge, assembler, SYSTEM, units, repos);
+    this.c4 = new C4Views(model, assembler, SYSTEM, units, repos);
   }
 
   /** The system's name: its repositories, or how many there are. */
@@ -153,7 +148,7 @@ final class RepoSections {
    */
   Section glossary(Document document) {
     Map<String, String> texts = new LinkedHashMap<>();
-    for (Fact fact : knowledge.withOrigin(Origin.Kind.README)) {
+    for (Fact fact : model.withOrigin(Origin.Kind.README)) {
       if (fact.object().kind() == FactObject.Kind.STRING
           && (repo == null || repo.equals(fact.evidence().repo()))) {
         texts.put(fact.id(), fact.object().value());
@@ -163,7 +158,7 @@ final class RepoSections {
     Glossary.defined(texts)
         .forEach(
             (acronym, definition) -> {
-              List<Fact> cited = definition.facts().stream().map(knowledge::fact).toList();
+              List<Fact> cited = definition.facts().stream().map(model::fact).toList();
               // Where the reader finds it: the files, named with their repository in a system's.
               String source =
                   String.join(
@@ -212,7 +207,7 @@ final class RepoSections {
       case HEADLINES -> blocks.add(headlines(id));
       case RISKS ->
           blocks.addAll(
-              new RepoRisks(knowledge, assembler, repo, containers)
+              new RepoRisks(model, assembler, repo, containers)
                   .callouts(id, brief().currencyRisks(id), investigated().callouts(id)));
       case FINDINGS -> blocks.addAll(investigated().table(id));
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
@@ -227,7 +222,7 @@ final class RepoSections {
   /** What the model of the scope holds as open or unanswered (#700), built once per document. */
   private Unknowns unknowns() {
     if (unknowns == null) {
-      elements = new Elements(knowledge, assembler.vocabulary(), assembler.names(), repos);
+      elements = new Elements(model, assembler.vocabulary(), assembler.names(), repos);
       unknowns =
           new Unknowns(
               model,
@@ -256,7 +251,7 @@ final class RepoSections {
   /** What the LLM investigator found in scope (ADR 0110), built once per document. */
   private InvestigatedFindings investigated() {
     if (investigated == null) {
-      investigated = new InvestigatedFindings(knowledge, assembler, inScopeUnits());
+      investigated = new InvestigatedFindings(model, assembler, inScopeUnits());
     }
     return investigated;
   }
@@ -275,7 +270,7 @@ final class RepoSections {
     if (flows == null) {
       flows =
           new SequenceFlows(
-              knowledge,
+              model,
               assembler,
               c4,
               units,
@@ -288,7 +283,7 @@ final class RepoSections {
     if (brief == null) {
       brief =
           new BriefSections(
-              knowledge,
+              model,
               assembler,
               repo == null ? assembler.name(SYSTEM) : repo,
               modules,
@@ -303,7 +298,7 @@ final class RepoSections {
   /** The README claims of the scope's repositories that the code contradicts (ADR 0051). */
   private ClaimContradictions claims() {
     if (claims == null) {
-      claims = new ClaimContradictions(knowledge, assembler, repos);
+      claims = new ClaimContradictions(model, assembler, repos);
     }
     return claims;
   }
@@ -319,7 +314,7 @@ final class RepoSections {
 
   private ExplorerSections explorer() {
     if (explorer == null) {
-      explorer = new ExplorerSections(knowledge, assembler, c4, flows(), units, repos);
+      explorer = new ExplorerSections(model, assembler, c4, flows(), units, repos);
     }
     return explorer;
   }
@@ -360,11 +355,11 @@ final class RepoSections {
       content.add(new CrossReference(name, CrossReference.Target.entity(id)));
       List<EntityId> units = new ArrayList<>();
       List<Fact> facts = new ArrayList<>();
-      for (EntityId unit : Elements.units(knowledge)) {
-        for (EntityId module : knowledge.parts(unit, BuiltInTypes.MODULE)) {
-          if (knowledge.repos(module).contains(name) && !units.contains(unit)) {
+      for (EntityId unit : Elements.units(model)) {
+        for (EntityId module : model.parts(unit, BuiltInTypes.MODULE)) {
+          if (model.repos(module).contains(name) && !units.contains(unit)) {
             units.add(unit);
-            facts.addAll(knowledge.containsFacts(unit, module));
+            facts.addAll(model.containsFacts(unit, module));
           }
         }
       }
@@ -442,18 +437,18 @@ final class RepoSections {
    * the snapshot, in either direction: from repository to repository to the facts.
    */
   private Map<EntityId, Map<EntityId, List<Fact>>> repoEdges() {
-    Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(Types.BUILD_DEPENDS_ON)) {
-      if (!Knowledge.isEntity(fact)
+    Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(ArchitectureModel.BY_ID);
+    for (Fact fact : model.withPredicate(Types.BUILD_DEPENDS_ON)) {
+      if (!ArchitectureModel.isEntity(fact)
           || !fact.subject().type().equals(BuiltInTypes.MODULE)
-          || isTestScope(fact)) {
+          || ArchitectureModel.isTestScope(fact)) {
         continue;
       }
-      for (String from : knowledge.repos(fact.subject())) {
-        for (String to : knowledge.repos(Knowledge.object(fact))) {
+      for (String from : model.repos(fact.subject())) {
+        for (String to : model.repos(ArchitectureModel.object(fact))) {
           if (!from.equals(to) && (from.equals(repo) || to.equals(repo))) {
             edges
-                .computeIfAbsent(Assembler.repo(from), f -> new TreeMap<>(Knowledge.BY_ID))
+                .computeIfAbsent(Assembler.repo(from), f -> new TreeMap<>(ArchitectureModel.BY_ID))
                 .computeIfAbsent(Assembler.repo(to), t -> new ArrayList<>())
                 .add(fact);
           }
@@ -466,11 +461,9 @@ final class RepoSections {
   /** The facts that a container builds its modules, and how they are packaged. */
   private List<Fact> containerFacts(EntityId container) {
     List<Fact> facts = new ArrayList<>();
-    for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
-      facts.addAll(knowledge.containsFacts(container, module));
-      knowledge.attributes(module).stream()
-          .filter(f -> f.predicate().equals(Types.PACKAGING))
-          .forEach(facts::add);
+    for (EntityId module : model.parts(container, BuiltInTypes.MODULE)) {
+      facts.addAll(model.containsFacts(container, module));
+      facts.addAll(model.attributes(module, Types.PACKAGING));
     }
     return facts;
   }
@@ -492,32 +485,31 @@ final class RepoSections {
       }
     }
     List<Fact> moduleFacts = new ArrayList<>();
-    SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
-    SortedSet<EntityId> thirdParty = new TreeSet<>(Knowledge.BY_ID);
+    SortedSet<EntityId> types = new TreeSet<>(ArchitectureModel.BY_ID);
+    SortedSet<EntityId> thirdParty = new TreeSet<>(ArchitectureModel.BY_ID);
     List<Fact> thirdPartyFacts = new ArrayList<>();
     for (EntityId module : modules) {
-      knowledge.attributes(module).stream()
-          .filter(f -> f.predicate().equals(Types.PACKAGING))
-          .forEach(moduleFacts::add);
-      types.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
-        types.addAll(knowledge.typesWithin(pkg));
+      moduleFacts.addAll(model.attributes(module, Types.PACKAGING));
+      types.addAll(model.typesWithin(module));
+      for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
+        types.addAll(model.typesWithin(pkg));
       }
-      for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
-        if (!isTestScope(fact) && Knowledge.object(fact).type().equals(Types.ARTIFACT)) {
-          thirdParty.add(Knowledge.object(fact));
+      for (Fact fact : model.relations(module, Types.BUILD_DEPENDS_ON)) {
+        if (!ArchitectureModel.isTestScope(fact)
+            && ArchitectureModel.object(fact).type().equals(Types.ARTIFACT)) {
+          thirdParty.add(ArchitectureModel.object(fact));
           thirdPartyFacts.add(fact);
         }
       }
     }
     List<Fact> typeFacts = new ArrayList<>();
     for (EntityId type : types) {
-      for (EntityId whole : knowledge.wholes(type)) {
-        typeFacts.addAll(knowledge.containsFacts(whole, type));
+      for (EntityId whole : model.wholes(type)) {
+        typeFacts.addAll(model.containsFacts(whole, type));
       }
     }
-    SortedSet<EntityId> uses = new TreeSet<>(Knowledge.BY_ID);
-    SortedSet<EntityId> usedBy = new TreeSet<>(Knowledge.BY_ID);
+    SortedSet<EntityId> uses = new TreeSet<>(ArchitectureModel.BY_ID);
+    SortedSet<EntityId> usedBy = new TreeSet<>(ArchitectureModel.BY_ID);
     List<Fact> usesFacts = new ArrayList<>();
     List<Fact> usedByFacts = new ArrayList<>();
     repoEdges()
@@ -554,7 +546,7 @@ final class RepoSections {
   private void dependencies(String section, List<Block> blocks) {
     List<Tree.Node> roots = new ArrayList<>();
     for (EntityId module : modules) {
-      if (knowledge.relations(module, Types.BUILD_DEPENDS_ON).isEmpty()) {
+      if (model.relations(module, Types.BUILD_DEPENDS_ON).isEmpty()) {
         continue;
       }
       Set<EntityId> expanded = new HashSet<>();
@@ -577,22 +569,17 @@ final class RepoSections {
    * appears in a tree. Dependencies are sorted by their coordinates.
    */
   private List<Tree.Node> dependencyNodes(EntityId module, Set<EntityId> expanded, boolean direct) {
-    List<Fact> facts = new ArrayList<>(knowledge.relations(module, Types.BUILD_DEPENDS_ON));
-    facts.sort(
-        Comparator.comparing((Fact f) -> Knowledge.object(f).key())
-            .thenComparing(f -> f.object().value())
-            .thenComparing(Fact::id));
     List<Tree.Node> nodes = new ArrayList<>();
-    for (Fact fact : facts) {
-      String scope = attribute(fact, "scope", "compile");
-      boolean optional = attribute(fact, "optional", "false").equals("true");
+    for (ArchitectureModel.BuildDependency dependency : model.buildDependencies(module)) {
+      String scope = dependency.scope();
+      boolean optional = dependency.optional();
       if (!direct && (optional || !TRANSITIVE_SCOPES.contains(scope))) {
         continue;
       }
-      EntityId target = Knowledge.object(fact);
-      String version = attribute(fact, "version", null);
-      String classifier = attribute(fact, "classifier", null);
-      String type = attribute(fact, "artifactType", null);
+      EntityId target = dependency.target();
+      String version = dependency.version();
+      String classifier = dependency.classifier();
+      String type = dependency.type();
       String label =
           target.key()
               + (version == null ? "" : ":" + version)
@@ -605,18 +592,13 @@ final class RepoSections {
               ? dependencyNodes(target, expanded, false)
               : List.of();
       nodes.add(
-          new Tree.Node(label, assembler.entity(target), assembler.facts(List.of(fact)), children));
+          new Tree.Node(
+              label,
+              assembler.entity(target),
+              assembler.facts(List.of(dependency.fact())),
+              children));
     }
     return nodes;
-  }
-
-  static String attribute(Fact fact, String name, String otherwise) {
-    JsonNode value = fact.attributes().get(name);
-    return value == null || value.isNull() ? otherwise : value.asString();
-  }
-
-  static boolean isTestScope(Fact fact) {
-    return attribute(fact, "scope", "compile").equals("test");
   }
 
   // Structure: the modules and their packages.
@@ -624,8 +606,7 @@ final class RepoSections {
   private void structure(String section, List<Block> blocks) {
     List<Tree.Node> roots = new ArrayList<>();
     for (EntityId module : modules) {
-      boolean top =
-          knowledge.wholes(module, BuiltInTypes.MODULE).stream().noneMatch(modules::contains);
+      boolean top = model.wholes(module, BuiltInTypes.MODULE).stream().noneMatch(modules::contains);
       if (top) {
         roots.add(moduleNode(module, List.of(), new HashSet<>()));
       }
@@ -638,17 +619,17 @@ final class RepoSections {
   private Tree.Node moduleNode(EntityId module, List<Fact> facts, Set<EntityId> visiting) {
     visiting.add(module);
     List<Tree.Node> children = new ArrayList<>();
-    for (EntityId sub : knowledge.parts(module, BuiltInTypes.MODULE)) {
+    for (EntityId sub : model.parts(module, BuiltInTypes.MODULE)) {
       if (modules.contains(sub) && !visiting.contains(sub)) {
-        children.add(moduleNode(sub, knowledge.containsFacts(module, sub), visiting));
+        children.add(moduleNode(sub, model.containsFacts(module, sub), visiting));
       }
     }
-    for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+    for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
       children.add(
           new Tree.Node(
               assembler.name(pkg),
               assembler.entity(pkg),
-              assembler.facts(knowledge.containsFacts(module, pkg)),
+              assembler.facts(model.containsFacts(module, pkg)),
               List.of()));
     }
     visiting.remove(module);

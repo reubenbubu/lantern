@@ -32,8 +32,12 @@ import io.lantern.harness.verify.JsonSchema;
 import io.lantern.harness.verify.Pipeline;
 import io.lantern.harness.verify.Rejection;
 import io.lantern.llm.Role;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -322,7 +326,7 @@ public final class FlowJudgements {
   static Asked narrative(
       Narrated narrated,
       Map<EntityId, DescribeRole.Answered> responsibilities,
-      Map<String, Wordings.Phrase> phrases,
+      Map<String, Describer.Phrase> phrases,
       java.util.function.Function<String, Fact> factsById,
       java.util.function.Function<EntityId, String> names) {
     ScopeFlows.Candidate flow = narrated.candidate();
@@ -352,7 +356,7 @@ public final class FlowJudgements {
     {
       for (var s : flow.steps()) {
         for (Fact fact : s.facts()) {
-          Wordings.Phrase phrase = phrases.get(fact.id());
+          Describer.Phrase phrase = phrases.get(fact.id());
           if (phrase != null && !intents.containsKey(fact.id())) {
             List<Fact> cited = new ArrayList<>();
             phrase
@@ -774,7 +778,7 @@ public final class FlowJudgements {
   }
 
   /** A flow's narrative, read from its stored answer, as the composer shows it and as a claim. */
-  record Narrative(Wordings.Flow flow, Fact fact) {}
+  record Narrative(Flow flow, Fact fact) {}
 
   static Optional<Narrative> narrative(
       Asked asked, String stored, EntityId flow, String model, Knowledge knowledge, long snapshot) {
@@ -804,8 +808,8 @@ public final class FlowJudgements {
     attributes.put("model", model);
     FlowModel.content(knowledge, flow).ifPresent(c -> attributes.put("content", c));
     Cited title = texts.get(TITLE);
-    Wordings.Flow wording =
-        new Wordings.Flow(
+    Flow wording =
+        new Flow(
             marked(texts.get(WALKTHROUGH)),
             marked(texts.get(PRECONDITIONS)),
             marked(texts.get(POSTCONDITIONS)),
@@ -841,7 +845,7 @@ public final class FlowJudgements {
    */
   static List<Narrated> narrated(ScopeFlows flows, List<String> judged) {
     return flows.chosen(judged).stream()
-        .map(t -> new Narrated(Wordings.flowKey(question(t).user()), flows.candidate(t)))
+        .map(t -> new Narrated(flowKey(question(t).user()), flows.candidate(t)))
         .toList();
   }
 
@@ -882,5 +886,36 @@ public final class FlowJudgements {
     List<String> lineage =
         cited.stream().map(Fact::claimId).filter(java.util.Objects::nonNull).distinct().toList();
     return lineage.isEmpty() ? fact : fact.withLineage(lineage);
+  }
+
+  /**
+   * A flow's walkthrough and conditions, each with citation markers {@code [fact:<fact ID>]}, or
+   * {@code null} where the model left it out.
+   *
+   * @param walkthrough two to four sentences of what the flow does
+   * @param preconditions what must hold before it starts
+   * @param postconditions what has changed when it ends
+   * @param title the scenario the flow is, a few words without citation markers
+   */
+  public record Flow(
+      String walkthrough, String preconditions, String postconditions, String title) {
+
+    public Flow(String walkthrough, String preconditions, String postconditions) {
+      this(walkthrough, preconditions, postconditions, null);
+    }
+  }
+
+  /**
+   * The key of a flow's wording: the SHA-256 of the user turn of the prompt about it, which shows
+   * no fact IDs.
+   */
+  static String flowKey(String prompt) {
+    try {
+      return HexFormat.of()
+          .formatHex(
+              MessageDigest.getInstance("SHA-256").digest(prompt.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 is not available", e);
+    }
   }
 }

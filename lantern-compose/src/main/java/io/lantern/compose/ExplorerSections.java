@@ -10,8 +10,9 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.ArchitectureModel;
+import io.lantern.derive.ConfigValues;
 import io.lantern.derive.Elements;
-import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.attributes.Types;
 import java.net.URLDecoder;
@@ -48,7 +49,7 @@ final class ExplorerSections {
           Types.BACKGROUND_JOB);
   private static final Set<String> DESTINATIONS = Set.of(Types.TOPIC, Types.QUEUE, Types.EXCHANGE);
 
-  private final Knowledge knowledge;
+  private final ArchitectureModel model;
   private final Assembler assembler;
   private final C4Views c4;
   private final SequenceFlows flows;
@@ -61,13 +62,13 @@ final class ExplorerSections {
    * @param repos the repositories in scope
    */
   ExplorerSections(
-      Knowledge knowledge,
+      ArchitectureModel model,
       Assembler assembler,
       C4Views c4,
       SequenceFlows flows,
       SortedSet<EntityId> units,
       SortedSet<String> repos) {
-    this.knowledge = knowledge;
+    this.model = model;
     this.assembler = assembler;
     this.c4 = c4;
     this.flows = flows;
@@ -84,11 +85,9 @@ final class ExplorerSections {
     List<Entry> result = new ArrayList<>();
     for (EntityId unit : units) {
       for (EntityId type : code(unit)) {
-        for (EntityId method : knowledge.parts(type, Types.METHOD)) {
-          for (Fact fact : knowledge.attributes(method)) {
-            if (ENTRY_KINDS.contains(fact.predicate())) {
-              result.add(new Entry(unit, method, fact));
-            }
+        for (EntityId method : model.parts(type, Types.METHOD)) {
+          for (Fact fact : model.attributes(method, ENTRY_KINDS)) {
+            result.add(new Entry(unit, method, fact));
           }
         }
       }
@@ -98,11 +97,11 @@ final class ExplorerSections {
 
   /** The types whose code runs in the unit. */
   private SortedSet<EntityId> code(EntityId unit) {
-    SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
-    for (EntityId module : Elements.codeModules(knowledge, unit)) {
-      code.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
-        code.addAll(knowledge.typesWithin(pkg));
+    SortedSet<EntityId> code = new TreeSet<>(ArchitectureModel.BY_ID);
+    for (EntityId module : Elements.codeModules(model, unit)) {
+      code.addAll(model.typesWithin(module));
+      for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
+        code.addAll(model.typesWithin(pkg));
       }
     }
     return code;
@@ -129,16 +128,14 @@ final class ExplorerSections {
     }
     for (EntityId unit : units) {
       for (EntityId type : code(unit)) {
-        for (Fact fact : knowledge.attributes(type)) {
-          if (fact.predicate().equals(Types.MAIN_CLASS)) {
-            List<Inline> content = new ArrayList<>();
-            content.add(entity(unit));
-            content.add(TextRun.of(" starts in "));
-            content.add(entity(type));
-            file(fact).ifPresent(path -> content.addAll(inFile(path)));
-            content.add(TextRun.of("."));
-            items.add(new ListBlock.Item(content, assembler.facts(List.of(fact))));
-          }
+        for (Fact fact : model.attributes(type, Types.MAIN_CLASS)) {
+          List<Inline> content = new ArrayList<>();
+          content.add(entity(unit));
+          content.add(TextRun.of(" starts in "));
+          content.add(entity(type));
+          file(fact).ifPresent(path -> content.addAll(inFile(path)));
+          content.add(TextRun.of("."));
+          items.add(new ListBlock.Item(content, assembler.facts(List.of(fact))));
         }
       }
     }
@@ -178,7 +175,7 @@ final class ExplorerSections {
   /** What starts an entry point, in words: the endpoint, the destination or the schedule. */
   private static String entryLabel(Fact fact) {
     String value = fact.object().value();
-    return switch (fact.predicate()) {
+    return switch (ArchitectureModel.statement(fact).predicate()) {
       case Types.ENDPOINT -> value;
       case Types.MESSAGE_LISTENER -> "Messages on " + value;
       case Types.STOMP_MAPPING -> "STOMP messages to " + value;
@@ -190,7 +187,7 @@ final class ExplorerSections {
   /** The repository's top-level README, else its first by path. */
   private Optional<ListBlock.Item> readme(String repo) {
     SortedMap<String, List<Fact>> byPath = new TreeMap<>(README_ORDER);
-    for (Fact fact : knowledge.withPredicate(Types.CLAIM)) {
+    for (Fact fact : model.withPredicate(Types.CLAIM)) {
       EntityId subject = fact.subject();
       String key = subject.key();
       if (subject.type().equals(Types.README) && key.startsWith(repo + ":")) {
@@ -218,7 +215,7 @@ final class ExplorerSections {
   /** Where the repository's decision records are: the folder holding most of them. */
   private Optional<ListBlock.Item> decisionRecords(String repo) {
     Map<String, List<Fact>> byFolder = new TreeMap<>();
-    for (Fact fact : knowledge.withPredicate(Types.TITLE)) {
+    for (Fact fact : model.withPredicate(Types.TITLE)) {
       EntityId subject = fact.subject();
       if (subject.type().equals(Types.DECISION) && subject.key().startsWith(repo + ":")) {
         String path = path(subject);
@@ -276,8 +273,8 @@ final class ExplorerSections {
   /** The deployable units and the databases they use. */
   private Optional<Table> containersTable(String section) {
     List<Table.Row> rows = new ArrayList<>();
-    SortedMap<EntityId, List<Fact>> databases = new TreeMap<>(Knowledge.BY_ID);
-    SortedMap<EntityId, SortedSet<EntityId>> usedBy = new TreeMap<>(Knowledge.BY_ID);
+    SortedMap<EntityId, List<Fact>> databases = new TreeMap<>(ArchitectureModel.BY_ID);
+    SortedMap<EntityId, SortedSet<EntityId>> usedBy = new TreeMap<>(ArchitectureModel.BY_ID);
     for (EntityId unit : units) {
       rows.add(
           row(
@@ -288,11 +285,11 @@ final class ExplorerSections {
                   text(c4.elements().technology(unit)),
                   List.of()),
               c4.elements().containerFacts(unit)));
-      for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
+      for (Fact fact : model.relations(unit, Types.USES_DATABASE)) {
         if (!alternatives.contains(fact)) {
-          EntityId database = Knowledge.object(fact);
+          EntityId database = ArchitectureModel.object(fact);
           databases.computeIfAbsent(database, d -> new ArrayList<>()).add(fact);
-          usedBy.computeIfAbsent(database, d -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
+          usedBy.computeIfAbsent(database, d -> new TreeSet<>(ArchitectureModel.BY_ID)).add(unit);
         }
       }
     }
@@ -337,14 +334,12 @@ final class ExplorerSections {
     List<Table.Row> rows = new ArrayList<>();
     for (Entry entry : entries()) {
       String kind =
-          switch (entry.fact.predicate()) {
+          switch (ArchitectureModel.statement(entry.fact).predicate()) {
             case Types.ENDPOINT -> "HTTP endpoint";
             case Types.MESSAGE_LISTENER -> "Message listener";
             case Types.STOMP_MAPPING -> "STOMP message handler";
             case Types.WEBSOCKET_ENDPOINT ->
-                "stomp".equals(RepoSections.attribute(entry.fact, "protocol", ""))
-                    ? "STOMP WebSocket endpoint"
-                    : "WebSocket endpoint";
+                Elements.isStomp(entry.fact) ? "STOMP WebSocket endpoint" : "WebSocket endpoint";
             default -> jobKind(entry.fact);
           };
       assembler.entity(entry.method);
@@ -376,18 +371,18 @@ final class ExplorerSections {
 
   /** The topics, queues and exchanges the units in scope send to or receive from. */
   private Optional<Table> destinationsTable(String section) {
-    SortedMap<EntityId, SortedSet<EntityId>> senders = new TreeMap<>(Knowledge.BY_ID);
-    SortedMap<EntityId, SortedSet<EntityId>> receivers = new TreeMap<>(Knowledge.BY_ID);
-    SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(Knowledge.BY_ID);
+    SortedMap<EntityId, SortedSet<EntityId>> senders = new TreeMap<>(ArchitectureModel.BY_ID);
+    SortedMap<EntityId, SortedSet<EntityId>> receivers = new TreeMap<>(ArchitectureModel.BY_ID);
+    SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(ArchitectureModel.BY_ID);
     for (EntityId unit : units) {
       for (String predicate : List.of(Types.PUBLISHES, Types.CONSUMES)) {
-        for (Fact fact : knowledge.relations(unit, predicate)) {
-          EntityId destination = Knowledge.object(fact);
+        for (Fact fact : model.relations(unit, predicate)) {
+          EntityId destination = ArchitectureModel.object(fact);
           if (alternatives.contains(fact) || !DESTINATIONS.contains(destination.type())) {
             continue;
           }
           (predicate.equals(Types.PUBLISHES) ? senders : receivers)
-              .computeIfAbsent(destination, d -> new TreeSet<>(Knowledge.BY_ID))
+              .computeIfAbsent(destination, d -> new TreeSet<>(ArchitectureModel.BY_ID))
               .add(unit);
           facts.computeIfAbsent(destination, d -> new ArrayList<>()).add(fact);
         }
@@ -421,25 +416,29 @@ final class ExplorerSections {
    * each with the units it belongs to or is used by.
    */
   private Optional<Table> tablesTable(String section) {
-    SortedMap<EntityId, SortedSet<EntityId>> containers = new TreeMap<>(Knowledge.BY_ID);
-    SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(Knowledge.BY_ID);
+    SortedMap<EntityId, SortedSet<EntityId>> containers = new TreeMap<>(ArchitectureModel.BY_ID);
+    SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(ArchitectureModel.BY_ID);
     for (EntityId unit : units) {
-      for (EntityId module : Elements.codeModules(knowledge, unit)) {
-        for (EntityId schema : knowledge.parts(module, Types.SCHEMA)) {
-          for (EntityId table : knowledge.parts(schema, Types.TABLE)) {
-            containers.computeIfAbsent(table, t -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
+      for (EntityId module : Elements.codeModules(model, unit)) {
+        for (EntityId schema : model.parts(module, Types.SCHEMA)) {
+          for (EntityId table : model.parts(schema, Types.TABLE)) {
+            containers
+                .computeIfAbsent(table, t -> new TreeSet<>(ArchitectureModel.BY_ID))
+                .add(unit);
             facts
                 .computeIfAbsent(table, t -> new ArrayList<>())
-                .addAll(knowledge.containsFacts(schema, table));
+                .addAll(model.containsFacts(schema, table));
           }
         }
       }
       for (EntityId type : code(unit)) {
-        for (EntityId method : knowledge.parts(type, Types.METHOD)) {
+        for (EntityId method : model.parts(type, Types.METHOD)) {
           for (String predicate : List.of(Types.READS_TABLE, Types.WRITES_TABLE)) {
-            for (Fact fact : knowledge.relations(method, predicate)) {
-              EntityId table = Knowledge.object(fact);
-              containers.computeIfAbsent(table, t -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
+            for (Fact fact : model.relations(method, predicate)) {
+              EntityId table = ArchitectureModel.object(fact);
+              containers
+                  .computeIfAbsent(table, t -> new TreeSet<>(ArchitectureModel.BY_ID))
+                  .add(unit);
               facts.computeIfAbsent(table, t -> new ArrayList<>()).add(fact);
             }
           }
@@ -471,32 +470,26 @@ final class ExplorerSections {
    * sets, as the config extractor records them (secrets masked, ADR 0032).
    */
   private Optional<Table> configTable(String section) {
-    SortedMap<EntityId, SortedSet<EntityId>> unitsOf = new TreeMap<>(Knowledge.BY_ID);
+    SortedMap<EntityId, SortedSet<EntityId>> unitsOf = new TreeMap<>(ArchitectureModel.BY_ID);
     for (EntityId unit : units) {
-      for (EntityId module : Elements.codeModules(knowledge, unit)) {
-        unitsOf.computeIfAbsent(module, m -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
+      for (EntityId module : Elements.codeModules(model, unit)) {
+        unitsOf.computeIfAbsent(module, m -> new TreeSet<>(ArchitectureModel.BY_ID)).add(unit);
       }
     }
-    List<Fact> values = new ArrayList<>();
-    for (EntityId module : unitsOf.keySet()) {
-      for (Fact fact : knowledge.attributes(module)) {
-        if (fact.predicate().equals(Types.CONFIG_VALUE)) {
-          values.add(fact);
-        }
-      }
-    }
+    List<ConfigValues.Value> values = new ArrayList<>(ConfigValues.of(model, unitsOf.keySet()));
     values.sort(
-        Comparator.comparing((Fact f) -> f.subject().toString())
-            .thenComparing(f -> RepoSections.attribute(f, "key", ""))
-            .thenComparing(f -> RepoSections.attribute(f, "profile", ""))
-            .thenComparing(Fact::id));
+        Comparator.comparing((ConfigValues.Value v) -> v.fact().subject().toString())
+            .thenComparing(v -> v.key() == null ? "" : v.key())
+            .thenComparing(v -> v.profile() == null ? "" : v.profile())
+            .thenComparing(v -> v.fact().id()));
     List<Table.Row> rows = new ArrayList<>();
-    for (Fact fact : values) {
-      String key = RepoSections.attribute(fact, "key", null);
+    for (ConfigValues.Value configValue : values) {
+      Fact fact = configValue.fact();
+      String key = configValue.key();
       if (key == null) {
         continue;
       }
-      String profile = RepoSections.attribute(fact, "profile", null);
+      String profile = configValue.profile();
       String value = fact.object().value();
       rows.add(
           row(
@@ -543,18 +536,18 @@ final class ExplorerSections {
                 items.add(
                     follow(
                         "To send a message, follow ",
-                        parse(RepoSections.attribute(f, "source", null)),
+                        Elements.sourceOf(f),
                         f,
-                        ", which sends to " + assembler.name(Knowledge.object(f)))));
+                        ", which sends to " + assembler.name(ArchitectureModel.object(f)))));
     linkExample(Types.CALLS_HTTP)
         .ifPresent(
             f ->
                 items.add(
                     follow(
                         "To call another service over HTTP, follow ",
-                        parse(RepoSections.attribute(f, "source", null)),
+                        Elements.sourceOf(f),
                         f,
-                        ", which calls " + assembler.name(Knowledge.object(f)))));
+                        ", which calls " + assembler.name(ArchitectureModel.object(f)))));
     migrationExample().ifPresent(items::add);
     settingExample().ifPresent(items::add);
     if (items.isEmpty()) {
@@ -572,12 +565,12 @@ final class ExplorerSections {
    * broken by type ID, its first by method ID.
    */
   private Optional<Entry> example(List<Entry> entries, String kind) {
-    Map<EntityId, List<Entry>> byType = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, List<Entry>> byType = new TreeMap<>(ArchitectureModel.BY_ID);
     for (Entry entry : entries) {
-      if (entry.fact.predicate().equals(kind)) {
+      if (ArchitectureModel.statement(entry.fact).predicate().equals(kind)) {
         byType
             .computeIfAbsent(
-                knowledge.wholes(entry.method).stream().findFirst().orElse(entry.method),
+                model.wholes(entry.method).stream().findFirst().orElse(entry.method),
                 t -> new ArrayList<>())
             .add(entry);
       }
@@ -588,9 +581,8 @@ final class ExplorerSections {
   /** The first link of the kind, by unit and fact ID, whose code is known. */
   private Optional<Fact> linkExample(String predicate) {
     for (EntityId unit : units) {
-      for (Fact fact : knowledge.relations(unit, predicate)) {
-        if (!alternatives.contains(fact)
-            && parse(RepoSections.attribute(fact, "source", null)) != null) {
+      for (Fact fact : model.relations(unit, predicate)) {
+        if (!alternatives.contains(fact) && Elements.sourceOf(fact) != null) {
           return Optional.of(fact);
         }
       }
@@ -624,11 +616,11 @@ final class ExplorerSections {
    */
   private Optional<ListBlock.Item> migrationExample() {
     for (EntityId unit : units) {
-      for (EntityId module : Elements.codeModules(knowledge, unit)) {
-        for (EntityId schema : knowledge.parts(module, Types.SCHEMA)) {
+      for (EntityId module : Elements.codeModules(model, unit)) {
+        for (EntityId schema : model.parts(module, Types.SCHEMA)) {
           Optional<Fact> kind =
-              knowledge.attributes(schema).stream()
-                  .filter(f -> f.predicate().equals(Types.KIND) && f.evidence().path() != null)
+              model.attributes(schema, Types.KIND).stream()
+                  .filter(f -> f.evidence().path() != null)
                   .filter(f -> MIGRATION_KINDS.contains(f.object().value()))
                   .min(
                       Comparator.comparingInt(
@@ -663,15 +655,15 @@ final class ExplorerSections {
   /** Where the units' default configuration is: the file defining most default keys. */
   private Optional<ListBlock.Item> settingExample() {
     Map<String, List<Fact>> byFile = new TreeMap<>();
+    List<EntityId> modules = new ArrayList<>();
     for (EntityId unit : units) {
-      for (EntityId module : Elements.codeModules(knowledge, unit)) {
-        for (Fact fact : knowledge.attributes(module)) {
-          if (fact.predicate().equals(Types.CONFIG_VALUE)
-              && !fact.attributes().has("profile")
-              && fact.evidence().path() != null) {
-            byFile.computeIfAbsent(fact.evidence().path(), p -> new ArrayList<>()).add(fact);
-          }
-        }
+      modules.addAll(Elements.codeModules(model, unit));
+    }
+    for (ConfigValues.Value value : ConfigValues.of(model, modules)) {
+      if (!value.profiled() && value.fact().evidence().path() != null) {
+        byFile
+            .computeIfAbsent(value.fact().evidence().path(), p -> new ArrayList<>())
+            .add(value.fact());
       }
     }
     return byFile.entrySet().stream()
@@ -763,16 +755,5 @@ final class ExplorerSections {
 
   private static Callout note(String id, String text) {
     return new Callout(id, Callout.Variant.NOTE, null, null, List.of(TextRun.of(text)), List.of());
-  }
-
-  private static EntityId parse(String id) {
-    if (id == null) {
-      return null;
-    }
-    try {
-      return EntityId.parse(id);
-    } catch (IllegalArgumentException e) {
-      return null;
-    }
   }
 }
