@@ -293,6 +293,23 @@ fi
 export LANTERN_DB_PORT="$port"
 info "starting the database of project $PROJECT on port $port"
 compose up -d --wait postgres >&2 || die "the database did not start or did not become healthy; see 'docker compose -p $PROJECT logs postgres'"
+# Healthy inside its container is not yet reachable from the host: under rootless Docker the port
+# is forwarded a moment later, longer when several databases start at once (#785).
+# Postgres itself must answer: an SSL request, which it answers with one byte, N or S, while a
+# forwarder that is not ready yet accepts the connection and closes it.
+postgres_answers() {
+  local reply=""
+  exec 3<>"/dev/tcp/127.0.0.1/$1" || return 1
+  printf '\x00\x00\x00\x08\x04\xd2\x16\x2f' >&3
+  IFS= read -r -n 1 -t 2 reply <&3 || true
+  exec 3<&- 3>&-
+  [[ "$reply" == N || "$reply" == S ]]
+}
+for ((waited = 0; waited < 60; waited++)); do
+  postgres_answers "$port" 2>/dev/null && break
+  sleep 1
+done
+((waited < 60)) || die "the database is healthy but port $port did not accept a connection within 60 s"
 export LANTERN_DB_URL="jdbc:postgresql://localhost:$port/lantern"
 info "database ready at $LANTERN_DB_URL"
 
