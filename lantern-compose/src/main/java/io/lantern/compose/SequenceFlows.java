@@ -159,11 +159,6 @@ final class SequenceFlows {
     return chosen;
   }
 
-  /** The candidates in the rank order of ADR 0047, as the fallback draws them. */
-  List<ScopeFlows.Candidate> byRank(List<ScopeFlows.Candidate> candidates) {
-    return flows.byRank(candidates);
-  }
-
   /**
    * One subsection per flow shown, each holding its prose, its trigger and its sequence diagram;
    * none when no entry point reaches outside its unit.

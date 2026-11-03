@@ -718,6 +718,11 @@ public final class Describer {
     SequenceFlows flows(List<String> judged) {
       return new SequenceFlows(knowledge, assembler, c4, units, judged);
     }
+
+    /** The flows the scope may draw, as the model gives them. */
+    ScopeFlows candidates() {
+      return new ScopeFlows(knowledge, c4.elements(), units);
+    }
   }
 
   /**
@@ -772,8 +777,11 @@ public final class Describer {
     List<Scope> scopes = scopes(repoFacts, knowledge, assembler, c4);
     RoleSession significance = harness.session(FlowJudgements.SIGNIFICANCE);
     Map<Scope, List<ScopeFlows.Candidate>> candidates = new LinkedHashMap<>();
+    Map<Scope, ScopeFlows> queries = new LinkedHashMap<>();
     for (Scope scope : scopes) {
-      List<ScopeFlows.Candidate> found = scope.flows(null).candidates();
+      ScopeFlows flows = scope.candidates();
+      queries.put(scope, flows);
+      List<ScopeFlows.Candidate> found = flows.candidates();
       if (!found.isEmpty()) {
         candidates.put(scope, found);
       }
@@ -786,7 +794,7 @@ public final class Describer {
           List<FlowJudgements.Asked> byUnit =
               FlowJudgements.firstPass(
                   scope.key(),
-                  scope.flows(null).byRank(found),
+                  queries.get(scope).byRank(found),
                   responsibilities,
                   scope.assembler()::name);
           if (!byUnit.isEmpty()) {

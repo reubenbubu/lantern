@@ -39,7 +39,7 @@ only reads the model. #698 moves the roles; this records where the queries they 
 - **`ScopeFlows` (`lantern-derive`) answers which flows a scope may draw.** It traces each stored
   flow (`FlowModel`) into neutral steps: a message (from, to, its label as the facts give it,
   code, whether the sender waits, what it adds, its facts, and the link whose intent phrase may
-  label it), a note, or an alternatives frame with its operands. With each step goes the line the
+  label it), a note, or an alternatives frame with its operands. With the flow go the lines the
   roles are shown, by its facts only. It also gives what starts a flow (its heading), the
   candidates the significance role is shown (one per stored shape), the rank of ADR 0047, and the
   flows a scope shows with or without the model's judgement (ADR 0070, ADR 0108).
