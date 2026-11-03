@@ -382,6 +382,26 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void theEstimateOutputScaleIsReadAndIsTheTokenScaleIfNotSet() {
+    model("haiku", "fake", "haiku-model");
+    model("sonnet", "fake", "sonnet-model");
+    tiers("haiku", "sonnet");
+    values.put("lantern.llm.models.haiku.estimate-token-scale", "1.86");
+    values.put("lantern.llm.models.sonnet.estimate-token-scale", "2.48");
+    values.put("lantern.llm.models.sonnet.estimate-output-scale", "0.31");
+
+    ModelSettings settings = bind().modelSettings();
+
+    assertThat(settings.forRole(Role.COMPOSE).estimateOutputScale()).isEqualTo(1.86);
+    assertThat(settings.forRole(Role.RESOLVE).estimateTokenScale()).isEqualTo(2.48);
+    assertThat(settings.forRole(Role.RESOLVE).estimateOutputScale()).isEqualTo(0.31);
+
+    values.put("lantern.llm.models.sonnet.estimate-output-scale", "-1");
+    assertThatThrownBy(this::bindAndBuild)
+        .hasMessageContaining("lantern.llm.models.sonnet.estimate-output-scale must be positive");
+  }
+
+  @Test
   void theThinkingOffSwitchIsReadAndAModelWithoutOneIsNotAskedToTurnThinkingOff() {
     model("sonnet", "fake", "sonnet-model");
     model("opus", "fake", "opus-model");

@@ -295,3 +295,40 @@ New runs of project-4, each with the rounds fully asked:
 | Haiku 5.5 at scale 1.55, budget $0.70 (fully asked roles) | $0.092 | $0.102 | 1.11 |
 
 On DeepSeek no share waited and nothing was skipped. The Haiku run had a $1.50 budget, so its shares were small. At scale 1 its low estimate let the flows use their share before the purpose and 16 narratives were asked, the failure #694 names. Its counts above are of the roles that were fully asked, and the scale was fitted on them, so 1.55 is in-sample. A second Haiku run at 1.55 had a $0.70 budget, to stay within the owner's $1.50 for this check. Most roles stopped at their shares, as a budget that tight must, and summarize spent 7% over its share. The roles it asked in full spent 1.11 of their estimate, and the purpose, first on its share, was asked. Haiku spend: $1.18.
+
+## Amendment (#754): an output scale per model, and the scales for Haiku and Sonnet
+
+One scale per model was not enough. On #754's project-4 runs through OpenRouter, Haiku 5.5 for the
+high-volume roles and Sonnet 5.5 for the reasoning roles and the support judge, the estimate
+(before this amendment, both at 1.55):
+- under-counted input by 10 to 40%;
+- over-counted output, answers and thinking: Sonnet wrote and thought 0.30 times what the roles
+  expect, Haiku 0.71 times.
+
+Investigate's conversations also write most of each turn to the one-hour cache, at twice the input
+price.
+
+- **A model's `estimate-output-scale`** scales the output an estimate expects, apart from
+  `estimate-token-scale`, which now scales only input, cache writes and cache reads. Unset, it
+  equals the token scale, so a model set before keeps its estimate.
+- **The fitted scales.** Fitted so the worst role group comes closest to its spend over the role
+  groups fully asked in the two runs:
+  - Haiku: token scale 1.86, output scale 1.24.
+  - Sonnet: token scale 2.48, output scale 0.31.
+  - Opus is unmeasured, so Sonnet's scales stand in.
+
+  They are in `.claude/skills/lantern-commands/llm-openrouter.properties`.
+
+| Role group (run) | Estimate before | Estimate now | Spent |
+| --- | --- | --- | --- |
+| summarize (1) | $0.194 | $0.185 | $0.181 |
+| describe (1) | $1.180 | $0.792 | $0.853 |
+| model checks (1) | $0.101 | $0.066 | $0.060 |
+| name groups (1) | $0.003 | $0.003 | $0.003 |
+| investigate (2) | $3.035 | $2.471 | $2.327 |
+| flows and purpose (2) | $0.935 | $0.888 | $0.918 |
+| model checks (2) | $0.034 | $0.040 | $0.044 |
+
+Every group is within 10%; before, describe was off by 28% and the model checks by 41%. The scales
+come from one set, fitted on the same runs they are judged by. #756's baselines on all five sets
+check them.

@@ -203,6 +203,8 @@ public record LlmProperties(
    *     between-tools} or {@code none}); {@code disabled} if not set
    * @param estimateTokenScale how many of the model's tokens one token of Lantern's estimates comes
    *     to, as measured (1.55 for Claude models, ADR 0100, amendment for #694); 1 if not set
+   * @param estimateOutputScale the same for the output an estimate expects, answers and thinking
+   *     (ADR 0100, amendment for #754); the estimate token scale if not set
    */
   public record Model(
       String provider,
@@ -215,7 +217,8 @@ public record LlmProperties(
       Boolean disableThinking,
       Integer thinkingHeadroomTokens,
       Thinking.OffSwitch thinkingOffSwitch,
-      Double estimateTokenScale) {
+      Double estimateTokenScale,
+      Double estimateOutputScale) {
 
     ModelConfig toConfig(String property) {
       require(property + ".provider", provider);
@@ -234,7 +237,19 @@ public record LlmProperties(
               io.lantern.llm.anthropic.AnthropicProvider.NAME.equals(provider)),
           limits(property),
           thinking(property),
-          estimateTokenScale(property));
+          estimateTokenScale(property),
+          estimateOutputScale(property));
+    }
+
+    private double estimateOutputScale(String property) {
+      if (estimateOutputScale == null) {
+        return estimateTokenScale(property);
+      }
+      if (!(estimateOutputScale > 0)) {
+        throw new IllegalStateException(
+            property + ".estimate-output-scale must be positive: " + estimateOutputScale);
+      }
+      return estimateOutputScale;
     }
 
     private double estimateTokenScale(String property) {

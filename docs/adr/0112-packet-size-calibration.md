@@ -112,3 +112,16 @@ answers.
     `testsets/wording-labels/` for the owner to label at the 1F test drop. Unvalidated raw pass
     rates: says what it does for the system 96–100%; not true of any Spring application 73–93%.
   - Project-8's other-profiles note repeats each difference twice (#705).
+
+## Amendment (#754): sizes on Haiku and Sonnet, measured with the baselines
+
+Through OpenRouter, Sonnet serves Investigate's leads and the support judge, and Haiku serves
+Describe's elements. A calibration run needs every other role of the set in the cache, so it
+first needs a usual run of the set. On Sonnet that costs about $8 fresh on project-4 ($5.11 and
+$3.29 over two runs, #754). #529's method on project-1 to project-4 would therefore cost far more
+than #754's $20.
+
+The calibration is instead run from the caches of #756's baseline runs, where it costs only the
+calibrated roles' calls. Until then, the sizes kept on DeepSeek stay as provisional.
+Investigate's leads already ask one item a request, the least size, so its answers cannot get
+worse for a size.

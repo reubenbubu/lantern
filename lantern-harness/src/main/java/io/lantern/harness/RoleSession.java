@@ -1362,7 +1362,7 @@ public final class RoleSession {
     double scale = model.estimateTokenScale();
     return new TokenUsage(
         Math.round(input * scale),
-        Math.round(output * scale),
+        Math.round(output * model.estimateOutputScale()),
         Math.round(write * scale),
         Math.round(read * scale));
   }
@@ -1375,7 +1375,7 @@ public final class RoleSession {
   /** The output one request of the given items is expected to take, its thinking included. */
   long expectedOutput(int items) {
     return Math.round(
-        ((long) items * spec.expectedOutputTokens() + thinking(1)) * model.estimateTokenScale());
+        ((long) items * spec.expectedOutputTokens() + thinking(1)) * model.estimateOutputScale());
   }
 
   /**
