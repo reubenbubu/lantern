@@ -1,6 +1,6 @@
 # 0116. The LLM roles leave the composer
 
-Status: accepted (#698)
+Status: accepted (#698); amended by ADR 0119 (#761): `Wordings` is removed.
 
 ## Context
 

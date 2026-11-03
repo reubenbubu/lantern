@@ -140,7 +140,8 @@ public final class Describer {
       List<LlmText> texts,
       List<String> unknown,
       List<java.util.function.LongFunction<List<Fact>>> flowFacts,
-      Map<String, Verdict> verdicts) {
+      Map<String, Verdict> verdicts,
+      Set<String> documented) {
 
     /**
      * The support judge's verdict on a sentence it checked (ADR 0101), by the key it judged it
@@ -159,7 +160,7 @@ public final class Describer {
         List<LlmText> texts,
         List<String> unknown,
         List<java.util.function.LongFunction<List<Fact>>> flowFacts) {
-      this(asked, reused, rejected, skipped, texts, unknown, flowFacts, Map.of());
+      this(asked, reused, rejected, skipped, texts, unknown, flowFacts, Map.of(), Set.of());
     }
 
     /** A run's outcome without flow judgements. */
@@ -180,6 +181,7 @@ public final class Describer {
       unknown = List.copyOf(unknown);
       flowFacts = List.copyOf(flowFacts);
       verdicts = Map.copyOf(verdicts);
+      documented = Set.copyOf(documented);
     }
 
     /** A run's outcome without stored texts, as before the roles stored claims. */
@@ -567,7 +569,8 @@ public final class Describer {
         tally.texts,
         tally.unknown,
         tally.flowFacts,
-        stored);
+        stored,
+        documented);
   }
 
   /** What the answers of a run add up to. */
