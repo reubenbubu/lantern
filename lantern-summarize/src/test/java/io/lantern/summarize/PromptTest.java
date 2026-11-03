@@ -23,10 +23,10 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "17";
+  private static final String VERSION = "18";
 
   private static final String FINGERPRINT =
-      "8c8aad3a65186839bf984c58537cdae85c64bd986d44e89ca03269e8bbb1d614";
+      "e04e97b76418b823e6266b837c3a3a09c573a6b816ca0b72d3930c8f3edb8b6f";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -135,7 +135,7 @@ class PromptTest {
         .isEqualTo(
             """
             Unit: type PriceService in package com.example.shop
-            Write 2 to 4 sentences of at most 30 words each.
+            Write 2 to 4 sentences of 10 to 30 words each.
             Its facts:
             <facts>
             [F1] %s
@@ -180,7 +180,7 @@ class PromptTest {
             """
             Unit: type PriceService in package com.example.shop
             What is known about this unit is too long for one request, so it comes in 2 parts. \
-            This is part 2. Write 1 to 3 sentences of at most 30 words each on what this part \
+            This is part 2. Write 1 to 3 sentences of 10 to 30 words each on what this part \
             shows about it; the summaries of the parts are merged later.
             Its facts:
             <facts>
@@ -194,7 +194,7 @@ class PromptTest {
             Unit: type PriceService in package com.example.shop
             What is known about this unit was too long for one request, so it was summarised in \
             parts. Merge the summaries of the parts below into one summary of 2 to 4 sentences of \
-            at most 30 words each. Cite the references the parts cite for what you take from them.
+            10 to 30 words each. Cite the references the parts cite for what you take from them.
             <summaries>
             Part 1: It is an interface. [F1]
             Part 2: It prices. [F2]
@@ -226,7 +226,7 @@ class PromptTest {
 
     assertThat(Prompt.user(core, List.of(), List.of(pkg)))
         .startsWith(
-            "Unit: Maven module shop-core\nWrite 1 to 3 sentences of at most 30 words each. It"
+            "Unit: Maven module shop-core\nWrite 1 to 3 sentences of 10 to 30 words each. It"
                 + " contains only one unit [S1]: say what it adds to that unit, such as its"
                 + " dependencies, and do not restate that unit's summary.\n");
     assertThat(Summarizer.maxSentences(core, 1)).isEqualTo(3);
@@ -243,7 +243,7 @@ class PromptTest {
       assertThat(level.maxSentences()).isLessThanOrEqualTo(6);
       assertThat(Prompt.length(level))
           .isEqualTo(
-              "%d to %d sentences of at most 30 words each"
+              "%d to %d sentences of 10 to 30 words each"
                   .formatted(level.minSentences(), level.maxSentences()));
     }
   }

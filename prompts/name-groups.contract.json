@@ -17,8 +17,11 @@
         "subject": "^group:"
       },
       "words": {
-        "requested": 3,
-        "stated": "at most 3 words"
+        "requested": [
+          1,
+          3
+        ],
+        "stated": "a name of 1 to 3 words"
       },
       "cites": [
         "F",
@@ -34,8 +37,11 @@
         "subject": "^group:"
       },
       "words": {
-        "requested": 22,
-        "stated": "at most 22 words"
+        "requested": [
+          13,
+          22
+        ],
+        "stated": "a responsibility sentence of 13 to 22 words"
       },
       "cites": [
         "F",
@@ -51,8 +57,11 @@
         "subject": "^group:"
       },
       "words": {
-        "requested": 7,
-        "stated": "at most 7 words"
+        "requested": [
+          5,
+          7
+        ],
+        "stated": "an intent phrase of 5 to 7 words"
       },
       "cites": [
         "F",
@@ -68,9 +77,15 @@
         "attribute": "reason"
       },
       "words": {
-        "requested": 18,
-        "stated": "at most 18 words",
-        "accepted": 20
+        "requested": [
+          7,
+          18
+        ],
+        "accepted": [
+          6,
+          20
+        ],
+        "stated": "a reason of 7 to 18 words"
       },
       "cites": [
         "F",

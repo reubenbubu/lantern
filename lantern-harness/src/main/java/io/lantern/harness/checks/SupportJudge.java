@@ -40,7 +40,7 @@ public final class SupportJudge {
               "support-judge",
               Role.JUDGE,
               Prompts.version(
-                  "1", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
+                  "2", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
               "model-checks",
               RunMode.BULK,
               300)

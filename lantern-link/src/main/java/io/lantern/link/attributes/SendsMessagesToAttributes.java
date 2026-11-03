@@ -33,7 +33,7 @@ import tools.jackson.databind.node.ObjectNode;
  *     routes to it.
  * @param rationale Descriptive. No longer given since #666: reason replaced it. Why the LLM
  *     resolver picked this candidate, in its own words; kept so facts stored before stay valid.
- * @param reason Descriptive. What settles the LLM resolver's pick, in at most 30 words of its own.
+ * @param reason Descriptive. What settles the LLM resolver's pick, in 6 to 35 words of its own.
  *     Present only on links of origin llm.
  * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
  *     link for. Present only on links of origin llm.

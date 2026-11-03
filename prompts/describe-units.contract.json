@@ -17,10 +17,13 @@
         "subject": "^(?!group:|database:|exchange:|queue:|topic:|external-system:|person:)"
       },
       "words": {
-        "requested": 22,
-        "stated": "one plain sentence of at most 22 words",
+        "requested": [
+          10,
+          22
+        ],
+        "stated": "one plain sentence of 10 to 22 words",
         "restated": [
-          "has at most 22 words;"
+          "has 10 to 22 words;"
         ]
       },
       "sentences": {
@@ -46,10 +49,13 @@
         "subject": "^(?!group:)"
       },
       "words": {
-        "requested": 7,
-        "stated": "an intent phrase: at most 7 words",
+        "requested": [
+          4,
+          7
+        ],
+        "stated": "an intent phrase: 4 to 7 words",
         "restated": [
-          "and has at most 7 words"
+          "and has 4 to 7 words"
         ]
       },
       "cites": [

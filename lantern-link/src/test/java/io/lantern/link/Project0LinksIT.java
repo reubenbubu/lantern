@@ -267,7 +267,7 @@ class Project0LinksIT {
               + item.group(1)
               + "\": {\"pick\": \""
               + pick
-              + "\", \"confidence\": \"high\", \"reason\": \"The answer project-0 documents.\","
+              + "\", \"confidence\": \"high\", \"reason\": \"The answer that project-0 documents for this open link.\","
               + " \"cites\": [\""
               + callerRef
               + "\", \""
@@ -495,7 +495,7 @@ class Project0LinksIT {
             + "\"endpoint\":\"GET /api/orders/{id}\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
             + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
-            + "\"reason\":\"The answer project-0 documents.\",\"resolves\":"
+            + "\"reason\":\"The answer that project-0 documents for this open link.\",\"resolves\":"
             + "\"GET http://storefront-web:8080/api/orders/{id}\","
             + "\"source\":\"method:~.fulfilment.OrderClient#order(long)\","
             + "\"target\":\"method:~.storefront.web.OrderController#order(long)\"}"
@@ -525,7 +525,7 @@ class Project0LinksIT {
             + "\"endpoint\":\"GET /api/orders/{orderId}\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
             + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
-            + "\"reason\":\"The answer project-0 documents.\",\"resolves\":"
+            + "\"reason\":\"The answer that project-0 documents for this open link.\",\"resolves\":"
             + "\"GET ${PAYMENTS_SERVICE_URL}/api/orders/{id}\","
             + "\"source\":\"method:~.fulfilment.PaymentStatusClient#paymentOf(long)\","
             + "\"target\":\"method:~.payments.OrderPaymentController#payment(long)\"}"
@@ -566,7 +566,7 @@ class Project0LinksIT {
         "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"bindingKey\":\"refund.*\","
             + "\"destination\":\"exchange:rabbitmq:shop.returns\",\"model\":\"fake/fake\","
             + "\"protocol\":\"AMQP\",\"queue\":\"queue:rabbitmq:payments.refund-requests\","
-            + "\"reason\":\"The answer project-0 documents.\","
+            + "\"reason\":\"The answer that project-0 documents for this open link.\","
             + "\"resolves\":\"shop.returns\","
             + "\"source\":\"method:~.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)\","
             + "\"target\":\"method:~.payments.RefundListener#refundRequested(java.lang.String)\"}"

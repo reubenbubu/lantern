@@ -20,7 +20,7 @@
   {
     "name": "intent",
     "kind": "attribute",
-    "description": "What the subject does with the other end of one of its interactions and why, in a phrase of at most 8 words starting with a verb, worded by the LLM (knowledge-build epic, section 11.4). The value is the claim ID of the interaction: a link between containers, a line between components, or a person's use of a unit. Of origin llm.",
+    "description": "What the subject does with the other end of one of its interactions and why, in a phrase of 3 to 8 words starting with a verb, worded by the LLM (knowledge-build epic, section 11.4). The value is the claim ID of the interaction: a link between containers, a line between components, or a person's use of a unit. Of origin llm.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -103,7 +103,7 @@
   {
     "name": "purpose",
     "kind": "attribute",
-    "description": "What the system as a whole is for, in one plain sentence of at most 25 words the LLM worded from its units' and people's responsibilities, its external systems, its main flows' titles and its READMEs' claims (knowledge-build epic, section 11.6; ADR 0109). The subject is the system; the value is the document kind it is worded for, c4. Of origin llm; a reworded purpose is a new observation of the same claim.",
+    "description": "What the system as a whole is for, in one plain sentence of 8 to 29 words the LLM worded from its units' and people's responsibilities, its external systems, its main flows' titles and its READMEs' claims (knowledge-build epic, section 11.6; ADR 0109). The subject is the system; the value is the document kind it is worded for, c4. Of origin llm; a reworded purpose is a new observation of the same claim.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -121,7 +121,7 @@
   {
     "name": "key-fact",
     "kind": "attribute",
-    "description": "The single fact about how the system is built that a new reader most needs, such as how its parts communicate, where its data lives or what everything depends on, in one plain sentence of at most 30 words the LLM worded from the same inputs as the purpose (knowledge-build epic, section 11.6; ADR 0109). The subject is the system; the value is the document kind, c4. Of origin llm.",
+    "description": "The single fact about how the system is built that a new reader most needs, such as how its parts communicate, where its data lives or what everything depends on, in one plain sentence of 8 to 35 words the LLM worded from the same inputs as the purpose (knowledge-build epic, section 11.6; ADR 0109). The subject is the system; the value is the document kind, c4. Of origin llm.",
     "attributeSchema": {
       "type": "object",
       "properties": {
@@ -186,7 +186,7 @@
       "properties": {
         "title": {
           "type": "string",
-          "description": "The risk, in at most 8 words."
+          "description": "The risk, in 4 to 8 words."
         },
         "finding": {
           "type": "string",
@@ -272,7 +272,7 @@
       "properties": {
         "title": {
           "type": "string",
-          "description": "The risk, in at most 8 words."
+          "description": "The risk, in 4 to 8 words."
         },
         "finding": {
           "type": "string",

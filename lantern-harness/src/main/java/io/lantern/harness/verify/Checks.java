@@ -350,7 +350,7 @@ public final class Checks {
     }
   }
 
-  /** Word limits, intent openings and protocol words, and responsibilities that restate a name. */
+  /** Word ranges, intent openings and protocol words, and responsibilities that restate a name. */
   public static final class Form implements Check {
     @Override
     public String name() {
@@ -361,14 +361,22 @@ public final class Checks {
     public List<Rejection> check(ItemAnswer answer, CheckInputs inputs) {
       List<Rejection> found = new ArrayList<>();
       for (CheckedText text : answer.texts()) {
-        String[] words = text.text().trim().split("\\s+");
-        if (words.length > text.wordLimit()) {
+        String trimmed = text.text().trim();
+        int words = trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
+        if (!text.words().contains(words)) {
+          // Too short is rejected like too long; the reason names the range for the repair turn.
           found.add(
               reject(
                   answer,
                   text.field(),
                   this,
-                  "Has " + words.length + " words; the limit is " + text.wordLimit() + "."));
+                  "Has "
+                      + words
+                      + " words; the accepted range is "
+                      + text.words()
+                      + " words, so "
+                      + (words < text.words().min() ? "say more" : "say it in fewer words")
+                      + "."));
         }
         if (text.kind() == CheckedText.Kind.INTENT) {
           String lower = text.text().trim().toLowerCase(Locale.ROOT);

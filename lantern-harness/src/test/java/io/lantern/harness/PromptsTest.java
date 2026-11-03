@@ -29,16 +29,13 @@ class PromptsTest {
           "fd8fba8ca1d123474566c10628bef000e3e17ab9c864cadd9098f8c963cd867e",
           "injection-screen.schema.json",
           "2f3c06cec40bfd7656b7b768acccc28822bdfb20e6995209135ff344694492a1",
-          "injection-screen.task.txt",
-          "ad4edad25e9cf56f6e3bfaec137da4e4289865d343917a72b5eeff1a0815081b",
           "support-judge.schema.json",
           "bc227cbc7da77489a0be299a8c1ade1d7f5e14168411004c1f0f8cc418876ddc",
-          "support-judge.task.txt",
-          "b34af0794b6c08e5654c69e876842869261dd2468b95fe6989e48de45c28c2d7",
           "wording-judge.schema.json",
           "eb8288b6463d3c3fdfec383236198eb50b8e0be47b2e0cd6f1e9745446598b39");
 
-  // The wording judge's two task texts left this list when #668 tuned them (prompt version 2).
+  // The wording judge's two task texts left this list when #668 tuned them (prompt version 2); the
+  // injection screen's and the support judge's when #760 stated their sizes as ranges (version 2).
 
   @TempDir Path temp;
 

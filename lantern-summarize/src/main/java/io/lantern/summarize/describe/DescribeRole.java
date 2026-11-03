@@ -51,21 +51,21 @@ public final class DescribeRole {
   static final String RESPONSIBILITY_FIELD = "responsibility";
 
   /** The prompt version of the unit role. */
-  static final String UNIT_VERSION = "7";
+  static final String UNIT_VERSION = "8";
 
   /** The prompt version of the element role. */
-  static final String ELEMENT_VERSION = "7";
+  static final String ELEMENT_VERSION = "8";
 
   /** The most words of a unit's or component's responsibility sentence (its contract). */
-  static final int SENTENCE_WORDS =
+  static final io.lantern.harness.Contract.Range SENTENCE_WORDS =
       io.lantern.harness.Contract.of("describe-units").acceptedWords("responsibility");
 
   /** The most words of an element's responsibility sentence (its contract). */
-  static final int ELEMENT_SENTENCE_WORDS =
+  static final io.lantern.harness.Contract.Range ELEMENT_SENTENCE_WORDS =
       io.lantern.harness.Contract.of("describe-elements").acceptedWords("responsibility");
 
   /** The most words of an intent phrase (its contract). */
-  static final int PHRASE_WORDS =
+  static final io.lantern.harness.Contract.Range PHRASE_WORDS =
       io.lantern.harness.Contract.of("describe-units").acceptedWords("intent");
 
   /** The most components of one unit item. */
@@ -400,7 +400,11 @@ public final class DescribeRole {
   }
 
   private static CheckedText checked(
-      String field, CheckedText.Kind kind, Text text, int words, String subject) {
+      String field,
+      CheckedText.Kind kind,
+      Text text,
+      io.lantern.harness.Contract.Range words,
+      String subject) {
     return new CheckedText(field, kind, text.text(), text.cites(), words, subject, Set.of());
   }
 

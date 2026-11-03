@@ -75,7 +75,7 @@ class NameGroupsTest {
             API,
             LlmFacts.INTENT,
             call.claimId() != null ? call.claimId() : call.id(),
-            "Charges each order",
+            "Charges each order it takes",
             call));
     return all;
   }
@@ -141,17 +141,17 @@ class NameGroupsTest {
     if (body.startsWith("Group " + ORDERS)) {
       return """
           {"name": {"text": "Ordering", "cites": ["%s"]},
-           "responsibility": {"text": "Takes what customers buy and sees it through.",
+           "responsibility": {"text": "Takes what customers buy and sees each order through to payment and delivery.",
                               "cites": ["%s"]},
-           "lines": {"R1": {"text": "Charges each order", "cites": ["%s"]}},
-           "merge": {"with": "G1", "reason": {"text": "Both handle money for orders.",
+           "lines": {"R1": {"text": "Charges each order it takes", "cites": ["%s"]}},
+           "merge": {"with": "G1", "reason": {"text": "Both handle the money customers pay for their orders.",
                                               "cites": ["F1"]}}}"""
           .formatted(
               ref(body, "Takes customers"), ref(body, "Takes customers"), ref(body, "Charges"));
     }
     return """
         {"name": {"text": "Billing", "cites": ["%1$s"]},
-         "responsibility": {"text": "Bills customers for what they bought.", "cites": ["%1$s"]}}"""
+         "responsibility": {"text": "Bills customers for what they bought and keeps their invoices until each one is paid.", "cites": ["%1$s"]}}"""
         .formatted(ref(body, "group-of"));
   }
 
@@ -203,7 +203,7 @@ class NameGroupsTest {
     assertThat(merge.attributes().path("about").asString()).isEqualTo(BILLING);
     assertThat(merge.attributes().path("target").asString()).isEqualTo(ORDERS);
     assertThat(merge.attributes().path("reason").asString())
-        .isEqualTo("Both handle money for orders.");
+        .isEqualTo("Both handle the money customers pay for their orders.");
 
     // The run's record shows the role, its calls and cost.
     assertThat(last.records())
@@ -261,7 +261,7 @@ class NameGroupsTest {
                                 body.startsWith("Group " + ORDERS)
                                     ? """
                                     {"name": {"text": "Orders API", "cites": ["F1"]},
-                                     "merge": {"with": "G7", "reason": {"text": "Alike.",
+                                     "merge": {"with": "G7", "reason": {"text": "Both groups do the same work for orders.",
                                                                         "cites": ["F1"]}}}"""
                                     : """
                                     {"name": {"text": "Billing over HTTP", "cites": ["F1"]}}"""));
@@ -287,7 +287,7 @@ class NameGroupsTest {
                         body ->
                             """
                             {"name": {"text": "%s", "cites": ["F1"]},
-                             "merge": {"with": "G9", "reason": {"text": "Alike.",
+                             "merge": {"with": "G9", "reason": {"text": "Both groups do the same work for orders.",
                                                                 "cites": ["F1"]}}}"""
                                 .formatted(
                                     body.startsWith("Group " + ORDERS) ? "Ordering" : "Billing")));

@@ -16,9 +16,15 @@
         "predicate": "flow-significance"
       },
       "words": {
-        "requested": 18,
-        "stated": "at most 18 words",
-        "accepted": 20
+        "requested": [
+          7,
+          18
+        ],
+        "accepted": [
+          6,
+          20
+        ],
+        "stated": "a reason of 7 to 18 words"
       },
       "cites": [
         "F",

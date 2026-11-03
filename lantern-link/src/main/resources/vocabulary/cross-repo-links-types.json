@@ -384,7 +384,7 @@
         },
         "reason": {
           "type": "string",
-          "description": "What settles the LLM resolver's pick, in at most 30 words of its own. Present only on links of origin llm."
+          "description": "What settles the LLM resolver's pick, in 6 to 35 words of its own. Present only on links of origin llm."
         },
         "rationale": {
           "type": "string",
@@ -660,7 +660,7 @@
         },
         "reason": {
           "type": "string",
-          "description": "What settles the LLM resolver's pick, in at most 30 words of its own. Present only on links of origin llm."
+          "description": "What settles the LLM resolver's pick, in 6 to 35 words of its own. Present only on links of origin llm."
         },
         "rationale": {
           "type": "string",

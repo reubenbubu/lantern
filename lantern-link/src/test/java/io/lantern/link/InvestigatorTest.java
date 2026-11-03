@@ -206,17 +206,21 @@ class InvestigatorTest {
       """
       {"lead": "I1", "verdict": "confirmed", "kind": "risk",
        "title": "Files trust the caller's user header",
-       "finding": "upload takes the user from the X-User-Id header as the caller sent it.",
-       "consequence": "Any caller can store files as any user.",
+       "finding": "upload takes the user from the X-User-Id header as the caller sent it, and stores the file under that user without checking it.",
+       "consequence": "Any caller can store files as any user, so one user's files can be overwritten or read by another who sets the header.",
        "impact": "high", "confidence": "high", "units": ["service:g:files"],
        "names": ["X-User-Id", "upload"], "cites": ["fs:src/main/java/f/FileController.java:5-7"]}""";
+
+  private static final String REFUTED_FINDING =
+      "upload reads X-User-Id only after the gateway has removed the caller's own header and set"
+          + " it from the verified token.";
 
   private static final String MISCITED =
       """
       {"lead": "I1", "verdict": "confirmed", "kind": "risk",
        "title": "Files trust the caller's user header",
-       "finding": "upload takes the user from a header.",
-       "consequence": "Any caller can store files as any user.",
+       "finding": "upload takes the user from a header that the caller sends, and stores the file as that user without checking.",
+       "consequence": "Any caller can store files as any user, so one user's files can be overwritten or read by another who sets the header.",
        "impact": "high", "confidence": "high", "units": ["service:g:files"],
        "names": ["X-User-Id"], "cites": ["fs:src/main/java/f/FileController.java:1-2"]}""";
 
@@ -403,8 +407,9 @@ class InvestigatorTest {
         CONFIRMED
             .replace("\"confirmed\"", "\"refuted\"")
             .replace(
-                "upload takes the user from the X-User-Id header as the caller sent it.",
-                "upload reads X-User-Id only after the gateway set it.");
+                "upload takes the user from the X-User-Id header as the caller sent it, and stores the file"
+                    + " under that user without checking it.",
+                REFUTED_FINDING);
     FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? refuted : null);
 
     Investigator.Result result = investigate(fake);
@@ -415,7 +420,7 @@ class InvestigatorTest {
                 .attributes()
                 .path("finding")
                 .asString())
-        .isEqualTo("upload reads X-User-Id only after the gateway set it.");
+        .isEqualTo(REFUTED_FINDING);
   }
 
   @Test
@@ -424,7 +429,7 @@ class InvestigatorTest {
     String uncited =
         """
         {"kind": "risk", "title": "Uploads have no size limit",
-         "finding": "upload accepts any file.", "consequence": "A caller can fill the disk.",
+         "finding": "upload accepts any file of any size and keeps it whole in memory before writing it to the disk.", "consequence": "A caller can fill the disk or the memory of the service with one large upload and stop it serving others.",
          "impact": "medium", "confidence": "low", "names": ["MultipartFile"], "cites": []}""";
     FakeLlmProvider fake = submitting(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? uncited : null);
 
@@ -446,7 +451,7 @@ class InvestigatorTest {
     String unnamed =
         """
         {"kind": "risk", "title": "Uploads have no size limit",
-         "finding": "upload accepts any MultipartFile.", "consequence": "A caller can fill the disk.",
+         "finding": "upload accepts any MultipartFile of any size and keeps it whole in memory before writing it to the disk.", "consequence": "A caller can fill the disk or the memory of the service with one large upload and stop it serving others.",
          "impact": "medium", "confidence": "low", "names": ["MultipartFile"],
          "cites": ["fs:src/main/java/f/FileController.java:6-6"]}""";
     FakeLlmProvider fake =
@@ -543,7 +548,7 @@ class InvestigatorTest {
     String wrongUnit =
         """
         {"kind": "risk", "title": "Uploads have no size limit",
-         "finding": "upload accepts any file.", "consequence": "A caller can fill the disk.",
+         "finding": "upload accepts any file of any size and keeps it whole in memory before writing it to the disk.", "consequence": "A caller can fill the disk or the memory of the service with one large upload and stop it serving others.",
          "impact": "medium", "confidence": "low", "units": ["service:g:nowhere"],
          "names": ["MultipartFile"], "cites": ["fs:src/main/java/f/FileController.java:6-6"]}""";
     FakeLlmProvider fake =

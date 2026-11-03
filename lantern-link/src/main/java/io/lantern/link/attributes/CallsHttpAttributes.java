@@ -62,7 +62,7 @@ import tools.jackson.databind.node.ObjectNode;
  *     as that unit serves it, such as POST /api/auth/sign-in, or the WebSocket endpoint's path.
  * @param reachesUnit Descriptive. For a frontend's call that reaches an endpoint, the unit that
  *     serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to.
- * @param reason Descriptive. What settles the LLM resolver's pick, in at most 30 words of its own.
+ * @param reason Descriptive. What settles the LLM resolver's pick, in 6 to 35 words of its own.
  *     Present only on links of origin llm.
  * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
  *     link for. Present only on links of origin llm.

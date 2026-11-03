@@ -14,8 +14,11 @@
       "answer": "^reason$",
       "facts": {},
       "words": {
-        "requested": 30,
-        "stated": "at most 30 words"
+        "requested": [
+          7,
+          30
+        ],
+        "stated": "in 7 to 30 words"
       },
       "cites": [
         "F"

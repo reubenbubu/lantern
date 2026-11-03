@@ -35,7 +35,7 @@ public final class WordingJudge {
 
   /** The most words of a text it judges; a longer one is counted apart, never judged. */
   public static final int MAX_WORDS =
-      io.lantern.harness.Contract.of("wording-judge").acceptedWords("judgedText");
+      io.lantern.harness.Contract.of("wording-judge").acceptedWords("judgedText").max();
 
   /** What a text is judged on, one dimension a call. */
   public enum Dimension {

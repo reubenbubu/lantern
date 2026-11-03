@@ -16,7 +16,14 @@
       "answer": "",
       "facts": {},
       "words": {
-        "accepted": 60
+        "requested": [
+          1,
+          60
+        ],
+        "accepted": [
+          1,
+          60
+        ]
       },
       "note": "The longest text the judge is asked about (ADR 0111); longer ones are reported too long."
     },

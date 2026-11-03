@@ -14,8 +14,11 @@
       "answer": "(^|\\.)quote$",
       "facts": {},
       "words": {
-        "requested": 15,
-        "stated": "at most 15 words",
+        "requested": [
+          3,
+          15
+        ],
+        "stated": "a quote of 3 to 15 words",
         "enforced": false
       },
       "note": "Measured, not enforced: a long quote must never hide a suspected injection."

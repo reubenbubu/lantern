@@ -92,7 +92,7 @@ class SummarizerTest {
     while (ref.find()) {
       refs.add(ref.group(1) != null ? ref.group(1) : ref.group(2));
     }
-    return "Summary of %s (%08x). [%s]"
+    return "Summary of %s (%08x), as a well-behaved model words it from its facts. [%s]"
         .formatted(unit(request), prompt.hashCode(), String.join(", ", refs));
   }
 
@@ -718,7 +718,8 @@ class SummarizerTest {
 
   @Test
   void aChangedEntryPointSummarizesItsModuleAgainThoughNoSummaryTextChanges() {
-    fake.answering(Answers.epic(request -> "Same words. [F1]"));
+    fake.answering(
+        Answers.epic(request -> "The same words for the unit whatever its facts say. [F1]"));
     summarizer().summarize(SummaryTree.fromFacts(FactSheetTest.service(1).list()));
     int before = fake.sent().size();
 
@@ -761,7 +762,7 @@ class SummarizerTest {
         Answers.epic(
             request ->
                 unit(request).equals("type:com.example.shop.PriceService")
-                    ? "Prices orders. [F1]"
+                    ? "Prices the orders of the shop for each of its customers. [F1]"
                     : citingAll(request)));
     summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
     int calls = fake.sent().size();
@@ -948,7 +949,7 @@ class SummarizerTest {
   void sentencesWithoutCitationsAreLeftOutWithoutAskingAgain() {
     fake.answering(
         Answers.epic(
-            "Line holds a quantity. [F1] Line is part of an order. It is very important."));
+            "Line holds the quantity of one product in an order. [F1] Line is part of an order and is saved with it. It is very important to every order the shop takes."));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.Line"),
@@ -961,7 +962,8 @@ class SummarizerTest {
 
     Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
 
-    assertThat(summary.text()).isEqualTo("Line holds a quantity. [fact:" + fact + "]");
+    assertThat(summary.text())
+        .isEqualTo("Line holds the quantity of one product in an order. [fact:" + fact + "]");
     assertThat(summary.purpose()).isEqualTo(Summary.Purpose.INFERRED);
     // One sentence of three is kept, so it is trusted a third as much as an inferred summary.
     assertThat(summary.confidence()).isEqualTo(0.12);
@@ -985,7 +987,7 @@ class SummarizerTest {
   void sentencesNamingWhatTheirCitationsDoNotMentionAreLeftOutWithoutAskingAgain() {
     fake.answering(
         Answers.epic(
-            "OrderLine holds a quantity. [F1] It is saved with JPA by LineRepository. [F1]"));
+            "OrderLine holds the quantity of one product in an order. [F1] It is saved with JPA by LineRepository with its order. [F1]"));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.OrderLine"),
@@ -999,7 +1001,8 @@ class SummarizerTest {
     Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
 
     // The unit's own name needs no citation; what neither it nor the fact mentions is left out.
-    assertThat(summary.text()).isEqualTo("OrderLine holds a quantity. [fact:" + fact + "]");
+    assertThat(summary.text())
+        .isEqualTo("OrderLine holds the quantity of one product in an order. [fact:" + fact + "]");
     assertThat(fake.sent()).hasSize(1);
     // One sentence of two is kept, so the inferred base of 0.35 is halved (ADR 0066).
     assertThat(summary.confidence()).isEqualTo(0.18);
@@ -1012,7 +1015,7 @@ class SummarizerTest {
 
   @Test
   void anAnswerWhoseEverySentenceNamesWhatItsCitationsDoNotMentionIsSentBack() {
-    firstLineAnswer("It is kept in Redis by LineCache. [F1]");
+    firstLineAnswer("It is kept in Redis by LineCache for a short while. [F1]");
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
@@ -1027,7 +1030,7 @@ class SummarizerTest {
   @Test
   void anEvidencedPurposeWhoseFirstSentenceNamesWhatItsCitationDoesNotMentionIsInferred() {
     repoAnswerAgain(
-        "Purpose: evidenced\nShop sells books with Kafka. [F1] Shop sells books to readers. [F1]");
+        "Purpose: evidenced\nShop sells books with Kafka. [F1] Shop sells books to readers who order them online. [F1]");
 
     Summary repo =
         summarizer()
@@ -1036,7 +1039,7 @@ class SummarizerTest {
             .get(EntityId.parse("repo:shop"));
 
     assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
-    assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
+    assertThat(repo.text()).startsWith("Shop sells books to readers who order them online. [fact:");
   }
 
   @Test
@@ -1058,14 +1061,17 @@ class SummarizerTest {
   @Test
   void aSummaryThatLosesItsFirstSentenceIsAskedAgainOnce() {
     // A first sentence opening with a pronoun is left out, which would leave a fragment (#275).
-    firstLineAnswer("It holds a quantity [F1]. Lines belong to an order [F1].");
+    firstLineAnswer(
+        "It holds a quantity of one product in an order [F1]. Lines belong to an order and are"
+            + " saved with it [F1].");
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     assertThat(retried().messages().get(2).text())
         .contains(
-            "<rejection item=\"I1\" field=\"sentences.1\">\"It holds a quantity\" opens with a"
+            "<rejection item=\"I1\" field=\"sentences.1\">\"It holds a quantity of one product in"
+                + " an order\" opens with a"
                 + " pronoun or restates what kind of part it is;")
         .contains(
             "The first sentence was left out, so the others would stand without it; write the"
@@ -1080,14 +1086,15 @@ class SummarizerTest {
         Answers.epic(
             request ->
                 request.purpose().contains("type:com.example.shop.Order$Line")
-                    ? "The class is a Spring bean [F1]. Lines belong to an order [F1]."
+                    ? "The class is a Spring bean that the shop's context creates [F1]. Lines belong to an"
+                        + " order and are saved with it [F1]."
                     : citingAll(request)));
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
-    assertThat(line.text()).startsWith("Lines belong to an order [fact:");
+    assertThat(line.text()).startsWith("Lines belong to an order and are saved with it [fact:");
     assertThat(fake.sent()).filteredOn(s -> s.request().purpose().endsWith("(retry)")).hasSize(1);
   }
 
@@ -1097,15 +1104,18 @@ class SummarizerTest {
         Answers.epic(
             request ->
                 request.purpose().contains("type:com.example.shop.Order$Line")
-                    ? "The class is a Spring bean [F1]. It holds a quantity [F1]. Lines belong to"
-                        + " an order [F1]."
+                    ? "The class is a Spring bean that the shop's context creates [F1]. It holds a"
+                        + " quantity of one product in an order [F1]. Lines belong to an order and"
+                        + " are saved with it [F1]."
                     : citingAll(request)));
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
-    assertThat(line.text()).startsWith("Lines belong to an order [fact:").doesNotContain("It ");
+    assertThat(line.text())
+        .startsWith("Lines belong to an order and are saved with it [fact:")
+        .doesNotContain("It ");
   }
 
   @Test
@@ -1126,13 +1136,17 @@ class SummarizerTest {
 
   @Test
   void aSentenceCitingAStoredFormMarkerIsLeftOut() {
-    firstLineAnswer("Line is a record [F1]. Line is a line [fact:abc].");
+    firstLineAnswer(
+        "Line is a record of one product and its quantity in an order [F1]. Line is a line of an"
+            + " order kept with it [fact:abc].");
 
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
 
     Summary line = result.summaries().get(EntityId.parse("type:com.example.shop.Order$Line"));
-    assertThat(line.text()).startsWith("Line is a record [fact:").doesNotContain("abc");
+    assertThat(line.text())
+        .startsWith("Line is a record of one product and its quantity in an order [fact:")
+        .doesNotContain("abc");
     assertThat(fake.sent()).noneMatch(s -> s.request().purpose().endsWith("(retry)"));
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
@@ -1518,14 +1532,15 @@ class SummarizerTest {
 
   @Test
   void aPurposeTakenFromTheReadmeIsEvidenced() {
-    repoAnswer("Purpose: evidenced\nShop sells books to readers. [F1] It is built on [S1].");
+    repoAnswer(
+        "Purpose: evidenced\nShop sells books to readers who order them online. [F1] It is built on the shop module and its parts [S1].");
 
     Summarizer.Result result = summarizer().summarize(SummaryTree.fromFacts(shopWithReadme()));
 
     Summary repo = result.summaries().get(EntityId.parse("repo:shop"));
     assertThat(repo.purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
     assertThat(repo.confidence()).isEqualTo(Confidence.EVIDENCED);
-    assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
+    assertThat(repo.text()).startsWith("Shop sells books to readers who order them online. [fact:");
     String prompt = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
@@ -1539,7 +1554,8 @@ class SummarizerTest {
 
   @Test
   void aReusedSummaryKeepsItsPurpose() {
-    repoAnswer("Purpose: evidenced\nShop sells books to readers. [F1] It is built on [S1].");
+    repoAnswer(
+        "Purpose: evidenced\nShop sells books to readers who order them online. [F1] It is built on the shop module and its parts [S1].");
     summarizer().summarize(SummaryTree.fromFacts(shopWithReadme()));
     int calls = fake.sent().size();
 
@@ -1554,7 +1570,9 @@ class SummarizerTest {
   @Test
   void anEvidencedPurposeWhoseFirstSentenceCitesNoEvidenceIsInferred() {
     // The module it cites was inferred, and the README claim is cited only later.
-    repoAnswer("Purpose: evidenced\nShop sells books. [S1] Its README says so. [F1]");
+    repoAnswer(
+        "Purpose: evidenced\nShop sells books to readers who order online. [S1] Its README says so"
+            + " in its opening lines. [F1]");
 
     Summary repo =
         summarizer()
@@ -1563,13 +1581,14 @@ class SummarizerTest {
             .get(EntityId.parse("repo:shop"));
 
     assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
-    assertThat(repo.text()).startsWith("Shop sells books. [summary:");
+    assertThat(repo.text()).startsWith("Shop sells books to readers who order online. [summary:");
   }
 
   @Test
   void anEvidencedPurposeWhoseFirstSentenceIsLeftOutIsInferred() {
     // The first sentence cites nothing, so the one now first is not the one the mark is about.
-    repoAnswerAgain("Purpose: evidenced\nShop is the best shop. Shop sells books to readers. [F1]");
+    repoAnswerAgain(
+        "Purpose: evidenced\nShop is the best shop. Shop sells books to readers who order them online. [F1]");
 
     Summary repo =
         summarizer()
@@ -1578,13 +1597,13 @@ class SummarizerTest {
             .get(EntityId.parse("repo:shop"));
 
     assertThat(repo.purpose()).isEqualTo(Summary.Purpose.INFERRED);
-    assertThat(repo.text()).startsWith("Shop sells books to readers. [fact:");
+    assertThat(repo.text()).startsWith("Shop sells books to readers who order them online. [fact:");
   }
 
   @Test
   void aFirstSentenceCitingTheReadmeIsEvidencedWhateverTheModelWrites() {
     // The basis is worked out from what the first sentence cites, never asked (epic, 11.0).
-    repoAnswer("Purpose: inferred\nShop sells books to readers. [F1]");
+    repoAnswer("Purpose: inferred\nShop sells books to readers who order them online. [F1]");
 
     Summary repo =
         summarizer()
@@ -1605,8 +1624,8 @@ class SummarizerTest {
         Answers.epic(
             request ->
                 request.purpose().endsWith("type:p.Order")
-                    ? "Purpose: evidenced\nAn order a customer placed. [E1]"
-                    : "**Purpose: evidenced** Orders customers place. [S1]"));
+                    ? "Purpose: evidenced\nAn order a customer placed for one or more products. [E1]"
+                    : "**Purpose: evidenced** Orders customers place, and the lines each of them holds. [S1]"));
 
     Summarizer.Result result =
         new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE).summarize(List.of(pkg));
@@ -1615,15 +1634,20 @@ class SummarizerTest {
         .isEqualTo(Summary.Purpose.EVIDENCED);
     assertThat(result.summaries().get(pkg.entity()).purpose()).isEqualTo(Summary.Purpose.EVIDENCED);
     assertThat(result.summaries().get(pkg.entity()).text())
-        .isEqualTo("Orders customers place. [summary:type:p.Order]");
+        .isEqualTo(
+            "Orders customers place, and the lines each of them holds. [summary:type:p.Order]");
     assertThat(fake.sent().getLast().request().messages().getFirst().text())
-        .contains("[S1] type Order in package p: An order a customer placed.");
+        .contains(
+            "[S1] type Order in package p: An order a customer placed for one or more products.");
   }
 
   @Test
   void anEvidencedPurposeCitingOnlyCodeIsInferred() throws Exception {
     SummaryNode order = orderWithSource(blob(ExcerptsTest.ORDER));
-    fake.answering(Answers.epic(request -> "Purpose: evidenced\nAn order. [F1]"));
+    fake.answering(
+        Answers.epic(
+            request ->
+                "Purpose: evidenced\nAn order a customer placed for one or more products. [F1]"));
 
     Summary summary =
         new Summarizer(harness(client("model-a", fake)), ORDER_SOURCE)
@@ -1706,7 +1730,9 @@ class SummarizerTest {
       int chunk = Math.min(left, 250);
       answer
           .append(answer.isEmpty() ? "" : " ")
-          .append("Part of it%s. [%s]".formatted("x".repeat(chunk), String.join(", ", cited)));
+          .append(
+              "Part of it%s, from what the part shows. [%s]"
+                  .formatted("x".repeat(chunk), String.join(", ", cited)));
       left -= chunk;
     } while (left > 0 && answer.length() < 900);
     return answer.toString();
@@ -1746,8 +1772,12 @@ class SummarizerTest {
 
     String merge = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(fake.sent().getLast().request().purpose()).endsWith("(merge)");
-    assertThat(merge).contains("Part of it. [").doesNotContain("It is big.");
-    assertThat(summary.text()).startsWith("Part of it. [fact:").doesNotContain("It is big.");
+    assertThat(merge)
+        .contains("Part of it, from what the part shows. [")
+        .doesNotContain("It is big.");
+    assertThat(summary.text())
+        .startsWith("Part of it, from what the part shows. [fact:")
+        .doesNotContain("It is big.");
     // The merged answer left a sentence out, so its confidence is below an inferred summary's.
     assertThat(summary.confidence()).isPositive().isLessThan(Confidence.INFERRED);
   }
@@ -1799,7 +1829,7 @@ class SummarizerTest {
                   refs.add(ref.group(1) != null ? ref.group(1) : ref.group(2));
                 }
               }
-              return "Part of it. [" + String.join(", ", refs) + "]";
+              return "Part of it, from what the part shows. [" + String.join(", ", refs) + "]";
             }));
 
     Summary summary =
@@ -1910,14 +1940,20 @@ class SummarizerTest {
                 while (matcher.find()) {
                   ranges.add(matcher.group(1));
                 }
-                return "All of it. [" + String.join(", ", ranges) + "]";
+                return "All of it, from what every part of the type shows. ["
+                    + String.join(", ", ranges)
+                    + "]";
               }
               List<String> refs = new ArrayList<>();
               Matcher ref = REF.matcher(prompt);
               while (ref.find()) {
                 refs.add(ref.group(1) != null ? ref.group(1) : ref.group(2));
               }
-              return "Part of it. [" + refs.getFirst() + "-" + refs.getLast() + "]";
+              return "Part of it, from what the part shows. ["
+                  + refs.getFirst()
+                  + "-"
+                  + refs.getLast()
+                  + "]";
             }));
 
     Summary summary =
@@ -1930,7 +1966,9 @@ class SummarizerTest {
     assertThat(fake.sent().getLast().request().purpose())
         .isEqualTo("summarize type type:p.Big (merge)");
     assertThat(summary.citedFacts()).containsExactlyInAnyOrderElementsOf(summary.inputFacts());
-    assertThat(summary.text()).startsWith("All of it. [fact:").doesNotContain("-F");
+    assertThat(summary.text())
+        .startsWith("All of it, from what every part of the type shows. [fact:")
+        .doesNotContain("-F");
   }
 
   @Test
@@ -2140,7 +2178,12 @@ class SummarizerTest {
 
   @Test
   void sentencesPastTheCountTheItemAsksForAreLeftOut() {
-    fake.answering(Answers.epic("One [F1]. Two [F1]. Three [F1]. Four [F1]. Five [F1]."));
+    fake.answering(
+        Answers.epic(
+            "One: the first sentence says a thing about it [F1]. Two: the second sentence says"
+                + " a thing about it [F1]. Three: the third sentence says a thing about it [F1]. Four:"
+                + " the fourth sentence says a thing about it [F1]. Five: the fifth sentence says a"
+                + " thing about it [F1]."));
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.Line"),
@@ -2161,10 +2204,13 @@ class SummarizerTest {
   @Test
   void anAnswerWithOmittedFalseKeepsItsSentencesAndBracketedCitesAreRead() {
     fake.answering(
-        "{\"items\": {\"I1\": {\"omitted\": false, \"sentences\": [{\"text\": \"Line holds a"
-            + " quantity.\", \"cites\": [\"[F1]\"]}, {\"text\": \"It is a record.\", \"cites\":"
-            + " [\"F1\"]}, {\"text\": \"Three.\", \"cites\": [\"F1\"]}, {\"text\": \"Four.\","
-            + " \"cites\": [\"F1\"]}, {\"text\": \"Five.\", \"cites\": [\"F1\"]}]}}}");
+        "{\"items\": {\"I1\": {\"omitted\": false, \"sentences\": [{\"text\": \"Line holds the"
+            + " quantity of one product in an order.\", \"cites\": [\"[F1]\"]}, {\"text\": \"It is"
+            + " a record that the order keeps with its lines.\", \"cites\": [\"F1\"]}, {\"text\":"
+            + " \"Three: the third sentence says one more thing about it.\", \"cites\": [\"F1\"]},"
+            + " {\"text\": \"Four: the fourth sentence says one more thing about it.\", \"cites\":"
+            + " [\"F1\"]}, {\"text\": \"Five: the fifth sentence says one more thing about it.\","
+            + " \"cites\": [\"F1\"]}]}}}");
     SummaryNode line =
         new SummaryNode(
             EntityId.parse("type:p.Line"),
@@ -2177,7 +2223,9 @@ class SummarizerTest {
 
     Summary summary = summarizer().summarize(List.of(line)).summaries().get(line.entity());
 
-    assertThat(summary.text()).startsWith("Line holds a quantity. [fact:" + fact + "] It is a");
+    assertThat(summary.text())
+        .startsWith(
+            "Line holds the quantity of one product in an order. [fact:" + fact + "] It is a");
     assertThat(summary.text()).doesNotContain("[[").doesNotContain("Five");
     // The fifth sentence is past the four a type asks for: left out, without lowering confidence.
     assertThat(summary.confidence()).isEqualTo(Confidence.INFERRED);

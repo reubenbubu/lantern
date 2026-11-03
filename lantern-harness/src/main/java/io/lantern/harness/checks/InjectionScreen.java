@@ -39,7 +39,7 @@ public final class InjectionScreen {
               "injection-screen",
               Role.SCREEN,
               Prompts.version(
-                  "1",
+                  "2",
                   "common.system.txt",
                   "injection-screen.task.txt",
                   "injection-screen.schema.json"),
