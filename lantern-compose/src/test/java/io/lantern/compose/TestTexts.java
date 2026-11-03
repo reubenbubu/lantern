@@ -10,6 +10,8 @@ import io.lantern.harness.LlmFacts;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.checks.SupportJudge;
 import io.lantern.summarize.Summary;
+import io.lantern.summarize.describe.DescribeRole;
+import io.lantern.summarize.describe.Wordings;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;

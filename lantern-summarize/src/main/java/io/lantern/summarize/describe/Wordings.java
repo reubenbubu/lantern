@@ -1,4 +1,4 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
 import io.lantern.core.fact.EntityId;
 import java.nio.charset.StandardCharsets;

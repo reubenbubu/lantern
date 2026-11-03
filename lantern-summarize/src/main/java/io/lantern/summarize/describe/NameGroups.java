@@ -1,4 +1,4 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
@@ -8,6 +8,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
+import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Groups;
@@ -191,8 +192,10 @@ public final class NameGroups {
    */
   public Result name(Collection<Fact> facts, long snapshot) {
     Knowledge knowledge = new Knowledge(facts);
-    Assembler assembler =
-        new Assembler(new io.lantern.derive.ArchitectureModel(facts), Set.of(), null, "The system");
+    // Named as the documents name them, from the facts without the roles' texts.
+    ElementNames assembler =
+        new ElementNames(
+            new io.lantern.derive.ArchitectureModel(facts).knowledge(), Describer.SYSTEM_NAME);
     Map<EntityId, Fact> responsibilities = new HashMap<>();
     Map<String, Fact> intents = new HashMap<>();
     for (Fact fact : facts) {
@@ -306,17 +309,14 @@ public final class NameGroups {
         for (Fact line :
             FactLines.sorted(
                 knowledge.relations(component, ComponentInteractions.COMPONENT_LINK))) {
-          if ("code-end".equals(RepoSections.attribute(line, "kind", ""))) {
+          if ("code-end".equals(Elements.attribute(line, "kind", ""))) {
             continue;
           }
           EntityId other = Knowledge.object(line);
           if (unitComponents.contains(other)) {
             lines.add(
                 new Groups.Line(
-                    component,
-                    other,
-                    RepoSections.attribute(line, "kind", "calls"),
-                    List.of(line)));
+                    component, other, Elements.attribute(line, "kind", "calls"), List.of(line)));
           }
         }
       }
@@ -338,7 +338,7 @@ public final class NameGroups {
   /** The item of a group. */
   private static Named item(
       Knowledge knowledge,
-      Assembler assembler,
+      ElementNames assembler,
       Groups.Group group,
       List<Groups.Group> scoped,
       List<Groups.Line> lines,
@@ -453,7 +453,7 @@ public final class NameGroups {
 
   /** The name of a line's other end: a group by its key's last part, else the element's. */
   private static String endName(
-      Knowledge knowledge, Assembler assembler, List<Groups.Group> groups, EntityId end) {
+      Knowledge knowledge, ElementNames assembler, List<Groups.Group> groups, EntityId end) {
     if (groups.stream().anyMatch(g -> g.id().equals(end))) {
       return "the group " + end;
     }
@@ -464,7 +464,7 @@ public final class NameGroups {
    * The name diagrams give an element: a component by its anchor, as the component diagram names
    * it, the gateway's routes by what they are; anything else as the assembler names it.
    */
-  static String name(Knowledge knowledge, Assembler assembler, EntityId element) {
+  static String name(Knowledge knowledge, ElementNames assembler, EntityId element) {
     if (element.type().equals(io.lantern.core.vocabulary.BuiltInTypes.COMPONENT)) {
       for (Fact anchor : knowledge.relations(element, Components.ANCHORED_ON)) {
         EntityId main = Knowledge.object(anchor);

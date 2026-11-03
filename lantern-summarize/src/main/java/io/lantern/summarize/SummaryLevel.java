@@ -20,7 +20,8 @@ public enum SummaryLevel {
   static final int ONE_PART_SENTENCE_COUNT = 3;
 
   /** The entity type of repository summaries, which have no entity in the fact store. */
-  public static final String REPO_ENTITY_TYPE = "repo";
+  public static final String REPO_ENTITY_TYPE =
+      io.lantern.derive.ArchitectureModel.REPO_ENTITY_TYPE;
 
   private final String noun;
   private final int minSentences;

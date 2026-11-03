@@ -10,6 +10,7 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.FlowModel;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
 import java.util.ArrayList;
@@ -232,40 +233,9 @@ final class SequenceFlows {
     return flows.candidates();
   }
 
-  /**
-   * A flow the narrative role is asked about: one shown in this scope.
-   *
-   * @param key the key its wording is found under, from how it is traced
-   * @param candidate what it shows
-   */
-  record Narrated(String key, ScopeFlows.Candidate candidate) {}
-
-  /** The flows this scope shows, for the narrative role, in the order shown. */
-  List<Narrated> narrated() {
-    return chosen().stream()
-        .map(t -> new Narrated(Wordings.flowKey(question(t).user()), flows.candidate(t)))
-        .toList();
-  }
-
-  /**
-   * The prompt asking the LLM to word the flow (ADR 0058): what starts it and its steps by the
-   * facts behind them, without the LLM's intent phrases, so it rests on facts only and does not
-   * change with them.
-   */
-  private WordingPrompt.Question question(ScopeFlows.Trace trace) {
-    ScopeFlows.Entry entry = trace.entry();
-    ScopeFlows.Heading heading = trace.heading();
-    return WordingPrompt.flow(
-        entry.method(),
-        heading.title(),
-        heading.starts() + " (" + ScopeFlows.methodName(entry.method()) + ")",
-        entry.fact(),
-        trace.outline());
-  }
-
   /** The content hash of a stored flow's steps, which its narrative holds for, or null. */
   private String content(EntityId flow) {
-    return FlowJudgements.content(knowledge, flow).orElse(null);
+    return FlowModel.content(knowledge, flow).orElse(null);
   }
 
   private Section flowSection(String section, ScopeFlows.Trace trace) {
@@ -277,7 +247,7 @@ final class SequenceFlows {
     // The LLM's title, walkthrough and conditions, where it worded this flow as traced here (ADR
     // 0058); else the scenario as the entry point's name says it.
     EntityId flow = trace.flow().id();
-    Wordings.Flow worded = assembler.flow(flow, content(flow));
+    Assembler.FlowWording worded = assembler.flow(flow, content(flow));
     String scenario =
         worded == null || worded.title() == null ? ScopeFlows.scenario(entry) : worded.title();
     String title = scenario + " (" + heading.title() + ")";

@@ -2,11 +2,13 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.attributes.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -208,6 +210,15 @@ public final class FlowModel {
     public String key() {
       return unit + " " + method;
     }
+  }
+
+  /** The content hash of the flow's steps, which a judgement or narrative holds for (#615). */
+  public static Optional<String> content(Knowledge knowledge, EntityId flow) {
+    return knowledge.about(flow).stream()
+        .filter(f -> f.predicate().equals(Types.FLOW_SHAPE))
+        .map(f -> f.attributes().path("content").asString(""))
+        .filter(c -> !c.isEmpty())
+        .findFirst();
   }
 
   /** The flows stored in the knowledge, by their entry points' unit and method. */

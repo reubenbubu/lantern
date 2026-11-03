@@ -1,4 +1,4 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
@@ -45,7 +45,7 @@ import tools.jackson.databind.node.ObjectNode;
  * of its code. An element item shows the element's facts, the tables built in it, and how the units
  * use it, with their responsibilities as earlier answers {@code [A..]}.
  */
-final class DescribeRole {
+public final class DescribeRole {
 
   /** The field of an answer that holds the sentence. */
   static final String RESPONSIBILITY_FIELD = "responsibility";
@@ -76,22 +76,22 @@ final class DescribeRole {
   static final String INTERACTIONS = "interactions";
 
   /** Block 2 of a unit request. */
-  static final String UNIT_TASK = prompt("describe-units.task.txt");
+  public static final String UNIT_TASK = prompt("describe-units.task.txt");
 
   /** The answer schema of a unit request. */
-  static final String UNIT_SCHEMA = prompt("describe-units.schema.json");
+  public static final String UNIT_SCHEMA = prompt("describe-units.schema.json");
 
   /** Block 2 of an element request. */
-  static final String ELEMENT_TASK = prompt("describe-elements.task.txt");
+  public static final String ELEMENT_TASK = prompt("describe-elements.task.txt");
 
   /** The answer schema of an element request. */
-  static final String ELEMENT_SCHEMA = prompt("describe-elements.schema.json");
+  public static final String ELEMENT_SCHEMA = prompt("describe-elements.schema.json");
 
   /** What separates a role's instructions from its answer schema in block 2. */
   static final String SCHEMA_HEADING = "\n\nAnswer schema:\n";
 
   /** The role that words units, their components and interactions. */
-  static final RoleSpec UNITS =
+  public static final RoleSpec UNITS =
       RoleSpec.single(
           "describe-unit",
           Role.INFER_INTENT,
@@ -105,7 +105,7 @@ final class DescribeRole {
           1500);
 
   /** The role that words data stores, destinations, external systems and people. */
-  static final RoleSpec ELEMENTS =
+  public static final RoleSpec ELEMENTS =
       RoleSpec.single(
               "describe-element",
               Role.DESCRIBE_ELEMENTS,

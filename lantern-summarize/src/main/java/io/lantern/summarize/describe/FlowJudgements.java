@@ -1,13 +1,13 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
+import io.lantern.derive.FlowModel;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Item;
@@ -53,7 +53,7 @@ import tools.jackson.databind.node.ObjectNode;
  * one item a request, with block 2 the epic's instructions and schema, read from {@code
  * prompts/flow-*}.
  */
-final class FlowJudgements {
+public final class FlowJudgements {
 
   /** The version of the significance prompt. */
   static final String SIGNIFICANCE_VERSION = "5";
@@ -61,16 +61,17 @@ final class FlowJudgements {
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
   static final String NARRATIVE_VERSION = "8";
 
-  static final String SIGNIFICANCE_TASK = DescribeRole.prompt("flow-significance.task.txt");
-  static final String SIGNIFICANCE_SCHEMA = DescribeRole.prompt("flow-significance.schema.json");
-  static final String NARRATIVE_TASK = DescribeRole.prompt("flow-narrative.task.txt");
-  static final String NARRATIVE_SCHEMA = DescribeRole.prompt("flow-narrative.schema.json");
+  public static final String SIGNIFICANCE_TASK = DescribeRole.prompt("flow-significance.task.txt");
+  public static final String SIGNIFICANCE_SCHEMA =
+      DescribeRole.prompt("flow-significance.schema.json");
+  public static final String NARRATIVE_TASK = DescribeRole.prompt("flow-narrative.task.txt");
+  public static final String NARRATIVE_SCHEMA = DescribeRole.prompt("flow-narrative.schema.json");
 
   /** The scope a significance item is about, at most this many candidates, else in two passes. */
   static final int ONE_PASS = 60;
 
   /** The flows a unit's first-pass item keeps for the system's item. */
-  static final int KEPT_PER_UNIT = 15;
+  public static final int KEPT_PER_UNIT = 15;
 
   static final int REASON_WORDS = 20;
   static final int TITLE_WORDS = 6;
@@ -78,12 +79,12 @@ final class FlowJudgements {
   static final int CONDITION_WORDS = 25;
 
   /** The repair turn when no flow is significant while some cross a unit boundary (the epic's). */
-  static final String NONE_SIGNIFICANT =
+  public static final String NONE_SIGNIFICANT =
       "No flow is marked significant, yet some cross a unit boundary. Mark the ones that are, or"
           + " answer the same again to confirm.";
 
   /** The significance role: a judgement on the reasoning tier, with thinking. */
-  static final RoleSpec SIGNIFICANCE =
+  public static final RoleSpec SIGNIFICANCE =
       RoleSpec.single(
           "flow-significance",
           Role.FLOW_SIGNIFICANCE,
@@ -97,7 +98,7 @@ final class FlowJudgements {
           1_500);
 
   /** The narrative role: one flow a request, a long output. */
-  static final RoleSpec NARRATIVE =
+  public static final RoleSpec NARRATIVE =
       RoleSpec.single(
           "flow-narrative",
           Role.COMPOSE,
@@ -169,7 +170,7 @@ final class FlowJudgements {
    * @param containers the containers the item's steps name, which its texts may name without citing
    *     a fact that does (#685)
    */
-  record Asked(
+  public record Asked(
       Item item,
       Refs refs,
       Map<String, ScopeFlows.Candidate> flows,
@@ -255,7 +256,7 @@ final class FlowJudgements {
    * The first pass of a scope with more than {@value #ONE_PASS} candidate flows: one significance
    * item for the flows that start in each unit; none for a smaller scope, which is judged whole.
    */
-  static List<Asked> firstPass(
+  public static List<Asked> firstPass(
       String scope,
       List<ScopeFlows.Candidate> candidates,
       Map<EntityId, DescribeRole.Answered> responsibilities,
@@ -284,7 +285,7 @@ final class FlowJudgements {
    *
    * @param order the IDs of the flows judged significant, in order, or null if not judged
    */
-  static List<ScopeFlows.Candidate> kept(Asked unitItem, List<String> order) {
+  public static List<ScopeFlows.Candidate> kept(Asked unitItem, List<String> order) {
     List<ScopeFlows.Candidate> flows = new ArrayList<>(unitItem.flows().values());
     if (order != null) {
       flows.removeIf(c -> !order.contains(c.flow().toString()));
@@ -298,7 +299,7 @@ final class FlowJudgements {
    * responsibilities and intents already worded for the units and interactions it crosses.
    */
   static Asked narrative(
-      SequenceFlows.Narrated narrated,
+      Narrated narrated,
       Map<EntityId, DescribeRole.Answered> responsibilities,
       Map<String, Wordings.Phrase> phrases,
       java.util.function.Function<String, Fact> factsById,
@@ -724,7 +725,8 @@ final class FlowJudgements {
               new LinkedHashSet<>(cited).forEach(f -> cites.add(f.id()));
               attributes.put("basis", LlmFacts.Basis.INFERRED.jsonName());
               attributes.put("model", model);
-              content(knowledge, candidate.flow()).ifPresent(c -> attributes.put("content", c));
+              FlowModel.content(knowledge, candidate.flow())
+                  .ifPresent(c -> attributes.put("content", c));
               facts.add(
                   fact(
                       candidate.flow(),
@@ -778,7 +780,7 @@ final class FlowJudgements {
     attributes.set("fieldCites", fieldCites);
     attributes.put("basis", LlmFacts.Basis.INFERRED.jsonName());
     attributes.put("model", model);
-    content(knowledge, flow).ifPresent(c -> attributes.put("content", c));
+    FlowModel.content(knowledge, flow).ifPresent(c -> attributes.put("content", c));
     Cited title = texts.get(TITLE);
     Wordings.Flow wording =
         new Wordings.Flow(
@@ -801,13 +803,40 @@ final class FlowJudgements {
     return text.toString();
   }
 
-  /** The content hash of the flow's steps a judgement holds for (epic, section 9; #615). */
-  static Optional<String> content(Knowledge knowledge, EntityId flow) {
-    return knowledge.about(flow).stream()
-        .filter(f -> f.predicate().equals(Types.FLOW_SHAPE))
-        .map(f -> f.attributes().path("content").asString(""))
-        .filter(c -> !c.isEmpty())
-        .findFirst();
+  /**
+   * A flow the narrative role is asked about: one a scope shows.
+   *
+   * @param key the key its wording is found under, from how it is traced
+   * @param candidate what it shows
+   */
+  record Narrated(String key, ScopeFlows.Candidate candidate) {}
+
+  /**
+   * The flows a scope shows, for the narrative role, in the order shown.
+   *
+   * @param judged the flows the model judged significant for the scope, in its order, by ID; null
+   *     when it did not judge them
+   */
+  static List<Narrated> narrated(ScopeFlows flows, List<String> judged) {
+    return flows.chosen(judged).stream()
+        .map(t -> new Narrated(Wordings.flowKey(question(t).user()), flows.candidate(t)))
+        .toList();
+  }
+
+  /**
+   * The prompt asking the LLM to word the flow (ADR 0058): what starts it and its steps by the
+   * facts behind them, without the LLM's intent phrases, so it rests on facts only and does not
+   * change with them.
+   */
+  private static WordingPrompt.Question question(ScopeFlows.Trace trace) {
+    ScopeFlows.Entry entry = trace.entry();
+    ScopeFlows.Heading heading = trace.heading();
+    return WordingPrompt.flow(
+        entry.method(),
+        heading.title(),
+        heading.starts() + " (" + ScopeFlows.methodName(entry.method()) + ")",
+        entry.fact(),
+        trace.outline());
   }
 
   private static Fact fact(

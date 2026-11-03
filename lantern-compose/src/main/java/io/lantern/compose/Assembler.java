@@ -14,7 +14,6 @@ import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
-import io.lantern.summarize.SummaryLevel;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -177,7 +176,7 @@ final class Assembler {
   /** The entity the given one belongs under in the navigation tree, or {@code null}. */
   private EntityId parent(EntityId id) {
     return switch (id.type()) {
-      case SummaryLevel.REPO_ENTITY_TYPE, Types.ARTIFACT -> null;
+      case ArchitectureModel.REPO_ENTITY_TYPE, Types.ARTIFACT -> null;
       case BuiltInTypes.MODULE -> {
         SortedSet<EntityId> aggregators = knowledge.wholes(id, BuiltInTypes.MODULE);
         if (!aggregators.isEmpty()) {
@@ -220,7 +219,7 @@ final class Assembler {
   }
 
   static EntityId repo(String name) {
-    return new EntityId(SummaryLevel.REPO_ENTITY_TYPE, name);
+    return new EntityId(ArchitectureModel.REPO_ENTITY_TYPE, name);
   }
 
   /** Adds the facts to the document and returns their IDs, sorted and without duplicates. */
@@ -243,7 +242,7 @@ final class Assembler {
    */
   Text summary(ArchitectureModel.Summary summary) {
     Text text = rich(summary.unit(), summary.marked());
-    return summary.basis() == io.lantern.harness.LlmFacts.Basis.EVIDENCED ? text : inferred(text);
+    return summary.evidenced() ? text : inferred(text);
   }
 
   /**
@@ -265,18 +264,25 @@ final class Assembler {
    *
    * @param content the content hash of the flow's steps
    */
-  Wordings.Flow flow(EntityId flow, String content) {
+  FlowWording flow(EntityId flow, String content) {
     return model
         .narrative(flow, content)
         .map(
             n ->
-                new Wordings.Flow(
+                new FlowWording(
                     marked(n.walkthrough()),
                     marked(n.preconditions()),
                     marked(n.postconditions()),
                     n.title()))
         .orElse(null);
   }
+
+  /**
+   * A flow's title, walkthrough and conditions as the LLM worded them, each with citation markers
+   * {@code [fact:<fact ID>]}, or {@code null} where it left one out.
+   */
+  record FlowWording(
+      String walkthrough, String preconditions, String postconditions, String title) {}
 
   private static String marked(ArchitectureModel.Text text) {
     return text == null ? null : text.marked();
@@ -851,9 +857,7 @@ final class Assembler {
       return summary(summary);
     }
     return opened(
-        summary.basis() == io.lantern.harness.LlmFacts.Basis.EVIDENCED
-            ? FROM_MODULE
-            : FROM_MODULE_INFERRED,
+        summary.evidenced() ? FROM_MODULE : FROM_MODULE_INFERRED,
         rich(summary.unit(), summary.marked()));
   }
 

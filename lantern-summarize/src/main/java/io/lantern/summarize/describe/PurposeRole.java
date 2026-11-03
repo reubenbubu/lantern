@@ -1,10 +1,11 @@
-package io.lantern.compose;
+package io.lantern.summarize.describe;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
@@ -44,7 +45,7 @@ import tools.jackson.databind.node.ObjectNode;
  * its main flows and its READMEs' claims, answered with the system's purpose and the single fact
  * about how it is built a new reader most needs. Both are stored as claims of the system.
  */
-final class PurposeRole {
+public final class PurposeRole {
 
   /** The field of the answer that holds the purpose. */
   static final String PURPOSE_FIELD = "purpose";
@@ -57,8 +58,8 @@ final class PurposeRole {
 
   static final int KEY_FACT_WORDS = 30;
 
-  static final String TASK = DescribeRole.prompt("purpose.task.txt");
-  static final String SCHEMA = DescribeRole.prompt("purpose.schema.json");
+  public static final String TASK = DescribeRole.prompt("purpose.task.txt");
+  public static final String SCHEMA = DescribeRole.prompt("purpose.schema.json");
 
   static final String KEY_FACT = "keyFact";
 
@@ -165,7 +166,7 @@ final class PurposeRole {
             }
           });
     }
-    Item item = new Item(RepoSections.SYSTEM.toString(), "", inputs, text.toString().strip());
+    Item item = new Item(ArchitectureModel.SYSTEM.toString(), "", inputs, text.toString().strip());
     return Optional.of(new Asked(item, refs));
   }
 
@@ -385,7 +386,7 @@ final class PurposeRole {
           attributes.put("model", model);
           Fact fact =
               Fact.create(
-                  RepoSections.SYSTEM,
+                  ArchitectureModel.SYSTEM,
                   field.equals(PURPOSE_FIELD) ? LlmFacts.PURPOSE : LlmFacts.KEY_FACT,
                   FactObject.string(LlmFacts.C4),
                   attributes,

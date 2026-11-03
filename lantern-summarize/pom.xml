@@ -31,6 +31,11 @@
       <artifactId>lantern-harness</artifactId>
     </dependency>
     <dependency>
+      <!-- The roles that describe the system ask about what the stored model shows (ADR 0116). -->
+      <groupId>io.lantern</groupId>
+      <artifactId>lantern-derive</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>

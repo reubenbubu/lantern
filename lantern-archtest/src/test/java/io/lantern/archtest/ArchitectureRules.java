@@ -57,6 +57,36 @@ final class ArchitectureRules {
           Stage.of("compose", "io.lantern.compose.."),
           new Stage("render", RENDERERS));
 
+  /**
+   * The composer only reads the stored model: it calls no LLM and runs no role, whose texts are
+   * stored before it composes (design principle 10; knowledge-build epic, sections 5 and 12; ADR
+   * 0116).
+   */
+  static final ArchRule COMPOSER_CALLS_NO_LLM =
+      noClasses()
+          .that()
+          .resideInAPackage("io.lantern.compose..")
+          .should()
+          .dependOnClassesThat(llmCode())
+          .because("the composer reads only the stored model, never an LLM, the harness or a role");
+
+  /**
+   * LLM code: the LLM client, the harness, the roles of the LLM-roles stage, and the classes of the
+   * linker that call the LLM or the harness (Investigate and Resolve, which run in the link stage).
+   */
+  static DescribedPredicate<JavaClass> llmCode() {
+    DescribedPredicate<JavaClass> llmOrHarness =
+        resideInAnyPackage("io.lantern.llm..", "io.lantern.harness..");
+    return DescribedPredicate.describe(
+        "are LLM, harness or role code",
+        c ->
+            llmOrHarness.test(c)
+                || c.getPackageName().startsWith("io.lantern.summarize")
+                || (c.getPackageName().startsWith("io.lantern.link")
+                    && c.getDirectDependenciesFromSelf().stream()
+                        .anyMatch(d -> llmOrHarness.test(d.getTargetClass()))));
+  }
+
   /** No stage depends on a later one, so one stage can change without breaking an earlier one. */
   static final ArchRule STAGES_DEPEND_ONLY_ON_EARLIER_STAGES = stageOrder();
 
@@ -273,18 +303,6 @@ final class ArchitectureRules {
   }
 
   /**
-   * Constants of the composer and the renderers whose value only happens to be a type's name: the
-   * fields of an LLM role's answer, which #698 moves out of the composer.
-   */
-  static final Set<String> NOT_TYPE_NAMES =
-      Set.of(
-          "io.lantern.compose.FlowJudgements.TITLE",
-          "io.lantern.compose.WordingPrompt.TITLE",
-          "io.lantern.compose.DescribeRole.RESPONSIBILITY_FIELD",
-          "io.lantern.compose.NameGroups.RESPONSIBILITY_FIELD",
-          "io.lantern.compose.PurposeRole.PURPOSE_FIELD");
-
-  /**
    * The composer and the renderers define no constant holding a vocabulary type's name: they name
    * predicates and entity types through the generated {@code Types}, the typed layer, so a type is
    * named in one place (ADR 0114).
@@ -305,9 +323,6 @@ final class ArchitectureRules {
                 @Override
                 public void check(JavaField field, ConditionEvents events) {
                   String name = field.getOwner().getName() + "." + field.getName();
-                  if (NOT_TYPE_NAMES.contains(name)) {
-                    return;
-                  }
                   Object value = value(field);
                   if (value instanceof String text && TYPE_NAMES.get().contains(text)) {
                     events.add(

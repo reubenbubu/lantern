@@ -1,8 +1,6 @@
 package io.lantern.app;
 
 import io.lantern.compose.Composer;
-import io.lantern.compose.Describer;
-import io.lantern.compose.NameGroups;
 import io.lantern.compose.ViewDefinition;
 import io.lantern.compose.ViewDefinitionStore;
 import io.lantern.core.analysis.AnalysisLock;
@@ -46,6 +44,8 @@ import io.lantern.sandbox.UpstreamBuild;
 import io.lantern.summarize.GitSourceFiles;
 import io.lantern.summarize.Summarizer;
 import io.lantern.summarize.SummaryTree;
+import io.lantern.summarize.describe.Describer;
+import io.lantern.summarize.describe.NameGroups;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
