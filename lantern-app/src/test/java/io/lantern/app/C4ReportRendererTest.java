@@ -242,6 +242,46 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void drawsEachElementAsTheKindTheComposerResolvedWithoutKnowingItsType() {
+    // Types the renderer has never heard of: what they are is the composer's to say (ADR 0114).
+    EntityId unit = EntityId.parse("service:shop");
+    EntityId index = EntityId.parse("search-index:products");
+    EntityId graph = EntityId.parse("graph-database:neo4j");
+    Diagram diagram =
+        new Diagram(
+            "containers.diagram",
+            Diagram.Kind.C4_CONTAINER,
+            null,
+            List.of(node(unit), node(index), node(graph)),
+            List.of(),
+            List.of());
+    Document document =
+        document(
+            List.of(
+                new DocumentEntity(unit, "shop", null, List.of(), List.of(), null, "Service"),
+                new DocumentEntity(
+                    index, "products", null, List.of(), List.of(), null, "Search index"),
+                new DocumentEntity(
+                    graph,
+                    "neo4j",
+                    null,
+                    List.of(),
+                    List.of(),
+                    DocumentEntity.Kind.DATABASE,
+                    null)),
+            section("containers", null, List.of(diagram), List.of()));
+
+    JsonNode elements = C4ReportRenderer.toJson(document).data().get("elements");
+
+    JsonNode drawnIndex = elements.get("search-index-products");
+    assertThat(drawnIndex.get("kind").asString()).isEqualTo("container");
+    assertThat(drawnIndex.get("tag").asString()).isEqualTo("Search index");
+    JsonNode drawnGraph = elements.get("graph-database-neo4j");
+    assertThat(drawnGraph.get("kind").asString()).isEqualTo("database");
+    assertThat(drawnGraph.has("tag")).isFalse();
+  }
+
+  @Test
   void refusesTwoLanternIdsThatBecomeTheSameId() {
     EntityId dotted = EntityId.parse("service:orders.api");
     EntityId dashed = EntityId.parse("service:orders-api");

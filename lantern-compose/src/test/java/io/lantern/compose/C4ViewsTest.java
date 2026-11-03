@@ -24,12 +24,19 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.core.vocabulary.AttributeSchema;
+import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.vocabulary.TypeKind;
+import io.lantern.core.vocabulary.Vocabulary;
+import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.derive.Derivation;
+import io.lantern.derive.Vocabularies;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
@@ -804,6 +811,103 @@ class C4ViewsTest {
             n ->
                 n.startsWith("exchange:rabbitmq:audit ")
                     && n.contains("[RabbitMQ fanout exchange]"));
+  }
+
+  @Test
+  void aNewTypeThatExtendsContainerIsDrawnAsOneWithItsLines() {
+    // A vocabulary with a type Lantern's code has never heard of, a container, and an interaction
+    // with it: the composer reads what they are from the vocabulary alone (ADR 0114).
+    List<VocabularyType> types = new ArrayList<>(Vocabularies.standard().types());
+    types.add(
+        new VocabularyType(
+            "search-index",
+            TypeKind.ENTITY,
+            BuiltInTypes.CONTAINER,
+            null,
+            null,
+            null,
+            "A search index a unit queries.",
+            new AttributeSchema(Map.of(), Set.of(), false)));
+    types.add(
+        new VocabularyType(
+            "QUERIES_INDEX",
+            TypeKind.RELATIONSHIP,
+            BuiltInTypes.INTERACTS_WITH,
+            null,
+            null,
+            null,
+            "The subject unit queries the object search index.",
+            new AttributeSchema(Map.of(), Set.of(), true)));
+    Vocabulary vocabulary = new Vocabulary(2, types);
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+        "shop",
+        "service:com.example:app",
+        "QUERIES_INDEX",
+        "search-index:products",
+        "{\"protocol\": \"HTTPS\"}");
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(more.list(), 1));
+
+    Diagram diagram = block(section(document, "containers"), Diagram.class);
+    assertThat(nodes(diagram)).contains("search-index:products \"products\" in system:snapshot");
+    assertThat(edges(diagram))
+        .contains("service:com.example:app -> search-index:products: Uses [HTTPS]");
+    DocumentEntity index =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("search-index:products"))
+            .findFirst()
+            .orElseThrow();
+    // Drawn as what the container diagram's level makes it, tagged with its type.
+    assertThat(index.kind()).isNull();
+    assertThat(index.tag()).isEqualTo("Search index");
+
+    // The same facts with Lantern's own vocabulary, which has no such type, draw nothing of it.
+    assertThat(nodes(block(section(repo(more.list()), "containers"), Diagram.class)))
+        .noneMatch(n -> n.startsWith("search-index:"));
+  }
+
+  @Test
+  void aTypeThatExtendsADataStoreIsDrawnAsOne() {
+    List<VocabularyType> types = new ArrayList<>(Vocabularies.standard().types());
+    types.add(
+        new VocabularyType(
+            "graph-database",
+            TypeKind.ENTITY,
+            "database",
+            null,
+            null,
+            null,
+            "A graph database.",
+            new AttributeSchema(Map.of(), Set.of(), false)));
+    Vocabulary vocabulary = new Vocabulary(2, types);
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+        "shop",
+        "service:com.example:app",
+        "USES_DATABASE",
+        "graph-database:neo4j:7687/shop",
+        "{\"protocol\": \"Bolt\"}");
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(more.list(), 1));
+
+    assertThat(edges(block(section(document, "containers"), Diagram.class)))
+        .anyMatch(e -> e.startsWith("service:com.example:app -> graph-database:neo4j:7687/shop"));
+    assertThat(
+            document.entities().stream()
+                .filter(e -> e.id().type().equals("graph-database"))
+                .map(DocumentEntity::kind))
+        .containsExactly(DocumentEntity.Kind.DATABASE);
   }
 
   @Test
