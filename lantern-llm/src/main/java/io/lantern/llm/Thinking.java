@@ -46,6 +46,14 @@ public record Thinking(boolean disabled, int headroomTokens, OffSwitch offSwitch
     }
   }
 
+  /**
+   * Whether the model is expected to think before it answers, which estimates count: one given
+   * thinking headroom thinks even when asked not to (#694).
+   */
+  public boolean thinks() {
+    return headroomTokens > 0;
+  }
+
   /** Thinking turned off, if asked, with {@code thinking: {type: "disabled"}}. */
   public Thinking(boolean disabled, int headroomTokens) {
     this(disabled, headroomTokens, OffSwitch.DISABLED);

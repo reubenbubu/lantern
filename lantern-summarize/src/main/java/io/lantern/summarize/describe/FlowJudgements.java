@@ -86,30 +86,32 @@ public final class FlowJudgements {
   /** The significance role: a judgement on the reasoning tier, with thinking. */
   public static final RoleSpec SIGNIFICANCE =
       RoleSpec.single(
-          "flow-significance",
-          Role.FLOW_SIGNIFICANCE,
-          Prompts.version(
-              SIGNIFICANCE_VERSION,
-              "common.system.txt",
-              "flow-significance.task.txt",
-              "flow-significance.schema.json"),
-          "flows-and-purpose",
-          RunMode.INTERACTIVE,
-          1_500);
+              "flow-significance",
+              Role.FLOW_SIGNIFICANCE,
+              Prompts.version(
+                  SIGNIFICANCE_VERSION,
+                  "common.system.txt",
+                  "flow-significance.task.txt",
+                  "flow-significance.schema.json"),
+              "flows-and-purpose",
+              RunMode.INTERACTIVE,
+              1_500)
+          .withThinking(4_300);
 
   /** The narrative role: one flow a request, a long output. */
   public static final RoleSpec NARRATIVE =
       RoleSpec.single(
-          "flow-narrative",
-          Role.COMPOSE,
-          Prompts.version(
-              NARRATIVE_VERSION,
-              "common.system.txt",
-              "flow-narrative.task.txt",
-              "flow-narrative.schema.json"),
-          "flows-and-purpose",
-          RunMode.BULK,
-          750);
+              "flow-narrative",
+              Role.COMPOSE,
+              Prompts.version(
+                  NARRATIVE_VERSION,
+                  "common.system.txt",
+                  "flow-narrative.task.txt",
+                  "flow-narrative.schema.json"),
+              "flows-and-purpose",
+              RunMode.BULK,
+              750)
+          .withThinking(2_300);
 
   static final String TITLE = "title";
   static final String WALKTHROUGH = "walkthrough";

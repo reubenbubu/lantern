@@ -44,7 +44,8 @@ public final class SupportJudge {
               "model-checks",
               RunMode.BULK,
               300)
-          .withPacketSize(10);
+          .withPacketSize(10)
+          .withThinking(650);
 
   static final String TASK = Prompts.text("support-judge.task.txt");
 

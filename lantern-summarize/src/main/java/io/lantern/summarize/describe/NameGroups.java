@@ -113,7 +113,8 @@ public final class NameGroups {
               "name-groups",
               RunMode.INTERACTIVE,
               250)
-          .withPacketSize(PACKET);
+          .withPacketSize(PACKET)
+          .withThinking(600);
 
   static final String NAME = "name";
   static final String LINES = "lines";

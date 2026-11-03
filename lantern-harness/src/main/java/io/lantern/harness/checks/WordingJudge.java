@@ -62,7 +62,8 @@ public final class WordingJudge {
                   "model-checks",
                   RunMode.BULK,
                   120)
-              .withPacketSize(10);
+              .withPacketSize(10)
+              .withThinking(650);
     }
 
     /** Its name in files and in the scorecard: {@code role} or {@code specific}. */

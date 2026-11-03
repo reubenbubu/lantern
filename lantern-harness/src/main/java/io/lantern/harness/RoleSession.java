@@ -263,11 +263,12 @@ public final class RoleSession {
     int toAsk = misses.size() + predictedMisses;
     long write = 0;
     long read = 0;
+    int requests = toAsk;
     if (spec.packetSize() > 1) {
       // A role that groups items into requests renders each item without the prompt's start,
       // which every request sends once: the plan counts requests, not items, packed as they will
       // be sent (a new request at every change of repository).
-      int requests =
+      requests =
           Packer.pack(misses, spec.packetSize(), this::sampleFingerprint).size()
               + (predictedMisses + spec.packetSize() - 1) / spec.packetSize();
       this.requestsPerItem = toAsk == 0 ? 0 : (double) requests / toAsk;
@@ -283,7 +284,10 @@ public final class RoleSession {
       read = prefixTokens * (toAsk - 1L);
       input = Math.max(0, input - prefixTokens * toAsk);
     }
-    long output = (long) toAsk * spec.expectedOutputTokens();
+    TokenUsage expected = expected(input, write, read, toAsk, requests);
+    input = expected.input();
+    read = expected.cacheRead();
+    long output = expected.output();
     BigDecimal usd;
     if (batchIfBulk(toAsk)) {
       // A role that batches pays the batch price, except for its warm-up request's one-hour cache
@@ -760,7 +764,7 @@ public final class RoleSession {
     }
     List<Item> missing = new ArrayList<>();
     try {
-      long expected = (long) spec.expectedOutputTokens() * packet.size();
+      long expected = expectedOutput(packet.size());
       LlmResponse first = send(client, request, expected);
       Map<String, ItemAnswer> accepted = new LinkedHashMap<>();
       Map<String, List<Rejection>> rejected = new LinkedHashMap<>();
@@ -1265,7 +1269,6 @@ public final class RoleSession {
     for (int count : byRepo.values()) {
       requests += (count + packet - 1) / packet;
     }
-    long output = (long) spec.expectedOutputTokens() * entries.size();
     long prefix = prefixTokens;
     long write = 0;
     long read = 0;
@@ -1275,6 +1278,10 @@ public final class RoleSession {
     } else {
       input += prefix * requests;
     }
+    TokenUsage expected = expected(input, write, read, entries.size(), requests);
+    input = expected.input();
+    read = expected.cacheRead();
+    long output = expected.output();
     if (batching()) {
       return model
           .pricing()
@@ -1302,8 +1309,49 @@ public final class RoleSession {
     } else if (packet > 1) {
       input += share;
     }
-    TokenUsage usage = new TokenUsage(input, spec.expectedOutputTokens(), 0, read);
+    TokenUsage usage =
+        expected(input, 0, read, 1, packet > 1 && requestsPerItem > 0 ? requestsPerItem : 1);
     return batching() ? model.pricing().batchCost(usage) : model.pricing().cost(usage);
+  }
+
+  /**
+   * The tokens the role's requests are expected to use, from what their first turns send: the
+   * answers to their items, what a model that thinks thinks before each request, and, for a role
+   * that converses, the turns after the first, each sending the conversation so far again, read
+   * from the prompt cache where the model has one, with what the turn before added (#694).
+   *
+   * @param input the uncached input of the requests' first turns
+   * @param write the tokens their first turns write to the prompt cache
+   * @param read the tokens their first turns read from it
+   * @param items the items they answer
+   * @param requests how many requests, or conversations, ask them
+   */
+  TokenUsage expected(long input, long write, long read, int items, double requests) {
+    double turns = spec.expectedTurns();
+    long output = (long) items * spec.expectedOutputTokens() + thinking(requests * turns);
+    if (turns > 1 && requests > 0) {
+      double first = (input + write + read) / requests;
+      double added = spec.expectedTurnTokens();
+      input += Math.round(requests * (turns - 1) * added);
+      long resent =
+          Math.round(requests * ((turns - 1) * first + added * (turns - 1) * (turns - 2) / 2));
+      if (model.supports(Capability.PROMPT_CACHING)) {
+        read += resent;
+      } else {
+        input += resent;
+      }
+    }
+    return new TokenUsage(input, output, write, read);
+  }
+
+  /** What the model is expected to think in the given number of requests or turns (#694). */
+  private long thinking(double requests) {
+    return model.thinking().thinks() ? Math.round(requests * spec.expectedThinkingTokens()) : 0;
+  }
+
+  /** The output one request of the given items is expected to take, its thinking included. */
+  long expectedOutput(int items) {
+    return (long) items * spec.expectedOutputTokens() + thinking(1);
   }
 
   /**

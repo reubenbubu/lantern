@@ -289,6 +289,43 @@ class RoleSessionTest {
   }
 
   @Test
+  void thePlanCountsTheThinkingOfAModelThatThinks() {
+    // A model given thinking headroom thinks before it answers, which costs output (#694).
+    io.lantern.llm.ModelConfig thinking =
+        TestHarness.priced(fake).withThinking(new io.lantern.llm.Thinking(false, 4_000));
+    Estimate estimate =
+        harness(client(fake, thinking), store)
+            .session(role().withThinking(500))
+            .plan(List.of(item("a"), item("b"), item("c")), 0, 0, 0, 10);
+    assertThat(estimate.outputTokens()).isEqualTo(3 * 100 + 3 * 500);
+
+    // One that does not think is expected to answer alone.
+    Estimate plain =
+        harness(client(fake, TestHarness.priced(fake)), store)
+            .session(role().withThinking(500))
+            .plan(List.of(item("a"), item("b"), item("c")), 0, 0, 0, 10);
+    assertThat(plain.outputTokens()).isEqualTo(3 * 100);
+  }
+
+  @Test
+  void thePlanCountsEveryTurnOfAConversation() {
+    // Each turn after the first sends the conversation so far again, read from the prompt cache,
+    // with what the turn before added (#694).
+    io.lantern.llm.LlmClient priced = client(fake, TestHarness.priced(fake));
+    List<Item> items = List.of(item("a"), item("b"));
+    Estimate once = harness(priced, store).session(role()).plan(items, 0, 0, 0, 10);
+    Estimate turns =
+        harness(priced, store).session(role().withTurns(3, 100)).plan(items, 0, 0, 0, 10);
+
+    long first = (once.inputTokens() + once.cacheWriteTokens() + once.cacheReadTokens()) / 2;
+    // Two conversations of three turns: two later turns each, adding 100 tokens a turn.
+    assertThat(turns.inputTokens()).isEqualTo(once.inputTokens() + 2 * 2 * 100);
+    assertThat(turns.cacheReadTokens()).isEqualTo(once.cacheReadTokens() + 2 * (2 * first + 100));
+    assertThat(turns.outputTokens()).isEqualTo(once.outputTokens());
+    assertThat(turns.usd()).isGreaterThan(once.usd());
+  }
+
+  @Test
   void aRoleThatGroupsItemsIntoRequestsIsPlannedByRequest() {
     io.lantern.llm.LlmClient priced = client(fake, TestHarness.priced(fake));
     RoleSession session = harness(priced, store).session(role().withPacketSize(10));
