@@ -152,7 +152,7 @@ On 3 Nov 2026 the owner decided which models a result that counts comes from:
 - **All testing that counts runs on Claude Haiku 5.5 and Claude Sonnet 5.5**, through OpenRouter:
   Lantern's Anthropic connection with the base URL `https://openrouter.ai/api`, the owner's
   Anthropic key used as BYOK, falling back to OpenRouter's own Anthropic capacity when the key's
-  allowance is empty or rate limited (the route: ADR 0112, amendment for #737, and #754). That
+  allowance is empty or rate limited (the route: ADR 0102, amendment for #754). That
   covers every scorecard, baseline, calibration and test drop. The roles keep their split from
   decision 2: Haiku for the high-volume roles, Sonnet for Investigate, the judge and the reasoning
   roles.
