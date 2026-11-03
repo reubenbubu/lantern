@@ -55,7 +55,7 @@ public final class WordingJudge {
                   "wording-judge-" + key,
                   Role.WORDING_JUDGE,
                   Prompts.version(
-                      "1",
+                      "2",
                       "common.system.txt",
                       "wording-judge-" + key + ".task.txt",
                       "wording-judge.schema.json"),
