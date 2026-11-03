@@ -182,7 +182,8 @@ public final class Investigator {
 
   private static final Logger LOG = LoggerFactory.getLogger(Investigator.class);
 
-  private static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)-(\\d+)$");
+  private static final Pattern RANGE =
+      Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)(?:-(\\d+))?$");
 
   /**
    * What a run of Investigate did.
@@ -989,7 +990,7 @@ public final class Investigator {
           continue;
         }
         int from = Integer.parseInt(range.group(3));
-        int to = Integer.parseInt(range.group(4));
+        int to = Integer.parseInt(range.group(4) == null ? range.group(3) : range.group(4));
         for (Evidence.Location location : finding.evidence().locations()) {
           if (location.repo().equals(range.group(1))
               && location.path().equals(range.group(2))
@@ -1046,7 +1047,7 @@ public final class Investigator {
         String repo = range.group(1);
         String path = range.group(2);
         int from = Integer.parseInt(range.group(3));
-        int to = Integer.parseInt(range.group(4));
+        int to = Integer.parseInt(range.group(4) == null ? range.group(3) : range.group(4));
         String blob = graph.fileRead(repo, path).map(FileRead::blob).orElse(null);
         locations.add(
             new Evidence.Location(

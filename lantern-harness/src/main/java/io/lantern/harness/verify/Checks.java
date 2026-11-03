@@ -38,8 +38,11 @@ public final class Checks {
   /** The longest file range a model may cite. */
   public static final int MAX_RANGE_LINES = 40;
 
-  /** A file range the model wrote: {@code repo:path:from-to}. */
-  static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)-(\\d+)$");
+  /**
+   * A file range the model wrote: {@code repo:path:from-to}, or one line as {@code repo:path:line}
+   * (#703).
+   */
+  static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)(?:-(\\d+))?$");
 
   /** A local reference: a letter and a number, such as {@code F12}. */
   static final Pattern LOCAL = Pattern.compile("^([A-Z])(\\d+)$");
@@ -210,12 +213,9 @@ public final class Checks {
     }
   }
 
-  /** A single line the model wrote as {@code repo:path:line}, not as a range. */
-  static final Pattern ONE_LINE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)$");
-
   /**
    * Why a citation is not a reference, saying how to write it where it looks like a file range
-   * written another way: with the word {@code repo} for the repository (#703), or one line alone.
+   * written with the word {@code repo} for the repository (#703).
    */
   static String notAReference(String cite) {
     String example = "such as orders:src/main/java/Orders.java:3-9";
@@ -225,22 +225,6 @@ public final class Checks {
           + ", which is not a reference: write the repository's name before the first colon, not"
           + " the word repo, "
           + example
-          + ".";
-    }
-    String rest = cite.startsWith("repo:") ? cite.substring(5) : cite;
-    Matcher line = ONE_LINE.matcher(rest);
-    if (line.matches()) {
-      return "Cites "
-          + cite
-          + ", which is not a reference: write a file range as <repository>:<path>:<from>-<to>,"
-          + " one line as "
-          + line.group(1)
-          + ":"
-          + line.group(2)
-          + ":"
-          + line.group(3)
-          + "-"
-          + line.group(3)
           + ".";
     }
     return "Cites " + cite + ", which is not a reference.";
@@ -263,7 +247,7 @@ public final class Checks {
             continue;
           }
           int from = Integer.parseInt(range.group(3));
-          int to = Integer.parseInt(range.group(4));
+          int to = Integer.parseInt(range.group(4) == null ? range.group(3) : range.group(4));
           Optional<List<String>> lines = inputs.files().lines(range.group(1), range.group(2));
           if (lines.isEmpty()) {
             found.add(
@@ -623,7 +607,10 @@ public final class Checks {
       if (range.matches()) {
         List<String> lines = inputs.files().lines(range.group(1), range.group(2)).orElse(List.of());
         int from = Math.max(1, Integer.parseInt(range.group(3)));
-        int to = Math.min(lines.size(), Integer.parseInt(range.group(4)));
+        int to =
+            Math.min(
+                lines.size(),
+                Integer.parseInt(range.group(4) == null ? range.group(3) : range.group(4)));
         cited.add(from > to ? "" : String.join("\n", lines.subList(from - 1, to)));
       } else {
         cited.add(inputs.references().getOrDefault(cite, ""));

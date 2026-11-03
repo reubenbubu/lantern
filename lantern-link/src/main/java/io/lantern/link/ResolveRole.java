@@ -50,7 +50,8 @@ final class ResolveRole implements PacketRole {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
-  private static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)-(\\d+)$");
+  private static final Pattern RANGE =
+      Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)(?:-(\\d+))?$");
 
   private final Map<String, Question> questions;
   private final String systemMap;

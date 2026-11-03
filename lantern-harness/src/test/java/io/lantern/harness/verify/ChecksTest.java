@@ -80,7 +80,7 @@ class ChecksTest {
   }
 
   @Test
-  void aRangeWrittenWithTheWordRepoOrAsOneLineSaysHowToWriteIt() {
+  void aRangeWrittenWithTheWordRepoSaysHowToWriteItAndOneLineIsARange() {
     // As a model wrote them on project-8 (#703).
     Check check = new Checks.References();
     assertThat(
@@ -94,17 +94,15 @@ class ChecksTest {
             "Cites repo:workorder-service:src/main/java/OutboxPoller.java:26-30, which is not a"
                 + " reference: write the repository's name before the first colon, not the word"
                 + " repo, such as orders:src/main/java/Orders.java:3-9.");
+    // One line written alone is a range of that line.
     assertThat(
             reasons(
                 check,
                 text(
                     CheckedText.Kind.PROSE,
                     "Both are reached",
-                    "repo:fleetcare-commons:commons-events/FleetTopics.java:4")))
-        .containsExactly(
-            "Cites repo:fleetcare-commons:commons-events/FleetTopics.java:4, which is not a"
-                + " reference: write a file range as <repository>:<path>:<from>-<to>, one line as"
-                + " fleetcare-commons:commons-events/FleetTopics.java:4-4.");
+                    "fleetcare-commons:commons-events/FleetTopics.java:4")))
+        .isEmpty();
   }
 
   @Test
