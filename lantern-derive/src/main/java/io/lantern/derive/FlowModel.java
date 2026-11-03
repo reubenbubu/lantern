@@ -212,6 +212,11 @@ public final class FlowModel {
     }
   }
 
+  /** The content hash of a flow's steps, as the model reads them. */
+  public static Optional<String> content(ArchitectureModel model, EntityId flow) {
+    return content(model.index(), flow);
+  }
+
   /** The content hash of the flow's steps, which a judgement or narrative holds for (#615). */
   public static Optional<String> content(Knowledge knowledge, EntityId flow) {
     return knowledge.about(flow).stream()

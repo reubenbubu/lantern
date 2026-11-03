@@ -6,10 +6,9 @@ import io.lantern.core.document.Inline;
 import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.fact.Fact;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
-import io.lantern.derive.Knowledge;
-import io.lantern.derive.attributes.Types;
+import io.lantern.derive.InvestigatedRisks;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
@@ -17,7 +16,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import tools.jackson.databind.JsonNode;
 
 /**
  * What Investigate found (ADR 0110), for the documents of a scope: the risks that concern one of
@@ -39,28 +37,21 @@ final class InvestigatedFindings {
   /** The title of the table of risks and findings. */
   static final String TITLE = "Risks and findings";
 
-  private final Knowledge knowledge;
+  private final ArchitectureModel model;
   private final Assembler assembler;
-  private final List<Fact> risks;
+  private final List<InvestigatedRisks.Risk> risks;
 
   /**
    * @param units the deployable units in scope; a risk is shown if it concerns one of them
    */
-  InvestigatedFindings(Knowledge knowledge, Assembler assembler, Set<EntityId> units) {
-    this.knowledge = knowledge;
+  InvestigatedFindings(ArchitectureModel model, Assembler assembler, Set<EntityId> units) {
+    this.model = model;
     this.assembler = assembler;
-    List<Fact> found = new ArrayList<>();
-    for (String predicate : List.of(Types.INVESTIGATED_RISK, Types.FINDING_WORDING)) {
-      for (Fact fact : knowledge.withPredicate(predicate)) {
-        if (units(fact).stream().anyMatch(units::contains)) {
-          found.add(fact);
-        }
-      }
-    }
+    List<InvestigatedRisks.Risk> found = new ArrayList<>(InvestigatedRisks.inScope(model, units));
     found.sort(
-        Comparator.comparing((Fact f) -> severity(f).ordinal())
-            .thenComparing(f -> text(f, "title"))
-            .thenComparing(Fact::id));
+        Comparator.comparing((InvestigatedRisks.Risk r) -> severity(r).ordinal())
+            .thenComparing(InvestigatedRisks.Risk::title)
+            .thenComparing(r -> r.fact().id()));
     this.risks = List.copyOf(found);
   }
 
@@ -72,20 +63,20 @@ final class InvestigatedFindings {
   /** The risks as callouts of the Executive Brief's risks section. */
   List<Callout> callouts(String section) {
     List<Callout> callouts = new ArrayList<>();
-    for (Fact risk : risks) {
+    for (InvestigatedRisks.Risk risk : risks) {
       List<Inline> content = new ArrayList<>();
       content.add(new TextRun(opening(risk), TextRun.Style.EMPHASIS));
-      content.add(TextRun.of(" " + text(risk, "finding") + " Evidence: "));
+      content.add(TextRun.of(" " + risk.finding() + " Evidence: "));
       content.addAll(evidence(risk));
       callouts.add(
           new Callout(
-              assembler.id(section, "investigated", risk.object().value()),
+              assembler.id(section, "investigated", risk.fact().object().value()),
               Callout.Variant.RISK,
               severity(risk),
-              text(risk, "title"),
+              risk.title(),
               content,
-              assembler.facts(facts(risk)),
-              text(risk, "consequence"),
+              assembler.facts(risk.facts()),
+              risk.consequence(),
               confidence(risk)));
     }
     return callouts;
@@ -111,22 +102,22 @@ final class InvestigatedFindings {
               List.of()));
     } else {
       List<Table.Row> rows = new ArrayList<>();
-      for (Fact risk : risks) {
+      for (InvestigatedRisks.Risk risk : risks) {
         List<Inline> finding = new ArrayList<>();
         finding.add(new TextRun(opening(risk), TextRun.Style.EMPHASIS));
         finding.add(TextRun.of(" "));
-        finding.add(new TextRun(text(risk, "title") + ".", TextRun.Style.STRONG));
-        finding.add(TextRun.of(" " + text(risk, "finding")));
+        finding.add(new TextRun(risk.title() + ".", TextRun.Style.STRONG));
+        finding.add(TextRun.of(" " + risk.finding()));
         rows.add(
             new Table.Row(
                 null,
                 List.of(
                     List.of(TextRun.of(capitalized(severity(risk).jsonName()))),
                     finding,
-                    List.of(TextRun.of(text(risk, "consequence"))),
+                    List.of(TextRun.of(risk.consequence())),
                     List.of(TextRun.of(percent(confidence(risk)))),
                     evidence(risk)),
-                assembler.facts(facts(risk))));
+                assembler.facts(risk.facts())));
       }
       blocks.add(
           new Table(
@@ -145,50 +136,24 @@ final class InvestigatedFindings {
   }
 
   /** A risk's opening: found by the LLM, or a fixed check's finding the LLM worded. */
-  private static String opening(Fact fact) {
-    return fact.predicate().equals(Types.FINDING_WORDING) ? WORDED_BY_LLM : FOUND_BY_LLM;
-  }
-
-  /**
-   * The facts a row or callout rests on: a worded finding's also the fixed check's, so it is not
-   * marked as the LLM's alone.
-   */
-  private List<Fact> facts(Fact fact) {
-    List<Fact> facts = new ArrayList<>();
-    facts.add(fact);
-    if (fact.predicate().equals(Types.FINDING_WORDING)) {
-      knowledge.about(fact.subject()).stream()
-          .filter(f -> f.predicate().equals(Types.FINDING_RAISED))
-          .forEach(facts::add);
-    }
-    return facts;
+  private static String opening(InvestigatedRisks.Risk risk) {
+    return risk.wordedByLlm() ? WORDED_BY_LLM : FOUND_BY_LLM;
   }
 
   /** The verified citations, each as code, separated by semicolons. */
-  private static List<Inline> evidence(Fact risk) {
+  private static List<Inline> evidence(InvestigatedRisks.Risk risk) {
     List<Inline> content = new ArrayList<>();
-    for (JsonNode cite : risk.attributes().path("cites")) {
+    for (String cite : risk.cites()) {
       if (!content.isEmpty()) {
         content.add(TextRun.of("; "));
       }
-      content.add(new TextRun(cite.asString(), TextRun.Style.CODE));
+      content.add(new TextRun(cite, TextRun.Style.CODE));
     }
     return content;
   }
 
-  private static List<EntityId> units(Fact fact) {
-    List<EntityId> units = new ArrayList<>();
-    if (fact.predicate().equals(Types.INVESTIGATED_RISK)) {
-      units.add(fact.subject());
-    }
-    for (JsonNode unit : fact.attributes().path("units")) {
-      units.add(EntityId.parse(unit.asString()));
-    }
-    return units;
-  }
-
-  private static Callout.Severity severity(Fact fact) {
-    String impact = text(fact, "impact");
+  private static Callout.Severity severity(InvestigatedRisks.Risk risk) {
+    String impact = risk.impact();
     try {
       return Callout.Severity.fromJsonName(impact.isEmpty() ? "low" : impact);
     } catch (IllegalArgumentException e) {
@@ -196,17 +161,12 @@ final class InvestigatedFindings {
     }
   }
 
-  private static BigDecimal confidence(Fact fact) {
-    return BigDecimal.valueOf(fact.confidence()).setScale(2, RoundingMode.HALF_UP);
+  private static BigDecimal confidence(InvestigatedRisks.Risk risk) {
+    return BigDecimal.valueOf(risk.fact().confidence()).setScale(2, RoundingMode.HALF_UP);
   }
 
   private static String percent(BigDecimal confidence) {
     return confidence.movePointRight(2).setScale(0, RoundingMode.HALF_UP) + "%";
-  }
-
-  private static String text(Fact fact, String attribute) {
-    JsonNode value = fact.attributes().get(attribute);
-    return value == null || !value.isString() ? "" : value.stringValue();
   }
 
   private static String capitalized(String text) {

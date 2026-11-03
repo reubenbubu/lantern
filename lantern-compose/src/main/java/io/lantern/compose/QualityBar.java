@@ -20,7 +20,8 @@ import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
-import io.lantern.derive.Knowledge;
+import io.lantern.derive.ArchitectureModel;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Unknowns;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
@@ -443,7 +444,7 @@ final class QualityBar {
     SortedSet<String> profiles = new TreeSet<>();
     for (String id : lineFacts) {
       Fact fact = facts.get(id);
-      String profile = fact == null ? null : Knowledge.view(fact);
+      String profile = fact == null ? null : ArchitectureModel.view(fact);
       if (profile == null) {
         return Optional.empty();
       }
@@ -670,9 +671,7 @@ final class QualityBar {
     // The roles the code checks, such as the enum constant ADMIN, are identifiers, not acronyms.
     Set<String> roles = new HashSet<>();
     for (Fact fact : document.facts()) {
-      if (fact.predicate().equals(Types.PERSON_EVIDENCE) && fact.object().value().equals("role")) {
-        roles.add(fact.attributes().path("name").asString(""));
-      }
+      Elements.roleEvidence(fact).ifPresent(roles::add);
     }
     Consumer<String> scan = text -> acronyms(text, used);
     scan.accept(document.title());

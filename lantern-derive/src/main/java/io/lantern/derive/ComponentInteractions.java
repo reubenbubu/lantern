@@ -356,6 +356,32 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
     return members;
   }
 
+  /**
+   * A stored line from a component to another component, or a code end of one (#617).
+   *
+   * @param fact the line's fact
+   * @param kind {@link #CODE_END}, {@link #APPLIES}, {@link #ADVISES_KIND} or {@link #CALLS}
+   * @param detail what the line is, as stored, or {@code null}
+   * @param target the line's other end, as stored, or {@code null}
+   * @param facts the links the code end places, by fact ID
+   */
+  public record ComponentLine(
+      Fact fact, String kind, String detail, String target, List<String> facts) {}
+
+  /** The stored lines of a component, in the order the model holds them. */
+  public static List<ComponentLine> lines(ArchitectureModel model, EntityId component) {
+    return model.relations(component, COMPONENT_LINK).stream()
+        .map(
+            f ->
+                new ComponentLine(
+                    f,
+                    Elements.attribute(f, "kind", null),
+                    Elements.attribute(f, "detail", null),
+                    Elements.attribute(f, "target", null),
+                    Elements.strings(f, "facts")))
+        .toList();
+  }
+
   /** A method's name without its parameters. */
   public static String methodName(EntityId method) {
     String key = method.key();

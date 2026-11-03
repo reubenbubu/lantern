@@ -11,13 +11,13 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
 import io.lantern.derive.DeploymentInstances;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Elements.Line;
 import io.lantern.derive.Groups;
-import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
@@ -78,7 +78,7 @@ final class C4Views {
   /** How many details an edge label names before it counts the rest. */
   private static final int NAMED = 2;
 
-  private final Knowledge knowledge;
+  private final ArchitectureModel model;
   private final Assembler assembler;
   private final EntityId system;
   private final SortedSet<EntityId> units;
@@ -109,17 +109,17 @@ final class C4Views {
    * @param repos the repositories in scope, whose decision records are listed
    */
   C4Views(
-      Knowledge knowledge,
+      ArchitectureModel model,
       Assembler assembler,
       EntityId system,
       SortedSet<EntityId> units,
       Set<String> repos) {
-    this.knowledge = knowledge;
+    this.model = model;
     this.assembler = assembler;
     this.system = system;
     this.units = units;
     this.repos = repos;
-    this.elements = new Elements(knowledge, assembler.vocabulary(), assembler.names(), repos);
+    this.elements = new Elements(model, assembler.vocabulary(), assembler.names(), repos);
     this.links = elements.lines();
     this.drawing = links;
     this.alternatives = elements.alternativeLinks();
@@ -141,13 +141,13 @@ final class C4Views {
     for (Map.Entry<Fact, Fact> entry : alternatives.entrySet()) {
       Fact profiled = entry.getKey();
       Fact fallback = entry.getValue();
-      EntityId target = Knowledge.object(profiled);
+      EntityId target = ArchitectureModel.object(profiled);
       if (!of.contains(profiled.subject())
           || (externalOnly && !target.type().equals(Types.EXTERNAL_SYSTEM))) {
         continue;
       }
       String verb =
-          switch (profiled.predicate()) {
+          switch (ArchitectureModel.statement(profiled).predicate()) {
             case Types.CALLS_HTTP -> "calls";
             case Types.SENDS_MAIL -> "sends mail through";
             case Types.USES_IDENTITY_PROVIDER -> "uses as its identity provider";
@@ -161,7 +161,7 @@ final class C4Views {
           TextRun.of(
               (content.isEmpty() ? "" : " ")
                   + "Under the Spring profile "
-                  + Knowledge.view(profiled)
+                  + ArchitectureModel.view(profiled)
                   + ", "
                   + assembler.name(profiled.subject())
                   + " "
@@ -169,7 +169,7 @@ final class C4Views {
                   + " "
                   + assembler.name(target)
                   + " instead of "
-                  + assembler.name(Knowledge.object(fallback))
+                  + assembler.name(ArchitectureModel.object(fallback))
                   + "."));
       facts.add(profiled);
       facts.add(fallback);
@@ -185,10 +185,6 @@ final class C4Views {
             "Under other profiles",
             content,
             assembler.facts(facts)));
-  }
-
-  private static String attribute(Fact fact, String name) {
-    return RepoSections.attribute(fact, name, null);
   }
 
   /** An edge being built from links: its facts, details, technologies and profiles. */
@@ -378,7 +374,7 @@ final class C4Views {
    * them, without technology; then a note that its users are unknown.
    */
   List<Block> context(String section) {
-    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(ArchitectureModel.BY_ID);
     nodes.put(system, node(system, null, null, List.of()));
     Edges edges = new Edges();
     for (Line link : links) {
@@ -393,10 +389,11 @@ final class C4Views {
     }
     SortedMap<EntityId, Fact> people = elements.people();
     for (Map.Entry<EntityId, Fact> person : people.entrySet()) {
-      List<Fact> cited = cited(person.getValue());
+      List<Fact> cited = new ArrayList<>(List.of(person.getValue()));
+      cited.addAll(model.citedFacts(person.getValue()));
       nodes.put(person.getKey(), node(person.getKey(), null, null, cited));
       EdgeBuilder edge = edges.get(person.getKey(), Elements.USES, system);
-      List<String> frontends = Elements.strings(person.getValue(), "frontends");
+      List<String> frontends = Elements.personFrontends(person.getValue());
       edge.add(
           frontends.isEmpty() ? "Uses" : "Uses, through " + String.join(", ", frontends),
           null,
@@ -436,30 +433,6 @@ final class C4Views {
     return blocks;
   }
 
-  /** The facts a derived fact was made from, named by its {@code facts} attribute. */
-  private List<Fact> basis(Fact derived) {
-    List<Fact> facts = new ArrayList<>();
-    for (String id : Elements.strings(derived, "facts")) {
-      Fact fact = knowledge.fact(id);
-      if (fact != null) {
-        facts.add(fact);
-      }
-    }
-    return facts;
-  }
-
-  /** The facts a person rests on, with its own. */
-  private List<Fact> cited(Fact basis) {
-    List<Fact> facts = new ArrayList<>(List.of(basis));
-    for (String id : Elements.strings(basis, "cites")) {
-      Fact fact = knowledge.fact(id);
-      if (fact != null) {
-        facts.add(fact);
-      }
-    }
-    return facts;
-  }
-
   /**
    * How many deployable units the scope has, and how many data stores, queues and external systems
    * they use, each citing the facts it counts.
@@ -469,7 +442,7 @@ final class C4Views {
     units.forEach(u -> unitFacts.addAll(elements.containerFacts(u)));
     Map<String, SortedMap<EntityId, List<Fact>>> used = new TreeMap<>();
     for (String kind : List.of(Types.DATABASE, Types.QUEUE, Types.EXTERNAL_SYSTEM)) {
-      used.put(kind, new TreeMap<>(Knowledge.BY_ID));
+      used.put(kind, new TreeMap<>(ArchitectureModel.BY_ID));
     }
     for (Line link : links) {
       for (EntityId end : List.of(link.from(), link.to())) {
@@ -580,7 +553,7 @@ final class C4Views {
     }
     // Detail folded away before the view is split (docs/design.md, Readable diagrams): topics and
     // queues between one sender and one receiver become "via" labels, as C4 allows.
-    SortedSet<EntityId> folded = new TreeSet<>(Knowledge.BY_ID);
+    SortedSet<EntityId> folded = new TreeSet<>(ArchitectureModel.BY_ID);
     drawing = foldTopics(folded);
     Optional<Callout> foldNote = foldNote(assembler.id(section, "folded"), folded);
     if (!folded.isEmpty()) {
@@ -756,8 +729,8 @@ final class C4Views {
    * @param folded receives the topics and queues folded
    */
   private List<Line> foldTopics(SortedSet<EntityId> folded) {
-    Map<EntityId, List<Line>> sent = new TreeMap<>(Knowledge.BY_ID);
-    Map<EntityId, List<Line>> delivered = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, List<Line>> sent = new TreeMap<>(ArchitectureModel.BY_ID);
+    Map<EntityId, List<Line>> delivered = new TreeMap<>(ArchitectureModel.BY_ID);
     Set<EntityId> kept = new HashSet<>();
     for (Line link : links) {
       if (isTopic(link.to())
@@ -901,65 +874,32 @@ final class C4Views {
    * and data stores the linker found running in it, and its ports. Absent when there are none.
    */
   Optional<Table> deployment(String section) {
-    // The stored instances (#617), one row per descriptor entry each rests on, with what runs in
-    // it.
-    Map<String, SortedSet<EntityId>> running = new TreeMap<>();
-    Map<String, List<Fact>> runningFacts = new TreeMap<>();
-    List<Fact> containers = new ArrayList<>();
-    Set<EntityId> instances = new HashSet<>();
-    for (Fact instance : knowledge.withPredicate(DeploymentInstances.DEPLOYED_AS)) {
-      for (Fact container : basis(instance)) {
-        if (repos.isEmpty() || repos.contains(container.evidence().repo())) {
-          containers.add(container);
-        }
-      }
-      if (!instances.add(instance.subject())) {
-        continue;
-      }
-      for (Fact runs : knowledge.relations(instance.subject(), DeploymentInstances.RUNS)) {
-        for (Fact fact : basis(runs)) {
-          String container = attribute(fact, "fact");
-          if (container != null) {
-            running
-                .computeIfAbsent(container, c -> new TreeSet<>(Knowledge.BY_ID))
-                .add(Knowledge.object(runs));
-            runningFacts.computeIfAbsent(container, c -> new ArrayList<>()).add(fact);
-          }
-        }
-      }
-    }
+    List<DeploymentInstances.Deployed> containers = DeploymentInstances.deployed(model, repos);
     if (containers.isEmpty()) {
       return Optional.empty();
     }
-    containers.sort(
-        Comparator.comparing(C4Views::environment)
-            .thenComparing(f -> f.object().value())
-            .thenComparing(Fact::id));
     List<Table.Row> rows = new ArrayList<>();
-    for (Fact fact : containers) {
-      String image = attribute(fact, "image");
-      String build = attribute(fact, "build");
-      String product = attribute(fact, "product");
-      String version = attribute(fact, "version");
+    for (DeploymentInstances.Deployed deployed : containers) {
       List<String> runs = new ArrayList<>();
-      for (EntityId entity : running.getOrDefault(fact.id(), new TreeSet<>())) {
+      for (EntityId entity : deployed.runs()) {
         runs.add(assembler.name(entity));
       }
-      List<String> ports = Elements.strings(fact, "ports");
-      List<Fact> cited = new ArrayList<>(List.of(fact));
-      cited.addAll(runningFacts.getOrDefault(fact.id(), List.of()));
+      String image = deployed.image();
+      String build = deployed.build();
+      String product = deployed.product();
+      String version = deployed.version();
       rows.add(
           new Table.Row(
               null,
               List.of(
-                  cell(environment(fact)),
-                  cell(fact.object().value()),
+                  cell(deployed.environment()),
+                  cell(deployed.container().object().value()),
                   cell(image != null ? image : build == null ? null : "built from " + build),
                   cell(
                       product == null ? null : version == null ? product : product + " " + version),
                   cell(String.join(", ", runs)),
-                  cell(String.join(", ", ports))),
-              assembler.facts(cited)));
+                  cell(String.join(", ", deployed.ports()))),
+              assembler.facts(deployed.facts())));
     }
     return Optional.of(
         new Table(
@@ -974,21 +914,6 @@ final class C4Views {
                 new Table.Column("Ports")),
             rows,
             List.of()));
-  }
-
-  /** A container's environment as documents name it, such as "Docker Compose (local)". */
-  private static String environment(Fact container) {
-    // As the linker names it on deployed-in facts; the composer does not depend on the extractor.
-    String platform = attribute(container, "platform");
-    String environment = attribute(container, "environment");
-    String name =
-        switch (platform == null ? "" : platform) {
-          case "compose" -> "Docker Compose";
-          case "kubernetes" -> "Kubernetes";
-          case "helm" -> "Helm";
-          default -> platform;
-        };
-    return environment == null ? name : name + " (" + environment + ")";
   }
 
   /**
@@ -1024,7 +949,7 @@ final class C4Views {
       Concern concern,
       boolean everyContainer,
       Map<EntityId, EntityId> lift) {
-    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(ArchitectureModel.BY_ID);
     nodes.put(system, node(system, null, null, List.of()));
     if (everyContainer) {
       shown.forEach(unit -> container(nodes, lift.getOrDefault(unit, unit)));
@@ -1079,10 +1004,10 @@ final class C4Views {
           }
         }
       }
-      List<EntityId> roots = new ArrayList<>(Elements.frontends(knowledge));
+      List<EntityId> roots = new ArrayList<>(Elements.frontends(model));
       roots.addAll(gateways);
       if (roots.isEmpty()) {
-        Elements.units(knowledge).stream().filter(u -> !called.contains(u)).forEach(roots::add);
+        Elements.units(model).stream().filter(u -> !called.contains(u)).forEach(roots::add);
       }
       for (EntityId root : roots) {
         if (depth.putIfAbsent(root, 0) == null) {
@@ -1103,7 +1028,7 @@ final class C4Views {
       entryFirst =
           Comparator.comparing((EntityId e) -> !e.type().equals(Types.FRONTEND))
               .thenComparing(e -> depth.getOrDefault(e, Integer.MAX_VALUE))
-              .thenComparing(Knowledge.BY_ID);
+              .thenComparing(ArchitectureModel.BY_ID);
     }
     return entryFirst;
   }
@@ -1135,9 +1060,9 @@ final class C4Views {
    * many it holds as its technology line, citing the facts that make it and hold its members.
    */
   private Diagram.Node groupNode(EntityId group, EntityId parent) {
-    List<Fact> facts = new ArrayList<>(knowledge.about(group));
-    facts.addAll(knowledge.relations(group, Types.GROUPS));
-    int members = knowledge.relations(group, Types.GROUPS).size();
+    List<Fact> facts = new ArrayList<>(model.about(group));
+    facts.addAll(model.relations(group, Types.GROUPS));
+    int members = model.relations(group, Types.GROUPS).size();
     String what = group.key().contains("/" + Groups.DOMAIN + "/") ? "container" : "component";
     return node(group, members + " " + what + (members == 1 ? "" : "s"), parent, facts);
   }
@@ -1149,7 +1074,7 @@ final class C4Views {
    */
   private Map<EntityId, EntityId> domainOf(Set<EntityId> shown) {
     Map<EntityId, EntityId> result = new HashMap<>();
-    for (Groups.Group domain : Groups.of(knowledge, Groups.DOMAIN)) {
+    for (Groups.Group domain : Groups.of(model, Groups.DOMAIN)) {
       List<EntityId> inScope = domain.members().stream().filter(shown::contains).toList();
       if (inScope.size() >= 2) {
         inScope.forEach(m -> result.putIfAbsent(m, domain.id()));
@@ -1164,8 +1089,8 @@ final class C4Views {
    * then why the system is built as it is is not known (Quality bar, Architecture Explorer).
    */
   Optional<Block> decisions(String section) {
-    SortedSet<EntityId> decisions = new TreeSet<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(Types.TITLE)) {
+    SortedSet<EntityId> decisions = new TreeSet<>(ArchitectureModel.BY_ID);
+    for (Fact fact : model.withPredicate(Types.TITLE)) {
       EntityId subject = fact.subject();
       String key = subject.key();
       if (subject.type().equals(Types.DECISION)
@@ -1198,17 +1123,17 @@ final class C4Views {
     List<Table.Row> rows = new ArrayList<>();
     for (EntityId decision : decisions) {
       assembler.entity(decision);
-      Optional<String> number = knowledge.attribute(decision, Types.DECISION_NUMBER);
+      Optional<String> number = model.attribute(decision, Types.DECISION_NUMBER);
       rows.add(
           new Table.Row(
               decision,
               List.of(
                   cell(number.map(n -> "ADR " + n).orElse(null)),
                   cell(assembler.name(decision)),
-                  cell(knowledge.attribute(decision, Types.DECISION_STATUS).orElse(null)),
-                  cell(knowledge.attribute(decision, Types.DECISION_OUTCOME).orElse(null)),
+                  cell(model.attribute(decision, Types.DECISION_STATUS).orElse(null)),
+                  cell(model.attribute(decision, Types.DECISION_OUTCOME).orElse(null)),
                   cell(rationale(decision))),
-              assembler.facts(knowledge.attributes(decision))));
+              assembler.facts(model.attributes(decision))));
     }
     rows.sort(
         (a, b) -> {
@@ -1234,7 +1159,7 @@ final class C4Views {
 
   /** The first paragraph of a decision record's context section, or that it has none. */
   private String rationale(EntityId decision) {
-    return knowledge
+    return model
         .attribute(decision, Types.DECISION_CONTEXT)
         .map(String::strip)
         .filter(c -> !c.isEmpty())
@@ -1243,7 +1168,7 @@ final class C4Views {
   }
 
   private int number(EntityId decision) {
-    return knowledge
+    return model
         .attribute(decision, Types.DECISION_NUMBER)
         .map(n -> n.matches("[0-9]{1,9}") ? Integer.parseInt(n) : Integer.MAX_VALUE)
         .orElse(Integer.MAX_VALUE);
@@ -1319,7 +1244,7 @@ final class C4Views {
    */
   private Map<EntityId, EntityId> areaOf(EntityId unit, List<Elements.Component> components) {
     Map<EntityId, EntityId> byComponent = new HashMap<>();
-    for (Groups.Group area : Groups.of(knowledge, Groups.FEATURE_AREA)) {
+    for (Groups.Group area : Groups.of(model, Groups.FEATURE_AREA)) {
       if (unit.toString().equals(area.scope())) {
         area.members().forEach(m -> byComponent.putIfAbsent(m, area.id()));
       }
@@ -1393,7 +1318,7 @@ final class C4Views {
       String title,
       Set<EntityId> focus,
       Map<EntityId, EntityId> lift) {
-    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, Diagram.Node> nodes = new TreeMap<>(ArchitectureModel.BY_ID);
     nodes.put(unit, node(unit, elements.technology(unit), null, elements.containerFacts(unit)));
     Map<EntityId, Elements.Component> byMain = new HashMap<>();
     components.forEach(c -> byMain.put(c.main(), c));
@@ -1429,23 +1354,22 @@ final class C4Views {
     Edges edges = new Edges();
     // The stored lines between the unit's components (#617), and where the code end of each of
     // its links to other containers is.
-    Map<EntityId, EntityId> mainOf = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, EntityId> mainOf = new TreeMap<>(ArchitectureModel.BY_ID);
     components.forEach(c -> mainOf.put(Components.id(unit, c.main()), c.main()));
     Map<String, EntityId> codeEnds = new HashMap<>();
     for (Elements.Component component : components) {
-      for (Fact line :
-          knowledge.relations(
-              Components.id(unit, component.main()), ComponentInteractions.COMPONENT_LINK)) {
-        String kind = attribute(line, "kind");
-        String detail = attribute(line, "detail");
+      for (ComponentInteractions.ComponentLine stored :
+          ComponentInteractions.lines(model, Components.id(unit, component.main()))) {
+        Fact line = stored.fact();
+        String kind = stored.kind();
+        String detail = stored.detail();
         if (ComponentInteractions.CODE_END.equals(kind)) {
           // The side the code is on, then each link it places, by the fact it cites.
-          String side = attribute(line, "target").split(" ", 2)[0];
-          Elements.strings(line, "facts")
-              .forEach(link -> codeEnds.put(side + " " + link, component.main()));
+          String side = stored.target().split(" ", 2)[0];
+          stored.facts().forEach(link -> codeEnds.put(side + " " + link, component.main()));
           continue;
         }
-        EntityId to = mainOf.get(Knowledge.object(line));
+        EntityId to = mainOf.get(ArchitectureModel.object(line));
         if (to == null
             || !(focus.contains(component.main()) || focus.contains(to))
             || merged(lift, component.main(), to)) {
@@ -1463,7 +1387,7 @@ final class C4Views {
             };
         String prefix = ComponentInteractions.APPLIES.equals(kind) ? "Applies on routes" : plain;
         EdgeBuilder edge = edges.get(fromEnd, relationship, toEnd);
-        for (Fact cited : basis(line)) {
+        for (Fact cited : model.derivedFrom(line)) {
           edge.add(plain, prefix, detail, null, null);
           edge.facts.add(cited);
           edge.phrased(null);
@@ -1506,7 +1430,7 @@ final class C4Views {
     // Data access, to the databases the unit's datasources point to.
     for (Elements.Component component : components) {
       String access =
-          knowledge
+          model
               .attribute(Components.id(unit, component.main()), ComponentInteractions.DATA_ACCESS)
               .orElse(null);
       if (access == null || !focus.contains(component.main())) {
@@ -1538,7 +1462,7 @@ final class C4Views {
   }
 
   private static SortedSet<EntityId> only(EntityId entity) {
-    SortedSet<EntityId> set = new TreeSet<>(Knowledge.BY_ID);
+    SortedSet<EntityId> set = new TreeSet<>(ArchitectureModel.BY_ID);
     set.add(entity);
     return set;
   }

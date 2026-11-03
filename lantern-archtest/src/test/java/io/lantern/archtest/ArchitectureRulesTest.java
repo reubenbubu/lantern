@@ -8,6 +8,7 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.lantern.app.archfixture.FactReadingRenderer;
 import io.lantern.compose.archfixture.ComposerCallingLlm;
 import io.lantern.compose.archfixture.ComposerCopyingTypeNames;
+import io.lantern.compose.archfixture.ComposerReadingFactFields;
 import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
 import io.lantern.extract.archfixture.ExtractorResolvingPlaceholders;
@@ -92,6 +93,24 @@ class ArchitectureRulesTest {
             "ComposerCopyingTypeNames.CALLS_HTTP holds the type name 'CALLS_HTTP'")
         .hasMessageContaining("ComposerCopyingTypeNames.DATABASE holds the type name 'database'")
         .hasMessageNotContaining("HEADING");
+  }
+
+  @Test
+  void aComposerReadingFactFieldsIsRejected() {
+    JavaClasses classes = new ClassFileImporter().importClasses(ComposerReadingFactFields.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.COMPOSER_READS_THE_MODEL.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("ComposerReadingFactFields.predicateOf(io.lantern.core.fact.Fact)")
+        .hasMessageContaining("ComposerReadingFactFields.attributesOf(io.lantern.core.fact.Fact)");
+  }
+
+  @Test
+  void aComposerReadingOnlyTheModelIsAccepted() {
+    JavaClasses classes = new ClassFileImporter().importClasses(FakeComposer.class);
+
+    assertThatCode(() -> ArchitectureRules.COMPOSER_READS_THE_MODEL.check(classes))
+        .doesNotThrowAnyException();
   }
 
   @Test

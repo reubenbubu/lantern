@@ -87,6 +87,15 @@ public final class ScopeFlows {
    * @param scope the deployable units in scope; flows that start in or pass through one are shown
    * @param names names an element as the document does; a composer also adds it to its document
    */
+  /** As the other constructor, with the names the composer gives elements. */
+  public ScopeFlows(
+      ArchitectureModel model,
+      Elements elements,
+      Set<EntityId> scope,
+      Function<EntityId, String> names) {
+    this(model.index(), elements, scope, names);
+  }
+
   public ScopeFlows(
       Knowledge knowledge,
       Elements elements,
@@ -96,6 +105,11 @@ public final class ScopeFlows {
     this.elements = elements;
     this.scope = Set.copyOf(scope);
     this.names = names;
+  }
+
+  /** The flows of the model's scope, traced from the model's facts (ADR 0115). */
+  public ScopeFlows(ArchitectureModel model, Elements elements, Set<EntityId> scope) {
+    this(model.index(), elements, scope);
   }
 
   /** As the other constructor, naming elements as {@link Elements#names} does. */

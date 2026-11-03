@@ -68,12 +68,22 @@ public final class Unknowns {
     this.repos = Set.copyOf(repos);
     this.summarized = Objects.requireNonNull(summarized, "summarized");
     this.model = Objects.requireNonNull(model, "model");
-    this.knowledge = model.knowledge();
+    this.knowledge = model.index();
     this.elements = Objects.requireNonNull(elements, "elements");
     this.units = new TreeSet<>(Knowledge.BY_ID);
     this.units.addAll(units);
     this.units.addAll(elements.frontends());
     this.system = system;
+  }
+
+  /** Why a link the linker left open was left open, as stored, or {@code null}. */
+  public static String reason(Fact openLink) {
+    return Elements.attribute(openLink, "reason", null);
+  }
+
+  /** The keys a link the linker left open did not resolve, as stored. */
+  public static List<String> unresolvedKeys(Fact openLink) {
+    return Elements.strings(openLink, "unresolved");
   }
 
   /**

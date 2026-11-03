@@ -199,8 +199,7 @@ public final class NameGroups {
     Knowledge knowledge = new Knowledge(facts);
     // Named as the documents name them, from the facts without the roles' texts.
     ElementNames assembler =
-        new ElementNames(
-            new io.lantern.derive.ArchitectureModel(facts).knowledge(), Describer.SYSTEM_NAME);
+        new ElementNames(new io.lantern.derive.ArchitectureModel(facts), Describer.SYSTEM_NAME);
     Map<EntityId, Fact> responsibilities = new HashMap<>();
     Map<String, Fact> intents = new HashMap<>();
     for (Fact fact : facts) {

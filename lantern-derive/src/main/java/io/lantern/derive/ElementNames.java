@@ -16,6 +16,11 @@ public final class ElementNames {
   private final Knowledge knowledge;
   private final String systemName;
 
+  /** The names of the model's entities, as the documents name them. */
+  public ElementNames(ArchitectureModel model, String systemName) {
+    this(model.index(), systemName);
+  }
+
   /**
    * @param systemName the name of the documented system, which its {@code system} entity takes
    */

@@ -142,6 +142,31 @@ final class ArchitectureRules {
           .because("linker code reads typed records through the query layer (ADR 0095)");
 
   /**
+   * The fact attributes and predicate names are read by the model alone: a composer class reads
+   * what the model's typed queries say, never a fact's attributes or predicate, and never the
+   * model's index of facts (knowledge-build epic, section 12; design, Composition reads the model;
+   * #761).
+   */
+  static final ArchRule COMPOSER_READS_THE_MODEL =
+      noClasses()
+          .that()
+          .resideInAPackage("io.lantern.compose..")
+          .should()
+          .dependOnClassesThat()
+          .haveFullyQualifiedName("io.lantern.derive.Knowledge")
+          .orShould()
+          .accessTargetWhere(
+              DescribedPredicate.describe(
+                  "Fact.attributes() or Fact.predicate()",
+                  (com.tngtech.archunit.core.domain.JavaAccess<?> access) ->
+                      access.getTargetOwner().isEquivalentTo(io.lantern.core.fact.Fact.class)
+                          && (access.getName().equals("attributes")
+                              || access.getName().equals("predicate"))))
+          .because(
+              "the composer reads typed ArchitectureModel queries, not raw facts (knowledge-build"
+                  + " epic, section 12; #761)");
+
+  /**
    * The matchers that read where addresses lead from address resolution's claims (#589), by simple
    * name; the data store matchers join with their slice (#596).
    */

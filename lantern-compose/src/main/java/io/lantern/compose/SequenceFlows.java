@@ -10,8 +10,8 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.FlowModel;
-import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,7 +44,7 @@ final class SequenceFlows {
 
   private static final String UNKNOWN = "Not known from the code.";
 
-  private final Knowledge knowledge;
+  private final ArchitectureModel model;
   private final Assembler assembler;
   private final C4Views c4;
   private final ScopeFlows flows;
@@ -64,8 +64,8 @@ final class SequenceFlows {
   /**
    * @param units the deployable units in scope; flows that start in or pass through one are shown
    */
-  SequenceFlows(Knowledge knowledge, Assembler assembler, C4Views c4, Set<EntityId> units) {
-    this(knowledge, assembler, c4, units, null);
+  SequenceFlows(ArchitectureModel model, Assembler assembler, C4Views c4, Set<EntityId> units) {
+    this(model, assembler, c4, units, null);
   }
 
   /**
@@ -74,17 +74,17 @@ final class SequenceFlows {
    *     when it did not judge them, so the highest ranked are shown, marked as chosen by rank
    */
   SequenceFlows(
-      Knowledge knowledge,
+      ArchitectureModel model,
       Assembler assembler,
       C4Views c4,
       Set<EntityId> units,
       List<String> judged) {
-    this.knowledge = knowledge;
+    this.model = model;
     this.assembler = assembler;
     this.c4 = c4;
     this.judged = judged == null ? null : List.copyOf(judged);
     // The names a flow's steps use are added to the document, as the diagrams name them.
-    this.flows = new ScopeFlows(knowledge, c4.elements(), units, this::nameOf);
+    this.flows = new ScopeFlows(model, c4.elements(), units, this::nameOf);
   }
 
   // Drawing the traced flows.
@@ -235,7 +235,7 @@ final class SequenceFlows {
 
   /** The content hash of a stored flow's steps, which its narrative holds for, or null. */
   private String content(EntityId flow) {
-    return FlowModel.content(knowledge, flow).orElse(null);
+    return FlowModel.content(model, flow).orElse(null);
   }
 
   private Section flowSection(String section, ScopeFlows.Trace trace) {
@@ -260,7 +260,7 @@ final class SequenceFlows {
     List<Fact> rowFacts = new ArrayList<>(List.of(entry.fact()));
     for (Assembler.Text text : Arrays.asList(preconditions, postconditions)) {
       if (text != null) {
-        text.facts().forEach(f -> rowFacts.add(knowledge.fact(f)));
+        text.facts().forEach(f -> rowFacts.add(model.fact(f)));
       }
     }
     List<Block> blocks = new ArrayList<>();

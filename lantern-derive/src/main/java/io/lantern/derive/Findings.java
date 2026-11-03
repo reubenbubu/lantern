@@ -13,6 +13,7 @@ import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -430,6 +431,11 @@ public final class Findings implements LinkRule.OverFacts {
     values.forEach(v -> array.add(v.toString()));
   }
 
+  /** The findings of a kind the model holds, by ID. */
+  public static List<Fact> of(ArchitectureModel model, String kind) {
+    return of(model.index(), kind);
+  }
+
   /** The findings of a kind stored in the knowledge, by ID. */
   public static List<Fact> of(Knowledge knowledge, String kind) {
     List<Fact> found = new ArrayList<>();
@@ -439,6 +445,72 @@ public final class Findings implements LinkRule.OverFacts {
       }
     }
     return found;
+  }
+
+  /**
+   * A stored finding about a dependency of the repository: the target and the versions it is used
+   * at.
+   *
+   * @param fact the finding
+   * @param target the dependency
+   * @param versions the versions the repository uses it at, as stored
+   */
+  public record Dependency(Fact fact, EntityId target, List<String> versions) {}
+
+  /**
+   * The findings of a kind about the repository's dependencies, sorted by target, then by fact ID.
+   *
+   * @param kind {@link #SNAPSHOT_DEPENDENCY} or {@link #DEPENDENCY_DRIFT}
+   */
+  public static List<Dependency> dependencies(ArchitectureModel model, String kind, String repo) {
+    return of(model, kind).stream()
+        .filter(f -> repo.equals(attribute(f, "repo")))
+        .map(f -> new Dependency(f, EntityId.parse(attribute(f, "target")), strings(f, "versions")))
+        .sorted(Comparator.comparing(Dependency::target, ArchitectureModel.BY_ID))
+        .toList();
+  }
+
+  /**
+   * A text addressed to an AI model that the injection screen found in a file of the repository
+   * (ADR 0101).
+   *
+   * @param fact the finding
+   * @param lines the lines the text is on
+   * @param quote the text
+   */
+  public record Injection(Fact fact, String lines, String quote) {}
+
+  /** The injection findings of the repository, by the subject they are about. */
+  public static List<Injection> injections(ArchitectureModel model, String repo) {
+    return of(model, INJECTION_SUSPECTED).stream()
+        .filter(f -> repo.equals(attribute(f, "repo")))
+        .sorted(Comparator.comparing(f -> f.subject().toString()))
+        .map(f -> new Injection(f, attribute(f, "lines"), attribute(f, "quote")))
+        .toList();
+  }
+
+  /**
+   * A cycle between packages that a container's packages form (ADR 0039).
+   *
+   * @param fact the finding
+   * @param packages the packages in the cycle, as stored
+   */
+  public record Cycle(Fact fact, List<String> packages) {}
+
+  /** The package cycles found in the container's code, in the order the model holds them. */
+  public static List<Cycle> cycles(ArchitectureModel model, EntityId container) {
+    List<Cycle> cycles = new ArrayList<>();
+    for (Fact finding : of(model, PACKAGE_CYCLE)) {
+      if (container.toString().equals(attribute(finding, "about"))) {
+        cycles.add(new Cycle(finding, strings(finding, "packages")));
+      }
+    }
+    return cycles;
+  }
+
+  /** The facts a finding cites, as the model holds them. */
+  public static List<Fact> cited(ArchitectureModel model, Fact finding) {
+    return cited(model.index(), finding);
   }
 
   /**

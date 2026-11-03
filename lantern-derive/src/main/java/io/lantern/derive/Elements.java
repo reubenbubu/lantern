@@ -57,6 +57,12 @@ public final class Elements {
    * @param names the names of the elements, which a line through a folded queue names
    * @param repos the repositories in scope, whose frontends and people are drawn; empty for all
    */
+  /** The elements of the model, with the names of the document's entities. */
+  public Elements(
+      ArchitectureModel model, Vocabulary vocabulary, ElementNames names, Set<String> repos) {
+    this(model.index(), vocabulary, names, repos);
+  }
+
   public Elements(
       Knowledge knowledge, Vocabulary vocabulary, ElementNames names, Set<String> repos) {
     this.knowledge = Objects.requireNonNull(knowledge, "knowledge");
@@ -182,6 +188,11 @@ public final class Elements {
     return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(Types.FRONTEND);
   }
 
+  /** Every frontend of the model (ADR 0083). */
+  public static SortedSet<EntityId> frontends(ArchitectureModel model) {
+    return frontends(model.index());
+  }
+
   /** Every frontend of the knowledge (ADR 0083). */
   public static SortedSet<EntityId> frontends(Knowledge knowledge) {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
@@ -194,15 +205,103 @@ public final class Elements {
     return frontends;
   }
 
+  /**
+   * A frontend's {@code frontend-app} fact read as the document describes the app (ADR 0083): the
+   * framework it is built with, its version and the server it is served by, as its manifest and
+   * Dockerfile state them.
+   *
+   * @param fact the fact
+   * @param framework the framework, or {@code null} when none is stated
+   * @param version the framework's version, or {@code null}
+   * @param server the server serving the app, or {@code null}
+   */
+  public record FrontendApp(Fact fact, String framework, String version, String server) {}
+
+  /** A frontend's app read as {@link FrontendApp}, if it has one. */
+  public static Optional<FrontendApp> frontendAppOf(ArchitectureModel model, EntityId frontend) {
+    return frontendApp(model, frontend)
+        .map(
+            app ->
+                new FrontendApp(
+                    app,
+                    attribute(app, "framework", "a framework"),
+                    attribute(app, "version", null),
+                    attribute(app, "server", null)));
+  }
+
+  /** The entity a link's {@code source} attribute names, or {@code null} when it names none. */
+  public static EntityId sourceOf(Fact link) {
+    String id = attribute(link, "source", null);
+    if (id == null) {
+      return null;
+    }
+    try {
+      return EntityId.parse(id);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
+  /** Whether a WebSocket endpoint speaks STOMP. */
+  public static boolean isStomp(Fact endpoint) {
+    return "stomp".equals(attribute(endpoint, "protocol", ""));
+  }
+
+  /** The frontends a person uses, as stored on the person's fact. */
+  public static List<String> personFrontends(Fact person) {
+    return strings(person, "frontends");
+  }
+
+  /** Whether a database link names schemas of its own, so the unit stores its data in it. */
+  public static boolean ownsSchemas(Fact usesDatabase) {
+    return !strings(usesDatabase, "schemas").isEmpty();
+  }
+
+  /** Whether a table access reads tables. */
+  public static boolean readsTables(Fact access) {
+    return !strings(access, "reads").isEmpty();
+  }
+
+  /** Whether a table access writes tables. */
+  public static boolean writesTables(Fact access) {
+    return !strings(access, "writes").isEmpty();
+  }
+
+  /** The fact saying what a person rests on (ADR 0074), or {@code null}. */
+  public static Fact personBasis(ArchitectureModel model, EntityId person) {
+    return model.attributes(person, Types.PERSON_BASIS).stream().findFirst().orElse(null);
+  }
+
+  /**
+   * The name of a role the code checks, if the fact is a role's evidence (#229): the name, which
+   * may be blank, else empty.
+   */
+  public static Optional<String> roleEvidence(Fact fact) {
+    if (fact.predicate().equals(Types.PERSON_EVIDENCE) && fact.object().value().equals("role")) {
+      return Optional.of(fact.attributes().path("name").asString(""));
+    }
+    return Optional.empty();
+  }
+
   /** A frontend's {@code frontend-app} fact, if it has one. */
   public Optional<Fact> frontendApp(EntityId frontend) {
     return frontendApp(knowledge, frontend);
+  }
+
+  /** A frontend's {@code frontend-app} fact, if it has one. */
+  public static Optional<Fact> frontendApp(ArchitectureModel model, EntityId frontend) {
+    return frontendApp(model.index(), frontend);
   }
 
   public static Optional<Fact> frontendApp(Knowledge knowledge, EntityId frontend) {
     return knowledge.attributes(frontend).stream()
         .filter(f -> f.predicate().equals(Types.FRONTEND_APP))
         .findFirst();
+  }
+
+  /** Every deployable unit of the model. */
+  public static SortedSet<EntityId> units(ArchitectureModel model) {
+    return units(model.index());
   }
 
   /** Every deployable unit of the knowledge. */
@@ -216,6 +315,10 @@ public final class Elements {
    * The deployable units whose code is in one of the modules: their own module, or a library they
    * bundle.
    */
+  public static SortedSet<EntityId> units(ArchitectureModel model, Set<EntityId> modules) {
+    return units(model.index(), modules);
+  }
+
   public static SortedSet<EntityId> units(Knowledge knowledge, Set<EntityId> modules) {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
     for (EntityId unit : units(knowledge)) {
@@ -227,6 +330,10 @@ public final class Elements {
   }
 
   /** The modules whose code runs in the unit: its own and those of the libraries it bundles. */
+  public static SortedSet<EntityId> codeModules(ArchitectureModel model, EntityId unit) {
+    return codeModules(model.index(), unit);
+  }
+
   public static SortedSet<EntityId> codeModules(Knowledge knowledge, EntityId unit) {
     return Components.codeModules(knowledge, unit);
   }

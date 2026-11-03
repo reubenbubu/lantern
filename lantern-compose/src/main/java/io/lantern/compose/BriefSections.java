@@ -11,10 +11,11 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
-import io.lantern.derive.Findings;
-import io.lantern.derive.Knowledge;
+import io.lantern.derive.TechnologyCurrency;
+import io.lantern.derive.TestEvidence;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -22,8 +23,6 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -34,7 +33,6 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import tools.jackson.databind.JsonNode;
 
 /**
  * The Executive Brief's sections on one repository's blast radius and technology currency, and the
@@ -47,9 +45,6 @@ import tools.jackson.databind.JsonNode;
  */
 final class BriefSections {
 
-  /** How long before its end a line's support counts as ending soon. */
-  private static final int SOON_MONTHS = 6;
-
   /** The factor a Java risk's confidence gets: the Java runtime a unit runs on is not recorded. */
   private static final BigDecimal JAVA_FACTOR = new BigDecimal("0.5");
 
@@ -58,7 +53,7 @@ final class BriefSections {
 
   private static final String SPRING_GROUP = "org.springframework:spring-";
 
-  private final Knowledge knowledge;
+  private final ArchitectureModel model;
   private final Assembler assembler;
   private final String repo;
   private final SortedSet<EntityId> modules;
@@ -66,7 +61,7 @@ final class BriefSections {
   private final Set<Fact> replaced;
   private final LocalDate asOf;
   private final EndOfLife table;
-  private List<Version> versions;
+  private List<TechnologyCurrency.Version> versions;
 
   /**
    * @param repo the repository the brief is about
@@ -77,7 +72,7 @@ final class BriefSections {
    * @param asOf the snapshot's date, against which support is judged
    */
   BriefSections(
-      Knowledge knowledge,
+      ArchitectureModel model,
       Assembler assembler,
       String repo,
       SortedSet<EntityId> modules,
@@ -85,7 +80,7 @@ final class BriefSections {
       Set<Fact> replaced,
       LocalDate asOf,
       EndOfLife table) {
-    this.knowledge = knowledge;
+    this.model = model;
     this.assembler = assembler;
     this.repo = repo;
     this.modules = modules;
@@ -108,7 +103,7 @@ final class BriefSections {
     }
 
     void add(String how, Fact fact) {
-      String profile = Knowledge.view(fact);
+      String profile = ArchitectureModel.view(fact);
       Set<String> profiles = hows.computeIfAbsent(how, h -> new TreeSet<>());
       // An empty string stands for "without a profile", so the connection always holds.
       profiles.add(profile == null ? "" : profile);
@@ -150,52 +145,52 @@ final class BriefSections {
                   + " depends on it at runtime as far as the snapshot shows."));
       return blocks;
     }
-    SortedMap<EntityId, Row> dependents = new TreeMap<>(Knowledge.BY_ID);
-    SortedMap<EntityId, Row> dependencies = new TreeMap<>(Knowledge.BY_ID);
+    SortedMap<EntityId, Row> dependents = new TreeMap<>(ArchitectureModel.BY_ID);
+    SortedMap<EntityId, Row> dependencies = new TreeMap<>(ArchitectureModel.BY_ID);
     for (EntityId unit : units) {
       String name = assembler.name(unit);
       for (Fact fact : links(unit, Types.CALLS_HTTP)) {
-        add(dependencies, Knowledge.object(fact), name + " calls it", fact);
+        add(dependencies, ArchitectureModel.object(fact), name + " calls it", fact);
       }
       for (Fact fact : links(unit, Types.SENDS_MESSAGES_TO)) {
-        add(dependents, Knowledge.object(fact), "receives messages from " + name, fact);
+        add(dependents, ArchitectureModel.object(fact), "receives messages from " + name, fact);
       }
       for (Fact fact : links(unit, Types.ACCESSES_DATA_OF)) {
-        add(dependencies, Knowledge.object(fact), name + " " + tables(fact, "its"), fact);
+        add(dependencies, ArchitectureModel.object(fact), name + " " + tables(fact, "its"), fact);
       }
       for (Fact fact : links(unit, Types.USES_DATABASE)) {
-        boolean owns = !Elements.strings(fact, "schemas").isEmpty();
+        boolean owns = Elements.ownsSchemas(fact);
         add(
             dependencies,
-            Knowledge.object(fact),
+            ArchitectureModel.object(fact),
             name + (owns ? " stores its data in it" : " connects to it"),
             fact);
       }
     }
-    for (EntityId other : Elements.units(knowledge)) {
+    for (EntityId other : Elements.units(model)) {
       if (units.contains(other)) {
         continue;
       }
       for (Fact fact : links(other, Types.CALLS_HTTP)) {
-        if (units.contains(Knowledge.object(fact))) {
-          add(dependents, other, "calls " + assembler.name(Knowledge.object(fact)), fact);
+        if (units.contains(ArchitectureModel.object(fact))) {
+          add(dependents, other, "calls " + assembler.name(ArchitectureModel.object(fact)), fact);
         }
       }
       for (Fact fact : links(other, Types.SENDS_MESSAGES_TO)) {
-        if (units.contains(Knowledge.object(fact))) {
+        if (units.contains(ArchitectureModel.object(fact))) {
           add(
               dependencies,
               other,
-              assembler.name(Knowledge.object(fact)) + " receives its messages",
+              assembler.name(ArchitectureModel.object(fact)) + " receives its messages",
               fact);
         }
       }
       for (Fact fact : links(other, Types.ACCESSES_DATA_OF)) {
-        if (units.contains(Knowledge.object(fact))) {
+        if (units.contains(ArchitectureModel.object(fact))) {
           add(
               dependents,
               other,
-              tables(fact, "the") + " of " + assembler.name(Knowledge.object(fact)),
+              tables(fact, "the") + " of " + assembler.name(ArchitectureModel.object(fact)),
               fact);
         }
       }
@@ -234,9 +229,8 @@ final class BriefSections {
     for (EntityId unit : units) {
       unresolved +=
           (int)
-              knowledge.attributes(unit).stream()
-                  .filter(
-                      f -> f.predicate().equals(Types.UNRESOLVED_LINK) && !knowledge.resolved(f))
+              model.attributes(unit, Types.UNRESOLVED_LINK).stream()
+                  .filter(f -> !model.resolved(f))
                   .count();
     }
     if (unresolved > 0) {
@@ -262,9 +256,9 @@ final class BriefSections {
    * between two units in scope.
    */
   private List<Fact> links(EntityId unit, String relationship) {
-    return knowledge.relations(unit, relationship).stream()
-        .filter(f -> Knowledge.isEntity(f) && !replaced.contains(f))
-        .filter(f -> !(units.contains(unit) && units.contains(Knowledge.object(f))))
+    return model.relations(unit, relationship).stream()
+        .filter(f -> ArchitectureModel.isEntity(f) && !replaced.contains(f))
+        .filter(f -> !(units.contains(unit) && units.contains(ArchitectureModel.object(f))))
         .toList();
   }
 
@@ -274,8 +268,8 @@ final class BriefSections {
 
   /** Whether a table access reads, writes or does both, of the tables named by the article. */
   private static String tables(Fact fact, String article) {
-    boolean reads = !Elements.strings(fact, "reads").isEmpty();
-    boolean writes = !Elements.strings(fact, "writes").isEmpty();
+    boolean reads = Elements.readsTables(fact);
+    boolean writes = Elements.writesTables(fact);
     String verb = reads && !writes ? "reads" : writes && !reads ? "writes" : "reads and writes";
     return verb + " " + article + " tables";
   }
@@ -293,12 +287,12 @@ final class BriefSections {
   private Optional<ListBlock> runsIn(String section) {
     List<ListBlock.Item> items = new ArrayList<>();
     for (EntityId unit : units) {
-      if (knowledge.parts(unit, BuiltInTypes.MODULE).stream().anyMatch(modules::contains)) {
+      if (model.parts(unit, BuiltInTypes.MODULE).stream().anyMatch(modules::contains)) {
         continue;
       }
       List<Fact> facts = new ArrayList<>();
-      for (Fact fact : knowledge.relations(unit, Types.BUNDLES)) {
-        if (knowledge.parts(Knowledge.object(fact), BuiltInTypes.MODULE).stream()
+      for (Fact fact : model.relations(unit, Types.BUNDLES)) {
+        if (model.parts(ArchitectureModel.object(fact), BuiltInTypes.MODULE).stream()
             .anyMatch(modules::contains)) {
           facts.add(fact);
         }
@@ -324,12 +318,12 @@ final class BriefSections {
   /** The repositories a unit is built in: those of its own modules. */
   private SortedSet<String> repos(EntityId unit) {
     SortedSet<String> repos = new TreeSet<>();
-    for (EntityId module : knowledge.parts(unit, BuiltInTypes.MODULE)) {
-      repos.addAll(knowledge.repos(module));
+    for (EntityId module : model.parts(unit, BuiltInTypes.MODULE)) {
+      repos.addAll(model.repos(module));
     }
     if (repos.isEmpty()) {
-      for (EntityId module : Elements.codeModules(knowledge, unit)) {
-        repos.addAll(knowledge.repos(module));
+      for (EntityId module : Elements.codeModules(model, unit)) {
+        repos.addAll(model.repos(module));
       }
     }
     return repos;
@@ -408,10 +402,7 @@ final class BriefSections {
     return switch (entity.type()) {
       case Types.EXTERNAL_SYSTEM -> "External system";
       case Types.DATABASE ->
-          knowledge
-              .attribute(entity, Types.TECHNOLOGY)
-              .map(t -> t + " database")
-              .orElse("Database");
+          model.attribute(entity, Types.TECHNOLOGY).map(t -> t + " database").orElse("Database");
       default -> {
         SortedSet<String> built = repos(entity);
         yield built.isEmpty()
@@ -425,133 +416,12 @@ final class BriefSections {
 
   // Technology currency.
 
-  /** A runtime or framework version in use, by whom, and the facts saying so. */
-  private record Version(
-      EndOfLife.Product product,
-      String version,
-      EndOfLife.Support support,
-      SortedSet<EntityId> usedBy,
-      List<Fact> facts) {}
-
-  /** The versions in use: of the units' technology, else of the modules' Java release. */
-  private List<Version> versions() {
-    if (versions != null) {
-      return versions;
+  /** The versions in use, each with the end of its line's free support (ADR 0039). */
+  private List<TechnologyCurrency.Version> versions() {
+    if (versions == null) {
+      versions = TechnologyCurrency.versions(model, table, units, modules);
     }
-    Map<String, Version> found = new TreeMap<>();
-    for (EntityId unit : units) {
-      for (Fact fact : knowledge.attributes(unit)) {
-        if (!fact.predicate().equals(Types.TECHNOLOGY)) {
-          continue;
-        }
-        if ("Spring Boot".equals(RepoSections.attribute(fact, "framework", null))) {
-          version(
-              found,
-              EndOfLife.Product.SPRING_BOOT,
-              RepoSections.attribute(fact, "frameworkVersion", null),
-              unit,
-              fact);
-        }
-        String java = RepoSections.attribute(fact, "java", null);
-        if (java != null) {
-          version(found, EndOfLife.Product.JAVA, java, unit, fact);
-        }
-      }
-    }
-    SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
-    code.addAll(modules);
-    units.forEach(u -> code.addAll(Elements.codeModules(knowledge, u)));
-    for (EntityId module : code) {
-      for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
-        EntityId target = Knowledge.object(fact);
-        String version = RepoSections.attribute(fact, "version", null);
-        if (target.type().equals(Types.ARTIFACT)
-            && target.key().startsWith(SPRING_GROUP)
-            && version != null
-            && !RepoSections.isTestScope(fact)) {
-          version(found, EndOfLife.Product.SPRING_FRAMEWORK, version, user(module), fact);
-        }
-      }
-    }
-    if (units.isEmpty()) {
-      for (EntityId module : modules) {
-        for (Fact fact : knowledge.attributes(module)) {
-          // A pom module (a parent or aggregator) builds no code.
-          if (fact.predicate().equals(Types.JAVA_RELEASE)
-              && !knowledge.attribute(module, Types.PACKAGING).orElse("jar").equals("pom")) {
-            version(found, EndOfLife.Product.JAVA, fact.object().value(), user(module), fact);
-          }
-        }
-      }
-    }
-    List<Version> result = new ArrayList<>(found.values());
-    result.sort(
-        Comparator.comparing((Version v) -> v.product())
-            .thenComparing(
-                v -> EndOfLife.line(v.product(), v.version()).orElse(null),
-                Comparator.nullsLast(EndOfLife.BY_VERSION))
-            .thenComparing(v -> v.version() == null ? "" : v.version()));
-    versions = List.copyOf(result);
     return versions;
-  }
-
-  /** Who uses a module's version: the service or library building it, else the module. */
-  private EntityId user(EntityId module) {
-    SortedSet<EntityId> containers = knowledge.containers(module);
-    return containers.isEmpty() ? module : containers.first();
-  }
-
-  private void version(
-      Map<String, Version> found,
-      EndOfLife.Product product,
-      String version,
-      EntityId user,
-      Fact fact) {
-    // A Java release reads as its line: 1.8 and 8 are one row, shown as 8.
-    if (product == EndOfLife.Product.JAVA) {
-      version = EndOfLife.line(product, version).orElse(version);
-    }
-    String shown = version;
-    String key = product.ordinal() + " " + (version == null ? "" : version);
-    Version v =
-        found.computeIfAbsent(
-            key,
-            k ->
-                new Version(
-                    product,
-                    shown,
-                    table.support(product, shown),
-                    new TreeSet<>(Knowledge.BY_ID),
-                    new ArrayList<>()));
-    v.usedBy().add(user);
-    v.facts().add(fact);
-  }
-
-  /** Whether a version's support has ended by the snapshot's date. */
-  private boolean ended(Version v) {
-    return switch (v.support()) {
-      case EndOfLife.Support.Until u -> u.end().isBefore(asOf);
-      case EndOfLife.Support.Older o -> true;
-      case EndOfLife.Support.EndedBy b -> b.by().isBefore(asOf);
-      case EndOfLife.Support.Unknown u -> false;
-    };
-  }
-
-  /** Whether the table tells whether a version's support has ended by the snapshot's date. */
-  private boolean known(Version v) {
-    return v.version() != null
-        && switch (v.support()) {
-          case EndOfLife.Support.Unknown u -> false;
-          case EndOfLife.Support.EndedBy b -> ended(v);
-          default -> true;
-        };
-  }
-
-  /** Whether a version's support ends within {@value #SOON_MONTHS} months of the snapshot. */
-  private boolean endsSoon(Version v) {
-    return v.support() instanceof EndOfLife.Support.Until u
-        && !u.end().isBefore(asOf)
-        && !u.end().isAfter(asOf.plusMonths(SOON_MONTHS));
   }
 
   /**
@@ -560,7 +430,7 @@ final class BriefSections {
    */
   List<Block> technologyCurrency(String section) {
     List<Block> blocks = new ArrayList<>();
-    List<Version> all = versions();
+    List<TechnologyCurrency.Version> all = versions();
     if (all.isEmpty()) {
       blocks.add(
           note(
@@ -572,50 +442,13 @@ final class BriefSections {
     }
     List<Fact> facts = new ArrayList<>();
     all.forEach(v -> facts.addAll(v.facts()));
-    List<Version> judged = all.stream().filter(this::known).toList();
-    long ended = judged.stream().filter(this::ended).count();
-    long soon = judged.stream().filter(this::endsSoon).count();
-    int unknown = all.size() - judged.size();
-    StringBuilder text =
-        new StringBuilder("As of the snapshot's date, " + DATE.format(asOf) + ", ");
-    if (judged.isEmpty()) {
-      text.append("Lantern does not know whether ")
-          .append(all.size() == 1 ? "the one version" : "any of the " + all.size() + " versions")
-          .append(" in use is past the end of free support.");
-    } else {
-      String other = unknown > 0 ? " other" : "";
-      if (judged.size() == 1) {
-        text.append("the one").append(other).append(" version in use is ");
-        text.append(ended == 0 ? "not " : "");
-      } else if (ended == 0) {
-        text.append("none of the ").append(judged.size()).append(other);
-        text.append(" versions in use is ");
-      } else {
-        text.append(ended).append(" of the ").append(judged.size()).append(other);
-        text.append(" versions in use ").append(ended == 1 ? "is " : "are ");
-      }
-      text.append("past the end of free support");
-      if (soon > 0) {
-        text.append(
-            judged.size() == 1
-                ? ", but reaches it"
-                : ", and " + soon + (soon == 1 ? " reaches it" : " reach it"));
-        text.append(" within six months");
-      }
-      text.append('.');
-      if (unknown > 0) {
-        text.append(" Lantern does not know the support of ")
-            .append(unknown == 1 ? "1 version" : unknown + " versions")
-            .append('.');
-      }
-    }
     blocks.add(
         new Paragraph(
             assembler.id(section, "summary"),
-            List.of(TextRun.of(text.toString())),
+            List.of(TextRun.of(TechnologyCurrency.summary(all, asOf))),
             assembler.facts(facts)));
     List<Table.Row> rows = new ArrayList<>();
-    for (Version v : all) {
+    for (TechnologyCurrency.Version v : all) {
       List<Inline> users = new ArrayList<>();
       for (EntityId user : v.usedBy()) {
         assembler.entity(user);
@@ -631,7 +464,7 @@ final class BriefSections {
                   List.of(TextRun.of(v.product().title())),
                   List.of(TextRun.of(v.version() == null ? "Not known" : v.version())),
                   users,
-                  List.of(TextRun.of(supportText(v)))),
+                  List.of(TextRun.of(TechnologyCurrency.supportText(v, asOf)))),
               assembler.facts(v.facts())));
     }
     blocks.add(
@@ -650,42 +483,11 @@ final class BriefSections {
             assembler.id(section, "source"),
             "End-of-life dates come from the table bundled with this version of Lantern, checked"
                 + " on "
-                + DATE.format(table.asOf())
+                + TechnologyCurrency.date(table.asOf())
                 + ": Eclipse Temurin's for Java, and the end of open-source support for Spring"
                 + " Boot and Spring Framework. The Java version is the release the code is"
                 + " compiled for; the Java runtime it runs on is not recorded and may be newer."));
     return blocks;
-  }
-
-  private String supportText(Version v) {
-    if (v.version() == null) {
-      return "Version not known";
-    }
-    return switch (v.support()) {
-      case EndOfLife.Support.Until u ->
-          u.end().isBefore(asOf)
-              ? "Ended " + DATE.format(u.end())
-              : endsSoon(v)
-                  ? "Ends " + DATE.format(u.end()) + ", within six months"
-                  : DATE.format(u.end());
-      case EndOfLife.Support.Older o -> "Ended";
-      case EndOfLife.Support.EndedBy b ->
-          ended(v) ? "Ended by " + DATE.format(b.by()) : "Not in Lantern's table";
-      case EndOfLife.Support.Unknown u ->
-          EndOfLife.line(v.product(), v.version()).isEmpty()
-              ? "Version could not be read"
-              : "Not in Lantern's table";
-    };
-  }
-
-  /** When a version's support ended or ends, in the middle of a sentence. */
-  private String riskSupportText(Version v) {
-    return switch (v.support()) {
-      case EndOfLife.Support.Until u ->
-          (u.end().isBefore(asOf) ? "ended " : "ends ") + DATE.format(u.end());
-      case EndOfLife.Support.EndedBy b -> "ended by " + DATE.format(b.by());
-      default -> "ended";
-    };
   }
 
   /**
@@ -695,14 +497,14 @@ final class BriefSections {
    */
   List<Callout> currencyRisks(String section) {
     List<Callout> risks = new ArrayList<>();
-    List<Version> frameworks =
+    List<TechnologyCurrency.Version> frameworks =
         versions().stream().filter(v -> v.product() != EndOfLife.Product.JAVA).toList();
-    List<Version> java =
+    List<TechnologyCurrency.Version> java =
         versions().stream().filter(v -> v.product() == EndOfLife.Product.JAVA).toList();
     currencyRisk(
             section,
             "framework-ended",
-            frameworks.stream().filter(this::ended).toList(),
+            frameworks.stream().filter(v -> TechnologyCurrency.ended(v, asOf)).toList(),
             Callout.Severity.HIGH,
             "Unsupported framework versions",
             " past the end of free support: ",
@@ -713,7 +515,7 @@ final class BriefSections {
     currencyRisk(
             section,
             "framework-ending",
-            frameworks.stream().filter(this::endsSoon).toList(),
+            frameworks.stream().filter(v -> TechnologyCurrency.endsSoon(v, asOf)).toList(),
             Callout.Severity.MEDIUM,
             "Framework support ends soon",
             " whose free support ends within six months: ",
@@ -724,7 +526,7 @@ final class BriefSections {
     currencyRisk(
             section,
             "java-ended",
-            java.stream().filter(this::ended).toList(),
+            java.stream().filter(v -> TechnologyCurrency.ended(v, asOf)).toList(),
             Callout.Severity.MEDIUM,
             "Built for an unsupported Java release",
             " past the end of free support: ",
@@ -735,7 +537,7 @@ final class BriefSections {
     currencyRisk(
             section,
             "java-ending",
-            java.stream().filter(this::endsSoon).toList(),
+            java.stream().filter(v -> TechnologyCurrency.endsSoon(v, asOf)).toList(),
             Callout.Severity.LOW,
             "Java release support ends soon",
             " whose free support ends within six months: ",
@@ -749,7 +551,7 @@ final class BriefSections {
   private Optional<Callout> currencyRisk(
       String section,
       String id,
-      List<Version> found,
+      List<TechnologyCurrency.Version> found,
       Callout.Severity severity,
       String title,
       String lead,
@@ -757,10 +559,10 @@ final class BriefSections {
       BigDecimal factor) {
     // A version is a risk when the end-of-life check stored a finding for it (#619); the risk
     // cites the facts its findings rest on.
-    Set<Fact> raised = raisedEndOfLife();
+    Set<Fact> raised = TechnologyCurrency.raisedEndOfLife(model);
     List<Fact> facts = new ArrayList<>();
     List<String> named = new ArrayList<>();
-    for (Version v : found) {
+    for (TechnologyCurrency.Version v : found) {
       List<Fact> cited = v.facts().stream().filter(raised::contains).toList();
       if (cited.isEmpty()) {
         continue;
@@ -773,7 +575,7 @@ final class BriefSections {
               + " "
               + v.version()
               + " ("
-              + riskSupportText(v)
+              + TechnologyCurrency.riskSupportText(v, asOf)
               + ") in "
               + join(users));
     }
@@ -796,15 +598,6 @@ final class BriefSections {
             assembler.facts(facts),
             consequence,
             confidence(facts, factor)));
-  }
-
-  /** The facts the stored end-of-life findings rest on. */
-  private Set<Fact> raisedEndOfLife() {
-    Set<Fact> facts = new HashSet<>();
-    for (Fact finding : Findings.of(knowledge, Findings.END_OF_LIFE)) {
-      facts.addAll(Findings.cited(knowledge, finding));
-    }
-    return facts;
   }
 
   /** The lowest confidence of the facts times the factor, to two decimal places. */
@@ -911,16 +704,6 @@ final class BriefSections {
           "com.atlassian.maven.plugins:clover-maven-plugin", "Clover",
           "com.atlassian.maven.plugins:maven-clover2-plugin", "Clover");
 
-  /** What JaCoCo's coverage counters measure, as the brief names them. */
-  private static final Map<String, String> COUNTERS =
-      Map.of(
-          "LINE", "lines",
-          "BRANCH", "branches",
-          "INSTRUCTION", "instructions",
-          "METHOD", "methods",
-          "CLASS", "classes",
-          "COMPLEXITY", "the cyclomatic complexity");
-
   /** The test evidence of one service or library: its test classes and coverage tools. */
   private static final class Tested {
     int classes;
@@ -929,6 +712,8 @@ final class BriefSections {
     final SortedSet<String> tools = new TreeSet<>();
     final SortedSet<String> minimums = new TreeSet<>();
     final List<Fact> facts = new ArrayList<>();
+    final List<Fact> testFacts = new ArrayList<>();
+    final List<Fact> coverageFacts = new ArrayList<>();
   }
 
   /**
@@ -941,7 +726,7 @@ final class BriefSections {
     List<Block> blocks = new ArrayList<>();
     List<EntityId> code =
         modules.stream()
-            .filter(m -> !knowledge.attribute(m, Types.PACKAGING).orElse("jar").equals("pom"))
+            .filter(m -> !model.attribute(m, Types.PACKAGING).orElse("jar").equals("pom"))
             .toList();
     if (code.isEmpty()) {
       blocks.add(
@@ -951,46 +736,41 @@ final class BriefSections {
     } else {
       Map<String, UsedLibrary> used = new TreeMap<>();
       // Counted and named by what builds the modules, so a service of several modules is one.
-      SortedSet<EntityId> builders = new TreeSet<>(Knowledge.BY_ID);
-      SortedSet<EntityId> with = new TreeSet<>(Knowledge.BY_ID);
-      Map<EntityId, Tested> tested = new TreeMap<>(Knowledge.BY_ID);
-      Map<EntityId, List<Fact>> testClasses = new LinkedHashMap<>();
-      for (Fact fact : knowledge.withPredicate(Types.TESTS)) {
-        if (Knowledge.isEntity(fact)) {
-          testClasses.computeIfAbsent(Knowledge.object(fact), m -> new ArrayList<>()).add(fact);
-        }
+      SortedSet<EntityId> builders = new TreeSet<>(ArchitectureModel.BY_ID);
+      SortedSet<EntityId> with = new TreeSet<>(ArchitectureModel.BY_ID);
+      Map<EntityId, Tested> tested = new TreeMap<>(ArchitectureModel.BY_ID);
+      Map<EntityId, List<TestEvidence.TestClass>> testClasses = new LinkedHashMap<>();
+      for (TestEvidence.TestClass test : TestEvidence.testClasses(model)) {
+        testClasses.computeIfAbsent(test.module(), m -> new ArrayList<>()).add(test);
       }
       for (EntityId module : code) {
-        EntityId builder = user(module);
+        EntityId builder = model.builderOf(module);
         builders.add(builder);
-        for (Fact fact : testClasses.getOrDefault(module, List.of())) {
+        for (TestEvidence.TestClass test : testClasses.getOrDefault(module, List.of())) {
           Tested t = tested.computeIfAbsent(builder, b -> new Tested());
           t.classes++;
-          JsonNode tests = fact.attributes().get("tests");
-          t.tests += tests == null ? 0 : tests.asInt();
-          JsonNode architecture = fact.attributes().get("architecture");
-          if (architecture != null && architecture.asBoolean()) {
+          t.tests += test.tests();
+          if (test.architecture()) {
             t.architecture++;
           }
-          t.facts.add(fact);
+          t.facts.add(test.fact());
+          t.testFacts.add(test.fact());
         }
-        for (Fact fact : knowledge.attributes(module)) {
-          String tool =
-              fact.predicate().equals(Types.COVERAGE_TOOL)
-                  ? COVERAGE_TOOLS.get(fact.object().value())
-                  : null;
+        for (TestEvidence.Coverage coverage : TestEvidence.coverage(model, module)) {
+          String tool = COVERAGE_TOOLS.get(coverage.plugin());
           if (tool != null) {
             Tested t = tested.computeIfAbsent(builder, b -> new Tested());
             t.tools.add(tool);
-            t.minimums.addAll(minimums(fact));
-            t.facts.add(fact);
+            t.minimums.addAll(coverage.minimums());
+            t.facts.add(coverage.fact());
+            t.coverageFacts.add(coverage.fact());
           }
         }
-        for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
-          EntityId target = Knowledge.object(fact);
-          if (!Knowledge.isEntity(fact)
+        for (Fact fact : model.relations(module, Types.BUILD_DEPENDS_ON)) {
+          EntityId target = ArchitectureModel.object(fact);
+          if (!ArchitectureModel.isEntity(fact)
               || !target.type().equals(Types.ARTIFACT)
-              || !RepoSections.isTestScope(fact)) {
+              || !ArchitectureModel.isTestScope(fact)) {
             continue;
           }
           Optional<TestLibrary> library = testLibrary(target.key());
@@ -1005,7 +785,9 @@ final class BriefSections {
                       + library.get().name().toLowerCase(Locale.ROOT),
                   k ->
                       new UsedLibrary(
-                          library.get(), new TreeSet<>(Knowledge.BY_ID), new ArrayList<>()));
+                          library.get(),
+                          new TreeSet<>(ArchitectureModel.BY_ID),
+                          new ArrayList<>()));
           u.usedBy().add(builder);
           u.facts().add(fact);
         }
@@ -1067,44 +849,6 @@ final class BriefSections {
     return blocks;
   }
 
-  /**
-   * The minimum coverage a coverage tool's check enforces on the whole module, as the brief words
-   * it: {@code 80% of lines}. Only JaCoCo's bundle-wide covered ratios are read.
-   */
-  static List<String> minimums(Fact fact) {
-    List<String> found = new ArrayList<>();
-    JsonNode limits = fact.attributes().get("limits");
-    if (limits == null || !limits.isArray()) {
-      return found;
-    }
-    for (JsonNode limit : limits) {
-      String counter = COUNTERS.get(limit.path("counter").asString(""));
-      String minimum = limit.path("minimum").asString("");
-      if (counter == null
-          || !limit.path("element").asString("").equals("BUNDLE")
-          || !limit.path("value").asString("").equals("COVEREDRATIO")
-          || minimum.isEmpty()) {
-        continue;
-      }
-      try {
-        // JaCoCo also takes a percentage, such as 80%.
-        String written = minimum.strip();
-        BigDecimal ratio =
-            written.endsWith("%")
-                ? new BigDecimal(written.substring(0, written.length() - 1).strip())
-                    .movePointLeft(2)
-                : new BigDecimal(written);
-        if (ratio.signum() > 0 && ratio.compareTo(BigDecimal.ONE) <= 0) {
-          found.add(
-              ratio.movePointRight(2).stripTrailingZeros().toPlainString() + "% of " + counter);
-        }
-      } catch (NumberFormatException e) {
-        // Not a ratio; left out.
-      }
-    }
-    return found;
-  }
-
   private Paragraph testsParagraph(
       String id, SortedSet<EntityId> builders, Map<EntityId, Tested> tested) {
     int classes = tested.values().stream().mapToInt(t -> t.classes).sum();
@@ -1157,13 +901,7 @@ final class BriefSections {
       text.append(" There are no test classes in ").append(names(named));
     }
     List<Fact> facts = new ArrayList<>();
-    tested
-        .values()
-        .forEach(
-            t ->
-                t.facts.stream()
-                    .filter(f -> f.predicate().equals(Types.TESTS))
-                    .forEach(facts::add));
+    tested.values().forEach(t -> t.testFacts.forEach(facts::add));
     return new Paragraph(id, List.of(TextRun.of(text.toString())), assembler.facts(facts));
   }
 
@@ -1188,7 +926,7 @@ final class BriefSections {
       if (!t.minimums.isEmpty()) {
         checks.add(assembler.name(builder) + " (" + join(List.copyOf(t.minimums)) + ")");
       }
-      t.facts.stream().filter(f -> f.predicate().equals(Types.COVERAGE_TOOL)).forEach(facts::add);
+      facts.addAll(t.coverageFacts);
     }
     StringBuilder text = new StringBuilder();
     text.append(join(List.copyOf(tools)))

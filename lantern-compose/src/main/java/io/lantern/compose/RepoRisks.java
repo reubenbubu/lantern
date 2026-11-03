@@ -7,8 +7,8 @@ import io.lantern.core.document.Inline;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Findings;
-import io.lantern.derive.Knowledge;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -37,13 +37,14 @@ final class RepoRisks {
   /** How many items a callout names before it says how many more there are. */
   static final int NAMED = 5;
 
-  private final Knowledge knowledge;
+  private final ArchitectureModel model;
   private final Assembler assembler;
   private final String repo;
   private final SortedSet<EntityId> containers;
 
-  RepoRisks(Knowledge knowledge, Assembler assembler, String repo, SortedSet<EntityId> containers) {
-    this.knowledge = knowledge;
+  RepoRisks(
+      ArchitectureModel model, Assembler assembler, String repo, SortedSet<EntityId> containers) {
+    this.model = model;
     this.assembler = assembler;
     this.repo = repo;
     this.containers = containers;
@@ -90,20 +91,16 @@ final class RepoRisks {
   // Text addressed to an AI, which the injection screen found (ADR 0101).
 
   private void injections(String section, List<Callout> risks) {
-    List<Fact> findings =
-        Findings.of(knowledge, Findings.INJECTION_SUSPECTED).stream()
-            .filter(f -> repo.equals(Findings.attribute(f, "repo")))
-            .sorted(Comparator.comparing(f -> f.subject().toString()))
-            .toList();
-    for (Fact finding : findings) {
+    for (Findings.Injection injection : Findings.injections(model, repo)) {
+      Fact finding = injection.fact();
       List<Inline> content = new ArrayList<>();
       content.add(new TextRun(finding.evidence().path(), TextRun.Style.CODE));
       content.add(
           TextRun.of(
               ", lines "
-                  + Findings.attribute(finding, "lines")
+                  + injection.lines()
                   + ", holds text that reads as addressed to an AI model: \u201c"
-                  + Findings.attribute(finding, "quote")
+                  + injection.quote()
                   + "\u201d"));
       risks.add(
           risk(
@@ -120,24 +117,16 @@ final class RepoRisks {
   // Dependencies on unreleased versions, and the same dependency at different versions.
 
   /** The repository's stored findings of a kind about dependencies, by target. */
-  private List<Fact> dependencyFindings(String kind) {
-    return Findings.of(knowledge, kind).stream()
-        .filter(f -> repo.equals(Findings.attribute(f, "repo")))
-        .sorted(
-            Comparator.comparing(
-                (Fact f) -> EntityId.parse(Findings.attribute(f, "target")), Knowledge.BY_ID))
-        .toList();
+  private List<Findings.Dependency> dependencyFindings(String kind) {
+    return Findings.dependencies(model, kind, repo);
   }
 
   /** The findings' targets, each with its versions, and the facts they cite. */
-  private List<Named> targets(List<Fact> findings, List<Fact> facts) {
+  private List<Named> targets(List<Findings.Dependency> findings, List<Fact> facts) {
     List<Named> named = new ArrayList<>();
-    for (Fact finding : findings) {
-      named.add(
-          new Named(
-              EntityId.parse(Findings.attribute(finding, "target")),
-              " (" + String.join(", ", Findings.strings(finding, "versions")) + ")"));
-      facts.addAll(Findings.cited(knowledge, finding));
+    for (Findings.Dependency finding : findings) {
+      named.add(new Named(finding.target(), " (" + String.join(", ", finding.versions()) + ")"));
+      facts.addAll(Findings.cited(model, finding.fact()));
     }
     return named;
   }
@@ -197,13 +186,11 @@ final class RepoRisks {
   private void cycles(String section, EntityId container, List<Callout> risks) {
     List<SortedSet<EntityId>> cycles = new ArrayList<>();
     List<Fact> facts = new ArrayList<>();
-    for (Fact finding : Findings.of(knowledge, Findings.PACKAGE_CYCLE)) {
-      if (container.toString().equals(Findings.attribute(finding, "about"))) {
-        SortedSet<EntityId> cycle = new TreeSet<>(Knowledge.BY_ID);
-        Findings.strings(finding, "packages").forEach(p -> cycle.add(EntityId.parse(p)));
-        cycles.add(cycle);
-        facts.addAll(Findings.cited(knowledge, finding));
-      }
+    for (Findings.Cycle finding : Findings.cycles(model, container)) {
+      SortedSet<EntityId> cycle = new TreeSet<>(ArchitectureModel.BY_ID);
+      finding.packages().forEach(p -> cycle.add(EntityId.parse(p)));
+      cycles.add(cycle);
+      facts.addAll(Findings.cited(model, finding.fact()));
     }
     if (cycles.isEmpty()) {
       return;

@@ -2,8 +2,10 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
+import io.lantern.derive.attributes.Types;
 import io.lantern.harness.LlmFacts;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -14,6 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import tools.jackson.databind.JsonNode;
 
@@ -138,14 +141,248 @@ public final class ArchitectureModel {
     }
   }
 
-  /** The stored facts, without the roles' texts. */
-  public Knowledge knowledge() {
+  /**
+   * The index of the stored facts, without the roles' texts, for the query classes of this package;
+   * composition reads the model's own queries, never the index.
+   */
+  Knowledge index() {
     return knowledge;
   }
 
   /** The vocabulary, which says what each type is a kind of and how it is drawn. */
   public Vocabulary vocabulary() {
     return vocabulary;
+  }
+
+  /** The order of entities: by their text, which every sorted entity list uses. */
+  public static final Comparator<EntityId> BY_ID = Knowledge.BY_ID;
+
+  /** Whether the fact relates its subject to an entity, not to a value. */
+  public static boolean isEntity(Fact fact) {
+    return Knowledge.isEntity(fact);
+  }
+
+  /** The entity a fact relates its subject to; the fact must be {@link #isEntity}. */
+  public static EntityId object(Fact fact) {
+    return Knowledge.object(fact);
+  }
+
+  /** The view under which alone a fact holds, or {@code null} for the default view. */
+  public static String view(Fact fact) {
+    return Knowledge.view(fact);
+  }
+
+  /** The fact with the ID, or {@code null}. */
+  public Fact fact(String id) {
+    return knowledge.fact(id);
+  }
+
+  /** The facts a derived fact was made from, those that hold in the model, in the order stored. */
+  public List<Fact> derivedFrom(Fact derived) {
+    List<Fact> facts = new ArrayList<>();
+    for (String id : Elements.strings(derived, "facts")) {
+      Fact fact = knowledge.fact(id);
+      if (fact != null) {
+        facts.add(fact);
+      }
+    }
+    return facts;
+  }
+
+  /** The facts a fact cites, those that hold in the model, in the order cited. */
+  public List<Fact> citedFacts(Fact fact) {
+    List<Fact> facts = new ArrayList<>();
+    for (String id : cites(fact)) {
+      Fact cited = knowledge.fact(id);
+      if (cited != null) {
+        facts.add(cited);
+      }
+    }
+    return facts;
+  }
+
+  /** The facts with the entity as subject. */
+  public List<Fact> about(EntityId subject) {
+    return knowledge.about(subject);
+  }
+
+  /** The facts with the entity as subject and a value, not an entity, as object. */
+  public List<Fact> attributes(EntityId subject) {
+    return knowledge.attributes(subject);
+  }
+
+  /**
+   * The facts with the entity as subject and one of the predicates, a value rather than an entity
+   * as object, in the order the model holds them.
+   */
+  public List<Fact> attributes(EntityId subject, Collection<String> predicates) {
+    return knowledge.attributes(subject).stream()
+        .filter(f -> predicates.contains(f.predicate()))
+        .toList();
+  }
+
+  /** The value of the first attribute of the entity with the predicate, by fact ID. */
+  public Optional<String> attribute(EntityId subject, String predicate) {
+    return knowledge.attribute(subject, predicate);
+  }
+
+  /** The facts of the origin kind, by ID. */
+  public List<Fact> withOrigin(Origin.Kind kind) {
+    return knowledge.withOrigin(kind);
+  }
+
+  /** The facts with the predicate. */
+  public List<Fact> withPredicate(String predicate) {
+    return knowledge.withPredicate(predicate);
+  }
+
+  /** The facts relating the subject to an entity by the predicate. */
+  public List<Fact> relations(EntityId subject, String predicate) {
+    return knowledge.relations(subject, predicate);
+  }
+
+  /** What the entity contains, of the given entity type. */
+  public SortedSet<EntityId> parts(EntityId whole, String type) {
+    return knowledge.parts(whole, type);
+  }
+
+  /** What contains the entity, of the given entity type. */
+  public SortedSet<EntityId> wholes(EntityId part, String type) {
+    return knowledge.wholes(part, type);
+  }
+
+  /** Everything that contains the entity. */
+  public SortedSet<EntityId> wholes(EntityId part) {
+    return knowledge.wholes(part);
+  }
+
+  /** The facts saying that the whole contains the part. */
+  public List<Fact> containsFacts(EntityId whole, EntityId part) {
+    return knowledge.containsFacts(whole, part);
+  }
+
+  /** The services and libraries that build the module. */
+  public SortedSet<EntityId> containers(EntityId module) {
+    return knowledge.containers(module);
+  }
+
+  /**
+   * The module of the main library a deployable unit bundles, which describes the unit when it has
+   * no summary of its own (ADR 0066), if it bundles one.
+   */
+  public Optional<EntityId> mainLibraryModule(EntityId unit) {
+    for (Fact fact : knowledge.relations(unit, Types.BUNDLES)) {
+      if (Elements.attribute(fact, "main", "false").equals("true")) {
+        SortedSet<EntityId> modules = knowledge.parts(object(fact), BuiltInTypes.MODULE);
+        if (!modules.isEmpty()) {
+          return Optional.of(modules.first());
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
+  /**
+   * A build dependency of a module (a Maven dependency fact): what it depends on, and how.
+   *
+   * @param fact the dependency fact
+   * @param target the artifact depended on
+   * @param scope its Maven scope, {@code compile} when none is stated
+   * @param optional whether it is declared optional
+   * @param version its version, or {@code null} when none is stated
+   * @param classifier its classifier, or {@code null}
+   * @param type its artifact type, or {@code null} when none is stated
+   */
+  public record BuildDependency(
+      Fact fact,
+      EntityId target,
+      String scope,
+      boolean optional,
+      String version,
+      String classifier,
+      String type) {}
+
+  /**
+   * The build dependencies of a module, sorted by what they depend on, then their version and fact
+   * ID, so the same facts always give the same order.
+   */
+  public List<BuildDependency> buildDependencies(EntityId module) {
+    List<Fact> facts = new ArrayList<>(knowledge.relations(module, Types.BUILD_DEPENDS_ON));
+    facts.sort(
+        Comparator.comparing((Fact f) -> object(f).key())
+            .thenComparing(f -> f.object().value())
+            .thenComparing(Fact::id));
+    return facts.stream()
+        .map(
+            f ->
+                new BuildDependency(
+                    f,
+                    object(f),
+                    Elements.attribute(f, "scope", "compile"),
+                    Elements.attribute(f, "optional", "false").equals("true"),
+                    Elements.attribute(f, "version", null),
+                    Elements.attribute(f, "classifier", null),
+                    Elements.attribute(f, "artifactType", null)))
+        .toList();
+  }
+
+  /** Whether a build dependency is in test scope only, so that the code it runs is not built. */
+  public static boolean isTestScope(Fact fact) {
+    return Elements.attribute(fact, "scope", "compile").equals("test");
+  }
+
+  /** A fact's description attribute, or the empty text when it has none. */
+  public static String description(Fact fact) {
+    return fact.attributes().path("description").asString("");
+  }
+
+  /** The IDs of the facts a fact cites, in order. */
+  public static List<String> cites(Fact fact) {
+    return cites(fact.attributes().get("cites"));
+  }
+
+  /** Whether the fact is a claim a README makes, which the code can be checked against. */
+  public static boolean isClaim(Fact fact) {
+    return fact.predicate().equals(Types.CLAIM);
+  }
+
+  /**
+   * Who builds a module, for what uses it: the service or library building it, else the module
+   * itself.
+   */
+  public EntityId builderOf(EntityId module) {
+    SortedSet<EntityId> containers = knowledge.containers(module);
+    return containers.isEmpty() ? module : containers.first();
+  }
+
+  /** The types directly in a package, module or type, and their member types, recursively. */
+  public SortedSet<EntityId> typesWithin(EntityId whole) {
+    return knowledge.typesWithin(whole);
+  }
+
+  /** The repositories whose modules' facts the model holds, sorted. */
+  public SortedSet<String> repos() {
+    return knowledge.repos();
+  }
+
+  /** The modules whose facts were observed in the repository. */
+  public SortedSet<EntityId> modules(String repo) {
+    return knowledge.modules(repo);
+  }
+
+  /** The repositories the module's facts were observed in. */
+  public SortedSet<String> repos(EntityId module) {
+    return knowledge.repos(module);
+  }
+
+  /** Whether a link the linker left open was resolved by the LLM resolver. */
+  public boolean resolved(Fact unresolved) {
+    return knowledge.resolved(unresolved);
+  }
+
+  /** The link of the LLM resolver that resolved the link left open, or {@code null}. */
+  public Fact resolution(Fact unresolved) {
+    return knowledge.resolution(unresolved);
   }
 
   /**
@@ -358,6 +595,93 @@ public final class ArchitectureModel {
    */
   public record Narrative(
       String title, Text walkthrough, Text preconditions, Text postconditions) {}
+
+  /**
+   * What a stored fact says, read apart from its citation: a relation to an entity or a value, and
+   * the view it holds under, if any.
+   *
+   * @param subject what the fact is about
+   * @param predicate the relation or attribute's name
+   * @param entity the entity it relates the subject to, or {@code null} for a value
+   * @param value the value, or {@code null} for an entity
+   * @param view the view the fact holds under, or {@code null} for the default view
+   */
+  public record Statement(
+      EntityId subject, String predicate, EntityId entity, String value, String view) {}
+
+  /** What the stored fact says (see {@link Statement}). */
+  public static Statement statement(Fact fact) {
+    if (isEntity(fact)) {
+      return new Statement(fact.subject(), fact.predicate(), object(fact), null, view(fact));
+    }
+    return new Statement(fact.subject(), fact.predicate(), null, fact.object().value(), view(fact));
+  }
+
+  /**
+   * The facts with the entity as subject and the predicate, a value rather than an entity as
+   * object, by fact ID.
+   */
+  public List<Fact> attributes(EntityId subject, String predicate) {
+    return knowledge.attributes(subject).stream()
+        .filter(f -> f.predicate().equals(predicate))
+        .toList();
+  }
+
+  /**
+   * A README claim the code contradicts (ADR 0051): the claim, and the facts of the code that
+   * contradict it, once a link the resolver picked is read as that link.
+   *
+   * @param fact the contradiction fact
+   * @param claim the claim it is about, which holds in the snapshot
+   * @param contradictedBy the facts of the code that contradict the claim, in the order stored
+   * @param stated what the claim states, if the contradiction says
+   * @param found what the code shows, if the contradiction says
+   */
+  public record Contradiction(
+      Fact fact, Fact claim, List<Fact> contradictedBy, String stated, List<String> found) {}
+
+  /**
+   * The contradictions of the claims in the repositories, each with both sides in the snapshot
+   * (only those with both are returned), in the order stored.
+   *
+   * @param repos the repositories in scope
+   */
+  public List<Contradiction> contradictions(Set<String> repos) {
+    List<Contradiction> result = new ArrayList<>();
+    for (Fact fact : knowledge.withPredicate(Types.CLAIM_CONTRADICTION)) {
+      if (isEntity(fact) || !repos.contains(fact.evidence().repo())) {
+        continue;
+      }
+      Fact claim = knowledge.fact(Elements.attribute(fact, "claim", ""));
+      List<Fact> by = new ArrayList<>();
+      JsonNode entries = fact.attributes().get("contradictedBy");
+      if (entries != null && entries.isArray()) {
+        for (JsonNode entry : entries) {
+          JsonNode id = entry.get("fact");
+          Fact found = id == null ? null : knowledge.fact(id.asString());
+          if (found != null && found.predicate().equals(Types.UNRESOLVED_LINK)) {
+            // A call the resolver linked is shown as the link it picked.
+            Fact resolution = knowledge.resolution(found);
+            found = resolution == null ? found : resolution;
+          }
+          if (found != null && !by.contains(found)) {
+            by.add(found);
+          }
+        }
+      }
+      // Both sides must hold in the snapshot to be shown and cited.
+      if (claim != null && !by.isEmpty()) {
+        result.add(
+            new Contradiction(
+                fact,
+                claim,
+                by,
+                Elements.attribute(fact, "stated", null),
+                Elements.strings(fact, "found")));
+      }
+    }
+    return result;
+  }
 
   private static Text text(Fact fact) {
     JsonNode support = fact.attributes().get(LlmFacts.SUPPORT);
