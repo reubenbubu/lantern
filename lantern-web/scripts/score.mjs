@@ -31,6 +31,7 @@ import {
   answerKeyCodeIssues,
   answerKeyIssues,
   describeRow,
+  flowSelectionRow,
   flowsRow,
   harnessRow,
   investigateRow,
@@ -728,7 +729,7 @@ export function score(report, reference, aliases = {}, inputs = {}) {
     .filter((c) => !c.pass)
     .map((c) => c.id);
   result.selfReportedGaps = selfReportedGaps(report);
-  result.roles = roleRows(report, reference, matched, repFlows, inputs);
+  result.roles = roleRows(report, reference, matched, repFlows, inputs, (t) => canonical(normalizeTrigger(t)));
   result.contracts = contractRows(inputs);
   return result;
 }
@@ -745,7 +746,7 @@ function contractRows(inputs) {
 }
 
 /** The rows per LLM role (roles.mjs; ADR 0072, amendment for #667). */
-function roleRows(report, reference, matched, repFlows, inputs) {
+function roleRows(report, reference, matched, repFlows, inputs, spell = normalizeTrigger) {
   const { answerKey = null, linked = null, llm = null, run = null, warm = null, change = null } = inputs;
   // The wording judge's rows (wording.mjs; ADR 0111): "not validated" until the owner's labels are.
   const judged = judgedRows(inputs.wording ?? null, inputs.labels ?? {});
@@ -763,6 +764,13 @@ function roleRows(report, reference, matched, repFlows, inputs) {
     resolve: resolveRow(answerKey, linked, llm, run),
     describe: withJudge(describeRow(report, linked, llm, run), judged.describe),
     flows: flowsRow(flowsOf(reference), roleFlows),
+    selection: flowSelectionRow(
+      flowsOf(reference),
+      repFlows.map((f) => f.trigger),
+      llm,
+      linked,
+      spell,
+    ),
     investigate: investigateRow(
       answerKey,
       llm,
@@ -826,6 +834,12 @@ export function roleCells(roles) {
   cell.Flows = !f.measured
     ? why(f)
     : `${f.matched}/${f.reference} recall (${percent(f.recall)}), ${f.matched}/${f.report} precision (${percent(f.precision)})`;
+  const sel = roles.selection;
+  if (sel) {
+    cell['Flow selection'] = !sel.measured
+      ? why(sel)
+      : `${sel.mode === 'judged' ? 'judged' : 'rank fallback'}: ${sel.right}/${sel.items} reference flows chosen (${percent(sel.recall)}), ${sel.chosenMatching}/${sel.chosen} chosen flows in the reference (${percent(sel.precision)}), penalized ${percent(sel.penalized)} (p = ${sel.penalty}); ${sel.candidates} candidates, ${sel.notCandidates.length} reference flows not among them`;
+  }
   const i = roles.investigate;
   cell.Investigate = !i.measured
     ? why(i)

@@ -7,6 +7,7 @@ import { test } from 'vitest';
 import {
   answerKeyIssues,
   describeRow,
+  flowSelectionRow,
   isGenericLabel,
   harnessRow,
   investigateRow,
@@ -419,4 +420,79 @@ test('a generic label is empty or opens with a verb that only says there is a re
   for (const t of ['Callbacks the payer', 'Useful lookups of prices', 'Looks up prices (only with the Spring profile dev)', 'Reads and writes']) {
     assert.equal(isGenericLabel(t), false, t);
   }
+});
+
+/** A request spelled as the scorecard spells a trigger, here only upper-cased methods. */
+const spell = (t) => t.replace(/^(\w+)\s+/, (m, v) => `${v.toUpperCase()} `);
+
+/** The facts of one traced flow started at an endpoint: its entry point's fact and the flow. */
+function flowFacts(name, request, extra = []) {
+  return [
+    { id: `e-${name}`, claim: `entry-${name}`, predicate: 'endpoint', subject: `method:C#${name}()`, object: { kind: 'string', value: request }, attributes: {} },
+    { id: `s-${name}`, predicate: 'flow-shape', subject: `flow:service:a/entry-${name}`, object: { kind: 'string', value: 'x' }, attributes: {} },
+    ...extra,
+  ];
+}
+
+const verdict = (name, scope, significant) => ({
+  predicate: 'flow-significance',
+  subject: `flow:service:a/entry-${name}`,
+  object: { kind: 'string', value: scope },
+  attributes: { significant },
+});
+
+const selectionLinked = [
+  ...flowFacts('order', 'POST /api/orders'),
+  // Started through the gateway, whose path the reference names.
+  ...flowFacts('pay', 'POST /api/payments', [
+    { id: 'r1', predicate: 'routed-endpoint', subject: 'service:gw', object: { kind: 'string', value: 'POST /pay/api/payments' }, attributes: { endpoint: 'method:C#pay()' } },
+  ]),
+  // Started by the browser, whose call the reference names.
+  ...flowFacts('login', 'GET /bff/{path}', [
+    { id: 'h1', predicate: 'CALLS_HTTP', subject: 'frontend:web', object: { kind: 'entity', value: 'service:bff' }, attributes: { httpMethod: 'GET', path: '/bff/login', reaches: 'method:C#login()' } },
+  ]),
+  ...flowFacts('list', 'GET /api/orders'),
+  ...flowFacts('health', 'GET /health'),
+];
+const selectionRef = [
+  { title: 'Place an order', trigger: 'POST /api/orders' },
+  { title: 'Pay', trigger: 'POST /pay/api/payments' },
+  { title: 'Sign in', trigger: 'GET /bff/login' },
+  { title: 'Stream updates', trigger: 'stomp' },
+];
+
+test("flow selection, judged: each reference flow among the candidates is right when chosen, wrong when not", () => {
+  const llm = [
+    verdict('order', 'system', true),
+    verdict('pay', 'system', false), // a reference flow left out: wrong
+    verdict('login', 'system', true), // started by the browser's call
+    verdict('health', 'system', true), // chosen, in no reference flow: unjudged, lowers precision
+    verdict('list', 'service:a', true), // a unit's verdict: not the system's choice, not a candidate
+  ];
+  const row = flowSelectionRow(selectionRef, [], llm, selectionLinked, spell);
+  assert.equal(row.mode, 'judged');
+  assert.deepEqual(
+    { candidates: row.candidates, chosen: row.chosen, items: row.items, right: row.right, chosenMatching: row.chosenMatching },
+    { candidates: 4, chosen: 3, items: 3, right: 2, chosenMatching: 2 },
+  );
+  assert.equal(row.precision, 2 / 3);
+  assert.equal(row.penalized, (2 - 1) / 3);
+  assert.deepEqual(row.missed, ['Pay']);
+  assert.deepEqual(row.notCandidates, ['Stream updates (stomp)']);
+  assert.deepEqual(row.scores, { 'POST /api/orders#0': 1, 'POST /pay/api/payments#1': -1, 'GET /bff/login#2': 1 });
+});
+
+test('flow selection, rank fallback: without the system judge the chosen flows are those the report draws', () => {
+  // Only units were judged; the system fell back to the rank, and the report draws two flows.
+  const llm = [verdict('order', 'service:a', true), verdict('pay', 'service:a', true), verdict('list', 'service:a', false)];
+  const row = flowSelectionRow(selectionRef, ['POST /api/orders', 'GET /api/orders', null], llm, selectionLinked, spell);
+  assert.equal(row.mode, 'rank');
+  assert.deepEqual({ candidates: row.candidates, chosen: row.chosen, items: row.items, right: row.right }, { candidates: 3, chosen: 2, items: 2, right: 1 });
+  assert.equal(row.precision, 1 / 2);
+  // With no judgement at all, every traced flow is a candidate.
+  const none = flowSelectionRow(selectionRef, ['POST /api/orders'], [], selectionLinked, spell);
+  assert.equal(none.candidates, 5);
+  assert.equal(none.right, 1);
+  assert.equal(flowSelectionRow([], [], [], [], spell).measured, false);
+  assert.equal(flowSelectionRow(selectionRef, [], null, selectionLinked, spell).measured, false);
 });

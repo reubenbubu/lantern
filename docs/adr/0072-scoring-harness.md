@@ -203,3 +203,33 @@ fallback "Calls <methods>" fails it as "Uses" did. A person's lines are still ch
 "Uses" and "Uses, through <frontend>" fail it as the bare "Uses" did before, which is what the bar
 says of them until people's lines are worded. Both coverages keep their items' scores for the
 paired comparison.
+
+## Amendment (#746): the model's choice of flows, apart from their participants
+
+The Flows row matches a report flow only when it shares two thirds of the reference flow's
+participants. That measures derivation's trace, and it reads 0 on sets whose traces differ from the
+reference whatever flows the model chose. A **Flow selection** row now scores the choice alone, by
+trigger (`lantern-web/scripts/roles.mjs`, `flowSelectionRow`); the Flows row stays as derivation's
+measure.
+
+- **Candidates and choice.** The model's significance verdicts (`flow-significance` facts in
+  `llm.jsonl.gz`) for the whole system scope. The candidates are the flows its judge was asked
+  about; the chosen ones are those it marked significant (mode "judged"). When the system has no
+  verdict, its choice fell back to the derived rank (mode "rank fallback"). The candidates are then
+  every flow a unit's judge saw, or every traced flow (`flow-shape`) when none did, and the chosen
+  ones are those the report draws, by trigger.
+- **A candidate's triggers.** These are read from `linked.jsonl.gz`. A flow's ID ends with the claim
+  of its entry point's fact, and an endpoint is started by:
+  - its own request;
+  - each gateway path routed to it (`routed-endpoint`);
+  - each frontend call that reaches it.
+
+  These are where the report says a flow starts. They are spelled as the scorecard spells triggers,
+  with the set's trigger aliases.
+- **Scores.** Each reference flow that a candidate starts is an item: right when a candidate of its
+  trigger was chosen, wrong when none was (p = 1). Recall is the share chosen.
+  - Precision is the share of chosen candidates whose trigger is a reference flow's. A chosen
+    candidate matching no reference flow is unjudged, not wrong, since a reference need not list
+    every significant flow.
+  - Reference flows no candidate starts are listed apart, such as one started by a listener, a
+    WebSocket or a client outside the code.
