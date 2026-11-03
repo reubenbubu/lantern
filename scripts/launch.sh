@@ -121,14 +121,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Resolves a properties file to an absolute path and refuses one inside the repository, unless
-# keys_only is "keyless-ok" and the file sets no API key: the committed LLM settings of the
+# keys_only is "keyless-ok" and the file sets no property whose name ends in an API key, a
+# secret, a password or a token, in any spelling Spring accepts: the committed LLM settings of the
 # lantern-commands skill (docs/adr/0102-batch-api-and-openai.md, amendment for #754) hold none.
 check_properties_file() {
   local what="$1" file="$2" keys_only="${3:-}" path
   [[ -f "$file" && -r "$file" ]] || die "$what file not found or not readable: $file"
   path="$(realpath "$file")"
   if [[ "$path" == "$REPO" || "$path" == "$REPO"/* ]]; then
-    if [[ "$keys_only" != "keyless-ok" ]] || grep -Eq '^[[:space:]]*[^#]*api-key[[:space:]]*[=:][[:space:]]*[^[:space:]]' "$path"; then
+    if [[ "$keys_only" != "keyless-ok" ]] || grep -Eiq '^[[:space:]]*[^#![:space:]][^=:]*(api[-_.]?key|secret|password|token)[[:space:]]*[=:]' "$path"; then
       die "$what file $path is inside the repository; keep it outside so it is never committed"
     fi
   fi

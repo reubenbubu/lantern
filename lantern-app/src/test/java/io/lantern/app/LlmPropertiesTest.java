@@ -257,6 +257,16 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void theProvidersARouterMayUseAreReadAsAList() {
+    model("fast", "anthropic", "some-model");
+    tiers("fast", "fast");
+    assertThat(bind().anthropic().onlyProviders()).isEmpty();
+
+    values.put("lantern.llm.anthropic.only-providers", "anthropic, google-vertex");
+    assertThat(bind().anthropic().onlyProviders()).containsExactly("anthropic", "google-vertex");
+  }
+
+  @Test
   void openAiModelsWithAnApiKeyGetAnOpenAiProviderAndWithoutOneAreNotConfigured() throws Exception {
     model("fast", "openai", "some-model");
     model("deep", "anthropic", "other-model");

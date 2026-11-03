@@ -182,7 +182,7 @@ trap cleanup EXIT
 
 if $fake_llm && ! $score_only; then
   [[ -z "$llm_file" ]] || die "--fake-llm and --llm-properties exclude each other"
-  # The settings of the fake models, outside the repository as launch.sh requires.
+  # The settings of the fake models, in a temporary file of their own.
   llm_file="$(mktemp "${TMPDIR:-/tmp}/lantern-fake-llm-XXXXXX.properties")"
   temporary+=("$llm_file")
   cat > "$llm_file" <<'PROPERTIES'

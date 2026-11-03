@@ -202,7 +202,8 @@ public record LlmProperties(
    * @param thinkingOffSwitch how the model turns thinking off ({@code disabled}, {@code
    *     between-tools} or {@code none}); {@code disabled} if not set
    * @param estimateTokenScale how many of the model's tokens one token of Lantern's estimates comes
-   *     to, as measured (1.55 for Claude models, ADR 0100, amendment for #694); 1 if not set
+   *     to in input, cache writes and cache reads, as measured (ADR 0100, amendments for #694 and
+   *     #754); 1 if not set
    * @param estimateOutputScale the same for the output an estimate expects, answers and thinking
    *     (ADR 0100, amendment for #754); the estimate token scale if not set
    */
