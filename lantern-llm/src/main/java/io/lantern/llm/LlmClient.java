@@ -606,13 +606,18 @@ public final class LlmClient {
   /** Reserves a batched request at its estimate (see {@link #batch(List, List)}). */
   private List<BudgetGuard.Reservation> reserveEstimate(
       ModelConfig model, LlmRequest request, long expectedOutputTokens) {
-    long input = request.estimatedInputTokens();
+    // The input in the model's own tokens; the expected output comes in them already, and may
+    // reach the output limit with its thinking headroom (#694).
+    double scale = model.estimateTokenScale();
+    long input = Math.round(request.estimatedInputTokens() * scale);
     long cached =
-        model.cachesSystem(request) ? Math.min(input, Tokens.estimate(request.system())) : 0;
+        model.cachesSystem(request)
+            ? Math.min(input, Math.round(Tokens.estimate(request.system()) * scale))
+            : 0;
     TokenUsage estimate =
         new TokenUsage(
             input - cached,
-            Math.max(0, Math.min(expectedOutputTokens, request.maxOutputTokens())),
+            Math.max(0, Math.min(expectedOutputTokens, model.outputLimit(request))),
             0,
             cached);
     return hold(estimate, model.pricing().batchCost(estimate));

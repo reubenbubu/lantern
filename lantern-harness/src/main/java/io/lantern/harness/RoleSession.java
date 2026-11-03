@@ -1311,8 +1311,9 @@ public final class RoleSession {
     } else if (packet > 1) {
       input += share;
     }
-    TokenUsage usage =
-        expected(input, 0, read, 1, packet > 1 && requestsPerItem > 0 ? requestsPerItem : 1);
+    // A grouped item pays its share of its requests' thinking and turns, as of their starts.
+    double requests = packet <= 1 ? 1 : requestsPerItem > 0 ? requestsPerItem : 1.0 / packet;
+    TokenUsage usage = expected(input, 0, read, 1, requests);
     return batching() ? model.pricing().batchCost(usage) : model.pricing().cost(usage);
   }
 
