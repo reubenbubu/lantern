@@ -6,6 +6,7 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
@@ -56,7 +57,7 @@ final class DescribeItems {
 
   private final Knowledge knowledge;
   private final Assembler assembler;
-  private final C4Views c4;
+  private final Elements elements;
   private final Set<Fact> alternatives;
   private final Function<Evidence, Optional<String>> files;
   private final Map<EntityId, Summary> summaries;
@@ -64,13 +65,13 @@ final class DescribeItems {
   DescribeItems(
       Knowledge knowledge,
       Assembler assembler,
-      C4Views c4,
+      Elements elements,
       Function<Evidence, Optional<String>> files,
       Map<EntityId, Summary> summaries) {
     this.knowledge = knowledge;
     this.assembler = assembler;
-    this.c4 = c4;
-    this.alternatives = c4.alternativeLinks().keySet();
+    this.elements = elements;
+    this.alternatives = elements.alternativeLinks().keySet();
     this.files = files;
     this.summaries = summaries;
   }
@@ -109,7 +110,7 @@ final class DescribeItems {
   List<Described> unit(EntityId unit) {
     List<ComponentShown> components = components(unit);
     List<Interaction> interactions = interactions(unit, components);
-    List<Fact> unitFacts = FactLines.sorted(c4.containerFacts(unit));
+    List<Fact> unitFacts = FactLines.sorted(elements.containerFacts(unit));
     List<Fact> claims = FactLines.sorted(Describer.claims(unit, knowledge));
     List<Fact> entryPoints =
         components.size() > 1
@@ -169,7 +170,7 @@ final class DescribeItems {
     Set<String> evidenced = new LinkedHashSet<>();
     StringBuilder text = new StringBuilder();
     String name = assembler.name(unit);
-    String technology = c4.technology(unit);
+    String technology = elements.technology(unit);
     text.append("The deployable unit ").append(FactLines.oneLine(name));
     if (technology != null) {
       text.append(", built with ").append(FactLines.oneLine(technology));
@@ -273,12 +274,12 @@ final class DescribeItems {
   /** The unit's components, as stored (#523), each with its facts and code. */
   private List<ComponentShown> components(EntityId unit) {
     List<ComponentShown> result = new ArrayList<>();
-    for (C4Views.Component component : c4.components(unit)) {
-      List<Fact> facts = FactLines.sorted(c4.componentFacts(component));
+    for (Elements.Component component : elements.components(unit)) {
+      List<Fact> facts = FactLines.sorted(elements.componentFacts(component));
       // Every component shows the start of its own code, whatever the others show, so a
       // component's excerpt never depends on another's length.
       Code code = code(component.main(), MAX_CODE_CHARS);
-      String name = c4.componentName(component);
+      String name = elements.componentName(component);
       String line = FactLines.oneLine(name);
       if (component.technology() != null && !component.technology().isEmpty()) {
         line += ", " + FactLines.oneLine(component.technology());
@@ -344,10 +345,10 @@ final class DescribeItems {
                 line));
       }
     }
-    SortedMap<EntityId, Fact> people = c4.people();
+    SortedMap<EntityId, Fact> people = elements.people();
     String unitName = assembler.name(unit);
     for (Map.Entry<EntityId, Fact> person : people.entrySet()) {
-      if (C4Views.strings(person.getValue(), "frontends").contains(unitName)) {
+      if (Elements.strings(person.getValue(), "frontends").contains(unitName)) {
         result.add(
             new Interaction(
                 person.getKey(),
@@ -360,7 +361,7 @@ final class DescribeItems {
 
   private List<Summary> unitSummaries(EntityId unit) {
     List<Summary> result = new ArrayList<>();
-    for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+    for (EntityId module : Elements.codeModules(knowledge, unit)) {
       Summary summary = summaries.get(module);
       if (summary != null) {
         result.add(summary);
@@ -430,8 +431,8 @@ final class DescribeItems {
 
   /** The elements to describe: data stores, destinations, external systems, then people. */
   List<EntityId> elements() {
-    List<EntityId> result = new ArrayList<>(c4.destinations());
-    result.addAll(c4.people().keySet());
+    List<EntityId> result = new ArrayList<>(elements.destinations());
+    result.addAll(elements.people().keySet());
     return result;
   }
 
@@ -448,13 +449,13 @@ final class DescribeItems {
     String name = assembler.name(element);
     String kind = Describer.noun(element);
     text.append("The ").append(kind).append(' ').append(FactLines.oneLine(name));
-    String technology = element.type().equals(Types.PERSON) ? null : c4.technology(element);
+    String technology = element.type().equals(Types.PERSON) ? null : elements.technology(element);
     if (technology != null) {
       text.append(", ").append(FactLines.oneLine(technology));
     }
     text.append(".\n");
     List<Fact> own = FactLines.sorted(knowledge.attributes(element));
-    Fact basis = c4.people().get(element);
+    Fact basis = elements.people().get(element);
     if (basis != null && !own.contains(basis)) {
       own = FactLines.sorted(new ArrayList<>(List.of(basis)));
     }
@@ -518,10 +519,10 @@ final class DescribeItems {
   private SortedSet<EntityId> users(EntityId element) {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
     if (element.type().equals(Types.PERSON)) {
-      Fact basis = c4.people().get(element);
+      Fact basis = elements.people().get(element);
       if (basis != null) {
-        List<String> names = C4Views.strings(basis, "frontends");
-        for (EntityId frontend : c4.frontends()) {
+        List<String> names = Elements.strings(basis, "frontends");
+        for (EntityId frontend : elements.frontends()) {
           if (names.contains(assembler.name(frontend))) {
             result.add(frontend);
           }
@@ -529,7 +530,7 @@ final class DescribeItems {
       }
       return result;
     }
-    for (C4Views.Neighbour neighbour : c4.neighbours(element)) {
+    for (Elements.Neighbour neighbour : elements.neighbours(element)) {
       result.add(neighbour.other());
     }
     return result;
@@ -540,7 +541,7 @@ final class DescribeItems {
     if (element.type().equals(Types.PERSON)) {
       return uses;
     }
-    for (C4Views.Neighbour neighbour : c4.neighbours(element)) {
+    for (Elements.Neighbour neighbour : elements.neighbours(element)) {
       String use =
           assembler.name(neighbour.other())
               + " ("
@@ -557,10 +558,10 @@ final class DescribeItems {
     if (element.type().equals(Types.PERSON)) {
       return List.of();
     }
-    for (C4Views.Neighbour neighbour : c4.neighbours(element)) {
+    for (Elements.Neighbour neighbour : elements.neighbours(element)) {
       for (Fact fact : neighbour.facts()) {
         if (fact.predicate().equals(Types.USES_DATABASE)) {
-          C4Views.strings(fact, "schemas").forEach(id -> schemas.add(EntityId.parse(id)));
+          Elements.strings(fact, "schemas").forEach(id -> schemas.add(EntityId.parse(id)));
         }
       }
     }

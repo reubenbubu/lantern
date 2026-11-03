@@ -1,4 +1,4 @@
-package io.lantern.compose;
+package io.lantern.derive;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -9,6 +9,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import java.util.ArrayList;
@@ -132,7 +133,7 @@ final class ClaimContradictions {
       content.add(new Citation(assembler.facts(List.of(flag.claim))));
       content.add(TextRun.of("."));
       String stated = RepoSections.attribute(flag.contradiction, "stated", null);
-      List<String> found = C4Views.strings(flag.contradiction, "found");
+      List<String> found = Elements.strings(flag.contradiction, "found");
       if (stated != null && !found.isEmpty()) {
         content.add(
             TextRun.of(

@@ -8,6 +8,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Groups;
 import io.lantern.derive.Knowledge;
@@ -321,7 +322,7 @@ public final class NameGroups {
       }
     } else {
       Set<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-      units.addAll(C4Views.units(knowledge));
+      units.addAll(Elements.units(knowledge));
       groups.forEach(g -> units.addAll(g.members()));
       for (EntityId unit : units) {
         for (String predicate : Describer.LINKS) {
@@ -468,7 +469,7 @@ public final class NameGroups {
       for (Fact anchor : knowledge.relations(element, Components.ANCHORED_ON)) {
         EntityId main = Knowledge.object(anchor);
         return main.type().equals(io.lantern.core.vocabulary.BuiltInTypes.MODULE)
-            ? C4Views.CONFIG_ROUTES
+            ? Elements.CONFIG_ROUTES
             : assembler.name(main);
       }
     }

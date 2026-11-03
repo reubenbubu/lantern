@@ -11,12 +11,12 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
-import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
 import io.lantern.derive.DeploymentInstances;
+import io.lantern.derive.Elements;
+import io.lantern.derive.Elements.Line;
 import io.lantern.derive.Knowledge;
-import io.lantern.derive.Screens;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
@@ -35,7 +35,6 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import tools.jackson.databind.JsonNode;
 
 /**
  * The C4 context, container and component diagrams of a scope, by the definitions of {@code
@@ -53,7 +52,6 @@ import tools.jackson.databind.JsonNode;
  */
 final class C4Views {
 
-  static final String USES = "USES";
   static final String ROUTE = "route";
 
   /** A decision record's rationale when it has no context section. */
@@ -65,22 +63,23 @@ final class C4Views {
   /** How many details an edge label names before it counts the rest. */
   private static final int NAMED = 2;
 
-  /** The name of a component of the routes a gateway's config defines. */
-  static final String CONFIG_ROUTES = "Gateway routes";
-
   private final Knowledge knowledge;
   private final Assembler assembler;
   private final EntityId system;
   private final SortedSet<EntityId> units;
 
-  /** The frontends in scope: those of the scope's repositories (ADR 0083). */
-  private final SortedSet<EntityId> frontends;
-
   private final Set<String> repos;
-  private final List<Link> links;
+
+  /** What the diagrams show, read from the model (#717). */
+  private final Elements elements;
+
+  private final List<Line> links;
 
   /** Each profile-only link that replaces a default one under its profile, with that default. */
   private final Map<Fact, Fact> alternatives;
+
+  /** The frontends in scope: those of the scope's repositories (ADR 0083). */
+  private final SortedSet<EntityId> frontends;
 
   /**
    * @param system the software system the scope's containers belong to
@@ -98,231 +97,15 @@ final class C4Views {
     this.system = system;
     this.units = units;
     this.repos = repos;
-    this.frontends = new TreeSet<>(Knowledge.BY_ID);
-    for (Fact app : knowledge.withPredicate(Types.FRONTEND_APP)) {
-      if (repos.isEmpty() || repos.contains(app.evidence().repo())) {
-        frontends.add(app.subject());
-      }
-    }
-    this.alternatives = alternatives();
-    this.links = containerLinks();
-    links.removeIf(link -> alternatives.containsKey(link.facts.getFirst()));
+    this.elements = new Elements(knowledge, assembler.vocabulary(), assembler.names(), repos);
+    this.links = elements.lines();
+    this.alternatives = elements.alternativeLinks();
+    this.frontends = elements.frontends();
   }
 
-  /**
-   * Each profile-only link that replaces a default link under its profile, with that default; the
-   * diagrams show the default.
-   */
-  Map<Fact, Fact> alternativeLinks() {
-    return alternatives;
-  }
-
-  /**
-   * A line of the container diagrams seen from one of its ends (ADR 0056).
-   *
-   * @param other the element at the other end
-   * @param relationship the relationship the line draws, such as {@code CALLS_HTTP}
-   * @param incoming whether the line runs from the other end to this one
-   * @param via what it goes through (the name of a queue, or the tables read), or null
-   * @param facts its link facts
-   */
-  record Neighbour(
-      EntityId other, String relationship, boolean incoming, String via, List<Fact> facts) {}
-
-  /**
-   * The data stores, topics, queues, exchanges and external systems the container diagrams draw:
-   * the ends of their lines to and from units that are not units themselves, profile alternatives
-   * and queues folded into a line left out. Routes between exchanges and queues add nothing, as on
-   * the diagrams, which draw them only between elements drawn already.
-   */
-  SortedSet<EntityId> destinations() {
-    SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
-    for (Link link : links) {
-      if (!runsCode(link.from) && !runsCode(link.to)) {
-        continue;
-      }
-      for (EntityId end : List.of(link.from, link.to)) {
-        if (assembler.destination(end)) {
-          result.add(end);
-        }
-      }
-    }
-    return result;
-  }
-
-  /**
-   * The lines of the container diagrams that touch the element, in the order of the links: those to
-   * and from units, and routes between it and another of the {@link #destinations()}.
-   */
-  List<Neighbour> neighbours(EntityId element) {
-    Set<EntityId> drawn = destinations();
-    List<Neighbour> result = new ArrayList<>();
-    for (Link link : links) {
-      if (link.relationship.equals(Types.ROUTES_TO)
-          && !(drawn.contains(link.from) && drawn.contains(link.to))) {
-        continue;
-      }
-      if (link.to.equals(element)) {
-        result.add(new Neighbour(link.from, link.relationship, true, link.via, link.facts));
-      } else if (link.from.equals(element)) {
-        result.add(new Neighbour(link.to, link.relationship, false, link.via, link.facts));
-      }
-    }
-    return result;
-  }
-
-  /** Whether an element is a container that runs code: a deployable unit or a frontend. */
-  static boolean runsCode(EntityId element) {
-    return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(Types.FRONTEND);
-  }
-
-  /** Every frontend of the knowledge (ADR 0083). */
-  static SortedSet<EntityId> frontends(Knowledge knowledge) {
-    SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(Types.FRONTEND_APP).forEach(f -> result.add(f.subject()));
-    return result;
-  }
-
-  /** The frontends in scope. */
-  SortedSet<EntityId> frontends() {
-    return frontends;
-  }
-
-  /** A frontend's {@code frontend-app} fact, if it has one. */
-  Optional<Fact> frontendApp(EntityId frontend) {
-    return frontendApp(knowledge, frontend);
-  }
-
-  static Optional<Fact> frontendApp(Knowledge knowledge, EntityId frontend) {
-    return knowledge.attributes(frontend).stream()
-        .filter(f -> f.predicate().equals(Types.FRONTEND_APP))
-        .findFirst();
-  }
-
-  // The deployable units and their names.
-
-  /** Every deployable unit of the knowledge. */
-  static SortedSet<EntityId> units(Knowledge knowledge) {
-    SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
-    return units;
-  }
-
-  /**
-   * The deployable units whose code is in one of the modules: their own module, or a library they
-   * bundle.
-   */
-  static SortedSet<EntityId> units(Knowledge knowledge, Set<EntityId> modules) {
-    SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
-    for (EntityId unit : units(knowledge)) {
-      if (codeModules(knowledge, unit).stream().anyMatch(modules::contains)) {
-        result.add(unit);
-      }
-    }
-    return result;
-  }
-
-  /** The modules whose code runs in the unit: its own and those of the libraries it bundles. */
-  static SortedSet<EntityId> codeModules(Knowledge knowledge, EntityId unit) {
-    return Components.codeModules(knowledge, unit);
-  }
-
-  /** The name a unit runs under in Spring's default profile, if it has one. */
-  static Optional<String> applicationName(Knowledge knowledge, EntityId unit) {
-    return knowledge.attributes(unit).stream()
-        .filter(f -> f.predicate().equals(Types.APPLICATION_NAME) && Knowledge.view(f) == null)
-        .map(f -> f.object().value())
-        .findFirst();
-  }
-
-  /** The facts that make an entity a container of the diagrams, and its technology. */
-  List<Fact> containerFacts(EntityId entity) {
-    return knowledge.attributes(entity).stream()
-        .filter(
-            f ->
-                f.predicate().equals(Types.DEPLOYABLE_UNIT)
-                    || f.predicate().equals(Types.FRONTEND_APP)
-                    || f.predicate().equals(Types.TECHNOLOGY)
-                    || (f.predicate().equals(Types.APPLICATION_NAME) && Knowledge.view(f) == null))
-        .toList();
-  }
-
-  /** The technology line of a container: what it is built with, or what kind of store it is. */
-  String technology(EntityId entity) {
-    Optional<String> technology = knowledge.attribute(entity, Types.TECHNOLOGY);
-    String broker = entity.key().substring(0, Math.max(entity.key().indexOf(':'), 0));
-    return switch (entity.type()) {
-      case BuiltInTypes.SERVICE, Types.DATABASE -> technology.orElse(null);
-      case Types.FRONTEND -> frontendApp(entity).map(f -> attribute(f, "technology")).orElse(null);
-      case Types.TOPIC -> brokerName(broker) + " topic";
-      case Types.QUEUE -> brokerName(broker) + " queue";
-      case Types.EXCHANGE -> {
-        String type =
-            knowledge.relations(entity, Types.ROUTES_TO).stream()
-                .map(f -> attribute(f, "exchangeType"))
-                .filter(Objects::nonNull)
-                .sorted()
-                .findFirst()
-                .orElse(null);
-        yield brokerName(broker) + (type == null ? "" : " " + type) + " exchange";
-      }
-      default -> null;
-    };
-  }
-
-  private static String brokerName(String broker) {
-    return switch (broker) {
-      case "kafka" -> "Kafka";
-      case "jms" -> "JMS";
-      case "rabbitmq" -> "RabbitMQ";
-      default -> broker;
-    };
-  }
-
-  // Links between containers.
-
-  /**
-   * A line between two elements of a container diagram, from one link fact: what it does (a label
-   * without details, and a prefix for the details), a detail such as an endpoint, its protocol,
-   * what it goes through (a queue, the tables read), the profile it alone holds under and its
-   * facts.
-   */
-  private record Link(
-      EntityId from,
-      String relationship,
-      EntityId to,
-      String plain,
-      String prefix,
-      String detail,
-      String technology,
-      String via,
-      String profile,
-      List<Fact> facts) {
-
-    Link from(EntityId other) {
-      return new Link(
-          other, relationship, to, plain, prefix, detail, technology, via, profile, facts);
-    }
-
-    Link to(EntityId other) {
-      return new Link(
-          from, relationship, other, plain, prefix, detail, technology, via, profile, facts);
-    }
-
-    Link via(String through, Fact also) {
-      List<Fact> both = new ArrayList<>(facts);
-      both.add(also);
-      return new Link(
-          from, relationship, to, plain, prefix, detail, technology, through, profile, both);
-    }
-  }
-
-  /**
-   * The profile-only links that stand in for a default link of the same unit (ADR 0090): left out
-   * of the diagrams and counts, which show the default, and listed in a note instead.
-   */
-  private Map<Fact, Fact> alternatives() {
-    return Screens.alternatives(knowledge);
+  /** What the diagrams show, read from the model. */
+  Elements elements() {
+    return elements;
   }
 
   /**
@@ -381,398 +164,8 @@ final class C4Views {
             assembler.facts(facts)));
   }
 
-  /** The links of every unit, with RabbitMQ queues an exchange routes to folded into the line. */
-  private List<Link> containerLinks() {
-    Set<EntityId> folded = foldedQueues();
-    List<Link> result = new ArrayList<>();
-    for (EntityId unit : units(knowledge)) {
-      for (Fact fact : knowledge.relations(unit, Types.CALLS_HTTP)) {
-        List<String> paths = strings(fact, "paths");
-        boolean route = attribute(fact, "route") != null;
-        result.add(
-            link(
-                unit,
-                Types.CALLS_HTTP,
-                Knowledge.object(fact),
-                route ? "Routes requests" : "Calls",
-                route ? "Routes" : "Calls",
-                route ? (paths.isEmpty() ? null : paths.getFirst()) : endpoint(fact),
-                protocol(fact),
-                fact));
-      }
-      for (Fact fact : knowledge.relations(unit, Types.SENDS_MAIL)) {
-        result.add(
-            link(
-                unit,
-                Types.SENDS_MAIL,
-                Knowledge.object(fact),
-                "Sends mail through",
-                "Sends mail",
-                null,
-                protocol(fact),
-                fact));
-      }
-      for (Fact fact : knowledge.relations(unit, Types.USES_IDENTITY_PROVIDER)) {
-        String[] words = identityWords(attribute(fact, "purpose"));
-        result.add(
-            link(
-                unit,
-                Types.USES_IDENTITY_PROVIDER,
-                Knowledge.object(fact),
-                words[0],
-                words[1],
-                null,
-                protocol(fact),
-                fact));
-      }
-      for (Fact fact : knowledge.relations(unit, Types.PUBLISHES)) {
-        result.add(
-            link(
-                unit,
-                Types.PUBLISHES,
-                Knowledge.object(fact),
-                "Sends messages",
-                "Sends",
-                attribute(fact, "routingKey"),
-                protocol(fact),
-                fact));
-      }
-      for (Fact fact : knowledge.relations(unit, Types.CONSUMES)) {
-        EntityId queue = Knowledge.object(fact);
-        if (!folded.contains(queue)) {
-          result.add(
-              link(
-                  queue,
-                  Types.CONSUMES,
-                  unit,
-                  "Delivers messages",
-                  null,
-                  null,
-                  protocol(fact),
-                  fact));
-          continue;
-        }
-        for (Fact route : routesTo(queue)) {
-          result.add(
-              link(
-                      route.subject(),
-                      Types.CONSUMES,
-                      unit,
-                      "Delivers messages",
-                      "Delivers",
-                      attribute(route, "bindingKey"),
-                      protocol(fact),
-                      fact)
-                  .via(assembler.name(queue), route));
-        }
-      }
-      for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
-        boolean ownsSchema = !strings(fact, "schemas").isEmpty();
-        result.add(
-            link(
-                unit,
-                Types.USES_DATABASE,
-                Knowledge.object(fact),
-                ownsSchema ? "Stores its data in" : "Connects to",
-                null,
-                null,
-                protocol(fact),
-                fact));
-      }
-      for (Fact fact : knowledge.relations(unit, Types.ACCESSES_DATA_OF)) {
-        List<String> reads = strings(fact, "reads");
-        List<String> writes = strings(fact, "writes");
-        String verb =
-            reads.isEmpty()
-                ? "Writes tables of"
-                : writes.isEmpty() ? "Reads tables of" : "Reads and writes tables of";
-        Set<String> tables = new TreeSet<>();
-        reads.forEach(t -> tables.add(t.substring(t.lastIndexOf(':') + 1)));
-        writes.forEach(t -> tables.add(t.substring(t.lastIndexOf(':') + 1)));
-        Link access =
-            link(
-                unit,
-                Types.ACCESSES_DATA_OF,
-                Knowledge.object(fact),
-                verb,
-                null,
-                null,
-                protocol(fact),
-                fact);
-        result.add(
-            new Link(
-                access.from,
-                access.relationship,
-                access.to,
-                access.plain,
-                access.prefix,
-                access.detail,
-                access.technology,
-                tables.isEmpty() ? null : String.join(", ", tables),
-                access.profile,
-                access.facts));
-      }
-    }
-    for (EntityId frontend : frontends(knowledge)) {
-      for (Fact fact : knowledge.relations(frontend, Types.CALLS_HTTP)) {
-        String proxy = attribute(fact, "proxy");
-        boolean socket = "WebSocket".equals(attribute(fact, "protocol"));
-        boolean passed =
-            !socket && attribute(fact, "httpMethod") == null && attribute(fact, "path") == null;
-        result.add(
-            link(
-                frontend,
-                Types.CALLS_HTTP,
-                Knowledge.object(fact),
-                passed ? "Passes requests on to" : socket ? "Opens a socket to" : "Calls",
-                passed ? "Passes on" : socket ? "Opens" : "Calls",
-                passed ? proxy : socket ? attribute(fact, "path") : endpoint(fact),
-                protocol(fact),
-                fact));
-      }
-    }
-    result.addAll(otherLinks());
-    result.addAll(peopleLinks());
-    // What Investigate found, marked as such on every line that draws it (ADR 0110).
-    for (EntityId unit : units(knowledge)) {
-      for (Fact fact : knowledge.relations(unit, Types.INVESTIGATED_CONNECTION)) {
-        if (Knowledge.isEntity(fact)) {
-          result.add(
-              link(
-                  unit,
-                  Types.INVESTIGATED_CONNECTION,
-                  Knowledge.object(fact),
-                  InvestigatedFindings.FOUND_BY_LLM + " " + attribute(fact, "description"),
-                  null,
-                  null,
-                  attribute(fact, "technology"),
-                  fact));
-        }
-      }
-    }
-    for (Fact route : knowledge.withPredicate(Types.ROUTES_TO)) {
-      if (Knowledge.isEntity(route) && !folded.contains(Knowledge.object(route))) {
-        result.add(
-            link(
-                route.subject(),
-                Types.ROUTES_TO,
-                Knowledge.object(route),
-                "Routes messages",
-                "Routes",
-                attribute(route, "bindingKey"),
-                protocol(route),
-                route));
-      }
-    }
-    return result;
-  }
-
-  /**
-   * The interactions the lines above draw their own way; a unit's use of its message broker, whose
-   * topics, queues and exchanges the diagrams draw instead of one broker box; and its use of
-   * infrastructure servers, which the diagrams keep apart from its business dependencies.
-   */
-  private static final Set<String> DRAWN_OTHERWISE =
-      Set.of(
-          Types.CALLS_HTTP,
-          Types.SENDS_MAIL,
-          Types.USES_IDENTITY_PROVIDER,
-          Types.PUBLISHES,
-          Types.CONSUMES,
-          Types.ROUTES_TO,
-          Types.USES_DATABASE,
-          Types.ACCESSES_DATA_OF,
-          Types.INVESTIGATED_CONNECTION,
-          Types.USES_BROKER,
-          Types.USES_INFRASTRUCTURE);
-
-  /**
-   * Every other interaction of a unit with an element at the container or context level, drawn as
-   * what it is a kind of, a line from the unit (ADR 0114): the vocabulary, not this class, decides
-   * what a type is, so a type that extends {@code container} is drawn as one.
-   */
-  private List<Link> otherLinks() {
-    Vocabulary vocabulary = assembler.vocabulary();
-    List<Link> result = new ArrayList<>();
-    for (EntityId unit : units(knowledge)) {
-      for (Fact fact : knowledge.about(unit)) {
-        if (Knowledge.isEntity(fact)
-            && !DRAWN_OTHERWISE.contains(fact.predicate())
-            && vocabulary.isA(fact.predicate(), BuiltInTypes.INTERACTS_WITH)
-            && assembler.destination(Knowledge.object(fact))) {
-          result.add(
-              link(
-                  unit,
-                  fact.predicate(),
-                  Knowledge.object(fact),
-                  "Uses",
-                  "Uses",
-                  null,
-                  protocol(fact),
-                  fact));
-        }
-      }
-    }
-    return result;
-  }
-
-  /**
-   * How a line to an identity provider reads, by what the unit does with it (ADR 0085): its label
-   * and the words two such lines are joined by.
-   */
-  private static String[] identityWords(String purpose) {
-    return switch (purpose == null ? "" : purpose) {
-      case "validates-tokens" ->
-          new String[] {"Validates tokens with the keys of", "Validates tokens"};
-      case "signs-in-users" -> new String[] {"Signs users in through", "Signs users in"};
-      case "gets-tokens" -> new String[] {"Gets tokens from", "Gets tokens"};
-      case "manages-users" -> new String[] {"Manages users through", "Manages users"};
-      default -> new String[] {"Uses as its identity provider", "Uses"};
-    };
-  }
-
-  /**
-   * The lines from people to the frontends that have screens for them (ADR 0074, ADR 0083): from
-   * the frontends their {@code person-basis} names and the routes it cites, each to the frontend
-   * whose folder holds the route's file.
-   */
-  private List<Link> peopleLinks() {
-    List<Link> result = new ArrayList<>();
-    for (Map.Entry<EntityId, Fact> person : people().entrySet()) {
-      Fact basis = person.getValue();
-      screens(basis)
-          .forEach(
-              (frontend, routes) -> {
-                for (Fact route : routes) {
-                  List<Fact> facts = new ArrayList<>(List.of(basis, route));
-                  frontendApp(frontend).ifPresent(facts::add);
-                  result.add(
-                      new Link(
-                          person.getKey(),
-                          USES,
-                          frontend,
-                          "Uses the screens of",
-                          "Uses the screens",
-                          attribute(route, "path"),
-                          "Web browser",
-                          null,
-                          null,
-                          facts));
-                }
-              });
-    }
-    return result;
-  }
-
-  /** The screens a person has, by frontend ({@link Screens#screens}). */
-  private Map<EntityId, List<Fact>> screens(Fact basis) {
-    return Screens.screens(knowledge, basis);
-  }
-
-  /**
-   * The people of the scope who have screens on a frontend, each with its {@code person-basis} fact
-   * and the routes of those screens, by person ID.
-   */
-  SortedMap<EntityId, List<Fact>> screensOn(EntityId frontend) {
-    return Screens.screensOn(knowledge, frontend, repos);
-  }
-
-  private static Link link(
-      EntityId from,
-      String relationship,
-      EntityId to,
-      String plain,
-      String prefix,
-      String detail,
-      String technology,
-      Fact fact) {
-    return new Link(
-        from,
-        relationship,
-        to,
-        plain,
-        prefix,
-        detail,
-        technology,
-        null,
-        Knowledge.view(fact),
-        List.of(fact));
-  }
-
-  /**
-   * RabbitMQ queues drawn as the line from the exchange that routes to them instead of as boxes of
-   * their own: those an exchange routes to and no unit sends to directly.
-   */
-  private Set<EntityId> foldedQueues() {
-    Set<EntityId> sentTo = new HashSet<>();
-    knowledge.withPredicate(Types.PUBLISHES).stream()
-        .filter(Knowledge::isEntity)
-        .forEach(f -> sentTo.add(Knowledge.object(f)));
-    Set<EntityId> folded = new HashSet<>();
-    for (Fact route : knowledge.withPredicate(Types.ROUTES_TO)) {
-      if (Knowledge.isEntity(route) && !sentTo.contains(Knowledge.object(route))) {
-        folded.add(Knowledge.object(route));
-      }
-    }
-    return folded;
-  }
-
-  private List<Fact> routesTo(EntityId queue) {
-    return knowledge.withPredicate(Types.ROUTES_TO).stream()
-        .filter(f -> Knowledge.isEntity(f) && Knowledge.object(f).equals(queue))
-        .toList();
-  }
-
-  /** The endpoint a call reaches, or its method and path. */
-  private static String endpoint(Fact fact) {
-    String endpoint = attribute(fact, "endpoint");
-    if (endpoint != null) {
-      return endpoint;
-    }
-    String method = attribute(fact, "httpMethod");
-    String path = attribute(fact, "path");
-    if (path == null) {
-      return null;
-    }
-    return method == null ? path : method + " " + path;
-  }
-
-  /**
-   * A link's protocol; for a link the LLM resolver picked (ADR 0045) it adds that and its
-   * confidence, so the line shows it was not matched statically.
-   */
-  static String protocol(Fact fact) {
-    String protocol = attribute(fact, "protocol");
-    String resolution = resolution(fact);
-    if (resolution == null) {
-      return protocol;
-    }
-    return protocol == null ? resolution : protocol + " · " + resolution;
-  }
-
-  /** "resolved by the LLM, confidence 0.28" for a link the LLM resolver picked, else null. */
-  static String resolution(Fact fact) {
-    // The resolver's links name the link left open they resolve (ADR 0045), whatever their kind.
-    if (!fact.attributes().has("resolves")) {
-      return null;
-    }
-    return "resolved by the LLM, confidence "
-        + String.format(Locale.ROOT, "%.2f", fact.confidence());
-  }
-
   private static String attribute(Fact fact, String name) {
     return RepoSections.attribute(fact, name, null);
-  }
-
-  static List<String> strings(Fact fact, String name) {
-    JsonNode values = fact.attributes().get(name);
-    List<String> result = new ArrayList<>();
-    if (values != null && values.isArray()) {
-      for (JsonNode value : values) {
-        result.add(value.asString());
-      }
-    }
-    return result;
   }
 
   /** An edge being built from links: its facts, details, technologies and profiles. */
@@ -803,12 +196,12 @@ final class C4Views {
       this.to = to;
     }
 
-    void add(Link link, Assembler.Phrased phrase) {
-      add(link.plain, link.prefix, link.detail, link.technology, link.profile);
-      if (link.via != null) {
-        vias.add(link.via);
+    void add(Line link, Assembler.Phrased phrase) {
+      add(link.plain(), link.prefix(), link.detail(), link.technology(), link.profile());
+      if (link.via() != null) {
+        vias.add(link.via());
       }
-      facts.addAll(link.facts);
+      facts.addAll(link.facts());
       phrased(phrase);
     }
 
@@ -909,8 +302,9 @@ final class C4Views {
           from + " " + relationship + " " + to, k -> new EdgeBuilder(from, relationship, to));
     }
 
-    void add(Link link) {
-      get(link.from, link.relationship, link.to).add(link, assembler.phrase(link.facts.getFirst()));
+    void add(Line link) {
+      get(link.from(), link.relationship(), link.to())
+          .add(link, assembler.phrase(link.facts().getFirst()));
     }
 
     List<Diagram.Edge> build(Assembler assembler, boolean withTechnology) {
@@ -943,22 +337,22 @@ final class C4Views {
     Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
     nodes.put(system, node(system, null, null, List.of()));
     Edges edges = new Edges();
-    for (Link link : links) {
-      if ((units.contains(link.from) || frontends.contains(link.from))
-          && link.to.type().equals(Types.EXTERNAL_SYSTEM)) {
-        nodes.computeIfAbsent(link.to, e -> node(e, null, null, List.of()));
-        EdgeBuilder edge = edges.get(system, link.relationship, link.to);
-        edge.add(link.plain, link.prefix, link.detail, null, link.profile);
-        edge.facts.addAll(link.facts);
-        edge.phrased(assembler.phrase(link.facts.getFirst()));
+    for (Line link : links) {
+      if ((units.contains(link.from()) || frontends.contains(link.from()))
+          && link.to().type().equals(Types.EXTERNAL_SYSTEM)) {
+        nodes.computeIfAbsent(link.to(), e -> node(e, null, null, List.of()));
+        EdgeBuilder edge = edges.get(system, link.relationship(), link.to());
+        edge.add(link.plain(), link.prefix(), link.detail(), null, link.profile());
+        edge.facts.addAll(link.facts());
+        edge.phrased(assembler.phrase(link.facts().getFirst()));
       }
     }
-    SortedMap<EntityId, Fact> people = people();
+    SortedMap<EntityId, Fact> people = elements.people();
     for (Map.Entry<EntityId, Fact> person : people.entrySet()) {
       List<Fact> cited = cited(person.getValue());
       nodes.put(person.getKey(), node(person.getKey(), null, null, cited));
-      EdgeBuilder edge = edges.get(person.getKey(), USES, system);
-      List<String> frontends = strings(person.getValue(), "frontends");
+      EdgeBuilder edge = edges.get(person.getKey(), Elements.USES, system);
+      List<String> frontends = Elements.strings(person.getValue(), "frontends");
       edge.add(
           frontends.isEmpty() ? "Uses" : "Uses, through " + String.join(", ", frontends),
           null,
@@ -998,18 +392,10 @@ final class C4Views {
     return blocks;
   }
 
-  /**
-   * The people the linker inferred from the code (ADR 0074) that the scope's repositories show,
-   * each with its {@code person-basis} fact.
-   */
-  SortedMap<EntityId, Fact> people() {
-    return Screens.people(knowledge, repos);
-  }
-
   /** The facts a derived fact was made from, named by its {@code facts} attribute. */
   private List<Fact> basis(Fact derived) {
     List<Fact> facts = new ArrayList<>();
-    for (String id : strings(derived, "facts")) {
+    for (String id : Elements.strings(derived, "facts")) {
       Fact fact = knowledge.fact(id);
       if (fact != null) {
         facts.add(fact);
@@ -1021,7 +407,7 @@ final class C4Views {
   /** The facts a person rests on, with its own. */
   private List<Fact> cited(Fact basis) {
     List<Fact> facts = new ArrayList<>(List.of(basis));
-    for (String id : strings(basis, "cites")) {
+    for (String id : Elements.strings(basis, "cites")) {
       Fact fact = knowledge.fact(id);
       if (fact != null) {
         facts.add(fact);
@@ -1036,14 +422,14 @@ final class C4Views {
    */
   private Metrics counts(String section, SortedMap<EntityId, Fact> people) {
     List<Fact> unitFacts = new ArrayList<>();
-    units.forEach(u -> unitFacts.addAll(containerFacts(u)));
+    units.forEach(u -> unitFacts.addAll(elements.containerFacts(u)));
     Map<String, SortedMap<EntityId, List<Fact>>> used = new TreeMap<>();
     for (String kind : List.of(Types.DATABASE, Types.QUEUE, Types.EXTERNAL_SYSTEM)) {
       used.put(kind, new TreeMap<>(Knowledge.BY_ID));
     }
-    for (Link link : links) {
-      for (EntityId end : List.of(link.from, link.to)) {
-        EntityId other = end.equals(link.from) ? link.to : link.from;
+    for (Line link : links) {
+      for (EntityId end : List.of(link.from(), link.to())) {
+        EntityId other = end.equals(link.from()) ? link.to() : link.from();
         String kind =
             switch (end.type()) {
               case Types.DATABASE -> Types.DATABASE;
@@ -1052,7 +438,7 @@ final class C4Views {
               default -> null;
             };
         if (kind != null && (units.contains(other) || frontends.contains(other))) {
-          used.get(kind).computeIfAbsent(end, e -> new ArrayList<>()).addAll(link.facts);
+          used.get(kind).computeIfAbsent(end, e -> new ArrayList<>()).addAll(link.facts());
         }
       }
     }
@@ -1060,7 +446,7 @@ final class C4Views {
     items.add(metric("Deployable units", units.size(), unitFacts));
     if (!frontends.isEmpty()) {
       List<Fact> apps = new ArrayList<>();
-      frontends.forEach(f -> frontendApp(f).ifPresent(apps::add));
+      frontends.forEach(f -> elements.frontendApp(f).ifPresent(apps::add));
       items.add(metric("Frontends", frontends.size(), apps));
     }
     items.add(metric("Databases", used.get(Types.DATABASE)));
@@ -1100,7 +486,7 @@ final class C4Views {
   private static final Concern REQUESTS =
       new Concern(
           "Requests",
-          Set.of(Types.CALLS_HTTP, USES, Types.SENDS_MAIL, Types.USES_IDENTITY_PROVIDER));
+          Set.of(Types.CALLS_HTTP, Elements.USES, Types.SENDS_MAIL, Types.USES_IDENTITY_PROVIDER));
   private static final Concern DATA =
       new Concern("Data", Set.of(Types.USES_DATABASE, Types.ACCESSES_DATA_OF));
   private static final Concern MESSAGING =
@@ -1204,15 +590,16 @@ final class C4Views {
     }
     // Per unit, with only its neighbours in this concern.
     Set<EntityId> lined = new HashSet<>();
-    for (Link link : links) {
-      if (concern.relationships.contains(link.relationship)) {
-        lined.add(link.from);
-        lined.add(link.to);
+    for (Line link : links) {
+      if (concern.relationships.contains(link.relationship())) {
+        lined.add(link.from());
+        lined.add(link.to());
       }
     }
     for (EntityId unit : shown) {
       boolean alone =
-          everyContainer && links.stream().noneMatch(l -> l.from.equals(unit) || l.to.equals(unit));
+          everyContainer
+              && links.stream().noneMatch(l -> l.from().equals(unit) || l.to().equals(unit));
       if (!lined.contains(unit) && !alone) {
         continue;
       }
@@ -1310,7 +697,7 @@ final class C4Views {
       for (EntityId entity : running.getOrDefault(fact.id(), new TreeSet<>())) {
         runs.add(assembler.name(entity));
       }
-      List<String> ports = strings(fact, "ports");
+      List<String> ports = Elements.strings(fact, "ports");
       List<Fact> cited = new ArrayList<>(List.of(fact));
       cited.addAll(runningFacts.getOrDefault(fact.id(), List.of()));
       rows.add(
@@ -1371,20 +758,20 @@ final class C4Views {
       shown.forEach(unit -> container(nodes, unit));
     }
     Edges edges = new Edges();
-    for (Link link : links) {
-      if ((concern == null || concern.relationships.contains(link.relationship))
-          && (shown.contains(link.from) || shown.contains(link.to))) {
-        container(nodes, link.from);
-        container(nodes, link.to);
+    for (Line link : links) {
+      if ((concern == null || concern.relationships.contains(link.relationship()))
+          && (shown.contains(link.from()) || shown.contains(link.to()))) {
+        container(nodes, link.from());
+        container(nodes, link.to());
         edges.add(link);
       }
     }
     // Routes between exchanges and queues both drawn already.
-    for (Link link : links) {
-      if (link.relationship.equals(Types.ROUTES_TO)
+    for (Line link : links) {
+      if (link.relationship().equals(Types.ROUTES_TO)
           && (concern == null || concern.relationships.contains(Types.ROUTES_TO))
-          && nodes.containsKey(link.from)
-          && nodes.containsKey(link.to)) {
+          && nodes.containsKey(link.from())
+          && nodes.containsKey(link.to())) {
         edges.add(link);
       }
     }
@@ -1410,18 +797,18 @@ final class C4Views {
       Deque<EntityId> queue = new ArrayDeque<>();
       Set<EntityId> called = new HashSet<>();
       List<EntityId> gateways = new ArrayList<>();
-      for (Link link : links) {
-        if (link.relationship.equals(Types.CALLS_HTTP) && runsCode(link.to)) {
-          called.add(link.to);
-          if ("Routes".equals(link.prefix)) {
-            gateways.add(link.from);
+      for (Line link : links) {
+        if (link.relationship().equals(Types.CALLS_HTTP) && Elements.runsCode(link.to())) {
+          called.add(link.to());
+          if ("Routes".equals(link.prefix())) {
+            gateways.add(link.from());
           }
         }
       }
-      List<EntityId> roots = new ArrayList<>(frontends(knowledge));
+      List<EntityId> roots = new ArrayList<>(Elements.frontends(knowledge));
       roots.addAll(gateways);
       if (roots.isEmpty()) {
-        units(knowledge).stream().filter(u -> !called.contains(u)).forEach(roots::add);
+        Elements.units(knowledge).stream().filter(u -> !called.contains(u)).forEach(roots::add);
       }
       for (EntityId root : roots) {
         if (depth.putIfAbsent(root, 0) == null) {
@@ -1430,12 +817,12 @@ final class C4Views {
       }
       while (!queue.isEmpty()) {
         EntityId from = queue.poll();
-        for (Link link : links) {
-          if (link.relationship.equals(Types.CALLS_HTTP)
-              && link.from.equals(from)
-              && runsCode(link.to)
-              && depth.putIfAbsent(link.to, depth.get(from) + 1) == null) {
-            queue.add(link.to);
+        for (Line link : links) {
+          if (link.relationship().equals(Types.CALLS_HTTP)
+              && link.from().equals(from)
+              && Elements.runsCode(link.to())
+              && depth.putIfAbsent(link.to(), depth.get(from) + 1) == null) {
+            queue.add(link.to());
           }
         }
       }
@@ -1461,7 +848,8 @@ final class C4Views {
                 || !nodes.containsKey(system)
             ? null
             : system;
-    nodes.put(entity, node(entity, technology(entity), parent, containerFacts(entity)));
+    nodes.put(
+        entity, node(entity, elements.technology(entity), parent, elements.containerFacts(entity)));
   }
 
   /** The calls, sends and datasources of the scope's units that Lantern could not link. */
@@ -1479,7 +867,7 @@ final class C4Views {
                   Comparator.comparing((Fact f) -> f.object().value())
                       .thenComparing(f -> Objects.toString(attribute(f, "source"), ""))
                       .thenComparing(f -> Objects.toString(attribute(f, "reason"), ""))
-                      .thenComparing(f -> String.join(",", strings(f, "unresolved")))
+                      .thenComparing(f -> String.join(",", Elements.strings(f, "unresolved")))
                       .thenComparing(f -> Objects.toString(attribute(f, "site"), ""))
                       .thenComparing(f -> Objects.toString(attribute(f, "view"), ""))
                       .thenComparing(Fact::id))
@@ -1487,7 +875,7 @@ final class C4Views {
       for (Fact fact : open) {
         facts.add(fact);
         String reason = attribute(fact, "reason");
-        List<String> keys = strings(fact, "unresolved");
+        List<String> keys = Elements.strings(fact, "unresolved");
         StringBuilder text =
             new StringBuilder(content.isEmpty() ? "" : " ")
                 .append(assembler.name(unit))
@@ -1616,12 +1004,6 @@ final class C4Views {
   // Components.
 
   /**
-   * A component: a group of types behind one role, named after its main type, the entry point or
-   * bean it is built around.
-   */
-  record Component(EntityId main, SortedSet<EntityId> types, String technology) {}
-
-  /**
    * One subsection per unit in scope with more than one component, holding its component diagram:
    * one component per controller, message listener or scheduled job with the beans reachable only
    * from it, a bean reachable from several entry points (or from none, when it reaches outside the
@@ -1633,7 +1015,7 @@ final class C4Views {
     SortedSet<EntityId> ordered = new TreeSet<>(entryFirst());
     ordered.addAll(units);
     for (EntityId unit : ordered) {
-      List<Component> components = components(unit);
+      List<Elements.Component> components = elements.components(unit);
       if (components.size() < 2) {
         continue;
       }
@@ -1654,79 +1036,23 @@ final class C4Views {
     return result;
   }
 
-  /**
-   * The unit's stored components (#523): the routes its gateway config defines, then its entry
-   * points and aspects, then the beans they share, each in ID order.
-   */
-  List<Component> components(EntityId unit) {
-    List<Component> routes = new ArrayList<>();
-    List<Component> entries = new ArrayList<>();
-    List<Component> shared = new ArrayList<>();
-    for (Fact part : knowledge.withPredicate(Components.PART_OF)) {
-      if (!part.subject().type().equals(BuiltInTypes.COMPONENT)
-          || !Knowledge.isEntity(part)
-          || !Knowledge.object(part).equals(unit)) {
-        continue;
-      }
-      EntityId component = part.subject();
-      EntityId main =
-          knowledge.relations(component, Components.ANCHORED_ON).stream()
-              .map(Knowledge::object)
-              .findFirst()
-              .orElse(null);
-      if (main == null) {
-        continue;
-      }
-      SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
-      knowledge
-          .relations(component, Components.HAS_MEMBER)
-          .forEach(f -> types.add(Knowledge.object(f)));
-      String role = RepoSections.attribute(part, "role", "");
-      Component found =
-          new Component(main, types, RepoSections.attribute(part, "technology", null));
-      switch (role) {
-        case Components.CONFIG_ROUTES_ROLE -> routes.add(found);
-        case Components.SHARED -> shared.add(found);
-        default -> entries.add(found);
-      }
-    }
-    Comparator<Component> byMain = Comparator.comparing(c -> c.main().toString());
-    routes.sort(byMain);
-    entries.sort(byMain);
-    shared.sort(byMain);
-    List<Component> components = new ArrayList<>(routes);
-    components.addAll(entries);
-    components.addAll(shared);
-    return components;
-  }
-
-  /**
-   * A component's name: its main type's, or {@value #CONFIG_ROUTES} for the routes a gateway's
-   * config defines.
-   */
-  String componentName(Component component) {
-    return component.main.type().equals(BuiltInTypes.MODULE)
-        ? CONFIG_ROUTES
-        : assembler.name(component.main);
-  }
-
   private List<EntityId> withMethods(EntityId type) {
     List<EntityId> members = new ArrayList<>(List.of(type));
     members.addAll(knowledge.parts(type, Types.METHOD));
     return members;
   }
 
-  private Diagram componentDiagram(String id, EntityId unit, List<Component> components) {
+  private Diagram componentDiagram(String id, EntityId unit, List<Elements.Component> components) {
     Map<EntityId, Diagram.Node> nodes = new TreeMap<>(Knowledge.BY_ID);
-    nodes.put(unit, node(unit, technology(unit), null, containerFacts(unit)));
-    for (Component component : components) {
+    nodes.put(unit, node(unit, elements.technology(unit), null, elements.containerFacts(unit)));
+    for (Elements.Component component : components) {
       Diagram.Node node =
-          node(component.main, component.technology, unit, componentFacts(component));
+          node(component.main(), component.technology(), unit, elements.componentFacts(component));
       nodes.put(
-          component.main,
+          component.main(),
           new Diagram.Node(
               node.id(),
-              componentName(component),
+              elements.componentName(component),
               node.technology(),
               node.parent(),
               node.style(),
@@ -1737,18 +1063,19 @@ final class C4Views {
     // The stored lines between the unit's components (#617), and where the code end of each of
     // its links to other containers is.
     Map<EntityId, EntityId> mainOf = new TreeMap<>(Knowledge.BY_ID);
-    components.forEach(c -> mainOf.put(Components.id(unit, c.main), c.main));
+    components.forEach(c -> mainOf.put(Components.id(unit, c.main()), c.main()));
     Map<String, EntityId> codeEnds = new HashMap<>();
-    for (Component component : components) {
+    for (Elements.Component component : components) {
       for (Fact line :
           knowledge.relations(
-              Components.id(unit, component.main), ComponentInteractions.COMPONENT_LINK)) {
+              Components.id(unit, component.main()), ComponentInteractions.COMPONENT_LINK)) {
         String kind = attribute(line, "kind");
         String detail = attribute(line, "detail");
         if (ComponentInteractions.CODE_END.equals(kind)) {
           // The side the code is on, then each link it places, by the fact it cites.
           String side = attribute(line, "target").split(" ", 2)[0];
-          strings(line, "facts").forEach(link -> codeEnds.put(side + " " + link, component.main));
+          Elements.strings(line, "facts")
+              .forEach(link -> codeEnds.put(side + " " + link, component.main()));
           continue;
         }
         EntityId to = mainOf.get(Knowledge.object(line));
@@ -1764,7 +1091,7 @@ final class C4Views {
               default -> "Calls";
             };
         String prefix = ComponentInteractions.APPLIES.equals(kind) ? "Applies on routes" : plain;
-        EdgeBuilder edge = edges.get(component.main, relationship, to);
+        EdgeBuilder edge = edges.get(component.main(), relationship, to);
         for (Fact cited : basis(line)) {
           edge.add(plain, prefix, detail, null, null);
           edge.facts.add(cited);
@@ -1773,42 +1100,42 @@ final class C4Views {
       }
     }
     // Lines to and from other containers, at the code on this unit's end.
-    for (Link link : links) {
-      if (link.from.equals(unit)) {
-        for (Fact fact : link.facts) {
+    for (Line link : links) {
+      if (link.from().equals(unit)) {
+        for (Fact fact : link.facts()) {
           EntityId from = codeEnds.get("source " + fact.id());
           if (from != null && fact.subject().equals(unit)) {
-            container(nodes, link.to);
+            container(nodes, link.to());
             edges.add(link.from(from));
           }
         }
-      } else if (link.to.equals(unit)) {
-        for (Fact fact : link.facts) {
+      } else if (link.to().equals(unit)) {
+        for (Fact fact : link.facts()) {
           String side = fact.subject().equals(unit) ? "source" : "target";
           EntityId to = codeEnds.get(side + " " + fact.id());
           if (to != null
-              && link.relationship.equals(Types.CONSUMES) == fact.subject().equals(unit)) {
-            container(nodes, link.from);
+              && link.relationship().equals(Types.CONSUMES) == fact.subject().equals(unit)) {
+            container(nodes, link.from());
             edges.add(link.to(to));
           }
         }
       }
     }
     // Data access, to the databases the unit's datasources point to.
-    for (Component component : components) {
+    for (Elements.Component component : components) {
       String access =
           knowledge
-              .attribute(Components.id(unit, component.main), ComponentInteractions.DATA_ACCESS)
+              .attribute(Components.id(unit, component.main()), ComponentInteractions.DATA_ACCESS)
               .orElse(null);
       if (access == null) {
         continue;
       }
-      for (Link link : links) {
-        if (link.from.equals(unit) && link.relationship.equals(Types.USES_DATABASE)) {
-          container(nodes, link.to);
-          EdgeBuilder edge = edges.get(component.main, Types.USES_DATABASE, link.to);
-          edge.add(access, null, null, link.technology, link.profile);
-          edge.facts.addAll(link.facts);
+      for (Line link : links) {
+        if (link.from().equals(unit) && link.relationship().equals(Types.USES_DATABASE)) {
+          container(nodes, link.to());
+          EdgeBuilder edge = edges.get(component.main(), Types.USES_DATABASE, link.to());
+          edge.add(access, null, null, link.technology(), link.profile());
+          edge.facts.addAll(link.facts());
           edge.phrased(null);
         }
       }
@@ -1820,30 +1147,6 @@ final class C4Views {
         List.copyOf(nodes.values()),
         edges.build(assembler, true),
         List.of());
-  }
-
-  /** The facts that make the component's main type what it is: its stereotype and entry points. */
-  List<Fact> componentFacts(Component component) {
-    List<Fact> facts = new ArrayList<>();
-    for (EntityId member : withMethods(component.main)) {
-      for (Fact fact : knowledge.attributes(member)) {
-        switch (fact.predicate()) {
-          case Types.STEREOTYPE,
-              Types.HTTP_CLIENT,
-              Types.ENDPOINT,
-              Types.MESSAGE_LISTENER,
-              Types.SCHEDULED,
-              Types.BACKGROUND_JOB,
-              Types.ASPECT,
-              Types.GATEWAY_ROUTE,
-              Types.GATEWAY_FILTER ->
-              facts.add(fact);
-          default -> {}
-        }
-      }
-    }
-    facts.addAll(knowledge.relations(component.main, Types.REPOSITORY_FOR));
-    return facts;
   }
 
   private static SortedSet<EntityId> only(EntityId entity) {

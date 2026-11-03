@@ -11,6 +11,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Knowledge;
@@ -163,7 +164,7 @@ final class BriefSections {
         add(dependencies, Knowledge.object(fact), name + " " + tables(fact, "its"), fact);
       }
       for (Fact fact : links(unit, Types.USES_DATABASE)) {
-        boolean owns = !C4Views.strings(fact, "schemas").isEmpty();
+        boolean owns = !Elements.strings(fact, "schemas").isEmpty();
         add(
             dependencies,
             Knowledge.object(fact),
@@ -171,7 +172,7 @@ final class BriefSections {
             fact);
       }
     }
-    for (EntityId other : C4Views.units(knowledge)) {
+    for (EntityId other : Elements.units(knowledge)) {
       if (units.contains(other)) {
         continue;
       }
@@ -273,8 +274,8 @@ final class BriefSections {
 
   /** Whether a table access reads, writes or does both, of the tables named by the article. */
   private static String tables(Fact fact, String article) {
-    boolean reads = !C4Views.strings(fact, "reads").isEmpty();
-    boolean writes = !C4Views.strings(fact, "writes").isEmpty();
+    boolean reads = !Elements.strings(fact, "reads").isEmpty();
+    boolean writes = !Elements.strings(fact, "writes").isEmpty();
     String verb = reads && !writes ? "reads" : writes && !reads ? "writes" : "reads and writes";
     return verb + " " + article + " tables";
   }
@@ -327,7 +328,7 @@ final class BriefSections {
       repos.addAll(knowledge.repos(module));
     }
     if (repos.isEmpty()) {
-      for (EntityId module : C4Views.codeModules(knowledge, unit)) {
+      for (EntityId module : Elements.codeModules(knowledge, unit)) {
         repos.addAll(knowledge.repos(module));
       }
     }
@@ -459,7 +460,7 @@ final class BriefSections {
     }
     SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
     code.addAll(modules);
-    units.forEach(u -> code.addAll(C4Views.codeModules(knowledge, u)));
+    units.forEach(u -> code.addAll(Elements.codeModules(knowledge, u)));
     for (EntityId module : code) {
       for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
         EntityId target = Knowledge.object(fact);

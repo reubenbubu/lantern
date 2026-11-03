@@ -8,9 +8,10 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
-import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
+import io.lantern.derive.ElementNames;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import io.lantern.summarize.SummaryLevel;
@@ -23,7 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeMap;
@@ -67,6 +67,7 @@ final class Assembler {
   private final Set<EntityId> described;
   private final String repo;
   private final String systemName;
+  private final ElementNames names;
   private final Set<EntityId> adding = new HashSet<>();
   private final Deque<EntityId> undescribed = new ArrayDeque<>();
   private final Map<EntityId, DocumentEntity> entities = new TreeMap<>(Knowledge.BY_ID);
@@ -87,6 +88,7 @@ final class Assembler {
     this.described = described;
     this.repo = repo;
     this.systemName = systemName;
+    this.names = new ElementNames(knowledge, systemName);
   }
 
   /** The text of a rich-text element and the facts it cites. */
@@ -162,57 +164,14 @@ final class Assembler {
     return modules.isEmpty() ? id : modules.first();
   }
 
-  /** The entity's display name. */
+  /** The name a reader sees for an entity ({@link ElementNames#name}). */
   String name(EntityId id) {
-    String key = id.key();
-    return switch (id.type()) {
-      case BuiltInTypes.SERVICE -> {
-        Optional<String> name = C4Views.applicationName(knowledge, id);
-        yield name.orElse(key.substring(key.lastIndexOf(':') + 1));
-      }
-      case BuiltInTypes.SYSTEM -> systemName;
-      case Types.DATABASE -> {
-        Optional<String> display = knowledge.attribute(id, Types.DISPLAY_NAME);
-        if (display.isPresent()) {
-          // A unit's own database is named by the linker (#291).
-          yield display.get();
-        }
-        // server/database, the server host:port or the unit an embedded database belongs to.
-        int slash = key.lastIndexOf('/');
-        if (slash < 0) {
-          yield key;
-        }
-        String server = key.substring(0, slash);
-        int colon = server.lastIndexOf(':');
-        String host =
-            colon > 0 && server.substring(colon + 1).matches("[0-9]+")
-                ? server.substring(0, colon)
-                : server;
-        yield key.substring(slash + 1) + " on " + host;
-      }
-      case Types.TOPIC, Types.QUEUE, Types.EXCHANGE -> key.substring(key.indexOf(':') + 1);
-      case Types.EXTERNAL_SYSTEM ->
-          knowledge
-              .attribute(id, Types.DISPLAY_NAME)
-              .or(() -> MailProviders.name(key))
-              .or(() -> IdentityProviders.name(key))
-              .orElse(key);
-      case Types.DECISION -> knowledge.attribute(id, Types.TITLE).orElse(key);
-      case Types.PERSON -> knowledge.attribute(id, Types.DISPLAY_NAME).orElse(key);
-      case Types.FRONTEND ->
-          knowledge
-              .attribute(id, Types.DISPLAY_NAME)
-              .or(
-                  () ->
-                      C4Views.frontendApp(knowledge, id)
-                          .map(f -> RepoSections.attribute(f, "name", key)))
-              .orElse(key);
-      case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, Types.ARTIFACT ->
-          key.substring(key.lastIndexOf(':') + 1);
-      case BuiltInTypes.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
-      case Types.METHOD, Types.FIELD -> key.substring(key.indexOf('#') + 1);
-      default -> key;
-    };
+    return names.name(id);
+  }
+
+  /** The names of the document's entities. */
+  ElementNames names() {
+    return names;
   }
 
   /** The entity the given one belongs under in the navigation tree, or {@code null}. */
@@ -242,7 +201,7 @@ final class Assembler {
         yield wholes.isEmpty() ? null : wholes.first();
       }
       case Types.FRONTEND ->
-          C4Views.frontendApp(knowledge, id)
+          Elements.frontendApp(knowledge, id)
               .map(f -> repoOf(new TreeSet<>(Set.of(f.evidence().repo()))))
               .orElse(null);
       default -> {
@@ -637,25 +596,11 @@ final class Assembler {
   }
 
   /**
-   * Whether the entity is a data store, destination or system outside the scope: an element the
-   * container diagrams draw that runs none of the system's code, at the container or context level
-   * by its type or the nearest ancestor that has one (ADR 0114). A message broker and an
-   * infrastructure server are containers too, but the diagrams draw a broker's topics, queues and
-   * exchanges instead, and keep infrastructure apart from the business dependencies.
+   * Whether the entity is one the container diagrams draw besides units ({@link
+   * Elements#isDestination}).
    */
   boolean destination(EntityId id) {
-    Vocabulary vocabulary = model.vocabulary();
-    String type = id.type();
-    if (vocabulary.find(type).isEmpty()
-        || type.equals(BuiltInTypes.SYSTEM)
-        || vocabulary.isA(type, BuiltInTypes.ACTOR)
-        || vocabulary.isA(type, Types.MESSAGE_BROKER)
-        || vocabulary.isA(type, Types.INFRASTRUCTURE)
-        || C4Views.runsCode(id)) {
-      return false;
-    }
-    C4Level level = vocabulary.c4Level(type).orElse(null);
-    return level == C4Level.CONTAINER || level == C4Level.CONTEXT;
+    return Elements.isDestination(model.vocabulary(), id);
   }
 
   /**
@@ -764,7 +709,7 @@ final class Assembler {
    * Dockerfile say, citing its {@code frontend-app} fact, and what it calls.
    */
   private Text frontend(EntityId id) {
-    Fact app = C4Views.frontendApp(knowledge, id).orElse(null);
+    Fact app = Elements.frontendApp(knowledge, id).orElse(null);
     if (app == null) {
       return new Text(List.of(), List.of());
     }
@@ -812,7 +757,7 @@ final class Assembler {
   private Text person(EntityId id) {
     Fact basis = personBasis(id);
     List<Fact> cited = new ArrayList<>(List.of(basis));
-    for (String factId : C4Views.strings(basis, "cites")) {
+    for (String factId : Elements.strings(basis, "cites")) {
       Fact fact = knowledge.fact(factId);
       if (fact != null) {
         cited.add(fact);

@@ -7,6 +7,7 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
@@ -31,7 +32,7 @@ import tools.jackson.databind.JsonNode;
 final class InvestigatedFindings {
 
   /** What opens everything Investigate found, in every template (ADR 0110). */
-  static final String FOUND_BY_LLM = "Found by the LLM:";
+  static final String FOUND_BY_LLM = Elements.FOUND_BY_LLM;
 
   /** What opens a fixed check's finding the LLM worded. */
   static final String WORDED_BY_LLM = "Found by a fixed check, worded by the LLM:";
