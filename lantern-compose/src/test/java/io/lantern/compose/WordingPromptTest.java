@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.compose.WordingPrompt.Question;
 import io.lantern.core.fact.EntityId;
+import io.lantern.derive.ScopeFlows;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -22,11 +23,11 @@ class WordingPromptTest {
         "shop-app receives GET /orders (Controller.list)",
         facts.find("method:com.example.web.Controller#list()", "endpoint"),
         List.of(
-            new WordingPrompt.FlowStep(
+            new ScopeFlows.StepLine(
                 0,
                 "shop-app to orders (a topic), async: Sends a message [Kafka]",
                 List.of(facts.find("service:com.example:app", "PUBLISHES"))),
-            new WordingPrompt.FlowStep(
+            new ScopeFlows.StepLine(
                 1, "As Other:", List.of(facts.find("service:com.example:app", "PUBLISHES")))));
   }
 

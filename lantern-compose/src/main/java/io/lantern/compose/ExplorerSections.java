@@ -12,6 +12,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.attributes.Types;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -116,9 +117,9 @@ final class ExplorerSections {
    */
   List<Block> startHere(String section) {
     List<ListBlock.Item> items = new ArrayList<>();
-    List<SequenceFlows.Entry> main = flows.mainEntries();
+    List<ScopeFlows.Entry> main = flows.mainEntries();
     if (!main.isEmpty()) {
-      for (SequenceFlows.Entry entry : main) {
+      for (ScopeFlows.Entry entry : main) {
         items.add(entryItem(entry.unit(), entry.method(), entry.fact()));
       }
     } else {
@@ -163,7 +164,7 @@ final class ExplorerSections {
     content.add(TextRun.of(": "));
     assembler.entity(method);
     content.add(
-        new CrossReference(SequenceFlows.methodName(method), CrossReference.Target.entity(method)));
+        new CrossReference(ScopeFlows.methodName(method), CrossReference.Target.entity(method)));
     file(fact).ifPresent(path -> content.addAll(inFile(path)));
     content.add(TextRun.of("."));
     return new ListBlock.Item(content, assembler.facts(List.of(fact)));
@@ -355,7 +356,7 @@ final class ExplorerSections {
                   text(kind),
                   List.of(
                       new CrossReference(
-                          SequenceFlows.methodName(entry.method),
+                          ScopeFlows.methodName(entry.method),
                           CrossReference.Target.entity(entry.method))),
                   List.of(entity(entry.unit)),
                   file(entry.fact).map(p -> List.<Inline>of(code(p))).orElse(List.of())),
@@ -603,9 +604,7 @@ final class ExplorerSections {
     content.add(TextRun.of(lead));
     assembler.entity(method);
     String name =
-        method.type().equals(Types.METHOD)
-            ? SequenceFlows.methodName(method)
-            : assembler.name(method);
+        method.type().equals(Types.METHOD) ? ScopeFlows.methodName(method) : assembler.name(method);
     content.add(new CrossReference(name, CrossReference.Target.entity(method)));
     file(fact).ifPresent(path -> content.addAll(inFile(path)));
     if (which != null) {

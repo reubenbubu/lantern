@@ -7,6 +7,7 @@ import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.attributes.Types;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
@@ -770,9 +771,9 @@ public final class Describer {
       Tally tally) {
     List<Scope> scopes = scopes(repoFacts, knowledge, assembler, c4);
     RoleSession significance = harness.session(FlowJudgements.SIGNIFICANCE);
-    Map<Scope, List<SequenceFlows.Candidate>> candidates = new LinkedHashMap<>();
+    Map<Scope, List<ScopeFlows.Candidate>> candidates = new LinkedHashMap<>();
     for (Scope scope : scopes) {
-      List<SequenceFlows.Candidate> found = scope.flows(null).candidates();
+      List<ScopeFlows.Candidate> found = scope.flows(null).candidates();
       if (!found.isEmpty()) {
         candidates.put(scope, found);
       }
@@ -797,7 +798,7 @@ public final class Describer {
     List<RoleSession.Planned> planned = new ArrayList<>();
     firstPass.forEach(
         (scope, unitItems) -> {
-          List<SequenceFlows.Candidate> expected = new ArrayList<>();
+          List<ScopeFlows.Candidate> expected = new ArrayList<>();
           unitItems.forEach(
               unitItem -> {
                 planned.add(RoleSession.Planned.of(unitItem.item()));
@@ -831,7 +832,7 @@ public final class Describer {
         askAll(significance, firstPass.values().stream().flatMap(List::stream).toList(), false);
     firstPass.forEach(
         (scope, unitItems) -> {
-          List<SequenceFlows.Candidate> kept = new ArrayList<>();
+          List<ScopeFlows.Candidate> kept = new ArrayList<>();
           for (FlowJudgements.Asked unitItem : unitItems) {
             Outcome outcome = firstOutcomes.get(unitItem);
             count(tally, outcome);

@@ -19,6 +19,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.ScopeFlows;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -844,7 +845,7 @@ class SequenceFlowsTest {
   void ofTheFlowsTheModelKeepsOnlyItsFirstOfEachShapeIsDrawn() {
     // As project-4's PUT and DELETE of a member's role, judged significant both (#701).
     List<String> kept =
-        SequenceFlows.firstOfEachShape(
+        ScopeFlows.firstOfEachShape(
             List.of("PUT role", "sign up", "DELETE role", "reset password", "upload"),
             flow ->
                 switch (flow) {
@@ -1217,7 +1218,7 @@ class SequenceFlowsTest {
 
   @Test
   void showsAtMostSevenFlowsInRankOrder() {
-    for (int i = 0; i < SequenceFlows.MAX_FLOWS + 2; i++) {
+    for (int i = 0; i < ScopeFlows.MAX_FLOWS + 2; i++) {
       String method = "method:x.pay.Job" + i + "#run()";
       type("pay", "x.pay", "x.pay.Job" + i, "class", "run()");
       attribute("pay", method, "scheduled", "0 0 " + i + " * * *", "{}", 0);
@@ -1404,15 +1405,15 @@ class SequenceFlowsTest {
     assertThat(order.title()).isEqualTo("Place (POST /orders on front)");
     assertThat(diagram(order).title()).isEqualTo(order.title());
     assertThat(
-            SequenceFlows.scenario(
-                new SequenceFlows.Entry(
+            ScopeFlows.scenario(
+                new ScopeFlows.Entry(
                     EntityId.parse(PAY),
                     EntityId.parse("method:x.pay.OrganizationController#createOrganization()"),
                     null)))
         .isEqualTo("Create organization");
     assertThat(
-            SequenceFlows.scenario(
-                new SequenceFlows.Entry(EntityId.parse(SHIP), EntityId.parse(STATUS), null)))
+            ScopeFlows.scenario(
+                new ScopeFlows.Entry(EntityId.parse(SHIP), EntityId.parse(STATUS), null)))
         .isEqualTo("Get status");
   }
 
