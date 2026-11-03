@@ -1,5 +1,8 @@
 {
   "role": "flow-narrative",
+  "harnessRoles": [
+    "flow-narrative"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "flow-narrative.task.txt"

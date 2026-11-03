@@ -1,5 +1,8 @@
 {
   "role": "injection-screen",
+  "harnessRoles": [
+    "injection-screen"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "injection-screen.task.txt"

@@ -98,3 +98,7 @@ fact ID on a tie.
 ## Amendment (#730): room for a reason a flow
 
 A scope's significance answer had 120 tokens of output a flow, plus 500. On the 1F drop's DeepSeek runs, the whole system's answer on project-2 (51 flows) and project-4 (41 flows) used its whole limit and was cut off, so those documents drew by rank. A reason with its citations runs past 120 tokens: both answers were still writing reasons when the limit stopped them, and how much of the limit thinking took is not reported, so the exact length a reason needs is not measured. The room is now 250 tokens a flow plus 1,000 for the order, at least 1,500, with the model's thinking headroom on top. The prompt version goes from 5 to 6, so the judgements dropped for a cut-off answer are asked again rather than repeated from the cache.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.

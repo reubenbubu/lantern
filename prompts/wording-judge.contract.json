@@ -1,5 +1,9 @@
 {
   "role": "wording-judge",
+  "harnessRoles": [
+    "wording-judge-role",
+    "wording-judge-specific"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "wording-judge-role.task.txt",

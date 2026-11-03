@@ -156,3 +156,7 @@ Size 1 trial a cost $0.32. 77 reference risks and decoys were scored.
 
 - **Kept: 1 lead a request** (`lantern.harness.items-per-request.investigate-leads=1`). Size 5 fails the −7 bound; sizes pass in order, so 10 and 20, which pass, are not considered. A size truly equal to 1 fails that bound about one time in seven with these 77 items (ADR 0112), so size 5's failure may be noise. A size-1 run of leads costs about twice a size-5 run.
 - To be measured again on Claude Haiku 5.5 and on more scored leads.
+
+## Amendment (#760): limits in the role's contract
+
+This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.

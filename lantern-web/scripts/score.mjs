@@ -23,6 +23,7 @@
 // reference/aliases.json, if there is one, the set's alias table.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { judgedCell, judgedRows, readLabels, readLines } from './wording.mjs';
+import { contractLines, qualityRows, readContracts, readQuality, sizeRows } from './contracts.mjs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -726,7 +727,19 @@ export function score(report, reference, aliases = {}, inputs = {}) {
     .map((c) => c.id);
   result.selfReportedGaps = selfReportedGaps(report);
   result.roles = roleRows(report, reference, matched, repFlows, inputs);
+  result.contracts = contractRows(inputs);
   return result;
+}
+
+/** Each role's size rules three ways and its quality score (contracts.mjs; ADR 0118). */
+function contractRows(inputs) {
+  const contracts = readContracts();
+  const quality = readQuality();
+  return {
+    sizes: sizeRows(contracts, inputs.llm ?? null, inputs.rejections ?? null),
+    quality: qualityRows(contracts, quality, inputs.wording ?? null),
+    tolerancePoints: quality?.tolerancePoints ?? 7,
+  };
 }
 
 /** The rows per LLM role (roles.mjs; ADR 0072, amendment for #667). */
@@ -900,6 +913,7 @@ export function scorecardMarkdown(card) {
       `Not connected to anything the reference has (counted as extra; left out of the connected part's precision): ${s.outOfScope.join('; ')}.`,
     );
   }
+  if (s.contracts) lines.push(...contractLines(s.contracts.sizes, s.contracts.quality, s.contracts.tolerancePoints));
   lines.push('', '## Quality-bar checks', '');
   for (const check of s.checks) {
     const shown = check.failures.slice(0, 5).join('; ');
@@ -946,6 +960,7 @@ export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
     warm: options.warm ? readRun(options.warm) : null,
     change: options.change ? readRun(options.change) : null,
     wording: readLines(join(beside, 'wording.jsonl.gz')),
+    rejections: readLines(join(beside, 'rejections.jsonl.gz')),
     labels: readLabels(options.labels),
   };
   return {

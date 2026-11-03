@@ -1,5 +1,8 @@
 {
   "role": "support-judge",
+  "harnessRoles": [
+    "support-judge"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "support-judge.task.txt"

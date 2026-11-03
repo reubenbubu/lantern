@@ -1,5 +1,9 @@
 {
   "role": "summarize",
+  "harnessRoles": [
+    "summarize",
+    "summarize-type"
+  ],
   "tolerance": 0.15,
   "prompts": [],
   "fields": [

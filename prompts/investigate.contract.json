@@ -1,5 +1,10 @@
 {
   "role": "investigate",
+  "harnessRoles": [
+    "investigate-leads",
+    "investigate-units",
+    "investigate-system"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "investigate-leads.task.txt",

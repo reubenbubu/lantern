@@ -1,5 +1,8 @@
 {
   "role": "name-groups",
+  "harnessRoles": [
+    "name-groups"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "name-groups.task.txt"

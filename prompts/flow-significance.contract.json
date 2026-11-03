@@ -1,5 +1,8 @@
 {
   "role": "flow-significance",
+  "harnessRoles": [
+    "flow-significance"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "flow-significance.task.txt"

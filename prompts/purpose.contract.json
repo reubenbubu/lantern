@@ -1,5 +1,8 @@
 {
   "role": "purpose",
+  "harnessRoles": [
+    "purpose"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "purpose.task.txt"

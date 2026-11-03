@@ -1,5 +1,8 @@
 {
   "role": "describe-elements",
+  "harnessRoles": [
+    "describe-element"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "describe-elements.task.txt"

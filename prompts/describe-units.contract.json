@@ -1,5 +1,8 @@
 {
   "role": "describe-units",
+  "harnessRoles": [
+    "describe-unit"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "describe-units.task.txt"

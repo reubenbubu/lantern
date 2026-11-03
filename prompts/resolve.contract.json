@@ -1,5 +1,8 @@
 {
   "role": "resolve",
+  "harnessRoles": [
+    "resolve"
+  ],
   "tolerance": 0.15,
   "prompts": [
     "resolve.task.txt"
