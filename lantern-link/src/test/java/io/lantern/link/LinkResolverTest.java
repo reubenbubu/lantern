@@ -381,7 +381,7 @@ class LinkResolverTest {
     assertThat(link.subject()).isEqualTo(EntityId.parse("service:g:orders"));
     assertThat(link.predicate()).isEqualTo(CrossRepoLinks.CALLS_HTTP);
     assertThat(link.object().value()).isEqualTo("service:g:tax");
-    assertThat(link.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "resolve", "5"));
+    assertThat(link.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "resolve", "6"));
     assertThat(link.confidence()).isEqualTo(0.5);
     assertThat(link.evidence()).isEqualTo(unresolved.evidence());
     ObjectNode attributes = link.attributes().deepCopy();
@@ -616,6 +616,44 @@ class LinkResolverTest {
   }
 
   @Test
+  void aRangeInARepositoryOfNeitherSideCountsForNeither() {
+    // A shared library's file can be evidence, but it is on neither the caller's side nor the
+    // candidate's (#703).
+    taxCall();
+    unit("c", "shared");
+    FILE_TEXTS.put("c:src/main/java/c/Hosts.java", "class Hosts {\n  String TAX = \"tax\";\n}\n");
+    FakeLlmProvider third =
+        submittingOnce(
+            r ->
+                "{\"I1\": "
+                    + entry(
+                        candidate(r, "service:g:tax"),
+                        "high",
+                        "The shared hosts name tax.",
+                        ref(r, "http-call"),
+                        "c:src/main/java/c/Hosts.java:1-2")
+                    + "}");
+    assertThat(resolveWithFiles(third).facts()).isEmpty();
+    assertThat(verdicts(third.sent().get(1).request())).contains("Cites nothing on the side of K");
+
+    model = "m2";
+    FakeLlmProvider read =
+        submittingOnce(
+            r ->
+                "{\"I1\": "
+                    + entry(
+                        candidate(r, "service:g:tax"),
+                        "high",
+                        "Tax serves GET /v2/quotes.",
+                        ref(r, "http-call"),
+                        "c:src/main/java/c/Hosts.java:1-2",
+                        ref(r, "t.TaxController#quotes() endpoint"))
+                    + "}");
+    assertThat(resolveWithFiles(read).facts()).hasSize(1);
+    FILE_TEXTS.remove("c:src/main/java/c/Hosts.java");
+  }
+
+  @Test
   void aPickCitingNoEndpointReachesTheOneTheLinkerRanksFirst() {
     taxCall();
     FakeLlmProvider fake =
@@ -666,6 +704,27 @@ class LinkResolverTest {
     } finally {
       FILE_TEXTS.put(key, before);
     }
+  }
+
+  @Test
+  void aCachedAnswerCitingOneLineIsNotAskedAgain() {
+    // A single cited line is a range of that line, in the check and in the cache (#703).
+    taxCall();
+    Function<LlmRequest, String> citingOneLine =
+        r ->
+            "{\"I1\": "
+                + entry(
+                    candidate(r, "service:g:tax"),
+                    "high",
+                    "Only tax serves GET /v2/quotes.",
+                    ref(r, "http-call"),
+                    ref(r, "t.TaxController#quotes() endpoint"),
+                    "t:src/main/java/t/TaxController.java:4")
+                + "}";
+    assertThat(resolveWithFiles(submittingOnce(citingOneLine)).facts()).isNotEmpty();
+    FakeLlmProvider unchanged = model(r -> List.of());
+    resolveWithFiles(unchanged);
+    assertThat(unchanged.sent()).isEmpty();
   }
 
   @Test

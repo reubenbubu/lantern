@@ -38,8 +38,11 @@ public final class Checks {
   /** The longest file range a model may cite. */
   public static final int MAX_RANGE_LINES = 40;
 
-  /** A file range the model wrote: {@code repo:path:from-to}. */
-  static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)-(\\d+)$");
+  /**
+   * A file range the model wrote: {@code repo:path:from-to}, or one line as {@code repo:path:line}
+   * (#703).
+   */
+  static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)(?:-(\\d+))?$");
 
   /** A local reference: a letter and a number, such as {@code F12}. */
   static final Pattern LOCAL = Pattern.compile("^([A-Z])(\\d+)$");
@@ -202,14 +205,29 @@ public final class Checks {
                           + "; this task cites only references of its input."));
             }
           } else {
-            found.add(
-                reject(
-                    answer, text.field(), this, "Cites " + cite + ", which is not a reference."));
+            found.add(reject(answer, text.field(), this, notAReference(cite)));
           }
         }
       }
       return found;
     }
+  }
+
+  /**
+   * Why a citation is not a reference, saying how to write it where it looks like a file range
+   * written with the word {@code repo} for the repository (#703).
+   */
+  static String notAReference(String cite) {
+    String example = "such as orders:src/main/java/Orders.java:3-9";
+    if (cite.startsWith("repo:") && RANGE.matcher(cite.substring(5)).matches()) {
+      return "Cites "
+          + cite
+          + ", which is not a reference: write the repository's name before the first colon, not"
+          + " the word repo, "
+          + example
+          + ".";
+    }
+    return "Cites " + cite + ", which is not a reference.";
   }
 
   /** A file range the model wrote must be in a file of the snapshot and at most 40 lines. */
@@ -229,7 +247,7 @@ public final class Checks {
             continue;
           }
           int from = Integer.parseInt(range.group(3));
-          int to = Integer.parseInt(range.group(4));
+          int to = Integer.parseInt(range.group(4) == null ? range.group(3) : range.group(4));
           Optional<List<String>> lines = inputs.files().lines(range.group(1), range.group(2));
           if (lines.isEmpty()) {
             found.add(
@@ -589,7 +607,10 @@ public final class Checks {
       if (range.matches()) {
         List<String> lines = inputs.files().lines(range.group(1), range.group(2)).orElse(List.of());
         int from = Math.max(1, Integer.parseInt(range.group(3)));
-        int to = Math.min(lines.size(), Integer.parseInt(range.group(4)));
+        int to =
+            Math.min(
+                lines.size(),
+                Integer.parseInt(range.group(4) == null ? range.group(3) : range.group(4)));
         cited.add(from > to ? "" : String.join("\n", lines.subList(from - 1, to)));
       } else {
         cited.add(inputs.references().getOrDefault(cite, ""));

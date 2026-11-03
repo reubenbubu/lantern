@@ -145,7 +145,8 @@ final class InvestigateRole implements PacketRole {
           "and",
           "value");
 
-  private static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)-(\\d+)$");
+  private static final Pattern RANGE =
+      Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)(?:-(\\d+))?$");
 
   private final Mode mode;
   private final String systemMap;

@@ -80,12 +80,45 @@ class ChecksTest {
   }
 
   @Test
+  void aRangeWrittenWithTheWordRepoSaysHowToWriteItAndOneLineIsARange() {
+    // As a model wrote them on project-8 (#703).
+    Check check = new Checks.References();
+    assertThat(
+            reasons(
+                check,
+                text(
+                    CheckedText.Kind.PROSE,
+                    "Both are reached",
+                    "repo:workorder-service:src/main/java/OutboxPoller.java:26-30")))
+        .containsExactly(
+            "Cites repo:workorder-service:src/main/java/OutboxPoller.java:26-30, which is not a"
+                + " reference: write the repository's name before the first colon, not the word"
+                + " repo, such as orders:src/main/java/Orders.java:3-9.");
+    // One line written alone is a range of that line.
+    assertThat(
+            reasons(
+                check,
+                text(
+                    CheckedText.Kind.PROSE,
+                    "Both are reached",
+                    "fleetcare-commons:commons-events/FleetTopics.java:4")))
+        .isEmpty();
+  }
+
+  @Test
   void ranges() {
     Check check = new Checks.Ranges();
     assertThat(
             reasons(
                 check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:2-3")))
         .isEmpty();
+    // One line is a range of that line (#703).
+    assertThat(
+            reasons(check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:4")))
+        .isEmpty();
+    assertThat(
+            reasons(check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:5")))
+        .containsExactly("Cites shop:src/OrderService.java:5, outside the file's 4 lines.");
     assertThat(
             reasons(
                 check, text(CheckedText.Kind.PROSE, "Places", "shop:src/OrderService.java:3-9")))
