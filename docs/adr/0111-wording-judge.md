@@ -109,3 +109,31 @@ already checks whether a text's citations support it; that stays its job.
   the first question, so each of those misses weighs heavily. It also fails short line labels that
   the labels pass, which weighs little. The judged rows stay "not validated" until the prompts are
   tuned on the `tune` items and the labelled texts judged again.
+
+## Amendment for #668: the tuned prompts, validated
+
+- **Tuning.** The prompts were tuned on the 54 `tune` texts of each question with `scripts/judge-labels.sh` (Sonnet 5.5), in three rounds. The examples in the prompts are written fresh, not taken from the labelled texts. What changed:
+  - "says what it does" now judges each kind of text by what it is for. An intent passes when it names what the call does with which thing, and fails when it names only the client it goes through or a technical step. A group's name passes when it names an area of work, not a layer. A person fails when only holding a role or signing in is said. A responsibility that only describes mechanics fails ("through standard repository operations").
+  - "specific" passes a common action on this system's own data or store, and a standard product described by what this system uses it for. It fails what reads the same with any system's nouns.
+
+  The prompt version is 2. The labelled texts' verdicts in `<dimension>.judge.json` are this judge's, and the strata stay as drawn.
+
+  | Round | "says what it does" TPR / TNR | "specific" TPR / TNR |
+  | --- | --- | --- |
+  | Prompt 1 | 83% / 50% | 60% / 56% |
+  | 1 | 91% / 63% | 80% / 100% |
+  | 2 (kept) | 85% / 88% | 82% / 89% |
+
+  These are unweighted rates on the tune texts. Tuning stopped at round 2, the first with both rates at 80% or more on both questions.
+- **Validated on the held-out texts, judged once.** These are weighted by stratum, with a 95% bootstrap interval:
+
+  | Question | Held-out labels (pass / fail) | TPR | TNR |
+  | --- | --- | --- | --- |
+  | "says what it does for the system" | 96 / 10 | 1.00 (0.99 to 1.00) | 1.00 (1.00 to 1.00) |
+  | "specific to this system" | 92 / 14 | 0.84 (0.76 to 0.92) | 0.89 (0.64 to 1.00) |
+
+  Unweighted, the judge got 3 and 31 of the 106 wrong. Most of the specific question's misses fail short phrases that the labels pass, which weigh little. Both questions pass the 0.8 bar, so a run judged by this judge and prompt version shows a corrected score.
+
+  The specific question's TNR rests on 14 failing labels, and its interval reaches down to 0.64. More failing labels would narrow it.
+- **Spend.** Sonnet 5.5, $0.48 in all: three tuning rounds of about $0.10 each, and $0.18 for the held-out texts.
+- **The corrected score.** It needs a run whose texts this judge judged, which the 1F drop's project-4 run gives. It is recorded here when that run is scored.
