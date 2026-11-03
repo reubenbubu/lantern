@@ -28,7 +28,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
@@ -850,59 +849,6 @@ final class C4Views {
             : system;
     nodes.put(
         entity, node(entity, elements.technology(entity), parent, elements.containerFacts(entity)));
-  }
-
-  /** The calls, sends and datasources of the scope's units that Lantern could not link. */
-  Optional<Callout> unresolved(String section) {
-    List<Inline> content = new ArrayList<>();
-    List<Fact> facts = new ArrayList<>();
-    for (EntityId unit : units) {
-      // By what the code calls or sends to, then the code that does it, the reason, the keys left
-      // unresolved, the call site and the profile, so the box reads the same on every run whatever
-      // the facts' IDs (#605).
-      List<Fact> open =
-          knowledge.attributes(unit).stream()
-              .filter(f -> f.predicate().equals(Types.UNRESOLVED_LINK) && !knowledge.resolved(f))
-              .sorted(
-                  Comparator.comparing((Fact f) -> f.object().value())
-                      .thenComparing(f -> Objects.toString(attribute(f, "source"), ""))
-                      .thenComparing(f -> Objects.toString(attribute(f, "reason"), ""))
-                      .thenComparing(f -> String.join(",", Elements.strings(f, "unresolved")))
-                      .thenComparing(f -> Objects.toString(attribute(f, "site"), ""))
-                      .thenComparing(f -> Objects.toString(attribute(f, "view"), ""))
-                      .thenComparing(Fact::id))
-              .toList();
-      for (Fact fact : open) {
-        facts.add(fact);
-        String reason = attribute(fact, "reason");
-        List<String> keys = Elements.strings(fact, "unresolved");
-        StringBuilder text =
-            new StringBuilder(content.isEmpty() ? "" : " ")
-                .append(assembler.name(unit))
-                .append(": ")
-                .append(fact.object().value());
-        if (reason != null) {
-          text.append(" (").append(reason.replace('-', ' '));
-          if (!keys.isEmpty()) {
-            text.append(" ").append(String.join(", ", keys));
-          }
-          text.append(")");
-        }
-        text.append('.');
-        content.add(TextRun.of(text.toString()));
-      }
-    }
-    if (content.isEmpty()) {
-      return Optional.empty();
-    }
-    return Optional.of(
-        new Callout(
-            assembler.id(section, "unresolved"),
-            Callout.Variant.WARNING,
-            null,
-            "Not linked",
-            content,
-            assembler.facts(facts)));
   }
 
   /**

@@ -118,7 +118,8 @@ public final class Composer {
         }
       }
     }
-    List<QualityReport.Failure> claimFailures = composition.claimFailures();
+    List<QualityReport.Failure> claimFailures = new ArrayList<>(composition.modelFailures());
+    claimFailures.addAll(composition.claimFailures());
     DocumentSource source =
         new DocumentSource(
             snapshot.number(),

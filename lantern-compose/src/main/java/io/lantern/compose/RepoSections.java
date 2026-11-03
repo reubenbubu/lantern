@@ -22,6 +22,7 @@ import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.Unknowns;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -77,6 +78,8 @@ final class RepoSections {
   private BriefSections brief;
   private ClaimContradictions claims;
   private InvestigatedFindings investigated;
+  private Elements elements;
+  private Unknowns unknowns;
 
   /**
    * @param model the snapshot's model, with the texts the LLM roles stored (ADR 0050)
@@ -196,7 +199,7 @@ final class RepoSections {
       case DEPLOYMENT -> c4.deployment(id).ifPresent(blocks::add);
       case DECISIONS -> {
         c4.decisions(id).ifPresent(blocks::add);
-        c4.unresolved(id).ifPresent(blocks::add);
+        blocks.addAll(unknownsPage().blocks(id));
         blocks.addAll(claims().callouts(id));
       }
       case COMPONENTS -> subsections.addAll(c4.components(id));
@@ -219,6 +222,35 @@ final class RepoSections {
           throw new IllegalArgumentException("The glossary is built from the whole document");
     }
     return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
+  }
+
+  /** What the model of the scope holds as open or unanswered (#700), built once per document. */
+  private Unknowns unknowns() {
+    if (unknowns == null) {
+      elements = new Elements(knowledge, assembler.vocabulary(), assembler.names(), repos);
+      unknowns =
+          new Unknowns(
+              model,
+              elements,
+              units,
+              repo == null,
+              repos,
+              id -> model.summary(assembler.summarized(id)).isPresent());
+    }
+    return unknowns;
+  }
+
+  private UnknownsPage unknownsPage() {
+    return new UnknownsPage(unknowns(), elements, assembler);
+  }
+
+  /**
+   * The quality bar checks the scope's model fails (#700): what its containers, components and
+   * lines lack, whichever diagram draws them.
+   */
+  List<QualityReport.Failure> modelFailures() {
+    UnknownsPage page = unknownsPage();
+    return QualityBar.model(unknowns(), assembler::name, page::componentName);
   }
 
   /** What the LLM investigator found in scope (ADR 0110), built once per document. */

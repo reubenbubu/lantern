@@ -1723,6 +1723,16 @@
       "facts" : [ "975f1838a442b752839606f49a22c4e650cd13fd6f83f91b5cb09ac8fa6108b6" ]
     }, {
       "kind" : "callout",
+      "id" : "decisions.no-responsibility",
+      "variant" : "note",
+      "title" : "Responsibility not known",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "Lantern holds no responsibility sentence for shop on db, pay.example.com, shop-app, worker, orders, Controller in shop-app, Jobs in shop-app and JpaOrders in shop-app: they were not described, so what they do is not known."
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
       "id" : "decisions.contradicted-claim",
       "variant" : "warning",
       "title" : "Claim the code contradicts",
@@ -1953,6 +1963,13 @@
         "detail" : [ {
           "kind" : "text",
           "text" : "Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")."
+        } ],
+        "facts" : [ ]
+      }, {
+        "check" : "Every element has a responsibility sentence",
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "8 elements have no responsibility sentence; the decisions and unknowns page names them."
         } ],
         "facts" : [ ]
       }, {

@@ -196,7 +196,7 @@ class InvestigatedFindingsTest {
     Document explorer = compose(ViewDefinition.perRepo("shop", "shop", TEMPLATE));
 
     assertThat(
-            section(explorer, "findings").blocks().stream()
+            section(explorer, "decisions").blocks().stream()
                 .filter(Callout.class::isInstance)
                 .map(Callout.class::cast)
                 .map(c -> text(c.content())))

@@ -114,6 +114,11 @@
       "id" : "context-people",
       "body" : "The code names no people or user roles, so who uses base and shop is not known.",
       "tone" : "info"
+    }, {
+      "type" : "list",
+      "id" : "quality-report",
+      "title" : "Quality gaps",
+      "items" : [ "**Every element has a responsibility sentence**: 8 elements have no responsibility sentence; the decisions and unknowns page names them." ]
     } ]
   }, {
     "id" : "containers",
@@ -407,6 +412,11 @@
       "id" : "decisions-unresolved",
       "body" : "**Not linked**\nshop-app: GET ${TAX_URL}/quotes (unresolved placeholder TAX_URL).",
       "tone" : "warning"
+    }, {
+      "type" : "callout",
+      "id" : "decisions-no-responsibility",
+      "body" : "**Responsibility not known**\nLantern holds no responsibility sentence for shop on db, pay.example.com, shop-app, worker, orders, Controller in shop-app, Jobs in shop-app and JpaOrders in shop-app: they were not described, so what they do is not known.",
+      "tone" : "info"
     }, {
       "type" : "callout",
       "id" : "decisions-contradicted-claim",

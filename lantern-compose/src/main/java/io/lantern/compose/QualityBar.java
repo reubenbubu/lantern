@@ -21,6 +21,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.Unknowns;
 import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -80,6 +82,7 @@ final class QualityBar {
   static final String ONE_LEVEL = "One abstraction level";
   static final String ELEMENTS = "At most " + C4Views.MAX_ELEMENTS + " elements";
   static final String TECHNOLOGY = "Containers and components have a technology";
+  static final String RESPONSIBILITY = "Every element has a responsibility sentence";
   static final String LABELLED = "Every line is labelled with an intent phrase";
   static final String LINE_FACTS = "Every line links to the facts behind it";
   static final String CONDITIONAL = "A conditional line names its profile";
@@ -143,9 +146,6 @@ final class QualityBar {
           Types.EXTERNAL_SYSTEM,
           Types.PERSON);
 
-  /** Element types that are not containers, so need no technology and draw no protocol. */
-  private static final Set<String> OUTSIDE = Set.of(Types.EXTERNAL_SYSTEM, Types.PERSON);
-
   /**
    * Two or more capitals, digits between them, and a plural s: AMQP, JDBC, APIs, B2B; not part of a
    * constant or version such as TAX_SERVICE_URL or 1.0-SNAPSHOT.
@@ -167,8 +167,56 @@ final class QualityBar {
 
   private QualityBar(Document document) {
     this.document = document;
-    document.entities().forEach(e -> entities.put(e.id(), e));
-    document.facts().forEach(f -> facts.put(f.id(), f));
+    if (document != null) {
+      document.entities().forEach(e -> entities.put(e.id(), e));
+      document.facts().forEach(f -> facts.put(f.id(), f));
+    }
+  }
+
+  /**
+   * The checks the model of the document's scope fails (knowledge-build epic, section 12; #700):
+   * containers and components without a technology or a responsibility sentence, and lines between
+   * containers without a protocol, asked of the model, so they do not depend on how a diagram
+   * happens to be drawn. They name no block: each holds for the scope, on whichever diagram draws
+   * the element.
+   *
+   * @param name the name of a container or other element
+   * @param component the name of a component
+   */
+  static List<QualityReport.Failure> model(
+      Unknowns unknowns,
+      Function<EntityId, String> name,
+      Function<Unknowns.Part, String> component) {
+    QualityBar bar = new QualityBar(null);
+    List<String> noTechnology = new ArrayList<>();
+    unknowns.containersWithoutTechnology().forEach(e -> noTechnology.add(name.apply(e)));
+    unknowns.componentsWithoutTechnology().forEach(p -> noTechnology.add(component.apply(p)));
+    if (!noTechnology.isEmpty()) {
+      bar.fail(TECHNOLOGY, null, "No technology for " + names(noTechnology) + ".");
+    }
+    // The unknowns page names them (#700); stated once, the failure counts them.
+    int noResponsibility =
+        unknowns.containersWithoutResponsibility().size()
+            + unknowns.componentsWithoutResponsibility().size();
+    if (noResponsibility > 0) {
+      bar.fail(
+          RESPONSIBILITY,
+          null,
+          (noResponsibility == 1
+                  ? "One element has no responsibility sentence"
+                  : noResponsibility + " elements have no responsibility sentence")
+              + "; the decisions and unknowns page names "
+              + (noResponsibility == 1 ? "it" : "them")
+              + ".");
+    }
+    List<String> noProtocol = new ArrayList<>();
+    unknowns
+        .linesWithoutProtocol()
+        .forEach(l -> noProtocol.add(name.apply(l.from()) + " to " + name.apply(l.to())));
+    if (!noProtocol.isEmpty()) {
+      bar.fail(PROTOCOL, null, "No protocol on " + names(noProtocol) + ".");
+    }
+    return List.copyOf(bar.failures);
   }
 
   /** The checks the document fails, in the order of the document, its own checks last. */
@@ -235,7 +283,6 @@ final class QualityBar {
       return;
     }
     List<String> offLevel = new ArrayList<>();
-    List<String> withoutTechnology = new ArrayList<>();
     int elements = 0;
     for (Diagram.Node node : diagram.nodes()) {
       if (boundaries.contains(node.id())) {
@@ -253,11 +300,6 @@ final class QualityBar {
       if (!atLevel) {
         offLevel.add(node.label() + " (" + type + ")");
       }
-      if (diagram.diagramKind() != Diagram.Kind.C4_CONTEXT
-          && !OUTSIDE.contains(type)
-          && node.technology() == null) {
-        withoutTechnology.add(node.label());
-      }
     }
     if (!offLevel.isEmpty()) {
       fail(ONE_LEVEL, target, "It also shows " + names(offLevel) + ".");
@@ -265,15 +307,11 @@ final class QualityBar {
     if (elements > C4Views.MAX_ELEMENTS) {
       fail(ELEMENTS, target, "It shows " + elements + " elements.");
     }
-    if (!withoutTechnology.isEmpty()) {
-      fail(TECHNOLOGY, target, "No technology for " + names(withoutTechnology) + ".");
-    }
     Map<EntityId, String> labels = new HashMap<>();
     diagram.nodes().forEach(n -> labels.put(n.id(), n.label()));
     List<String> unlabelled = new ArrayList<>();
     List<String> unfounded = new ArrayList<>();
     List<String> unconditional = new ArrayList<>();
-    List<String> noProtocol = new ArrayList<>();
     for (Diagram.Edge edge : diagram.edges()) {
       String line = labels.get(edge.from()) + " to " + labels.get(edge.to());
       if (isGeneric(edge.label())) {
@@ -284,17 +322,8 @@ final class QualityBar {
         unfounded.add(line);
       }
       missingProfiles(edge.facts(), edge.profiles()).ifPresent(p -> unconditional.add(line + p));
-      if (diagram.diagramKind() == Diagram.Kind.C4_CONTAINER
-          && !OUTSIDE.contains(edge.from().type())
-          && !OUTSIDE.contains(edge.to().type())
-          && edge.technology() == null) {
-        noProtocol.add(line);
-      }
     }
     lines(target, unlabelled, unfounded, unconditional);
-    if (!noProtocol.isEmpty()) {
-      fail(PROTOCOL, target, "No protocol on " + names(noProtocol) + ".");
-    }
   }
 
   private void title(Diagram diagram, CrossReference.Target target, Set<EntityId> boundaries) {
