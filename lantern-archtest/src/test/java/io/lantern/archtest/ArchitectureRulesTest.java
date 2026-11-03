@@ -11,7 +11,9 @@ import io.lantern.compose.archfixture.ComposerCopyingTypeNames;
 import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
 import io.lantern.extract.archfixture.ExtractorResolvingPlaceholders;
+import io.lantern.harness.archfixture.FakeHarness;
 import io.lantern.link.archfixture.FakeLinker;
+import io.lantern.link.archfixture.FakeResolver;
 import io.lantern.link.archfixture.LinkerReadingAttributes;
 import io.lantern.link.archfixture.LinkerReadingComposer;
 import io.lantern.llm.archfixture.FakeLlmClient;
@@ -35,12 +37,19 @@ class ArchitectureRulesTest {
   void aComposerCallingTheLlmOrARoleIsRejected() {
     JavaClasses classes =
         new ClassFileImporter()
-            .importClasses(ComposerCallingLlm.class, FakeLlmClient.class, FakeRole.class);
+            .importClasses(
+                ComposerCallingLlm.class,
+                FakeLlmClient.class,
+                FakeHarness.class,
+                FakeRole.class,
+                FakeResolver.class);
 
     assertThatThrownBy(() -> ArchitectureRules.COMPOSER_CALLS_NO_LLM.check(classes))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("FakeLlmClient")
-        .hasMessageContaining("FakeRole");
+        .hasMessageContaining("FakeHarness")
+        .hasMessageContaining("FakeRole")
+        .hasMessageContaining("FakeResolver");
   }
 
   @Test

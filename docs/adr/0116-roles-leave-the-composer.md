@@ -24,9 +24,13 @@ share with the composer (container lines, elements and names; flow candidates) i
   candidates, rank, choice and the flows to narrate from `ScopeFlows`. The narrated flows and
   their wording keys moved from `SequenceFlows` into `FlowJudgements`; a flow's content hash is
   `FlowModel.content`.
-- **The composer depends on no LLM, harness or role code.** `lantern-compose` keeps
-  `lantern-summarize` only as a test dependency, so its own code cannot reach a role, the harness
-  or an LLM client; the architecture rule `COMPOSER_CALLS_NO_LLM` checks it (design principle 10).
+- **The composer depends on no LLM, harness or role code.** The architecture rule
+  `COMPOSER_CALLS_NO_LLM` is the guarantee (design principle 10): no class of the composer
+  depends on the LLM client, the harness, a role of `lantern-summarize`, or a class of the linker
+  that calls the LLM or the harness (Investigate and Resolve). The build helps but does not
+  enforce it: `lantern-compose` keeps `lantern-summarize` only as a test dependency, so the roles
+  are off its class path, but the harness and the LLM client still reach it through
+  `lantern-derive`, whose model reads the harness's names for the roles' texts.
   What the composer read from the harness and summarize now comes from the model:
   `ArchitectureModel.Text.evidenced()` and `Summary.evidenced()` in place of the harness's basis,
   `ArchitectureModel.SYSTEM` and `ArchitectureModel.REPO_ENTITY_TYPE` (which `SummaryLevel` now
@@ -41,6 +45,7 @@ share with the composer (container lines, elements and names; flow candidates) i
 
 ## Consequences
 
-- The composer can be built and tested without an LLM client on its class path.
+- The composer's code cannot call a role: it no longer compiles against them, and the rule
+  catches any use of the LLM client, the harness or the linker's LLM roles.
 - A role that needs something new to ask about adds a query to `lantern-derive`, where the
   composer can use it too, rather than reaching into the composer.
