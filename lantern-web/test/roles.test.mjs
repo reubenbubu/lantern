@@ -11,6 +11,7 @@ import {
   isGenericLabel,
   changeGate,
   harnessRow,
+  interactionsOf,
   investigateRow,
   matchFlows,
   pairedDifference,
@@ -19,6 +20,7 @@ import {
   threeOutcomes,
 } from '../scripts/roles.mjs';
 import { pairedRows } from '../scripts/score.mjs';
+import { interactionKinds, readVocabulary } from '../scripts/vocabulary.mjs';
 
 test('three outcomes: a wrong answer costs p, an abstention nothing, not asked is apart', () => {
   const row = threeOutcomes(
@@ -361,6 +363,16 @@ const run = {
   harness: [{ role: 'describe-unit', askedSubjects: ['service:a'], cachedSubjects: ['service:b'], unaskedSubjects: ['service:c'] }],
 };
 
+// The boxes the views draw for the fixtures above: an interaction counts when both its ends are drawn.
+const modelReport = {
+  elements: Object.fromEntries(
+    ['service-a', 'service-b', 'service-c', 'queue-orders', 'external-system-sandbox', 'external-system-live', 'type-p-x', 'type-p-y'].map(
+      (id) => [id, { kind: 'container', name: id }],
+    ),
+  ),
+  pages: [],
+};
+
 test('Describe in the model: each interaction right, generic (wrong), "don\'t know" or not asked', () => {
   const llm = [
     intentFor('c-ab', 'Looks up prices [fact:1]'), // right
@@ -371,21 +383,31 @@ test('Describe in the model: each interaction right, generic (wrong), "don\'t kn
     intentFor('c-sandbox', 'Charges cards in the sandbox'),
     // b -> a has none: "don't know"; c -> b: c was not asked; the live call is an alternative.
   ];
-  const row = describeRow({ elements: {}, pages: [] }, linked, llm, run);
+  const row = describeRow(modelReport, linked, llm, run);
   assert.deepEqual(
-    { ...row.model, genericItems: undefined },
+    { ...row.model, genericItems: undefined, byKind: undefined },
     {
-      interactions: 5,
+      // ab, ab2, ba, xy, cb and sandbox; not the table nobody draws, the live alternative, the
+      // line to b's component or the code end.
+      interactions: 6,
       own: 2,
       generic: 1,
       unknown: 2,
       notAsked: 1,
-      coverage: 0.4,
+      // Not asked stays in the denominator: 2 of 6.
+      coverage: 2 / 6,
+      // A generic intent costs a point, over the five Describe was asked about.
       penalized: 0.2,
       penalty: 1,
       genericItems: undefined,
+      byKind: undefined,
     },
   );
+  assert.deepEqual(row.model.byKind, [
+    { kind: 'CALLS_HTTP', interactions: 4, own: 2, generic: 0, unknown: 1, notAsked: 1 },
+    { kind: 'COMPONENT_LINK', interactions: 1, own: 0, generic: 1, unknown: 0, notAsked: 0 },
+    { kind: 'PUBLISHES', interactions: 1, own: 0, generic: 0, unknown: 1, notAsked: 0 },
+  ]);
   assert.deepEqual(row.model.genericItems, ['Calls validate']);
   assert.equal(row.scores['interaction:f-ab'], 1);
   assert.equal(row.scores['interaction:f-xy'], -1);
@@ -393,7 +415,57 @@ test('Describe in the model: each interaction right, generic (wrong), "don\'t kn
   assert.equal(row.scores['interaction:f-live'], undefined);
   assert.equal(row.scores['interaction:f-xw'], undefined);
   // Without the run's record of Describe, the model cannot be scored.
-  assert.equal(describeRow({ elements: {}, pages: [] }, linked, llm, null).model.measured, false);
+  assert.equal(describeRow(modelReport, linked, llm, null).model.measured, false);
+});
+
+test('the interactions counted are every relationship type below INTERACTS_WITH in the vocabulary', () => {
+  const vocabulary = readVocabulary();
+  const kinds = interactionKinds(vocabulary);
+  for (const k of ['CALLS_HTTP', 'CONSUMES', 'PUBLISHES', 'USES_DATABASE', 'ROUTES_TO', 'INVESTIGATED_CONNECTION']) {
+    assert.ok(kinds.has(k), k);
+  }
+  // A structural relationship is not one.
+  assert.equal(kinds.has('PART_OF'), false);
+  // A kind the vocabulary gains is counted with no change to the scorer.
+  const grown = new Map(vocabulary);
+  grown.set('CALLS_GRPC', { name: 'CALLS_GRPC', kind: 'relationship', parent: 'CALLS' });
+  const facts = [link('g', 'CALLS_GRPC', 'service:a', 'service:b')];
+  assert.deepEqual(interactionsOf(facts, modelReport, vocabulary).map((i) => i.kind), []);
+  assert.deepEqual(interactionsOf(facts, modelReport, grown).map((i) => i.kind), ['CALLS_GRPC']);
+});
+
+test("the interactions counted include components' data access, found connections and people's uses", () => {
+  const report = {
+    elements: {
+      ...modelReport.elements,
+      'database-orders': { kind: 'container', name: 'orders' },
+      'external-system-zipkin': { kind: 'external-system', name: 'Zipkin' },
+      'person-admin': { kind: 'person', name: 'Admin' },
+      'frontend-shop': { kind: 'container', name: 'Shop' },
+    },
+    pages: [],
+  };
+  const facts = [
+    ...linked,
+    link('db', 'USES_DATABASE', 'service:a', 'database:orders'),
+    { id: 'f-da', claim: 'c-da', predicate: 'data-access', subject: 'component:service:a/type:p.Y', object: { kind: 'string', value: 'Reads and writes' } },
+    link('zip', 'INVESTIGATED_CONNECTION', 'service:b', 'external-system:zipkin'),
+    { id: 'f-pb', claim: 'c-pb', predicate: 'person-basis', subject: 'person:admin', object: { kind: 'string', value: 'role' }, attributes: { frontends: ['shop'] } },
+    link('fs', 'PART_OF', 'frontend:shop', 'service:a'),
+  ];
+  const items = interactionsOf(facts, report);
+  const byId = Object.fromEntries(items.map((i) => [i.id, i]));
+  assert.equal(byId['interaction:f-da:database:orders'].kind, 'data-access');
+  assert.deepEqual(byId['interaction:f-da:database:orders'].owners, ['service:a']);
+  assert.equal(byId['interaction:f-zip'].kind, 'INVESTIGATED_CONNECTION');
+  assert.equal(byId['interaction:f-pb'].kind, 'USES (person)');
+  assert.deepEqual(byId['interaction:f-pb'].owners, ['frontend:shop']);
+  // Scored: the data access has no intent though a was asked; zipkin's b was asked too.
+  const row = describeRow(report, facts, [], run);
+  const kinds = Object.fromEntries(row.model.byKind.map((k) => [k.kind, k]));
+  assert.equal(kinds['data-access'].unknown, 1);
+  assert.equal(kinds.INVESTIGATED_CONNECTION.unknown, 1);
+  assert.equal(kinds['USES (person)'].notAsked, 1);
 });
 
 test('Describe on the page: a line counts when labelled with the intent of its own link', () => {
@@ -464,16 +536,21 @@ test("Describe on the page: a consumer's line runs from what it reads, and a lin
     ],
   };
   const consumes = link('bq', 'CONSUMES', 'service:b', 'queue:orders');
+  // The queue is folded into the exchange that routes to it: b's consumption is drawn from the
+  // exchange, and the route itself is no line of its own.
+  const routes = link('eq', 'ROUTES_TO', 'exchange:events', 'queue:orders');
   const llm = [
     intentFor('c-bq', 'Reads new orders to bill them'),
     intentFor('c-ab', 'Looks up prices'),
     intentFor('c-ab', 'Fetches current prices'),
   ];
-  const row = describeRow(report, [...linked, consumes], llm, run);
+  const row = describeRow(report, [...linked, consumes, routes], llm, run);
   assert.equal(row.scores['line:exchange-events->service-b'], 1);
   assert.equal(row.scores['line:service-b->exchange-events'], 0);
   assert.equal(row.scores['line:service-a->service-b'], 1);
   assert.equal(row.model.own, 2);
+  assert.equal(row.scores['interaction:f-bq'], 1);
+  assert.equal(row.scores['interaction:f-eq'], undefined);
 });
 
 test('a generic label is empty or opens with a verb that only says there is a relationship', () => {

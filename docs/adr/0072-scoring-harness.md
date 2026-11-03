@@ -167,25 +167,41 @@ line showing another link's intent counted, and one carrying a profile note did 
 three numbers (`lantern-web/scripts/roles.mjs`, `describeRow`):
 
 - **Elements**, as before: the share of the report's elements with a responsibility it wrote.
-- **Model coverage.** Each interaction Describe words, rebuilt from `linked.jsonl.gz` as Describe
-  builds its items:
-  - each unit's links of the kinds Describe words (`Describer.LINKS`), other than a profile's
-    alternative to a default link (the rule of `Screens.alternatives`, which Describe skips);
+- **Model coverage** (corrected when #742 was reopened). The first version rebuilt only the
+  interactions Describe asks about (`Describer.LINKS`), so it read 100% on every 1F run while the
+  views drew lines no intent words. It now counts every interaction of the stored model that a view
+  can draw, whether Describe asks about it or not (`interactionsOf`):
+  - every link whose kind is a relationship type below `INTERACTS_WITH` in the vocabulary, read
+    from `lantern-*/src/main/resources/vocabulary/*.json` (`lantern-web/scripts/vocabulary.mjs`),
+    never from a list of the scorer's own, so a kind the vocabulary gains is counted with no change
+    here; Investigate's found connections (`INVESTIGATED_CONNECTION`) are among them;
+  - only when both ends are drawn in the report: a box of the entity, or of the exchange that routes
+    to a queue the diagrams fold away; a route to such a folded queue is no line of its own;
+  - not a profile's alternative to a default link (the rule of `Screens.alternatives`);
   - the lines between two components of the same unit other than to code at the end of a call, a
     component's unit by `PART_OF`;
-  - not a person's use of a unit, which Describe also words but whose line keeps a fixed label.
+  - each component's data access (`data-access`), once per database its unit uses;
+  - each person's use of the frontends it names (`person-basis`), matched to the drawn frontends by
+    name in any case.
+
+  Messages sent to another unit (`SENDS_MESSAGES_TO`) count though the views draw them through the
+  queue lines, since both ends are drawn and the model holds no intent for them.
 
   Each is scored with three outcomes, a wrong answer costing one point (p = 1):
   - right when one of its intents opens with something other than a generic verb;
   - wrong when its intent opens with one, such as "Uses" or "Calls";
-  - "don't know" when it has none.
+  - "don't know" when it has none though Describe asked about a unit that holds it.
 
-  An interaction of a unit Describe did not ask about (budget, a failure; `run.json`) is not asked
-  and counted apart. Each linker fact is its own item in the paired comparison.
+  An interaction none of whose owners Describe asked about (budget, a failure, or an element no unit
+  owns; `run.json`) is not asked. Coverage is the share with an intent of their own among all
+  interactions, not asked included, and the scorecard lists the counts per kind, most uncovered
+  first. Each item is its own item in the paired comparison.
 
-  The checks here are only that the intent exists and does not open with a generic verb, so on a
-  run that answered everything the model coverage is near 100%. Whether the intent says something
-  true and specific is the wording judge's row (#668, #757).
+  Re-scored on the 1F recordings, coverage fell from 100% on each of the five sets to 84%
+  (project-1), 86% (project-2), 54% (project-3), 91% (project-4) and 79% (project-8). The gaps are
+  data access, found connections, people's uses, messages to other units, infrastructure use
+  (project-3) and an exchange's route (project-8). Whether an intent says something true and
+  specific stays the wording judge's row (#668, #757).
 - **Drawn coverage.** Of the lines the report draws, a person's left out, the share labelled with
   the intent Describe wrote for a link of their own.
   - A line's own link runs between its two ends, or between elements inside or around them, since

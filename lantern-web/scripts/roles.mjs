@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
+import { interactionKinds, readVocabulary } from './vocabulary.mjs';
 
 /** The penalty of a wrong answer against a right one, per role (the role's ADR records it). */
 export const PENALTY = { resolve: 3, flows: 1, describe: 1 };
@@ -156,17 +157,6 @@ export const isGenericLabel = (text) => {
 /** The kinds of report element Describe gives a responsibility. */
 const DESCRIBED_KINDS = new Set(['container', 'database', 'queue', 'external', 'component', 'person']);
 
-/** The links between units Describe words an intent for (Describer.LINKS). */
-const DESCRIBED_LINKS = new Set([
-  'CALLS_HTTP',
-  'SENDS_MAIL',
-  'USES_IDENTITY_PROVIDER',
-  'PUBLISHES',
-  'CONSUMES',
-  'USES_DATABASE',
-  'ACCESSES_DATA_OF',
-]);
-
 /** The kinds of report element a message passes through. */
 const MESSAGING_KINDS = new Set(['queue', 'exchange', 'topic']);
 
@@ -194,33 +184,90 @@ function isAlternative(link, sameKind) {
   );
 }
 
+/** The vocabulary, read once (vocabulary.mjs). */
+let builtVocabulary = null;
+const defaultVocabulary = () => (builtVocabulary ??= readVocabulary());
+
 /**
- * The interactions Describe words (DescribeItems.interactions), from the linker's facts: each unit's
- * links of the kinds above other than a profile's alternative, and the lines between two components
- * of the same unit other than to code at the end of a call. A person's use of a unit, which Describe
- * also words, is left out, as the drawn lines leave it out. Each with its unit (a component's, by
- * PART_OF) and the claim and fact IDs an intent's object may name.
+ * Every interaction of the stored model that a view can draw (#742, reopened), whether Describe
+ * asks about it or not, each with its kind, the units whose Describe item would hold it (`owners`)
+ * and the claim and fact IDs an intent's object may name:
+ *
+ * - each link of an interaction kind, a relationship type the vocabulary puts under INTERACTS_WITH
+ *   (so a kind added to the vocabulary is counted without a change here), between two ends the
+ *   report draws (a queue folded into its exchange's line drawn through the exchange), other than a
+ *   profile's alternative (Describe and the diagrams show the default);
+ *   Investigate's found connections are such links, of origin llm;
+ * - each line between two components of the same unit (COMPONENT_LINK), other than to code at the
+ *   end of a call, which the component view draws as the link between containers it belongs to;
+ * - each component's data access, one per database its unit uses (the component view's line);
+ * - each person's use of the system (person-basis), owned by the frontends it names.
+ *
+ * @param facts the run's linked and llm facts
+ * @param report the report, whose elements tell which ends are drawn
  */
-function interactionsOf(linked, units) {
-  const unitOf = new Map();
-  for (const f of linked) if (f.predicate === 'PART_OF') unitOf.set(f.subject, f.object?.value);
-  const byUnitAndKind = new Map();
-  for (const f of linked) {
-    if (!DESCRIBED_LINKS.has(f.predicate) || !units.has(f.subject)) continue;
-    const key = `${f.subject} ${f.predicate}`;
-    if (!byUnitAndKind.has(key)) byUnitAndKind.set(key, []);
-    byUnitAndKind.get(key).push(f);
-  }
-  const result = [];
-  for (const facts of byUnitAndKind.values()) {
-    for (const f of facts) {
-      if (!isAlternative(f, facts)) result.push({ fact: f, unit: f.subject, keys: [f.claim, f.id].filter(Boolean) });
+export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) {
+  const kinds = interactionKinds(vocabulary);
+  const shown = (entity) => drawnIds(entity).some((id) => report.elements?.[id]);
+  // A queue an exchange routes to is folded into the exchange's line when the diagrams leave it
+  // out: its consumers' lines run from the exchange.
+  const routedFrom = new Map();
+  for (const f of facts) {
+    if (f.predicate === 'ROUTES_TO' && f.object?.kind === 'entity') {
+      if (!routedFrom.has(f.object.value)) routedFrom.set(f.object.value, []);
+      routedFrom.get(f.object.value).push(f.subject);
     }
   }
-  for (const f of linked) {
+  const drawn = (entity) => shown(entity) || (routedFrom.get(entity) ?? []).some(shown);
+  const keys = (f) => [f.claim, f.id].filter(Boolean);
+  const unitOf = new Map();
+  for (const f of facts) if (f.predicate === 'PART_OF') unitOf.set(f.subject, f.object?.value);
+  const byOwnerAndKind = new Map();
+  for (const f of facts) {
+    if (!kinds.has(f.predicate) || f.object?.kind !== 'entity' || !drawn(f.subject)) continue;
+    // A route to a folded queue is not a line of its own: the queue's consumers are drawn instead.
+    if (!(f.predicate === 'ROUTES_TO' ? shown : drawn)(f.object.value)) continue;
+    const key = `${f.subject} ${f.predicate}`;
+    if (!byOwnerAndKind.has(key)) byOwnerAndKind.set(key, []);
+    byOwnerAndKind.get(key).push(f);
+  }
+  const result = [];
+  const links = [];
+  for (const group of byOwnerAndKind.values()) {
+    for (const f of group) {
+      if (isAlternative(f, group)) continue;
+      links.push(f);
+      result.push({ id: `interaction:${f.id}`, fact: f, kind: f.predicate, owners: [f.subject], keys: keys(f) });
+    }
+  }
+  for (const f of facts) {
     if (f.predicate !== 'COMPONENT_LINK' || f.attributes?.kind === 'code-end') continue;
     const unit = unitOf.get(f.subject);
-    if (unit && unitOf.get(f.object?.value) === unit) result.push({ fact: f, unit, keys: [f.claim, f.id].filter(Boolean) });
+    if (unit && unitOf.get(f.object?.value) === unit) {
+      result.push({ id: `interaction:${f.id}`, fact: f, kind: 'COMPONENT_LINK', owners: [unit], keys: keys(f) });
+    }
+  }
+  for (const f of facts) {
+    if (f.predicate !== 'data-access') continue;
+    const unit = unitOf.get(f.subject);
+    for (const db of links.filter((l) => l.predicate === 'USES_DATABASE' && l.subject === unit)) {
+      result.push({ id: `interaction:${f.id}:${db.object.value}`, fact: f, kind: 'data-access', owners: [unit], keys: keys(f) });
+    }
+  }
+  // A person-basis names its frontends as their own names: matched to the frontends drawn, by the
+  // name the report shows or the end of the ID, in any case.
+  const byName = new Map();
+  for (const f of facts) {
+    const e = report.elements?.[reportId(f.subject)];
+    if (!e) continue;
+    for (const n of [e.name, String(f.subject).split(':').pop()]) if (n) byName.set(String(n).toLowerCase(), f.subject);
+  }
+  for (const f of facts) {
+    if (f.predicate !== 'person-basis') continue;
+    const owners = list(f.attributes?.frontends)
+      .map((n) => byName.get(String(n).toLowerCase()))
+      .filter(Boolean);
+    result.push({ id: `interaction:${f.id}`, fact: f, kind: 'USES (person)', owners, keys: keys(f) });
   }
   return result;
 }
@@ -229,10 +276,12 @@ function interactionsOf(linked, units) {
  * Describe's coverage (section 13; #742). Three numbers:
  *
  * - elements: the share of the report's elements with a responsibility it wrote;
- * - model: each interaction Describe words (`interactionsOf`), scored right when it has an intent
- *   of its own that does not open with a generic verb, wrong when its intent does (a point lost,
- *   PENALTY.describe), "don't know" when it has none, and not asked when Describe never asked
- *   about its unit (budget or a failure);
+ * - model: every interaction of the stored model a view can draw (`interactionsOf`), whether
+ *   Describe asks about it or not, scored right when it has an intent of its own that does not
+ *   open with a generic verb, wrong when its intent does (a point lost, PENALTY.describe), "don't
+ *   know" when it has none though Describe asked about a unit that would hold it, and not asked
+ *   when it asked about none (budget, a failure, or an element no unit owns); its coverage is the
+ *   share with an intent of their own among them all, and each kind is counted apart;
  * - drawn: of the lines the report draws, other than a person's (whose labels are fixed), those
  *   labelled with the intent Describe wrote for a link running between the line's two ends, or
  *   elements inside them; and of the rest, those whose label is generic.
@@ -240,7 +289,7 @@ function interactionsOf(linked, units) {
  * Only Describe's intents count, not those Name groups writes for lines leaving a group. Its
  * wording's judge score is added by the scorecard (wording.mjs, judgedRows).
  */
-export function describeRow(report, linked, llm, run = null) {
+export function describeRow(report, linked, llm, run = null, vocabulary = defaultVocabulary()) {
   if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
   // A component is drawn under its anchor type's ID (component:<unit>/type:<type> as type-<type>).
   const described = new Set(llm.filter((f) => f.predicate === 'responsibility').flatMap((f) => drawnIds(f.subject)));
@@ -266,7 +315,7 @@ export function describeRow(report, linked, llm, run = null) {
   const units = new Set([...asked, ...unasked]);
   let model = null;
   if (linked && record) {
-    const items = interactionsOf(linked, units).map(({ fact, unit, keys }) => {
+    const items = interactionsOf([...linked, ...llm], report, vocabulary).map(({ id, kind, owners, keys }) => {
       const texts = keys.flatMap((k) => [...(intentOf.get(k) ?? [])]);
       // Right when one of its intents is not generic.
       const text = texts.find((t) => !isGenericLabel(t)) ?? texts[0];
@@ -275,23 +324,33 @@ export function describeRow(report, linked, llm, run = null) {
           ? isGenericLabel(text)
             ? 'wrong'
             : 'correct'
-          : asked.has(unit)
+          : owners.some((o) => asked.has(o))
             ? 'abstained'
             : 'notAsked';
-      return { id: `interaction:${fact.id}`, outcome, unknown: false, text };
+      return { id, kind, outcome, unknown: false, text };
     });
     const row = threeOutcomes(items, PENALTY.describe);
     Object.assign(scores, row.scores);
+    const byKind = new Map();
+    for (const i of items) {
+      const k = byKind.get(i.kind) ?? { kind: i.kind, interactions: 0, own: 0, generic: 0, unknown: 0, notAsked: 0 };
+      k.interactions++;
+      k[{ correct: 'own', wrong: 'generic', abstained: 'unknown', notAsked: 'notAsked' }[i.outcome]]++;
+      byKind.set(i.kind, k);
+    }
     model = {
-      interactions: row.items,
+      // Every interaction a view can draw, not asked included: coverage is the share with an
+      // intent of its own among them all.
+      interactions: items.length,
       own: row.correct,
       generic: row.wrong,
       unknown: row.abstained,
       notAsked: row.notAsked,
-      coverage: ratio(row.correct, row.items),
+      coverage: ratio(row.correct, items.length),
       penalized: row.penalized,
       penalty: row.penalty,
       genericItems: items.filter((i) => i.outcome === 'wrong').map((i) => i.text),
+      byKind: [...byKind.values()].sort((a, b) => b.interactions - b.own - (a.interactions - a.own) || a.kind.localeCompare(b.kind)),
     };
   }
 

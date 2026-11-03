@@ -831,7 +831,7 @@ function changeCell(c, why) {
 /** Describe's model coverage as one phrase (#742). */
 function describeModelCell(m) {
   if (!m || m.measured === false) return `model: not measured (${m?.why ?? 'no run files'})`;
-  return `model: ${m.own}/${m.interactions} interactions with their own intent (${percent(m.coverage)}), ${m.generic} generic, ${m.unknown} don't know, penalized ${percent(m.penalized)} (p = ${m.penalty})${m.notAsked ? `; ${m.notAsked} not asked` : ''}`;
+  return `model: ${m.own}/${m.interactions} interactions a view can draw with their own intent (${percent(m.coverage)}), ${m.generic} generic, ${m.unknown} don't know, ${m.notAsked} not asked; penalized ${percent(m.penalized)} (p = ${m.penalty})`;
 }
 
 /** Each row per role as one line of text: what it measured, or why it could not. */
@@ -919,6 +919,19 @@ export function scorecardMarkdown(card) {
   if (s.roles) {
     lines.push('', '## Rows per role', '', '| Role | Result |', '| --- | --- |');
     for (const [role, text] of Object.entries(roleCells(s.roles))) lines.push(`| ${role} | ${text} |`);
+    const kinds = s.roles.describe?.model?.byKind;
+    if (kinds?.length) {
+      lines.push(
+        '',
+        "Describe's model coverage by kind of interaction: of the interactions a view can draw, how many have no intent of their own (generic, don't know, not asked), most first.",
+        '',
+        '| Kind | Interactions | Own intent | Uncovered | Generic | Don\'t know | Not asked |',
+        '| --- | --- | --- | --- | --- | --- | --- |',
+      );
+      for (const k of kinds) {
+        lines.push(`| ${k.kind} | ${k.interactions} | ${k.own} | ${k.interactions - k.own} | ${k.generic} | ${k.unknown} | ${k.notAsked} |`);
+      }
+    }
     if (card.answerKey) lines.push('', `Answer key: \`${card.answerKey}\` (prepared from the code and the references; see its header).`);
     const inv = s.roles.investigate;
     if (inv.measured && inv.unjudged.length > 0) {
