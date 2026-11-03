@@ -272,6 +272,35 @@ class LlmPropertiesTest {
   }
 
   @Test
+  void aReplayBuildsNoRealProviderEvenWithAnApiKey(
+      @org.junit.jupiter.api.io.TempDir java.nio.file.Path calls) {
+    model("fast", "anthropic", "some-model");
+    tiers("fast", "fast");
+    // A key and an address that would answer nothing: the replay must not use either.
+    values.put("lantern.llm.anthropic.api-key", "test-key");
+    values.put("lantern.llm.anthropic.base-url", "http://127.0.0.1:9");
+
+    LlmAccess replay =
+        LlmConfiguration.create(bind(), List.of(), stored, Clock.systemUTC(), null, calls);
+
+    assertThatThrownBy(
+            () -> replay.client().call(LlmRequest.of(Role.COMPOSE, "replay", null, "Write", 10)))
+        .hasMessageContaining("No recording");
+  }
+
+  @Test
+  void aReplayFolderMustExist(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+    model("fast", "fake", "fast-model");
+    tiers("fast", "fast");
+
+    assertThatThrownBy(
+            () ->
+                LlmConfiguration.create(
+                    bind(), List.of(), stored, Clock.systemUTC(), null, dir.resolve("missing")))
+        .hasMessageContaining("not a folder");
+  }
+
+  @Test
   void aReplayNeedsNoApiKey(@org.junit.jupiter.api.io.TempDir java.nio.file.Path calls) {
     model("fast", "anthropic", "some-model");
     tiers("fast", "fast");
