@@ -14,6 +14,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -60,7 +61,7 @@ public record LlmProperties(
     models = models == null ? Map.of() : Map.copyOf(models);
     tiers = tiers == null ? Map.of() : Map.copyOf(tiers);
     roles = roles == null ? Map.of() : Map.copyOf(roles);
-    anthropic = anthropic == null ? new Anthropic(null, null) : anthropic;
+    anthropic = anthropic == null ? new Anthropic(null, null, null) : anthropic;
     openai = openai == null ? new OpenAi(null, null) : openai;
     batchPoll = batchPoll == null ? java.time.Duration.ofSeconds(30) : batchPoll;
     if (batchPoll.isNegative() || batchPoll.isZero()) {
@@ -320,12 +321,19 @@ public record LlmProperties(
    *
    * @param apiKey the API key, or {@code null} if none is set
    * @param baseUrl the API's base URL, or {@code null} for Anthropic's
+   * @param onlyProviders at a router such as OpenRouter, the providers allowed to serve a request
+   *     ({@code lantern.llm.anthropic.only-providers}, for example {@code anthropic}), sent as its
+   *     provider routing with fallbacks off; empty to send none (ADR 0102, amendment for #754)
    */
-  public record Anthropic(String apiKey, String baseUrl) {
+  public record Anthropic(String apiKey, String baseUrl, List<String> onlyProviders) {
 
     public Anthropic {
       apiKey = apiKey == null || apiKey.isBlank() ? null : apiKey;
       baseUrl = baseUrl == null || baseUrl.isBlank() ? null : baseUrl;
+      onlyProviders =
+          onlyProviders == null
+              ? List.of()
+              : onlyProviders.stream().map(String::trim).filter(p -> !p.isEmpty()).toList();
     }
 
     @Override
@@ -334,6 +342,8 @@ public record LlmProperties(
           + (apiKey == null ? "unset" : "***")
           + ", baseUrl="
           + baseUrl
+          + ", onlyProviders="
+          + onlyProviders
           + "]";
     }
   }

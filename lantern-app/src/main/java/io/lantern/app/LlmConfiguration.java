@@ -127,7 +127,8 @@ class LlmConfiguration {
           AnthropicProvider.create(
               properties.anthropic().apiKey(),
               properties.anthropic().baseUrl(),
-              properties.batchPoll());
+              properties.batchPoll(),
+              properties.anthropic().onlyProviders());
       providers.add(anthropic);
       available.add(name);
     }

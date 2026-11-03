@@ -40,10 +40,10 @@ public final class JdbcLlmCallLog implements LlmCallLog {
             """
             INSERT INTO llm_calls (started_at, duration_ms, role, purpose, provider, model, outcome,
                 input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_usd, error,
-                conversation_id, turn, tool_calls, batch, cache_write_long_tokens)
+                conversation_id, turn, tool_calls, batch, cache_write_long_tokens, served_by)
             VALUES (:startedAt, :durationMs, :role, :purpose, :provider, :model, :outcome,
                 :input, :output, :cacheWrite, :cacheRead, :cost, :error,
-                :conversation, :turn, CAST(:toolCalls AS jsonb), :batch, :cacheWriteLong)
+                :conversation, :turn, CAST(:toolCalls AS jsonb), :batch, :cacheWriteLong, :servedBy)
             """)
         .param("startedAt", call.startedAt().atOffset(ZoneOffset.UTC))
         .param("durationMs", Math.max(0, call.duration().toMillis()))
@@ -63,6 +63,7 @@ public final class JdbcLlmCallLog implements LlmCallLog {
         .param("turn", call.turn())
         .param("toolCalls", JSON.writeValueAsString(call.toolCalls()))
         .param("batch", call.batch())
+        .param("servedBy", call.servedBy())
         .update();
   }
 
@@ -257,19 +258,20 @@ public final class JdbcLlmCallLog implements LlmCallLog {
 
   /**
    * The calls that started at or after the given time, whatever their outcome, grouped by role,
-   * provider and model, in the roles' order and then by provider and model.
+   * provider, model and who served them, in the roles' order and then by provider, model and who
+   * served them.
    */
   public List<ModelSpending> spentByModelSince(Instant since) {
     return jdbc
         .sql(
             """
-            SELECT role, provider, model, count(*) AS calls,
+            SELECT role, provider, model, served_by, count(*) AS calls,
                    coalesce(sum(input_tokens + output_tokens + cache_write_tokens
                        + cache_read_tokens + cache_write_long_tokens), 0) AS tokens,
                    coalesce(sum(cost_usd), 0) AS cost
             FROM llm_calls
             WHERE started_at >= :since
-            GROUP BY role, provider, model
+            GROUP BY role, provider, model, served_by
             """)
         .param("since", since.atOffset(ZoneOffset.UTC))
         .query(
@@ -280,13 +282,16 @@ public final class JdbcLlmCallLog implements LlmCallLog {
                     rs.getString("model"),
                     rs.getLong("calls"),
                     rs.getLong("tokens"),
-                    rs.getBigDecimal("cost")))
+                    rs.getBigDecimal("cost"),
+                    rs.getString("served_by")))
         .list()
         .stream()
         .sorted(
             Comparator.comparing(ModelSpending::role)
                 .thenComparing(ModelSpending::provider)
-                .thenComparing(ModelSpending::model))
+                .thenComparing(ModelSpending::model)
+                .thenComparing(
+                    ModelSpending::servedBy, Comparator.nullsFirst(Comparator.naturalOrder())))
         .toList();
   }
 
@@ -299,9 +304,24 @@ public final class JdbcLlmCallLog implements LlmCallLog {
    * @param calls how many calls were logged, including failed and refused ones
    * @param tokens all tokens, input of every kind plus output
    * @param costUsd US dollars
+   * @param servedBy who served the calls when a router says so ({@link
+   *     io.lantern.llm.LlmCall#servedBy()}), or {@code null}
    */
   public record ModelSpending(
-      Role role, String provider, String model, long calls, long tokens, BigDecimal costUsd) {}
+      Role role,
+      String provider,
+      String model,
+      long calls,
+      long tokens,
+      BigDecimal costUsd,
+      String servedBy) {
+
+    /** Calls whose serving route is not reported. */
+    public ModelSpending(
+        Role role, String provider, String model, long calls, long tokens, BigDecimal costUsd) {
+      this(role, provider, model, calls, tokens, costUsd, null);
+    }
+  }
 
   /**
    * Tokens and money used by a set of calls.

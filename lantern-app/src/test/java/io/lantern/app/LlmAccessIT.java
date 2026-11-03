@@ -296,4 +296,42 @@ class LlmAccessIT {
     assertThat(listed.get("perTurn")).hasSize(3);
     assertThat(listed.at("/perTurn/1/toolCalls/read_file").asInt()).isEqualTo(1);
   }
+
+  @Test
+  void whoServedACallIsStoredAndListedPerModelInTheRunRecord() {
+    Instant start = Instant.parse("2401-01-01T00:00:00Z");
+    for (String servedBy : new String[] {"Anthropic, own key", "Anthropic, own key", null}) {
+      stored.record(
+          new LlmCall(
+              start.plusSeconds(1),
+              Duration.ofMillis(5),
+              Role.SUMMARIZE,
+              "served by " + servedBy,
+              "anthropic",
+              "served-by-model",
+              LlmCall.Outcome.SUCCEEDED,
+              new TokenUsage(20, 5, 0, 0),
+              new BigDecimal("0.001"),
+              null,
+              null,
+              0,
+              Map.of(),
+              false,
+              servedBy));
+    }
+
+    List<JdbcLlmCallLog.ModelSpending> spent =
+        stored.spentByModelSince(start).stream()
+            .filter(s -> s.model().equals("served-by-model"))
+            .toList();
+    assertThat(spent)
+        .extracting(JdbcLlmCallLog.ModelSpending::servedBy, JdbcLlmCallLog.ModelSpending::calls)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(null, 1L),
+            org.assertj.core.groups.Tuple.tuple("Anthropic, own key", 2L));
+    tools.jackson.databind.JsonNode byModel =
+        RunRecord.of("shop", 1, Map.of(), spent, List.of()).get("byModel");
+    assertThat(byModel.get(0).has("servedBy")).isFalse();
+    assertThat(byModel.get(1).get("servedBy").asString()).isEqualTo("Anthropic, own key");
+  }
 }

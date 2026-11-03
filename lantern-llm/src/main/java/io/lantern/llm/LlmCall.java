@@ -26,6 +26,8 @@ import java.util.TreeMap;
  * @param turn the call's turn in its conversation, from 1; 0 for a call on its own
  * @param toolCalls the tool calls the answer asked for, by tool name; empty if none
  * @param batch whether the call went through the provider's batch API, at its discount
+ * @param servedBy who served the call when a router in front of the provider says so ({@link
+ *     LlmResponse#servedBy()}); {@code null} when not reported or not answered
  */
 public record LlmCall(
     Instant startedAt,
@@ -41,7 +43,8 @@ public record LlmCall(
     String conversation,
     int turn,
     Map<String, Integer> toolCalls,
-    boolean batch) {
+    boolean batch,
+    String servedBy) {
 
   /** How a call ended. */
   public enum Outcome {
@@ -76,6 +79,40 @@ public record LlmCall(
     if (batch && conversation != null) {
       throw new IllegalArgumentException("A turn of a conversation is never batched");
     }
+  }
+
+  /** A call whose serving route is not reported. */
+  public LlmCall(
+      Instant startedAt,
+      Duration duration,
+      Role role,
+      String purpose,
+      String provider,
+      String model,
+      Outcome outcome,
+      TokenUsage usage,
+      BigDecimal costUsd,
+      String error,
+      String conversation,
+      int turn,
+      Map<String, Integer> toolCalls,
+      boolean batch) {
+    this(
+        startedAt,
+        duration,
+        role,
+        purpose,
+        provider,
+        model,
+        outcome,
+        usage,
+        costUsd,
+        error,
+        conversation,
+        turn,
+        toolCalls,
+        batch,
+        null);
   }
 
   /** A call sent on its own, not through the batch API. */

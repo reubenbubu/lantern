@@ -158,14 +158,18 @@ final class RunRecord {
     }
     ArrayNode byModel = root.putArray("byModel");
     for (JdbcLlmCallLog.ModelSpending s : spent) {
-      byModel
-          .addObject()
-          .put("role", s.role().name())
-          .put("provider", s.provider())
-          .put("model", s.model())
-          .put("calls", s.calls())
-          .put("tokens", s.tokens())
-          .put("costUsd", s.costUsd());
+      ObjectNode row =
+          byModel
+              .addObject()
+              .put("role", s.role().name())
+              .put("provider", s.provider())
+              .put("model", s.model())
+              .put("calls", s.calls())
+              .put("tokens", s.tokens())
+              .put("costUsd", s.costUsd());
+      if (s.servedBy() != null) {
+        row.put("servedBy", s.servedBy());
+      }
     }
     ArrayNode all = root.putArray("conversations");
     for (JdbcLlmCallLog.ConversationSpending c : conversations) {

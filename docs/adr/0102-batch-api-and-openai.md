@@ -133,3 +133,30 @@ No real call was made: every test answers from a fake through a stub of the prov
   from the one below. When a level's batch takes over an hour, the next level writes the prompt
   prefix to the cache again.
 - Changing provider is a settings change: a model's `provider` is `anthropic` or `openai`.
+
+## Amendment (#754): Claude through OpenRouter
+
+Runs that count use Claude Haiku, Sonnet and Opus 5.5 through OpenRouter's Anthropic-compatible
+Messages endpoint, with the owner's Anthropic key as BYOK (ADR 0070, amendment for #737). The
+research is in `docs/research/openrouter-anthropic-route.md`.
+- **Same provider, another base URL.** These models are `anthropic` models with
+  `lantern.llm.anthropic.base-url=https://openrouter.ai/api`. The settings are in
+  `.claude/skills/lantern-commands/llm-openrouter.properties`, with no key.
+- **No batching away from Anthropic.** Only Anthropic's own API (`api.anthropic.com`, or no base
+  URL) has the Message Batches API, so the Anthropic provider batches nothing at any other base
+  URL, whatever a model's capabilities say. `lantern.llm.batch-above` no longer has to be set high
+  by hand.
+- **Requests stay on Anthropic.** `lantern.llm.anthropic.only-providers` (here `anthropic`) adds
+  OpenRouter's provider routing `"provider": {"only": [...], "allow_fallbacks": false}` to every
+  request, so Amazon Bedrock and Google Vertex never serve one and the prompt cache stays with one
+  provider. Unset, nothing is added, as Anthropic's own API needs.
+- **Who served each call is recorded.** OpenRouter's answer names its `provider` and says whether
+  the owner's key paid (`usage.is_byok`). Each call stores it as `served_by`, for example
+  `Anthropic, own key`, or `Anthropic, OpenRouter credits` when the key's allowance was empty or
+  rate limited and OpenRouter's own Anthropic capacity served the call. That fallback is OpenRouter's
+  default and is kept on purpose: the same model on the same provider, only with a cold cache.
+  `run.json`'s `byModel` rows are split by it. Anthropic's own API reports neither, so its calls
+  store none.
+- **Not used.** OpenRouter's own batch API (`/api/v1/batches`) has a different format. Lantern
+  sets no `thinking.budget_tokens`, which OpenRouter does not forward, and forces no `tool_choice`,
+  which Sonnet and Opus 5.5 refuse there (#689).

@@ -538,9 +538,11 @@ public final class LlmClient {
               cost,
               "Cut off at the output limit of %d tokens or the context window (stop reason %s)"
                   .formatted(request.maxOutputTokens(), response.stopReason()),
-              Turn.answering(turn, response));
+              Turn.answering(turn, response),
+              false,
+              response.servedBy());
         } else {
-          log(
+          logMessage(
               attemptStart,
               request,
               model,
@@ -548,7 +550,9 @@ public final class LlmClient {
               response.usage(),
               cost,
               null,
-              Turn.answering(turn, response));
+              Turn.answering(turn, response),
+              false,
+              response.servedBy());
         }
         return response;
       }
@@ -704,6 +708,20 @@ public final class LlmClient {
       String error,
       Turn turn,
       boolean batch) {
+    logMessage(start, request, model, outcome, usage, cost, error, turn, batch, null);
+  }
+
+  private void logMessage(
+      Instant start,
+      LlmRequest request,
+      ModelConfig model,
+      LlmCall.Outcome outcome,
+      TokenUsage usage,
+      BigDecimal cost,
+      String error,
+      Turn turn,
+      boolean batch,
+      String servedBy) {
     log.record(
         new LlmCall(
             start,
@@ -719,6 +737,7 @@ public final class LlmClient {
             turn == null ? null : turn.conversation(),
             turn == null ? 0 : turn.number(),
             turn == null ? Map.of() : turn.toolCalls(),
-            batch));
+            batch,
+            servedBy));
   }
 }
