@@ -203,3 +203,41 @@ fallback "Calls <methods>" fails it as "Uses" did. A person's lines are still ch
 "Uses" and "Uses, through <frontend>" fail it as the bare "Uses" did before, which is what the bar
 says of them until people's lines are worded. Both coverages keep their items' scores for the
 paired comparison.
+
+## Amendment (#746): the model's choice of flows, apart from their participants
+
+The Flows row matches a report flow only when it shares two thirds of the reference flow's
+participants. That measures derivation's trace, and it reads 0 on sets whose traces differ from the
+reference whatever flows the model chose. A **Flow selection** row now scores the choice alone, by
+trigger (`lantern-web/scripts/roles.mjs`, `flowSelectionRow`); the Flows row stays as derivation's
+measure.
+
+- **Candidates and choice.** The candidates are every flow a significance judge saw, in any scope
+  (`flow-significance` facts in `llm.jsonl.gz`), or every traced flow (`flow-shape`) when none
+  did, one per shape (`SAME_SHAPE_AS`, as `ScopeFlows.candidates` keeps them). The chosen ones:
+  - mode "judged": those the whole system's judge marked significant. A flow a unit's pass, or the
+    system's first pass on a large system, dropped is a candidate not chosen, because those passes
+    are the model's choice too and the system's first pass is not stored.
+  - mode "rank fallback": the system has no verdict, so its choice fell back to the derived rank.
+    The chosen ones are those the report draws, by trigger, so the row then measures the rank.
+
+  The row scores the verdict, not the page: two significant flows of one drawn shape are one flow
+  on the page.
+- **A candidate's triggers.** These are read from `linked.jsonl.gz`. A flow's ID ends with the claim
+  of its entry point's fact, and an endpoint is started by:
+  - its own request;
+  - each gateway path routed to it (`routed-endpoint`);
+  - each frontend call that reaches it, by its path or, without one, its URL;
+  - the requests of the flows of its shape.
+
+  The report names one of these as where a flow starts; any of them matches, so a flow the report
+  starts at the gateway still matches a reference flow named by the service's own request. They are spelled as the scorecard spells triggers,
+  with the set's trigger aliases.
+- **Scores.** Each reference flow that a candidate starts is an item: right when a candidate of its
+  trigger was chosen, wrong when none was (p = 1). Recall is the share chosen.
+  - Precision is the share of chosen candidates whose trigger is a reference flow's. A wrong pick,
+    a chosen flow outside the reference, lowers precision and costs no point, since a reference
+    need not list every significant flow; a candidate matching no reference flow is otherwise
+    unjudged.
+  - Reference flows no candidate starts are listed apart, such as one started by a listener, a
+    WebSocket or a client outside the code.

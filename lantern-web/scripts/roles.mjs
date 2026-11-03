@@ -364,6 +364,131 @@ export function describeRow(report, linked, llm, run = null) {
 }
 
 /**
+ * The requests that start a traced flow, from the linker's facts, by the flow's ID: the flow's ID
+ * ends with the claim of its entry point's fact; an endpoint is started by its own request, by each
+ * gateway path routed to it (routed-endpoint) and by each frontend call that reaches it, which is
+ * where the report says a flow starts. A listener or a schedule has none.
+ */
+function flowTriggers(linked, spell) {
+  const endpoints = new Map();
+  for (const f of linked) if (f.predicate === 'endpoint') endpoints.set(f.claim, f);
+  const enters = new Map();
+  const add = (method, request) => {
+    if (!method || !request) return;
+    if (!enters.has(method)) enters.set(method, new Set());
+    enters.get(method).add(spell(request));
+  };
+  for (const f of linked) {
+    if (f.predicate === 'endpoint') add(f.subject, f.object?.value);
+    else if (f.predicate === 'routed-endpoint') add(f.attributes?.endpoint, f.object?.value);
+    else if (f.predicate === 'CALLS_HTTP' && String(f.subject).startsWith('frontend:')) {
+      // As the composer names the request: its path, or its URL when the path is not known.
+      const where = f.attributes?.path ?? f.attributes?.url;
+      if (where) add(f.attributes?.reaches, `${f.attributes?.httpMethod ?? ''} ${where}`.trim());
+    }
+  }
+  return (flow) => {
+    const endpoint = endpoints.get(String(flow).split('/').pop());
+    return endpoint ? [...(enters.get(endpoint.subject) ?? [])] : [];
+  };
+}
+
+/**
+ * The model's choice of flows (#746), apart from whether derivation traced their participants (the
+ * Flows row). The candidates are every flow a significance judge saw, in any scope, or every traced
+ * flow when none did, one per shape; they are matched to the reference's flows by trigger. The
+ * chosen ones:
+ *
+ * - judged: those the judge of the whole system marked significant, so a flow a unit's pass or the
+ *   system's first pass dropped is a candidate not chosen;
+ * - rank: the system's choice fell back to the derived rank (the judge failed or was not asked),
+ *   so those the report draws.
+ *
+ * Each reference flow that was a candidate is an item: right when a candidate of its trigger was
+ * chosen, wrong when none was (p = 1); a reference flow no candidate starts is apart, and a chosen
+ * candidate that matches no reference flow is unjudged, since a reference need not list every
+ * significant flow. Recall is the items chosen; precision the chosen candidates that match a
+ * reference flow.
+ *
+ * @param refFlows the reference's flows, triggers spelled as `spell` spells them
+ * @param drawnTriggers the triggers of the flows the report draws, spelled the same way
+ * @param spell a request as the scorecard spells a trigger (normalized, then aliased)
+ */
+export function flowSelectionRow(refFlows, drawnTriggers, llm, linked, spell) {
+  if (refFlows.length === 0) return notMeasured('the reference draws no flow');
+  if (!llm || !linked) return notMeasured('the run wrote no llm.jsonl.gz or linked.jsonl.gz');
+  const judgements = llm.filter((f) => f.predicate === 'flow-significance');
+  const system = judgements.filter((f) => f.object?.value === 'system');
+  const mode = system.length > 0 ? 'judged' : 'rank';
+  // Flows of one shape are one candidate (ScopeFlows.candidates keeps the smallest ID), started by
+  // the requests of each of them.
+  const sameAs = new Map();
+  for (const f of linked) if (f.predicate === 'SAME_SHAPE_AS') sameAs.set(f.subject, f.object?.value);
+  const shapeOf = (flow) => {
+    const seen = new Set();
+    let at = flow;
+    while (sameAs.has(at) && !seen.has(at)) {
+      seen.add(at);
+      at = sameAs.get(at);
+    }
+    return at;
+  };
+  const triggersOf = flowTriggers(linked, spell);
+  const startedBy = new Map();
+  for (const f of linked) {
+    if (f.predicate !== 'flow-shape') continue;
+    const shape = shapeOf(f.subject);
+    if (!startedBy.has(shape)) startedBy.set(shape, new Set());
+    for (const t of triggersOf(f.subject)) startedBy.get(shape).add(t);
+  }
+  // The candidates: every flow a judge saw, in any scope (the system's own first pass, on a large
+  // system, is not stored, but each unit's pass is), or every traced flow when none did.
+  const seenFlows = judgements.length > 0 ? judgements.map((f) => f.subject) : [...startedBy.keys()];
+  const drawn = new Set(drawnTriggers.filter(Boolean));
+  const significant = new Set(system.filter((f) => f.attributes?.significant === true).map((f) => shapeOf(f.subject)));
+  const candidates = new Map();
+  for (const flow of seenFlows) {
+    const shape = shapeOf(flow);
+    if (candidates.has(shape)) continue;
+    const triggers = [...new Set([...(startedBy.get(shape) ?? []), ...triggersOf(flow)])];
+    const chosen = mode === 'judged' ? significant.has(shape) : triggers.some((t) => drawn.has(t));
+    candidates.set(shape, { triggers, chosen });
+  }
+  const all = [...candidates.values()];
+  const items = [];
+  const notCandidates = [];
+  refFlows.forEach((ref, i) => {
+    const theirs = all.filter((c) => ref.trigger !== null && c.triggers.includes(ref.trigger));
+    if (theirs.length === 0) {
+      notCandidates.push(`${ref.title} (${ref.trigger ?? 'no trigger'})`);
+      return;
+    }
+    const chosen = theirs.some((c) => c.chosen);
+    items.push({ id: `${ref.trigger}#${i}`, outcome: chosen ? 'correct' : 'wrong', unknown: false, title: ref.title });
+  });
+  const refTriggers = new Set(refFlows.map((f) => f.trigger).filter(Boolean));
+  const chosen = all.filter((c) => c.chosen);
+  const chosenMatching = chosen.filter((c) => c.triggers.some((t) => refTriggers.has(t)));
+  const row = threeOutcomes(items, PENALTY.flows);
+  return {
+    measured: true,
+    mode,
+    candidates: all.length,
+    chosen: chosen.length,
+    items: row.items,
+    right: row.correct,
+    recall: ratio(row.correct, row.items),
+    chosenMatching: chosenMatching.length,
+    precision: ratio(chosenMatching.length, chosen.length),
+    penalized: row.penalized,
+    penalty: row.penalty,
+    missed: items.filter((i) => i.outcome === 'wrong').map((i) => i.title),
+    notCandidates,
+    scores: row.scores,
+  };
+}
+
+/**
  * Flows (#662): a report flow matches a reference flow when the trigger is the same entry point and
  * the participants overlap by at least two thirds, shared over the larger set; one to one, best
  * overlap first. Recall and precision of the significant set: the flows the report draws.
@@ -650,7 +775,7 @@ export function pairedDifference(pairs, resamples = 2000, seed = 662) {
 }
 
 /** The rows per role that score items, as the scorecard keeps them. */
-export const SCORED_ROWS = ['resolve', 'describe', 'flows', 'investigate'];
+export const SCORED_ROWS = ['resolve', 'describe', 'flows', 'selection', 'investigate'];
 
 /** The pairs of item scores two scorecards share, for one row. */
 export function itemPairs(a, b, row) {
