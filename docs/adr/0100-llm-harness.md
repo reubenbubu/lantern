@@ -240,3 +240,11 @@ resting on it changed too, and a warm rerun of project-4 made 241 calls.
 - **Fixed orders.** Two lead rules looped over a `Set.of`, whose order changes from one JVM to the
   next, and kept the first match, so a rerun could cite another link and ask its lead again. They
   loop over lists.
+
+## Amendment (#702): a reworded answer re-asks what shows it.
+
+On #529's project-4 recording, a one-line comment in one class (`EmailService`) made 89 calls on DeepSeek V4.1 Flash. A fresh run is 550. On the fake model the same change makes 3 calls: the class's summary, its unit's description and the file's injection screen. That is the gate above, and `Project0EndToEndIT.aOneFileChangeReAsksOnlyTheItemsRestingOnThatFile` checks it on project-0.
+
+The rest of the 89 come from rewording. The re-asked description of notification-service came back reworded: its own sentence, 9 component sentences and 16 interaction phrases, almost none of which cite that class. An answer is a fingerprint input of every item that shows it (knowledge-build epic, section 10). So every flow narrative and scope that showed one of those texts was asked again. Item by item, all 28 re-asked narratives and all 6 re-asked significance scopes had shown a reworded text, and none of the 13 kept from cache had. Investigate's system pass and the purpose rest on the units' answers in the same way.
+
+The harness follows its rule. The cascade is by design, and the epic's gate now says so. Keeping a sentence's wording while what it cites is unchanged, which would stop the cascade on a real model, is #722.

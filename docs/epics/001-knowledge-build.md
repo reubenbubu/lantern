@@ -530,7 +530,7 @@ The research behind this split is in section 4.
 | Name groups, one group | The group claim and its basis; its members' responsibility observations; the aggregated lines shown and their member lines' intents. The other groups `[G..]` only orient and are not inputs |
 | Purpose | Everything shown |
 
-For tool-using items, the files read are known only after the conversation. They are recorded with the answer, and a cached answer is reused only while those blobs are unchanged. The gate in section 13 reads accordingly: a one-file change re-asks exactly the items whose fingerprint inputs include that file's blob or a claim observed in it.
+For tool-using items, the files read are known only after the conversation. They are recorded with the answer, and a cached answer is reused only while those blobs are unchanged. The gate in section 13 reads accordingly: a one-file change re-asks exactly the items whose fingerprint inputs include that file's blob or a claim observed in it, and the items that show an earlier answer those re-asked items worded differently. An answer is a fingerprint input of what shows it, so the cascade through reworded answers is by design. A model that answers the same input the same way stops it at the first level: on project-4, a comment in one class re-asks 3 items on the fake model. A real model rewords a re-asked description entirely, sentences that do not rest on the change included. On DeepSeek V4.1 Flash the same comment re-asked 89 items, each of which showed a reworded text (#702). Keeping a sentence's wording while its evidence is unchanged is #722.
 
 ### Prompt layout for caching
 
@@ -1322,7 +1322,7 @@ Every role is tested without a real model, and measured on the development test 
 
 - **Acceptance gates.** A milestone that changes a role states targets for its row, as milestones do today. The harness row has two fixed gates:
   - a warm rerun of an unchanged snapshot makes **zero** calls
-  - a one-file change re-asks only the items whose fingerprint inputs (section 10) include that file's blob or a claim observed in it
+  - a one-file change re-asks only the items whose fingerprint inputs (section 10) include that file's blob or a claim observed in it, or an earlier answer re-asked for it and worded differently (section 10, #702)
 - **Extraction coverage** (ADR 0089) is unchanged. It keeps splitting losses between extraction and linking, and gains a third column for derivation (components, flows, leads).
 
 * **Packet-size calibration** (section 10).
