@@ -277,7 +277,12 @@ final class ArchitectureRules {
    * fields of an LLM role's answer, which #698 moves out of the composer.
    */
   static final Set<String> NOT_TYPE_NAMES =
-      Set.of("io.lantern.compose.FlowJudgements.TITLE", "io.lantern.compose.WordingPrompt.TITLE");
+      Set.of(
+          "io.lantern.compose.FlowJudgements.TITLE",
+          "io.lantern.compose.WordingPrompt.TITLE",
+          "io.lantern.compose.DescribeRole.RESPONSIBILITY_FIELD",
+          "io.lantern.compose.NameGroups.RESPONSIBILITY_FIELD",
+          "io.lantern.compose.PurposeRole.PURPOSE_FIELD");
 
   /**
    * The composer and the renderers define no constant holding a vocabulary type's name: they name

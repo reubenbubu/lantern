@@ -41,18 +41,18 @@ import org.slf4j.LoggerFactory;
  * Has the LLM word what extraction found in the C4 views (ADR 0050, docs/design.md: LLM
  * integration, Grounding): a responsibility sentence for each deployable unit and each of its
  * components, and an intent phrase for each of its links to other containers. One call per unit
- * shows what extraction found: the facts that make it a unit, its Types.README's claims, its
- * components (when it has more than one, as the component diagram draws them) with their facts and
- * the start of their main type's code (ADR 0069), or else its entry points, and its links; the
- * answer cites them. Nothing is added: a unit, component or link the model leaves out keeps its
- * summary or static label. One call per data store, topic, queue, exchange and external system the
- * container diagrams draw asks for its responsibility sentence from its facts, the tables built in
- * it and how the units use it (ADR 0056); one the model leaves out has no description, as before.
- * One call per main flow the documents show asks for its walkthrough and pre- and post-conditions
- * from what starts it and the facts behind its steps (ADR 0058); what the model leaves out keeps
- * its static prose or "Not known from the code.". Last, one call asks for the system's purpose from
- * the units' sentences, with the facts they cite, and the Types.README claims of its repositories
- * (ADR 0060); without a purpose the system's report states it as unknown.
+ * shows what extraction found: the facts that make it a unit, its README's claims, its components
+ * (when it has more than one, as the component diagram draws them) with their facts and the start
+ * of their main type's code (ADR 0069), or else its entry points, and its links; the answer cites
+ * them. Nothing is added: a unit, component or link the model leaves out keeps its summary or
+ * static label. One call per data store, topic, queue, exchange and external system the container
+ * diagrams draw asks for its responsibility sentence from its facts, the tables built in it and how
+ * the units use it (ADR 0056); one the model leaves out has no description, as before. One call per
+ * main flow the documents show asks for its walkthrough and pre- and post-conditions from what
+ * starts it and the facts behind its steps (ADR 0058); what the model leaves out keeps its static
+ * prose or "Not known from the code.". Last, one call asks for the system's purpose from the units'
+ * sentences, with the facts they cite, and the README claims of its repositories (ADR 0060);
+ * without a purpose the system's report states it as unknown.
  *
  * <p>Each question is an item of the LLM harness (ADR 0100), under one of four roles: units, data
  * stores and destinations, flows, and the system's purpose. Its answer is cached under the item's
@@ -69,7 +69,7 @@ public final class Describer {
   /** The most entry points of a unit without components the prompt shows. */
   static final int MAX_ENTRY_POINTS = 15;
 
-  /** The most Types.README claims the prompt shows per repository. */
+  /** The most README claims the prompt shows per repository. */
   static final int MAX_CLAIMS = 8;
 
   /** The links a unit's relationships are drawn from, as the container diagram draws them. */
@@ -451,7 +451,7 @@ public final class Describer {
               summaryFacts);
       if (described.element().type().equals(Types.PERSON)) {
         worded.stream()
-            .filter(t -> t.field().equals(Types.RESPONSIBILITY))
+            .filter(t -> t.field().equals(DescribeRole.RESPONSIBILITY_FIELD))
             .forEach(
                 t ->
                     people.add(
@@ -476,8 +476,7 @@ public final class Describer {
       expected.ifPresent(
           a ->
               purposeSession.notAsked(
-                  a.item().subject(),
-                  "no unit or person was worded and no Types.README states a claim"));
+                  a.item().subject(), "no unit or person was worded and no README states a claim"));
     }
     purpose.ifPresent(
         asked -> {
@@ -497,7 +496,7 @@ public final class Describer {
             return;
           }
           Map<String, PurposeRole.Worded> worded = PurposeRole.worded(asked, outcome.answer());
-          PurposeRole.Worded said = worded.get(Types.PURPOSE);
+          PurposeRole.Worded said = worded.get(PurposeRole.PURPOSE_FIELD);
           if (said != null) {
             tally.responsibilities.put(RepoSections.SYSTEM, said.marked());
             tally.judgeable.put(
@@ -677,7 +676,7 @@ public final class Describer {
       }
       if (described.asksUnit()
           && !said.contains(DescribeRole.UNIT)
-          && !said.contains(Types.RESPONSIBILITY)) {
+          && !said.contains(DescribeRole.RESPONSIBILITY_FIELD)) {
         unknown.add(element.toString());
       }
       described
@@ -1074,8 +1073,8 @@ public final class Describer {
   }
 
   /**
-   * Each repository's Types.README claims, of its Types.README with the fewest folders, by
-   * repository and path, repositories in order (ADR 0060).
+   * Each repository's README claims, of its README with the fewest folders, by repository and path,
+   * repositories in order (ADR 0060).
    */
   private static Map<String, List<Fact>> claims(Knowledge knowledge) {
     SortedSet<String> repos = new TreeSet<>();
@@ -1169,8 +1168,8 @@ public final class Describer {
   }
 
   /**
-   * The claims of the Types.README with the fewest folders in its path in each repository holding
-   * the unit's own module, in the order written, at most some.
+   * The claims of the README with the fewest folders in its path in each repository holding the
+   * unit's own module, in the order written, at most some.
    */
   static List<Fact> claims(EntityId unit, Knowledge knowledge) {
     SortedSet<String> repos = new TreeSet<>();
@@ -1183,7 +1182,7 @@ public final class Describer {
   }
 
   /**
-   * The claims of the repository's Types.README with the fewest folders in its path, in the order
+   * The claims of the repository's README with the fewest folders in its path, in the order
    * written, at most some.
    */
   private static List<Fact> readmeClaims(String repo, Knowledge knowledge) {

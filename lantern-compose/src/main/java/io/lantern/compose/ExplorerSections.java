@@ -185,7 +185,7 @@ final class ExplorerSections {
     };
   }
 
-  /** The repository's top-level Types.README, else its first by path. */
+  /** The repository's top-level README, else its first by path. */
   private Optional<ListBlock.Item> readme(String repo) {
     SortedMap<String, List<Fact>> byPath = new TreeMap<>(README_ORDER);
     for (Fact fact : knowledge.withPredicate(Types.CLAIM)) {
@@ -740,8 +740,8 @@ final class ExplorerSections {
   }
 
   /**
-   * The file a Types.README or decision record entity is about, from its key {@code <repo>:<path>},
-   * whose whitespace and {@code %} are percent-encoded (ADR 0033).
+   * The file a README or decision record entity is about, from its key {@code <repo>:<path>}, whose
+   * whitespace and {@code %} are percent-encoded (ADR 0033).
    */
   private static String path(EntityId entity) {
     String key = entity.key();

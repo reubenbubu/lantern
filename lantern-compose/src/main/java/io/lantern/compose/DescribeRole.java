@@ -47,6 +47,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class DescribeRole {
 
+  /** The field of an answer that holds the sentence. */
+  static final String RESPONSIBILITY_FIELD = "responsibility";
+
   /** The prompt version of the unit role. */
   static final String UNIT_VERSION = "7";
 
@@ -306,12 +309,12 @@ final class DescribeRole {
       List<CheckedText> texts = new ArrayList<>();
       if (entry != null && entry.isObject() && !entry.has("omitted")) {
         if (described.kind() == Kind.ELEMENT) {
-          text(entry.get(Types.RESPONSIBILITY))
+          text(entry.get(RESPONSIBILITY_FIELD))
               .ifPresent(
                   t ->
                       texts.add(
                           checked(
-                              Types.RESPONSIBILITY,
+                              RESPONSIBILITY_FIELD,
                               CheckedText.Kind.RESPONSIBILITY,
                               t,
                               SENTENCE_WORDS,
@@ -442,8 +445,8 @@ final class DescribeRole {
     JsonNode answer = JSON.readTree(stored);
     List<Worded> result = new ArrayList<>();
     if (described.kind() == Kind.ELEMENT) {
-      text(answer.get(Types.RESPONSIBILITY))
-          .flatMap(t -> worded(described, described.element(), Types.RESPONSIBILITY, t, summaries))
+      text(answer.get(RESPONSIBILITY_FIELD))
+          .flatMap(t -> worded(described, described.element(), RESPONSIBILITY_FIELD, t, summaries))
           .ifPresent(result::add);
       return result;
     }

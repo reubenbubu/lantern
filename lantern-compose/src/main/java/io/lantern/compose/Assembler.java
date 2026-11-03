@@ -639,7 +639,9 @@ final class Assembler {
   /**
    * Whether the entity is a data store, destination or system outside the scope: an element the
    * container diagrams draw that runs none of the system's code, at the container or context level
-   * by its type or the nearest ancestor that has one (ADR 0114).
+   * by its type or the nearest ancestor that has one (ADR 0114). A message broker and an
+   * infrastructure server are containers too, but the diagrams draw a broker's topics, queues and
+   * exchanges instead, and keep infrastructure apart from the business dependencies.
    */
   boolean destination(EntityId id) {
     Vocabulary vocabulary = model.vocabulary();
@@ -647,6 +649,8 @@ final class Assembler {
     if (vocabulary.find(type).isEmpty()
         || type.equals(BuiltInTypes.SYSTEM)
         || vocabulary.isA(type, BuiltInTypes.ACTOR)
+        || vocabulary.isA(type, Types.MESSAGE_BROKER)
+        || vocabulary.isA(type, Types.INFRASTRUCTURE)
         || C4Views.runsCode(id)) {
       return false;
     }

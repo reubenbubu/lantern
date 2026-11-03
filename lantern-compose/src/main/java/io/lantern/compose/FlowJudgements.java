@@ -180,7 +180,8 @@ final class FlowJudgements {
    * the facts behind them, its asynchronous hand-offs, and the responsibilities of the units the
    * flows cross.
    *
-   * @param scope the scope's key, {@link Wordings#SYSTEM_SCOPE} or a repository's name
+   * @param scope the scope's key, {@link io.lantern.derive.ArchitectureModel#SYSTEM_SCOPE} or a
+   *     repository's name
    * @param title how the item names the scope, such as {@code the system}
    * @param candidates the flows, one for each shape
    * @param responsibilities the units' responsibility sentences, Describe's

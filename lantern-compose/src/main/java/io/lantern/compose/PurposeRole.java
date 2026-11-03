@@ -46,6 +46,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class PurposeRole {
 
+  /** The field of the answer that holds the purpose. */
+  static final String PURPOSE_FIELD = "purpose";
+
   /** The prompt version; change it whenever the role's prompt or what an item shows changes. */
   static final String VERSION = "4";
 
@@ -275,7 +278,7 @@ final class PurposeRole {
     public ItemAnswer read(String id, Item item, JsonNode entry) {
       List<CheckedText> texts = new ArrayList<>();
       if (entry != null && entry.isObject() && !entry.has("omitted")) {
-        for (String field : List.of(Types.PURPOSE, KEY_FACT)) {
+        for (String field : List.of(PURPOSE_FIELD, KEY_FACT)) {
           JsonNode node = entry.get(field);
           if (node != null && node.isObject() && node.path("text").isString()) {
             List<String> cites = new ArrayList<>();
@@ -286,7 +289,7 @@ final class PurposeRole {
                     CheckedText.Kind.PROSE,
                     node.path("text").stringValue().strip(),
                     cites,
-                    field.equals(Types.PURPOSE) ? PURPOSE_WORDS : KEY_FACT_WORDS,
+                    field.equals(PURPOSE_FIELD) ? PURPOSE_WORDS : KEY_FACT_WORDS,
                     "",
                     Set.of()));
           }
@@ -335,7 +338,7 @@ final class PurposeRole {
   static Map<String, Worded> worded(Asked asked, String stored) {
     JsonNode answer = JSON.readTree(stored);
     Map<String, Worded> worded = new LinkedHashMap<>();
-    for (String field : List.of(Types.PURPOSE, KEY_FACT)) {
+    for (String field : List.of(PURPOSE_FIELD, KEY_FACT)) {
       JsonNode node = answer.get(field);
       if (node == null || !node.path("text").isString()) {
         continue;
@@ -383,7 +386,7 @@ final class PurposeRole {
           Fact fact =
               Fact.create(
                   RepoSections.SYSTEM,
-                  field.equals(Types.PURPOSE) ? LlmFacts.PURPOSE : LlmFacts.KEY_FACT,
+                  field.equals(PURPOSE_FIELD) ? LlmFacts.PURPOSE : LlmFacts.KEY_FACT,
                   FactObject.string(LlmFacts.C4),
                   attributes,
                   LlmFacts.origin(ROLE),

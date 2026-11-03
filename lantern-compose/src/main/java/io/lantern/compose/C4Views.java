@@ -121,7 +121,7 @@ final class C4Views {
    * A line of the container diagrams seen from one of its ends (ADR 0056).
    *
    * @param other the element at the other end
-   * @param relationship the relationship the line draws, such as {@code Types.CALLS_HTTP}
+   * @param relationship the relationship the line draws, such as {@code CALLS_HTTP}
    * @param incoming whether the line runs from the other end to this one
    * @param via what it goes through (the name of a queue, or the tables read), or null
    * @param facts its link facts
@@ -253,8 +253,7 @@ final class C4Views {
     String broker = entity.key().substring(0, Math.max(entity.key().indexOf(':'), 0));
     return switch (entity.type()) {
       case BuiltInTypes.SERVICE, Types.DATABASE -> technology.orElse(null);
-      case Types.FRONTEND ->
-          frontendApp(entity).map(f -> attribute(f, Types.TECHNOLOGY)).orElse(null);
+      case Types.FRONTEND -> frontendApp(entity).map(f -> attribute(f, "technology")).orElse(null);
       case Types.TOPIC -> brokerName(broker) + " topic";
       case Types.QUEUE -> brokerName(broker) + " queue";
       case Types.EXCHANGE -> {
@@ -569,8 +568,9 @@ final class C4Views {
   }
 
   /**
-   * The interactions the lines above draw their own way, and a unit's use of its message broker,
-   * whose topics, queues and exchanges the diagrams draw instead of one broker box.
+   * The interactions the lines above draw their own way; a unit's use of its message broker, whose
+   * topics, queues and exchanges the diagrams draw instead of one broker box; and its use of
+   * infrastructure servers, which the diagrams keep apart from its business dependencies.
    */
   private static final Set<String> DRAWN_OTHERWISE =
       Set.of(
@@ -583,7 +583,8 @@ final class C4Views {
           Types.USES_DATABASE,
           Types.ACCESSES_DATA_OF,
           Types.INVESTIGATED_CONNECTION,
-          Types.USES_BROKER);
+          Types.USES_BROKER,
+          Types.USES_INFRASTRUCTURE);
 
   /**
    * Every other interaction of a unit with an element at the container or context level, drawn as

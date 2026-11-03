@@ -73,6 +73,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class NameGroups {
 
+  /** The field of an answer that holds a group's sentence. */
+  static final String RESPONSIBILITY_FIELD = "responsibility";
+
   /** The prompt version, part of every answer's cache key. */
   static final String VERSION = "5";
 
@@ -509,7 +512,7 @@ public final class NameGroups {
       List<Fact> findings) {
     EntityId group = n.group().id();
     boolean hasName = false;
-    for (String field : List.of(NAME, Types.RESPONSIBILITY)) {
+    for (String field : List.of(NAME, RESPONSIBILITY_FIELD)) {
       Optional<Cited> text = cited(n, answer.get(field));
       if (text.isPresent()) {
         written.add(
@@ -724,12 +727,12 @@ public final class NameGroups {
         String signal = signal(n.group().id());
         text(entry.get(NAME))
             .ifPresent(t -> texts.add(checked(NAME, CheckedText.Kind.PROSE, t, NAME_WORDS, "")));
-        text(entry.get(Types.RESPONSIBILITY))
+        text(entry.get(RESPONSIBILITY_FIELD))
             .ifPresent(
                 t ->
                     texts.add(
                         checked(
-                            Types.RESPONSIBILITY,
+                            RESPONSIBILITY_FIELD,
                             CheckedText.Kind.RESPONSIBILITY,
                             t,
                             SENTENCE_WORDS,

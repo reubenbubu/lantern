@@ -28,11 +28,12 @@ class TypeNamesInSourceTest {
 
   private static final Pattern LITERAL = Pattern.compile("\"((?:[^\"\\\\]|\\\\.)*)\"");
 
-  /** Where code reads facts by a name: a predicate, a query by predicate or by type. */
+  /** Where code reads facts by a name: a predicate, a query by predicate or type, a case label. */
   private static final Pattern QUERY =
       Pattern.compile(
           "(?:withPredicate|predicate\\(\\)\\.equals|type\\(\\)\\.equals|relations\\([^,()]+,"
-              + "|knowledge\\s*\\.attribute\\([^,()]+,|parts\\([^,()]+,)\\s*\\(?\\s*\""
+              + "|knowledge\\s*\\.attribute\\([^,()]+,|parts\\([^,()]+,|case(?:\\s+[\\w.]+,)*)"
+              + "\\s*\\(?\\s*\""
               + "((?:[^\"\\\\]|\\\\.)*)\"");
 
   @Test

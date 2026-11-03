@@ -873,6 +873,28 @@ class C4ViewsTest {
   }
 
   @Test
+  void anInfrastructureServerAndABrokerStayOffTheContainerDiagram() {
+    TestFacts more = TestFacts.runtime();
+    more.relate(
+            "shop",
+            "service:com.example:app",
+            "USES_INFRASTRUCTURE",
+            "infrastructure:config:8888",
+            "{\"protocol\": \"HTTP\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "USES_BROKER",
+            "message-broker:kafka:kafka:9092",
+            "{}");
+
+    Diagram diagram = block(section(repo(more.list()), "containers"), Diagram.class);
+
+    assertThat(nodes(diagram))
+        .noneMatch(n -> n.startsWith("infrastructure:") || n.startsWith("message-broker:"));
+  }
+
+  @Test
   void aTypeThatExtendsADataStoreIsDrawnAsOne() {
     List<VocabularyType> types = new ArrayList<>(Vocabularies.standard().types());
     types.add(
