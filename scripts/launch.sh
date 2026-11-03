@@ -177,8 +177,13 @@ newer_source() {
     [[ -f "$module/pom.xml" ]] && sources+=("$module/pom.xml")
     [[ -d "$module/src/main" ]] && sources+=("$module/src/main")
   done
-  # The report template, built into the jar from the frontend's sources.
-  [[ -d "$REPO/lantern-web/src" ]] && sources+=("$REPO/lantern-web/src")
+  # The report template, built into the jar from the frontend's sources and its build files, and
+  # the report specifications the app copies in.
+  local extra
+  for extra in lantern-web/src lantern-web/package.json lantern-web/package-lock.json \
+    lantern-web/vite.config.ts lantern-web/index.html lantern-web/tsconfig.json report-specs; do
+    [[ -e "$REPO/$extra" ]] && sources+=("$REPO/$extra")
+  done
   find "${sources[@]}" -type f -newer "$1" -print -quit 2>/dev/null
 }
 
@@ -206,9 +211,11 @@ ensure_jar() {
 # --- Prerequisites -------------------------------------------------------------------
 
 command -v git >/dev/null 2>&1 || die "git is not on the PATH"
-command -v docker >/dev/null 2>&1 || die "docker is not on the PATH"
-docker info >/dev/null 2>&1 || die "the Docker daemon is not reachable (is it running, and may you use it?)"
-docker compose version >/dev/null 2>&1 || die "the docker compose plugin is not installed"
+if ! $build_only; then
+  command -v docker >/dev/null 2>&1 || die "docker is not on the PATH"
+  docker info >/dev/null 2>&1 || die "the Docker daemon is not reachable (is it running, and may you use it?)"
+  docker compose version >/dev/null 2>&1 || die "the docker compose plugin is not installed"
+fi
 if ! $db_only; then
   command -v java >/dev/null 2>&1 || die "java is not on the PATH; Lantern needs JDK 21 or later"
   java_version="$(java -XshowSettings:properties -version 2>&1 |
