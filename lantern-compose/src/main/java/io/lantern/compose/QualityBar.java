@@ -194,14 +194,20 @@ final class QualityBar {
     if (!noTechnology.isEmpty()) {
       bar.fail(TECHNOLOGY, null, "No technology for " + names(noTechnology) + ".");
     }
-    List<String> noResponsibility = new ArrayList<>();
-    unknowns.containersWithoutResponsibility().forEach(e -> noResponsibility.add(name.apply(e)));
-    unknowns
-        .componentsWithoutResponsibility()
-        .forEach(p -> noResponsibility.add(component.apply(p)));
-    if (!noResponsibility.isEmpty()) {
+    // The unknowns page names them (#700); stated once, the failure counts them.
+    int noResponsibility =
+        unknowns.containersWithoutResponsibility().size()
+            + unknowns.componentsWithoutResponsibility().size();
+    if (noResponsibility > 0) {
       bar.fail(
-          RESPONSIBILITY, null, "No responsibility sentence for " + names(noResponsibility) + ".");
+          RESPONSIBILITY,
+          null,
+          (noResponsibility == 1
+                  ? "One element has no responsibility sentence"
+                  : noResponsibility + " elements have no responsibility sentence")
+              + "; the decisions and unknowns page names "
+              + (noResponsibility == 1 ? "it" : "them")
+              + ".");
     }
     List<String> noProtocol = new ArrayList<>();
     unknowns

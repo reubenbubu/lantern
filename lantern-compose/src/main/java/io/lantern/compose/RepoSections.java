@@ -234,6 +234,7 @@ final class RepoSections {
               elements,
               units,
               repo == null,
+              repos,
               id -> model.summary(assembler.summarized(id)).isPresent());
     }
     return unknowns;

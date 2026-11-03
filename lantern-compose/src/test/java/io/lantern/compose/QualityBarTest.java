@@ -337,7 +337,7 @@ class QualityBarTest {
     assertThat(failed(document, QualityBar.ONE_LEVEL))
         .containsExactly("d: It also shows com.example (package).");
     assertThat(failed(document, QualityBar.ELEMENTS)).containsExactly("d: It shows 16 elements.");
-    // What a box or line lacks is asked of the model, not of the diagram (ModelChecksTest).
+    // What a box or line lacks is asked of the model, not of the diagram (UnknownsTest).
     assertThat(failed(document, QualityBar.TECHNOLOGY)).isEmpty();
     assertThat(failed(document, QualityBar.LABELLED))
         .containsExactly(

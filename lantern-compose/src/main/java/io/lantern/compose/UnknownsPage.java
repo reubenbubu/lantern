@@ -98,10 +98,10 @@ final class UnknownsPage {
     // verdicts name the model that was asked, which a report reads the same whichever it was.
     for (Unknowns.Lead lead : leads) {
       String about =
-          ScopeFlows.list(lead.units().stream().map(assembler::name).toList())
+          ScopeFlows.list(lead.about().stream().map(assembler::name).toList())
               + ": "
               + lead.kind().replace('-', ' ');
-      lines.merge(List.of(about, lead.reason() == null ? "" : lead.reason()), 1, Integer::sum);
+      lines.merge(List.of(about, reason(lead.reason())), 1, Integer::sum);
     }
     lines.forEach(
         (line, count) ->
@@ -120,6 +120,18 @@ final class UnknownsPage {
             "Not decided",
             content,
             List.of()));
+  }
+
+  /**
+   * Why a lead is unclear, as the reader needs it: a lead not asked is not asked, whatever error or
+   * budget the run recorded after the colon, which varies from run to run.
+   */
+  private static String reason(String reason) {
+    if (reason == null) {
+      return "";
+    }
+    int colon = reason.indexOf(':');
+    return reason.startsWith("not asked") && colon > 0 ? reason.substring(0, colon) : reason;
   }
 
   /** The units, and the system, the LLM investigator did not look at. */

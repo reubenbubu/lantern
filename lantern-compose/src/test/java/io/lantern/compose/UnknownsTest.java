@@ -62,10 +62,13 @@ class UnknownsTest {
         .startsWith("Lantern holds no responsibility sentence for ")
         .contains("shop-app")
         .endsWith("so what they do is not known.");
+    // Named once, on the unknowns page; the failure counts them.
     assertThat(failed(document, QualityBar.RESPONSIBILITY))
         .singleElement()
         .asString()
-        .contains("shop-app");
+        .matches(
+            "\\d+ elements have no responsibility sentence; the decisions and unknowns page"
+                + " names them\\.");
   }
 
   @Test
@@ -91,12 +94,78 @@ class UnknownsTest {
                 + " shop-app: plaintext secret (not answered).");
   }
 
+  @Test
+  void leadsAboutNoUnitAreNamedByWhatTheyPointAtAndANotAskedLeadByThatAlone() {
+    unclearLead(
+        "single-instance/db",
+        "single-instance",
+        List.of(),
+        List.of("database:db:5432/shop"),
+        "not asked: java.io.IOException: connection reset");
+
+    assertThat(callout(compose(), "decisions.unclear-leads"))
+        .isEqualTo(
+            "The LLM investigator could not say whether this lead points to a risk:"
+                + " shop on db: single instance (not asked).");
+  }
+
+  @Test
+  void leadsComeInTheOrderOfWhatTheyAreAboutWhicheverModelWasAsked() {
+    String worker = "service:com.example:worker";
+    unclearLead("contract-mismatch/b", "contract-mismatch", List.of(APP, worker), List.of(), "x");
+    unclearLead("contract-mismatch/a", "contract-mismatch", List.of(APP), List.of(), "x");
+
+    assertThat(callout(compose(), "decisions.unclear-leads"))
+        .isEqualTo(
+            "The LLM investigator could not say whether these leads point to a risk:"
+                + " shop-app: contract mismatch (x). shop-app and worker: contract mismatch (x).");
+  }
+
+  @Test
+  void aLineBetweenContainersWhoseProtocolIsRemovedFailsTheCheckFromTheModel() {
+    assertThat(failed(compose(), QualityBar.PROTOCOL)).isEmpty();
+
+    Fact link =
+        facts.stream()
+            .filter(
+                f ->
+                    f.subject().equals(EntityId.parse(APP))
+                        && f.predicate().equals(Types.USES_DATABASE))
+            .findFirst()
+            .orElseThrow();
+    ObjectNode attributes = link.attributes().deepCopy();
+    attributes.remove("protocol");
+    facts.remove(link);
+    facts.add(
+        Fact.create(
+            link.subject(),
+            link.predicate(),
+            link.object(),
+            attributes,
+            link.origin(),
+            link.evidence(),
+            link.confidence(),
+            link.validity()));
+
+    assertThat(failed(compose(), QualityBar.PROTOCOL))
+        .containsExactly("No protocol on shop-app to shop on db.");
+  }
+
   /** A lead about shop-app that Investigate did not answer. */
   private void unclearLead(String key, String kind) {
+    unclearLead(key, kind, List.of(APP), List.of(), "not answered");
+  }
+
+  /** A lead about the units, or else about what it points at, that Investigate left unclear. */
+  private void unclearLead(
+      String key, String kind, List<String> units, List<String> code, String reason) {
     EntityId lead = new EntityId(Types.LEAD, key);
     ObjectNode trigger = FactJson.newObject();
     trigger.put("trigger", "what the lead rule saw");
-    trigger.putArray("units").add(APP);
+    if (!units.isEmpty()) {
+      units.forEach(trigger.putArray("units")::add);
+    }
+    code.forEach(trigger.putArray("code")::add);
     facts.add(
         Fact.create(
             lead,
@@ -108,7 +177,7 @@ class UnknownsTest {
             1.0,
             Validity.from(1)));
     ObjectNode verdict = FactJson.newObject();
-    verdict.put("reason", "not answered");
+    verdict.put("reason", reason);
     facts.add(
         Fact.create(
             lead,

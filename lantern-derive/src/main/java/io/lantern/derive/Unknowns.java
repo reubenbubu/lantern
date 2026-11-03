@@ -31,11 +31,12 @@ public final class Unknowns {
    * A lead Investigate left unclear.
    *
    * @param kind what the lead is about, such as {@code missing-auth}
-   * @param units the units it concerns, in scope
+   * @param about the units it concerns, in scope; for a lead about no unit, such as a shared store
+   *     that runs as one instance or a Kubernetes Secret, what it points at
    * @param reason why it is unclear: not answered, rejected, not asked; or null
    * @param verdict the verdict fact
    */
-  public record Lead(String kind, List<EntityId> units, String reason, Fact verdict) {}
+  public record Lead(String kind, List<EntityId> about, String reason, Fact verdict) {}
 
   /** A component of a unit in scope. */
   public record Part(EntityId unit, Elements.Component component) {}
@@ -45,6 +46,7 @@ public final class Unknowns {
   private final Elements elements;
   private final SortedSet<EntityId> units;
   private final boolean system;
+  private final Set<String> repos;
   private final Predicate<EntityId> summarized;
 
   /**
@@ -52,6 +54,7 @@ public final class Unknowns {
    * @param units the deployable units and frontends in scope
    * @param system whether the scope is the whole system, whose own facts (what Investigate did not
    *     look at in it) are in scope too
+   * @param repos the repositories in scope, whose leads about no unit are the scope's
    * @param summarized whether a container's code has a summary (section 11.3), which describes it
    *     where no responsibility sentence does
    */
@@ -60,7 +63,9 @@ public final class Unknowns {
       Elements elements,
       Set<EntityId> units,
       boolean system,
+      Set<String> repos,
       Predicate<EntityId> summarized) {
+    this.repos = Set.copyOf(repos);
     this.summarized = Objects.requireNonNull(summarized, "summarized");
     this.model = Objects.requireNonNull(model, "model");
     this.knowledge = model.knowledge();
@@ -96,8 +101,10 @@ public final class Unknowns {
   }
 
   /**
-   * The leads about the scope's units that Investigate left unclear, a lead it was not asked about
-   * included, by kind, then unit, then reason.
+   * The leads Investigate left unclear, a lead it was not asked about included: those about the
+   * scope's units, and those about no unit that the scope holds (in the system's scope every one,
+   * else those found in its repositories). They come by kind, then what they are about, then
+   * reason, then the lead, never by a verdict's ID, which names the model asked.
    */
   public List<Lead> unclearLeads() {
     List<Lead> result = new ArrayList<>();
@@ -107,33 +114,44 @@ public final class Unknowns {
       }
       EntityId lead = verdict.subject();
       List<EntityId> concerned = new ArrayList<>();
+      List<EntityId> pointed = new ArrayList<>();
+      boolean unitless = true;
+      boolean held = system;
       String kind = null;
       for (Fact trigger : knowledge.about(lead)) {
-        if (trigger.predicate().equals(Types.LEAD_TRIGGER)) {
-          kind = trigger.object().value();
-          for (String unit : Elements.strings(trigger, "units")) {
-            EntityId id = EntityId.parse(unit);
-            if (units.contains(id) && !concerned.contains(id)) {
-              concerned.add(id);
-            }
+        if (!trigger.predicate().equals(Types.LEAD_TRIGGER)) {
+          continue;
+        }
+        kind = trigger.object().value();
+        held |= repos.contains(trigger.evidence().repo());
+        for (String unit : Elements.strings(trigger, "units")) {
+          unitless = false;
+          EntityId id = EntityId.parse(unit);
+          if (units.contains(id) && !concerned.contains(id)) {
+            concerned.add(id);
+          }
+        }
+        for (String code : Elements.strings(trigger, "code")) {
+          EntityId id = EntityId.parse(code);
+          if (!pointed.contains(id)) {
+            pointed.add(id);
           }
         }
       }
-      if (kind != null && !concerned.isEmpty()) {
-        concerned.sort(Knowledge.BY_ID);
+      List<EntityId> about = unitless && held ? pointed : concerned;
+      if (kind != null && !about.isEmpty()) {
+        about.sort(Knowledge.BY_ID);
         result.add(
             new Lead(
-                kind,
-                List.copyOf(concerned),
-                Elements.attribute(verdict, "reason", null),
-                verdict));
+                kind, List.copyOf(about), Elements.attribute(verdict, "reason", null), verdict));
       }
     }
     result.sort(
         Comparator.comparing(Lead::kind)
-            .thenComparing(l -> l.units().getFirst().toString())
+            .thenComparing(
+                l -> String.join("\u0000", l.about().stream().map(EntityId::toString).toList()))
             .thenComparing(l -> Objects.toString(l.reason(), ""))
-            .thenComparing(l -> l.verdict().id()));
+            .thenComparing(l -> l.verdict().subject().toString()));
     return result;
   }
 
@@ -209,8 +227,13 @@ public final class Unknowns {
    */
   public List<Elements.Line> linesWithoutProtocol() {
     List<Elements.Line> result = new ArrayList<>();
+    SortedSet<EntityId> drawn = containers();
     for (Elements.Line line : elements.lines()) {
-      if ((units.contains(line.from()) || units.contains(line.to()))
+      // A line of a unit, or one between two elements the views draw, such as a route from an
+      // exchange to a queue.
+      if ((units.contains(line.from())
+              || units.contains(line.to())
+              || (drawn.contains(line.from()) && drawn.contains(line.to())))
           && !isOutside(line.from())
           && !isOutside(line.to())
           && line.technology() == null) {
