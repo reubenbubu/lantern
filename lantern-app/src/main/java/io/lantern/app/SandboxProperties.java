@@ -18,10 +18,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param mavenMirror the one Maven mirror, with an {@code id} and an {@code url}, that every
  *     download of a build goes through, and then the only host builds reach (ADR 0030); none by
  *     default
+ * @param buildsDir the host directory build outputs are stored in, one directory per repository and
+ *     commit; read as {@code mavenCacheDir} is. {@code <workspace>/builds} by default; several
+ *     workspaces may share one (#786)
  */
 @ConfigurationProperties("lantern.sandbox")
 public record SandboxProperties(
-    String mavenCacheDir, List<MavenRepository> mavenRepositories, MavenMirror mavenMirror) {
+    String mavenCacheDir,
+    List<MavenRepository> mavenRepositories,
+    MavenMirror mavenMirror,
+    String buildsDir) {
 
   public SandboxProperties {
     // The default, Maven Central only, is in application.properties; the sandbox refuses an empty

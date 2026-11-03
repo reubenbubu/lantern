@@ -79,7 +79,8 @@ Options:
   -h, --help                Show this help.
 
 Environment:
-  LANTERN_WORKSPACE         Where builds, documents and scores go. Default <repository>/workspace.
+  LANTERN_WORKSPACE         Where documents and scores go. Default <repository>/workspace.
+  LANTERN_BUILDS            Where the builds go, shared by every checkout (see scripts/launch.sh).
   COMPOSE_PROJECT_NAME      Compose project of the database (see scripts/launch.sh).
 EOF
 }

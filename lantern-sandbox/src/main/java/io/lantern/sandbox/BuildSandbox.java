@@ -9,6 +9,7 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryNotEmptyException;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -68,6 +69,13 @@ public class BuildSandbox {
 
   /** The name of the stored result in a build's directory. */
   public static final String RESULT_FILE = "build.json";
+
+  /**
+   * The version of the build step, stored with each build. A stored build of another version, or of
+   * none, counts as missing, so it is built again. Raise it with any change to how a build runs or
+   * what it stores that changes what the extractors would read from it (#786).
+   */
+  public static final int BUILD_STEP_VERSION = 1;
 
   /** The label on every container and network the sandbox creates, for finding leftovers. */
   public static final String LABEL = "io.lantern.sandbox";
@@ -341,7 +349,10 @@ public class BuildSandbox {
     return found;
   }
 
-  /** The stored result of building the repository at the commit, if there is one. */
+  /**
+   * The stored result of building the repository at the commit, if there is one that this version
+   * of the build step made ({@link #BUILD_STEP_VERSION}).
+   */
   public Optional<BuildResult> find(String repo, String commit) {
     Objects.requireNonNull(repo, "repo");
     Objects.requireNonNull(commit, "commit");
@@ -354,7 +365,13 @@ public class BuildSandbox {
       return Optional.empty();
     }
     try {
-      return Optional.of(BuildJson.read(Files.readString(file), directory));
+      String text = Files.readString(file);
+      return BuildJson.buildStep(text) == BUILD_STEP_VERSION
+          ? Optional.of(BuildJson.read(text, directory))
+          : Optional.empty();
+    } catch (NoSuchFileException e) {
+      // Another process sharing the builds directory is replacing this build right now.
+      return Optional.empty();
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
@@ -1711,16 +1728,44 @@ public class BuildSandbox {
     }
   }
 
-  /** Moves the new outputs into place, replacing any older outputs of the same build. */
-  private static void replace(Path partial, Path directory) throws IOException {
-    Path old = null;
-    if (Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
-      old = directory.resolveSibling("." + directory.getFileName() + ".old-" + System.nanoTime());
-      Files.move(directory, old, StandardCopyOption.ATOMIC_MOVE);
+  /**
+   * Moves the new outputs into place, replacing any older outputs of the same build. Another
+   * process sharing the builds directory may store the same build at the same moment (#786): then a
+   * move finds the directory gone or already there, and is tried again, so the last one stored wins
+   * and neither build fails.
+   */
+  static void replace(Path partial, Path directory) throws IOException {
+    for (int attempt = 1; ; attempt++) {
+      Path old = null;
+      try {
+        if (Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+          old =
+              directory.resolveSibling(
+                  "."
+                      + directory.getFileName()
+                      + ".old-"
+                      + ProcessHandle.current().pid()
+                      + "-"
+                      + System.nanoTime());
+          Files.move(directory, old, StandardCopyOption.ATOMIC_MOVE);
+        }
+        Files.move(partial, directory, StandardCopyOption.ATOMIC_MOVE);
+        return;
+      } catch (FileSystemException e) {
+        // A missing directory, or one already there: moving onto a directory that is not empty
+        // fails on Linux with a plain FileSystemException ("Directory not empty"), not a
+        // DirectoryNotEmptyException.
+        if (attempt == REPLACE_ATTEMPTS) {
+          throw e;
+        }
+      } finally {
+        deleteQuietly(old);
+      }
     }
-    Files.move(partial, directory, StandardCopyOption.ATOMIC_MOVE);
-    deleteQuietly(old);
   }
+
+  /** How often {@link #replace} tries before it gives up. */
+  private static final int REPLACE_ATTEMPTS = 5;
 
   private static String newId() {
     byte[] bytes = new byte[6];
