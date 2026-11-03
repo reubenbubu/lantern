@@ -531,7 +531,7 @@ public final class RoleSession {
       settledWithoutAsking(item);
       return outcome;
     }
-    missed(item);
+    missed(item, stored);
     if (!admitted(item)) {
       Outcome outcome =
           Outcome.of(
@@ -649,7 +649,7 @@ public final class RoleSession {
       if (stored.isPresent() && revalidated(stored.get())) {
         settleReused(outcomes, item, reused(stored.get()));
       } else {
-        missed(item);
+        missed(item, stored);
         misses.add(item);
       }
     }
@@ -980,7 +980,7 @@ public final class RoleSession {
       if (stored.isPresent() && revalidated(stored.get()) && holdsOrDropped(stored.get(), holds)) {
         settleReused(outcomes, item, reused(stored.get()));
       } else {
-        missed(item);
+        missed(item, stored);
         packet.add(item);
       }
     }
@@ -1194,16 +1194,28 @@ public final class RoleSession {
     return harness.answers().latest(spec.name(), subject);
   }
 
-  /** Whether every file the answer's tools read still has the blob it read. */
   /**
-   * Notes why an item the cache does not answer is asked (#755): what changed since the answer
-   * stored last for its subject, before this run's answer takes that place.
+   * Notes why an item the cache does not answer is asked (#755), before this run's answer takes the
+   * place of the one stored last: a stored answer under its fingerprint whose citations no longer
+   * hold, or else what changed since the answer, or drop, stored last for its subject on the same
+   * prompt and model, or failing that on any.
+   *
+   * @param stored the answer stored under the item's fingerprint, if any
    */
-  private void missed(Item item) {
+  private void missed(Item item, Optional<StoredAnswer> stored) {
+    if (stored.isPresent() && revalidated(stored.get())) {
+      record.why(item.subject(), AskedWhy.UNHELD);
+      return;
+    }
+    Optional<StoredAnswer> previous =
+        harness
+            .answers()
+            .previous(spec.name(), item.subject(), cacheVersion(), model.provider(), model.model())
+            .or(() -> harness.answers().latest(spec.name(), item.subject()));
     record.why(
         item.subject(),
         AskedWhy.of(
-            harness.answers().latest(spec.name(), item.subject()),
+            previous,
             item.inputs(),
             cacheVersion(),
             model.provider(),
@@ -1211,6 +1223,7 @@ public final class RoleSession {
             harness.blobs()::blob));
   }
 
+  /** Whether every file the answer's tools read still has the blob it read. */
   private boolean revalidated(StoredAnswer answer) {
     for (FileRead file : answer.filesRead()) {
       Optional<String> now = harness.blobs().blob(file.repo(), file.path());

@@ -301,6 +301,8 @@ gate_file() {
 }
 
 # Analyzes a set's repositories once more for a gate and copies the run's record to the file given.
+# The run's documents are removed, so the set's newest documents stay those of its main run
+# (--score-only scores them).
 gate_run() {
   local set="$1" out="$2" since documents
   shift 2
@@ -311,6 +313,7 @@ gate_run() {
   documents="$(run_documents "$set" "$since")" || exit 1
   [[ -f "$documents/run.json" ]] || die "$set: the gate's run wrote no run.json"
   cp "$documents/run.json" "$out"
+  rm -rf "$documents"
 }
 
 mkdir -p "$scores"
@@ -349,6 +352,8 @@ for set in "${sets[@]}"; do
     LANTERN_WORKSPACE="$workspace" "${launch[@]}" ${overrides[@]+"${overrides[@]}"} -- "${repos[@]}" ||
       die "$set: the analysis failed"
     documents="$(run_documents "$set" "$started")" || exit 1
+    # A gate's runs belong to the main run they follow, never to a later one under the same label.
+    rm -f "$scores/$set/warm.run.json" "$scores/$set/change.run.json" "$scores/$set/change-file.txt"
     if $gates; then
       mkdir -p "$scores/$set"
       info "$set: the warm rerun gate (an unchanged rerun should make no call)"
@@ -356,6 +361,13 @@ for set in "${sets[@]}"; do
       target="$(gate_file "${repos[@]}")" || die "$set: no Java file to change for the one-file change gate"
       changed_repo="${target%%:*}"
       changed_path="${target#*:}"
+      for entry in "${repos[@]}"; do
+        if [[ "${entry%%=*}" == "$changed_repo" ]]; then
+          # A Java file git tracks, so a // comment changes it and nothing else.
+          [[ "$changed_path" == *.java ]] && git -C "${entry#*=}" ls-files --error-unmatch -- "$changed_path" >/dev/null 2>&1 ||
+            die "$set: --change-file $target is not a Java file git tracks in $changed_repo"
+        fi
+      done
       clones="$(mktemp -d "${TMPDIR:-/tmp}/lantern-change-XXXXXX")"
       temporary_dirs+=("$clones")
       changed_repos=()

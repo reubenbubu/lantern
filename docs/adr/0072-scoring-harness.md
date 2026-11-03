@@ -248,18 +248,27 @@ The harness row's two gates (knowledge-build epic, section 13) are now measured 
 asks for them, and the one-file change is checked against the items it may re-ask.
 
 - **What the run records.** For each item the harness asks rather than answer from its cache, it
-  compares the item's fingerprint inputs with those of the answer it stored last for the same role
-  and subject (`io.lantern.harness.AskedWhy`), before this run's answer takes that place.
+  compares the item's fingerprint inputs with those of the answer, or drop, it stored last for the
+  same role and subject on the same prompt version and model, or failing that on any
+  (`io.lantern.harness.AskedWhy`), before this run's answer takes that place. Answers of other
+  models share the cache, so comparing with the newest of any would blame the model.
   `run.json` lists, per role, `askedWhy` for each asked subject:
   - `new` when nothing was stored for it before;
+  - `unheld` when the answer stored under its fingerprint was refused because a fact it cites no
+    longer holds;
   - otherwise the files (`repo:path`) whose claims or text changed, including the files a
     tool-using item read;
   - how many earlier answers it shows changed (`answers`), other changed inputs (`other`);
   - whether its prompt or its model changed.
 - **The gate** (`roles.mjs`, `changeGate`). Given the changed file (`--change-file repo:path`), an
   asked item is expected when everything that changed comes from that file or is an earlier answer
-  it shows. Any other reason makes it unexpected and fails the gate, listed by item:
+  it shows. An item retried alone after its packet left it out, "X (again)", is judged by X's
+  reason. A judge's item (support judge, wording judge) asked for a new or changed text is expected,
+  through a reworded answer, when the change re-asked some writing role's item for the file, since
+  the text it judges was reworded or newly sampled. Any other reason makes an item unexpected and
+  fails the gate, listed by item:
   - a new item;
+  - a cited fact that no longer holds;
   - another file;
   - a prompt or model change;
   - another input;
@@ -274,8 +283,12 @@ asks for them, and the one-file change is checked against the items it may re-as
 
   The file is `--change-file` where the set has that repository, else the first controller of the
   set's repositories, which its type's summary and its unit's description rest on, else the first
-  Java file. Scoring picks up these files from the set's score
-  folder, so `--score-only` under the same label scores them again.
+  Java file; `--change-file` must name a Java file git tracks. Scoring picks up these files from
+  the set's score folder, so `--score-only` under the same label scores them again. The gates'
+  runs' own documents are removed once their records are copied, so the set's newest documents
+  stay the main run's, and an analysis without `--gates` removes earlier gate files under its
+  label. The change run registers the temporary clone's path for its repository; the next analysis
+  that names the repository registers its own path again.
 - **project-0** checks the same record: its one-file change test (`Project0EndToEndIT`) asserts that
   every item asked after the change gives only the changed file, or an answer it shows, as its
   reason.

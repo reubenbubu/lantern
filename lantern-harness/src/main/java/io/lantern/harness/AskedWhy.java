@@ -16,6 +16,8 @@ import java.util.function.BiFunction;
  * that was worded differently.
  *
  * @param isNew no answer was stored for the role and subject before
+ * @param unheld the answer stored under the item's fingerprint was refused: a fact it cites no
+ *     longer holds
  * @param files the files, as {@code repo:path}, of the claims and file texts that changed, and of
  *     the files a tool-using item read that changed since
  * @param answers how many earlier answers the item shows changed
@@ -24,14 +26,24 @@ import java.util.function.BiFunction;
  * @param model the role's provider or model changed
  */
 public record AskedWhy(
-    boolean isNew, SortedSet<String> files, int answers, int other, boolean prompt, boolean model) {
+    boolean isNew,
+    boolean unheld,
+    SortedSet<String> files,
+    int answers,
+    int other,
+    boolean prompt,
+    boolean model) {
 
   public AskedWhy {
     files = java.util.Collections.unmodifiableSortedSet(new TreeSet<>(files));
   }
 
   /** An item never asked before. */
-  public static final AskedWhy NEW = new AskedWhy(true, new TreeSet<>(), 0, 0, false, false);
+  public static final AskedWhy NEW = new AskedWhy(true, false, new TreeSet<>(), 0, 0, false, false);
+
+  /** An item whose stored answer, its inputs unchanged, cites a fact that no longer holds. */
+  public static final AskedWhy UNHELD =
+      new AskedWhy(false, true, new TreeSet<>(), 0, 0, false, false);
 
   /**
    * Why the item is asked, against the answer stored last for its subject.
@@ -80,6 +92,7 @@ public record AskedWhy(
       }
     }
     return new AskedWhy(
+        false,
         false,
         files,
         answers,

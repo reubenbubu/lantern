@@ -51,6 +51,24 @@ public final class JdbcAnswerStore implements AnswerStore {
   }
 
   @Override
+  public Optional<StoredAnswer> previous(
+      String role, String subject, String promptVersion, String provider, String model) {
+    return jdbc.sql(
+            "SELECT "
+                + COLUMNS
+                + " FROM llm_answers WHERE role = :role AND subject = :subject"
+                + " AND prompt_version = :version AND provider = :provider AND model = :model"
+                + " ORDER BY seq DESC LIMIT 1")
+        .param("role", role)
+        .param("subject", subject)
+        .param("version", promptVersion)
+        .param("provider", provider)
+        .param("model", model)
+        .query(JdbcAnswerStore::mapRow)
+        .optional();
+  }
+
+  @Override
   public void save(StoredAnswer answer) {
     Objects.requireNonNull(answer, "answer");
     ArrayNode files = JSON.createArrayNode();

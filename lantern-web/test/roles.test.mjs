@@ -231,6 +231,26 @@ test('the one-file change gate: an item may be re-asked only for the changed fil
   assert.equal(harnessRow({ harness: [] }, null, change).oneFileChange.gate, null);
 });
 
+test('the one-file change gate: retries, judges of reworded texts and answers that no longer hold', () => {
+  const file = 'shop:src/A.java';
+  const gate = (harness) => changeGate({ harness }, file);
+  // A retry alone is judged by its item's reason; a subject listed twice counts once.
+  const retried = gate([
+    { role: 'investigate-leads', askedSubjects: ['lead:x', 'lead:x (again)', 'lead:x'], askedWhy: [{ subject: 'lead:x', files: [file] }, { subject: 'lead:x (again)', new: true }] },
+  ]);
+  assert.deepEqual({ items: retried.items, gate: retried.gate }, { items: 2, gate: true });
+  // A judge's item on a new or changed text is expected once a writing role re-asked for the file...
+  const judges = [{ role: 'support-judge', askedSubjects: ['text:1', 'text:2'], askedWhy: [{ subject: 'text:1', new: true }, { subject: 'text:2', other: 1 }] }];
+  const withWriter = gate([{ role: 'summarize-type', askedSubjects: ['type:A'], askedWhy: [{ subject: 'type:A', files: [file] }] }, ...judges]);
+  assert.deepEqual({ gate: withWriter.gate, through: withWriter.throughAnswers }, { gate: true, through: 2 });
+  // ...and not when nothing was re-asked for it.
+  assert.equal(gate(judges).gate, false);
+  // A stored answer refused because a fact it cites no longer holds is named as such.
+  assert.deepEqual(gate([{ role: 'resolve', askedSubjects: ['link:1'], askedWhy: [{ subject: 'link:1', unheld: true }] }]).unexpected, [
+    'resolve link:1: a fact its stored answer cites no longer holds',
+  ]);
+});
+
 // Every committed answer key is well formed: who prepared it and its status, each repository's
 // commit, every entry citing repo:path:start-end with names to check it by, a category of the list
 // and subjects among the reference's elements. Its citations are checked against the code with

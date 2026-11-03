@@ -456,12 +456,21 @@ class Project0EndToEndIT {
                         why -> {
                           String item =
                               role.get("role").asString() + " " + why.get("subject").asString();
-                          assertThat(why.has("new") || why.has("other") || why.has("prompt"))
+                          assertThat(
+                                  why.has("new")
+                                      || why.has("unheld")
+                                      || why.has("other")
+                                      || why.has("prompt")
+                                      || why.has("model"))
                               .as(item + " asked for " + why)
                               .isFalse();
                           java.util.List<String> files = new java.util.ArrayList<>();
                           why.path("files").forEach(f -> files.add(f.asString()));
-                          assertThat(files).as(item).containsOnly(repo + ":" + path);
+                          // The changed file, or only an earlier answer it shows that changed.
+                          assertThat(files.isEmpty() ? why.path("answers").asInt() > 0 : true)
+                              .as(item + " asked for " + why)
+                              .isTrue();
+                          assertThat(files).as(item).isSubsetOf(repo + ":" + path);
                         }));
     // What the change re-asked, for the run's evidence.
     Files.createDirectories(OUT);

@@ -207,16 +207,19 @@ final class RunRecord {
     return root;
   }
 
-  /** Writes the record into the directory and returns the file. */
   /**
-   * Why one item was asked (#755): {@code new} when nothing was stored for it before; otherwise the
-   * files whose claims or text changed, how many answers it shows changed, other changed inputs,
-   * and whether the prompt or the model changed, each only when it did.
+   * Why one item was asked (#755): {@code new} when nothing was stored for it before, {@code
+   * unheld} when its stored answer cites a fact that no longer holds; otherwise the files whose
+   * claims or text changed, how many answers it shows changed, other changed inputs, and whether
+   * the prompt or the model changed, each only when it did.
    */
   static ObjectNode whyJson(String subject, io.lantern.harness.AskedWhy why) {
     ObjectNode node = MAPPER.createObjectNode().put("subject", subject);
     if (why.isNew()) {
       return node.put("new", true);
+    }
+    if (why.unheld()) {
+      return node.put("unheld", true);
     }
     if (!why.files().isEmpty()) {
       why.files().forEach(node.putArray("files")::add);
@@ -236,6 +239,7 @@ final class RunRecord {
     return node;
   }
 
+  /** Writes the record into the directory and returns the file. */
   static Path write(Path directory, ObjectNode record) {
     try {
       Files.createDirectories(directory);
