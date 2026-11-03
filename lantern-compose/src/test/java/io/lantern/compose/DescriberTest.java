@@ -22,6 +22,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.derive.ScopeFlows;
 import io.lantern.harness.BlobLookup;
 import io.lantern.harness.Harness;
 import io.lantern.harness.InMemoryAnswerStore;
@@ -2051,11 +2052,11 @@ class DescriberTest {
   @Test
   void aLargeScopeIsJudgedUnitByUnitFirstKeepingTheBestOfEach() {
     Fact entry = facts.find(LIST.toString(), "endpoint");
-    List<SequenceFlows.Candidate> candidates = new ArrayList<>();
+    List<ScopeFlows.Candidate> candidates = new ArrayList<>();
     for (int i = 0; i < 61; i++) {
       EntityId unit = i % 2 == 0 ? APP : WORKER;
       candidates.add(
-          new SequenceFlows.Candidate(
+          new ScopeFlows.Candidate(
               EntityId.parse("flow:" + unit + "/" + "%02d".formatted(i)),
               unit,
               "flow " + i,
@@ -2083,7 +2084,7 @@ class DescriberTest {
     List<String> order =
         List.of(candidates.get(40).flow().toString(), candidates.get(2).flow().toString());
     assertThat(FlowJudgements.kept(app, order))
-        .extracting(SequenceFlows.Candidate::flow)
+        .extracting(ScopeFlows.Candidate::flow)
         .containsExactly(candidates.get(40).flow(), candidates.get(2).flow());
     assertThat(FlowJudgements.kept(app, null)).hasSize(FlowJudgements.KEPT_PER_UNIT);
     assertThat(FlowJudgements.kept(app, List.of())).isEmpty();

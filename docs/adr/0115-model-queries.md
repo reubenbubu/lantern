@@ -33,3 +33,20 @@ only reads the model. #698 moves the roles; this records where the queries they 
 
 - #718 does the same for flow candidates, and #698 then moves the roles into the LLM-roles stage,
   reading only these queries and the model.
+
+## Amendment for #718: flow candidates
+
+- **`ScopeFlows` (`lantern-derive`) answers which flows a scope may draw.** It traces each stored
+  flow (`FlowModel`) into neutral steps: a message (from, to, its label as the facts give it,
+  code, whether the sender waits, what it adds, its facts, and the link whose intent phrase may
+  label it), a note, or an alternatives frame with its operands. With the flow go the lines the
+  roles are shown, by its facts only. It also gives what starts a flow (its heading), the
+  candidates the significance role is shown (one per stored shape), the rank of ADR 0047, and the
+  flows a scope shows with or without the model's judgement (ADR 0070, ADR 0108).
+- **The composer draws and phrases.** `SequenceFlows` turns the steps into sequence-diagram steps,
+  applies the intent phrase (ADR 0050) where a step's link has one, groups profile-only runs into
+  `opt` frames, and writes each flow's section. The flow roles take their candidates and narrated
+  flows from `ScopeFlows`.
+- **Names go through a hook.** `ScopeFlows` names elements with a function it is given, by
+  default `ElementNames`; the composer's function also adds the element to its document, so a
+  document holds the same entities as before.

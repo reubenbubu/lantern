@@ -4,8 +4,8 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
-import io.lantern.derive.attributes.Types;
+import io.lantern.derive.ElementNames;
+import io.lantern.derive.ScopeFlows;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -135,16 +135,6 @@ final class WordingPrompt {
       Map<String, String> code) {}
 
   /**
-   * A step of a flow as the prompt shows it: what the facts say it does, without the LLM's intent
-   * phrases, so the prompt rests on facts only.
-   *
-   * @param depth how deep in frames it is, 0 at the top
-   * @param text what it does, such as {@code shop-app to orders, async: Sends order.created}
-   * @param facts the facts it rests on
-   */
-  record FlowStep(int depth, String text, List<Fact> facts) {}
-
-  /**
    * Writes the prompt for a sequence flow: its title, what starts it with the entry point's fact,
    * and its steps in order, each with the facts it rests on.
    *
@@ -155,14 +145,14 @@ final class WordingPrompt {
    * @param steps the steps
    */
   static Question flow(
-      EntityId method, String title, String starts, Fact entry, List<FlowStep> steps) {
+      EntityId method, String title, String starts, Fact entry, List<ScopeFlows.StepLine> steps) {
     Map<String, Fact> facts = new LinkedHashMap<>();
     StringBuilder user = new StringBuilder();
     user.append("The flow \"").append(oneLine(title)).append("\".\n");
     user.append("It starts when ").append(oneLine(starts)).append(".\n");
     user.append(fact(entry, facts, "")).append('\n');
     user.append("\nIts steps, in order:\n");
-    for (FlowStep step : steps) {
+    for (ScopeFlows.StepLine step : steps) {
       String indent = "  ".repeat(step.depth());
       user.append(indent).append("- ").append(oneLine(step.text())).append('\n');
       // In the order of their lines, never of their IDs, which change with any edit of their file
@@ -211,17 +201,9 @@ final class WordingPrompt {
     return "`".repeat(Math.max(3, longest + 1));
   }
 
-  /** What an element is, with an article, such as {@code a deployable unit}. */
+  /** What an element is, with an article ({@link ElementNames#kind}). */
   static String kind(EntityId element) {
-    return switch (element.type()) {
-      case BuiltInTypes.SERVICE -> "a deployable unit";
-      case Types.DATABASE -> "a database";
-      case Types.TOPIC -> "a topic";
-      case Types.QUEUE -> "a queue";
-      case Types.EXCHANGE -> "an exchange";
-      case Types.EXTERNAL_SYSTEM -> "an external system";
-      default -> "a " + element.type();
-    };
+    return ElementNames.kind(element);
   }
 
   /** A fact's line with its reference, a new one unless the prompt shows it already. */

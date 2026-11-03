@@ -118,6 +118,11 @@ public final class Elements {
     return alternatives;
   }
 
+  /** How the elements are named. */
+  public ElementNames names() {
+    return names;
+  }
+
   /**
    * A line of the container diagrams seen from one of its ends (ADR 0056).
    *

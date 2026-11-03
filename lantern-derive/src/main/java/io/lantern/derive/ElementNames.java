@@ -24,6 +24,19 @@ public final class ElementNames {
     this.systemName = systemName;
   }
 
+  /** What an element is, with an article, such as {@code a deployable unit}. */
+  public static String kind(EntityId element) {
+    return switch (element.type()) {
+      case BuiltInTypes.SERVICE -> "a deployable unit";
+      case Types.DATABASE -> "a database";
+      case Types.TOPIC -> "a topic";
+      case Types.QUEUE -> "a queue";
+      case Types.EXCHANGE -> "an exchange";
+      case Types.EXTERNAL_SYSTEM -> "an external system";
+      default -> "a " + element.type();
+    };
+  }
+
   /** The name a reader sees for the entity. */
   public String name(EntityId id) {
     String key = id.key();

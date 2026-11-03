@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
@@ -171,7 +172,7 @@ final class FlowJudgements {
   record Asked(
       Item item,
       Refs refs,
-      Map<String, SequenceFlows.Candidate> flows,
+      Map<String, ScopeFlows.Candidate> flows,
       Set<String> crossing,
       Set<String> containers) {}
 
@@ -189,7 +190,7 @@ final class FlowJudgements {
   static Asked significance(
       String scope,
       String title,
-      List<SequenceFlows.Candidate> candidates,
+      List<ScopeFlows.Candidate> candidates,
       Map<EntityId, DescribeRole.Answered> responsibilities,
       java.util.function.Function<EntityId, String> names) {
     Refs refs = new Refs();
@@ -197,10 +198,10 @@ final class FlowJudgements {
     StringBuilder text = new StringBuilder();
     text.append("Scope: ").append(title).append('\n');
     text.append("Flows, one for each different shape:\n");
-    Map<String, SequenceFlows.Candidate> flows = new LinkedHashMap<>();
+    Map<String, ScopeFlows.Candidate> flows = new LinkedHashMap<>();
     Set<String> crossing = new LinkedHashSet<>();
     Set<EntityId> crossed = new LinkedHashSet<>();
-    for (SequenceFlows.Candidate candidate : candidates) {
+    for (ScopeFlows.Candidate candidate : candidates) {
       String ref = "W" + (flows.size() + 1);
       flows.put(ref, candidate);
       if (candidate.crossesUnits()) {
@@ -256,13 +257,13 @@ final class FlowJudgements {
    */
   static List<Asked> firstPass(
       String scope,
-      List<SequenceFlows.Candidate> candidates,
+      List<ScopeFlows.Candidate> candidates,
       Map<EntityId, DescribeRole.Answered> responsibilities,
       java.util.function.Function<EntityId, String> names) {
     if (candidates.size() <= ONE_PASS) {
       return List.of();
     }
-    Map<EntityId, List<SequenceFlows.Candidate>> byUnit = new java.util.TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, List<ScopeFlows.Candidate>> byUnit = new java.util.TreeMap<>(Knowledge.BY_ID);
     candidates.forEach(c -> byUnit.computeIfAbsent(c.unit(), u -> new ArrayList<>()).add(c));
     List<Asked> items = new ArrayList<>();
     byUnit.forEach(
@@ -283,8 +284,8 @@ final class FlowJudgements {
    *
    * @param order the IDs of the flows judged significant, in order, or null if not judged
    */
-  static List<SequenceFlows.Candidate> kept(Asked unitItem, List<String> order) {
-    List<SequenceFlows.Candidate> flows = new ArrayList<>(unitItem.flows().values());
+  static List<ScopeFlows.Candidate> kept(Asked unitItem, List<String> order) {
+    List<ScopeFlows.Candidate> flows = new ArrayList<>(unitItem.flows().values());
     if (order != null) {
       flows.removeIf(c -> !order.contains(c.flow().toString()));
       flows.sort(java.util.Comparator.comparingInt(c -> order.indexOf(c.flow().toString())));
@@ -302,7 +303,7 @@ final class FlowJudgements {
       Map<String, Wordings.Phrase> phrases,
       java.util.function.Function<String, Fact> factsById,
       java.util.function.Function<EntityId, String> names) {
-    SequenceFlows.Candidate flow = narrated.candidate();
+    ScopeFlows.Candidate flow = narrated.candidate();
     Refs refs = new Refs();
     List<FingerprintInput> inputs = new ArrayList<>();
     StringBuilder text = new StringBuilder();
@@ -373,9 +374,9 @@ final class FlowJudgements {
       StringBuilder text,
       Refs refs,
       List<FingerprintInput> inputs,
-      List<WordingPrompt.FlowStep> steps,
+      List<ScopeFlows.StepLine> steps,
       Map<String, String> unused) {
-    for (WordingPrompt.FlowStep step : steps) {
+    for (ScopeFlows.StepLine step : steps) {
       String indent = "  ".repeat(step.depth() + 1);
       text.append(indent).append("- ").append(FactLines.oneLine(step.text())).append('\n');
       appendFacts(text, refs, inputs, step.facts(), indent + "  ");
@@ -740,7 +741,7 @@ final class FlowJudgements {
   static List<String> order(Asked asked, String stored) {
     List<String> order = new ArrayList<>();
     for (JsonNode ref : JSON.readTree(stored).path("order")) {
-      SequenceFlows.Candidate candidate = asked.flows().get(ref.asString());
+      ScopeFlows.Candidate candidate = asked.flows().get(ref.asString());
       if (candidate != null) {
         order.add(candidate.flow().toString());
       }
