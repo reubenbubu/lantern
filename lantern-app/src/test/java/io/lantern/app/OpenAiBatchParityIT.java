@@ -20,10 +20,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIf;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,13 +101,13 @@ class OpenAiBatchParityIT {
     }
   }
 
-  @org.junit.jupiter.api.AfterAll
+  @AfterAll
   static void deleteWorkspace() throws IOException {
     if (workspace == null || !Files.exists(workspace)) {
       return;
     }
     try (var paths = Files.walk(workspace)) {
-      for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+      for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
         Files.deleteIfExists(path);
       }
     }
