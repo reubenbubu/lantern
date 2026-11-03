@@ -243,8 +243,21 @@ resting on it changed too, and a warm rerun of project-4 made 241 calls.
 
 ## Amendment (#702): a reworded answer re-asks what shows it.
 
-On #529's project-4 recording, a one-line comment in one class (`EmailService`) made 89 calls on DeepSeek V4.1 Flash. A fresh run is 550. On the fake model the same change makes 3 calls: the class's summary, its unit's description and the file's injection screen. That is the gate above, and `Project0EndToEndIT.aOneFileChangeReAsksOnlyTheItemsRestingOnThatFile` checks it on project-0.
+On #529's project-4 recording, a one-line comment in one class (`EmailService`) made 89 calls on DeepSeek V4.1 Flash. A fresh run is 550. On the fake model, in a single run of a copy of project-4 with the same change, it made 3 calls: the class's summary, its unit's description and the file's injection screen. That is the gate above, and `Project0EndToEndIT.aOneFileChangeReAsksOnlyTheItemsRestingOnThatFile` checks it on project-0.
 
-The rest of the 89 come from rewording. The re-asked description of notification-service came back reworded: its own sentence, 9 component sentences and 16 interaction phrases, almost none of which cite that class. An answer is a fingerprint input of every item that shows it (knowledge-build epic, section 10). So every flow narrative and scope that showed one of those texts was asked again. Item by item, all 28 re-asked narratives and all 6 re-asked significance scopes had shown a reworded text, and none of the 13 kept from cache had. Investigate's system pass and the purpose rest on the units' answers in the same way.
+The rest come from rewording. An answer is a fingerprint input of every item that shows it (knowledge-build epic, section 10), and a real model rewords a re-asked answer entirely, sentences that do not rest on the change included. Comparing the #529 answers before and after, role by role (calls, items):
 
-The harness follows its rule. The cascade is by design, and the epic's gate now says so. Keeping a sentence's wording while what it cites is unchanged, which would stop the cascade on a real model, is #722.
+| Role | Calls (items) | Why asked again |
+| --- | --- | --- |
+| summarize-type, describe-unit, injection screen | 3 (3) | The file's blob: the first level, as on the fake model. |
+| summarize | 4 (3) | The package and repository summaries show the type's summary, which was reworded. |
+| investigate-units | 15 (1) | Notification-service's conversation rests on its accepted summaries. |
+| investigate-system | 15 (1) | It rests on every unit's risks. Notification-service's 15 risks came back reworded. |
+| describe-element | 3 (4) | Elements show the unit's reworded sentences. |
+| flow-significance | 12 (6) | Scopes show the reworded sentences: all 6 re-asked had shown one, and the 1 kept from cache had not. |
+| flow-narrative | 35 (29) | 28 of the 29 re-asked had shown a reworded sentence. The 29th was not narrated in the base run. None of the 12 kept from cache had shown one. |
+| purpose, support judge | 2 (2) | The purpose shows every unit's sentence. The support judge judges the new texts. |
+
+The repairs make up the difference between calls and items. The re-asked notification-service description reworded its unit sentence, 9 component sentences and 16 interaction phrases, almost none of which cite `EmailService`.
+
+The harness follows its rule, and the epic's gate now names the cascade. It is a known limit, not the aim. Reruns stay costly on a real model until a sentence keeps its wording while what it cites is unchanged (#722).
