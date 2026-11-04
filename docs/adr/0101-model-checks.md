@@ -161,7 +161,18 @@ claim list stays in the judge's cached answer.
   longer judged on Sonnet. The setting `lantern.harness.support-judge.model` chooses: `writer`,
   the default, as above; `judge`, every text on the support judge's own model,
   `lantern.llm.roles.judge`, as before #751. Which model each writing role uses stays its own
-  setting (`lantern.llm.tiers.*`, `lantern.llm.roles.*`), and its texts' judge follows it.
+  setting (`lantern.llm.tiers.*`, `lantern.llm.roles.*`), and its texts' judge follows it. The
+  judge runs one session for each writing role's model role, named `support-judge-<model role>`
+  (a run holds one session a role name), each at the judge's packet size; its estimates and
+  calibrations are those of `support-judge`.
+- Only kinds whose type declares `support` are judged: responsibilities, intents, summaries, flow
+  narratives, purposes, key facts, investigated risks and finding wordings. A lead's verdict and a
+  group's display name are not.
+- The judge's facts are recorded once for each role name, every version of that role's facts
+  together, so recording one version never ends another's (summaries of a repository not
+  analyzed again keep an older version).
+- Every range the screen flagged this run counts, not only the first of each file that is stored
+  as a finding.
 - **A stricter prompt** (prompt version 3). The judge keeps every specific of the text in its
   claims (names, numbers, technologies, what calls or stores what, causes, purposes, words of
   scope); calls a claim supported only when a cited input states it or shows it with no other

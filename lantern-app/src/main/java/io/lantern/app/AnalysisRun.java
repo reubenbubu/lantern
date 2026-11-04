@@ -893,7 +893,7 @@ public final class AnalysisRun {
     }
     if (!result.complete()) {
       LOG.warn("Injection screen: not every chunk was answered; earlier findings are kept");
-      return List.copyOf(byFile.values());
+      return flaggedRanges(found, byFile.values());
     }
     transaction.executeWithoutResult(
         status ->
@@ -902,7 +902,17 @@ public final class AnalysisRun {
                 Findings.SCREEN_ORIGIN,
                 snapshot.commits().keySet(),
                 byFile.values()));
-    return List.copyOf(byFile.values());
+    return flaggedRanges(found, byFile.values());
+  }
+
+  /**
+   * Every range the screen flagged this run, not only the first of each file that is stored, and
+   * the findings that hold: what the support judge always checks texts against (#751).
+   */
+  private static List<Fact> flaggedRanges(List<Fact> found, Collection<Fact> holding) {
+    List<Fact> all = new ArrayList<>(found);
+    all.addAll(holding);
+    return List.copyOf(all);
   }
 
   /**

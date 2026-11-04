@@ -262,6 +262,74 @@ class SupportChecksTest {
     assertThat(result.judged()).isEqualTo(2);
   }
 
+  @Test
+  void theKindsJudgedAreThoseWhoseTypeDeclaresASupportVerdict() throws Exception {
+    // A verdict on a kind whose type does not declare it would fail recording (#751).
+    Set<String> declaring = new TreeSet<>();
+    try (var in = Harness.class.getClassLoader().getResourceAsStream("vocabulary/llm-types.json")) {
+      for (tools.jackson.databind.JsonNode type :
+          FactJson.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8))) {
+        if (type.path("attributeSchema").path("properties").has(LlmFacts.SUPPORT)) {
+          declaring.add(type.path("name").asString());
+        }
+      }
+    }
+    assertThat(new TreeSet<>(SupportChecks.TEXTS)).isEqualTo(declaring);
+  }
+
+  @Test
+  void aLeadVerdictIsNotJudged() {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("title", "Orders trust a wrong header");
+    attributes.putArray("cites").add("shop:src/B.java:3-4");
+    Fact verdict =
+        Fact.create(
+            EntityId.parse("lead:x/service:shop:orders"),
+            Types.LEAD_VERDICT,
+            FactObject.string("confirmed"),
+            attributes,
+            new Origin(Origin.Kind.LLM, "investigate", "1"),
+            Evidence.of("shop", "src/B.java", new Evidence.LineRange(3, 4), null),
+            0.8,
+            Validity.from(1));
+
+    assertThat(SupportChecks.judgeable(verdict)).isFalse();
+  }
+
+  @Test
+  void aJudgedRoleIsHandedBackWholeWhateverTheVersionOfItsFacts() {
+    // Summaries of a repository not analyzed again keep an older prompt version (#751).
+    Fact older =
+        Fact.create(
+            EntityId.parse("service:shop:old"),
+            Types.RESPONSIBILITY,
+            FactObject.string("c4"),
+            text("describe-element", "older text", code).attributes(),
+            new Origin(Origin.Kind.LLM, "describe-element", "0"),
+            code.evidence(),
+            LlmFacts.CONFIDENCE,
+            Validity.from(1));
+    List<Fact> held = new ArrayList<>(List.of(flaggedCode, older));
+    held.add(text("describe-element", "describe-element text on flagged code", flaggedCode));
+    Fact finding =
+        fact(
+            "finding:injection-suspected/shop:src/Evil.java",
+            "finding",
+            "x",
+            "src/Evil.java",
+            11,
+            11);
+
+    SupportChecks.Result result =
+        new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(finding), 1);
+
+    // One recording for the name, holding both versions, so neither ends the other's facts.
+    assertThat(result.byOrigin()).hasSize(1);
+    assertThat(result.byOrigin().values().iterator().next())
+        .extracting(f -> f.origin().version())
+        .containsExactlyInAnyOrder("0", "1");
+  }
+
   private static Fact fact(
       String subject, String predicate, String object, String path, int from, int to) {
     return Fact.create(

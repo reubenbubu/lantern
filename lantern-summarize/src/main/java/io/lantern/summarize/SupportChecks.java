@@ -67,8 +67,9 @@ public final class SupportChecks {
   /**
    * What the judge found.
    *
-   * @param byOrigin for each origin with a text judged, every fact of that origin that holds, the
-   *     judged ones carrying their verdict
+   * @param byOrigin for each origin name with a text judged, under one of its origins, every fact
+   *     of that name that holds, whatever its version, the judged ones carrying their verdict: one
+   *     recording a name, which ends the facts of that name it is not given
    * @param counts the verdicts per role, the stored ones of texts judged before included
    * @param judged how many texts this run judged
    */
@@ -195,18 +196,27 @@ public final class SupportChecks {
     verdicts.forEach(
         (key, verdict) ->
             judgedFacts.put(byKey.get(key).id(), LlmFacts.withSupport(byKey.get(key), verdict)));
+    Map<String, Origin> changed = new LinkedHashMap<>();
+    verdicts
+        .keySet()
+        .forEach(
+            key -> changed.putIfAbsent(byKey.get(key).origin().name(), byKey.get(key).origin()));
     Map<Origin, List<Fact>> byOrigin = new LinkedHashMap<>();
-    Set<Origin> changed = new LinkedHashSet<>();
-    verdicts.keySet().forEach(key -> changed.add(byKey.get(key).origin()));
     for (Fact fact : held) {
-      if (changed.contains(fact.origin())) {
+      Origin under = changed.get(fact.origin().name());
+      if (under != null && fact.origin().kind() == under.kind()) {
         byOrigin
-            .computeIfAbsent(fact.origin(), o -> new ArrayList<>())
+            .computeIfAbsent(under, o -> new ArrayList<>())
             .add(restated(judgedFacts.getOrDefault(fact.id(), fact), snapshot));
       }
     }
     Map<String, Counts> counts = new TreeMap<>();
+    Set<String> counted = new java.util.HashSet<>();
     for (Fact fact : texts) {
+      // Each claim once, however many observations hold it.
+      if (!counted.add(fact.claimId() != null ? fact.claimId() : fact.id())) {
+        continue;
+      }
       Fact now = judgedFacts.getOrDefault(fact.id(), fact);
       JsonNode support = now.attributes().get(LlmFacts.SUPPORT);
       if (support != null && support.isString()) {
@@ -242,8 +252,23 @@ public final class SupportChecks {
   static boolean judgeable(Fact fact) {
     return fact.origin().kind() == Origin.Kind.LLM
         && ROLES.containsKey(fact.origin().name())
-        && !fact.predicate().equals(Types.NOT_ASKED);
+        && TEXTS.contains(fact.predicate());
   }
+
+  /**
+   * The kinds of text a verdict is stored on: those whose type declares {@code support} ({@code
+   * llm-types.json}). A lead's verdict or a group's display name is not judged.
+   */
+  static final Set<String> TEXTS =
+      Set.of(
+          Types.RESPONSIBILITY,
+          Types.INTENT,
+          Types.SUMMARY,
+          Types.FLOW_NARRATIVE,
+          Types.PURPOSE,
+          Types.KEY_FACT,
+          Types.INVESTIGATED_RISK,
+          Types.FINDING_WORDING);
 
   /**
    * The words of a text: its sentence, or its title and finding, or its narrative's title and
