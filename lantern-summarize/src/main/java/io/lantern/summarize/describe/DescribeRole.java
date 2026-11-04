@@ -229,6 +229,25 @@ public final class DescribeRole {
       this.schema = schema;
     }
 
+    @Override
+    public List<String> askedFields(Item item) {
+      Described described = bySubject.get(item.subject());
+      if (described == null) {
+        return List.of();
+      }
+      List<String> result = new ArrayList<>();
+      if (described.kind() != Kind.UNIT) {
+        result.add(RESPONSIBILITY_FIELD);
+        return result;
+      }
+      if (described.asksUnit()) {
+        result.add(UNIT);
+      }
+      described.components().keySet().forEach(ref -> result.add(COMPONENTS + "." + ref));
+      described.interactions().keySet().forEach(ref -> result.add(INTERACTIONS + "." + ref));
+      return result;
+    }
+
     private Described described(Item item) {
       Described described = bySubject.get(item.subject());
       if (described == null) {

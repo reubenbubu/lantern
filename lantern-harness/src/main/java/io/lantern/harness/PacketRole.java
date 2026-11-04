@@ -102,4 +102,12 @@ public interface PacketRole {
 
   /** An accepted entry as it is stored (JSON). */
   String store(Item item, ItemAnswer accepted);
+
+  /**
+   * The fields an item asks for, such as {@code interactions.R1}, which the run record counts when
+   * the model leaves them out (#741); by default none are counted.
+   */
+  default List<String> askedFields(Item item) {
+    return List.of();
+  }
 }

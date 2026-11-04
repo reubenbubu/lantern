@@ -422,6 +422,11 @@
       "tone" : "info"
     }, {
       "type" : "callout",
+      "id" : "decisions-intent-not-known",
+      "body" : "**Intent not known**\nLantern holds no intent for these interactions, so what they are for is not known: shop-app to pay.example.com. shop-app to orders. shop-app to shop on db. shop-app to worker. Controller in shop-app to JpaOrders in shop-app. Jobs in shop-app to JpaOrders in shop-app. JpaOrders in shop-app to shop on db. worker to shop-app. worker to orders.",
+      "tone" : "info"
+    }, {
+      "type" : "callout",
       "id" : "decisions-contradicted-claim",
       "body" : "**Claim the code contradicts**\n`README.md`, line 3, in shop says: “The app keeps its orders in MySQL.”. It states MySQL; the code shows PostgreSQL. The code shows otherwise: [shop-app](#/containers/el-service-com-example-app) uses [shop on db](#/containers/el-database-db-5432-shop) (`pom.xml`, in shop).",
       "tone" : "warning"

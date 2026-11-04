@@ -432,6 +432,26 @@
     }
   },
   {
+    "name": "not-asked",
+    "kind": "attribute",
+    "description": "A role did not ask the model about the subject, the item's subject, or got no answer for it (knowledge-build epic, sections 10 and 12; #741): a budget refused it, the request failed, or the item was missing from the answer twice. The value is the role. Of origin llm; the unknowns page lists them, and the next run asks again.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "reason": {
+          "type": "string",
+          "description": "Why, in words."
+        },
+        "item": {
+          "type": "string",
+          "description": "The item's subject as the role names it, when it is not an entity ID."
+        }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
     "name": "not-investigated",
     "kind": "attribute",
     "description": "Investigate did not look at the subject, a deployable unit or the system (knowledge-build epic, section 11.2, Failure; ADR 0110): a budget refused it, the provider failed, or the model cannot use tools. The value is investigate. Of origin llm; the findings say which were left out.",

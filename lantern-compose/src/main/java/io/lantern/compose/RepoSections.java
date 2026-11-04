@@ -21,6 +21,7 @@ import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
+import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.Unknowns;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -312,6 +313,39 @@ final class RepoSections {
    */
   List<QualityReport.Failure> claimFailures() {
     return claims().failures();
+  }
+
+  /**
+   * The leads the LLM investigator refuted (#741, knowledge-build epic, section 11.2), each listed
+   * with the finding that refutes it and the file ranges it cites, so a reader can check it.
+   */
+  List<QualityReport.Failure> refutedLeads() {
+    List<QualityReport.Failure> result = new ArrayList<>();
+    for (Unknowns.Refuted lead : unknowns().refutedLeads()) {
+      StringBuilder text =
+          new StringBuilder(
+              ScopeFlows.list(lead.about().stream().map(assembler::name).toList())
+                  + ": "
+                  + lead.kind().replace('-', ' '));
+      if (lead.finding() != null && !lead.finding().isBlank()) {
+        text.append(". ").append(lead.finding().strip().replaceAll("\\s+", " "));
+        if (!lead.finding().strip().endsWith(".")) {
+          text.append('.');
+        }
+      } else {
+        text.append('.');
+      }
+      if (!lead.cites().isEmpty()) {
+        text.append(" Cites ").append(String.join(", ", lead.cites())).append('.');
+      }
+      result.add(
+          new QualityReport.Failure(
+              "A lead the LLM investigator refuted",
+              null,
+              List.of(TextRun.of(text.toString())),
+              assembler.facts(List.of(lead.verdict()))));
+    }
+    return result;
   }
 
   private ExplorerSections explorer() {

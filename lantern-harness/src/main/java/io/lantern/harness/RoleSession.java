@@ -821,6 +821,7 @@ public final class RoleSession {
             reasons(each.getValue()));
       }
       Map<String, Boolean> repairedIds = new LinkedHashMap<>();
+      Map<String, List<Rejection>> droppedFields = new LinkedHashMap<>();
       if (!rejected.isEmpty()) {
         List<Rejection> all = rejected.values().stream().flatMap(List::stream).toList();
         List<LlmMessage> turns = new ArrayList<>(request.messages());
@@ -843,6 +844,7 @@ public final class RoleSession {
             }
             // A field rejected again is left out, and the rest of the item kept.
             if (again.containsKey(id) && !Entries.whole(again.get(id))) {
+              droppedFields.put(id, again.get(id));
               JsonNode kept = Entries.without(entry, again.get(id));
               again.remove(id);
               if (Entries.empty(kept)) {
@@ -853,6 +855,7 @@ public final class RoleSession {
             }
           }
           if (entry == null || again.containsKey(id)) {
+            countFields(role, item, null, rejected.get(id), again.getOrDefault(id, List.of()));
             settle(
                 outcomes,
                 item,
@@ -875,6 +878,12 @@ public final class RoleSession {
       accepted.forEach(
           (id, answer) -> {
             Item item = packet.get(ids.indexOf(id));
+            countFields(
+                role,
+                item,
+                answer,
+                rejected.getOrDefault(id, List.of()),
+                droppedFields.getOrDefault(id, List.of()));
             String json = stored(item, role, answer, inputs.get(ids.indexOf(id)));
             save(item, json, List.of());
             String fingerprint = fingerprint(item);
@@ -906,6 +915,59 @@ public final class RoleSession {
       return List.of();
     }
     return missing;
+  }
+
+  /**
+   * Counts the fields of an item the model left out, withdrew after they were rejected, or had
+   * dropped after they were rejected twice, by kind (#741): the part of a field's name before its
+   * first dot, such as {@code interactions}.
+   *
+   * @param accepted the accepted answer, or null when the item was dropped whole
+   * @param first what the first answer had rejected
+   * @param dropped what was rejected again and left out, or for a whole drop rejected again
+   */
+  private void countFields(
+      PacketRole role,
+      Item item,
+      ItemAnswer accepted,
+      List<Rejection> first,
+      List<Rejection> dropped) {
+    List<String> expected = role.askedFields(item);
+    java.util.Set<String> said = new java.util.HashSet<>();
+    if (accepted != null && !accepted.omitted()) {
+      accepted.texts().forEach(t -> said.add(t.field()));
+    }
+    java.util.Set<String> lost = new java.util.LinkedHashSet<>();
+    dropped.stream()
+        .map(Rejection::field)
+        .filter(f -> f != null && !f.isEmpty() && !said.contains(f))
+        .forEach(lost::add);
+    if (accepted == null) {
+      // A whole drop loses every field the item asked for.
+      lost.addAll(expected);
+    }
+    java.util.Set<String> withdrawn = new java.util.LinkedHashSet<>();
+    if (accepted != null) {
+      first.stream()
+          .map(Rejection::field)
+          .filter(f -> f != null && !f.isEmpty() && !said.contains(f) && !lost.contains(f))
+          .forEach(withdrawn::add);
+    }
+    Map<String, int[]> counts = new java.util.TreeMap<>();
+    java.util.function.Function<String, int[]> of =
+        f ->
+            counts.computeIfAbsent(
+                f.contains(".") ? f.substring(0, f.indexOf('.')) : f, k -> new int[3]);
+    if (accepted != null) {
+      for (String field : expected) {
+        if (!said.contains(field) && !withdrawn.contains(field) && !lost.contains(field)) {
+          of.apply(field)[0]++;
+        }
+      }
+    }
+    withdrawn.forEach(f -> of.apply(f)[1]++);
+    lost.forEach(f -> of.apply(f)[2]++);
+    counts.forEach((kind, c) -> record.fields(kind, c[0], c[1], c[2]));
   }
 
   /**
@@ -1040,6 +1102,7 @@ public final class RoleSession {
       String fingerprint = fingerprint(item);
       ItemAnswer answer = accepted.get(id);
       if (answer != null) {
+        countFields(role, item, answer, List.of(), List.of());
         String json =
             stored(item, role, answer, role.inputs(packet, ids, i).withSecrets(harness.secrets()));
         save(item, json, read);
@@ -1051,6 +1114,7 @@ public final class RoleSession {
                 : Outcome.of(Outcome.Kind.ANSWERED, fingerprint, json, null),
             submit.repaired(id));
       } else if (submit.dropped().contains(id)) {
+        countFields(role, item, null, List.of(), List.of());
         // Stored when the model got it wrong twice, or left it uncorrected in a conversation that
         // ended on its own; not when a cap ended the conversation before it could correct it.
         settle(
