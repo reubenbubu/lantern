@@ -974,6 +974,9 @@ function totals(run) {
  */
 const JUDGING_ROLES = new Set(['support-judge', 'wording-judge-role', 'wording-judge-specific']);
 
+/** Whether a role judges or screens other roles' texts: the support judge on each writer's model included (#751). */
+const judging = (role) => JUDGING_ROLES.has(role) || role?.startsWith('support-judge-');
+
 /**
  * The one-file change gate (knowledge-build epic, section 13; #755): each item the changed run asked
  * may have been re-asked only for the changed file's claims and text, or for an earlier answer it
@@ -1008,7 +1011,7 @@ export function changeGate(change, file) {
         else if (!(w.files ?? []).includes(file) && !w.answers) reason = 'nothing it rests on changed';
       }
       const entry = { item, expected: reason === null, reason, byAnswer: !!w?.answers && !(w.files ?? []).includes(file) };
-      if (JUDGING_ROLES.has(role.role) && (w?.new || w?.other) && !w?.prompt && !w?.model) judged.push(entry);
+      if (judging(role.role) && (w?.new || w?.other) && !w?.prompt && !w?.model) judged.push(entry);
       else items.push(entry);
     }
   }

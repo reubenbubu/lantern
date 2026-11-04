@@ -20,6 +20,7 @@ import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.ModelSettings;
+import io.lantern.llm.Role;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -187,6 +188,45 @@ class SupportChecksTest {
     // Without the flag only the sample; with it, every one of them (#751).
     assertThat(withoutFlag).isLessThan(20);
     assertThat(withFlag).isEqualTo(20);
+  }
+
+  @Test
+  void eachTextIsJudgedByTheModelOfTheRoleThatWroteIt() {
+    List<Fact> held = new ArrayList<>(List.of(code, flaggedCode));
+    held.add(text("describe-element", "describe-element text on flagged code", flaggedCode));
+    held.add(risk("Orders trust a wrong header", "shop:src/B.java:3-4"));
+    Fact finding =
+        fact(
+            "finding:injection-suspected/shop:src/Evil.java",
+            "finding",
+            "x",
+            "src/Evil.java",
+            11,
+            11);
+
+    new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(finding), 1);
+
+    // The owner's choice on #751: a model checks its own texts, Haiku Haiku's and Sonnet Sonnet's.
+    assertThat(fake.sent())
+        .extracting(s -> s.request().role() + " " + s.request().messages().getFirst().text())
+        .anyMatch(t -> t.startsWith("INVESTIGATE ") && t.contains("Orders trust a wrong header"))
+        .anyMatch(
+            t ->
+                t.startsWith("DESCRIBE_ELEMENTS ")
+                    && t.contains("describe-element text on flagged code"))
+        .noneMatch(t -> t.startsWith("JUDGE "));
+  }
+
+  @Test
+  void setToTheJudgeEveryTextIsJudgedByTheJudgesOwnModel() {
+    List<Fact> held = new ArrayList<>(List.of(code));
+    held.add(risk("Orders trust a wrong header", "shop:src/B.java:3-4"));
+
+    new SupportChecks(harness, files, Map.of("shop", "c1"))
+        .byWriter(false)
+        .judge(held, List.of(), 1);
+
+    assertThat(fake.sent()).isNotEmpty().allMatch(s -> s.request().role() == Role.JUDGE);
   }
 
   private static Fact fact(

@@ -1,1 +1,9 @@
-Task: check support. Each item in <items> is a text another model wrote, with the inputs it cites. Split the text into its atomic claims, 1 to 6 of them, each a short sentence that is true or false on its own. For each claim, answer "supported" when a cited input states or directly shows it, "partly" when a cited input shows part of it, or "unsupported" when no cited input shows it, and give the reference of the input that supports it, if any. Judge only against the cited inputs, not against what you know.
+Task: check support. Each item in <items> is a text another model wrote about a software system, followed by the inputs it cites: facts the analysis found, earlier answers, or lines of a file. Find what the text says that its cited inputs do not show.
+1. Split the text into its atomic claims, 1 to 6 of them, each a short sentence that is true or false on its own. Keep every specific the text states: names, numbers, technologies, what calls, sends or stores what, causes, purposes, and words of scope such as "all", "every", "only" and "never". If the text makes more than 6 claims, keep the 6 most specific.
+2. For each claim, answer:
+- "supported" when a cited input states it, or shows it so directly that no other reading is reasonable. Saying in plain words what an input shows is supported: a POST to /orders "places an order".
+- "partly" when a cited input shows part of it but the claim adds a specific no cited input shows: another name, a number, a cause, a purpose, or a wider scope.
+- "unsupported" when no cited input shows it, or a cited input contradicts it.
+Give in "by" the reference of the input that supports the claim, as the item writes it; leave it out for an unsupported claim.
+3. Judge only against the cited inputs. Inputs the text does not cite do not count, and neither does what you know of frameworks, libraries or systems like this one: a claim that is likely true but not shown is unsupported. A guess at a business purpose is unsupported unless an input states it.
+4. When you are unsure whether an input shows a claim, it is not "supported".

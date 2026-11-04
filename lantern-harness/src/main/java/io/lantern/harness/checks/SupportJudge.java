@@ -34,13 +34,16 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class SupportJudge {
 
-  /** The judge's role: the high-volume tier, another tier than the reasoning-tier Describe. */
+  /**
+   * The judge's role, on the high-volume tier unless it judges a writer's texts on its model
+   * (#751).
+   */
   public static final RoleSpec ROLE =
       RoleSpec.single(
               "support-judge",
               Role.JUDGE,
               Prompts.version(
-                  "2", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
+                  "3", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
               "model-checks",
               RunMode.BULK,
               300)
@@ -139,9 +142,20 @@ public final class SupportJudge {
    * @return the verdict of each text judged, by key
    */
   public Map<String, Support> judge(Map<String, List<Text>> byGroup, Set<String> always) {
-    RoleSession session = harness.session(ROLE);
+    return judge(byGroup, always, Map.of());
+  }
+
+  /**
+   * As {@link #judge(Map, Set)}, each group judged by the model of the role that wrote it: the
+   * owner's choice on #751, a model checking its own texts with a strict prompt, so neither model
+   * checks the other's (ADR 0101, amendment for #751).
+   *
+   * @param writers the model role of each group's writer; a group not named is judged by {@link
+   *     Role#JUDGE}'s model
+   */
+  public Map<String, Support> judge(
+      Map<String, List<Text>> byGroup, Set<String> always, Map<String, Role> writers) {
     Map<String, List<Item>> items = new java.util.TreeMap<>();
-    List<Item> all = new ArrayList<>();
     byGroup.forEach(
         (group, texts) -> {
           for (Text text : texts) {
@@ -149,21 +163,57 @@ public final class SupportJudge {
             if (!text.cited().isEmpty()
                 && (always.contains(text.key()) || sampled(sampleKey(item)))) {
               items.computeIfAbsent(group, g -> new ArrayList<>()).add(item);
-              all.add(item);
             }
           }
         });
     Map<String, Support> verdicts = new LinkedHashMap<>();
-    if (all.isEmpty()) {
-      return verdicts;
-    }
-    session.plan(all, io.lantern.llm.Tokens.estimate(CommonPrompt.SYSTEM + TASK));
-    for (List<Item> group : items.values()) {
-      Map<String, Outcome> outcomes = session.askPackets(group, PACKETS);
-      outcomes.forEach(
-          (key, outcome) -> support(outcome).ifPresent(support -> verdicts.put(key, support)));
-    }
+    // One session for each model that judges, planned with all the items it asks.
+    Map<Role, List<String>> groupsByModel = new java.util.EnumMap<>(Role.class);
+    items
+        .keySet()
+        .forEach(
+            group ->
+                groupsByModel
+                    .computeIfAbsent(
+                        writers.getOrDefault(group, Role.JUDGE), r -> new ArrayList<>())
+                    .add(group));
+    groupsByModel.forEach(
+        (model, groups) -> {
+          RoleSession session = harness.session(on(model));
+          session.plan(
+              groups.stream().flatMap(g -> items.get(g).stream()).toList(),
+              io.lantern.llm.Tokens.estimate(CommonPrompt.SYSTEM + TASK));
+          for (String group : groups) {
+            session
+                .askPackets(items.get(group), PACKETS)
+                .forEach(
+                    (key, outcome) ->
+                        support(outcome).ifPresent(support -> verdicts.put(key, support)));
+          }
+        });
     return verdicts;
+  }
+
+  /**
+   * The judge's role on the given model role's model: named {@code support-judge-<model role>},
+   * since a run holds one session a role name, at the judge's packet size (#751).
+   */
+  static RoleSpec on(Role model) {
+    return model == ROLE.modelRole()
+        ? ROLE
+        : new RoleSpec(
+            ROLE.name() + "-" + model.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'),
+            model,
+            ROLE.promptVersion(),
+            ROLE.budgetGroup(),
+            ROLE.packetSize(),
+            ROLE.runMode(),
+            ROLE.expectedOutputTokens(),
+            ROLE.expectedThinkingTokens(),
+            ROLE.expectedTurns(),
+            ROLE.expectedTurnTokens(),
+            ROLE.tools(),
+            ROLE.limits());
   }
 
   /** The support an answered item's claims add up to, if it was answered. */

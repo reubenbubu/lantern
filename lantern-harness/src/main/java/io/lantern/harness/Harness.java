@@ -149,6 +149,10 @@ public final class Harness {
   /** The role's session in this run; asking again for a role gives the same session. */
   public synchronized RoleSession session(RoleSpec spec) {
     Integer items = itemsPerRequest.get(spec.name());
+    if (items == null && spec.name().startsWith("support-judge-")) {
+      // The support judge on a writer's model takes the judge's own size (#751).
+      items = itemsPerRequest.get("support-judge");
+    }
     if (items != null) {
       spec = spec.withPacketSize(items);
     }

@@ -134,6 +134,7 @@ public final class AnalysisRun {
   private volatile Map<String, Harness.Calibration> calibrations = Map.of();
   private volatile Map<String, Integer> itemsPerRequest = Map.of();
   private volatile boolean judgeWording;
+  private volatile boolean supportByWriter = true;
   private final RuleRuns ruleRuns;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
@@ -208,6 +209,23 @@ public final class AnalysisRun {
    */
   AnalysisRun judgingWording(boolean judge) {
     this.judgeWording = judge;
+    return this;
+  }
+
+  /**
+   * Who checks a text's support ({@code lantern.harness.support-judge.model}): {@code writer}, the
+   * default, the model that wrote it; {@code judge}, the support judge's own model ({@code
+   * lantern.llm.roles.judge}) for every text (ADR 0101, amendment for #751).
+   */
+  AnalysisRun supportJudgedBy(String by) {
+    this.supportByWriter =
+        switch (by == null ? "" : by.strip()) {
+          case "", "writer" -> true;
+          case "judge" -> false;
+          default ->
+              throw new IllegalStateException(
+                  "lantern.harness.support-judge.model is writer or judge: " + by);
+        };
     return this;
   }
 
@@ -561,6 +579,7 @@ public final class AnalysisRun {
       // section 11.7; ADR 0101, amendment for #751). A verdict marks a text, never drops it.
       io.lantern.summarize.SupportChecks.Result support =
           new io.lantern.summarize.SupportChecks(harness, allSources, snapshot.commits())
+              .byWriter(supportByWriter)
               .judge(
                   facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
                   flagged,

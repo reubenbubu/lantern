@@ -8,6 +8,7 @@ import io.lantern.harness.Harness;
 import io.lantern.harness.LlmFacts;
 import io.lantern.harness.checks.SupportJudge;
 import io.lantern.harness.render.FactLines;
+import io.lantern.llm.Role;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -34,17 +35,28 @@ import tools.jackson.databind.JsonNode;
  */
 public final class SupportChecks {
 
-  /** The roles whose texts are judged, by the name of their facts' origin. */
-  public static final Set<String> ROLES =
-      Set.of(
+  /**
+   * The roles whose texts are judged, by the name of their facts' origin, each with the model role
+   * whose model wrote them and so judges them (#751).
+   */
+  public static final Map<String, Role> ROLES =
+      Map.of(
           "summarize",
+          Role.SUMMARIZE,
           "summarize-type",
+          Role.SUMMARIZE_TYPES,
           "describe-unit",
+          Role.INFER_INTENT,
           "describe-element",
+          Role.DESCRIBE_ELEMENTS,
           io.lantern.summarize.describe.FlowJudgements.NARRATIVE.name(),
+          io.lantern.summarize.describe.FlowJudgements.NARRATIVE.modelRole(),
           "name-groups",
+          Role.NAME_GROUPS,
           "purpose",
-          "investigate");
+          Role.INFER_INTENT,
+          "investigate",
+          Role.INVESTIGATE);
 
   /** The most lines of a cited range a judge item shows. */
   static final int MAX_RANGE_LINES = 40;
@@ -89,6 +101,7 @@ public final class SupportChecks {
   private final Harness harness;
   private final SourceFiles files;
   private final Map<String, String> commits;
+  private boolean byWriter = true;
 
   /**
    * @param harness the run's harness
@@ -99,6 +112,15 @@ public final class SupportChecks {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.files = Objects.requireNonNull(files, "files");
     this.commits = Map.copyOf(commits);
+  }
+
+  /**
+   * Whether each text is judged on the model of the role that wrote it (the default), or every text
+   * on the support judge's own model.
+   */
+  public SupportChecks byWriter(boolean byWriter) {
+    this.byWriter = byWriter;
+    return this;
   }
 
   /**
@@ -166,7 +188,9 @@ public final class SupportChecks {
       }
     }
     Map<String, SupportJudge.Support> verdicts =
-        byRole.isEmpty() ? Map.of() : new SupportJudge(harness).judge(byRole, always);
+        byRole.isEmpty()
+            ? Map.of()
+            : new SupportJudge(harness).judge(byRole, always, byWriter ? ROLES : Map.of());
     Map<String, Fact> judgedFacts = new HashMap<>();
     verdicts.forEach(
         (key, verdict) ->
@@ -217,7 +241,7 @@ public final class SupportChecks {
   /** Whether a fact is a text a role whose texts are judged wrote. */
   static boolean judgeable(Fact fact) {
     return fact.origin().kind() == Origin.Kind.LLM
-        && ROLES.contains(fact.origin().name())
+        && ROLES.containsKey(fact.origin().name())
         && !fact.predicate().equals(Types.NOT_ASKED);
   }
 
