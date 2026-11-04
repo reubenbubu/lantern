@@ -174,9 +174,14 @@ public final class RoleRecord implements LlmCallLog {
       default -> {
         if (outcome.kind() == Outcome.Kind.DROPPED) {
           dropped(subject);
+        } else {
+          // Answered after all: no longer dropped.
+          droppedSubjects.remove(subject);
         }
         asked.add(subject);
-        // Answered after all: no longer unasked.
+        // Asked after all: no longer unasked.
+        unasked.remove(subject);
+        failedSubjects.remove(subject);
         unaskedWhy.remove(subject);
       }
     }

@@ -402,7 +402,8 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
   // A large unit is asked in parts, u, u#2, u#3 (DescribeItems): each part counts as asking u
   // (#741). Which part holds an interaction the record does not say, so an interaction left
   // unworded counts as "don't know" only when every part of its owner was asked; when a part was
-  // not (a budget refused it, or it was dropped), it may be that part's, and counts as not asked.
+  // not (a budget refused it, or its request failed), it may be that part's, and counts as not
+  // asked. A part dropped after two rejections was asked, so its interactions are "don't know".
   const unitOfPart = (subject) => String(subject).replace(/#\d+$/, '');
   const unasked = new Set((record?.unaskedSubjects ?? []).map(unitOfPart));
   const asked = new Set([...(record?.askedSubjects ?? []), ...(record?.cachedSubjects ?? [])].map(unitOfPart));

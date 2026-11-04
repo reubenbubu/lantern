@@ -345,7 +345,10 @@ Second part of #741, so the two counts agree on a run:
   its end, if one is; else the first unit or frontend, by ID, with a line the diagrams draw
   touching either end. The scorer has the facts, not the lines, so it takes the facts the
   diagrams draw and puts a folded queue's end where the page draws it, at the exchanges routing
-  to it.
+  to it. It still differs in rare cases: the interaction's own ends are its fact's, not the drawn
+  line's (a non-unit's line into a folded queue), it searches the interaction kinds' facts, not
+  every line, and a merged line's subject is each fact's, not the first one's. Such an
+  interaction may count as not asked while the page lists it under "Intent not known".
 - **Part subjects.** A large unit is asked in parts, `u`, `u#2`, `u#3` (Describe's items); each
   part counts as asking `u`. Which part holds an interaction the record does not say, so an
   interaction left unworded is "don't know" only when every part of its owner was asked; when a
