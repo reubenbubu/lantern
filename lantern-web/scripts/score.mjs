@@ -916,6 +916,12 @@ const unjudged = (r) =>
     .join('');
 
 /** Each row per role as one line of text: what it measured, or why it could not. */
+/** The Describe cell's sequence steps (#740), or nothing for a scorecard written before them. */
+function stepsCell(steps) {
+  if (!steps) return '';
+  return `; steps ${steps.messages} drawn, ${steps.intended} intended, ${steps.own} own, ${steps.fallbackWithIntent} fallback`;
+}
+
 export function roleCells(roles) {
   if (!roles) return {};
   const why = (r) => `not measured (${r.why})`;
@@ -929,7 +935,7 @@ export function roleCells(roles) {
   const d = roles.describe;
   cell.Describe = !d.measured
     ? why(d)
-    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}); ${describeModelCell(d.model)}; drawn: ${d.drawn.own}/${d.drawn.lines} lines with their own intent (${percent(d.drawn.coverage)}), ${d.drawn.generic} generic${d.drawn.genericWithIntent === undefined ? "" : ` (${d.drawn.genericWithIntent} of them on a line whose link has a stored intent)`}; judge ${judgedCell(d.judge)}`;
+    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}); ${describeModelCell(d.model)}; drawn: ${d.drawn.own}/${d.drawn.lines} lines with their own intent (${percent(d.drawn.coverage)}), ${d.drawn.generic} generic${d.drawn.genericWithIntent === undefined ? "" : ` (${d.drawn.genericWithIntent} of them on a line whose link has a stored intent)`}${stepsCell(d.steps)}; judge ${judgedCell(d.judge)}`;
   const f = roles.flows;
   cell.Flows = !f.measured
     ? why(f)
@@ -1236,6 +1242,15 @@ export function pairedMarkdown(dirA, dirB, labelA = 'A', labelB = 'B') {
   const sets = [...a.keys()].filter((set) => b.has(set)).sort();
   const lines = [`# Paired comparison: ${labelB} − ${labelA}`, '', `Sets: ${sets.join(', ') || 'none in common'}.`, ''];
   lines.push(...pairedLines(pairedRows(sets.map((set) => [a.get(set), b.get(set)]))));
+  // Describe's sequence steps per set, before and after (#740).
+  lines.push('', '## Describe steps per set', '', `| Set | ${labelA} | ${labelB} |`, '| --- | --- | --- |');
+  for (const set of sets) {
+    const steps = (card) => {
+      const d = card.scores.roles?.describe;
+      return d?.measured && d.steps ? stepsCell(d.steps).replace(/^; steps /, '') : '-';
+    };
+    lines.push(`| ${set} | ${steps(a.get(set))} | ${steps(b.get(set))} |`);
+  }
   // Two runs of one model: how far apart Investigate's recall and precision are, per set (#748).
   lines.push('', '## Investigate per set', '', `| Set | Recall ${labelA} | Recall ${labelB} | Precision ${labelA} | Precision ${labelB} | Spread (points) |`, '| --- | --- | --- | --- | --- | --- |');
   for (const set of sets) {

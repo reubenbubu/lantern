@@ -281,4 +281,11 @@ from as well as its own facts. Which link words each step:
   covers every request through it. A unit's call that matches no endpoint is a claim of its
   own too, so it reads its own intent, not a route's (ADR 0090, amendment for #811).
 
-The fake runs' counts are in #740's PR.
+- a step a gateway routes, in a flow that starts at the gateway (amendment for #740, decided on
+  #740 on 4 Nov 2026): the intent of the request the route forwards, its `routed-endpoint` fact,
+  as a frontend's request words its route step; the route's one intent only when the request has
+  none. Describe stores no intent for a routed request yet, so today every such step still reads
+  its route's intent, or its fallback; #838 has Describe word each one.
+
+The fake runs' counts are in #740's PR; the scorecard counts them since #740 (ADR 0072, amendment
+for #740).

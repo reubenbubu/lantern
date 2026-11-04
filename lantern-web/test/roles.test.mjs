@@ -548,6 +548,53 @@ test('Describe on the page: a generic label on a line whose link has a stored in
   assert.equal(describeRow(report, linked, [], run).drawn.genericWithIntent, 0);
 });
 
+test('Describe on the sequence diagrams: a step reading a fallback though its link has an intent is counted apart (#740)', () => {
+  const sequence = (id, steps) => ({ type: 'sequence', id, participants: ['service-a', 'service-b'], steps });
+  const report = {
+    elements: {
+      'service-a': { kind: 'container', name: 'a' },
+      'service-b': { kind: 'container', name: 'b' },
+      'service-c': { kind: 'container', name: 'c' },
+      'person-u': { kind: 'person', name: 'User' },
+    },
+    pages: [
+      {
+        sections: [
+          sequence('flow-1', [
+            { note: 'A note is not a step', over: ['service-a'] },
+            // Its link has an intent, and the step reads the fallback: counted apart.
+            { from: 'service-a', to: 'service-b', message: 'Calls X.get', code: 'GET /prices' },
+            // It reads its link's intent: own.
+            { from: 'service-a', to: 'service-b', message: 'Looks up prices', code: 'GET /prices' },
+            // No worded link between its ends: drawn, not intended.
+            { from: 'service-c', to: 'service-b', message: 'Calls Y.get' },
+            // A person's step is left to #739.
+            { from: 'person-u', to: 'service-a', message: 'Uses the screens' },
+          ]),
+        ],
+      },
+    ],
+  };
+  const row = describeRow(report, linked, [intentFor('c-ab', 'Looks up prices')], run);
+  assert.deepEqual(row.steps, { messages: 3, intended: 2, own: 1, fallbackWithIntent: 1 });
+  assert.equal(row.scores['step:flow-1/1'], 0);
+  assert.equal(row.scores['step:flow-1/2'], 1);
+  assert.equal(row.scores['step:flow-1/3'], undefined);
+});
+
+test('Describe on the sequence diagrams: a step drawn on two diagrams counts twice (#740)', () => {
+  const step = { from: 'service-a', to: 'service-b', message: 'Calls X.get' };
+  const report = {
+    elements: { 'service-a': { kind: 'container', name: 'a' }, 'service-b': { kind: 'container', name: 'b' } },
+    pages: [
+      { sections: [{ type: 'sequence', id: 'flow-1', steps: [step] }] },
+      { sections: [{ type: 'sequence', id: 'flow-2', steps: [step] }] },
+    ],
+  };
+  const row = describeRow(report, linked, [intentFor('c-ab', 'Looks up prices')], run);
+  assert.deepEqual(row.steps, { messages: 2, intended: 2, own: 0, fallbackWithIntent: 2 });
+});
+
 test("Describe on the page: a consumer's line runs from what it reads, and a link may have several intents", () => {
   const report = {
     elements: {

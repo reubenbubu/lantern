@@ -373,3 +373,23 @@ project-1 from 75% to 83%, and on project-4 its recall from 65% to 47% (three of
 were fixed checks' wordings, now in their own row). Only the wordings moved to their own row
 leave the unjudged counts (project-4 28 to 27, project-8 47 to 46) until the judgement files are
 filled.
+
+## Amendment (#740): Describe's sequence steps
+
+The Describe row read only the C4 diagrams' lines, so how many sequence steps show a fallback label
+though their link has a stored intent was counted by hand (PR #809) and could not be reproduced.
+The row now also measures `steps`:
+
+- every message step of every sequence diagram, a note left out, counted on each diagram that draws
+  it, not once by its ends, since the question is about every step a reader sees;
+- matched as a line is (amendment for #742): a step's link runs between its two ends or elements
+  inside or around them, and the label is read the same way. A step carries no fact citation in
+  the report, so ends and label are all there is;
+- `intended` when a link Describe worded runs between its ends; `own` when it reads one of those
+  links' intents; `fallbackWithIntent` when it is intended but reads something else;
+- a step from or to a person is left out until people's lines are measured (#739).
+
+The scorecard's Describe cell shows "steps N drawn, N intended, N own, N fallback", so `compare`
+shows both runs' figures, and `paired` lists them per set. Each intended step is an item of the row
+(`step:<diagram>/<index>`), right when own, in the paired comparison.
+
