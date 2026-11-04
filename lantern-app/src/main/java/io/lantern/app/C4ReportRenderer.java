@@ -619,13 +619,13 @@ public final class C4ReportRenderer {
     private String pinnedMarkdown() {
       StringBuilder text = new StringBuilder();
       if (document.audience() != null) {
-        text.append("For ").append(oneLine(document.audience())).append(". ");
+        text.append("For ").append(literal(oneLine(document.audience()))).append(". ");
       }
       Map<String, String> commits = document.source().commits();
       text.append("Pinned to ").append(commits.size() == 1 ? "commit " : "commits ");
       text.append(
           commits.entrySet().stream()
-              .map(c -> c.getKey() + " `" + c.getValue().substring(0, 12) + "`")
+              .map(c -> literal(c.getKey()) + " `" + c.getValue().substring(0, 12) + "`")
               .collect(Collectors.joining(", ")));
       return text.append(", as of ").append(document.source().date()).append('.').toString();
     }
@@ -767,7 +767,7 @@ public final class C4ReportRenderer {
                 + callout.confidence().movePointRight(2).setScale(0, RoundingMode.HALF_UP)
                 + "%";
       }
-      return title == null ? body : "**" + oneLine(title) + "**\n" + body;
+      return title == null ? body : "**" + literal(oneLine(title)) + "**\n" + body;
     }
 
     private ObjectNode table(String id, Table table) {
@@ -811,13 +811,16 @@ public final class C4ReportRenderer {
       ArrayNode items = node.putArray("items");
       for (Table.Row row : table.rows()) {
         Map<String, String> cells = new HashMap<>();
+        // The ID and status are shown as plain text, so they are written unescaped.
+        Map<String, String> plainCells = new HashMap<>();
         for (int i = 0; i < table.columns().size(); i++) {
           cells.put(table.columns().get(i).label(), markdown(row.cells().get(i)));
+          plainCells.put(table.columns().get(i).label(), plain(row.cells().get(i)));
         }
         ObjectNode item = items.addObject();
-        putNonEmpty(item, "id", oneLine(cells.getOrDefault("ID", "")));
+        putNonEmpty(item, "id", oneLine(plainCells.getOrDefault("ID", "")));
         String title = oneLine(cells.getOrDefault("Decision", ""));
-        item.put("title", title.isEmpty() ? entities.get(row.entity()).name() : title);
+        item.put("title", title.isEmpty() ? literal(entities.get(row.entity()).name()) : title);
         String outcome = cells.getOrDefault("Outcome", "");
         String rationale = cells.getOrDefault("Rationale", "");
         String body =
@@ -825,7 +828,7 @@ public final class C4ReportRenderer {
                 ? outcome
                 : (outcome.isEmpty() ? "" : outcome + "\n\n") + "**Rationale:** " + rationale;
         putNonEmpty(item, "body", body);
-        putNonEmpty(item, "status", oneLine(cells.getOrDefault("Status", "")));
+        putNonEmpty(item, "status", oneLine(plainCells.getOrDefault("Status", "")));
       }
       return node;
     }
@@ -855,7 +858,7 @@ public final class C4ReportRenderer {
     }
 
     private void treeItems(Tree.Node node, int depth, List<String> items) {
-      items.add("  ".repeat(depth) + node.label());
+      items.add("  ".repeat(depth) + literal(node.label()));
       node.children().forEach(child -> treeItems(child, depth + 1, items));
     }
 
@@ -868,7 +871,8 @@ public final class C4ReportRenderer {
       }
       List<String> items = new ArrayList<>();
       for (QualityReport.Failure failure : report.failures()) {
-        StringBuilder item = new StringBuilder("**").append(oneLine(failure.check())).append("**");
+        StringBuilder item =
+            new StringBuilder("**").append(literal(oneLine(failure.check()))).append("**");
         if (failure.target() != null) {
           String target = link(failure.target(), targetName(failure.target()));
           item.append(" (").append(target).append(")");
@@ -893,7 +897,7 @@ public final class C4ReportRenderer {
     private ObjectNode dependencyGraph(String id, Diagram diagram, Section owner) {
       String title = diagram.title() == null ? owner.title() : diagram.title();
       if (diagram.edges().isEmpty()) {
-        return list(id, title, diagram.nodes().stream().map(Diagram.Node::label).toList());
+        return list(id, title, diagram.nodes().stream().map(n -> literal(n.label())).toList());
       }
       ObjectNode node = section("table", id, title);
       ArrayNode columns = node.putArray("columns");
@@ -903,9 +907,9 @@ public final class C4ReportRenderer {
       diagram.nodes().forEach(n -> labels.put(n.id(), n.label()));
       for (Diagram.Edge edge : diagram.edges()) {
         rows.addArray()
-            .add(labels.getOrDefault(edge.from(), edge.from().toString()))
-            .add(labels.getOrDefault(edge.to(), edge.to().toString()))
-            .add(edge.label() == null ? "" : edge.label());
+            .add(literal(labels.getOrDefault(edge.from(), edge.from().toString())))
+            .add(literal(labels.getOrDefault(edge.to(), edge.to().toString())))
+            .add(edge.label() == null ? "" : literal(edge.label()));
       }
       return node;
     }
@@ -1070,8 +1074,8 @@ public final class C4ReportRenderer {
 
     private void stepItems(SequenceDiagram.Step step, List<String> items) {
       switch (step) {
-        case SequenceDiagram.Message m -> items.add(messageText(m));
-        case SequenceDiagram.Note n -> items.add(plain(n.content()));
+        case SequenceDiagram.Message m -> items.add(literal(messageText(m)));
+        case SequenceDiagram.Note n -> items.add(literal(plain(n.content())));
         case SequenceDiagram.Frame f ->
             f.operands().forEach(o -> o.steps().forEach(s -> stepItems(s, items)));
       }

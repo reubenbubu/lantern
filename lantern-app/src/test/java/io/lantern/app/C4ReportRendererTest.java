@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.lantern.core.document.Block;
+import io.lantern.core.document.Callout;
 import io.lantern.core.document.CrossReference;
 import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.DocumentJson;
 import io.lantern.core.document.DocumentSource;
+import io.lantern.core.document.ListBlock;
 import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
 import io.lantern.core.document.Table;
@@ -434,6 +436,59 @@ class C4ReportRendererTest {
         .isEqualTo(
             "Serves \\[x\\](https://example.com) and \\*\\*bold\\*\\* *files* under"
                 + " /files/\\*\\*; `/api/\\*\\*`. See [the (notes)](#/context/context-text).");
+  }
+
+  @Test
+  void escapesLinkAndEmphasisSyntaxInTableCellsListsTreesAndCalloutTitles() {
+    EntityId system = EntityId.parse("repo:shop");
+    String hostile = "a [x](https://example.com) **bold**";
+    String escaped = "a \\[x\\](https://example.com) \\*\\*bold\\*\\*";
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Table table =
+        new Table(
+            "context.table",
+            "Table",
+            List.of(new Table.Column("Cell")),
+            List.of(new Table.Row(null, List.of(List.of(TextRun.of(hostile))), List.of())),
+            List.of());
+    ListBlock list =
+        new ListBlock(
+            "context.list",
+            false,
+            List.of(new ListBlock.Item(List.of(TextRun.of(hostile)), List.of())),
+            List.of());
+    Tree tree =
+        new Tree(
+            "context.tree",
+            "Tree",
+            List.of(new Tree.Node(hostile, null, List.of(), List.of())),
+            List.of());
+    Callout callout =
+        new Callout(
+            "context.callout",
+            Callout.Variant.WARNING,
+            null,
+            hostile,
+            List.of(TextRun.of("Body.")),
+            List.of());
+    Document document =
+        document(
+            List.of(entity(system)),
+            section("context", system, List.of(context, table, list, tree, callout), List.of()));
+
+    String data = C4ReportRenderer.write(C4ReportRenderer.toJson(document).data());
+
+    // No text reaches the template's Markdown-lite unescaped (#752).
+    assertThat(data).doesNotContain("a [x](https://example.com)").doesNotContain("a **bold**");
+    assertThat(data.split(java.util.regex.Pattern.quote(escaped.replace("\\", "\\\\")), -1))
+        .hasSize(5);
   }
 
   private static Document document(List<DocumentEntity> entities, Section... sections) {
