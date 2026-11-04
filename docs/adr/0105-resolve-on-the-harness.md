@@ -110,3 +110,13 @@ This ADR's word limits and margins now live in the role's response contract, `pr
   fallback does not run). A library it bundles is not its own. A range in a repository that is
   neither the caller's own nor a candidate's own is rejected, with a reason that says it is on
   neither side of the link.
+
+## Amendment (#750): no question about data sources
+
+Resolve asks only about open links of kind `http`, `message` and `route` that have candidates
+(`LinkResolver`). It does not ask about open links to data sources (kind `database`), although
+the epic's task text names them (knowledge-build epic, section 11.1): no linker stores one yet.
+A datasource is placed from its unit's configuration (address resolution, #596), and an unplaced
+one leaves no open link with candidates to pick from, so there is nothing to ask. When a linker stores open links to data
+sources with candidates, the issue that adds them also adds them to Resolve's questions, with a
+test.

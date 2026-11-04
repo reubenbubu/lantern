@@ -84,7 +84,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("5 ec3df9a206f8242e8fde207d022cdc797648b9391e0af4d1b96c98bdb16661cc");
+        .isEqualTo("6 1ad064b8fe95a2959028afba566dcf5085087f9b6da4717a0255e44148f1a9bf");
   }
 
   /**

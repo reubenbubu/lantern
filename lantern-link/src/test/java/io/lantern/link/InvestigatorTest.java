@@ -807,11 +807,11 @@ class InvestigatorTest {
     investigate(usual);
 
     FakeLlmProvider fake = submitting(r -> null);
-    harnessCalibration = new io.lantern.harness.Harness.Calibration(1, "1");
+    harnessCalibration = new io.lantern.harness.Harness.Calibration(2, "1");
     investigate(fake);
     harnessCalibration = null;
 
-    // Both leads in the first request at the usual size; one under the calibration (ADR 0112).
+    // One lead in the first request at the usual size; both under a calibration at 2 (ADR 0112).
     java.util.function.Function<FakeLlmProvider, String> first =
         f ->
             f.sent().stream()
@@ -822,12 +822,12 @@ class InvestigatorTest {
                 .messages()
                 .getFirst()
                 .text();
-    assertThat(first.apply(usual)).contains("<item id=\"I1\">").contains("<item id=\"I2\">");
-    assertThat(first.apply(fake)).contains("<item id=\"I1\">").doesNotContain("<item id=\"I2\">");
+    assertThat(first.apply(usual)).contains("<item id=\"I1\">").doesNotContain("<item id=\"I2\">");
+    assertThat(first.apply(fake)).contains("<item id=\"I1\">").contains("<item id=\"I2\">");
     assertThat(harness.records())
         .filteredOn(r -> r.toJson().path("role").asString().equals("investigate-leads"))
         .singleElement()
-        .satisfies(r -> assertThat(r.toJson().path("packetSize").asInt()).isEqualTo(1));
+        .satisfies(r -> assertThat(r.toJson().path("packetSize").asInt()).isEqualTo(2));
   }
 
   @Test
