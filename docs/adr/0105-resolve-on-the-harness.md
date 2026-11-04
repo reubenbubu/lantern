@@ -110,6 +110,13 @@ This ADR's word limits and margins now live in the role's response contract, `pr
   fallback does not run). A library it bundles is not its own. A range in a repository that is
   neither the caller's own nor a candidate's own is rejected, with a reason that says it is on
   neither side of the link.
+- **Version 8.** Both checks run only when Resolve is asked, and a stored answer is reused without
+  them, so Resolve's prompt version moved from 7 to 8 with them; every answer stored before is
+  asked again (ADR 0100, "A check that rejects more raises the version"). The prompt's text did not
+  change.
+- **Deployment and config repositories.** The prompt tells the model to read deployment and config
+  files, yet a range in the caller's deployment or config repository counts as neither side and is
+  rejected. Counting those repositories as the caller's side is #837.
 
 ## Amendment (#750): no question about data sources
 

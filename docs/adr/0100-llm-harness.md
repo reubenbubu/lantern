@@ -234,6 +234,11 @@ resting on it changed too, and a warm rerun of project-4 made 241 calls.
   fingerprint changes. A change to the checks that should let earlier drops through bumps the
   role's prompt version, as a prompt change does. A drop the cache repeats has its reason begin
   with `dropped when last asked:`, so the roles count it as reused, not asked.
+- **A check that rejects more raises the version** (amendment for #715). A cached answer is reused
+  while what it cites still exists; the checks it passed when it was asked are not run again. So a
+  change that makes a role's checks reject what they accepted before raises that role's prompt
+  version in the same change, and no answer stored before it escapes the new check. Resolve moved
+  to version 8 for this reason.
 - **Every rejection is written down.** Each answer the checks rejected is listed with the run's
   documents as `rejections.jsonl.gz`: the role, the subject, the attempt (1 the first answer, 2
   after the repair turn), the text rejected and the reasons. It covers the first answer rejected
