@@ -151,6 +151,45 @@ class RolePipelineChecksTest {
                 Map.of(CheckInputs.claimKey("service:app", "calls"), Set.of("pay.example.com"))));
   }
 
+  /**
+   * A range past the end of its file, checked by the role's own pipeline on its inputs made to
+   * allow ranges, as these roles' inputs never do.
+   */
+  private static List<Rejection> rangesChecked(PacketRole role) {
+    CheckInputs inputs = role.inputs(List.of(), List.of("I1"));
+    CheckInputs allowing =
+        new CheckInputs(
+            inputs.schema(),
+            inputs.references(),
+            inputs.citable(),
+            true,
+            (repo, path) -> java.util.Optional.of(List.of("line 1", "line 2")),
+            inputs.staticClaims(),
+            inputs.secrets(),
+            inputs.shown());
+    ItemAnswer answer =
+        new ItemAnswer(
+            "I1",
+            FactJson.newObject(),
+            List.of(
+                new CheckedText(
+                    "purpose",
+                    CheckedText.Kind.PROSE,
+                    "Takes the card payment.",
+                    List.of("shop:A.java:1-5"),
+                    io.lantern.harness.Contract.Range.ANY,
+                    "",
+                    Set.of())),
+            List.of());
+    return role.pipeline().check(answer, allowing);
+  }
+
+  /** Whether the role's own reading of a valid answer declares no names. */
+  private static boolean declaresNoNames(PacketRole role, String answer) {
+    return role.read("I1", null, FactJson.parse(answer)).texts().stream()
+        .allMatch(t -> t.names().isEmpty());
+  }
+
   private static final String GENERIC =
       "Its classes are managed by Spring and wired through constructor injection for the shop.";
   private static final String NAMING =
@@ -174,7 +213,7 @@ class RolePipelineChecksTest {
   }
 
   @Test
-  void purposeRangesAreRejectedForItCitesOnlyItsInput() {
+  void purposeRangeIsRejectedByReferencesForItCitesOnlyItsInput() {
     List<Rejection> found =
         checked(
             purpose(),
@@ -185,7 +224,13 @@ class RolePipelineChecksTest {
             r ->
                 r.check().equals("References")
                     && r.reason().contains("cites only references of its input"));
-    assertThat(names(found)).doesNotContain("Ranges");
+  }
+
+  @Test
+  void purposeRangesRejectARangePastTheEndOfItsFile() {
+    assertThat(rangesChecked(purpose()))
+        .anyMatch(
+            r -> r.check().equals("Ranges") && r.reason().contains("outside the file's 2 lines"));
   }
 
   @Test
@@ -254,7 +299,7 @@ class RolePipelineChecksTest {
   }
 
   @Test
-  void significanceRangesAreRejectedForItCitesOnlyItsInput() {
+  void significanceRangeIsRejectedByReferencesForItCitesOnlyItsInput() {
     List<Rejection> found =
         checked(
             significance(),
@@ -265,7 +310,13 @@ class RolePipelineChecksTest {
             r ->
                 r.check().equals("References")
                     && r.reason().contains("cites only references of its input"));
-    assertThat(names(found)).doesNotContain("Ranges");
+  }
+
+  @Test
+  void significanceRangesRejectARangePastTheEndOfItsFile() {
+    assertThat(rangesChecked(significance()))
+        .anyMatch(
+            r -> r.check().equals("Ranges") && r.reason().contains("outside the file's 2 lines"));
   }
 
   @Test
@@ -281,6 +332,12 @@ class RolePipelineChecksTest {
   void significanceCoverageRejectsADeclaredNameItsCitationDoesNotHold() {
     assertThat(coverageChecked(significance()))
         .anyMatch(r -> r.check().equals("Coverage") && r.reason().contains("RefundJob"));
+    // The role's own answers declare no names.
+    assertThat(
+            declaresNoNames(
+                significance(),
+                significanceAnswer("Takes the card payment across services.", "F1")))
+        .isTrue();
   }
 
   @Test
@@ -331,7 +388,7 @@ class RolePipelineChecksTest {
   }
 
   @Test
-  void narrativeRangesAreRejectedForItCitesOnlyItsInput() {
+  void narrativeRangeIsRejectedByReferencesForItCitesOnlyItsInput() {
     List<Rejection> found =
         checked(narrative(), narrativeAnswer("Card payment taken", "shop:src/A.java:1-3"));
     assertThat(found)
@@ -339,7 +396,13 @@ class RolePipelineChecksTest {
             r ->
                 r.check().equals("References")
                     && r.reason().contains("cites only references of its input"));
-    assertThat(names(found)).doesNotContain("Ranges");
+  }
+
+  @Test
+  void narrativeRangesRejectARangePastTheEndOfItsFile() {
+    assertThat(rangesChecked(narrative()))
+        .anyMatch(
+            r -> r.check().equals("Ranges") && r.reason().contains("outside the file's 2 lines"));
   }
 
   @Test
@@ -352,6 +415,8 @@ class RolePipelineChecksTest {
   void narrativeCoverageRejectsADeclaredNameItsCitationDoesNotHold() {
     assertThat(coverageChecked(narrative()))
         .anyMatch(r -> r.check().equals("Coverage") && r.reason().contains("RefundJob"));
+    // The role's own answers declare no names.
+    assertThat(declaresNoNames(narrative(), narrativeAnswer("Card payment taken", "F1"))).isTrue();
   }
 
   @Test
