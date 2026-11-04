@@ -125,6 +125,16 @@
       ]
     }
   ],
+  "lists": {
+    "infrastructure": [
+      "tracing", "distributed tracing", "zipkin", "jaeger", "opentelemetry", "otel", "grafana tempo",
+      "log aggregation", "centralized logging", "loki", "logstash", "fluentd", "fluent-bit", "kibana",
+      "prometheus", "grafana", "graphite", "statsd", "micrometer", "datadog", "new relic", "newrelic",
+      "splunk", "sentry",
+      "service registry", "service discovery", "eureka", "consul",
+      "config server", "config-server", "configuration server", "spring cloud config"
+    ]
+  },
   "judged": [],
   "abstention": "Proposing nothing is right when the code shows nothing; a lead is \"unclear\" when the code does not settle it.",
   "strict": [

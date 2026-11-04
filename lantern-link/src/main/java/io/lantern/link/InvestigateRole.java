@@ -77,6 +77,10 @@ final class InvestigateRole implements PacketRole {
   static final int MAX_PROPOSALS =
       io.lantern.harness.Contract.of("investigate").count("proposals").max();
 
+  /** What Investigate proposes no connection to: infrastructure, not a business dependency. */
+  static final List<String> INFRASTRUCTURE =
+      io.lantern.harness.Contract.of("investigate").list("infrastructure");
+
   /** The most words of a title, a finding, a consequence and a description: their contract's. */
   static final io.lantern.harness.Contract.Range TITLE_WORDS =
       io.lantern.harness.Contract.of("investigate").acceptedWords("title");
@@ -637,6 +641,23 @@ final class InvestigateRole implements PacketRole {
       if (!entry.path("interaction").isString() || !entry.path("description").isString()) {
         found.add(reject(item, field, "A connection needs its interaction and description."));
       }
+      String infrastructure =
+          infrastructure(
+              to
+                  + " "
+                  + entry.path("description").asString("")
+                  + " "
+                  + entry.path("technology").asString(""));
+      if (infrastructure != null) {
+        found.add(
+            reject(
+                item,
+                field,
+                "Connects to infrastructure ("
+                    + infrastructure
+                    + "): tracing, logging, metrics, a service registry or a config server is not"
+                    + " what the unit does for the system; propose no such connection."));
+      }
       if (role.linked.contains(pair(from, to))) {
         found.add(
             reject(
@@ -648,6 +669,23 @@ final class InvestigateRole implements PacketRole {
                     + to
                     + "."));
       }
+    }
+
+    /**
+     * The first word of the contract's infrastructure list the text names, as a whole word, or null
+     * (#749).
+     */
+    static String infrastructure(String text) {
+      String lower = text.toLowerCase(java.util.Locale.ROOT);
+      for (String word : INFRASTRUCTURE) {
+        if (java.util.regex.Pattern.compile(
+                "(?<![a-z0-9])" + java.util.regex.Pattern.quote(word) + "(?![a-z0-9])")
+            .matcher(lower)
+            .find()) {
+          return word;
+        }
+      }
+      return null;
     }
 
     private Rejection reject(String item, String field, String reason) {

@@ -21,6 +21,7 @@ import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
+import io.lantern.core.types.Types;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -58,8 +59,10 @@ import tools.jackson.databind.node.ObjectNode;
  *       where it is text or a list, each later section's title in bold before its first block, and
  *       is left out otherwise, except a quality report: each failure goes to the end of the page
  *       showing what failed, or of the first page.
- *   <li>Elements, relationships and table rows whose facts all come from the LLM are marked as
- *       found by the LLM.
+ *   <li>Elements, relationships and table rows whose evidence all comes from the LLM are marked as
+ *       found by the LLM: their facts, leaving out the texts an LLM role only worded (a summary,
+ *       responsibility, intent, narrative, purpose or name), are all LLM findings. Where the mark
+ *       shows, the text does not open with "Found by the LLM:" as well (#749).
  *   <li>The entities drawn in diagrams become elements, of the kind the diagrams draw them as: a
  *       box on a context diagram is a system, on a container diagram a container, on a component
  *       diagram a component, and a node other nodes are drawn inside is the system or container
@@ -192,18 +195,54 @@ public final class C4ReportRenderer {
     /** The title of each Lantern section and titled block. */
     private final Map<String, String> titles = new HashMap<>();
 
+    /** What an LLM role only words about what is there: no finding of its own (#749). */
+    private static final Set<String> WORDINGS =
+        Set.of(
+            Types.SUMMARY,
+            Types.RESPONSIBILITY,
+            Types.INTENT,
+            Types.FLOW_NARRATIVE,
+            Types.FLOW_SIGNIFICANCE,
+            Types.PURPOSE,
+            Types.KEY_FACT,
+            Types.DISPLAY_NAME,
+            Types.FINDING_WORDING);
+
+    /** What opens a text the LLM found, plain or emphasized, which the mark replaces. */
+    private static final java.util.regex.Pattern FOUND =
+        java.util.regex.Pattern.compile(
+            "^\\*?"
+                + java.util.regex.Pattern.quote(io.lantern.derive.Elements.FOUND_BY_LLM)
+                + "\\*?\\s*");
+
+    /** The text without its opening "Found by the LLM:", where the mark says it. */
+    private static String unmarked(String text) {
+      return FOUND.matcher(text).replaceFirst("");
+    }
+
     Mapping(Document document) {
       this.document = document;
       document.entities().forEach(e -> entities.put(e.id(), e));
       document.facts().forEach(f -> facts.put(f.id(), f));
     }
 
-    /** Whether there are facts and every one of them comes from the LLM. */
+    /**
+     * Whether the facts show something only the LLM found: leaving out what an LLM role only
+     * worded, there are facts, and every one comes from the LLM (#749).
+     */
     private boolean foundByLlm(Collection<String> ids) {
-      return !ids.isEmpty()
-          && ids.stream()
-              .allMatch(
-                  id -> facts.containsKey(id) && facts.get(id).origin().kind() == Origin.Kind.LLM);
+      List<Fact> evidence = new ArrayList<>();
+      for (String id : ids) {
+        Fact fact = facts.get(id);
+        if (fact == null) {
+          return false;
+        }
+        if (!(fact.origin().kind() == Origin.Kind.LLM && WORDINGS.contains(fact.predicate()))) {
+          evidence.add(fact);
+        }
+      }
+      return !evidence.isEmpty()
+          && evidence.stream().allMatch(f -> f.origin().kind() == Origin.Kind.LLM);
     }
 
     Result run() {
@@ -656,13 +695,17 @@ public final class C4ReportRenderer {
       if (element.technology != null) {
         node.put("technology", element.technology);
       }
+      Set<String> cited = new HashSet<>(entity.facts());
+      cited.addAll(element.facts);
+      boolean llm = foundByLlm(cited);
       String description = plain(entity.description());
+      if (llm) {
+        description = unmarked(description);
+      }
       if (!description.isBlank()) {
         node.put("description", description);
       }
-      Set<String> cited = new HashSet<>(entity.facts());
-      cited.addAll(element.facts);
-      if (foundByLlm(cited)) {
+      if (llm) {
         node.put("llm", true);
       }
       return node;
@@ -777,11 +820,17 @@ public final class C4ReportRenderer {
       ArrayNode rows = node.putArray("rows");
       List<Integer> llmRows = new ArrayList<>();
       for (Table.Row row : table.rows()) {
-        if (foundByLlm(row.facts())) {
+        boolean llm = foundByLlm(row.facts());
+        if (llm) {
           llmRows.add(rows.size());
         }
         ArrayNode cells = rows.addArray();
-        row.cells().forEach(cell -> cells.add(oneLine(markdown(cell))));
+        row.cells()
+            .forEach(
+                cell -> {
+                  String text = oneLine(markdown(cell));
+                  cells.add(llm ? unmarked(text) : text);
+                });
       }
       if (!llmRows.isEmpty()) {
         ArrayNode marked = node.putArray("llmRows");
@@ -955,6 +1004,11 @@ public final class C4ReportRenderer {
         }
         if (foundByLlm(edge.facts())) {
           relationship.put("llm", true);
+          if (label != null && !unmarked(label).isBlank()) {
+            relationship.put("label", unmarked(label));
+          } else if (label != null) {
+            relationship.remove("label");
+          }
         }
         related.add(edge.from());
         related.add(edge.to());

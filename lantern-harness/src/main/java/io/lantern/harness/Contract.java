@@ -85,6 +85,7 @@ public final class Contract {
   private final List<String> prompts;
   private final Map<String, Field> fields;
   private final Map<String, Range> counts;
+  private final Map<String, List<String>> lists;
 
   private Contract(String role, JsonNode json) {
     this.role = role;
@@ -117,6 +118,24 @@ public final class Contract {
       limits.put(name, accepted(c, range(c.get("requested"), role, name), 0, role, name));
     }
     this.counts = Map.copyOf(limits);
+    Map<String, List<String>> named = new LinkedHashMap<>();
+    json.path("lists")
+        .properties()
+        .forEach(
+            e -> {
+              List<String> values = new ArrayList<>();
+              e.getValue().forEach(v -> values.add(v.asString()));
+              named.put(e.getKey(), List.copyOf(values));
+            });
+    this.lists = Map.copyOf(named);
+  }
+
+  /**
+   * A named list of the contract, such as the infrastructure Investigate proposes no connection to
+   * (#749); empty if the contract has none by that name.
+   */
+  public List<String> list(String name) {
+    return lists.getOrDefault(name, List.of());
   }
 
   /** A {@code [min, max]} pair of the contract as a range, or {@code null} if it has none. */

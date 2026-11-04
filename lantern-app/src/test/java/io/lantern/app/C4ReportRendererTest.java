@@ -243,6 +243,101 @@ class C4ReportRendererTest {
     assertThat(data.get("elements").valueStream()).noneMatch(e -> e.has("llm"));
   }
 
+  private static io.lantern.core.fact.Fact fact(
+      EntityId subject,
+      String predicate,
+      io.lantern.core.fact.FactObject object,
+      io.lantern.core.fact.Origin.Kind kind) {
+    return io.lantern.core.fact.Fact.create(
+        subject,
+        predicate,
+        object,
+        io.lantern.core.fact.FactJson.newObject(),
+        new io.lantern.core.fact.Origin(kind, "test", "1"),
+        io.lantern.core.fact.Evidence.of(
+            new io.lantern.core.fact.Evidence.Location(
+                "shop",
+                "pom.xml",
+                null,
+                "a".repeat(40),
+                null,
+                io.lantern.core.fact.Evidence.Role.DECLARED)),
+        1.0,
+        io.lantern.core.fact.Validity.from(1));
+  }
+
+  @Test
+  void marksWhatTheLlmFoundOnceAndNotWhatItOnlyWorded() {
+    var llm = io.lantern.core.fact.Origin.Kind.LLM;
+    EntityId system = EntityId.parse("system:snapshot");
+    EntityId unit = EntityId.parse("service:shop");
+    EntityId loki = EntityId.parse("external-system:loki");
+    var purpose = fact(system, "purpose", io.lantern.core.fact.FactObject.string("system"), llm);
+    var kind =
+        fact(
+            unit,
+            "packaging",
+            io.lantern.core.fact.FactObject.string("jar"),
+            io.lantern.core.fact.Origin.Kind.STATIC);
+    var found =
+        fact(unit, "INVESTIGATED_CONNECTION", io.lantern.core.fact.FactObject.entity(loki), llm);
+    var responsibility =
+        fact(loki, "responsibility", io.lantern.core.fact.FactObject.string("c4"), llm);
+    Diagram diagram =
+        new Diagram(
+            "containers.diagram",
+            Diagram.Kind.C4_CONTAINER,
+            null,
+            List.of(node(system), node(unit, system), node(loki)),
+            List.of(
+                new Diagram.Edge(
+                    "e1",
+                    unit,
+                    loki,
+                    "Found by the LLM: Pushes logs",
+                    null,
+                    null,
+                    List.of(),
+                    List.of(found.id()))),
+            List.of());
+    Document document =
+        new Document(
+            "shop.c4",
+            "shop",
+            null,
+            AnalysisRun.C4_REPORT,
+            new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
+            List.of(
+                new DocumentEntity(
+                    system,
+                    "Shop",
+                    null,
+                    List.of(TextRun.of("Sells books.")),
+                    List.of(purpose.id())),
+                new DocumentEntity(unit, "shop", system, List.of(), List.of(kind.id())),
+                new DocumentEntity(
+                    loki,
+                    "loki",
+                    null,
+                    List.of(TextRun.of("Found by the LLM: Keeps the shop's logs.")),
+                    List.of(responsibility.id(), found.id()))),
+            List.of(purpose, kind, found, responsibility),
+            List.of(section("containers", null, List.of(diagram), List.of())));
+
+    JsonNode data = C4ReportRenderer.toJson(document).data();
+
+    // The system's purpose is the LLM's wording, not its finding: no mark.
+    assertThat(data.get("elements").get("system-snapshot").has("llm")).isFalse();
+    assertThat(data.get("elements").get("service-shop").has("llm")).isFalse();
+    // What only Investigate found is marked, Describe's sentence or not, and says so once.
+    JsonNode box = data.get("elements").get("external-system-loki");
+    assertThat(box.get("llm").asBoolean()).isTrue();
+    assertThat(box.get("description").asString()).isEqualTo("Keeps the shop's logs.");
+    JsonNode line = data.findValues("relationships").getFirst().get(0);
+    assertThat(line.get("llm").asBoolean()).isTrue();
+    assertThat(line.get("label").asString()).isEqualTo("Pushes logs");
+  }
+
   @Test
   void drawsEachElementAsTheKindTheComposerResolvedWithoutKnowingItsType() {
     // Types the renderer has never heard of: what they are is the composer's to say (ADR 0114).

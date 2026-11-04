@@ -1099,6 +1099,53 @@ class InvestigatorTest {
   }
 
   @Test
+  void aConnectionToTracingLoggingOrConfigInfrastructureIsRejected() {
+    headerLead();
+    String tracing =
+        """
+        {"kind": "connection", "from": "service:g:files", "to": "external-system:zipkin",
+         "interaction": "http", "description": "Exports distributed tracing spans",
+         "names": ["s3.example.com"], "cites": ["fs:src/main/java/f/StorageClient.java:3-3"]}""";
+    FakeLlmProvider fake = submitting(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? tracing : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.INVESTIGATED_CONNECTION)).isEmpty();
+    assertThat(
+            fake.sent().stream()
+                .map(c -> c.request())
+                .filter(r -> unit(r, FILES_UNIT) && turn(r) == 2)
+                .findFirst()
+                .orElseThrow()
+                .messages()
+                .getLast()
+                .toolResults()
+                .getLast()
+                .content())
+        .contains("Connects to infrastructure (tracing)");
+    // The named list is the contract's: logging, metrics, registries and config servers too.
+    assertThat(InvestigateRole.Proposals.infrastructure("external-system:loki Pushes logs"))
+        .isEqualTo("loki");
+    assertThat(InvestigateRole.Proposals.infrastructure("service:g:config-server Reads settings"))
+        .isEqualTo("config-server");
+    // Business connections that share a word with infrastructure pass.
+    assertThat(InvestigateRole.Proposals.infrastructure("external-system:s3 Stores uploads"))
+        .isNull();
+    assertThat(
+            InvestigateRole.Proposals.infrastructure(
+                "database:audit Stores audit logs of each order"))
+        .isNull();
+    assertThat(
+            InvestigateRole.Proposals.infrastructure(
+                "external-system:schema-registry Checks each event's schema kafka"))
+        .isNull();
+    assertThat(
+            InvestigateRole.Proposals.infrastructure(
+                "service:g:metrics Reports sales metrics to managers"))
+        .isNull();
+  }
+
+  @Test
   void aRiskThatRestatesAStaticFindingIsItsWording() {
     headerLead("plaintext-secret");
     ObjectNode raised = FactJson.newObject();
