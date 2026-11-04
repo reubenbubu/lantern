@@ -489,7 +489,6 @@ final class HttpLinker {
             facts));
   }
 
-  /** The attributes every HTTP link has: the call's client, method, path and URL, and its code. */
   /** A call's method and path, or its URL when it has no path. */
   private static String request(Call call, ObjectNode attributes) {
     String where =
@@ -499,6 +498,7 @@ final class HttpLinker {
     return call.httpMethod() == null ? where : call.httpMethod() + " " + where;
   }
 
+  /** The attributes every HTTP link has: the call's client, method, path and URL, and its code. */
   private static ObjectNode common(Call call) {
     ObjectNode attributes = FactJson.newObject();
     Fact fact = call.fact();
