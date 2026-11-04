@@ -26,11 +26,11 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The support judge (knowledge-build epic, section 11.7; ADR 0101): a model of another tier splits
- * an accepted text into atomic claims and says whether the inputs the text cites support each. It
- * checks a deterministic 10% sample, the texts whose judge item's fingerprint read as a number is
- * divisible by 10, plus any text it is told to check regardless. It is never a gate: a verdict only
- * marks a text, it never drops one.
+ * The support judge (knowledge-build epic, section 11.7; ADR 0101): a model on the high-volume tier
+ * splits an accepted text into atomic claims and says whether the inputs the text cites support
+ * each. It checks a deterministic 10% sample, the texts whose judge item's fingerprint read as a
+ * number is divisible by 10, plus any text it is told to check regardless. It is never a gate: a
+ * verdict only marks a text, it never drops one.
  */
 public final class SupportJudge {
 
@@ -119,23 +119,42 @@ public final class SupportJudge {
    *     none
    */
   public Map<String, Support> judge(List<Text> texts, Set<String> always) {
+    return judge(Map.of("", texts), always);
+  }
+
+  /**
+   * Judges the sampled texts of each group and those whose key is in {@code always}, each group in
+   * requests of its own: at most 10 items of one role a request (knowledge-build epic, section
+   * 11.7).
+   *
+   * @param byGroup the texts by the role that wrote them; keys unique across groups
+   * @return the verdict of each text judged, by key
+   */
+  public Map<String, Support> judge(Map<String, List<Text>> byGroup, Set<String> always) {
     RoleSession session = harness.session(ROLE);
-    List<Item> items = new ArrayList<>();
-    for (Text text : texts) {
-      Item item = item(text);
-      if (!text.cited().isEmpty()
-          && (always.contains(text.key()) || sampled(session.sampleFingerprint(item)))) {
-        items.add(item);
-      }
-    }
+    Map<String, List<Item>> items = new java.util.TreeMap<>();
+    List<Item> all = new ArrayList<>();
+    byGroup.forEach(
+        (group, texts) -> {
+          for (Text text : texts) {
+            Item item = item(text);
+            if (!text.cited().isEmpty()
+                && (always.contains(text.key()) || sampled(session.sampleFingerprint(item)))) {
+              items.computeIfAbsent(group, g -> new ArrayList<>()).add(item);
+              all.add(item);
+            }
+          }
+        });
     Map<String, Support> verdicts = new LinkedHashMap<>();
-    if (items.isEmpty()) {
+    if (all.isEmpty()) {
       return verdicts;
     }
-    session.plan(items, io.lantern.llm.Tokens.estimate(CommonPrompt.SYSTEM + TASK));
-    Map<String, Outcome> outcomes = session.askPackets(items, PACKETS);
-    outcomes.forEach(
-        (key, outcome) -> support(outcome).ifPresent(support -> verdicts.put(key, support)));
+    session.plan(all, io.lantern.llm.Tokens.estimate(CommonPrompt.SYSTEM + TASK));
+    for (List<Item> group : items.values()) {
+      Map<String, Outcome> outcomes = session.askPackets(group, PACKETS);
+      outcomes.forEach(
+          (key, outcome) -> support(outcome).ifPresent(support -> verdicts.put(key, support)));
+    }
     return verdicts;
   }
 

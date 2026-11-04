@@ -524,6 +524,7 @@ public final class AnalysisRun {
               .withMaskedValues(secrets::add);
       Describer.Result described =
           new Describer(harness, allSources)
+              .judgedLater()
               .describe(systemFacts, extracted, summarized.summaries());
       // What Describe wrote is stored as claims of origin llm before anything is composed
       // (knowledge-build epic, section 6, Derived and LLM facts).
@@ -554,7 +555,18 @@ public final class AnalysisRun {
       }
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
-      screen(harness, snapshot);
+      List<Fact> flagged = screen(harness, snapshot);
+      // Then the support judge checks what every role stored: each Investigate risk, each text
+      // resting on a range the screen flagged, and a 10% sample of the rest (knowledge-build epic,
+      // section 11.7; ADR 0101, amendment for #751). A verdict marks a text, never drops it.
+      io.lantern.summarize.SupportChecks.Result support =
+          new io.lantern.summarize.SupportChecks(harness, allSources, snapshot.commits())
+              .judge(facts.findValidAt(snapshot.number(), snapshot.commits().keySet()), flagged);
+      recordLlmFacts(snapshot, support.byOrigin());
+      LOG.info(
+          "Support judge: {} texts judged; verdicts by role {}",
+          support.judged(),
+          support.counts());
       // Every item a role did not ask about, or got no answer for, is stored, so the unknowns page
       // lists it (#741); the next run asks again and ends the fact.
       recordLlmFacts(snapshot, Map.of(NOT_ASKED_ORIGIN, notAsked(harness.records(), snapshot)));
@@ -616,16 +628,16 @@ public final class AnalysisRun {
           throw new java.io.UncheckedIOException(e);
         }
       }
-      Path runRecord =
-          RunRecord.write(
-              out,
-              RunRecord.of(
-                  system,
-                  snapshot.number(),
-                  llm.models(),
-                  callLog.spentByModelSince(started),
-                  callLog.conversationsSince(started),
-                  harness.records()));
+      tools.jackson.databind.node.ObjectNode record =
+          RunRecord.of(
+              system,
+              snapshot.number(),
+              llm.models(),
+              callLog.spentByModelSince(started),
+              callLog.conversationsSince(started),
+              harness.records());
+      RunRecord.withSupport(record, support.counts());
+      Path runRecord = RunRecord.write(out, record);
       LOG.info("Wrote {}", runRecord);
       LOG.info("Wrote {}", Rejections.write(out, harness.rejections()));
       // The values the Secrets check looked for, counted, never written (#645).
