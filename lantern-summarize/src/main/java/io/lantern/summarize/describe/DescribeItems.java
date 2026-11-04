@@ -8,6 +8,7 @@ import io.lantern.derive.Components;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.UnitInteractions;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Item;
 import io.lantern.harness.render.Blocks;
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -61,8 +61,7 @@ public final class DescribeItems {
   private final Set<Fact> alternatives;
   private final Function<Evidence, Optional<String>> files;
   private final Map<EntityId, Summary> summaries;
-  private Map<EntityId, List<Elements.Line>> otherLines;
-  private Set<EntityId> unitsAndFrontends;
+  private final UnitInteractions interactions;
 
   DescribeItems(
       Knowledge knowledge,
@@ -74,6 +73,7 @@ public final class DescribeItems {
     this.assembler = assembler;
     this.elements = elements;
     this.alternatives = elements.alternativeLinks().keySet();
+    this.interactions = new UnitInteractions(knowledge, elements, FactLines::sorted);
     this.files = files;
     this.summaries = summaries;
   }
@@ -304,153 +304,75 @@ public final class DescribeItems {
   }
 
   /**
-   * The unit's interactions: its links to other containers, every other line of the diagrams it
-   * holds (#738), the lines between its components, and the people who use it.
+   * The unit's interactions, as {@link UnitInteractions} holds them: its links to other containers,
+   * every other line of the diagrams it holds (#738), its other interactions with units, the lines
+   * between its components, and the people who use it.
    */
   private List<Interaction> interactions(EntityId unit, List<ComponentShown> components) {
-    List<Interaction> result = new ArrayList<>();
-    Set<Fact> asked = new java.util.HashSet<>();
-    for (String predicate : Describer.LINKS) {
-      for (Fact link : FactLines.sorted(knowledge.relations(unit, predicate))) {
-        if (alternatives.contains(link)) {
-          continue;
-        }
-        EntityId other = Knowledge.object(link);
-        asked.add(link);
-        result.add(
-            new Interaction(
-                unit,
-                Describer.verb(predicate)
-                    + ' '
-                    + FactLines.oneLine(assembler.name(other))
-                    + " ("
-                    + WordingPrompt.kind(other)
-                    + ")",
-                link));
-      }
-    }
-    for (Elements.Line line : otherLines().getOrDefault(unit, List.of())) {
-      // Every interaction a line draws, not only its first: each is counted on its own.
-      for (Fact fact : line.facts()) {
-        if ((fact == line.facts().getFirst()
-                || elements.vocabulary().isA(fact.predicate(), Types.INTERACTS_WITH))
-            && asked.add(fact)) {
-          result.add(otherInteraction(unit, line, fact));
-        }
-      }
-    }
-    // Every other interaction between two units or frontends, which the flows draw: messages one
-    // sends that reach a listener of another, through a queue or topic.
-    for (Fact link : FactLines.sorted(knowledge.about(unit))) {
-      if (Knowledge.isEntity(link)
-          && elements.vocabulary().isA(link.predicate(), Types.INTERACTS_WITH)
-          && !alternatives.contains(link)
-          && unitsAndFrontends().contains(Knowledge.object(link))
-          && !Knowledge.object(link).equals(unit)
-          && asked.add(link)) {
-        EntityId other = Knowledge.object(link);
-        EntityId through = destination(link);
-        result.add(
-            new Interaction(
-                unit,
-                (!link.predicate().equals(Types.SENDS_MESSAGES_TO)
-                        ? "interacts with"
-                        : through == null
-                            ? "sends messages, through a queue or topic, to"
-                            : "sends messages, through "
-                                + FactLines.oneLine(assembler.name(through))
-                                + " ("
-                                + WordingPrompt.kind(through)
-                                + "), to")
-                    + ' '
-                    + FactLines.oneLine(assembler.name(other))
-                    + " ("
-                    + WordingPrompt.kind(other)
-                    + ")",
-                link));
-      }
-    }
     Map<EntityId, String> componentNames = new TreeMap<>(Knowledge.BY_ID);
     components.forEach(c -> componentNames.put(c.entity(), c.name()));
-    for (ComponentShown component : components) {
-      for (Fact line :
-          FactLines.sorted(knowledge.relations(component.entity(), Types.COMPONENT_LINK))) {
-        if ("code-end".equals(Elements.attribute(line, "kind", ""))) {
-          continue;
+    List<Interaction> result = new ArrayList<>();
+    for (UnitInteractions.Held held : interactions.of(unit)) {
+      Fact fact = held.fact();
+      switch (held.kind()) {
+        case LINK ->
+            result.add(
+                new Interaction(
+                    unit,
+                    Describer.verb(fact.predicate())
+                        + ' '
+                        + FactLines.oneLine(assembler.name(held.to()))
+                        + " ("
+                        + WordingPrompt.kind(held.to())
+                        + ")",
+                    fact));
+        case LINE -> result.add(otherInteraction(unit, held.line(), fact));
+        case UNIT_LINK -> {
+          EntityId through = destination(fact);
+          result.add(
+              new Interaction(
+                  unit,
+                  (!fact.predicate().equals(Types.SENDS_MESSAGES_TO)
+                          ? "interacts with"
+                          : through == null
+                              ? "sends messages, through a queue or topic, to"
+                              : "sends messages, through "
+                                  + FactLines.oneLine(assembler.name(through))
+                                  + " ("
+                                  + WordingPrompt.kind(through)
+                                  + "), to")
+                      + ' '
+                      + FactLines.oneLine(assembler.name(held.to()))
+                      + " ("
+                      + WordingPrompt.kind(held.to())
+                      + ")",
+                  fact));
         }
-        String other = componentNames.get(Knowledge.object(line));
-        if (other == null) {
-          continue;
+        case COMPONENT_LINK -> {
+          String name = componentNames.get(held.from());
+          String other = componentNames.get(held.to());
+          if (name != null && other != null) {
+            result.add(
+                new Interaction(
+                    held.from(),
+                    FactLines.oneLine(name)
+                        + ' '
+                        + Elements.attribute(fact, "kind", "calls")
+                        + ' '
+                        + FactLines.oneLine(other)
+                        + " (a component)",
+                    fact));
+          }
         }
-        result.add(
-            new Interaction(
-                component.entity(),
-                FactLines.oneLine(component.name())
-                    + ' '
-                    + Elements.attribute(line, "kind", "calls")
-                    + ' '
-                    + FactLines.oneLine(other)
-                    + " (a component)",
-                line));
+        case PERSON ->
+            result.add(
+                new Interaction(
+                    held.from(),
+                    FactLines.oneLine(assembler.name(held.from())) + " uses it (a person)",
+                    fact));
+        case DATA_ACCESS -> {}
       }
     }
-    SortedMap<EntityId, Fact> people = elements.people();
-    String unitName = assembler.name(unit);
-    for (Map.Entry<EntityId, Fact> person : people.entrySet()) {
-      if (Elements.strings(person.getValue(), "frontends").contains(unitName)) {
-        result.add(
-            new Interaction(
-                person.getKey(),
-                FactLines.oneLine(assembler.name(person.getKey())) + " uses it (a person)",
-                person.getValue()));
-      }
-    }
-    return result;
-  }
-
-  /**
-   * Every line of the diagrams that Describe's fixed links leave out, other than a person's, by the
-   * unit or frontend whose item asks about it (#738, ADR 0103): what Investigate found, a unit's
-   * other interactions, the unknown caller's lines and routes between exchanges and queues. A line
-   * is held by the end its link starts from when that end runs code, else by the other end; a route
-   * between two destinations by the first unit, in ID order, with a line to either of its ends.
-   */
-  private Map<EntityId, List<Elements.Line>> otherLines() {
-    if (otherLines != null) {
-      return otherLines;
-    }
-    Set<EntityId> units = unitsAndFrontends();
-    Map<EntityId, List<Elements.Line>> result = new LinkedHashMap<>();
-    List<Elements.Line> lines = elements.lines();
-    for (Elements.Line line : lines) {
-      if (Describer.LINKS.contains(line.relationship())
-          || line.from().type().equals(Types.PERSON)
-          || line.facts().isEmpty()) {
-        continue;
-      }
-      EntityId owner =
-          units.contains(line.facts().getFirst().subject())
-              ? line.facts().getFirst().subject()
-              : units.contains(line.from())
-                  ? line.from()
-                  : units.contains(line.to()) ? line.to() : null;
-      if (owner == null) {
-        owner =
-            lines.stream()
-                .filter(
-                    l ->
-                        Set.of(line.from(), line.to()).contains(l.to())
-                            || Set.of(line.from(), line.to()).contains(l.from()))
-                .flatMap(l -> java.util.stream.Stream.of(l.from(), l.to()))
-                .filter(units::contains)
-                .min(Knowledge.BY_ID)
-                .orElse(null);
-      }
-      if (owner != null) {
-        result.computeIfAbsent(owner, u -> new ArrayList<>()).add(line);
-      }
-    }
-    otherLines = result;
     return result;
   }
 
@@ -467,18 +389,7 @@ public final class DescribeItems {
     }
   }
 
-  /** The units and frontends, which Describe has an item for. */
-  private Set<EntityId> unitsAndFrontends() {
-    if (unitsAndFrontends == null) {
-      Set<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
-      result.addAll(Elements.units(knowledge));
-      result.addAll(Elements.frontends(knowledge));
-      unitsAndFrontends = result;
-    }
-    return unitsAndFrontends;
-  }
-
-  /** How one of the {@link #otherLines()} reads in the item of the unit that holds it. */
+  /** How another line of the diagrams reads in the item of the unit that holds it. */
   private Interaction otherInteraction(EntityId unit, Elements.Line line, Fact fact) {
     String plain =
         switch (line.relationship()) {
