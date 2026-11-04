@@ -1,6 +1,9 @@
 package io.lantern.harness.render;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The tagged blocks of a prompt (knowledge-build epic, section 11.0): {@code <facts>}, {@code
@@ -9,7 +12,39 @@ import java.util.List;
  */
 public final class Blocks {
 
+  /**
+   * The tags whose content is data, opening or closing: the blocks above and the screen's chunks.
+   */
+  private static final Pattern DATA_TAG =
+      Pattern.compile("<(/?)(facts|code|summaries|answers|items|chunk)(?=[\\s>])[^>]*>");
+
   private Blocks() {}
+
+  /**
+   * Where the text occurs in the prompt outside every data block (#768): each occurrence's index,
+   * empty when every one sits inside {@code <facts>}, {@code <code>}, {@code <summaries>}, {@code
+   * <answers>}, {@code <items>} or {@code <chunk>}. Text the repositories hold must never stand
+   * outside them, where the model could take it for an instruction.
+   */
+  public static List<Integer> outsideData(String prompt, String text) {
+    List<Integer> outside = new ArrayList<>();
+    if (text.isEmpty()) {
+      return outside;
+    }
+    Matcher tags = DATA_TAG.matcher(prompt);
+    int depth = 0;
+    int from = 0;
+    for (int at = prompt.indexOf(text); at >= 0; at = prompt.indexOf(text, at + 1)) {
+      while (tags.find(from) && tags.start() < at) {
+        depth = Math.max(0, depth + (tags.group(1).isEmpty() ? 1 : -1));
+        from = tags.end();
+      }
+      if (depth == 0) {
+        outside.add(at);
+      }
+    }
+    return outside;
+  }
 
   /** A block of lines in the given tag; empty when there are none. */
   public static String tagged(String tag, List<String> lines) {
