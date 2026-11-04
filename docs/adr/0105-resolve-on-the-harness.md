@@ -120,3 +120,17 @@ A datasource is placed from its unit's configuration (address resolution, #596),
 one leaves no open link with candidates to pick from, so there is nothing to ask. When a linker stores open links to data
 sources with candidates, the issue that adds them also adds them to Resolve's questions, with a
 test.
+
+## Amendment (#734): the links the row cannot judge, apart
+
+The scorecard's Resolve row (ADR 0072) used to count three kinds of link as "not asked": a link
+the role did not ask (budget, a model without tool use), one whose request failed, and one that
+was never an item (it had no candidate). It now counts them apart. `run.json` lists each role's
+failed items as `failedSubjects`, beside `unaskedSubjects`, which still holds both the unasked and
+the failed ones. None of the three is judged, so coverage, accuracy and the penalized score are
+unchanged; the row says "N not asked; N failed; N never an item". An older `run.json` without
+`failedSubjects` counts its failed links as not asked, as before.
+
+The cases in project-0 with an answer for each outcome (picks one, abstains, unknown) and the row
+from a real run are the rest of #734.
+

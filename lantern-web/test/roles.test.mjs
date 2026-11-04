@@ -75,7 +75,9 @@ test('Resolve: a pick is right or wrong, an unknown abstention is right, a pick 
   assert.equal(row.correct, 3); // L1, L3 abstained where the key says unknown, L8 one of two
   assert.equal(row.wrong, 2); // L2 picked the other, L4 picked where the key says unknown
   assert.equal(row.abstained, 1); // L5
-  assert.equal(row.notAsked, 2); // L6 has no candidates, L7 was not asked for budget
+  assert.equal(row.notAsked, 1); // L7 was not asked for budget
+  assert.equal(row.notItems, 1); // L6 has no candidates, so it was never an item
+  assert.equal(row.failed, 0);
   assert.equal(row.penalty, 3);
   assert.equal(row.penalized, (3 - 3 * 2) / 6);
   // Picks: L1, L2, L4 and L8; L3's right abstention is no answer.
@@ -267,18 +269,23 @@ for (const set of readdirSync(testsets).filter((s) => existsSync(`${testsets}${s
   });
 }
 
-test('Resolve: a failed link is not asked, a cached one without a pick is an abstention', () => {
+test('Resolve: a failed link is counted apart from not asked, a cached one without a pick is an abstention', () => {
   const key = {
     resolve: [
       { link: 'F', answer: 'service:a', candidates: ['service:a'] },
       { link: 'C', answer: 'service:a', candidates: ['service:a'] },
     ],
   };
-  // A failed item is listed as unasked only (RoleRecord), a cached one as cached.
-  const run = { harness: [{ role: 'resolve', items: { planned: 2 }, askedSubjects: [], unaskedSubjects: ['F'], cachedSubjects: ['C'] }] };
+  // A failed item is listed as unasked and as failed (RoleRecord), a cached one as cached.
+  const run = { harness: [{ role: 'resolve', items: { planned: 2 }, askedSubjects: [], unaskedSubjects: ['F'], failedSubjects: ['F'], cachedSubjects: ['C'] }] };
   const row = resolveRow(key, [], [], run);
-  assert.equal(row.notAsked, 1);
+  // Failed, counted apart from not asked (#734).
+  assert.equal(row.failed, 1);
+  assert.equal(row.notAsked, 0);
   assert.equal(row.abstained, 1);
+  // An older run.json with no failed list counts it as not asked.
+  const older = { harness: [{ ...run.harness[0], failedSubjects: undefined }] };
+  assert.equal(resolveRow(key, [], [], older).notAsked, 1);
 });
 
 test('Investigate: a wording of a fixed check\'s finding is of the key\'s category for its kind', () => {

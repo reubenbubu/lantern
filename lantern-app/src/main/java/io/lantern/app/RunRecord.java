@@ -153,6 +153,7 @@ final class RunRecord {
       ObjectNode entry = record.toJson();
       record.asked().stream().sorted().forEach(entry.putArray("askedSubjects")::add);
       record.unasked().stream().sorted().forEach(entry.putArray("unaskedSubjects")::add);
+      record.failed().stream().sorted().forEach(entry.putArray("failedSubjects")::add);
       record.reused().stream().sorted().forEach(entry.putArray("cachedSubjects")::add);
       // Why each item was asked rather than answered from the cache (#755).
       ArrayNode why = entry.putArray("askedWhy");

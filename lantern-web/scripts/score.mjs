@@ -893,6 +893,17 @@ function describeModelCell(m) {
   return `model: ${m.own}/${m.interactions} interactions a view can draw with their own intent (${percent(m.coverage)}), ${m.generic} generic, ${m.unknown} don't know, ${m.notAsked} not asked; penalized ${percent(m.penalized)} (p = ${m.penalty})`;
 }
 
+/** The items a row could not judge, apart: not asked, failed, never an item (#734); or empty. */
+const unjudged = (r) =>
+  [
+    r.notAsked ? `${r.notAsked} not asked` : '',
+    r.failed ? `${r.failed} failed` : '',
+    r.notItems ? `${r.notItems} never an item` : '',
+  ]
+    .filter(Boolean)
+    .map((part) => `; ${part}`)
+    .join('');
+
 /** Each row per role as one line of text: what it measured, or why it could not. */
 export function roleCells(roles) {
   if (!roles) return {};
@@ -902,8 +913,8 @@ export function roleCells(roles) {
   cell.Resolve = !r.measured
     ? why(r)
     : r.items === 0
-      ? `no items${r.notAsked ? `; ${r.notAsked} not asked` : ''}${r.note ? ` (${r.note})` : ''}`
-      : `${r.items} links: coverage ${percent(r.coverage)}, accuracy ${percent(r.accuracy)}, penalized ${percent(r.penalized)} (p = ${r.penalty}), over-abstention ${percent(r.overAbstention)}; ${r.notAsked} not asked`;
+      ? `no items${unjudged(r)}${r.note ? ` (${r.note})` : ''}`
+      : `${r.items} links: coverage ${percent(r.coverage)}, accuracy ${percent(r.accuracy)}, penalized ${percent(r.penalized)} (p = ${r.penalty}), over-abstention ${percent(r.overAbstention)}${unjudged(r) || '; 0 not asked'}`;
   const d = roles.describe;
   cell.Describe = !d.measured
     ? why(d)
