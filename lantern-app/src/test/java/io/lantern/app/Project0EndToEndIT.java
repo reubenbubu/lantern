@@ -373,16 +373,6 @@ class Project0EndToEndIT {
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));
   }
 
-  /**
-   * What is missing from where the LLM facts say they came from (#753, ADR 0124): the role and its
-   * prompt version, the model, the stored answer (a fingerprint the answer cache holds, of that
-   * role and model), whether it is evidenced or inferred, and the claims of the facts it cites, or
-   * the code it cites when it cites no fact; a resolved link's cited ranges lie in files its
-   * conversation read. A link the LLM resolved also cites the code it read, where it read any. The
-   * facts that say a unit was not investigated come from no answer, as no request was made for
-   * them, and so do the leads not asked. The answer may be one the model left out or that was
-   * rejected: the cache holds those too.
-   */
   /** A lead item of Investigate's first turn: its ID and its text. */
   private static final java.util.regex.Pattern LEAD_ITEM =
       java.util.regex.Pattern.compile(
@@ -504,6 +494,16 @@ class Project0EndToEndIT {
                         .anyMatch(m -> m.text().contains(PLANTED_KEY + "=******")));
   }
 
+  /**
+   * What is missing from where the LLM facts say they came from (#753, ADR 0124): the role and its
+   * prompt version, the model, the stored answer (a fingerprint the answer cache holds, of that
+   * role and model), whether it is evidenced or inferred, and the claims of the facts it cites, or
+   * the code it cites when it cites no fact; a resolved link's cited ranges lie in files its
+   * conversation read. A link the LLM resolved also cites the code it read, where it read any. The
+   * facts that say a unit was not investigated come from no answer, as no request was made for
+   * them, and so do the leads not asked. The answer may be one the model left out or that was
+   * rejected: the cache holds those too.
+   */
   private List<String> llmProvenanceProblems(List<Fact> held) {
     List<String> problems = new ArrayList<>();
     Set<String> checkedKinds = new java.util.TreeSet<>();
