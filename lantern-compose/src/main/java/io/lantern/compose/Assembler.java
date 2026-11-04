@@ -441,6 +441,11 @@ final class Assembler {
     return phrased(model.intent(link).orElse(null));
   }
 
+  /** The intent Describe stored for a person's use of a frontend, or {@code null} (#739). */
+  Phrased personPhrase(Fact basis, EntityId frontend) {
+    return phrased(model.personIntent(basis, frontend).orElse(null));
+  }
+
   /**
    * The intent Name groups stored for a line leaving a group (ADR 0107), and the facts it cites
    * that are in the snapshot, or {@code null} if it stored none.

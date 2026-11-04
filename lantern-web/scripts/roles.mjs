@@ -386,6 +386,13 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
           : related(r.from, w.source) && related(r.to, w.target),
     );
   };
+  // Whether a link running between the line's ends has a stored intent, whatever it says (#739).
+  const intended = (r) =>
+    worded.some((w) =>
+      w.consumes
+        ? MESSAGING_KINDS.has(report.elements[r.from]?.kind) && related(r.to, w.source)
+        : related(r.from, w.source) && related(r.to, w.target),
+    );
   const lines = new Map();
   for (const page of report.pages) {
     for (const section of page.sections) {
@@ -394,13 +401,18 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
         if (report.elements[r.from]?.kind === 'person') continue;
         const key = `${r.from}->${r.to}`;
         const own = ownLink(r);
-        const was = lines.get(key) ?? { own: false, generic: true };
-        lines.set(key, { own: was.own || own, generic: was.generic && !own && isGenericLabel(r.label) });
+        const was = lines.get(key) ?? { own: false, generic: true, intended: false };
+        lines.set(key, {
+          own: was.own || own,
+          generic: was.generic && !own && isGenericLabel(r.label),
+          intended: was.intended || intended(r),
+        });
       }
     }
   }
   const drawnOwn = [...lines.values()].filter((l) => l.own).length;
   const drawnGeneric = [...lines.values()].filter((l) => !l.own && l.generic).length;
+  const genericWithIntent = [...lines.values()].filter((l) => !l.own && l.generic && l.intended).length;
   for (const [key, l] of lines) scores[`line:${key}`] = l.own ? 1 : 0;
   return {
     measured: true,
@@ -414,6 +426,7 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
       lines: lines.size,
       own: drawnOwn,
       generic: drawnGeneric,
+      genericWithIntent,
       other: lines.size - drawnOwn - drawnGeneric,
       coverage: ratio(drawnOwn, lines.size),
     },
