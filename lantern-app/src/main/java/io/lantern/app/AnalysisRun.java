@@ -309,6 +309,22 @@ public final class AnalysisRun {
       documents = List.copyOf(documents);
       secrets = Set.copyOf(secrets);
     }
+
+    /** The run in brief, the secret values counted, never shown, so logging it leaks none. */
+    @Override
+    public String toString() {
+      return "Result[system="
+          + system
+          + ", snapshot="
+          + snapshot.number()
+          + ", facts="
+          + facts
+          + ", documents="
+          + documents.size()
+          + ", secrets="
+          + secrets.size()
+          + " values]";
+    }
   }
 
   /**
