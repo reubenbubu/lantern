@@ -9,7 +9,6 @@ import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
-import io.lantern.core.document.ListBlock;
 import io.lantern.core.document.Metrics;
 import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
@@ -353,14 +352,9 @@ class C4ViewsTest {
 
     assertThat(edges(diagram))
         .contains("topic:kafka:orders -> service:com.example:worker: Delivers messages [Kafka]");
-    // The system's purpose, unknown without the LLM's wording (ADR 0060), then its repositories.
-    assertThat(section(document, "overview").blocks()).hasSize(2);
-    assertThat(section(document, "overview").blocks().getLast())
-        .satisfies(
-            b ->
-                assertThat(((ListBlock) b).items())
-                    .extracting(i -> text(i.content()))
-                    .containsExactly(": runs ", ": runs "));
+    // The system's purpose, unknown without the LLM's wording (ADR 0060); its repositories are
+    // named with their commits under the report's title, not listed here (#767).
+    assertThat(section(document, "overview").blocks()).hasSize(1);
     assertThat(section(document, "overview").entity()).isEqualTo(RepoSections.SYSTEM);
   }
 

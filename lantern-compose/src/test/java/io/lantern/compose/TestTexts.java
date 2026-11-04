@@ -105,11 +105,14 @@ final class TestTexts {
               if (cited.isEmpty()) {
                 return;
               }
+              // The basis as the roles store it: a README claim cited, or for an element's
+              // sentence code with Javadoc (Purpose and Describe, ADR 0059, ADR 0069).
+              boolean claim = cited.stream().anyMatch(f -> f.predicate().equals(Types.CLAIM));
               boolean evidenced =
-                  cited.stream().anyMatch(f -> wordings.documented().contains(f.id()));
+                  claim || cited.stream().anyMatch(f -> wordings.documented().contains(f.id()));
               Fact fact =
                   element.equals(RepoSections.SYSTEM)
-                      ? system(Types.PURPOSE, text(marked), cited, evidenced)
+                      ? system(Types.PURPOSE, text(marked), cited, claim)
                       : LlmFacts.text(
                           ROLE,
                           "test/test",
