@@ -479,10 +479,19 @@ class Project0EndToEndIT {
     repos.put(repo, clone);
     int sent = fake.sent().size();
 
-    run.run("project-0", null, repos);
+    AnalysisRun.Result result = run.run("project-0", null, repos);
 
     List<io.lantern.llm.LlmRequest> requests =
         fake.sent().subList(sent, fake.sent().size()).stream().map(s -> s.request()).toList();
+    // No request holds any value masking took out of any file, whichever role read it. A value
+    // common enough to occur in a request legitimately (a default such as "changeme") would fail
+    // this without a leak: look at which request holds it before loosening the check.
+    assertThat(result.secrets()).as("the run's secret values").contains(PLANTED_SECRET);
+    for (String secret : result.secrets()) {
+      assertThat(requests)
+          .as("requests holding a secret masking took out")
+          .noneMatch(r -> r.toString().contains(secret));
+    }
     // No request of the run, of any role, holds the planted secret.
     assertThat(requests)
         .as("requests holding the planted secret")

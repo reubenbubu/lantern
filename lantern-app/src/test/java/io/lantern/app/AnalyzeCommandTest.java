@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
 
@@ -231,7 +232,8 @@ class AnalyzeCommandTest {
         llm,
         List.of(),
         List.of(),
-        null);
+        null,
+        Set.of());
   }
 
   /** What a successful run with the given result prints. */

@@ -295,7 +295,8 @@ public final class AnalysisRun {
       JdbcLlmCallLog.Spending llm,
       List<io.lantern.harness.RoleRecord> roles,
       List<Rendered> documents,
-      Path runRecord) {
+      Path runRecord,
+      Set<String> secrets) {
 
     public Result {
       summariesRejected = List.copyOf(summariesRejected);
@@ -306,6 +307,23 @@ public final class AnalysisRun {
       codeNotAnalyzed.forEach((repo, kinds) -> code.put(repo, List.copyOf(kinds)));
       codeNotAnalyzed = Collections.unmodifiableMap(code);
       documents = List.copyOf(documents);
+      secrets = Set.copyOf(secrets);
+    }
+
+    /** The run in brief, the secret values counted, never shown, so logging it leaks none. */
+    @Override
+    public String toString() {
+      return "Result[system="
+          + system
+          + ", snapshot="
+          + snapshot.number()
+          + ", facts="
+          + facts
+          + ", documents="
+          + documents.size()
+          + ", secrets="
+          + secrets.size()
+          + " values]";
     }
   }
 
@@ -696,7 +714,8 @@ public final class AnalysisRun {
           callLog.spentSince(started),
           checked(harness.records()),
           documents,
-          runRecord);
+          runRecord,
+          harness.secrets());
     }
   }
 

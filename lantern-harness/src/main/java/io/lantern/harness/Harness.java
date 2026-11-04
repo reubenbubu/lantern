@@ -259,8 +259,11 @@ public final class Harness {
     return blobs;
   }
 
-  /** The values masking marked as secret so far, but those too short to look for. */
-  Set<String> secrets() {
+  /**
+   * The values masking marked as secret so far, but those too short to look for: what the Secrets
+   * check keeps out of every answer and record, and no request may hold (#751).
+   */
+  public Set<String> secrets() {
     Set<String> kept = new TreeSet<>();
     for (String secret : List.copyOf(secrets)) {
       if (secret.length() >= SHORTEST_SECRET) {

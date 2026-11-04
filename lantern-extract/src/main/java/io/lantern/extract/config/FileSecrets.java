@@ -57,11 +57,16 @@ public final class FileSecrets {
     return masked(path, content, Set.of());
   }
 
-  /** As {@link #masked(String, byte[])}, also masking values under the known secret keys. */
+  /**
+   * As {@link #masked(String, byte[])}, also masking values under the known secret keys, as the
+   * extractors name them or normalized: a key is matched normalized however a caller passes it
+   * (#751).
+   */
   public static String masked(String path, byte[] content, Set<String> secretKeys) {
     if (KEY_FILE.matcher(path).find()) {
       return null;
     }
+    secretKeys = ConfigExtractor.normalizedKeys(secretKeys);
     for (byte b : content) {
       if (b == 0) {
         return null;
