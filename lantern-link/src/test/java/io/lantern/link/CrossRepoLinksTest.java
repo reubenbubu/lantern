@@ -2657,6 +2657,35 @@ class CrossRepoLinksTest {
   }
 
   @Test
+  void eachRequestAFrontendMakesToOneTargetIsAClaimOfItsOwn() {
+    // The owner's choice on #810: each request gets its own intent, so each is its own claim.
+    unit("gw", "api-gateway", "api-gateway");
+    config("gw", "api-gateway", "application.yml", "server.port", "8080", null);
+    frontend("web", "");
+    frontendCall("frontend:web", "GET", "http://localhost:8080/api/tasks", null, 3);
+    frontendCall("frontend:web", "DELETE", "http://localhost:8080/api/tasks", null, 4);
+    frontendCall("frontend:web", "GET", "http://localhost:8080/api/users", null, 5);
+    // The same request from another line is the same claim.
+    frontendCall("frontend:web", "GET", "http://localhost:8080/api/tasks", null, 9);
+
+    Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
+    Map<String, java.util.Set<String>> claims = new java.util.TreeMap<>();
+    linked().stream()
+        .filter(f -> f.predicate().equals(Types.CALLS_HTTP))
+        .forEach(
+            f ->
+                claims
+                    .computeIfAbsent(vocabulary.claimId(f), c -> new java.util.TreeSet<>())
+                    .add(f.attributes().path("request").asString()));
+
+    assertThat(claims.values())
+        .containsExactlyInAnyOrder(
+            java.util.Set.of("GET /api/tasks"),
+            java.util.Set.of("DELETE /api/tasks"),
+            java.util.Set.of("GET /api/users"));
+  }
+
+  @Test
   void aFrontendsCallsToThisMachineReachTheUnitWhoseContainerPublishesThePort() {
     unit("gw", "api-gateway", "api-gateway");
     unit("auth", "auth-service", "auth-service");
@@ -2687,14 +2716,15 @@ class CrossRepoLinksTest {
         .containsExactlyInAnyOrder(
             "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
                 + "\"matchedBy\":\"published-port\",\"path\":\"/api/auth/sign-in\","
-                + "\"protocol\":\"JSON/HTTP\",\"url\":\"http://192.168.1.20:8080/api/auth/sign-in\"}"
+                + "\"protocol\":\"JSON/HTTP\",\"request\":\"POST /api/auth/sign-in\",\"url\":\"http://192.168.1.20:8080/api/auth/sign-in\"}"
                 + " 0.72",
             "frontend:web CALLS_HTTP service:g:api-gateway {\"matchedBy\":\"published-port\","
                 + "\"path\":\"/ws-notifications\",\"protocol\":\"WebSocket\","
+                + "\"request\":\"/ws-notifications\","
                 + "\"url\":\"http://localhost:8080/ws-notifications\"} 0.72",
             "frontend:web CALLS_HTTP external-system:maps.example.com {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"external\",\"path\":\"/tiles/{z}\",\"protocol\":\"HTTPS\","
-                + "\"url\":\"https://maps.example.com/tiles/{z}\"} 0.9");
+                + "\"request\":\"GET /tiles/{z}\",\"url\":\"https://maps.example.com/tiles/{z}\"} 0.9");
   }
 
   @Test
@@ -2754,7 +2784,7 @@ class CrossRepoLinksTest {
                 + "\"matchedBy\":\"port\",\"path\":\"/api/auth/sign-in\","
                 + "\"protocol\":\"JSON/HTTP\",\"reaches\":\"method:a.AuthController#signIn()\","
                 + "\"reachesEndpoint\":\"POST /api/auth/sign-in\","
-                + "\"reachesUnit\":\"service:g:auth-service\",\"throughRoute\":\"auth\","
+                + "\"reachesUnit\":\"service:g:auth-service\",\"request\":\"POST /api/auth/sign-in\",\"throughRoute\":\"auth\","
                 + "\"url\":\"http://localhost:8080/api/auth/sign-in\"} 0.72",
             "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
                 + "\"matchedBy\":\"port\",\"path\":\"/api/composite/tasks\","
@@ -2762,23 +2792,23 @@ class CrossRepoLinksTest {
                 + "\"reaches\":\"method:gw.CompositeController#tasks()\","
                 + "\"reachesEndpoint\":\"POST /api/composite/tasks\","
                 + "\"reachesUnit\":\"service:g:api-gateway\","
-                + "\"url\":\"http://localhost:8080/api/composite/tasks\"} 0.72",
+                + "\"request\":\"POST /api/composite/tasks\",\"url\":\"http://localhost:8080/api/composite/tasks\"} 0.72",
             "frontend:web CALLS_HTTP service:g:api-gateway {\"matchedBy\":\"port\","
                 + "\"path\":\"/socket/ws-notifications\",\"protocol\":\"WebSocket\","
                 + "\"reaches\":\"method:n.WsConfig#stomp()\","
                 + "\"reachesEndpoint\":\"/ws-notifications\","
                 + "\"reachesUnit\":\"service:g:notification-service\","
-                + "\"throughRoute\":\"notify\","
+                + "\"request\":\"/socket/ws-notifications\",\"throughRoute\":\"notify\","
                 + "\"url\":\"http://localhost:8080/socket/ws-notifications\"} 0.72",
             "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"port\",\"path\":\"/elsewhere\",\"protocol\":\"JSON/HTTP\","
-                + "\"url\":\"http://localhost:8080/elsewhere\"} 0.72",
+                + "\"request\":\"GET /elsewhere\",\"url\":\"http://localhost:8080/elsewhere\"} 0.72",
             "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"host\",\"navigation\":true,\"path\":\"/bff/login\","
                 + "\"protocol\":\"JSON/HTTP\","
                 + "\"proxy\":\"/bff/\",\"reaches\":\"method:b.BffController#login()\","
                 + "\"reachesEndpoint\":\"GET /bff/login\",\"reachesUnit\":\"service:g:bff\","
-                + "\"url\":\"http://bff:8090/bff/login\"} 0.81");
+                + "\"request\":\"GET /bff/login\",\"url\":\"http://bff:8090/bff/login\"} 0.81");
   }
 
   @Test
@@ -2808,9 +2838,9 @@ class CrossRepoLinksTest {
         .containsExactlyInAnyOrder(
             "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"host\",\"path\":\"/bff/api/orders\",\"protocol\":\"JSON/HTTP\","
-                + "\"proxy\":\"/bff/\",\"url\":\"http://bff:8081/bff/api/orders\"} 0.81",
+                + "\"proxy\":\"/bff/\",\"request\":\"GET /bff/api/orders\",\"url\":\"http://bff:8081/bff/api/orders\"} 0.81",
             "frontend:shop/web-ui CALLS_HTTP service:g:files {\"matchedBy\":\"host\","
-                + "\"protocol\":\"JSON/HTTP\",\"proxy\":\"/media/\",\"url\":\"http://files:8080\"}"
+                + "\"protocol\":\"JSON/HTTP\",\"proxy\":\"/media/\",\"request\":\"http://files:8080\",\"url\":\"http://files:8080\"}"
                 + " 0.81");
     assertThat(derive(Types.DEPLOYED_IN))
         .containsExactly(

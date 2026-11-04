@@ -99,3 +99,14 @@ the views a default view's claim does not hold in in `absentIn`, descriptive eve
 `exceptProfiles` (ADR 0095, amendment for #590). `profile`, `exceptProfiles` and
 `exceptDeployments` stay declared on those types for facts stored before, descriptive and no longer
 given; extracted types keep `profile`, descriptive except on `config-value`.
+
+## Amendment for #810: a frontend's request is a key of its call
+
+The owner decided on 4 Nov 2026 (#810) that each request a frontend makes is a claim of its own,
+so Describe stores an intent for each request rather than one for all of a frontend's calls to a
+target. `CALLS_HTTP` gains the key attribute `request`. The frontend linker sets it to the
+request's method and path as written (`POST /api/tasks`), or its URL when it has no path, and
+without a method when the code gives none. Other `CALLS_HTTP` links do not set it, so their
+identity is unchanged. The same request from another line of the code is the same claim. The cost
+is more links to word: about one per distinct request, which Describe already asks about as lines
+a flow can draw.

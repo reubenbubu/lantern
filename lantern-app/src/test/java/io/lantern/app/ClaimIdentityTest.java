@@ -169,6 +169,8 @@ class ClaimIdentityTest {
           "host",
           "key",
           "protocol",
+          // Since #810 (owner, 4 Nov 2026), a frontend's request: each is a claim of its own.
+          "request",
           "view");
 
   /** The runtime relationships: {@code INTERACTS_WITH} and everything under it. */

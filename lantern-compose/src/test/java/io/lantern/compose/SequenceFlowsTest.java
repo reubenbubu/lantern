@@ -743,6 +743,47 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aFrontendsRequestAndTheRouteThatForwardsItReadTheRequestsOwnIntent() {
+    browser();
+    relate(
+        "front",
+        UI,
+        "CALLS_HTTP",
+        EDGE,
+        "{\"httpMethod\": \"GET\", \"path\": \"/api/ship/status\", \"protocol\": \"JSON/HTTP\","
+            + " \"request\": \"GET /api/ship/status\", \"reaches\": \""
+            + STATUS
+            + "\", \"reachesUnit\": \""
+            + SHIP
+            + "\", \"reachesEndpoint\": \"GET /status\", \"throughRoute\": \"ship\"}",
+        5);
+    Fact request =
+        facts.stream()
+            .filter(f -> f.predicate().equals("CALLS_HTTP") && f.subject().toString().equals(UI))
+            .findFirst()
+            .orElseThrow();
+    // Since #810 the link is this one request's, so Describe's intent for it is the request's.
+    facts.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            request.subject(),
+            Types.INTENT,
+            request.claimId() != null ? request.claimId() : request.id(),
+            "Checks the ship's status",
+            List.of(request),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    SequenceDiagram diagram = diagram(flow(system(facts), "GET /api/ship/status from ui to ship"));
+
+    assertThat(steps(diagram.steps()))
+        .anyMatch(s -> s.startsWith("frontend:front/ui > service:x:edge: Checks the ship's status"))
+        .anyMatch(s -> s.startsWith("service:x:edge > service:x:ship: Checks the ship's status"));
+  }
+
+  @Test
   void aSocketAFrontendOpensThroughAGatewayStartsAFlowThroughTheInboundInterceptors() {
     browser();
     String register = "method:x.ship.WsConfig#register()";
