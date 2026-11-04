@@ -374,10 +374,12 @@ public final class LinkResolver implements LinkRule.OverFacts {
             }
           }
           // Keep what the model picked for this link before, if it is still a candidate, so a
-          // failed or refused call does not drop a link that held.
+          // failed or refused call does not drop a link that held; never a pick stored before
+          // today's checks, which they might reject (#715).
           session
               .latest(link)
               .filter(stored -> !stored.omitted())
+              .filter(stored -> ResolvePrompt.checkedToday(stored.promptVersion()))
               .flatMap(
                   stored ->
                       picked(

@@ -149,4 +149,15 @@ class ResolvePromptTest {
         0.8,
         Validity.from(1));
   }
+
+  @Test
+  void anAnswerPassedTodaysChecksFromTheVersionThatAddedThemOn() {
+    assertThat(ResolvePrompt.checkedToday("7")).isFalse();
+    assertThat(ResolvePrompt.checkedToday("7+f0bd9dfa")).isFalse();
+    assertThat(ResolvePrompt.checkedToday(String.valueOf(ResolvePrompt.CHECKED_SINCE))).isTrue();
+    assertThat(ResolvePrompt.checkedToday("8+f0bd9dfa")).isTrue();
+    assertThat(ResolvePrompt.checkedToday("10")).isTrue();
+    assertThat(ResolvePrompt.checkedToday("calibration")).isFalse();
+    assertThat(ResolvePrompt.checkedToday(null)).isFalse();
+  }
 }
