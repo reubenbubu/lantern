@@ -1688,6 +1688,40 @@ class DescriberTest {
   }
 
   @Test
+  void aFlowsDeliveryShowsTheReceivingUnitsIntentForWhatItConsumes() {
+    TestFacts runtime = TestFacts.runtime();
+    Fact consumes = runtime.find("service:com.example:worker", "CONSUMES");
+    Function<Map<String, Describer.Phrase>, List<String>> messages =
+        phrases ->
+            all(new Composer("1")
+                    .compose(
+                        ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                        SNAPSHOT,
+                        TestTexts.with(runtime.list(), new TestTexts.Written(Map.of(), phrases)))
+                    .sections())
+                .flatMap(s -> s.blocks().stream())
+                .filter(SequenceDiagram.class::isInstance)
+                .map(SequenceDiagram.class::cast)
+                .flatMap(d -> d.steps().stream())
+                .filter(SequenceDiagram.Message.class::isInstance)
+                .map(SequenceDiagram.Message.class::cast)
+                .filter(
+                    m ->
+                        m.from().toString().equals("topic:kafka:orders")
+                            && m.to().toString().equals("service:com.example:worker"))
+                .map(SequenceDiagram.Message::label)
+                .toList();
+
+    assertThat(messages.apply(Map.of())).isNotEmpty().allMatch(m -> m.startsWith("Delivers "));
+    // The worker's intent for what it consumes words the delivery, not the listener's name (#740).
+    assertThat(
+            messages.apply(
+                Map.of(consumes.id(), new Describer.Phrase("Ships paid orders from", List.of()))))
+        .isNotEmpty()
+        .allMatch(m -> m.startsWith("Ships paid orders from"));
+  }
+
+  @Test
   void aLowerFirstLetterKeepsAcronyms() {
     assertThat(C4Views.lowerFirst("Reports payments")).isEqualTo("reports payments");
     assertThat(C4Views.lowerFirst("SQL dumps")).isEqualTo("SQL dumps");

@@ -497,8 +497,8 @@ public final class ScopeFlows {
               profiles,
               deliveryInfo(first),
               facts,
-              // The delivery's own link words it (#740).
-              first);
+              // The receiving unit's link to what it consumes words it (#740).
+              consumes(step.to(), step.from(), queue, first));
         }
         case FlowModel.SCHEDULE ->
             message(
@@ -599,6 +599,22 @@ public final class ScopeFlows {
           step.facts(),
           // The frontend's call words its own request (#740).
           link);
+    }
+
+    /**
+     * The unit's {@code CONSUMES} link to the destination a delivery comes from, or to the queue it
+     * comes through, whose intent words the delivery (#740); else the delivery's own fact.
+     */
+    private Fact consumes(EntityId unit, EntityId from, String queue, Fact delivery) {
+      EntityId through = queue == null ? null : parse(queue);
+      return knowledge.relations(unit, Types.CONSUMES).stream()
+          .filter(
+              f ->
+                  Knowledge.isEntity(f)
+                      && (Knowledge.object(f).equals(from) || Knowledge.object(f).equals(through))
+                      && !elements.alternativeLinks().containsKey(f))
+          .findFirst()
+          .orElse(delivery);
     }
 
     /** The gateway the frontend called routing the call on to the entry point's unit. */
