@@ -201,6 +201,47 @@ let builtVocabulary = null;
 const defaultVocabulary = () => (builtVocabulary ??= readVocabulary());
 
 /**
+ * Each person's basis with the frontends the person uses, the one definition the scorer has of
+ * them (#739): the frontends its basis names, matched to the frontends drawn by the name the report
+ * shows or the end of the ID, in any case; and those a line the diagrams draw from the person
+ * reaches, whose basis may name them otherwise (#741).
+ */
+export function personsOf(facts, report) {
+  const byName = new Map();
+  for (const f of facts) {
+    const e = report.elements?.[reportId(f.subject)];
+    if (!e) continue;
+    for (const n of [e.name, String(f.subject).split(':').pop()]) if (n) byName.set(String(n).toLowerCase(), f.subject);
+  }
+  const byReportId = new Map();
+  for (const f of facts) if (report.elements?.[reportId(f.subject)]) byReportId.set(reportId(f.subject), f.subject);
+  const drawnTo = new Map();
+  for (const page of report.pages ?? []) {
+    for (const section of page.sections ?? []) {
+      for (const r of section.relationships ?? []) {
+        if (report.elements?.[r.from]?.kind !== 'person') continue;
+        const to = byReportId.get(r.to);
+        if (!to || !String(to).startsWith('frontend:')) continue;
+        if (!drawnTo.has(r.from)) drawnTo.set(r.from, new Set());
+        drawnTo.get(r.from).add(to);
+      }
+    }
+  }
+  const persons = [];
+  for (const f of facts) {
+    if (f.predicate !== 'person-basis') continue;
+    const frontends = new Set([
+      ...list(f.attributes?.frontends)
+        .map((n) => byName.get(String(n).toLowerCase()))
+        .filter(Boolean),
+      ...(drawnTo.get(reportId(f.subject)) ?? []),
+    ]);
+    persons.push({ fact: f, person: reportId(f.subject), frontends: [...frontends] });
+  }
+  return persons;
+}
+
+/**
  * Every interaction of the stored model that a view can draw (#742, reopened), whether Describe
  * asks about it or not, each with its kind, the units whose Describe item would hold it (`owners`)
  * and the claim and fact IDs an intent's object may name:
@@ -268,41 +309,10 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
       result.push({ id: `interaction:${f.id}:${db.object.value}`, fact: f, kind: 'data-access', owners: [unit], keys: [...keys(f), ...keys(db)] });
     }
   }
-  // A person-basis names its frontends as their own names: matched to the frontends drawn, by the
-  // name the report shows or the end of the ID, in any case.
-  const byName = new Map();
-  for (const f of facts) {
-    const e = report.elements?.[reportId(f.subject)];
-    if (!e) continue;
-    for (const n of [e.name, String(f.subject).split(':').pop()]) if (n) byName.set(String(n).toLowerCase(), f.subject);
-  }
-  // Or by a line the diagrams draw from the person to a frontend, whose basis may name it
-  // otherwise (#741).
-  const byReportId = new Map();
-  for (const f of facts) if (report.elements?.[reportId(f.subject)]) byReportId.set(reportId(f.subject), f.subject);
-  const drawnTo = new Map();
-  for (const page of report.pages ?? []) {
-    for (const section of page.sections ?? []) {
-      for (const r of section.relationships ?? []) {
-        if (report.elements?.[r.from]?.kind !== 'person') continue;
-        const to = byReportId.get(r.to);
-        if (!to || !String(to).startsWith('frontend:')) continue;
-        if (!drawnTo.has(r.from)) drawnTo.set(r.from, new Set());
-        drawnTo.get(r.from).add(to);
-      }
-    }
-  }
-  for (const f of facts) {
-    if (f.predicate !== 'person-basis') continue;
-    const owners = [
-      ...list(f.attributes?.frontends)
-        .map((n) => byName.get(String(n).toLowerCase()))
-        .filter(Boolean),
-      ...(drawnTo.get(reportId(f.subject)) ?? []),
-    ];
-    // One interaction per frontend the person uses, whose intent is stored under the basis and the
-    // frontend (ADR 0103, #739; #741).
-    for (const frontend of new Set(owners)) {
+  // One interaction per frontend the person uses, whose intent is stored under the basis and the
+  // frontend (ADR 0103, #739; #741).
+  for (const { fact: f, frontends } of personsOf(facts, report)) {
+    for (const frontend of frontends) {
       result.push({
         id: `interaction:${f.id}:${frontend}`,
         fact: f,
@@ -325,12 +335,14 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
  *   know" when it has none though Describe asked about a unit that would hold it, and not asked
  *   when it asked about none (budget, a failure, or an element no unit owns); its coverage is the
  *   share with an intent of their own among them all, and each kind is counted apart;
- * - drawn: of the lines the report draws, other than a person's (whose labels are fixed), those
- *   labelled with the intent Describe wrote for a link running between the line's two ends, or
- *   elements inside them; and of the rest, those whose label is generic.
- * - steps: of the sequence diagrams' message steps, other than a person's, on every diagram that
- *   draws them, those with a worded link between their ends (intended), those reading one of its
- *   intents (own), and those reading something else though it has one (fallbackWithIntent, #740).
+ * - drawn: of the lines the report draws, those labelled with the intent Describe wrote for a link
+ *   running between the line's two ends, or elements inside them, and a person's line with the
+ *   intent it wrote for the person's use of that frontend, or of any of theirs to the system box
+ *   (#739); and of the rest, those whose label is generic.
+ * - steps: of the sequence diagrams' message steps, on every diagram that draws them, a person's
+ *   matched as a person's line is, those with a worded link between their ends (intended), those
+ *   reading one of its intents (own), and those reading something else though it has one
+ *   (fallbackWithIntent, #740).
  *
  * Only Describe's intents count, not those Name groups writes for lines leaving a group. Its
  * wording's judge score is added by the scorecard (wording.mjs, judgedRows).
@@ -439,19 +451,45 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
         ? MESSAGING_KINDS.has(report.elements[r.from]?.kind) && related(r.to, w.source)
         : related(r.from, w.source) && related(r.to, w.target),
     );
+  // A person's line or step reads the intent Describe stored for the person's use of a frontend
+  // (ADR 0103, #739): to a frontend, the one for that frontend; to the system box, which the
+  // context view draws, any of the person's. Null for a line that is not a person's.
+  const persons = linked ? personsOf([...linked, ...llm], report) : [];
+  const personTexts = (r) => {
+    if (report.elements[r.from]?.kind !== 'person') return null;
+    const texts = new Set();
+    const toSystem = report.elements[r.to]?.kind === 'system';
+    for (const p of persons) {
+      if (p.person !== r.from) continue;
+      for (const frontend of p.frontends) {
+        if (!toSystem && !drawnIds(frontend).includes(r.to)) continue;
+        for (const k of [p.fact.claim, p.fact.id].filter(Boolean)) {
+          for (const t of intentOf.get(`${k}/${frontend}`) ?? []) texts.add(t);
+        }
+      }
+    }
+    return texts;
+  };
+  const ownOrPerson = (r) => {
+    const texts = personTexts(r);
+    return texts ? texts.has(label(r.label)) : ownLink(r);
+  };
+  const intendedOrPerson = (r) => {
+    const texts = personTexts(r);
+    return texts ? texts.size > 0 : intended(r);
+  };
   const lines = new Map();
   for (const page of report.pages) {
     for (const section of page.sections) {
       if (section.type !== 'diagram') continue;
       for (const r of section.relationships) {
-        if (report.elements[r.from]?.kind === 'person') continue;
         const key = `${r.from}->${r.to}`;
-        const own = ownLink(r);
+        const own = ownOrPerson(r);
         const was = lines.get(key) ?? { own: false, generic: true, intended: false };
         lines.set(key, {
           own: was.own || own,
           generic: was.generic && !own && isGenericLabel(r.label),
-          intended: was.intended || intended(r),
+          intended: was.intended || intendedOrPerson(r),
         });
       }
     }
@@ -464,7 +502,8 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
   // The sequence diagrams' steps (#740): each message step, on each diagram that draws it, matched
   // by its ends and its label as a line is. Intended when a worded link runs between its ends, own
   // when it reads one of those links' intents, and a fallback despite an intent when it is intended
-  // but reads something else. A step from or to a person is left out (#739).
+  // but reads something else. A person's step reads the person's intent for the frontend (#739); a
+  // step to a person, such as a reply, is left out.
   const steps = { messages: 0, intended: 0, own: 0, fallbackWithIntent: 0 };
   for (const page of report.pages) {
     for (const section of page.sections) {
@@ -474,15 +513,15 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
       const seen = new Map();
       for (const step of section.steps ?? []) {
         if (step.from === undefined || step.to === undefined || step.message === undefined) continue;
-        if (report.elements[step.from]?.kind === 'person' || report.elements[step.to]?.kind === 'person') continue;
+        if (report.elements[step.to]?.kind === 'person') continue;
         const ends = `${step.from}->${step.to}`;
         const n = seen.get(ends) ?? 0;
         seen.set(ends, n + 1);
         steps.messages++;
         const r = { from: step.from, to: step.to, label: step.message };
-        if (!intended(r)) continue;
+        if (!intendedOrPerson(r)) continue;
         steps.intended++;
-        const own = ownLink(r);
+        const own = ownOrPerson(r);
         if (own) steps.own++;
         else steps.fallbackWithIntent++;
         scores[`step:${section.id}/${ends}#${n}`] = own ? 1 : 0;

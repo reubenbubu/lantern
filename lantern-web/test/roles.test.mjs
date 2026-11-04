@@ -516,7 +516,7 @@ test('Describe on the page: a line counts when labelled with the intent of its o
               { from: 'service-a', to: 'queue-orders', label: 'Announces new orders' },
               // The fallback label: generic.
               { from: 'type-p-x', to: 'type-p-y', label: 'Calls validate, check' },
-              // A person's line keeps its fixed label and is left out.
+              // A person's line with no stored intent for the person: generic, not intended (#739).
               { from: 'person-u', to: 'service-a', label: 'Uses' },
             ],
           },
@@ -529,7 +529,7 @@ test('Describe on the page: a line counts when labelled with the intent of its o
   const lifted = link('xq', 'PUBLISHES', 'component:service:a/type:p.X', 'queue:orders');
   const llm = [intentFor('c-ab', 'Looks up prices'), intentFor('c-xq', 'Announces new orders')];
   const row = describeRow(report, [...linked, lifted], llm, run);
-  assert.deepEqual(row.drawn, { lines: 4, own: 2, generic: 1, genericWithIntent: 0, other: 1, coverage: 0.5 });
+  assert.deepEqual(row.drawn, { lines: 5, own: 2, generic: 2, genericWithIntent: 0, other: 1, coverage: 0.4 });
   assert.equal(row.scores['line:service-a->service-b'], 1);
   assert.equal(row.scores['line:service-b->service-a'], 0);
 });
@@ -568,7 +568,7 @@ test('Describe on the sequence diagrams: a step reading a fallback though its li
             { from: 'service-a', to: 'service-b', message: 'Looks up prices', code: 'GET /prices' },
             // No worded link between its ends: drawn, not intended.
             { from: 'service-c', to: 'service-b', message: 'Calls Y.get' },
-            // A person's step is left to #739.
+            // A person's step with no stored intent for the person: drawn, not intended (#739).
             { from: 'person-u', to: 'service-a', message: 'Uses the screens' },
           ]),
         ],
@@ -576,7 +576,7 @@ test('Describe on the sequence diagrams: a step reading a fallback though its li
     ],
   };
   const row = describeRow(report, linked, [intentFor('c-ab', 'Looks up prices')], run);
-  assert.deepEqual(row.steps, { messages: 3, intended: 2, own: 1, fallbackWithIntent: 1 });
+  assert.deepEqual(row.steps, { messages: 4, intended: 2, own: 1, fallbackWithIntent: 1 });
   assert.equal(row.scores['step:flow-1/service-a->service-b#0'], 0);
   assert.equal(row.scores['step:flow-1/service-a->service-b#1'], 1);
   assert.equal(row.scores['step:flow-1/service-c->service-b#0'], undefined);
@@ -593,6 +593,57 @@ test('Describe on the sequence diagrams: a step drawn on two diagrams counts twi
   };
   const row = describeRow(report, linked, [intentFor('c-ab', 'Looks up prices')], run);
   assert.deepEqual(row.steps, { messages: 2, intended: 2, own: 0, fallbackWithIntent: 2 });
+});
+
+test("Describe on the page: a person's line reads the intent stored for the person's use of that frontend (#739)", () => {
+  const report = {
+    elements: {
+      'person-planner': { kind: 'person', name: 'Planner' },
+      'frontend-shop': { kind: 'container', name: 'shop' },
+      'system-fleet': { kind: 'system', name: 'Fleet' },
+    },
+    pages: [
+      {
+        sections: [
+          {
+            type: 'diagram',
+            relationships: [
+              // The fallback, though an intent is stored for the planner's use of shop.
+              { from: 'person-planner', to: 'frontend-shop', label: 'Uses the screens' },
+              // The context view: one of the planner's intents, for any of their frontends.
+              { from: 'person-planner', to: 'system-fleet', label: 'Plans technician routes' },
+            ],
+          },
+        ],
+      },
+      {
+        sections: [
+          {
+            type: 'sequence',
+            id: 'flow-1',
+            steps: [{ from: 'person-planner', to: 'frontend-shop', message: 'Uses the screens' }],
+          },
+        ],
+      },
+    ],
+  };
+  const facts = [
+    { id: 'f-pb', claim: 'c-pb', predicate: 'person-basis', subject: 'person:planner', object: { kind: 'string', value: 'route' }, attributes: { frontends: ['shop'] } },
+    { id: 'f-fs', predicate: 'PART_OF', subject: 'frontend:shop', object: { kind: 'entity', value: 'service:a' } },
+  ];
+  const intent = intentFor('c-pb/frontend:shop', 'Plans technician routes');
+  const row = describeRow(report, facts, [intent], run);
+  assert.deepEqual(row.drawn, { lines: 2, own: 1, generic: 1, genericWithIntent: 1, other: 0, coverage: 0.5 });
+  assert.equal(row.scores['line:person-planner->system-fleet'], 1);
+  assert.deepEqual(row.steps, { messages: 1, intended: 1, own: 0, fallbackWithIntent: 1 });
+
+  // Labelled with the intent, the frontend's line and the step are its own.
+  for (const r of report.pages[0].sections[0].relationships) r.label = 'Plans technician routes';
+  report.pages[1].sections[0].steps[0].message = 'Plans technician routes';
+  const worded = describeRow(report, facts, [intent], run);
+  assert.equal(worded.drawn.own, 2);
+  assert.equal(worded.drawn.genericWithIntent, 0);
+  assert.deepEqual(worded.steps, { messages: 1, intended: 1, own: 1, fallbackWithIntent: 0 });
 });
 
 test("Describe on the page: a consumer's line runs from what it reads, and a link may have several intents", () => {
