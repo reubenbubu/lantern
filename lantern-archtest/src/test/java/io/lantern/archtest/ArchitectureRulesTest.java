@@ -104,12 +104,16 @@ class ArchitectureRulesTest {
             ArchitectureRules.investigateCode()
                 .test(classes.get(InvestigatorReadingADescription.class)))
         .isTrue();
+    // The fixture that reads Describe is left out of the check: it violates the rule on purpose.
     assertThat(
             ArchitectureRules.investigateCode()
-                .test(
-                    new ClassFileImporter()
-                        .importClass(io.lantern.link.archfixture.FakeLinker.class)))
+                .test(new ClassFileImporter().importClass(FakeLinker.class)))
         .isFalse();
+    // Investigate's own classes are the stage, so a rename fails here (#554).
+    assertThat(
+            ArchitectureRules.investigateCode()
+                .test(new ClassFileImporter().importClass(io.lantern.link.Investigator.class)))
+        .isTrue();
   }
 
   @Test
