@@ -433,7 +433,7 @@ class C4ReportRendererTest {
     assertThat(sections.get(2).get("body").asString())
         .isEqualTo(
             "Serves \\[x\\](https://example.com) and \\*\\*bold\\*\\* *files* under"
-                + " /files/\\*\\*; `/api/**`. See [the (notes)](#/context/context-text).");
+                + " /files/\\*\\*; `/api/\\*\\*`. See [the (notes)](#/context/context-text).");
   }
 
   private static Document document(List<DocumentEntity> entities, Section... sections) {

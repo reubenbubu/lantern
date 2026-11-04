@@ -70,7 +70,7 @@ test('a backslash shows link, emphasis and code syntax as written (#752)', () =>
   // The body C4ReportRendererTest expects for a responsibility an LLM wrote.
   const body =
     'Serves \\[x\\](https://example.com) and \\*\\*bold\\*\\* *files* under' +
-    ' /files/\\*\\*; `/api/**`. See [the (notes)](#/context/context-text).';
+    ' /files/\\*\\*; `/api/\\*\\*`. See [the (notes)](#/context/context-text).';
   const html = mdInline(body);
   assert.equal(
     html,
@@ -79,7 +79,8 @@ test('a backslash shows link, emphasis and code syntax as written (#752)', () =>
   );
   assert.doesNotMatch(html, /<a href="https:|<b>|<strong>/);
   assert.equal(mdInline('a \\\\ b \\` c'), 'a \\ b ` c');
-  assert.equal(mdInline('`a \\* b`'), '<code>a \\* b</code>');
+  assert.equal(mdInline('`a \\* b`'), '<code>a * b</code>');
+  assert.equal(mdInline('It publishes `order.created`.'), 'It publishes <code>order.created</code>.');
 });
 
 // legendHTML draws the legend under each diagram; load it, with the element kinds, from the

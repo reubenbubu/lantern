@@ -1119,10 +1119,7 @@ public final class C4ReportRenderer {
             case EMPHASIS -> "*";
             case CODE -> "`";
           };
-      String text = run.text();
-      if (run.style() != TextRun.Style.CODE) {
-        text = literal(text);
-      }
+      String text = literal(run.text());
       if (text.isBlank() || text.contains(mark.substring(0, 1)) || !text.strip().equals(text)) {
         return text;
       }
@@ -1130,17 +1127,17 @@ public final class C4ReportRenderer {
     }
 
     /**
-     * A text as the spec's Markdown-lite shows it as written: its link, emphasis and code syntax
-     * escaped with a backslash, so a link or bold an LLM wrote (or a path such as {@code
-     * /files/**}) renders as plain text (knowledge-build epic, section 10, Security; #752). Links
-     * the renderer makes itself, from cross-references to facts, are written after it and stay
-     * links.
+     * A text as the spec's Markdown-lite shows it as written: its link and emphasis syntax escaped
+     * with a backslash, so a link or bold an LLM wrote (or a path such as {@code /files/**})
+     * renders as plain text (knowledge-build epic, section 10, Security; #752). Links the renderer
+     * makes itself, from cross-references to facts, are written after it and stay links. Backticks
+     * are left: a code span shows its text as written, links and emphasis included.
      */
     static String literal(String text) {
       StringBuilder out = new StringBuilder(text.length());
       for (int i = 0; i < text.length(); i++) {
         char c = text.charAt(i);
-        if (c == '\\' || c == '*' || c == '[' || c == ']' || c == '`') {
+        if (c == '\\' || c == '*' || c == '[' || c == ']') {
           out.append('\\');
         }
         out.append(c);

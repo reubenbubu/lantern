@@ -80,12 +80,13 @@ a page. The rules are in ADR 0048, amendment for #681.
 
 Any URL or emphasis an LLM writes must show as plain text (knowledge-build epic, section 10,
 Security; `docs/design.md`, Security). The renderer now escapes, with a backslash, every `\`, `*`,
-`[`, `]` and backtick in the text runs it writes into the spec's Markdown-lite fields, whatever
-their origin, so a link or bold a model wrote (or copied from a README) and a path such as
-`/files/**` show the characters as written. Only what the renderer itself formats stays
-formatting: emphasis and code runs of the document model, and the links it makes from
-cross-references to facts and pages. The template's `mdInline` reads a backslash before one of
-those five characters as that character, and the element description column, which is never
-formatted, is escaped as HTML only. The Form check is unchanged. Tests:
-`C4ReportRendererTest.escapesLinkAndEmphasisSyntaxInTextAndKeepsTheLinksItMakesFromFacts` and the
-template's test in `lantern-web/test/report-spec-c4.test.mjs`.
+`[` and `]` in the text runs it writes into the spec's Markdown-lite fields, whatever their origin
+and code runs included, so a link or bold a model wrote (or copied from a README) and a path such
+as `/files/**` show the characters as written. Backticks are left alone: a code span shows its
+text as written, so code is safe, and a name a model put in backticks still shows as code. Only
+what the renderer itself formats stays formatting: emphasis and code runs of the document model,
+and the links it makes from cross-references to facts and pages. The template's `mdInline` reads
+a backslash before `\`, `*`, `[`, `]` or a backtick as that character, in a code span too, and the
+element description column, which is never formatted, is escaped as HTML only. The Form check is
+unchanged. Tests: `C4ReportRendererTest.escapesLinkAndEmphasisSyntaxInTextAndKeepsTheLinksItMakesFromFacts`
+and the template's test in `lantern-web/test/report-spec-c4.test.mjs`.
