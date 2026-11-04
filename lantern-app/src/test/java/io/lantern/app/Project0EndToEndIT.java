@@ -901,10 +901,6 @@ class Project0EndToEndIT {
   }
 
   /**
-   * Writes the system's document and its report spec data to {@code target/project-0} and checks
-   * the data is valid for the report spec and shows the elements, pages and lines it should.
-   */
-  /**
    * The IDs of the facts of every interaction a view of the system report can draw, as the
    * scorecard's model coverage counts them (lantern-web/scripts/roles.mjs, interactionsOf; #742):
    * each link of a kind under INTERACTS_WITH between two ends the report draws (a queue folded into
@@ -963,6 +959,10 @@ class Project0EndToEndIT {
     return result;
   }
 
+  /**
+   * Writes the system's document and its report spec data to {@code target/project-0} and checks
+   * the data is valid for the report spec and shows the elements, pages and lines it should.
+   */
   private static void checkSystemReport(Document document)
       throws IOException, InterruptedException {
     assertThat(document.id()).isEqualTo(AnalysisRun.SYSTEM_C4);

@@ -330,9 +330,13 @@ public final class DescribeItems {
       }
     }
     for (Elements.Line line : otherLines().getOrDefault(unit, List.of())) {
-      Fact fact = line.facts().getFirst();
-      if (asked.add(fact)) {
-        result.add(otherInteraction(unit, line, fact));
+      // Every interaction a line draws, not only its first: each is counted on its own.
+      for (Fact fact : line.facts()) {
+        if ((fact == line.facts().getFirst()
+                || elements.vocabulary().isA(fact.predicate(), Types.INTERACTS_WITH))
+            && asked.add(fact)) {
+          result.add(otherInteraction(unit, line, fact));
+        }
       }
     }
     // Every other interaction between two units or frontends, which the flows draw: messages one
@@ -342,9 +346,10 @@ public final class DescribeItems {
           && elements.vocabulary().isA(link.predicate(), Types.INTERACTS_WITH)
           && !alternatives.contains(link)
           && unitsAndFrontends().contains(Knowledge.object(link))
+          && !Knowledge.object(link).equals(unit)
           && asked.add(link)) {
         EntityId other = Knowledge.object(link);
-        String through = Elements.attribute(link, "destination", null);
+        EntityId through = destination(link);
         result.add(
             new Interaction(
                 unit,
@@ -353,9 +358,9 @@ public final class DescribeItems {
                         : through == null
                             ? "sends messages, through a queue or topic, to"
                             : "sends messages, through "
-                                + FactLines.oneLine(assembler.name(EntityId.parse(through)))
+                                + FactLines.oneLine(assembler.name(through))
                                 + " ("
-                                + WordingPrompt.kind(EntityId.parse(through))
+                                + WordingPrompt.kind(through)
                                 + "), to")
                     + ' '
                     + FactLines.oneLine(assembler.name(other))
@@ -449,6 +454,19 @@ public final class DescribeItems {
     return result;
   }
 
+  /** The queue or topic a message link goes through, or null when it names none readable. */
+  private static EntityId destination(Fact link) {
+    String value = Elements.attribute(link, "destination", null);
+    if (value == null) {
+      return null;
+    }
+    try {
+      return EntityId.parse(value);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
   /** The units and frontends, which Describe has an item for. */
   private Set<EntityId> unitsAndFrontends() {
     if (unitsAndFrontends == null) {
@@ -466,7 +484,6 @@ public final class DescribeItems {
         switch (line.relationship()) {
           case Types.INVESTIGATED_CONNECTION -> "connects, as the LLM found, to";
           case Types.ROUTES_TO -> "routes messages to";
-          case Types.CALLS_UNREACHED -> "calls entry points that nothing in the set reaches of";
           default ->
               line.plain().isEmpty()
                   ? "uses"
@@ -485,7 +502,15 @@ public final class DescribeItems {
           fact);
     }
     // A line the unit holds without starting it: the unknown caller's, or a route between two
-    // destinations, read from the end it starts at.
+    // destinations, read from the end it starts at. Who the unknown caller is, the item does not
+    // say, so its intent can only be what the entry points are for.
+    if (line.relationship().equals(Types.CALLS_UNREACHED)) {
+      return new Interaction(
+          line.from(),
+          "calls entry points of it that nothing in the analysed repositories reaches;"
+              + " who calls them is not known",
+          fact);
+    }
     String to =
         line.to().equals(unit)
             ? "it"
