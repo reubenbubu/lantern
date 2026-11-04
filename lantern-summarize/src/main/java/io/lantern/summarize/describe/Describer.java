@@ -832,7 +832,12 @@ public final class Describer {
           if (!firstPass.containsKey(scope)) {
             FlowJudgements.Asked asked =
                 FlowJudgements.significance(
-                    scope.key(), scope.title(), found, responsibilities, scope.names()::name);
+                    scope.key(),
+                    scope.title(),
+                    found,
+                    scope.flows().byRank(found),
+                    responsibilities,
+                    scope.names()::name);
             items.put(scope, asked);
             planned.add(RoleSession.Planned.of(asked.item()));
           }
@@ -855,7 +860,12 @@ public final class Describer {
           }
           FlowJudgements.Asked asked =
               FlowJudgements.significance(
-                  scope.key(), scope.title(), kept, responsibilities, scope.names()::name);
+                  scope.key(),
+                  scope.title(),
+                  kept,
+                  scope.flows().byRank(kept),
+                  responsibilities,
+                  scope.names()::name);
           items.put(scope, asked);
         });
     Map<FlowJudgements.Asked, Outcome> judged =

@@ -863,8 +863,9 @@ public final class RoleSession {
                             + String.join(" ", reasons(rejected.get(id)))
                         : "rejected twice: " + String.join(" ", reasons(again.get(id))),
                     List.of(),
-                    // Not stored when the repair was cut off: a larger limit may let it through.
-                    !second.cutOff()),
+                    // Not stored when the repair was cut off, since a larger limit may let it
+                    // through, or held no readable JSON object, which a new call may (#744).
+                    !second.cutOff() && JsonFaults.first(second.text()) != null),
                 false);
           } else {
             repairedIds.put(id, true);

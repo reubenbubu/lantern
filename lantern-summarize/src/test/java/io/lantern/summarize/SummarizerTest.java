@@ -870,6 +870,17 @@ class SummarizerTest {
   }
 
   @Test
+  void textAfterTheAnswersObjectIsLeftOutWithoutARetry() {
+    fake.answering(r -> Answers.epic(citingAll(r)) + "\nLet me know if you need more.");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(result.generated()).isEqualTo(7);
+    assertThat(fake.sent()).hasSize(7);
+  }
+
+  @Test
   void aChangedChildWhoseSummaryIsUnchangedLeavesItsParentAlone() {
     // The model writes the same text for PriceService whatever its facts.
     fake.answering(

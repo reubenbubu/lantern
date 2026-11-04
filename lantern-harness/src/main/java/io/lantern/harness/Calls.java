@@ -71,10 +71,11 @@ public final class Calls {
         return accepted;
       } catch (Rejected again) {
         logRejected(request.purpose() + " (retry)", again, second);
-        // An answer cut off at its limit is not stored as a drop: a larger limit may let it
-        // through.
+        // An answer cut off at its limit is not stored as a drop, since a larger limit may let it
+        // through; nor one with no readable JSON object, which a new call may give (#744).
         throw new ItemDropped(
-            "Rejected twice, the second time because " + again.getMessage(), !second.cutOff());
+            "Rejected twice, the second time because " + again.getMessage(),
+            !second.cutOff() && JsonFaults.first(second.text()) != null);
       }
     }
   }

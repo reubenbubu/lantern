@@ -43,12 +43,6 @@ public final class JsonFaults {
           + (message == null ? "unreadable" : message.lines().findFirst().orElse(message))
           + ")";
     }
-    if (!rest.isEmpty()) {
-      String shown = rest.length() > 20 ? rest.substring(0, 20) + "…" : rest;
-      return "a complete object is followed by more text, "
-          + shown
-          + "; close each bracket once and write nothing after the object";
-    }
     JsonNode items = root.get("items");
     if (items == null || !items.isObject()) {
       return "it has no object under \"items\"";
@@ -60,7 +54,40 @@ public final class JsonFaults {
           + "\" under \"items\""
           + (keys.isEmpty() ? "" : "; key each entry by its item ID, not by " + keys);
     }
+    if (!rest.isEmpty()) {
+      String shown = rest.length() > 20 ? rest.substring(0, 20) + "…" : rest;
+      return "a complete object is followed by more text, "
+          + shown
+          + "; close each bracket once and write nothing after the object";
+    }
     return null;
+  }
+
+  /**
+   * The first complete JSON object an answer opens with, fences around it allowed, and the text
+   * that follows it (#744); null if the answer does not open with one that closes and reads.
+   *
+   * @param object the object
+   * @param rest what follows it, stripped; empty if nothing
+   */
+  public record First(JsonNode object, String rest) {}
+
+  /** The first complete JSON object of the answer and what follows it, or null (#744). */
+  public static First first(String text) {
+    String body = unfenced(text);
+    if (body.isEmpty() || body.charAt(0) != '{') {
+      return null;
+    }
+    int end = endOfObject(body);
+    if (end < 0) {
+      return null;
+    }
+    try {
+      JsonNode node = JSON.readTree(body.substring(0, end));
+      return node != null && node.isObject() ? new First(node, body.substring(end).strip()) : null;
+    } catch (JacksonException e) {
+      return null;
+    }
   }
 
   /** The text without a Markdown code fence around it, as {@link Envelope#parse} reads it. */
