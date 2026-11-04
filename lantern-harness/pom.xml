@@ -36,6 +36,19 @@
   <build>
     <plugins>
       <plugin>
+        <!-- The injection fixtures and the helpers that show them to each role, for the role
+             fixture tests of the other modules (#768). -->
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <!-- Every role's prompt, from the repository's prompts/ folder, as the built-in copies a run
              falls back to (docs/adr/0113-prompts-folder.md). -->
         <groupId>org.apache.maven.plugins</groupId>

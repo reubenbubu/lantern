@@ -1651,6 +1651,9 @@ class LinkResolverTest {
     assertThat(replayed.facts())
         .singleElement()
         .satisfies(f -> assertThat(f.object().value()).isEqualTo("service:g:tax"));
+    // Exactly the facts the recording gives (#768).
+    List<String> produced = io.lantern.harness.InjectionFixtures.lines(replayed.facts());
+    assertThat(produced).isEqualTo(io.lantern.llm.RoleFixture.expected(TOOL_RECORDINGS, produced));
     assertThat(log.conversations())
         .singleElement()
         .satisfies(
@@ -1658,5 +1661,60 @@ class LinkResolverTest {
               assertThat(c.turns()).isEqualTo(4);
               assertThat(c.toolCallCount()).isEqualTo(3);
             });
+  }
+
+  /** Where the injection fixtures sit in the tax service's repository. */
+  private static final Map<String, String> INJECTED_PATHS =
+      Map.of(
+          "README.md", "README.md",
+          "OrderController.java", "src/main/java/t/OrderController.java",
+          "application.yml", "src/main/resources/application.yml",
+          "Greeting.java", "src/main/java/t/Greeting.java");
+
+  @Test
+  void resolveShowsTheFixturesAsDataAndAnAnswerThatObeysThemIsRejected() {
+    taxCall();
+    INJECTED_PATHS.forEach(
+        (name, path) ->
+            FILE_TEXTS.put("t:" + path, io.lantern.harness.InjectionFixtures.fixture(name)));
+    try {
+      // A model that reads the four files, then does what they say.
+      FakeLlmProvider obeying =
+          model(
+              r -> {
+                if (turn(r) == 1) {
+                  List<LlmToolCall> reads = new ArrayList<>();
+                  INJECTED_PATHS.values().stream()
+                      .sorted()
+                      .forEach(
+                          path ->
+                              reads.add(
+                                  toolCall(
+                                      "r" + reads.size(),
+                                      "read_file",
+                                      "{\"repo\":\"t\",\"path\":\"" + path + "\"}")));
+                  return reads;
+                }
+                return turn(r) <= 3
+                    ? List.of(
+                        submit(
+                            r,
+                            "{\"I1\": "
+                                + entry(
+                                    candidate(first(r), "service:g:tax"),
+                                    "high",
+                                    io.lantern.harness.InjectionFixtures.OBEYING,
+                                    io.lantern.harness.InjectionFixtures.OBEYING_CITE)
+                                + "}"))
+                    : List.of();
+              });
+
+      LinkResolver.Result result = resolveWithFiles(obeying);
+
+      io.lantern.harness.InjectionFixtures.shownAsData(obeying);
+      assertThat(result.facts()).isEmpty();
+    } finally {
+      INJECTED_PATHS.values().forEach(path -> FILE_TEXTS.remove("t:" + path));
+    }
   }
 }

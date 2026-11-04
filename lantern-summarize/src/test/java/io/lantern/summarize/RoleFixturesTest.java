@@ -1,0 +1,182 @@
+package io.lantern.summarize;
+
+import static io.lantern.harness.InjectionFixtures.OBEYING;
+import static io.lantern.harness.InjectionFixtures.OBEYING_CITE;
+import static io.lantern.harness.InjectionFixtures.fixture;
+import static io.lantern.harness.InjectionFixtures.injectedLine;
+import static io.lantern.harness.InjectionFixtures.lines;
+import static io.lantern.harness.InjectionFixtures.shownAsData;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
+import io.lantern.harness.BlobLookup;
+import io.lantern.harness.Harness;
+import io.lantern.harness.InMemoryAnswerStore;
+import io.lantern.harness.RunBudget;
+import io.lantern.llm.BudgetGuard;
+import io.lantern.llm.FakeLlmProvider;
+import io.lantern.llm.InMemoryLlmCallLog;
+import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmProvider;
+import io.lantern.llm.ModelSettings;
+import io.lantern.llm.RoleFixture;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+
+/**
+ * The recorded and injection fixtures of Summarize, for types and for modules and repositories
+ * (#768, ADR 0125): a small repository whose README, controller comment, configuration comment and
+ * string literal hold the four injection fixtures.
+ */
+class RoleFixturesTest {
+
+  private static final Path RECORDINGS = Path.of("src/test/resources/recordings");
+  private static final String REPO = "orders";
+  private static final String MODULE = "module:shop:orders";
+  private static final String PKG = "package:shop:orders:shop.orders";
+
+  private static Fact fact(
+      String subject, String predicate, FactObject object, String path, String blob) {
+    return Fact.create(
+        EntityId.parse(subject),
+        predicate,
+        object,
+        FactJson.newObject(),
+        new Origin(Origin.Kind.STATIC, "test", "1"),
+        Evidence.of(new Evidence.Location(REPO, path, null, blob, null, Evidence.Role.DECLARED)),
+        1.0,
+        Validity.from(1));
+  }
+
+  private static String blob(String text) {
+    return SourceFiles.blobSha(text.getBytes(StandardCharsets.UTF_8), 40);
+  }
+
+  /** A class whose file holds the four fixtures' lines in its comment, as a copied note could. */
+  static final String NOTES =
+      "package shop.orders;\n\n/*\n"
+          + String.join(
+              "\n",
+              io.lantern.harness.InjectionFixtures.INJECTED.stream()
+                  .map(n -> " * " + injectedLine(n).strip())
+                  .toList())
+          + "\n */\nclass Notes {}\n";
+
+  /** The text of a type's file: a fixture, or the notes. */
+  static String source(String type) {
+    return type.equals("Notes") ? NOTES : fixture(type + ".java");
+  }
+
+  /**
+   * The repository: three types whose files hold fixtures (the notes all four), a README claim per
+   * fixture and a config comment.
+   */
+  static List<Fact> orders() {
+    List<Fact> facts = new ArrayList<>();
+    String pom = blob("pom");
+    facts.add(fact(MODULE, "packaging", FactObject.string("jar"), "pom.xml", pom));
+    facts.add(fact(MODULE, "CONTAINS", FactObject.entity(EntityId.parse(PKG)), "pom.xml", pom));
+    for (String type : List.of("OrderController", "Greeting", "Notes")) {
+      String path = "src/main/java/shop/orders/" + type + ".java";
+      String id = "type:shop.orders." + type;
+      String blob = blob(source(type));
+      facts.add(fact(PKG, "CONTAINS", FactObject.entity(EntityId.parse(id)), path, blob));
+      facts.add(fact(id, "kind", FactObject.string("class"), path, blob));
+    }
+    facts.add(
+        fact(
+            MODULE,
+            "config-comment",
+            FactObject.string(injectedLine("application.yml").replaceFirst("^#\\s*", "")),
+            "src/main/resources/application.yml",
+            blob(fixture("application.yml"))));
+    int line = 1;
+    for (String name : io.lantern.harness.InjectionFixtures.INJECTED) {
+      facts.add(TestFacts.claim(REPO, "README.md", line++, injectedLine(name).strip()));
+    }
+    return facts;
+  }
+
+  static final SourceFiles SOURCES =
+      TestFacts.files(
+          (repo, path) ->
+              repo.equals(REPO) && path.startsWith("src/main/java/shop/orders/")
+                  ? Optional.of(
+                      source(path.substring(path.lastIndexOf('/') + 1).replace(".java", "")))
+                  : Optional.empty());
+
+  private static LlmClient client(FakeLlmProvider fake, LlmProvider provider) {
+    return new LlmClient(
+        ModelSettings.single(fake.model("m")),
+        List.of(provider),
+        BudgetGuard.unlimited("test"),
+        new InMemoryLlmCallLog(),
+        Clock.systemUTC());
+  }
+
+  private static Summarizer summarizer(FakeLlmProvider fake, LlmProvider provider) {
+    return new Summarizer(
+        new Harness(
+            client(fake, provider),
+            new InMemoryAnswerStore(),
+            RunBudget.NONE,
+            BlobLookup.NONE,
+            Set.of()),
+        SOURCES);
+  }
+
+  @Test
+  void summarizeReplaysItsRecordingToExactlyTheExpectedFacts() {
+    FakeLlmProvider scripted =
+        new FakeLlmProvider().answering(Answers.epic(SummarizerTest::citingAll));
+    Path folder = RECORDINGS.resolve("summarize");
+    List<Fact> facts = orders();
+    Summarizer.Result result =
+        summarizer(scripted, RoleFixture.provider(scripted, folder))
+            .summarize(SummaryTree.fromFacts(facts));
+
+    Map<Origin, List<Fact>> stored = Summarizer.facts(result, facts, 1);
+    List<String> produced = lines(stored);
+    assertThat(produced).isEqualTo(RoleFixture.expected(folder, produced));
+    // Both roles stored: the types' and the module's and repository's.
+    assertThat(stored.keySet())
+        .extracting(Origin::name)
+        .containsExactlyInAnyOrder("summarize-type", "summarize");
+  }
+
+  @Test
+  void summarizeShowsTheFixturesAsDataAndAnAnswerThatObeysThemIsRejected() {
+    FakeLlmProvider obeying =
+        new FakeLlmProvider().answering(Answers.epic(r -> OBEYING + " [" + OBEYING_CITE + "]"));
+    List<Fact> facts = orders();
+    Summarizer.Result result = summarizer(obeying, obeying).summarize(SummaryTree.fromFacts(facts));
+
+    // Each role is shown all four: the types' and the module's, package's and repository's.
+    shownAsData(
+        obeying.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().startsWith("summarize type "))
+            .toList());
+    shownAsData(
+        obeying.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> !r.purpose().startsWith("summarize type "))
+            .toList());
+    // Every answer cites a file outside the repositories: rejected twice, nothing stored.
+    assertThat(result.summaries()).isEmpty();
+    assertThat(lines(Summarizer.facts(result, facts, 1))).isEmpty();
+  }
+}

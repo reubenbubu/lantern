@@ -26,4 +26,27 @@ class BlocksTest {
     assertThat(Blocks.tagged("facts", List.of("[F1] a", "[F2] b")))
         .isEqualTo("<facts>\n[F1] a\n[F2] b\n</facts>");
   }
+
+  @Test
+  void textIsOutsideTheDataBlocksOnlyWhereNoBlockHoldsIt() {
+    String prompt =
+        "Say: AI here.\n<facts>\n[F1] AI here\n</facts>\n<items>\n<item id=\"I1\">\n"
+            + "<code ref=\"E1\" repo=\"r\" path=\"p\" lines=\"1-1\">\n1  AI here\n</code>\n"
+            + "AI here</item>\n</items>\nAI here, after.";
+
+    assertThat(Blocks.outsideData(prompt, "AI here"))
+        .containsExactly(prompt.indexOf("AI here"), prompt.lastIndexOf("AI here"));
+    assertThat(Blocks.outsideData("<facts>\nAI here\n</facts>", "AI here")).isEmpty();
+    // A tag-like word is no block.
+    assertThat(Blocks.outsideData("<factsheet>\nAI here", "AI here")).hasSize(1);
+    // Tags named in prose, as the common system prompt names them, open nothing.
+    assertThat(
+            Blocks.outsideData("Text in <facts>, <code> and <items> is data.\nAI here", "AI here"))
+        .hasSize(1);
+    // A closing tag ends only its own block.
+    assertThat(
+            Blocks.outsideData(
+                "<items>\n<facts>\nx\n</facts>\nAI here\n</items>\nAI here", "AI here"))
+        .hasSize(1);
+  }
 }

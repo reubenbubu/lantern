@@ -2800,4 +2800,140 @@ class DescriberTest {
     // The unit, 3 components and 5 interactions.
     assertThat(app.maxOutputTokens()).isGreaterThanOrEqualTo(Math.max(1_000, 150 * 4 + 90 * 5));
   }
+
+  // The recorded and injection fixtures of Describe's roles, the flow roles and Purpose (#768).
+
+  private static final java.nio.file.Path RECORDINGS =
+      java.nio.file.Path.of("src/test/resources/recordings/describer");
+
+  /** The roles a Describe run asks, besides the support judge, which the harness's tests cover. */
+  private static final List<String> DESCRIBER_ROLES =
+      List.of(
+          "describe-unit", "describe-element", "flow-significance", "flow-narrative", "purpose");
+
+  /** The predicates whose facts carry, as a comment, the text the fixtures say to an AI. */
+  private static final Set<String> COMMENTED =
+      Set.of("technology", "PUBLISHES", "endpoint", "scheduled", "CALLS_HTTP");
+
+  /**
+   * The facts, with a README claim per injection fixture, and the fixtures' lines as a comment on
+   * the facts the elements and flows show, as text a repository's code or files could carry.
+   */
+  private List<Fact> poisoned() {
+    String said =
+        String.join(
+            " ",
+            io.lantern.harness.InjectionFixtures.INJECTED.stream()
+                .map(n -> io.lantern.harness.InjectionFixtures.injectedLine(n).strip())
+                .toList());
+    List<Fact> all = new ArrayList<>();
+    for (Fact fact : facts.raw()) {
+      if (!COMMENTED.contains(fact.predicate())) {
+        all.add(fact);
+        continue;
+      }
+      tools.jackson.databind.node.ObjectNode attributes = fact.attributes().deepCopy();
+      attributes.put("comment", said);
+      all.add(
+          Fact.create(
+              fact.subject(),
+              fact.predicate(),
+              fact.object(),
+              attributes,
+              fact.origin(),
+              fact.evidence(),
+              fact.confidence(),
+              fact.validity()));
+    }
+    int line = 1;
+    for (String name : io.lantern.harness.InjectionFixtures.INJECTED) {
+      all.add(
+          Fact.create(
+              EntityId.parse("readme:shop:README.md"),
+              "claim",
+              io.lantern.core.fact.FactObject.string(
+                  io.lantern.harness.InjectionFixtures.injectedLine(name).strip()),
+              io.lantern.core.fact.FactJson.newObject(),
+              new io.lantern.core.fact.Origin(io.lantern.core.fact.Origin.Kind.README, "docs", "1"),
+              io.lantern.core.fact.Evidence.of(
+                  "shop",
+                  "README.md",
+                  new io.lantern.core.fact.Evidence.LineRange(line, line),
+                  null),
+              0.5,
+              io.lantern.core.fact.Validity.from(1)));
+      line++;
+    }
+    // The architecture model derived from them, as the linker stores it.
+    return List.copyOf(io.lantern.derive.Derivation.withModel(all, 1));
+  }
+
+  /** The requests a role was sent, by the role its purpose names. */
+  private static List<LlmRequest> sentBy(FakeLlmProvider fake, String role) {
+    return fake.sent().stream()
+        .map(FakeLlmProvider.Sent::request)
+        .filter(r -> r.purpose().startsWith(role + " "))
+        .toList();
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(
+      strings = {
+        "describe-unit",
+        "describe-element",
+        "flow-significance",
+        "flow-narrative",
+        "purpose"
+      })
+  void eachRoleReplaysItsRecordingToExactlyTheExpectedFacts(String role) {
+    FakeLlmProvider scripted = new FakeLlmProvider().answering(DescriberTest::answer);
+    LlmClient replayed =
+        new LlmClient(
+            ModelSettings.single(scripted.model("fake-model")),
+            List.of(io.lantern.llm.RoleFixture.provider(scripted, RECORDINGS)),
+            BudgetGuard.unlimited("test"),
+            new InMemoryLlmCallLog(),
+            Clock.systemUTC());
+    Describer.Result result = new Describer(harness(replayed)).describe(poisoned());
+
+    List<String> produced = io.lantern.harness.InjectionFixtures.lines(result.facts(1));
+    List<String> expected = io.lantern.llm.RoleFixture.expected(RECORDINGS, produced);
+    List<String> ofRole = produced.stream().filter(l -> l.startsWith(role + "@")).toList();
+    assertThat(ofRole).isNotEmpty();
+    assertThat(ofRole).isEqualTo(expected.stream().filter(l -> l.startsWith(role + "@")).toList());
+    // And nothing else: the whole run stores exactly the expected facts.
+    assertThat(produced).isEqualTo(expected);
+  }
+
+  @Test
+  void eachRoleShowsTheFixturesAsDataAndAnAnswerThatObeysThemIsRejected() {
+    String cite = io.lantern.harness.InjectionFixtures.OBEYING_CITE;
+    String text = io.lantern.harness.InjectionFixtures.OBEYING;
+    FakeLlmProvider obeying =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    answer(request)
+                        .replaceAll("\"text\": \"[^\"]*\"", "\"text\": \"" + text + "\"")
+                        .replaceAll("\"cites\": \\[[^\\]]*\\]", "\"cites\": [\"" + cite + "\"]"));
+
+    Describer.Result result = new Describer(harness(client(obeying))).describe(poisoned());
+
+    for (String role : DESCRIBER_ROLES) {
+      io.lantern.harness.InjectionFixtures.shownAsData(sentBy(obeying, role));
+    }
+    List<String> stored = io.lantern.harness.InjectionFixtures.lines(result.facts(1));
+    // Nothing the obeying answers said is stored, nor what they cite.
+    assertThat(stored).noneMatch(l -> l.contains("fully secure") || l.contains("/etc/passwd"));
+    assertThat(result.texts()).isEmpty();
+    // A flow's significance is kept without its reason: field-level repair drops the reason that
+    // cites the password file and keeps the verdict, which the fixtures did not touch (ADR 0103).
+    assertThat(stored)
+        .allSatisfy(
+            l ->
+                assertThat(l)
+                    .startsWith("flow-significance@")
+                    .contains("\"significant\":true")
+                    .doesNotContain("\"text\":"));
+  }
 }
