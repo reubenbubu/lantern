@@ -47,10 +47,12 @@ class InvestigatorTest {
   private static final String STORAGE = "src/main/java/f/StorageClient.java";
   private static final String GATEWAY_CONFIG = "src/main/resources/application.properties";
 
+  /** The test's files; a test that edits one puts it back. */
   private static final Map<String, String> TEXTS =
-      Map.of(
-          "fs:" + CONTROLLER,
-          """
+      new java.util.concurrent.ConcurrentHashMap<>(
+          Map.of(
+              "fs:" + CONTROLLER,
+              """
           package f;
 
           @RestController
@@ -61,18 +63,18 @@ class InvestigatorTest {
             }
           }
           """,
-          "gw:" + GATEWAY_CONFIG,
-          """
+              "gw:" + GATEWAY_CONFIG,
+              """
           spring.cloud.gateway.routes[0].uri=lb://files
           spring.cloud.gateway.routes[0].predicates[0]=Path=/files/**
           """,
-          "fs:" + STORAGE,
-          """
+              "fs:" + STORAGE,
+              """
           package f;
           class StorageClient {
             String bucket = restClient.post().uri("https://s3.example.com/bucket");
           }
-          """);
+          """));
 
   private static final GraphTools.RepoFiles FILES =
       new GraphTools.RepoFiles() {
@@ -1170,6 +1172,34 @@ class InvestigatorTest {
         .filteredOn(r -> r.toJson().path("role").asString().equals("investigate-leads"))
         .singleElement()
         .satisfies(r -> assertThat(r.toJson().path("packetSize").asInt()).isEqualTo(2));
+  }
+
+  @Test
+  void aCachedAnswerIsAskedAgainOnceAFileItCitesChanges() {
+    headerLead();
+    // It also cites the storage client, a file it read with a tool, not shown in its prompt.
+    String citingStorage =
+        CONFIRMED.replace(
+            "\"cites\": [\"fs:src/main/java/f/FileController.java:5-7\"]",
+            "\"cites\": [\"fs:src/main/java/f/FileController.java:5-7\", \"fs:"
+                + STORAGE
+                + ":3-3\"]");
+    investigate(submitting(r -> leads(r) && turn(r) == 1 ? citingStorage : null));
+    FakeLlmProvider unchanged = submitting(r -> null);
+    investigate(unchanged);
+    assertThat(unchanged.sent()).isEmpty();
+
+    String key = "fs:" + STORAGE;
+    String before = TEXTS.get(key);
+    try {
+      TEXTS.put(key, before + "// edited\n");
+      FakeLlmProvider again = submitting(r -> null);
+      investigate(again);
+      // Its cached answer is checked against the file as it is now (#769).
+      assertThat(again.sent()).anyMatch(c -> leads(c.request()));
+    } finally {
+      TEXTS.put(key, before);
+    }
   }
 
   @Test
