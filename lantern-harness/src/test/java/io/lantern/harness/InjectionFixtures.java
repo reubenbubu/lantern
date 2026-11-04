@@ -7,6 +7,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.harness.render.Blocks;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmMessage;
+import io.lantern.llm.LlmRequest;
 import io.lantern.llm.LlmToolResult;
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,11 +65,16 @@ public final class InjectionFixtures {
    * sent, or in a tool's result, which is data by construction; and each fixture is there.
    */
   public static void shownAsData(FakeLlmProvider fake) {
-    assertThat(fake.sent()).as("requests sent").isNotEmpty();
+    shownAsData(fake.sent().stream().map(FakeLlmProvider.Sent::request).toList());
+  }
+
+  /** As {@link #shownAsData(FakeLlmProvider)}, for the requests of one role. */
+  public static void shownAsData(List<LlmRequest> requests) {
+    assertThat(requests).as("requests sent").isNotEmpty();
     StringBuilder all = new StringBuilder();
-    for (var sent : fake.sent()) {
-      assertThat(Blocks.outsideData(sent.request().system(), "AI assistant")).isEmpty();
-      for (LlmMessage message : sent.request().messages()) {
+    for (LlmRequest request : requests) {
+      assertThat(Blocks.outsideData(request.system(), "AI assistant")).isEmpty();
+      for (LlmMessage message : request.messages()) {
         all.append(message.text());
         if (message.author() == LlmMessage.Author.USER) {
           assertThat(Blocks.outsideData(message.text(), "AI assistant"))
