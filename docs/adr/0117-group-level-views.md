@@ -81,3 +81,12 @@ readability measured after layout (#764, with #366).
   The fold, domain and feature-area steps above keep running as they do, since #764 replaces them.
 - No new work uses `C4Views.MAX_ELEMENTS` or `MAX_LINES_PER_ELEMENT` to decide how a view is
   grouped or split.
+
+## Amendment (#764): the level is chosen by meaning
+
+The research for #764 (`docs/research/grouping-level-by-meaning.md`, high depth) sets the rule
+that replaces the fixed thresholds: derivation proposes only levels the code proves, one stored
+judgement picks a level per view in a fixed order of criteria, box count is a soft target with a
+warning, and the after-layout measures of #366 have the final word (`docs/design.md`, Readable
+diagrams). The fold, domain and feature-area steps above stay until the view code of #764 lands,
+which waits for the owner to approve the rule and the soft targets on #764.
