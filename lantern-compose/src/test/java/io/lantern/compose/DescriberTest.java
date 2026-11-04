@@ -2001,14 +2001,20 @@ class DescriberTest {
     Map<String, String> after = storedTexts("describe-unit", APP);
 
     // Only the unit whose description shows the code is asked again, though the model rewords
-    // every text; the changed text falls outside the support judge's sample. The flows, which show
+    // every text; the support judge looks again at most at the changed text, which its sample may
+    // take or not, as the fake's rewording varies with the order of calls. The flows, which show
     // the unit's other texts, see the same words and are not asked.
     assertThat(fake.sent().subList(0, sent))
         .extracting(s -> s.request().purpose())
         .anySatisfy(p -> assertThat(p).startsWith("flow-narrative"));
     assertThat(fake.sent().subList(sent, fake.sent().size()))
         .extracting(s -> s.request().purpose())
-        .containsExactly("describe-unit 1 items: " + APP);
+        .startsWith("describe-unit 1 items: " + APP)
+        .hasSizeLessThanOrEqualTo(2)
+        .allMatch(
+            p ->
+                p.equals("describe-unit 1 items: " + APP)
+                    || p.equals("support-judge 1 items: " + CONTROLLER));
     assertThat(after.keySet()).isEqualTo(before.keySet());
     after.forEach(
         (at, text) -> {
