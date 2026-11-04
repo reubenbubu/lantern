@@ -101,8 +101,12 @@ public final class Investigator {
   /** The most tokens a turn's answer may take, thinking aside. */
   static final int MAX_OUTPUT_TOKENS = 4_000;
 
-  /** The most leads one Mode A conversation holds (knowledge-build epic, section 11.2). */
-  static final int LEADS_PER_PACKET = 4;
+  /**
+   * The most leads one Mode A conversation holds by default: 1, the setting in use ({@code
+   * lantern.harness.items-per-request.investigate-leads=1}, ADR 0110, amendment for #529). The
+   * epic's starting size was 4 (knowledge-build epic, section 11.2); the calibration kept 1.
+   */
+  static final int LEADS_PER_PACKET = 1;
 
   /** The caps of a Mode A conversation: 6 tool turns. */
   static final ConversationLimits LEAD_LIMITS =

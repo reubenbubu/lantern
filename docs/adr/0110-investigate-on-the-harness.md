@@ -168,3 +168,16 @@ lead's entry and each proposal: a cited range holds only if the conversation's t
 line of it, or an excerpt of its request gave them. A proposal citing other lines is sent back and
 dropped as a whole, as for any rejected part. A range in another unit's repository holds once the
 conversation read it; Investigate has no sides.
+
+## Amendment (#750): the title's words, the default size and the re-measure
+
+- **Title.** The prompts ask for a risk title of 5 to 7 words, and the check accepts 4 to 8: the
+  contract gives the title no accepted range of its own, so its 15% tolerance widens each bound
+  by at least one word (`prompts/investigate.contract.json`, ADR 0118). The one word of margin is
+  on purpose, so a title one word off is kept rather than sent back.
+- **Leads a request.** `Investigator.LEADS_PER_PACKET`, the default in code, is now 1, the
+  setting in use (`lantern.harness.items-per-request.investigate-leads=1`), so code, setting and
+  this ADR agree.
+- **Re-measure.** The measurement of leads a request again on Claude Haiku 5.5 is done by #756,
+  with the recalibration of the batched roles; the size stays 1 until it reports.
+
