@@ -376,7 +376,7 @@ public final class PurposeRole {
   }
 
   /** The claims of the system's purpose and key fact, of the model that wrote them. */
-  static List<Fact> facts(Map<String, Worded> worded, String model, long snapshot) {
+  static List<Fact> facts(Map<String, Worded> worded, String model, String answer, long snapshot) {
     List<Fact> facts = new ArrayList<>();
     worded.forEach(
         (field, text) -> {
@@ -388,6 +388,7 @@ public final class PurposeRole {
               "basis",
               (text.evidenced() ? LlmFacts.Basis.EVIDENCED : LlmFacts.Basis.INFERRED).jsonName());
           attributes.put("model", model);
+          attributes.put(LlmFacts.ANSWER, answer);
           Fact fact =
               Fact.create(
                   ArchitectureModel.SYSTEM,

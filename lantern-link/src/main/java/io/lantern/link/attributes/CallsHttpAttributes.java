@@ -17,6 +17,10 @@ import tools.jackson.databind.node.ObjectNode;
  *     off there (#590). Absent when it holds in every view.
  * @param alternates Descriptive. The entity IDs of the other units or external systems the same
  *     call reaches under other profiles, such as a production host for a sandbox one.
+ * @param answer Descriptive. The stored answer it comes from: its fingerprint in the answer cache,
+ *     which names the role, prompt version, model and inputs of the request (#753).
+ * @param basis Descriptive. Whether it rests on what people wrote: evidenced when it cites a README
+ *     or document claim, else inferred from code and configuration (#753).
  * @param client Descriptive. The HTTP client: feign, rest-template, rest-client, web-client, and so
  *     on.
  * @param endpoint Key. The endpoint matched, such as GET /api/products/{id}; for a WebSocket
@@ -53,6 +57,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     or R2DBC.
  * @param proxy Descriptive. For a frontend's link, the path prefix of the proxy it goes through:
  *     the nginx that serves the frontend, or its development server.
+ * @param ranges Descriptive. For a link of origin llm, the code ranges its answer cites, as
+ *     repo:path:from-to (#753).
  * @param rationale Descriptive. No longer given since #666: reason replaced it. Why the LLM
  *     resolver picked this candidate, in its own words; kept so facts stored before stay valid.
  * @param reaches Descriptive. For a frontend's call, the method that handles it: the endpoint's
@@ -84,6 +90,8 @@ import tools.jackson.databind.node.ObjectNode;
 public record CallsHttpAttributes(
     List<String> absentIn,
     List<String> alternates,
+    String answer,
+    String basis,
     String client,
     String endpoint,
     List<String> endpoints,
@@ -100,6 +108,7 @@ public record CallsHttpAttributes(
     String profile,
     String protocol,
     String proxy,
+    List<String> ranges,
     String rationale,
     String reaches,
     String reachesEndpoint,
@@ -124,6 +133,8 @@ public record CallsHttpAttributes(
     return new CallsHttpAttributes(
         AttributeValues.strings(attributes, "absentIn"),
         AttributeValues.strings(attributes, "alternates"),
+        AttributeValues.string(attributes, "answer"),
+        AttributeValues.string(attributes, "basis"),
         AttributeValues.string(attributes, "client"),
         AttributeValues.string(attributes, "endpoint"),
         AttributeValues.strings(attributes, "endpoints"),
@@ -140,6 +151,7 @@ public record CallsHttpAttributes(
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "protocol"),
         AttributeValues.string(attributes, "proxy"),
+        AttributeValues.strings(attributes, "ranges"),
         AttributeValues.string(attributes, "rationale"),
         AttributeValues.string(attributes, "reaches"),
         AttributeValues.string(attributes, "reachesEndpoint"),
@@ -159,6 +171,8 @@ public record CallsHttpAttributes(
     ObjectNode attributes = FactJson.newObject();
     AttributeValues.put(attributes, "absentIn", absentIn);
     AttributeValues.put(attributes, "alternates", alternates);
+    AttributeValues.put(attributes, "answer", answer);
+    AttributeValues.put(attributes, "basis", basis);
     AttributeValues.put(attributes, "client", client);
     AttributeValues.put(attributes, "endpoint", endpoint);
     AttributeValues.put(attributes, "endpoints", endpoints);
@@ -175,6 +189,7 @@ public record CallsHttpAttributes(
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "protocol", protocol);
     AttributeValues.put(attributes, "proxy", proxy);
+    AttributeValues.put(attributes, "ranges", ranges);
     AttributeValues.put(attributes, "rationale", rationale);
     AttributeValues.put(attributes, "reaches", reaches);
     AttributeValues.put(attributes, "reachesEndpoint", reachesEndpoint);

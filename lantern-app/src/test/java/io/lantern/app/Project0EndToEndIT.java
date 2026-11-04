@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
@@ -243,6 +244,8 @@ class Project0EndToEndIT {
                 vocabulary.current(),
                 facts.findValidAt(first.snapshot().number(), commits.keySet())))
         .isEmpty();
+    // Every fact an LLM role wrote says where it came from (#753, ADR 0124).
+    assertThat(llmProvenanceProblems(facts.findValidAt(first.snapshot().number()))).isEmpty();
     // Investigate leads (#524): none where project-0's cases say there is nothing to suspect.
     // Its schemas are migrated (DB-3, DB-4), its secrets are placeholders the environment fills
     // (VAL-5), it has no frontend and no CORS policy, every call matches an endpoint, and nothing
@@ -355,6 +358,79 @@ class Project0EndToEndIT {
     checkSystemReport(system.document());
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));
+  }
+
+  /**
+   * What is missing from where the LLM facts say they came from (#753, ADR 0124): the role and its
+   * prompt version, the model, the stored answer (a fingerprint the answer cache holds, of that
+   * role and model), whether it is evidenced or inferred, and the claims of the facts it cites. A
+   * link the LLM resolved also cites the code it read, where it read any. The facts that say a unit
+   * was not investigated come from no answer, as no request was made for them, and so do the leads
+   * not asked. The answer may be one the model left out or that was rejected: the cache holds those
+   * too.
+   */
+  private List<String> llmProvenanceProblems(List<Fact> held) {
+    List<String> problems = new ArrayList<>();
+    int checked = 0;
+    for (Fact fact : held) {
+      if (fact.origin().kind() != Origin.Kind.LLM
+          || fact.predicate().equals(Types.NOT_INVESTIGATED)
+          || fact.attributes().path("reason").asString("").startsWith("not asked: ")) {
+        continue;
+      }
+      checked++;
+      String what = fact.predicate() + " " + fact.subject() + " (" + fact.origin().name() + ")";
+      if (fact.origin().name().isBlank() || fact.origin().version().isBlank()) {
+        problems.add(what + ": no role or prompt version");
+      }
+      String model = text(fact, "model");
+      String answer = text(fact, "answer");
+      String basis = text(fact, "basis");
+      if (model == null) {
+        problems.add(what + ": no model");
+      }
+      if (basis == null || !Set.of("evidenced", "inferred").contains(basis)) {
+        problems.add(what + ": no basis");
+      }
+      if (fact.lineage().isEmpty()) {
+        problems.add(what + ": cites no fact");
+      } else {
+        // The lineage names the cited facts by their claim IDs, which the store holds (ADR 0091).
+        long claims =
+            jdbc.sql("SELECT count(*) FROM claims WHERE id = ANY(string_to_array(?, ','))")
+                .param(String.join(",", fact.lineage()))
+                .query(Long.class)
+                .single();
+        if (claims != fact.lineage().size()) {
+          problems.add(what + ": cites " + fact.lineage() + ", not all stored claims");
+        }
+      }
+      if (answer == null || !answer.matches("[0-9a-f]{64}")) {
+        problems.add(what + ": no answer");
+        continue;
+      }
+      List<String> stored =
+          jdbc.sql(
+                  "SELECT role || ' ' || provider || '/' || model FROM llm_answers"
+                      + " WHERE fingerprint = ?")
+              .param(answer)
+              .query(String.class)
+              .list();
+      if (stored.isEmpty()) {
+        problems.add(what + ": answer " + answer + " is not stored");
+      } else if (model != null && !stored.getFirst().endsWith(" " + model)) {
+        problems.add(what + ": answer of " + stored.getFirst() + ", fact says " + model);
+      }
+    }
+    assertThat(checked).as("LLM facts on project-0").isPositive();
+    return problems;
+  }
+
+  private static String text(Fact fact, String attribute) {
+    var value = fact.attributes().get(attribute);
+    return value == null || !value.isString() || value.asString().isBlank()
+        ? null
+        : value.asString();
   }
 
   /**

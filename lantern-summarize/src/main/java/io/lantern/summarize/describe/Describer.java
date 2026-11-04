@@ -205,7 +205,13 @@ public final class Describer {
       Map<String, Fact> unique = new LinkedHashMap<>();
       for (LlmText text : texts) {
         Fact fact =
-            DescribeRole.fact(text.described(), text.worded(), text.role(), text.model(), snapshot);
+            DescribeRole.fact(
+                text.described(),
+                text.worded(),
+                text.role(),
+                text.model(),
+                text.answer(),
+                snapshot);
         Verdict verdict = verdicts.get(judgedKey(text).toString());
         if (fact.predicate().equals(Types.RESPONSIBILITY)
             && verdict != null
@@ -269,11 +275,16 @@ public final class Describer {
    *
    * @param role the role
    * @param model the model, as {@code provider/model}
+   * @param answer the stored answer it comes from, by its fingerprint (#753)
    * @param described the item it answers
    * @param worded the text
    */
   public record LlmText(
-      RoleSpec role, String model, DescribeRole.Described described, DescribeRole.Worded worded) {}
+      RoleSpec role,
+      String model,
+      String answer,
+      DescribeRole.Described described,
+      DescribeRole.Worded worded) {}
 
   /** The role that narrates the main flows. */
   public static final RoleSpec FLOWS = FlowJudgements.NARRATIVE;
@@ -524,7 +535,8 @@ public final class Describer {
           PurposeRole.Worded key = worded.get(PurposeRole.KEY_FACT);
           if (key != null) {}
           String model = purposeSession.model().provider() + "/" + purposeSession.model().model();
-          tally.flowFacts.add(snapshot -> PurposeRole.facts(worded, model, snapshot));
+          String fingerprint = outcome.fingerprint();
+          tally.flowFacts.add(snapshot -> PurposeRole.facts(worded, model, fingerprint, snapshot));
         });
     LOG.info(
         "Texts: {} units, data stores, destinations, external systems, people, flows and the"
@@ -649,7 +661,7 @@ public final class Describer {
       Set<String> said = new java.util.HashSet<>();
       for (DescribeRole.Worded text : worded) {
         said.add(text.field());
-        texts.add(new LlmText(role, model, described, text));
+        texts.add(new LlmText(role, model, outcome.fingerprint(), described, text));
         String markers = markers(text.cited());
         if (text.field().startsWith(DescribeRole.INTERACTIONS + ".")) {
           Fact interaction =
@@ -863,10 +875,17 @@ public final class Describer {
           }
           chosen.put(scope.key(), order);
           String stored = outcome.answer();
+          String fingerprint = outcome.fingerprint();
           tally.flowFacts.add(
               snapshot ->
                   FlowJudgements.judged(
-                          asked, stored, scope.key(), sigModel, scope.knowledge(), snapshot)
+                          asked,
+                          stored,
+                          scope.key(),
+                          sigModel,
+                          fingerprint,
+                          scope.knowledge(),
+                          snapshot)
                       .facts());
         });
     // The narrative of each flow a scope draws, each flow once.
@@ -910,13 +929,14 @@ public final class Describer {
             return;
           }
           Scope scope = scopeOf.get(key);
-          FlowJudgements.narrative(asked, outcome.answer(), flow, narModel, scope.knowledge(), 0)
-              .ifPresent(n -> tally.flows.put(key, n.flow()));
           String stored = outcome.answer();
+          String fingerprint = outcome.fingerprint();
+          FlowJudgements.narrative(asked, stored, flow, narModel, fingerprint, scope.knowledge(), 0)
+              .ifPresent(n -> tally.flows.put(key, n.flow()));
           tally.flowFacts.add(
               snapshot ->
                   FlowJudgements.narrative(
-                          asked, stored, flow, narModel, scope.knowledge(), snapshot)
+                          asked, stored, flow, narModel, fingerprint, scope.knowledge(), snapshot)
                       .map(n -> List.of(n.fact()))
                       .orElse(List.of()));
         });

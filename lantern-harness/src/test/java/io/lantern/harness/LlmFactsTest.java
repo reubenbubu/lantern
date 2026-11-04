@@ -56,6 +56,7 @@ class LlmFactsTest {
         LlmFacts.text(
             ROLE,
             "fake/fake-model",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             EntityId.parse("service:com.example:app"),
             Types.RESPONSIBILITY,
             LlmFacts.C4,
@@ -89,6 +90,7 @@ class LlmFactsTest {
                 LlmFacts.text(
                     ROLE,
                     "fake/fake-model",
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     EntityId.parse("service:com.example:app"),
                     Types.INTENT,
                     "x",
@@ -129,6 +131,7 @@ class LlmFactsTest {
         LlmFacts.summary(
             role,
             "fake/fake-model",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             EntityId.parse("module:com.example:app"),
             "module",
             List.of(
@@ -174,6 +177,7 @@ class LlmFactsTest {
                 LlmFacts.summary(
                     role,
                     "fake/fake-model",
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                     EntityId.parse("module:com.example:app"),
                     "module",
                     List.of(new LlmFacts.Sentence("Takes orders.", List.of())),

@@ -402,8 +402,24 @@ public final class Findings implements LinkRule.OverFacts {
    * the file: {@code finding:injection-suspected/<repo>:<path>}.
    */
   public static Fact injectionSuspected(
-      String repo, String path, String blob, int from, int to, String quote, long snapshot) {
+      String repo,
+      String path,
+      String blob,
+      int from,
+      int to,
+      String quote,
+      String model,
+      String answer,
+      long snapshot) {
     ObjectNode attributes = FactJson.newObject();
+    // Who flagged it and from what answer (#753); it quotes what people wrote in the file.
+    if (model != null) {
+      attributes.put("model", model);
+    }
+    if (answer != null) {
+      attributes.put("answer", answer);
+    }
+    attributes.put("basis", "evidenced");
     attributes.put("about", "file:" + repo + ":" + path);
     attributes.put("repo", repo);
     attributes.put("rule", NAME + "/" + INJECTION_SUSPECTED);

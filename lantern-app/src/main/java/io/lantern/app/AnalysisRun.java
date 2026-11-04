@@ -767,6 +767,8 @@ public final class AnalysisRun {
               suspected.from(),
               suspected.to(),
               suspected.quote(),
+              suspected.model(),
+              suspected.answer(),
               snapshot.number()));
     }
     // One finding per file: the first flagged chunk.
@@ -822,6 +824,8 @@ public final class AnalysisRun {
               Integer.parseInt(lines[0]),
               Integer.parseInt(lines[1]),
               Findings.attribute(fact, "quote"),
+              Findings.attribute(fact, "model"),
+              Findings.attribute(fact, "answer"),
               snapshot));
     }
     return kept;

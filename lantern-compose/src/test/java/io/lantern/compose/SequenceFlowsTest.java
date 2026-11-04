@@ -692,6 +692,7 @@ class SequenceFlowsTest {
         io.lantern.harness.LlmFacts.text(
             io.lantern.summarize.describe.DescribeRole.UNITS,
             "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             EntityId.parse("person:customer"),
             Types.INTENT,
             basis.id() + "/" + UI,

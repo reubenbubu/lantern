@@ -238,8 +238,18 @@ public final class LinkResolver implements LinkRule.OverFacts {
   }
 
   /** A pick as the link records it. */
+  /**
+   * @param answer the stored answer it comes from, by its fingerprint (#753)
+   * @param ranges the code ranges it cites, as {@code repo:path:from-to} (#753)
+   */
   private record Picked(
-      EntityId target, String confidence, String reason, List<Fact> cited, String model) {}
+      EntityId target,
+      String confidence,
+      String reason,
+      List<Fact> cited,
+      String model,
+      String answer,
+      List<String> ranges) {}
 
   /**
    * Resolves the links of a snapshot that static matching left open.
@@ -327,7 +337,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
           Optional<Picked> picked =
               outcome.answer() == null
                   ? Optional.empty()
-                  : picked(question, outcome.answer(), byKey, modelName);
+                  : picked(question, outcome.answer(), byKey, modelName, outcome.fingerprint());
           if (picked.isEmpty()) {
             unknown++;
           } else {
@@ -363,7 +373,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
                           question,
                           stored.answer(),
                           byKey,
-                          stored.provider() + "/" + stored.model()))
+                          stored.provider() + "/" + stored.model(),
+                          stored.fingerprint()))
               .ifPresent(earlier -> derived.add(fact(question, earlier, index, byId, snapshot)));
         }
       }
@@ -460,7 +471,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
    * facts it cites that still hold.
    */
   private static Optional<Picked> picked(
-      Question question, String stored, Map<String, Fact> byKey, String model) {
+      Question question, String stored, Map<String, Fact> byKey, String model, String answer) {
     Optional<EntityId> target;
     try {
       target = ResolveRole.storedPick(stored);
@@ -473,10 +484,13 @@ public final class LinkResolver implements LinkRule.OverFacts {
     }
     var node = FactJson.parse(stored);
     List<Fact> cited = new ArrayList<>();
+    List<String> ranges = new ArrayList<>();
     for (String cite : ResolveRole.storedCites(stored)) {
       Fact fact = byKey.get(cite);
       if (fact != null && !cited.contains(fact)) {
         cited.add(fact);
+      } else if (fact == null && RANGE.matcher(cite).matches() && !ranges.contains(cite)) {
+        ranges.add(cite);
       }
     }
     String confidence = node.path("confidence").asString("").toLowerCase(Locale.ROOT);
@@ -486,7 +500,9 @@ public final class LinkResolver implements LinkRule.OverFacts {
             CONFIDENCE.containsKey(confidence) ? confidence : "low",
             node.path("reason").asString(""),
             cited,
-            model));
+            model,
+            answer,
+            ranges));
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -942,6 +958,13 @@ public final class LinkResolver implements LinkRule.OverFacts {
     attributes.put("resolves", linkOf(unresolved));
     attributes.put("reason", picked.reason());
     attributes.put("model", picked.model());
+    // Which answer it comes from, on what it rests and the code it cites (#753).
+    attributes.put(io.lantern.harness.LlmFacts.ANSWER, picked.answer());
+    attributes.put("basis", io.lantern.harness.LlmFacts.Basis.INFERRED.jsonName());
+    if (!picked.ranges().isEmpty()) {
+      ArrayNode ranges = attributes.putArray("ranges");
+      picked.ranges().forEach(ranges::add);
+    }
     Set<String> ids = new TreeSet<>();
     ids.add(unresolved.id());
     ids.addAll(Claims.list(unresolved(unresolved).facts()));

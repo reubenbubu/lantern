@@ -13,6 +13,9 @@
     "attributeSchema": {
       "type": "object",
       "properties": {
+        "model": { "type": "string", "description": "For a finding an LLM role raised, the model that raised it, as provider/model (#753)." },
+        "answer": { "type": "string", "description": "For a finding an LLM role raised, the stored answer it comes from: its fingerprint in the answer cache (#753)." },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "For a finding an LLM role raised, whether it rests on what people wrote (#753)." },
         "rule": { "type": "string", "description": "The rule that raised it: findings/ and its kind." },
         "about": { "type": "string", "description": "What it is about: a repository (repo: and its name), a service, library or module, a deployable unit, the subject of the fact it wraps, or for a group-merge finding the first group of the pair, by key." },
         "repo": { "type": "string", "description": "For a dependency finding, the repository whose modules depend." },

@@ -328,6 +328,8 @@ public final class Summarizer {
               LlmFacts.summary(
                   role,
                   summary.provider() + "/" + summary.model(),
+                  // The key is the item's fingerprint in the answer cache (#753).
+                  summary.key(),
                   summary.entity(),
                   summary.level().name().toLowerCase(Locale.ROOT),
                   sentences,

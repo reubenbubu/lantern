@@ -500,9 +500,11 @@ class LinkResolverTest {
     assertThat(attributes.remove("facts")).isNotNull();
     // The link left open is named by its claim ID once stored; here, before, by its fact ID.
     assertThat(attributes.remove("resolves").asString()).isEqualTo(unresolved.id());
+    // The answer it came from: the fingerprint of its item in the answer cache.
+    assertThat(attributes.remove("answer").asString()).matches("[0-9a-f]{64}");
     assertThat(attributes.toString())
         .isEqualTo(
-            "{\"client\":\"rest-client\",\"endpoint\":\"GET /v2/quotes\",\"httpMethod\":\"GET\","
+            "{\"basis\":\"inferred\",\"client\":\"rest-client\",\"endpoint\":\"GET /v2/quotes\",\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"llm\",\"model\":\"fake/m\",\"path\":\"/v2/quotes\","
                 + "\"protocol\":\"JSON/HTTP\",\"reason\":\"Only tax serves GET /v2/quotes among the candidates shown.\","
                 + "\"source\":\"method:o.TaxClient#quote()\","
@@ -568,9 +570,10 @@ class LinkResolverTest {
     attributes.remove("facts");
     attributes.remove("link");
     attributes.remove("resolves");
+    assertThat(attributes.remove("answer").asString()).matches("[0-9a-f]{64}");
     assertThat(attributes.toString())
         .isEqualTo(
-            "{\"endpoint\":\"GET /v2/quotes\",\"matchedBy\":\"llm\",\"model\":\"fake/m\","
+            "{\"basis\":\"inferred\",\"endpoint\":\"GET /v2/quotes\",\"matchedBy\":\"llm\",\"model\":\"fake/m\","
                 + "\"paths\":[\"/v2/quotes\"],\"protocol\":\"JSON/HTTP\","
                 + "\"reason\":\"The route forwards /v2/quotes, which only tax serves.\","
                 + "\"route\":\"quotes\",\"source\":\"type:gw.Routes\","
@@ -800,7 +803,11 @@ class LinkResolverTest {
                 + " shown");
 
     model = "m2";
-    assertThat(resolveWithFiles(submittingOnce(citingLines)).facts()).hasSize(1);
+    List<Fact> read = resolveWithFiles(submittingOnce(citingLines)).facts();
+    assertThat(read).hasSize(1);
+    // The link keeps the code it cites, as the answer quoted it (#753).
+    assertThat(read.getFirst().attributes().get("ranges").toString())
+        .isEqualTo("[\"t:src/main/java/t/TaxController.java:3-6\"]");
   }
 
   @Test

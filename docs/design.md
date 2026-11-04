@@ -188,7 +188,7 @@ A fact is one **observation** (sighting) of a **claim** (what it states). The cl
 | `object` | Entity ID or typed value |
 | `attributes` | JSONB, validated against the vocabulary's definition for this type; key ones belong to the claim, the others to the observation |
 | `lineage` | The claim IDs the fact was derived from, for derived and LLM facts |
-| `origin` | `static` / `llm` / `human` / `readme` / `rule`, plus extractor, model or user details |
+| `origin` | `static` / `llm` / `human` / `readme` / `rule`, plus extractor, model or user details; an `llm` fact also records its model, the stored `answer` it came from (its key in the answer cache), its `basis` and, for a resolved link, the file `ranges` it cites (ADR 0124) |
 | `evidence` | One or more locations, the first the one the fact is declared in: repo, file, the file's git blob, line range and role (`declared`, `value`, `config`, `cited`). No commit: a snapshot's `repo@commit` pairs give it. A file git does not hold keeps its content hash instead of a blob |
 | `confidence` | 0–1 |
 | `validity` | Snapshot range in which the observation holds |

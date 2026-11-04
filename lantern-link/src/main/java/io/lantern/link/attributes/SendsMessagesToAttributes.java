@@ -14,6 +14,10 @@ import tools.jackson.databind.node.ObjectNode;
  * @param absentIn Descriptive. The views (Spring profiles) under which a link found in the default
  *     view does not hold, because the code or config of one of its ends is different or switched
  *     off there (#590). Absent when it holds in every view.
+ * @param answer Descriptive. The stored answer it comes from: its fingerprint in the answer cache,
+ *     which names the role, prompt version, model and inputs of the request (#753).
+ * @param basis Descriptive. Whether it rests on what people wrote: evidenced when it cites a README
+ *     or document claim, else inferred from code and configuration (#753).
  * @param bindingKey Key. The binding pattern the routing key matched.
  * @param destination Key. The entity ID of the topic, queue or exchange sent to.
  * @param exceptProfiles Descriptive. No longer given since #590: absentIn names the views. Kept so
@@ -31,6 +35,8 @@ import tools.jackson.databind.node.ObjectNode;
  *     HTTP, HTTPS, AMQP, Kafka, JMS, JDBC or R2DBC.
  * @param queue Descriptive. The entity ID of the queue the listener receives from, when an exchange
  *     routes to it.
+ * @param ranges Descriptive. For a link of origin llm, the code ranges its answer cites, as
+ *     repo:path:from-to (#753).
  * @param rationale Descriptive. No longer given since #666: reason replaced it. Why the LLM
  *     resolver picked this candidate, in its own words; kept so facts stored before stay valid.
  * @param reason Descriptive. What settles the LLM resolver's pick, in 6 to 35 words of its own.
@@ -47,6 +53,8 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public record SendsMessagesToAttributes(
     List<String> absentIn,
+    String answer,
+    String basis,
     String bindingKey,
     String destination,
     List<String> exceptProfiles,
@@ -57,6 +65,7 @@ public record SendsMessagesToAttributes(
     String profile,
     String protocol,
     String queue,
+    List<String> ranges,
     String rationale,
     String reason,
     String resolves,
@@ -75,6 +84,8 @@ public record SendsMessagesToAttributes(
   public static SendsMessagesToAttributes from(ObjectNode attributes) {
     return new SendsMessagesToAttributes(
         AttributeValues.strings(attributes, "absentIn"),
+        AttributeValues.string(attributes, "answer"),
+        AttributeValues.string(attributes, "basis"),
         AttributeValues.string(attributes, "bindingKey"),
         AttributeValues.string(attributes, "destination"),
         AttributeValues.strings(attributes, "exceptProfiles"),
@@ -85,6 +96,7 @@ public record SendsMessagesToAttributes(
         AttributeValues.string(attributes, "profile"),
         AttributeValues.string(attributes, "protocol"),
         AttributeValues.string(attributes, "queue"),
+        AttributeValues.strings(attributes, "ranges"),
         AttributeValues.string(attributes, "rationale"),
         AttributeValues.string(attributes, "reason"),
         AttributeValues.string(attributes, "resolves"),
@@ -98,6 +110,8 @@ public record SendsMessagesToAttributes(
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
     AttributeValues.put(attributes, "absentIn", absentIn);
+    AttributeValues.put(attributes, "answer", answer);
+    AttributeValues.put(attributes, "basis", basis);
     AttributeValues.put(attributes, "bindingKey", bindingKey);
     AttributeValues.put(attributes, "destination", destination);
     AttributeValues.put(attributes, "exceptProfiles", exceptProfiles);
@@ -108,6 +122,7 @@ public record SendsMessagesToAttributes(
     AttributeValues.put(attributes, "profile", profile);
     AttributeValues.put(attributes, "protocol", protocol);
     AttributeValues.put(attributes, "queue", queue);
+    AttributeValues.put(attributes, "ranges", ranges);
     AttributeValues.put(attributes, "rationale", rationale);
     AttributeValues.put(attributes, "reason", reason);
     AttributeValues.put(attributes, "resolves", resolves);

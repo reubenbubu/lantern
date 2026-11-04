@@ -60,6 +60,12 @@ public final class LlmFacts {
   /** The document kind texts are worded for. */
   public static final String C4 = "c4";
 
+  /**
+   * The attribute naming the stored answer a fact of origin llm comes from: its fingerprint in the
+   * answer cache, which names the role, prompt version, model and inputs of the request (#753).
+   */
+  public static final String ANSWER = "answer";
+
   /** How certain a text the checks accepted is, before the support judge's verdict. */
   public static final double CONFIDENCE = 0.6;
 
@@ -104,6 +110,7 @@ public final class LlmFacts {
    *
    * @param role the role that wrote it
    * @param model the model that wrote it, as {@code provider/model}
+   * @param answer the stored answer it comes from: its fingerprint in the answer cache (#753)
    * @param subject what it is about
    * @param predicate its predicate, such as {@link Types#RESPONSIBILITY}
    * @param object its value, such as {@link #C4} or an interaction's claim ID
@@ -115,6 +122,7 @@ public final class LlmFacts {
   public static Fact text(
       RoleSpec role,
       String model,
+      String answer,
       EntityId subject,
       String predicate,
       String object,
@@ -134,6 +142,7 @@ public final class LlmFacts {
     ids.forEach(cites::add);
     attributes.put("basis", basis.jsonName());
     attributes.put("model", model);
+    attributes.put(ANSWER, Objects.requireNonNull(answer, "answer"));
     List<String> lineage = new ArrayList<>();
     cited.forEach(
         f -> {
@@ -179,6 +188,7 @@ public final class LlmFacts {
   public static Fact summary(
       RoleSpec role,
       String model,
+      String answer,
       EntityId subject,
       String level,
       List<Sentence> sentences,
@@ -202,6 +212,7 @@ public final class LlmFacts {
     }
     attributes.put("basis", basis.jsonName());
     attributes.put("model", model);
+    attributes.put(ANSWER, Objects.requireNonNull(answer, "answer"));
     List<String> lineage = new ArrayList<>();
     cited.forEach(
         f -> {

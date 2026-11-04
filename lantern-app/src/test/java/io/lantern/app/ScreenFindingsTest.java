@@ -17,9 +17,27 @@ class ScreenFindingsTest {
   @Test
   void aFindingOnAFileTheRunDidNotScreenStillHoldsAndOneOnAScreenedFileIsReplaced() {
     Fact readByResolve =
-        Findings.injectionSuspected("orders", "config/Foo.java", BLOB, 3, 4, "AI assistant", 1);
+        Findings.injectionSuspected(
+            "orders",
+            "config/Foo.java",
+            BLOB,
+            3,
+            4,
+            "AI assistant",
+            "fake/m",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            1);
     Fact screenedAgain =
-        Findings.injectionSuspected("orders", "README.md", BLOB, 5, 5, "AI assistant", 1);
+        Findings.injectionSuspected(
+            "orders",
+            "README.md",
+            BLOB,
+            5,
+            5,
+            "AI assistant",
+            "fake/m",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            1);
 
     List<Fact> kept =
         AnalysisRun.stillHolding(

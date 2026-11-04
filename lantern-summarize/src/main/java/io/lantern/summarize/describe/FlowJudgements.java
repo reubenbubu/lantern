@@ -725,7 +725,13 @@ public final class FlowJudgements {
   record Judged(List<String> order, List<Fact> facts) {}
 
   static Judged judged(
-      Asked asked, String stored, String scope, String model, Knowledge knowledge, long snapshot) {
+      Asked asked,
+      String stored,
+      String scope,
+      String model,
+      String fingerprint,
+      Knowledge knowledge,
+      long snapshot) {
     JsonNode answer = JSON.readTree(stored);
     List<String> order = order(asked, stored);
     List<Fact> facts = new ArrayList<>();
@@ -752,6 +758,7 @@ public final class FlowJudgements {
               new LinkedHashSet<>(cited).forEach(f -> cites.add(f.id()));
               attributes.put("basis", LlmFacts.Basis.INFERRED.jsonName());
               attributes.put("model", model);
+              attributes.put(LlmFacts.ANSWER, fingerprint);
               FlowModel.content(knowledge, candidate.flow())
                   .ifPresent(c -> attributes.put("content", c));
               facts.add(
@@ -782,7 +789,13 @@ public final class FlowJudgements {
   record Narrative(Flow flow, Fact fact) {}
 
   static Optional<Narrative> narrative(
-      Asked asked, String stored, EntityId flow, String model, Knowledge knowledge, long snapshot) {
+      Asked asked,
+      String stored,
+      EntityId flow,
+      String model,
+      String fingerprint,
+      Knowledge knowledge,
+      long snapshot) {
     JsonNode answer = JSON.readTree(stored);
     Map<String, Cited> texts = new LinkedHashMap<>();
     for (String field : NARRATIVE_FIELDS) {
@@ -807,6 +820,7 @@ public final class FlowJudgements {
     attributes.set("fieldCites", fieldCites);
     attributes.put("basis", LlmFacts.Basis.INFERRED.jsonName());
     attributes.put("model", model);
+    attributes.put(LlmFacts.ANSWER, fingerprint);
     FlowModel.content(knowledge, flow).ifPresent(c -> attributes.put("content", c));
     Cited title = texts.get(TITLE);
     Flow wording =
