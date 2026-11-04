@@ -1,8 +1,8 @@
 package io.lantern.link;
 
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.ProfileGateAttributes;
-import io.lantern.extract.spring.SpringExtractor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -61,7 +61,7 @@ public record View(String name) {
       if (profile != null) {
         names.add(profile);
       }
-      if (f.predicate().equals(SpringExtractor.PROFILE_GATE)) {
+      if (f.predicate().equals(Types.PROFILE_GATE)) {
         List<String> named = Claims.of(f, ProfileGateAttributes.class).profiles();
         if (named != null) {
           // As written, so "!local" or "a & b": the profiles are the names in the expression.

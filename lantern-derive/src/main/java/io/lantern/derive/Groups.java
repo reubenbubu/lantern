@@ -6,7 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
@@ -56,10 +56,6 @@ public final class Groups implements LinkRule.OverFacts {
   /** Raised whenever the groups it gives for the same facts change. */
   public static final String VERSION = "1";
 
-  public static final String GROUP = "group";
-  public static final String GROUP_OF = "group-of";
-  public static final String GROUPS = "GROUPS";
-
   public static final String FEATURE_AREA = "feature-area";
   public static final String DOMAIN = "domain";
 
@@ -69,8 +65,6 @@ public final class Groups implements LinkRule.OverFacts {
   public static final String RESOURCE_PATH = "resource-path";
   public static final String CALLS = "calls";
   public static final String TABLES = "tables";
-  public static final String DATABASE = "database";
-  public static final String GATEWAY_ROUTE = "gateway-route";
   public static final String REPOSITORY = "repository";
   public static final String MAVEN_GROUP = "maven-group";
 
@@ -119,12 +113,6 @@ public final class Groups implements LinkRule.OverFacts {
   private static final Pattern VERSION_SEGMENT = Pattern.compile("v\\d+");
   private static final Set<String> RELATIONAL = Set.of("JDBC", "R2DBC");
 
-  private static final String DEPLOYABLE_UNIT = "deployable-unit";
-  private static final String ENDPOINT = "endpoint";
-  private static final String USES_DATABASE = "USES_DATABASE";
-  private static final String ROUTED_ENDPOINT = "routed-endpoint";
-  private static final String METHOD = "method";
-
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
   @Override
@@ -137,16 +125,16 @@ public final class Groups implements LinkRule.OverFacts {
     return Set.of(
         EXTRACTED,
         LINKED,
-        Components.PART_OF,
-        Components.ANCHORED_ON,
-        Components.HAS_MEMBER,
-        ComponentInteractions.COMPONENT_LINK,
-        ComponentInteractions.DATA_ACCESS);
+        Types.PART_OF,
+        Types.ANCHORED_ON,
+        Types.HAS_MEMBER,
+        Types.COMPONENT_LINK,
+        Types.DATA_ACCESS);
   }
 
   @Override
   public Set<String> writes() {
-    return Set.of(GROUP_OF, GROUPS);
+    return Set.of(Types.GROUP_OF, Types.GROUPS);
   }
 
   /** The vocabulary types of the groups' facts besides the built-in ones. */
@@ -158,7 +146,7 @@ public final class Groups implements LinkRule.OverFacts {
   public static EntityId id(String scope, String kind, String signal) {
     String segment = kind.equals(FEATURE_AREA) ? "area" : kind;
     return new EntityId(
-        GROUP, scope + "/" + segment + "/" + DeploymentInstances.encoded(signal, "/"));
+        Types.GROUP, scope + "/" + segment + "/" + DeploymentInstances.encoded(signal, "/"));
   }
 
   @Override
@@ -167,7 +155,7 @@ public final class Groups implements LinkRule.OverFacts {
     Validity validity = Validity.from(snapshot);
     List<Fact> derived = new ArrayList<>();
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
+    knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
     for (EntityId unit : units) {
       write(featureAreas(knowledge, unit), FEATURE_AREA, unit.toString(), validity, derived);
     }
@@ -225,7 +213,7 @@ public final class Groups implements LinkRule.OverFacts {
       derived.add(
           Fact.create(
               id,
-              GROUP_OF,
+              Types.GROUP_OF,
               FactObject.string(kind),
               of,
               ORIGIN,
@@ -240,7 +228,7 @@ public final class Groups implements LinkRule.OverFacts {
             derived.add(
                 Fact.create(
                     id,
-                    GROUPS,
+                    Types.GROUPS,
                     FactObject.entity(member),
                     in,
                     ORIGIN,
@@ -263,12 +251,12 @@ public final class Groups implements LinkRule.OverFacts {
 
   private static List<Component> components(Knowledge knowledge, EntityId unit) {
     List<Component> components = new ArrayList<>();
-    for (Fact fact : knowledge.withPredicate(Components.PART_OF)) {
+    for (Fact fact : knowledge.withPredicate(Types.PART_OF)) {
       if (!Knowledge.isEntity(fact) || !Knowledge.object(fact).equals(unit)) {
         continue;
       }
       EntityId id = fact.subject();
-      List<Fact> anchored = knowledge.relations(id, Components.ANCHORED_ON);
+      List<Fact> anchored = knowledge.relations(id, Types.ANCHORED_ON);
       if (anchored.isEmpty()) {
         continue;
       }
@@ -302,15 +290,15 @@ public final class Groups implements LinkRule.OverFacts {
    */
   private static boolean crossCutting(Component component, Set<EntityId> own) {
     return component.role().equals(Components.ASPECT_ROLE)
-        || component.anchor().type().equals(BuiltInTypes.TYPE) && !own.contains(component.anchor());
+        || component.anchor().type().equals(Types.TYPE) && !own.contains(component.anchor());
   }
 
   /** The classes of the unit's own modules, without the libraries it bundles. */
   private static Set<EntityId> ownCode(Knowledge knowledge, EntityId unit) {
     Set<EntityId> own = new HashSet<>();
-    for (EntityId module : knowledge.parts(unit, BuiltInTypes.MODULE)) {
+    for (EntityId module : knowledge.parts(unit, Types.MODULE)) {
       own.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+      for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
         own.addAll(knowledge.typesWithin(pkg));
       }
     }
@@ -321,12 +309,12 @@ public final class Groups implements LinkRule.OverFacts {
   private static String packageOf(Knowledge knowledge, EntityId type) {
     EntityId at = type;
     for (int depth = 0; depth < 8 && at != null; depth++) {
-      SortedSet<EntityId> packages = knowledge.wholes(at, BuiltInTypes.PACKAGE);
+      SortedSet<EntityId> packages = knowledge.wholes(at, Types.PACKAGE);
       if (!packages.isEmpty()) {
         String key = packages.first().key();
         return key.substring(key.lastIndexOf(':') + 1);
       }
-      SortedSet<EntityId> outer = knowledge.wholes(at, BuiltInTypes.TYPE);
+      SortedSet<EntityId> outer = knowledge.wholes(at, Types.TYPE);
       at = outer.isEmpty() ? null : outer.first();
     }
     return null;
@@ -345,7 +333,7 @@ public final class Groups implements LinkRule.OverFacts {
       Map<EntityId, String> placed) {
     Map<Component, List<String>> segments = new HashMap<>();
     for (Component component : components) {
-      if (!component.anchor().type().equals(BuiltInTypes.TYPE)) {
+      if (!component.anchor().type().equals(Types.TYPE)) {
         continue;
       }
       String pkg = packageOf(knowledge, component.anchor());
@@ -438,15 +426,16 @@ public final class Groups implements LinkRule.OverFacts {
     Map<Component, List<Fact>> endpoints = new HashMap<>();
     List<String> prefix = null;
     for (Component component : components) {
-      if (!component.anchor().type().equals(BuiltInTypes.TYPE)) {
+      if (!component.anchor().type().equals(Types.TYPE)) {
         continue;
       }
       List<Fact> found = new ArrayList<>();
       Set<String> seen = new HashSet<>();
-      for (EntityId method : knowledge.parts(component.anchor(), METHOD)) {
+      for (EntityId method : knowledge.parts(component.anchor(), Types.METHOD)) {
         for (Fact fact : knowledge.attributes(method)) {
           // An endpoint seen in several views counts once.
-          if (fact.predicate().equals(ENDPOINT) && seen.add(method + " " + fact.object().value())) {
+          if (fact.predicate().equals(Types.ENDPOINT)
+              && seen.add(method + " " + fact.object().value())) {
             found.add(fact);
             List<String> path = path(fact.object().value());
             prefix = prefix == null ? path : common(prefix, path);
@@ -547,7 +536,7 @@ public final class Groups implements LinkRule.OverFacts {
     Map<EntityId, List<Fact>> links = new HashMap<>();
     Set<EntityId> ids = new HashSet<>();
     components.forEach(c -> ids.add(c.id()));
-    for (Fact fact : knowledge.withPredicate(ComponentInteractions.COMPONENT_LINK)) {
+    for (Fact fact : knowledge.withPredicate(Types.COMPONENT_LINK)) {
       if (Knowledge.isEntity(fact)
           && ids.contains(fact.subject())
           && ids.contains(Knowledge.object(fact))) {
@@ -622,7 +611,7 @@ public final class Groups implements LinkRule.OverFacts {
 
   private static List<Fact> dataAccess(Knowledge knowledge, EntityId component) {
     return knowledge.attributes(component).stream()
-        .filter(f -> f.predicate().equals(ComponentInteractions.DATA_ACCESS))
+        .filter(f -> f.predicate().equals(Types.DATA_ACCESS))
         .toList();
   }
 
@@ -685,7 +674,7 @@ public final class Groups implements LinkRule.OverFacts {
     SortedMap<String, Forming> found = new TreeMap<>();
     for (EntityId unit : units) {
       Fact best = null;
-      for (Fact fact : knowledge.relations(unit, USES_DATABASE)) {
+      for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
         // The default view's datasources only: a profile's (local, test) is not where it keeps its
         // data.
         if (!RELATIONAL.contains(attribute(fact, "protocol", ""))
@@ -703,8 +692,8 @@ public final class Groups implements LinkRule.OverFacts {
       if (best != null) {
         String signal = "db-" + Knowledge.object(best).key();
         found
-            .computeIfAbsent(signal, s -> new Forming(s, DATABASE))
-            .join(unit, DATABASE, List.of(best));
+            .computeIfAbsent(signal, s -> new Forming(s, Types.DATABASE))
+            .join(unit, Types.DATABASE, List.of(best));
       }
     }
     return found;
@@ -721,7 +710,7 @@ public final class Groups implements LinkRule.OverFacts {
    */
   private static SortedMap<String, Forming> byRoute(Knowledge knowledge, Set<EntityId> units) {
     Map<EntityId, SortedMap<String, List<Fact>>> byUnit = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(ROUTED_ENDPOINT)) {
+    for (Fact fact : knowledge.withPredicate(Types.ROUTED_ENDPOINT)) {
       String target = attribute(fact, "target", null);
       if (target == null) {
         continue;
@@ -755,8 +744,8 @@ public final class Groups implements LinkRule.OverFacts {
           }
           String signal = "route-" + best;
           found
-              .computeIfAbsent(signal, s -> new Forming(s, GATEWAY_ROUTE))
-              .join(unit, GATEWAY_ROUTE, segments.get(best));
+              .computeIfAbsent(signal, s -> new Forming(s, Types.GATEWAY_ROUTE))
+              .join(unit, Types.GATEWAY_ROUTE, segments.get(best));
         });
     return found;
   }
@@ -767,7 +756,7 @@ public final class Groups implements LinkRule.OverFacts {
     for (EntityId unit : units) {
       SortedSet<String> repos = new TreeSet<>();
       List<Fact> facts = new ArrayList<>();
-      for (EntityId module : knowledge.parts(unit, BuiltInTypes.MODULE)) {
+      for (EntityId module : knowledge.parts(unit, Types.MODULE)) {
         repos.addAll(knowledge.repos(module));
         facts.addAll(knowledge.containsFacts(unit, module));
       }
@@ -822,7 +811,7 @@ public final class Groups implements LinkRule.OverFacts {
   /** The facts that make a unit deployable: those behind a group of its Maven groupId. */
   private static List<Fact> deployable(Knowledge knowledge, EntityId unit) {
     return knowledge.attributes(unit).stream()
-        .filter(f -> f.predicate().equals(DEPLOYABLE_UNIT))
+        .filter(f -> f.predicate().equals(Types.DEPLOYABLE_UNIT))
         .toList();
   }
 
@@ -841,7 +830,7 @@ public final class Groups implements LinkRule.OverFacts {
   public static List<Group> of(Knowledge knowledge, String kind) {
     List<Group> groups = new ArrayList<>();
     SortedMap<EntityId, Fact> byId = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.withPredicate(GROUP_OF)) {
+    for (Fact fact : knowledge.withPredicate(Types.GROUP_OF)) {
       if (fact.object().value().equals(kind)) {
         byId.put(fact.subject(), fact);
       }
@@ -849,7 +838,7 @@ public final class Groups implements LinkRule.OverFacts {
     byId.forEach(
         (id, fact) -> {
           SortedSet<EntityId> members = new TreeSet<>(Knowledge.BY_ID);
-          knowledge.relations(id, GROUPS).forEach(f -> members.add(Knowledge.object(f)));
+          knowledge.relations(id, Types.GROUPS).forEach(f -> members.add(Knowledge.object(f)));
           groups.add(
               new Group(
                   id,

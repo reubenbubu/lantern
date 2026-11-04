@@ -8,7 +8,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.repo.Git;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -75,38 +75,6 @@ public final class MavenExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
-
-  /** Entity type of an artifact that no analyzed repository builds. */
-  public static final String ARTIFACT = "artifact";
-
-  /** Relationship: a module declares a Maven dependency on a module or artifact. */
-  public static final String BUILD_DEPENDS_ON = "BUILD_DEPENDS_ON";
-
-  /** Relationship: a service packages a library as its main code. */
-  public static final String PACKAGES = "PACKAGES";
-
-  /** Attribute: the version a module's POM declares. */
-  public static final String VERSION_ATTRIBUTE = "version";
-
-  /** Attribute: a module's Maven packaging. */
-  public static final String PACKAGING = "packaging";
-
-  /** Attribute: the coordinates of a module's parent POM. */
-  public static final String PARENT = "parent";
-
-  /**
-   * Attribute: what makes a module deployable: {@code war}, {@code ear}, {@code spring-boot}
-   * (repackaged executable jar), {@code quarkus}, {@code shade} or {@code assembly} (a jar with a
-   * main class), {@code spring-boot-build-image}, {@code jib}, {@code jkube} or {@code docker} (an
-   * image).
-   */
-  public static final String DEPLOYABLE_BY = "deployable-by";
-
-  /** Attribute: the Java release a module compiles for. */
-  public static final String JAVA_RELEASE = "java-release";
-
-  /** Attribute: a coverage tool the module's build runs, by its plugin's groupId:artifactId. */
-  public static final String COVERAGE_TOOL = "coverage-tool";
 
   /** The Maven plugins of coverage tools, by {@code groupId:artifactId}. */
   public static final Set<String> COVERAGE_PLUGINS =
@@ -215,7 +183,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             id,
-            VERSION_ATTRIBUTE,
+            Types.VERSION,
             FactObject.string(m.version()),
             m.evidence(declared),
             m,
@@ -224,7 +192,7 @@ public final class MavenExtractor implements Extractor {
       add(
           facts,
           id,
-          PACKAGING,
+          Types.PACKAGING,
           FactObject.string(m.packaging()),
           m.evidence(xml.child("packaging").orElse(null)),
           m,
@@ -234,7 +202,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             id,
-            PARENT,
+            Types.PARENT,
             FactObject.string(parent),
             m.evidence(xml.child("parent").orElse(null)),
             m,
@@ -244,7 +212,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             id,
-            DEPLOYABLE_BY,
+            Types.DEPLOYABLE_BY,
             FactObject.string(m.deployedBy()),
             m.evidence(deployDeclaration(m)),
             m,
@@ -255,7 +223,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             id,
-            JAVA_RELEASE,
+            Types.JAVA_RELEASE,
             FactObject.string(release.version()),
             m.evidence(release.declared()),
             m,
@@ -265,7 +233,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             id,
-            COVERAGE_TOOL,
+            Types.COVERAGE_TOOL,
             FactObject.string(Pom.pluginKey(plugin)),
             coverageAttributes(plugin, m.properties()),
             m.evidence(ownPlugin(m, Pom.pluginKey(plugin))),
@@ -278,7 +246,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             container,
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             FactObject.entity(id),
             m.evidence(xml.child("artifactId").orElse(null)),
             m.confidence(),
@@ -290,7 +258,7 @@ public final class MavenExtractor implements Extractor {
           add(
               facts,
               id,
-              BuiltInTypes.CONTAINS,
+              Types.CONTAINS,
               FactObject.entity(sub.id()),
               m.evidence(child.element()),
               m.confidence(),
@@ -306,7 +274,7 @@ public final class MavenExtractor implements Extractor {
         } else {
           List<Module> repository = jitPack(dep, byRepo);
           if (repository.isEmpty()) {
-            objects.add(entity(ARTIFACT, dep.key()));
+            objects.add(entity(Types.ARTIFACT, dep.key()));
           } else {
             repository.forEach(r -> objects.add(r.id()));
             attributes.put(COORDINATES, dep.key());
@@ -319,7 +287,7 @@ public final class MavenExtractor implements Extractor {
           add(
               facts,
               id,
-              BUILD_DEPENDS_ON,
+              Types.BUILD_DEPENDS_ON,
               FactObject.entity(object),
               attributes,
               m.evidence(m.declaration(dep)),
@@ -332,7 +300,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             container,
-            PACKAGES,
+            Types.PACKAGES,
             FactObject.entity(internal.get(packaged.key()).container()),
             FactJson.newObject(),
             m.evidence(m.declaration(packaged)),
@@ -365,9 +333,7 @@ public final class MavenExtractor implements Extractor {
     for (Written w : new MavenExtractor().discover(repo)) {
       String groupId = w.pom().effectiveGroupId();
       EntityId id =
-          groupId == null
-              ? null
-              : entity(BuiltInTypes.MODULE, groupId + ":" + w.pom().artifactId());
+          groupId == null ? null : entity(Types.MODULE, groupId + ":" + w.pom().artifactId());
       if (id != null) {
         modules.putIfAbsent(w.directory(), id);
       }
@@ -637,7 +603,7 @@ public final class MavenExtractor implements Extractor {
     }
 
     EntityId id() {
-      return new EntityId(BuiltInTypes.MODULE, key());
+      return new EntityId(Types.MODULE, key());
     }
 
     /** The service or library the module builds, or null for a {@code pom} module. */
@@ -648,9 +614,9 @@ public final class MavenExtractor implements Extractor {
       if (deployable()) {
         // A service whose groupId only comes from a parent outside the analyzed repositories (such
         // as spring-boot-starter-parent) is not of that group: it is named by its artifactId.
-        return new EntityId(BuiltInTypes.SERVICE, foreignGroup ? artifactId : key());
+        return new EntityId(Types.SERVICE, foreignGroup ? artifactId : key());
       }
-      return new EntityId(BuiltInTypes.LIBRARY, key());
+      return new EntityId(Types.LIBRARY, key());
     }
 
     /** Evidence pointing at the module's POM, at the element's lines if one is given. */
@@ -739,7 +705,7 @@ public final class MavenExtractor implements Extractor {
     }
     String packaging = pom.effectivePackaging();
     String groupId = pom.effectiveGroupId();
-    if (entity(BuiltInTypes.MODULE, groupId + ":" + pom.artifactId()) == null) {
+    if (entity(Types.MODULE, groupId + ":" + pom.artifactId()) == null) {
       return null;
     }
     return new Module(
@@ -811,7 +777,7 @@ public final class MavenExtractor implements Extractor {
     String artifactId = Pom.interpolate(own.artifactId(), properties);
     if (groupId == null
         || artifactId == null
-        || entity(BuiltInTypes.MODULE, groupId + ":" + artifactId) == null) {
+        || entity(Types.MODULE, groupId + ":" + artifactId) == null) {
       return null;
     }
     String packaging = orDefault(Pom.interpolate(own.effectivePackaging(), properties), "jar");

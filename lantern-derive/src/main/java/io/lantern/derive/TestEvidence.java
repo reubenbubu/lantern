@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;

@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.ConfigExtractor;
@@ -104,7 +105,7 @@ class CodeValuesIT {
   private static Set<String> stripped(List<Fact> facts) {
     Set<String> keys = new java.util.HashSet<>();
     for (Fact f : facts) {
-      if (f.predicate().equals(ConfigExtractor.CONFIG_VALUE)
+      if (f.predicate().equals(Types.CONFIG_VALUE)
           && f.attributes().path("masked").asBoolean(false)
           && !f.object().value().equals(ConfigExtractor.MASK)) {
         keys.add(f.subject() + " " + f.attributes().get("key").stringValue());

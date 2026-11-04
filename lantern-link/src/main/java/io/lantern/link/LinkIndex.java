@@ -3,12 +3,9 @@ package io.lantern.link;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.StereotypeAttributes;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.maven.MavenExtractor;
-import io.lantern.extract.persistence.PersistenceExtractor;
-import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.attributes.BundlesAttributes;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -98,30 +95,30 @@ final class LinkIndex {
       byPredicate.computeIfAbsent(f.predicate(), p -> new ArrayList<>()).add(f);
       boolean entity = f.object().kind() == FactObject.Kind.ENTITY;
       switch (f.predicate()) {
-        case BuiltInTypes.CONTAINS -> {
+        case Types.CONTAINS -> {
           if (!entity) {
             break;
           }
           EntityId object = f.object().entityId();
           if (f.origin().name().equals(MavenExtractor.NAME)) {
-            if (object.type().equals(BuiltInTypes.MODULE)) {
+            if (object.type().equals(Types.MODULE)) {
               containerOf.putIfAbsent(f.subject(), f);
             }
           } else {
             parents.computeIfAbsent(object, o -> new LinkedHashSet<>()).add(f.subject());
           }
         }
-        case ConfigExtractor.CONFIG_VALUE, PersistenceExtractor.DATASOURCE ->
+        case Types.CONFIG_VALUE, Types.DATASOURCE ->
             config.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
-        case SpringExtractor.PROFILE_GATE ->
+        case Types.PROFILE_GATE ->
             gates.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
-        case SpringExtractor.STEREOTYPE -> {
+        case Types.STEREOTYPE -> {
           if ("controller".equals(f.object().value())
               && Boolean.TRUE.equals(Claims.of(f, StereotypeAttributes.class).rest())) {
             restControllers.add(f.subject());
           }
         }
-        case DeployableUnits.APPLICATION_NAME ->
+        case Types.APPLICATION_NAME ->
             names.computeIfAbsent(f.subject(), s -> new HashMap<>()).putIfAbsent(Claims.view(f), f);
         default -> {}
       }
@@ -132,10 +129,10 @@ final class LinkIndex {
     views.addAll(profiles);
 
     Map<EntityId, List<Fact>> bundles = new HashMap<>();
-    for (Fact f : of(DeployableUnits.BUNDLES)) {
+    for (Fact f : of(Types.BUNDLES)) {
       bundles.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
     }
-    for (Fact unit : of(DeployableUnits.DEPLOYABLE_UNIT)) {
+    for (Fact unit : of(Types.DEPLOYABLE_UNIT)) {
       if (units.containsKey(unit.subject())) {
         continue;
       }
@@ -143,7 +140,7 @@ final class LinkIndex {
       // A unit found from a library's application class has the library's key.
       Fact own = containerOf.get(unit.subject());
       if (own == null) {
-        own = containerOf.get(new EntityId(BuiltInTypes.LIBRARY, unit.subject().key()));
+        own = containerOf.get(new EntityId(Types.LIBRARY, unit.subject().key()));
       }
       if (own != null) {
         modules.add(own.object().entityId());
@@ -225,7 +222,7 @@ final class LinkIndex {
       if (!seen.add(current)) {
         continue;
       }
-      if (current.type().equals(BuiltInTypes.MODULE)) {
+      if (current.type().equals(Types.MODULE)) {
         modules.add(current);
         continue;
       }
@@ -266,7 +263,7 @@ final class LinkIndex {
     }
     if (callers == null) {
       callers = new HashMap<>();
-      for (Fact call : of(BuiltInTypes.CALLS)) {
+      for (Fact call : of(Types.CALLS)) {
         if (call.object().kind() == FactObject.Kind.ENTITY) {
           callers
               .computeIfAbsent(call.object().entityId(), o -> new LinkedHashSet<>())
@@ -275,7 +272,7 @@ final class LinkIndex {
       }
       supertypes = new HashMap<>();
       subtypes = new HashMap<>();
-      for (String relation : List.of(BuiltInTypes.EXTENDS, BuiltInTypes.IMPLEMENTS)) {
+      for (String relation : List.of(Types.EXTENDS, Types.IMPLEMENTS)) {
         for (Fact f : of(relation)) {
           if (f.object().kind() == FactObject.Kind.ENTITY) {
             supertypes
@@ -344,7 +341,7 @@ final class LinkIndex {
   /** The type that declares a member ({@code method:a.B#m()} is in {@code type:a.B}). */
   static EntityId typeOf(EntityId entity) {
     int hash = entity.key().indexOf('#');
-    return hash < 0 ? entity : new EntityId(BuiltInTypes.TYPE, entity.key().substring(0, hash));
+    return hash < 0 ? entity : new EntityId(Types.TYPE, entity.key().substring(0, hash));
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -399,7 +396,7 @@ final class LinkIndex {
   String servletPrefix(Unit unit, String view) {
     String prefix = "";
     for (String key : List.of("server.servlet.context-path", "spring.mvc.servlet.path")) {
-      Fact value = config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
+      Fact value = config(unit, view, Types.CONFIG_VALUE, key);
       if (value != null && !Claims.masked(value)) {
         prefix = LinkText.join(prefix, value.object().value());
       }
@@ -441,7 +438,7 @@ final class LinkIndex {
     List<EntityId> providers = new ArrayList<>();
     for (EntityId module : unit.modules()) {
       for (Fact f : config.getOrDefault(module, List.of())) {
-        if (f.predicate().equals(ConfigExtractor.CONFIG_VALUE)
+        if (f.predicate().equals(Types.CONFIG_VALUE)
             && family.equals(DeployableUnits.configFamily(f))) {
           providers.add(module);
           break;

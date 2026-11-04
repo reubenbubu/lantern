@@ -2,7 +2,7 @@ package io.lantern.extract.websocket;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
-import io.lantern.extract.messaging.MessagingExtractor;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -20,7 +20,7 @@ final class Sends {
   static List<Fact> resolved(List<Fact> written, long snapshot) {
     List<Fact> facts = new ArrayList<>();
     for (Fact f : written) {
-      if (!f.predicate().equals(MessagingExtractor.SENDS_TO)) {
+      if (!f.predicate().equals(Types.SENDS_TO)) {
         facts.add(f);
       }
     }

@@ -30,7 +30,6 @@ import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Assignment;
 import io.lantern.extract.java.ModuleStructure.Call;
@@ -245,7 +244,7 @@ final class JavacAnalyzer {
           Tree clause = tree == null ? null : tree.getExtendsClause();
           supertypes.add(
               new Supertype(
-                  BuiltInTypes.EXTENDS,
+                  io.lantern.core.types.Types.EXTENDS,
                   name,
                   clauseLocation(type, clause, where, file),
                   typeArguments(superclass),
@@ -262,7 +261,9 @@ final class JavacAnalyzer {
         Tree clause = i < clauses.size() ? clauses.get(i) : null;
         supertypes.add(
             new Supertype(
-                isInterface ? BuiltInTypes.EXTENDS : BuiltInTypes.IMPLEMENTS,
+                isInterface
+                    ? io.lantern.core.types.Types.EXTENDS
+                    : io.lantern.core.types.Types.IMPLEMENTS,
                 name,
                 clauseLocation(type, clause, where, file),
                 typeArguments(interfaces.get(i)),
@@ -750,7 +751,7 @@ final class JavacAnalyzer {
       @Override
       public Void visitThrow(ThrowTree node, Void unused) {
         EntityId thrower = owner(getCurrentPath());
-        if (thrower != null && thrower.type().equals(ModuleStructure.METHOD)) {
+        if (thrower != null && thrower.type().equals(io.lantern.core.types.Types.METHOD)) {
           structure.throwing.add(thrower);
         }
         return super.visitThrow(node, unused);
@@ -894,7 +895,7 @@ final class JavacAnalyzer {
         String type = binaryName(declaring);
         if (caller == null
             || target == null
-            || !(caller.type().equals(BuiltInTypes.TYPE)
+            || !(caller.type().equals(io.lantern.core.types.Types.TYPE)
                 ? caller.key().equals(type)
                 : caller.key().startsWith(type + "#"))) {
           return;
@@ -910,7 +911,7 @@ final class JavacAnalyzer {
 
       /** Whether code of the member is the type's initializer or one of its constructors. */
       private boolean inOwnCode(EntityId in, String type) {
-        return in.type().equals(BuiltInTypes.TYPE)
+        return in.type().equals(io.lantern.core.types.Types.TYPE)
             ? in.key().equals(type)
             : in.key().startsWith(type + "#" + ModuleStructure.CONSTRUCTOR + "(");
       }

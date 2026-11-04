@@ -12,6 +12,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.CompositeArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.derive.Vocabularies;
 import java.lang.reflect.Field;
@@ -328,11 +329,52 @@ final class ArchitectureRules {
   }
 
   /**
-   * The composer and the renderers define no constant holding a vocabulary type's name: they name
-   * predicates and entity types through the generated {@code Types}, the typed layer, so a type is
-   * named in one place (ADR 0114).
+   * The modules that read facts ({@code docs/design.md}, one place reads predicate names): core,
+   * the extractors, the linker, derivation, the LLM harness, the LLM roles, the composer and the
+   * app with its renderers (#763).
    */
-  static final ArchRule COMPOSE_NAMES_TYPES_THROUGH_THE_TYPED_LAYER =
+  static final String[] FACT_READERS = {
+    "io.lantern.core..",
+    "io.lantern.extract..",
+    "io.lantern.link..",
+    "io.lantern.derive..",
+    "io.lantern.harness..",
+    "io.lantern.summarize..",
+    "io.lantern.compose..",
+    "io.lantern.app.."
+  };
+
+  /**
+   * Constants whose value only happens to equal a type's name: a command option, a field of an LLM
+   * role's answer, a value of an attribute ({@code by}, {@code via}, a component's role, a scope) a
+   * finding's kind or an extractor's name. Renaming the type must not change them (ADR 0114, #763).
+   */
+  static final Set<String> NOT_TYPE_NAMES =
+      Set.of(
+          "io.lantern.app.AnalyzeCommand.SYSTEM",
+          "io.lantern.app.AnalyzeCommand.TITLE",
+          "io.lantern.summarize.describe.DescribeRole.RESPONSIBILITY_FIELD",
+          "io.lantern.summarize.describe.NameGroups.RESPONSIBILITY_FIELD",
+          "io.lantern.summarize.describe.PurposeRole.PURPOSE_FIELD",
+          "io.lantern.summarize.describe.WordingPrompt.TITLE",
+          "io.lantern.summarize.describe.FlowJudgements.TITLE",
+          "io.lantern.link.AddressResolution.BY_DATASOURCE",
+          "io.lantern.derive.Findings.VIA_JAVA_RELEASE",
+          "io.lantern.derive.Components.ENTRY_POINT",
+          "io.lantern.derive.Components.ASPECT_ROLE",
+          "io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE",
+          "io.lantern.derive.Groups.SYSTEM",
+          "io.lantern.derive.Findings.VERSION_SKEW",
+          "io.lantern.derive.Findings.UNROUTED_ENDPOINT",
+          "io.lantern.extract.frontend.FrontendExtractor.NAME",
+          "io.lantern.extract.http.HttpClientExtractor.NAME");
+
+  /**
+   * No module that reads facts defines a constant holding a vocabulary type's name: each names
+   * predicates and entity types through the generated {@code Types}, the typed layer, so a type is
+   * named in one place (ADR 0114, widened by #763).
+   */
+  static final ArchRule NAMES_TYPES_THROUGH_THE_TYPED_LAYER =
       fields()
           .that()
           .areStatic()
@@ -342,14 +384,19 @@ final class ArchitectureRules {
           .haveRawType(String.class)
           .and()
           .areDeclaredInClassesThat(
-              DescribedPredicate.or(resideInAnyPackage("io.lantern.compose.."), RENDERERS))
+              DescribedPredicate.and(
+                  resideInAnyPackage(FACT_READERS),
+                  DescribedPredicate.not(JavaClass.Predicates.belongToAnyOf(Types.class))))
           .should(
               new ArchCondition<JavaField>("not hold a vocabulary type's name") {
                 @Override
                 public void check(JavaField field, ConditionEvents events) {
                   String name = field.getOwner().getName() + "." + field.getName();
                   Object value = value(field);
-                  if (value instanceof String text && TYPE_NAMES.get().contains(text)) {
+                  if (value instanceof String text
+                      && TYPE_NAMES.get().contains(text)
+                      && !NOT_TYPE_NAMES.contains(name)
+                      && !isGeneratedRecordType(field)) {
                     events.add(
                         SimpleConditionEvent.violated(
                             field,
@@ -376,6 +423,18 @@ final class ArchitectureRules {
           return names;
         }
       };
+
+  /**
+   * The {@code TYPE} of a generated attribute record (ADR 0090): part of the typed layer, generated
+   * from the vocabulary and checked against it as {@code Types} is.
+   */
+  private static boolean isGeneratedRecordType(JavaField field) {
+    JavaClass owner = field.getOwner();
+    return field.getName().equals("TYPE")
+        && owner.isRecord()
+        && owner.getPackageName().endsWith(".attributes")
+        && owner.getSimpleName().endsWith("Attributes");
+  }
 
   private static Object value(JavaField field) {
     try {

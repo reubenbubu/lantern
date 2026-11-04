@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -22,17 +22,8 @@ public final class FlowModel {
   /** A person uses a frontend's screens. */
   public static final String USES_SCREENS = "uses-screens";
 
-  /** A frontend calls (or opens a socket to) the entry point, or the gateway in front of it. */
-  public static final String FRONTEND_CALL = "frontend-call";
-
   /** The gateway the frontend called routes the call on to the entry point's unit. */
   public static final String ROUTE = "route";
-
-  /** A gateway routes a client's request to the entry point (the flow starts at the gateway). */
-  public static final String GATEWAY_ROUTE = "gateway-route";
-
-  /** An HTTP call to another container, following its link. */
-  public static final String HTTP_CALL = "http-call";
 
   /** Mail sent through a mail server, following its link. */
   public static final String MAIL = "mail";
@@ -229,14 +220,14 @@ public final class FlowModel {
   /** The flows stored in the knowledge, by their entry points' unit and method. */
   public static List<Flow> read(Knowledge knowledge) {
     Map<EntityId, List<Fact>> stepsByFlow = new HashMap<>();
-    for (Fact step : knowledge.withPredicate(Flows.STEP_OF)) {
+    for (Fact step : knowledge.withPredicate(Types.STEP_OF)) {
       if (Knowledge.isEntity(step)) {
         stepsByFlow.computeIfAbsent(Knowledge.object(step), f -> new ArrayList<>()).add(step);
       }
     }
     List<Flow> flows = new ArrayList<>();
-    for (Fact triggered : knowledge.withPredicate(Flows.TRIGGERED_BY)) {
-      if (!triggered.subject().type().equals(Flows.FLOW) || !Knowledge.isEntity(triggered)) {
+    for (Fact triggered : knowledge.withPredicate(Types.TRIGGERED_BY)) {
+      if (!triggered.subject().type().equals(Types.FLOW) || !Knowledge.isEntity(triggered)) {
         continue;
       }
       Flow flow =
@@ -254,7 +245,7 @@ public final class FlowModel {
     EntityId unit = Flows.parse(Screens.attribute(triggered, "unit", null));
     Fact shape =
         knowledge.attributes(triggered.subject()).stream()
-            .filter(f -> f.predicate().equals(Flows.FLOW_SHAPE))
+            .filter(f -> f.predicate().equals(Types.FLOW_SHAPE))
             .findFirst()
             .orElse(null);
     if (trigger == null || unit == null || shape == null) {

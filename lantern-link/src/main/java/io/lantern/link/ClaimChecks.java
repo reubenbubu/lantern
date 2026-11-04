@@ -6,8 +6,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
-import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.link.attributes.AccessesDataOfAttributes;
 import io.lantern.link.attributes.ConsumesAttributes;
 import io.lantern.link.attributes.PublishesAttributes;
@@ -62,10 +62,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "claim-checks";
 
-  /** Attribute: a claim of the subject README that the code contradicts. */
-  public static final String CLAIM_CONTRADICTION = "claim-contradiction";
-
-  /** The checks, the values of {@link #CLAIM_CONTRADICTION} facts. */
+  /** The checks, the values of {@link Types#CLAIM_CONTRADICTION} facts. */
   public static final String SYNCHRONOUS_CALLS = "synchronous-calls";
 
   public static final String OTHER_SERVICES_DATA = "other-services-data";
@@ -75,8 +72,6 @@ public final class ClaimChecks implements LinkRule.OverFacts {
   public static final String JAVA_VERSION = "java-version";
   public static final String SPRING_BOOT_VERSION = "spring-boot-version";
   public static final String PORT = "port";
-  public static final String ENDPOINT = "endpoint";
-  public static final String DESTINATION = "destination";
   public static final String NAMED_SERVICES = "named-services";
 
   /** How much less certain a contradiction is than the code facts: it rests on reading words. */
@@ -219,7 +214,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Set.of(CLAIM_CONTRADICTION);
+    return Set.of(Types.CLAIM_CONTRADICTION);
   }
 
   /** The vocabulary types this step's facts use besides the built-in and earlier ones. */
@@ -296,7 +291,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       }
       return Fact.create(
           claim.subject(),
-          CLAIM_CONTRADICTION,
+          Types.CLAIM_CONTRADICTION,
           FactObject.string(check),
           attributes,
           ORIGIN,
@@ -357,8 +352,8 @@ public final class ClaimChecks implements LinkRule.OverFacts {
         && !named.saysOnlyAsynchronous()) {
       return;
     }
-    List<Fact> calls = new ArrayList<>(index.from(CrossRepoLinks.CALLS_HTTP, units));
-    for (Fact f : index.from(CrossRepoLinks.UNRESOLVED_LINK, units)) {
+    List<Fact> calls = new ArrayList<>(index.from(Types.CALLS_HTTP, units));
+    for (Fact f : index.from(Types.UNRESOLVED_LINK, units)) {
       if ("http".equals(Claims.of(f, UnresolvedLinkAttributes.class).kind())) {
         calls.add(f);
       }
@@ -392,7 +387,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     boolean anyRead = reads;
     boolean anyWrite = writes;
     List<Fact> access =
-        index.from(CrossRepoLinks.ACCESSES_DATA_OF, units).stream()
+        index.from(Types.ACCESSES_DATA_OF, units).stream()
             .filter(
                 f ->
                     (anyRead
@@ -416,12 +411,12 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     if (sentences.stream().noneMatch(s -> affirms(s, OWN_DB))) {
       return;
     }
-    List<Fact> own = defaultView(index.from(CrossRepoLinks.USES_DATABASE, units));
+    List<Fact> own = defaultView(index.from(Types.USES_DATABASE, units));
     Set<String> databases = new TreeSet<>();
     own.forEach(f -> databases.add(f.object().value()));
     List<Fact> shared = new ArrayList<>();
     Set<String> others = new TreeSet<>();
-    for (Fact f : defaultView(index.of(CrossRepoLinks.USES_DATABASE))) {
+    for (Fact f : defaultView(index.of(Types.USES_DATABASE))) {
       if (!units.contains(f.subject()) && databases.contains(f.object().value())) {
         shared.add(f);
         others.add(f.subject().toString());
@@ -444,7 +439,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     if (stated == null) {
       return;
     }
-    List<Fact> uses = index.from(CrossRepoLinks.USES_DATABASE, units);
+    List<Fact> uses = index.from(Types.USES_DATABASE, units);
     Set<String> found = new TreeSet<>();
     for (Fact f : uses) {
       String technology = Claims.of(f, UsesDatabaseAttributes.class).technology();
@@ -470,14 +465,12 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     Set<String> accepted = BROKERS.get(stated).found();
     List<Fact> messaging = new ArrayList<>();
     Set<String> found = new TreeSet<>();
-    for (String predicate :
-        List.of(CrossRepoLinks.PUBLISHES, CrossRepoLinks.CONSUMES, CrossRepoLinks.USES_BROKER)) {
+    for (String predicate : List.of(Types.PUBLISHES, Types.CONSUMES, Types.USES_BROKER)) {
       for (Fact f : index.from(predicate, units)) {
         String kind =
             switch (predicate) {
-              case CrossRepoLinks.USES_BROKER ->
-                  Claims.of(f, UsesBrokerAttributes.class).technology();
-              case CrossRepoLinks.PUBLISHES -> Claims.of(f, PublishesAttributes.class).protocol();
+              case Types.USES_BROKER -> Claims.of(f, UsesBrokerAttributes.class).technology();
+              case Types.PUBLISHES -> Claims.of(f, PublishesAttributes.class).protocol();
               default -> Claims.of(f, ConsumesAttributes.class).protocol();
             };
         if (kind == null || accepted.contains(kind.toLowerCase(Locale.ROOT))) {
@@ -540,7 +533,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       Index index,
       List<Contradiction> out,
       UnaryOperator<String> normalize) {
-    List<Fact> technologies = index.from(DeployableUnits.TECHNOLOGY, units);
+    List<Fact> technologies = index.from(Types.TECHNOLOGY, units);
     List<Fact> contradicting = new ArrayList<>();
     Set<String> found = new TreeSet<>();
     for (Fact f : technologies) {
@@ -719,11 +712,11 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       sorted.sort(LinkIndex.BY_ID);
       for (Fact f : sorted) {
         byPredicate.computeIfAbsent(f.predicate(), p -> new ArrayList<>()).add(f);
-        if (f.predicate().equals(DocsExtractor.CLAIM)
-            && f.subject().type().equals(DocsExtractor.README)
+        if (f.predicate().equals(Types.CLAIM)
+            && f.subject().type().equals(Types.README)
             && f.object().kind() == FactObject.Kind.STRING) {
           claims.add(f);
-        } else if (f.predicate().equals(DeployableUnits.DEPLOYABLE_UNIT)) {
+        } else if (f.predicate().equals(Types.DEPLOYABLE_UNIT)) {
           unitsByRepo
               .computeIfAbsent(f.evidence().repo(), r -> new TreeMap<>(LinkIndex.BY_TEXT))
               .putIfAbsent(f.subject(), f.evidence().path() == null ? "" : f.evidence().path());

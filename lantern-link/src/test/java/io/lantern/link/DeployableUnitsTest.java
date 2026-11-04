@@ -9,6 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
@@ -86,7 +87,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         container,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("module:" + key)),
         null,
         repo + ":" + dir + "/pom.xml",
@@ -94,7 +95,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "module:" + key,
-        MavenExtractor.PACKAGING,
+        Types.PACKAGING,
         FactObject.string(packaging),
         null,
         repo + ":" + dir + "/pom.xml",
@@ -105,7 +106,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "module:" + from,
-        MavenExtractor.BUILD_DEPENDS_ON,
+        Types.BUILD_DEPENDS_ON,
         FactObject.entity(EntityId.parse(to)),
         attributes,
         repo + ":" + from.substring(from.indexOf(':') + 1) + "/pom.xml#" + line,
@@ -116,7 +117,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "module:" + module,
-        MavenExtractor.JAVA_RELEASE,
+        Types.JAVA_RELEASE,
         FactObject.string(release),
         null,
         repo + ":pom.xml#7",
@@ -130,7 +131,7 @@ class DeployableUnitsTest {
     add(
         JavaExtractor.NAME,
         "module:" + module,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("package:" + module + ":" + pkg)),
         null,
         file,
@@ -138,7 +139,7 @@ class DeployableUnitsTest {
     add(
         JavaExtractor.NAME,
         "package:" + module + ":" + pkg,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("type:" + type)),
         null,
         file,
@@ -146,7 +147,7 @@ class DeployableUnitsTest {
     add(
         SpringExtractor.NAME,
         "type:" + type,
-        SpringExtractor.MAIN_CLASS,
+        Types.MAIN_CLASS,
         FactObject.string(SpringExtractor.SPRING_BOOT),
         null,
         file + "#5",
@@ -163,7 +164,7 @@ class DeployableUnitsTest {
     add(
         ConfigExtractor.NAME,
         "module:" + module,
-        ConfigExtractor.CONFIG_VALUE,
+        Types.CONFIG_VALUE,
         FactObject.string(value),
         profile == null
             ? "{\"key\":\"" + key + "\"}"
@@ -262,7 +263,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "service:g:orders-service",
-        MavenExtractor.PACKAGES,
+        Types.PACKAGES,
         FactObject.entity(EntityId.parse("library:g:orders-lib")),
         null,
         "r:orders-service/pom.xml#12",
@@ -508,7 +509,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "module:g:svc",
-        MavenExtractor.PARENT,
+        Types.PARENT,
         FactObject.string("g:parent:1"),
         null,
         "r:svc/pom.xml#4",
@@ -516,7 +517,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "module:g:parent",
-        MavenExtractor.PARENT,
+        Types.PARENT,
         FactObject.string("org.springframework.boot:spring-boot-starter-parent:3.5.14"),
         null,
         "r:pom.xml#4",
@@ -540,7 +541,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "module:" + module,
-        MavenExtractor.VERSION_ATTRIBUTE,
+        Types.VERSION,
         FactObject.string(version),
         null,
         repo + ":" + module.substring(module.indexOf(':') + 1) + "/pom.xml#8",

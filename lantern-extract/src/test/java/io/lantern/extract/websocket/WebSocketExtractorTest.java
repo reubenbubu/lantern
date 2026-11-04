@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
@@ -332,7 +333,7 @@ class WebSocketExtractorTest {
     Vocabulary vocabulary = Fixtures.vocabulary();
 
     // A STOMP handler is an entry point, as flows find them.
-    assertThat(vocabulary.isA(WebSocketExtractor.MAPPING, "entry-point")).isTrue();
+    assertThat(vocabulary.isA(Types.STOMP_MAPPING, "entry-point")).isTrue();
   }
 
   private static List<String> withoutConfidence(List<Fact> facts) {

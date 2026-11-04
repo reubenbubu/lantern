@@ -16,7 +16,7 @@ import io.lantern.core.repo.RepoRegistry;
 import io.lantern.core.repo.RepoSettings;
 import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.snapshot.SnapshotStore;
-import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.core.types.Types;
 import io.lantern.harness.AnswerStore;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -314,13 +314,13 @@ class EndToEndIT {
     List<Fact> readmeFacts =
         libFacts.stream().filter(f -> f.origin().kind() == Origin.Kind.README).toList();
     assertThat(readmeFacts)
-        .filteredOn(f -> f.predicate().equals(DocsExtractor.CLAIM))
+        .filteredOn(f -> f.predicate().equals(Types.CLAIM))
         .extracting(f -> f.object().value())
         .containsExactly("The library greets people.");
     assertThat(readmeFacts)
-        .filteredOn(f -> f.subject().type().equals(DocsExtractor.DECISION))
+        .filteredOn(f -> f.subject().type().equals(Types.DECISION))
         .extracting(f -> f.predicate() + " " + f.object().value())
-        .contains(DocsExtractor.TITLE + " Plain Java");
+        .contains(Types.TITLE + " Plain Java");
 
     // The second run analyzes only the service; the library is carried forward, its facts keep
     // holding, and the service's dependency on it is found as internal. The service builds, with
@@ -372,7 +372,7 @@ class EndToEndIT {
     // The service's summaries keep holding though only the library was analyzed (ADR 0104).
     assertThat(facts.findValidAt(third.snapshot().number(), java.util.Set.of("greeting-service")))
         .as("summaries of the carried-forward service")
-        .anySatisfy(f -> assertThat(f.predicate()).isEqualTo(io.lantern.harness.LlmFacts.SUMMARY));
+        .anySatisfy(f -> assertThat(f.predicate()).isEqualTo(Types.SUMMARY));
     assertThat(third.snapshot().number()).isEqualTo(second + 1);
     assertThat(third.builds()).containsOnlyKeys("greeting-lib");
     assertThat(third.reusedBuilds()).containsExactly("greeting-lib");
@@ -440,23 +440,18 @@ class EndToEndIT {
     List<Fact> movedLib = validIn(moved, "greeting-lib");
     assertThat(movedLib)
         .doesNotContainAnyElementsOf(
-            readmeFacts.stream().filter(f -> f.predicate().equals(DocsExtractor.CLAIM)).toList())
+            readmeFacts.stream().filter(f -> f.predicate().equals(Types.CLAIM)).toList())
         .containsAll(
-            readmeFacts.stream()
-                .filter(f -> f.subject().type().equals(DocsExtractor.DECISION))
-                .toList());
+            readmeFacts.stream().filter(f -> f.subject().type().equals(Types.DECISION)).toList());
     assertThat(movedLib)
         .filteredOn(
-            f ->
-                f.origin().kind() == Origin.Kind.README
-                    && f.predicate().equals(DocsExtractor.CLAIM))
+            f -> f.origin().kind() == Origin.Kind.README && f.predicate().equals(Types.CLAIM))
         .extracting(f -> f.object().value())
         .containsExactly("The library says hello.");
     for (Fact fact : readmeFacts) {
       assertThat(facts.findById(fact.id()).orElseThrow().validity().to())
           .as("end of %s", fact.id())
-          .isEqualTo(
-              fact.predicate().equals(DocsExtractor.CLAIM) ? moved.snapshot().number() : null);
+          .isEqualTo(fact.predicate().equals(Types.CLAIM) ? moved.snapshot().number() : null);
     }
   }
 
@@ -582,7 +577,7 @@ class EndToEndIT {
     assertThat(AnalysisRun.storedBuild(sandbox, registered, commit)).isNull();
     long snapshot = context.getBean(SnapshotStore.class).latest().orElseThrow().number();
     assertThat(validIn(snapshot, "web-frontend"))
-        .filteredOn(f -> f.predicate().equals(DocsExtractor.CLAIM))
+        .filteredOn(f -> f.predicate().equals(Types.CLAIM))
         .extracting(f -> f.subject() + " " + f.object().value())
         .containsExactly("readme:web-frontend:README.md The frontend shows the greetings.");
 

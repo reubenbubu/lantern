@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.derive.FlowModel.Flow;
 import io.lantern.derive.FlowModel.Operand;
@@ -57,13 +58,6 @@ public final class Flows implements LinkRule.OverFacts {
   /** Raised whenever the flows it gives for the same facts change. */
   public static final String VERSION = "1";
 
-  public static final String FLOW = "flow";
-  public static final String FLOW_STEP = "flow-step";
-  public static final String TRIGGERED_BY = "TRIGGERED_BY";
-  public static final String FLOW_SHAPE = "flow-shape";
-  public static final String SAME_SHAPE_AS = "SAME_SHAPE_AS";
-  public static final String STEP_OF = "STEP_OF";
-
   /** The most messages one flow has before the trace stops. */
   public static final int MAX_MESSAGES = FlowTracer.MAX_MESSAGES;
 
@@ -87,7 +81,7 @@ public final class Flows implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Set.of(TRIGGERED_BY, FLOW_SHAPE, SAME_SHAPE_AS, STEP_OF);
+    return Set.of(Types.TRIGGERED_BY, Types.FLOW_SHAPE, Types.SAME_SHAPE_AS, Types.STEP_OF);
   }
 
   /** The vocabulary types of the flows' facts besides the built-in ones. */
@@ -105,7 +99,7 @@ public final class Flows implements LinkRule.OverFacts {
    * The unit is part of it, since a library's entry point runs in each unit that bundles it.
    */
   public static EntityId id(EntityId unit, Fact trigger) {
-    return new EntityId(FLOW, unit + "/" + claim(trigger));
+    return new EntityId(Types.FLOW, unit + "/" + claim(trigger));
   }
 
   @Override
@@ -176,7 +170,7 @@ public final class Flows implements LinkRule.OverFacts {
         }
       }
       cite(attributes, cited);
-      add(flow.id(), TRIGGERED_BY, FactObject.entity(flow.method()), attributes);
+      add(flow.id(), Types.TRIGGERED_BY, FactObject.entity(flow.method()), attributes);
 
       ObjectNode described = FactJson.newObject();
       described.put("content", content(flow));
@@ -190,12 +184,12 @@ public final class Flows implements LinkRule.OverFacts {
       described.put("pushes", flow.pushes());
       described.put("messages", flow.messages());
       cite(described, List.of(trigger));
-      add(flow.id(), FLOW_SHAPE, FactObject.string(shape), described);
+      add(flow.id(), Types.FLOW_SHAPE, FactObject.string(shape), described);
 
       if (representative != flow) {
         ObjectNode same = FactJson.newObject();
         cite(same, List.of(trigger, representative.trigger()));
-        add(flow.id(), SAME_SHAPE_AS, FactObject.entity(representative.id()), same);
+        add(flow.id(), Types.SAME_SHAPE_AS, FactObject.entity(representative.id()), same);
       }
       steps(flow.steps(), null, 0);
     }
@@ -235,7 +229,7 @@ public final class Flows implements LinkRule.OverFacts {
           attributes.put("operand", operand);
         }
         cite(attributes, step.facts());
-        add(id, STEP_OF, FactObject.entity(flow.id()), attributes);
+        add(id, Types.STEP_OF, FactObject.entity(flow.id()), attributes);
         for (int i = 0; i < step.operands().size(); i++) {
           steps(step.operands().get(i).steps(), id, i);
         }
@@ -246,7 +240,7 @@ public final class Flows implements LinkRule.OverFacts {
     private EntityId stepId(Step step) {
       String follows = step.facts().isEmpty() ? "none" : claim(step.facts().getFirst());
       int k = repeats.merge(follows, 1, Integer::sum) - 1;
-      return new EntityId(FLOW_STEP, flow.id().key() + "/" + follows + "/" + k);
+      return new EntityId(Types.FLOW_STEP, flow.id().key() + "/" + follows + "/" + k);
     }
 
     private void add(EntityId subject, String predicate, FactObject object, ObjectNode attrs) {

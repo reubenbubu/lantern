@@ -20,7 +20,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

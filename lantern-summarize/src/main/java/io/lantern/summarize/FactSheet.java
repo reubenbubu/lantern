@@ -2,6 +2,7 @@ package io.lantern.summarize;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -32,39 +33,39 @@ final class FactSheet {
     ENTRY_POINTS(
         "Entry points",
         List.of(
-            "main-class",
-            "endpoint",
-            "message-listener",
-            "websocket-endpoint",
-            "stomp-mapping",
-            "scheduled",
-            "background-job")),
+            Types.MAIN_CLASS,
+            Types.ENDPOINT,
+            Types.MESSAGE_LISTENER,
+            Types.WEBSOCKET_ENDPOINT,
+            Types.STOMP_MAPPING,
+            Types.SCHEDULED,
+            Types.BACKGROUND_JOB)),
     LINKS(
         "Links",
         List.of(
-            "CALLS_HTTP",
-            "SENDS_MAIL",
-            "USES_IDENTITY_PROVIDER",
-            "SENDS_MESSAGES_TO",
-            "PUBLISHES",
-            "CONSUMES",
-            "USES_BROKER",
-            "USES_INFRASTRUCTURE",
-            "http-call",
-            "message-send",
-            "stomp-send",
-            "mail-send",
-            "http-client")),
+            Types.CALLS_HTTP,
+            Types.SENDS_MAIL,
+            Types.USES_IDENTITY_PROVIDER,
+            Types.SENDS_MESSAGES_TO,
+            Types.PUBLISHES,
+            Types.CONSUMES,
+            Types.USES_BROKER,
+            Types.USES_INFRASTRUCTURE,
+            Types.HTTP_CALL,
+            Types.MESSAGE_SEND,
+            Types.STOMP_SEND,
+            Types.MAIL_SEND,
+            Types.HTTP_CLIENT)),
     DATA_STORES(
         "Data stores",
         List.of(
-            "USES_DATABASE",
-            "ACCESSES_DATA_OF",
-            "datasource",
-            "MAPS_TO",
-            "READS_TABLE",
-            "WRITES_TABLE")),
-    TECHNOLOGY("Technology", List.of("technology", "deployable-unit", "java-release"));
+            Types.USES_DATABASE,
+            Types.ACCESSES_DATA_OF,
+            Types.DATASOURCE,
+            Types.MAPS_TO,
+            Types.READS_TABLE,
+            Types.WRITES_TABLE)),
+    TECHNOLOGY("Technology", List.of(Types.TECHNOLOGY, Types.DEPLOYABLE_UNIT, Types.JAVA_RELEASE));
 
     private final String title;
     private final List<String> predicates;

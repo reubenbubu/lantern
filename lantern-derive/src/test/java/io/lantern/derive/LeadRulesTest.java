@@ -6,7 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ class LeadRulesTest {
   void aSendATransactionReachesIsALeadUnlessAnOutboxStandsBetween() {
     shop();
     model.add(PLACE, "transactional", FactObject.string("REQUIRED"), kind("transaction"));
-    model.add(PLACE, BuiltInTypes.CALLS, PUBLISH);
+    model.add(PLACE, Types.CALLS, PUBLISH);
     Fact send = model.add(PUBLISH, "message-send", FactObject.string("orders"));
 
     List<Fact> leads = leads("send-before-commit");
@@ -79,11 +79,11 @@ class LeadRulesTest {
   void aSendThroughAnOutboxIsNotALead() {
     shop();
     EntityId outbox = EntityId.parse("type:com.acme.OrderOutbox");
-    model.add(MODULE, BuiltInTypes.CONTAINS, outbox);
+    model.add(MODULE, Types.CONTAINS, outbox);
     EntityId store = method(outbox, "store()");
-    model.add(outbox, BuiltInTypes.CONTAINS, store);
+    model.add(outbox, Types.CONTAINS, store);
     model.add(PLACE, "transactional", FactObject.string("REQUIRED"), kind("transaction"));
-    model.add(PLACE, BuiltInTypes.CALLS, store);
+    model.add(PLACE, Types.CALLS, store);
     model.add(store, "message-send", FactObject.string("orders"));
 
     assertThat(leads("send-before-commit")).isEmpty();
@@ -96,7 +96,7 @@ class LeadRulesTest {
     ObjectNode readOnly = kind("transaction");
     readOnly.put("readOnly", true);
     model.add(PLACE, "transactional", FactObject.string("REQUIRED"), readOnly);
-    model.add(PLACE, BuiltInTypes.CALLS, PUBLISH);
+    model.add(PLACE, Types.CALLS, PUBLISH);
     model.add(PUBLISH, "message-send", FactObject.string("orders"));
 
     // publish() itself runs in the class's transaction and sends, so it is the only lead's start.
@@ -153,7 +153,7 @@ class LeadRulesTest {
     billing();
     EntityId library = EntityId.parse("module:com.acme:events");
     EntityId event = EntityId.parse("type:com.acme.events.OrderPlaced");
-    model.add(library, BuiltInTypes.CONTAINS, event);
+    model.add(library, Types.CONTAINS, event);
     model.add(UNIT, "BUNDLES", EntityId.parse("library:com.acme:events"));
     ObjectNode pins = FactJson.newObject();
     pins.putObject("pins").put(UNIT.toString(), "1.0").put(OTHER.toString(), "2.0");
@@ -161,9 +161,8 @@ class LeadRulesTest {
         EntityId.parse("library:com.acme:events"), "version-skew", FactObject.string("2.0"), pins);
     model.add(PUBLISH, "payload-type", FactObject.string(event.key()), role("send"));
     EntityId listener = method(EntityId.parse("type:com.acme.BillingListener"), "on()");
-    model.add(
-        BILLING_MODULE, BuiltInTypes.CONTAINS, EntityId.parse("type:com.acme.BillingListener"));
-    model.add(EntityId.parse("type:com.acme.BillingListener"), BuiltInTypes.CONTAINS, listener);
+    model.add(BILLING_MODULE, Types.CONTAINS, EntityId.parse("type:com.acme.BillingListener"));
+    model.add(EntityId.parse("type:com.acme.BillingListener"), Types.CONTAINS, listener);
     model.add(listener, "payload-type", FactObject.string(event.key()), role("receive"));
 
     assertThat(keys(leads("shared-type-skew")))
@@ -282,25 +281,25 @@ class LeadRulesTest {
 
   private void shop() {
     model.add(UNIT, "deployable-unit", FactObject.string("spring-boot"));
-    model.add(UNIT, BuiltInTypes.CONTAINS, MODULE);
+    model.add(UNIT, Types.CONTAINS, MODULE);
     for (EntityId type : List.of(CONTROLLER, SERVICE)) {
-      model.add(MODULE, BuiltInTypes.CONTAINS, type);
+      model.add(MODULE, Types.CONTAINS, type);
     }
     for (EntityId m : List.of(DELETE, CREATE, GET)) {
-      model.add(CONTROLLER, BuiltInTypes.CONTAINS, m);
+      model.add(CONTROLLER, Types.CONTAINS, m);
     }
     for (EntityId m : List.of(PLACE, PUBLISH)) {
-      model.add(SERVICE, BuiltInTypes.CONTAINS, m);
+      model.add(SERVICE, Types.CONTAINS, m);
     }
   }
 
   private void billing() {
     model.add(OTHER, "deployable-unit", FactObject.string("spring-boot"));
-    model.add(OTHER, BuiltInTypes.CONTAINS, BILLING_MODULE);
+    model.add(OTHER, Types.CONTAINS, BILLING_MODULE);
     EntityId invoices = EntityId.parse("type:com.acme.InvoiceController");
-    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, invoices);
+    model.add(BILLING_MODULE, Types.CONTAINS, invoices);
     EntityId list = method(invoices, "list()");
-    model.add(invoices, BuiltInTypes.CONTAINS, list);
+    model.add(invoices, Types.CONTAINS, list);
     model.add(list, "endpoint", FactObject.string("GET /api/invoices"), verb("GET"));
   }
 

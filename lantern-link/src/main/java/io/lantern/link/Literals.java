@@ -7,14 +7,13 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.BindsAttributes;
 import io.lantern.extract.attributes.DeclaresAttributes;
 import io.lantern.extract.attributes.ListensOnAttributes;
 import io.lantern.extract.attributes.SendsToAttributes;
 import io.lantern.extract.attributes.SentByAttributes;
 import io.lantern.extract.http.HttpClientExtractor;
-import io.lantern.extract.messaging.MessagingExtractor;
-import io.lantern.extract.persistence.PersistenceExtractor;
 import io.lantern.extract.sql.JdbcUrl;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,10 +91,9 @@ final class Literals {
     java.util.Set<EntityId> feign = new java.util.HashSet<>();
     for (Fact f : facts) {
       byId.putIfAbsent(f.id(), f);
-      if (f.predicate().equals(HttpClientExtractor.SENT_BY)
-          && f.object().kind() == FactObject.Kind.ENTITY) {
+      if (f.predicate().equals(Types.SENT_BY) && f.object().kind() == FactObject.Kind.ENTITY) {
         sentBy.putIfAbsent(f.subject(), f);
-      } else if (f.predicate().equals(PersistenceExtractor.HAS_DATASOURCE)
+      } else if (f.predicate().equals(Types.HAS_DATASOURCE)
           && f.object().kind() == FactObject.Kind.ENTITY) {
         datasourceOf.putIfAbsent(f.object().entityId(), f);
       }
@@ -106,11 +104,8 @@ final class Literals {
       }
       EntityId object = f.object().entityId();
       switch (f.predicate()) {
-        case MessagingExtractor.SENDS_TO,
-            MessagingExtractor.LISTENS_ON,
-            MessagingExtractor.BINDS,
-            MessagingExtractor.DECLARES -> {
-          if (!object.type().equals(MessagingExtractor.DESTINATION_ENTITY)) {
+        case Types.SENDS_TO, Types.LISTENS_ON, Types.BINDS, Types.DECLARES -> {
+          if (!object.type().equals(Types.DESTINATION)) {
             continue;
           }
           String[] config = configOf(f);
@@ -120,7 +115,7 @@ final class Literals {
                 new Scoped(object, EntityId.parse(config[0]), config[1], Kind.DESTINATION, f));
           }
         }
-        case HttpClientExtractor.ADDRESSED_TO -> {
+        case Types.ADDRESSED_TO -> {
           Fact sent = sentBy.get(f.subject());
           if (sent == null) {
             continue;
@@ -139,9 +134,9 @@ final class Literals {
             }
           }
         }
-        case PersistenceExtractor.CONNECTS_TO -> {
+        case Types.CONNECTS_TO -> {
           Fact has = datasourceOf.get(f.subject());
-          if (has == null || !object.type().equals(HttpClientExtractor.ADDRESS)) {
+          if (has == null || !object.type().equals(Types.ADDRESS)) {
             continue;
           }
           EntityId module = has.subject();
@@ -226,7 +221,7 @@ final class Literals {
         out.add(
             Fact.create(
                 s.entity(),
-                ValueResolution.RESOLVES_TO,
+                Types.RESOLVES_TO,
                 FactObject.entity(literal.entity()),
                 attributes,
                 ORIGIN,
@@ -314,7 +309,7 @@ final class Literals {
         }
         String expression = s.entity().key().substring(s.module().key().length() + 1);
         String key = expression.substring(0, expression.length() - written(s).length()) + value;
-        return new Literal(new EntityId(MessagingExtractor.DESTINATION_ENTITY, key), key, facts);
+        return new Literal(new EntityId(Types.DESTINATION, key), key, facts);
       }
       case REQUEST_ADDRESS -> {
         String url = HttpClientExtractor.clean(value);
@@ -371,8 +366,7 @@ final class Literals {
     if (host.isEmpty() || host.contains("$") || host.contains("{")) {
       return null;
     }
-    return new Literal(
-        new EntityId(HttpClientExtractor.ADDRESS, host.toLowerCase(Locale.ROOT)), resolved, facts);
+    return new Literal(new EntityId(Types.ADDRESS, host.toLowerCase(Locale.ROOT)), resolved, facts);
   }
 
   /**
@@ -392,15 +386,15 @@ final class Literals {
   /** The module and repository whose config resolves a messaging relation's values. */
   private static String[] configOf(Fact f) {
     return switch (f.predicate()) {
-      case MessagingExtractor.SENDS_TO -> {
+      case Types.SENDS_TO -> {
         SendsToAttributes a = Claims.of(f, SendsToAttributes.class);
         yield new String[] {a.configModule(), a.configRepo()};
       }
-      case MessagingExtractor.LISTENS_ON -> {
+      case Types.LISTENS_ON -> {
         ListensOnAttributes a = Claims.of(f, ListensOnAttributes.class);
         yield new String[] {a.configModule(), a.configRepo()};
       }
-      case MessagingExtractor.BINDS -> {
+      case Types.BINDS -> {
         BindsAttributes a = Claims.of(f, BindsAttributes.class);
         yield new String[] {a.configModule(), a.configRepo()};
       }

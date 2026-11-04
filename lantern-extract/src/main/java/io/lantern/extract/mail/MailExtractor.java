@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -46,25 +47,20 @@ public final class MailExtractor implements Extractor {
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "mail-extractor";
 
-  /** Attribute: the method sends mail. */
-  public static final String MAIL_SEND = "mail-send";
-
   /** The packages of the senders whose server Spring Boot's {@code spring.mail.*} config sets. */
   private static final List<String> SPRING_CONFIGURED =
       List.of("org.springframework.mail.", "jakarta.mail.", "javax.mail.");
 
   /**
-   * Whether a {@link #MAIL_SEND} fact sends through Spring's or Jakarta Mail's API, and so to the
-   * server {@code spring.mail.host} names, rather than through another library or a provider's SDK.
+   * Whether a {@link Types#MAIL_SEND} fact sends through Spring's or Jakarta Mail's API, and so to
+   * the server {@code spring.mail.host} names, rather than through another library or a provider's
+   * SDK.
    */
   public static boolean sendsThroughSpringMail(Fact send) {
     String template =
         send.attributes().has("template") ? send.attributes().get("template").stringValue() : "";
     return SPRING_CONFIGURED.stream().anyMatch(template::startsWith);
   }
-
-  /** Attribute: the method sets the mail server's host. */
-  public static final String MAIL_HOST = "mail-host";
 
   private static final String RESOURCE = "/vocabulary/mail-types.json";
 
@@ -232,7 +228,7 @@ public final class MailExtractor implements Extractor {
         Fact fact =
             Fact.create(
                 i.caller(),
-                sends ? MAIL_SEND : MAIL_HOST,
+                sends ? Types.MAIL_SEND : Types.MAIL_HOST,
                 FactObject.string(sends ? call.method() : host),
                 attributes,
                 ORIGIN,

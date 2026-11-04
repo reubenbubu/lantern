@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.derive.FlowModel.GatewayStart;
 import io.lantern.derive.FlowModel.Operand;
 import io.lantern.derive.FlowModel.Part;
@@ -45,32 +45,8 @@ final class FlowTracer {
   /** The most steps, notes included, one flow has before the trace stops. */
   static final int MAX_STEPS = 2 * MAX_MESSAGES;
 
-  private static final String METHOD = "method";
-
   /** The name of a constructor in a method's ID (ADR 0007). */
   private static final String CONSTRUCTOR = "<init>(";
-
-  static final String ENDPOINT = "endpoint";
-  static final String MESSAGE_LISTENER = "message-listener";
-  static final String SCHEDULED = "scheduled";
-  static final String STOMP_MAPPING = "stomp-mapping";
-  private static final String STOMP_SEND = "stomp-send";
-  static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
-  private static final String STOMP_INTERCEPTOR = "stomp-interceptor";
-  private static final String ROUTED_ENDPOINT = "routed-endpoint";
-  static final String BACKGROUND_JOB = "background-job";
-  private static final String PROFILE_GATE = "profile-gate";
-  private static final String SENDS_MESSAGES_TO = "SENDS_MESSAGES_TO";
-  private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
-  private static final String READS_TABLE = "READS_TABLE";
-  private static final String WRITES_TABLE = "WRITES_TABLE";
-  private static final String CALLS_HTTP = "CALLS_HTTP";
-  private static final String SENDS_MAIL = "SENDS_MAIL";
-  private static final String PUBLISHES = "PUBLISHES";
-  private static final String UNRESOLVED_LINK = "unresolved-link";
-  private static final String USES_DATABASE = "USES_DATABASE";
-  private static final String ACCESSES_DATA_OF = "ACCESSES_DATA_OF";
-  private static final String EXTERNAL_SYSTEM = "external-system";
 
   private final Knowledge knowledge;
   private final Set<Fact> alternatives;
@@ -100,7 +76,7 @@ final class FlowTracer {
         String source = attribute(fact, "source");
         if (source != null
             && !alternatives.contains(fact)
-            && !(fact.predicate().equals(UNRESOLVED_LINK) && knowledge.resolved(fact))) {
+            && !(fact.predicate().equals(Types.UNRESOLVED_LINK) && knowledge.resolved(fact))) {
           linksBySource.computeIfAbsent(unit + " " + source, k -> new ArrayList<>()).add(fact);
         }
       }
@@ -110,7 +86,7 @@ final class FlowTracer {
     }
     for (EntityId gateway : Screens.units(knowledge)) {
       for (Fact fact : knowledge.attributes(gateway)) {
-        if (fact.predicate().equals(ROUTED_ENDPOINT)
+        if (fact.predicate().equals(Types.ROUTED_ENDPOINT)
             && Knowledge.view(fact) == null
             && attribute(fact, "target") != null
             && attribute(fact, "endpoint") != null) {
@@ -130,7 +106,7 @@ final class FlowTracer {
    * and the request; null when no gateway routes to it.
    */
   private GatewayStart gatewayStart(Entry entry) {
-    if (!entry.fact.predicate().equals(ENDPOINT)) {
+    if (!entry.fact.predicate().equals(Types.ENDPOINT)) {
       return null;
     }
     Fact routed =
@@ -148,7 +124,7 @@ final class FlowTracer {
     Fact route =
         id == null
             ? null
-            : knowledge.relations(routed.subject(), CALLS_HTTP).stream()
+            : knowledge.relations(routed.subject(), Types.CALLS_HTTP).stream()
                 .filter(
                     f ->
                         !alternatives.contains(f)
@@ -168,7 +144,7 @@ final class FlowTracer {
     EntityId person = user == null ? null : user.getKey();
     List<Fact> facts = user == null ? List.of() : user.getValue();
     List<Fact> calls =
-        knowledge.relations(frontend, CALLS_HTTP).stream()
+        knowledge.relations(frontend, Types.CALLS_HTTP).stream()
             .filter(f -> !alternatives.contains(f) && attribute(f, "reaches") != null)
             .sorted(
                 Comparator.comparing((Fact f) -> f.evidence().path())
@@ -187,7 +163,7 @@ final class FlowTracer {
       if (via != null) {
         String id = attribute(call, "throughRoute");
         route =
-            knowledge.relations(via, CALLS_HTTP).stream()
+            knowledge.relations(via, Types.CALLS_HTTP).stream()
                 .filter(
                     f ->
                         !alternatives.contains(f)
@@ -228,19 +204,20 @@ final class FlowTracer {
             .sorted(
                 Comparator.comparing(
                         (Fact f) ->
-                            !(f.predicate().equals(ENDPOINT) && f.object().value().equals(reached)))
+                            !(f.predicate().equals(Types.ENDPOINT)
+                                && f.object().value().equals(reached)))
                     .thenComparingInt(FlowTracer::triggerRank)
                     .thenComparing(f -> f.object().value())
                     .thenComparing(Fact::id))
             .filter(
                 f ->
-                    f.predicate().equals(ENDPOINT)
-                        || f.predicate().equals(MESSAGE_LISTENER)
-                        || f.predicate().equals(STOMP_MAPPING)
-                        || f.predicate().equals(SCHEDULED)
-                        || f.predicate().equals(BACKGROUND_JOB)
+                    f.predicate().equals(Types.ENDPOINT)
+                        || f.predicate().equals(Types.MESSAGE_LISTENER)
+                        || f.predicate().equals(Types.STOMP_MAPPING)
+                        || f.predicate().equals(Types.SCHEDULED)
+                        || f.predicate().equals(Types.BACKGROUND_JOB)
                         // A WebSocket endpoint starts a flow when a frontend opens it.
-                        || (f.predicate().equals(WEBSOCKET_ENDPOINT)
+                        || (f.predicate().equals(Types.WEBSOCKET_ENDPOINT)
                             && starts.containsKey(unit + " " + method)))
             .findFirst()
             .ifPresent(f -> result.add(new Entry(unit, method, f)));
@@ -255,12 +232,12 @@ final class FlowTracer {
    */
   private static int triggerRank(Fact trigger) {
     return switch (trigger.predicate()) {
-      case ENDPOINT -> 0;
-      case WEBSOCKET_ENDPOINT -> 1;
-      case STOMP_MAPPING -> 2;
-      case MESSAGE_LISTENER -> 3;
-      case SCHEDULED -> 4;
-      case BACKGROUND_JOB -> 5;
+      case Types.ENDPOINT -> 0;
+      case Types.WEBSOCKET_ENDPOINT -> 1;
+      case Types.STOMP_MAPPING -> 2;
+      case Types.MESSAGE_LISTENER -> 3;
+      case Types.SCHEDULED -> 4;
+      case Types.BACKGROUND_JOB -> 5;
       default -> 6;
     };
   }
@@ -276,7 +253,7 @@ final class FlowTracer {
     List<Entry> entries = entries();
     Map<String, List<Entry>> jobs = new HashMap<>();
     for (Entry entry : entries) {
-      if (entry.fact.predicate().equals(BACKGROUND_JOB)) {
+      if (entry.fact.predicate().equals(Types.BACKGROUND_JOB)) {
         for (String by : Screens.strings(entry.fact, "scheduledBy")) {
           jobs.computeIfAbsent(by, k -> new ArrayList<>()).add(entry);
         }
@@ -572,7 +549,7 @@ final class FlowTracer {
       gateway(trace);
     }
     sync(trace, entry.unit, entry.method, List.of());
-    if (entry.fact.predicate().equals(WEBSOCKET_ENDPOINT)) {
+    if (entry.fact.predicate().equals(Types.WEBSOCKET_ENDPOINT)) {
       interceptors(trace, entry.unit);
     }
     deliver(trace);
@@ -613,7 +590,7 @@ final class FlowTracer {
           List.of());
     }
     trace.message(
-        FlowModel.FRONTEND_CALL,
+        Types.FRONTEND_CALL,
         start.frontend(),
         start.via() == null ? entry.unit : start.via(),
         FlowModel.SYNC,
@@ -645,7 +622,7 @@ final class FlowTracer {
       facts.addAll(withEnds(start.route()));
     }
     trace.message(
-        FlowModel.GATEWAY_ROUTE,
+        Types.GATEWAY_ROUTE,
         start.gateway(),
         trace.entry.unit,
         FlowModel.SYNC,
@@ -672,17 +649,17 @@ final class FlowTracer {
   private void interceptors(Trace trace, EntityId unit) {
     for (EntityId method : unitMethods(unit)) {
       for (Fact fact : knowledge.attributes(method)) {
-        if (!fact.predicate().equals(STOMP_INTERCEPTOR)
+        if (!fact.predicate().equals(Types.STOMP_INTERCEPTOR)
             || !"inbound".equals(attribute(fact, "channel"))) {
           continue;
         }
-        EntityId type = new EntityId(BuiltInTypes.TYPE, fact.object().value());
+        EntityId type = new EntityId(Types.TYPE, fact.object().value());
         List<String> declared = Screens.strings(fact, "intercepts");
         for (String name : INTERCEPTS) {
           if (!declared.contains(name)) {
             continue;
           }
-          for (EntityId body : knowledge.parts(type, METHOD)) {
+          for (EntityId body : knowledge.parts(type, Types.METHOD)) {
             if (!methodName(body).endsWith("." + name)) {
               continue;
             }
@@ -781,10 +758,10 @@ final class FlowTracer {
   private void steps(Trace trace, EntityId unit, EntityId method, List<String> outer) {
     List<String> profiles = gate(method, outer);
     List<Event> events = new ArrayList<>();
-    for (Fact call : knowledge.relations(method, BuiltInTypes.CALLS)) {
+    for (Fact call : knowledge.relations(method, Types.CALLS)) {
       EntityId callee = Knowledge.object(call);
       EntityId owner = Components.ownerType(knowledge, callee);
-      if (!knowledge.relations(owner, REPOSITORY_FOR).isEmpty()) {
+      if (!knowledge.relations(owner, Types.REPOSITORY_FOR).isEmpty()) {
         events.add(
             new Event(
                 line(call),
@@ -801,10 +778,10 @@ final class FlowTracer {
     for (Fact link : linksBySource.getOrDefault(unit + " " + method, List.of())) {
       Runnable action =
           switch (link.predicate()) {
-            case CALLS_HTTP -> () -> httpCall(trace, unit, link, profiles);
-            case SENDS_MAIL -> () -> mail(trace, unit, link, profiles);
-            case PUBLISHES -> () -> send(trace, unit, method, link, profiles);
-            case UNRESOLVED_LINK -> () -> unresolved(trace, unit, link, profiles);
+            case Types.CALLS_HTTP -> () -> httpCall(trace, unit, link, profiles);
+            case Types.SENDS_MAIL -> () -> mail(trace, unit, link, profiles);
+            case Types.PUBLISHES -> () -> send(trace, unit, method, link, profiles);
+            case Types.UNRESOLVED_LINK -> () -> unresolved(trace, unit, link, profiles);
             default -> null;
           };
       if (action != null) {
@@ -812,7 +789,7 @@ final class FlowTracer {
       }
     }
     for (Fact push : knowledge.attributes(method)) {
-      if (push.predicate().equals(STOMP_SEND)) {
+      if (push.predicate().equals(Types.STOMP_SEND)) {
         events.add(
             new Event(
                 line(push),
@@ -833,7 +810,7 @@ final class FlowTracer {
               job.fact.id(),
               () -> schedule(trace, unit, job, profiles)));
     }
-    List<Fact> reads = knowledge.relations(method, READS_TABLE);
+    List<Fact> reads = knowledge.relations(method, Types.READS_TABLE);
     if (!reads.isEmpty()) {
       events.add(
           new Event(
@@ -843,7 +820,7 @@ final class FlowTracer {
               reads.getFirst().id(),
               () -> dataAccess(trace, unit, "Reads", reads, profiles)));
     }
-    List<Fact> writes = knowledge.relations(method, WRITES_TABLE);
+    List<Fact> writes = knowledge.relations(method, Types.WRITES_TABLE);
     if (!writes.isEmpty()) {
       events.add(
           new Event(
@@ -930,13 +907,13 @@ final class FlowTracer {
     String signature = declared.key().substring(hash);
     List<EntityId> result = new ArrayList<>();
     // The declared method runs only when its type is known to be a class (or enum or record).
-    String kind = knowledge.attribute(owner, "kind").orElse("interface");
+    String kind = knowledge.attribute(owner, Types.KIND).orElse("interface");
     if (!kind.equals("interface") && !kind.equals("annotation")) {
       result.add(declared);
     }
     for (EntityId type : subtypes(owner)) {
-      EntityId method = new EntityId(METHOD, type.key() + signature);
-      if (!knowledge.wholes(method, BuiltInTypes.TYPE).isEmpty()) {
+      EntityId method = new EntityId(Types.METHOD, type.key() + signature);
+      if (!knowledge.wholes(method, Types.TYPE).isEmpty()) {
         result.add(method);
       }
     }
@@ -945,7 +922,7 @@ final class FlowTracer {
 
   /** The method, or the one its type inherits under the same signature, if it declares none. */
   private EntityId declared(EntityId method) {
-    if (!knowledge.wholes(method, BuiltInTypes.TYPE).isEmpty()) {
+    if (!knowledge.wholes(method, Types.TYPE).isEmpty()) {
       return method;
     }
     int hash = method.key().indexOf('#');
@@ -954,18 +931,18 @@ final class FlowTracer {
     }
     String signature = method.key().substring(hash);
     Deque<EntityId> todo =
-        new ArrayDeque<>(List.of(new EntityId(BuiltInTypes.TYPE, method.key().substring(0, hash))));
+        new ArrayDeque<>(List.of(new EntityId(Types.TYPE, method.key().substring(0, hash))));
     Set<EntityId> seen = new HashSet<>();
     while (!todo.isEmpty()) {
       EntityId type = todo.removeFirst();
       if (!seen.add(type)) {
         continue;
       }
-      EntityId candidate = new EntityId(METHOD, type.key() + signature);
-      if (!knowledge.wholes(candidate, BuiltInTypes.TYPE).isEmpty()) {
+      EntityId candidate = new EntityId(Types.METHOD, type.key() + signature);
+      if (!knowledge.wholes(candidate, Types.TYPE).isEmpty()) {
         return candidate;
       }
-      for (String relation : List.of(BuiltInTypes.EXTENDS, BuiltInTypes.IMPLEMENTS)) {
+      for (String relation : List.of(Types.EXTENDS, Types.IMPLEMENTS)) {
         knowledge.relations(type, relation).forEach(f -> todo.add(Knowledge.object(f)));
       }
     }
@@ -978,7 +955,7 @@ final class FlowTracer {
     Deque<EntityId> todo = new ArrayDeque<>(List.of(type));
     while (!todo.isEmpty()) {
       EntityId supertype = todo.removeFirst();
-      for (String relation : List.of(BuiltInTypes.EXTENDS, BuiltInTypes.IMPLEMENTS)) {
+      for (String relation : List.of(Types.EXTENDS, Types.IMPLEMENTS)) {
         for (Fact fact : knowledge.withPredicate(relation)) {
           if (Knowledge.isEntity(fact)
               && Knowledge.object(fact).equals(supertype)
@@ -1002,7 +979,7 @@ final class FlowTracer {
     gated.add(Components.ownerType(knowledge, method));
     for (EntityId entity : gated) {
       for (Fact fact : knowledge.attributes(entity)) {
-        if (fact.predicate().equals(PROFILE_GATE) && !fact.object().value().contains("!")) {
+        if (fact.predicate().equals(Types.PROFILE_GATE) && !fact.object().value().contains("!")) {
           List<String> profiles = Screens.strings(fact, "profiles");
           if (!profiles.isEmpty()) {
             return new ArrayList<>(new TreeSet<>(profiles));
@@ -1028,8 +1005,8 @@ final class FlowTracer {
         facts.add(alternative.getKey());
       }
     }
-    trace.message(FlowModel.HTTP_CALL, unit, to, FlowModel.SYNC, profiles, facts, List.of());
-    if (handler != null && !to.type().equals(EXTERNAL_SYSTEM)) {
+    trace.message(Types.HTTP_CALL, unit, to, FlowModel.SYNC, profiles, facts, List.of());
+    if (handler != null && !to.type().equals(Types.EXTERNAL_SYSTEM)) {
       trace.reached.add(to + " " + handler);
       sync(trace, to, handler, profiles);
     }
@@ -1057,7 +1034,7 @@ final class FlowTracer {
         linksBySource.getOrDefault(unit + " " + method, List.of()).stream()
             .filter(
                 f ->
-                    f.predicate().equals(SENDS_MESSAGES_TO)
+                    f.predicate().equals(Types.SENDS_MESSAGES_TO)
                         && destination.toString().equals(attribute(f, "destination")))
             .toList();
     if (deliveries.isEmpty()) {
@@ -1103,7 +1080,7 @@ final class FlowTracer {
    */
   private int schedulingLine(EntityId method) {
     int result = Integer.MAX_VALUE;
-    for (Fact call : knowledge.relations(method, BuiltInTypes.CALLS)) {
+    for (Fact call : knowledge.relations(method, Types.CALLS)) {
       String key = Knowledge.object(call).key();
       int hash = key.indexOf('#');
       if (hash < 0 || !(key.startsWith("org.jobrunr.") || key.startsWith("org.quartz."))) {
@@ -1139,7 +1116,7 @@ final class FlowTracer {
     List<Fact> result = new ArrayList<>();
     for (EntityId method : unitMethods(unit)) {
       for (Fact fact : knowledge.attributes(method)) {
-        if (fact.predicate().equals(WEBSOCKET_ENDPOINT)) {
+        if (fact.predicate().equals(Types.WEBSOCKET_ENDPOINT)) {
           result.add(fact);
         }
       }
@@ -1152,13 +1129,13 @@ final class FlowTracer {
     SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
     for (EntityId module : Components.codeModules(knowledge, unit)) {
       code.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+      for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
         code.addAll(knowledge.typesWithin(pkg));
       }
     }
     List<EntityId> result = new ArrayList<>();
     for (EntityId type : code) {
-      result.addAll(knowledge.parts(type, METHOD));
+      result.addAll(knowledge.parts(type, Types.METHOD));
     }
     return result;
   }
@@ -1173,7 +1150,7 @@ final class FlowTracer {
     SortedSet<String> tables = new TreeSet<>();
     accesses.forEach(f -> tables.add(tableName(Knowledge.object(f).toString())));
     List<Fact> facts = new ArrayList<>(accesses);
-    for (Fact shared : knowledge.relations(unit, ACCESSES_DATA_OF)) {
+    for (Fact shared : knowledge.relations(unit, Types.ACCESSES_DATA_OF)) {
       if (alternatives.contains(shared)) {
         continue;
       }
@@ -1204,7 +1181,8 @@ final class FlowTracer {
     EntityId callee = Knowledge.object(call);
     Database database = database(unit);
     List<Fact> facts = new ArrayList<>(List.of(call));
-    facts.addAll(knowledge.relations(Components.ownerType(knowledge, callee), REPOSITORY_FOR));
+    facts.addAll(
+        knowledge.relations(Components.ownerType(knowledge, callee), Types.REPOSITORY_FOR));
     facts.addAll(database.facts);
     if (database.entity == null) {
       Node note =
@@ -1234,7 +1212,7 @@ final class FlowTracer {
 
   private Database database(EntityId unit) {
     Map<EntityId, List<Fact>> databases = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact fact : knowledge.relations(unit, USES_DATABASE)) {
+    for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
       if (Knowledge.view(fact) == null) {
         databases.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
       }

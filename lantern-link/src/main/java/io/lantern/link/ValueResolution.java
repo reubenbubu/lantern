@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.ConfigValueAttributes;
 import io.lantern.extract.attributes.SentByAttributes;
 import io.lantern.extract.config.CodeConfig;
@@ -76,35 +77,32 @@ public final class ValueResolution implements LinkRule.OverFacts {
   /** The step's version. */
   public static final String VERSION = "1";
 
-  /** The predicate from an expression-keyed destination or address to its literal one. */
-  public static final String RESOLVES_TO = "RESOLVES_TO";
-
   /**
    * The predicates of the facts this step gives: those the extractors gave before they kept values
    * as written (ADR 0094).
    */
   public static final Set<String> WRITES =
       Set.of(
-          HttpClientExtractor.HTTP_CALL,
-          GatewayExtractor.ROUTE,
-          GatewayExtractor.LOCATOR,
-          MessagingExtractor.SEND,
-          MessagingExtractor.LISTENER,
-          MessagingExtractor.BINDING,
-          MessagingExtractor.DESTINATION,
-          io.lantern.extract.websocket.WebSocketExtractor.SEND,
-          io.lantern.extract.persistence.PersistenceExtractor.DATASOURCE,
-          io.lantern.extract.persistence.PersistenceExtractor.DATA_STORE,
-          io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE,
-          io.lantern.extract.persistence.PersistenceExtractor.CONNECTS_TO,
-          io.lantern.extract.persistence.PersistenceExtractor.MAPS_TO,
-          io.lantern.extract.redis.RedisExtractor.REDIS_USE,
-          io.lantern.extract.spring.SpringExtractor.ENDPOINT,
-          io.lantern.extract.spring.SpringExtractor.SCHEDULED,
-          MessagingExtractor.SENDS_TO,
-          MessagingExtractor.LISTENS_ON,
-          MessagingExtractor.BINDS,
-          RESOLVES_TO);
+          Types.HTTP_CALL,
+          Types.GATEWAY_ROUTE,
+          Types.GATEWAY_DISCOVERY_LOCATOR,
+          Types.MESSAGE_SEND,
+          Types.MESSAGE_LISTENER,
+          Types.MESSAGE_BINDING,
+          Types.MESSAGE_DESTINATION,
+          Types.STOMP_SEND,
+          Types.DATASOURCE,
+          Types.DATA_STORE,
+          Types.HAS_DATASOURCE,
+          Types.CONNECTS_TO,
+          Types.MAPS_TO,
+          Types.REDIS_USE,
+          Types.ENDPOINT,
+          Types.SCHEDULED,
+          Types.SENDS_TO,
+          Types.LISTENS_ON,
+          Types.BINDS,
+          Types.RESOLVES_TO);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
@@ -121,11 +119,7 @@ public final class ValueResolution implements LinkRule.OverFacts {
   public Set<String> reads() {
     // The units and their names, for the deployments that run them, whose environments are
     // views (#588); not what the protocol rules write about units, which read this rule's facts.
-    return Set.of(
-        EXTRACTED,
-        DeployableUnits.DEPLOYABLE_UNIT,
-        DeployableUnits.BUNDLES,
-        DeployableUnits.APPLICATION_NAME);
+    return Set.of(EXTRACTED, Types.DEPLOYABLE_UNIT, Types.BUNDLES, Types.APPLICATION_NAME);
   }
 
   @Override
@@ -170,8 +164,8 @@ public final class ValueResolution implements LinkRule.OverFacts {
       derived.putIfAbsent(send.id(), send);
     }
     for (Fact f : facts) {
-      if (f.predicate().equals(HttpClientExtractor.SENT_BY)
-          && f.subject().type().equals(HttpClientExtractor.REQUEST)
+      if (f.predicate().equals(Types.SENT_BY)
+          && f.subject().type().equals(Types.REQUEST)
           && f.object().kind() == FactObject.Kind.ENTITY) {
         for (Fact call : calls(f, values, validity)) {
           derived.putIfAbsent(call.id(), call);
@@ -477,7 +471,7 @@ public final class ValueResolution implements LinkRule.OverFacts {
       calls.add(
           Fact.create(
               sent.object().entityId(),
-              HttpClientExtractor.HTTP_CALL,
+              Types.HTTP_CALL,
               FactObject.string(method == null ? object : method + " " + object),
               attributes,
               ORIGIN,

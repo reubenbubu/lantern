@@ -6,11 +6,11 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.FrontendAppAttributes;
 import io.lantern.extract.attributes.FrontendCallAttributes;
 import io.lantern.extract.attributes.FrontendProxyAttributes;
 import io.lantern.extract.frontend.FrontendExtractor;
-import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Deployments.Container;
 import io.lantern.link.FoundLinks.Found;
@@ -72,10 +72,10 @@ final class FrontendLinker {
    */
   void link(Origin origin, Validity validity) {
     deployed(origin, validity);
-    Map<EntityId, List<Fact>> calls = bySubject(FrontendExtractor.CALL);
-    Map<EntityId, List<Fact>> proxies = bySubject(FrontendExtractor.PROXY);
+    Map<EntityId, List<Fact>> calls = bySubject(Types.FRONTEND_CALL);
+    Map<EntityId, List<Fact>> proxies = bySubject(Types.FRONTEND_PROXY);
     Set<EntityId> frontends = new TreeSet<>(LinkIndex.BY_TEXT);
-    index.of(FrontendExtractor.APP).forEach(f -> frontends.add(f.subject()));
+    index.of(Types.FRONTEND_APP).forEach(f -> frontends.add(f.subject()));
     for (EntityId frontend : frontends) {
       List<Fact> served = new ArrayList<>(proxies.getOrDefault(frontend, List.of()));
       // nginx serves the built app, so its proxies are the ones a deployed page goes through;
@@ -123,7 +123,7 @@ final class FrontendLinker {
    * every such container has the same one, since that is the name it runs under.
    */
   private void deployed(Origin origin, Validity validity) {
-    for (Fact app : index.of(FrontendExtractor.APP)) {
+    for (Fact app : index.of(Types.FRONTEND_APP)) {
       String directory = Claims.of(app, FrontendAppAttributes.class).directory();
       Set<String> names = new TreeSet<>();
       List<Container> building = new ArrayList<>();
@@ -146,7 +146,7 @@ final class FrontendLinker {
         out.add(
             Fact.create(
                 app.subject(),
-                DataLinker.DISPLAY_NAME,
+                Types.DISPLAY_NAME,
                 FactObject.string(names.iterator().next()),
                 FactJson.newObject(),
                 origin,
@@ -302,7 +302,7 @@ final class FrontendLinker {
     if (method != null) {
       attributes.put("httpMethod", method);
     }
-    if (from.predicate().equals(FrontendExtractor.CALL)) {
+    if (from.predicate().equals(Types.FRONTEND_CALL)) {
       attributes.put("url", reached.url());
       if (reached.path() != null && !reached.path().isEmpty()) {
         attributes.put("path", reached.path());
@@ -312,7 +312,7 @@ final class FrontendLinker {
     }
     attributes.put(
         "protocol",
-        target.to().type().equals(CrossRepoLinks.EXTERNAL_SYSTEM)
+        target.to().type().equals(Types.EXTERNAL_SYSTEM)
             ? reached.protocol()
             : reached.protocol().equals(FrontendExtractor.WEBSOCKET)
                 ? FrontendExtractor.WEBSOCKET
@@ -333,7 +333,7 @@ final class FrontendLinker {
       facts.add(target.fact().id());
     }
     Unit unit = index.units.get(target.to());
-    if (from.predicate().equals(FrontendExtractor.CALL)
+    if (from.predicate().equals(Types.FRONTEND_CALL)
         && unit != null
         && reached.path() != null
         && !reached.path().isEmpty()) {
@@ -355,7 +355,7 @@ final class FrontendLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.CALLS_HTTP
+            Types.CALLS_HTTP
                 + "|"
                 + frontend
                 + "|"
@@ -367,7 +367,7 @@ final class FrontendLinker {
                 + "|"
                 + from.evidence().path(),
             frontend,
-            CrossRepoLinks.CALLS_HTTP,
+            Types.CALLS_HTTP,
             FactObject.entity(target.to()),
             attributes,
             from.evidence(),
@@ -409,7 +409,7 @@ final class FrontendLinker {
     String prefix = index.servletPrefix(unit, view);
     Fact best = null;
     int score = -1;
-    for (Fact endpoint : index.of(WebSocketExtractor.ENDPOINT)) {
+    for (Fact endpoint : index.of(Types.WEBSOCKET_ENDPOINT)) {
       String template = Endpoints.of(endpoint).path();
       if (template == null
           || !index.unitsOf(endpoint.subject()).contains(unit)
@@ -457,7 +457,7 @@ final class FrontendLinker {
 
     static Web of(Fact f) {
       return switch (f.predicate()) {
-        case FrontendExtractor.CALL -> {
+        case Types.FRONTEND_CALL -> {
           FrontendCallAttributes a = Claims.of(f, FrontendCallAttributes.class);
           yield new Web(
               a.httpMethod(),
@@ -467,7 +467,7 @@ final class FrontendLinker {
               a.protocol(),
               Claims.list(a.alternates()));
         }
-        case FrontendExtractor.PROXY -> {
+        case Types.FRONTEND_PROXY -> {
           FrontendProxyAttributes a = Claims.of(f, FrontendProxyAttributes.class);
           yield new Web(null, a.target(), false, null, null, List.of());
         }

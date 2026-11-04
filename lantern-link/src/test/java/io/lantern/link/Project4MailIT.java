@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
@@ -64,7 +65,7 @@ class Project4MailIT {
     List<String> mail =
         new CrossRepoLinks()
             .derive(facts, 1).stream()
-                .filter(f -> f.predicate().equals(CrossRepoLinks.SENDS_MAIL))
+                .filter(f -> f.predicate().equals(Types.SENDS_MAIL))
                 .map(
                     f ->
                         f.subject()

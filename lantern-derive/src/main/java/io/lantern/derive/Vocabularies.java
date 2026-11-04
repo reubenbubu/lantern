@@ -14,7 +14,7 @@ import java.util.SequencedMap;
 /**
  * Every vocabulary of this version of Lantern by source, in the order they are applied: the
  * built-in types, then those of the extractors, the linker, derivation and the LLM roles. The
- * generated {@link io.lantern.derive.attributes.Types} names each of their types (ADR 0114).
+ * generated {@link io.lantern.core.types.Types} names each of their types (ADR 0114).
  */
 public final class Vocabularies {
 

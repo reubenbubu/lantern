@@ -1,7 +1,7 @@
 package io.lantern.extract.java;
 
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -427,24 +427,22 @@ public final class ModuleStructure {
   // ---------------------------------------------------------------------------------------------
   // Entity IDs
 
-  public static final String METHOD = "method";
-  public static final String FIELD = "field";
   public static final String CONSTRUCTOR = "<init>";
 
   /** A {@code type:} entity, or null if the name does not form an entity key. */
   static EntityId typeId(String binaryName) {
-    return entity(BuiltInTypes.TYPE, binaryName);
+    return entity(Types.TYPE, binaryName);
   }
 
   /** A {@code method:} entity: {@code <type>#<name>(<erased parameter types>)}. */
   static EntityId methodId(String typeBinaryName, String name, List<String> parameterTypes) {
     return entity(
-        METHOD, typeBinaryName + "#" + name + "(" + String.join(",", parameterTypes) + ")");
+        Types.METHOD, typeBinaryName + "#" + name + "(" + String.join(",", parameterTypes) + ")");
   }
 
   /** A {@code field:} entity: {@code <type>#<name>}. */
   static EntityId fieldId(String typeBinaryName, String name) {
-    return entity(FIELD, typeBinaryName + "#" + name);
+    return entity(Types.FIELD, typeBinaryName + "#" + name);
   }
 
   /**

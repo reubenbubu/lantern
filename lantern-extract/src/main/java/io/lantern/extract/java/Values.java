@@ -1,6 +1,7 @@
 package io.lantern.extract.java;
 
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.types.Types;
 import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Assignment;
 import io.lantern.extract.java.ModuleStructure.Member;
@@ -270,7 +271,7 @@ public final class Values {
   /** A field's entity ID, or null if its owner or name cannot make one. */
   public static EntityId fieldId(Expression.FieldRef f) {
     try {
-      return new EntityId(ModuleStructure.FIELD, f.owner() + "#" + f.name());
+      return new EntityId(Types.FIELD, f.owner() + "#" + f.name());
     } catch (IllegalArgumentException e) {
       return null;
     }

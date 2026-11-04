@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -420,10 +420,10 @@ public final class ScopeFlows {
         case FlowModel.USES_SCREENS -> {
           // Traced for the scope's person, before the steps.
         }
-        case FlowModel.FRONTEND_CALL -> frontendCall(step);
+        case Types.FRONTEND_CALL -> frontendCall(step);
         case FlowModel.ROUTE -> route(step);
-        case FlowModel.GATEWAY_ROUTE -> gatewayRoute(step);
-        case FlowModel.HTTP_CALL -> httpCall(step, first);
+        case Types.GATEWAY_ROUTE -> gatewayRoute(step);
+        case Types.HTTP_CALL -> httpCall(step, first);
         case FlowModel.MAIL ->
             message(
                 step.from(),

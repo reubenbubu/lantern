@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.messaging.MessagingExtractor;
@@ -32,7 +33,7 @@ class MessagingFactsIT {
   @Test
   void messagingTypesAreLoadedOnStartup() {
     assertThat(vocabulary.current().types()).containsAll(MessagingExtractor.vocabulary());
-    assertThat(vocabulary.current().isA(MessagingExtractor.LISTENER, "entry-point")).isTrue();
+    assertThat(vocabulary.current().isA(Types.MESSAGE_LISTENER, "entry-point")).isTrue();
   }
 
   @Test
@@ -110,11 +111,7 @@ class MessagingFactsIT {
         // The queue and exchange created in the binding are declarations too; each value is kept
         // as written, a relationship to its destination (ADR 0094, #559).
         .containsExactlyInAnyOrder(
-            MessagingExtractor.SENDS_TO,
-            MessagingExtractor.LISTENS_ON,
-            MessagingExtractor.BINDS,
-            MessagingExtractor.DECLARES,
-            MessagingExtractor.DECLARES);
+            Types.SENDS_TO, Types.LISTENS_ON, Types.BINDS, Types.DECLARES, Types.DECLARES);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();

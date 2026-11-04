@@ -10,7 +10,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.extract.persistence.PersistenceExtractor;
+import io.lantern.core.types.Types;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -46,7 +46,7 @@ class AddressResolutionTest {
   private static Fact datasource(String key) {
     return Fact.create(
         EntityId.parse("module:g:orders"),
-        PersistenceExtractor.DATASOURCE,
+        Types.DATASOURCE,
         FactObject.string(URL),
         (tools.jackson.databind.node.ObjectNode) FactJson.parse("{\"key\":\"" + key + "\"}"),
         new Origin(Origin.Kind.STATIC, "persistence", "1"),

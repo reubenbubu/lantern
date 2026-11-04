@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -68,96 +68,6 @@ public final class SpringExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "spring-extractor";
-
-  /** Attribute: the Spring stereotype of a bean class. */
-  public static final String STEREOTYPE = "stereotype";
-
-  /** Attribute: the type is an application's main class ({@code spring-boot} or {@code java}). */
-  public static final String MAIN_CLASS = "main-class";
-
-  /** Attribute: the parent of the entry point kinds. */
-  public static final String ENTRY_POINT = "entry-point";
-
-  /** Attribute: the method handles HTTP requests. */
-  public static final String ENDPOINT = "endpoint";
-
-  /** Attribute: the method runs on a schedule. */
-  public static final String SCHEDULED = "scheduled";
-
-  /** Entity: an HTTP endpoint a module's code serves, its path as written (#519). */
-  public static final String HTTP_ENDPOINT = "http-endpoint";
-
-  /** Relationship: the subject endpoint is handled by the object method. */
-  public static final String HANDLED_BY = "HANDLED_BY";
-
-  /** Attribute: the method runs on a schedule written so; linking resolves it (#519). */
-  public static final String SCHEDULED_WRITTEN = "scheduled-written";
-
-  /**
-   * Attribute: the method runs as a background job that is not on a schedule of {@code trigger}'s
-   * kinds: a JobRunr job or a Quartz job without a cron found.
-   */
-  public static final String BACKGROUND_JOB = "background-job";
-
-  /** Attribute: the bean class or method is registered only under a profile expression. */
-  public static final String PROFILE_GATE = "profile-gate";
-
-  /** Attribute: a bean that a property switches on, {@code @ConditionalOnProperty}. */
-  public static final String PROPERTY_GATE = "property-gate";
-
-  /**
-   * Attribute: a main class that registers with service discovery, {@code @EnableDiscoveryClient}.
-   */
-  public static final String DISCOVERY_CLIENT = "discovery-client";
-
-  /**
-   * Attribute: a main class that makes its unit an infrastructure server (Eureka, config, admin).
-   */
-  public static final String INFRASTRUCTURE_SERVER = "infrastructure-server";
-
-  /**
-   * Attribute: a method or class whose callers must pass an access check, as its annotation states.
-   */
-  public static final String ACCESS_CHECK = "access-check";
-
-  /**
-   * Attribute: a method whose callers must pass a custom access check an aspect makes from the
-   * annotation that selects it (#520, ADR 0096).
-   */
-  public static final String CUSTOM_ACCESS_CHECK = "custom-access-check";
-
-  /** Attribute: a class that turns method security on, {@code @EnableMethodSecurity}. */
-  public static final String METHOD_SECURITY = "method-security";
-
-  /** Attribute: a method an aspect's advice applies to, at the annotation its pointcut selects. */
-  public static final String ADVISED_BY = "advised-by";
-
-  /** Relation: a method schedules a job method, at the call that schedules it. */
-  public static final String SCHEDULES = "SCHEDULES";
-
-  /** Attribute: the method defines a bean. */
-  public static final String BEAN = "bean";
-
-  /** Attribute: the type is an AspectJ aspect (an {@code @Aspect} class). */
-  public static final String ASPECT = "aspect";
-
-  /** Relationship: an aspect's advice selects the method (the aspect advises it). */
-  public static final String ADVISES = "ADVISES";
-
-  /**
-   * Attribute: a method reads a value of the request it serves, a header, cookie or parameter, by
-   * binding it to a parameter or by a call on the request (#520).
-   */
-  public static final String READS_REQUEST_VALUE = "reads-request-value";
-
-  /**
-   * Attribute: a method or type runs in a transaction ({@code @Transactional}), or a method runs at
-   * a phase of one ({@code @TransactionalEventListener}) (#520).
-   */
-  public static final String TRANSACTIONAL = "transactional";
-
-  /** Attribute: a CORS policy, the origins a browser may call from (#520). */
-  public static final String CORS_POLICY = "cors-policy";
 
   /** Main class kinds. */
   public static final String SPRING_BOOT = "spring-boot";
@@ -370,9 +280,6 @@ public final class SpringExtractor implements Extractor {
   private static final String CONFIGURATION_PROPERTIES =
       "org.springframework.boot.context.properties.ConfigurationProperties";
 
-  /** A class bound to config by {@code @ConfigurationProperties}, with its prefix (#271). */
-  public static final String CONFIGURATION_PROPERTIES_FACT = "configuration-properties";
-
   private static Map<String, String> stereotypes() {
     Map<String, String> s = new LinkedHashMap<>();
     s.put(SPRING + "stereotype.Controller", "controller");
@@ -471,7 +378,7 @@ public final class SpringExtractor implements Extractor {
           jobClass(type);
         }
         for (Member member : type.members()) {
-          if (!member.id().type().equals(ModuleStructure.METHOD)) {
+          if (!member.id().type().equals(Types.METHOD)) {
             continue;
           }
           scheduled(member);
@@ -516,7 +423,7 @@ public final class SpringExtractor implements Extractor {
         attributes.put("main", main.id().toString());
       }
       Location where = boot != null ? boot.getFirst().where() : main.where();
-      fact(typeId(type), MAIN_CLASS, boot != null ? SPRING_BOOT : JAVA, attributes, where);
+      fact(typeId(type), Types.MAIN_CLASS, boot != null ? SPRING_BOOT : JAVA, attributes, where);
     }
 
     /**
@@ -537,7 +444,7 @@ public final class SpringExtractor implements Extractor {
       attributes.put("annotation", path.getFirst().type());
       fact(
           typeId(type),
-          CONFIGURATION_PROPERTIES_FACT,
+          Types.CONFIGURATION_PROPERTIES,
           prefix.isEmpty() ? "" : prefix.getFirst(),
           attributes,
           path.getFirst().where());
@@ -557,7 +464,7 @@ public final class SpringExtractor implements Extractor {
               && first(type.annotations(), RESPONSE_BODY) != null) {
             attributes.put("rest", true);
           }
-          fact(typeId(type), STEREOTYPE, s.getValue(), attributes, path.getFirst().where());
+          fact(typeId(type), Types.STEREOTYPE, s.getValue(), attributes, path.getFirst().where());
           return;
         }
       }
@@ -573,7 +480,7 @@ public final class SpringExtractor implements Extractor {
           attributes.put("rest", true);
           fact(
               typeId(type),
-              STEREOTYPE,
+              Types.STEREOTYPE,
               "controller",
               attributes,
               path.getFirst().where(),
@@ -634,7 +541,7 @@ public final class SpringExtractor implements Extractor {
       for (TypeDecl t : lineage) {
         JavaAnalysis.Module source = declaring(type, t);
         for (Member m : t.members()) {
-          if (!m.id().type().equals(ModuleStructure.METHOD)) {
+          if (!m.id().type().equals(Types.METHOD)) {
             continue;
           }
           String signature = signature(m.id());
@@ -703,7 +610,7 @@ public final class SpringExtractor implements Extractor {
       String text = joinWritten(basePath, path);
       EntityId endpoint =
           io.lantern.extract.EntityKeys.of(
-              HTTP_ENDPOINT,
+              Types.HTTP_ENDPOINT,
               module.id().key() + ":" + (httpMethod == null ? "*" : httpMethod) + ":" + text);
       ObjectNode attributes = FactJson.newObject();
       if (httpMethod != null) {
@@ -718,7 +625,7 @@ public final class SpringExtractor implements Extractor {
       attributes.put("configRepo", module.repo().repo().name());
       fact(
           endpoint,
-          HANDLED_BY,
+          Types.HANDLED_BY,
           FactObject.entity(method.id()),
           attributes,
           written.where(),
@@ -878,7 +785,7 @@ public final class SpringExtractor implements Extractor {
       extra.forEach(attributes::put);
       attributes.put("configModule", module.id().toString());
       attributes.put("configRepo", module.repo().repo().name());
-      fact(method.id(), SCHEDULED_WRITTEN, written, attributes, where);
+      fact(method.id(), Types.SCHEDULED_WRITTEN, written, attributes, where);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -918,7 +825,7 @@ public final class SpringExtractor implements Extractor {
 
     private Member method(TypeDecl type, String name, String parameter) {
       for (Member m : type.members()) {
-        String signature = m.id().type().equals(ModuleStructure.METHOD) ? signature(m.id()) : "";
+        String signature = m.id().type().equals(Types.METHOD) ? signature(m.id()) : "";
         if (signature.startsWith(name + "(")
             && (parameter == null || signature.equals(name + "(" + parameter + ")"))) {
           return m;
@@ -970,7 +877,7 @@ public final class SpringExtractor implements Extractor {
         attributes.put("kind", "job");
         fact(
             method.id(),
-            BACKGROUND_JOB,
+            Types.BACKGROUND_JOB,
             name != null ? name : signature(method.id()).replaceAll("\\(.*", ""),
             attributes,
             job.getFirst().where());
@@ -992,7 +899,8 @@ public final class SpringExtractor implements Extractor {
           ObjectNode attributes = FactJson.newObject();
           attributes.put("framework", "jobrunr");
           attributes.put("kind", "interval");
-          fact(method.id(), BACKGROUND_JOB, written, attributes, recurring.getFirst().where());
+          fact(
+              method.id(), Types.BACKGROUND_JOB, written, attributes, recurring.getFirst().where());
         }
       }
     }
@@ -1107,7 +1015,7 @@ public final class SpringExtractor implements Extractor {
                 call.put("framework", s.framework());
                 JavaAnalysis.Module was = module;
                 module = s.module();
-                relation(s.caller(), SCHEDULES, job.method().id(), call, s.where());
+                relation(s.caller(), Types.SCHEDULES, job.method().id(), call, s.where());
                 module = was;
               }
             }
@@ -1128,7 +1036,7 @@ public final class SpringExtractor implements Extractor {
           attributes.put("job", job.type().binaryName());
         }
         // With a cron found, a job is on a schedule like @Scheduled; else it is a background job.
-        String predicate = cron != null ? SCHEDULED : BACKGROUND_JOB;
+        String predicate = cron != null ? Types.SCHEDULED : Types.BACKGROUND_JOB;
         String value;
         if (cron != null) {
           attributes.put("trigger", "cron");
@@ -1185,7 +1093,7 @@ public final class SpringExtractor implements Extractor {
         String signature = signature(method.id());
         name = signature.substring(0, signature.indexOf('('));
       }
-      fact(method.id(), BEAN, name, FactJson.newObject(), path.getFirst().where());
+      fact(method.id(), Types.BEAN, name, FactJson.newObject(), path.getFirst().where());
       return true;
     }
 
@@ -1209,7 +1117,7 @@ public final class SpringExtractor implements Extractor {
               ? profiles.getFirst()
               : String.join(" | ", profiles.stream().map(p -> "(" + p + ")").toList());
       Location where = path.getFirst().where() != null ? path.getFirst().where() : fallback;
-      fact(subject, PROFILE_GATE, expression, attributes, where);
+      fact(subject, Types.PROFILE_GATE, expression, attributes, where);
     }
 
     /** Records a {@code @ConditionalOnProperty} on a bean class or method. */
@@ -1249,7 +1157,7 @@ public final class SpringExtractor implements Extractor {
       String value =
           String.join(" & ", written) + (having != null && !having.isEmpty() ? "=" + having : "");
       Location where = path.getFirst().where() != null ? path.getFirst().where() : fallback;
-      fact(subject, PROPERTY_GATE, value, attributes, where);
+      fact(subject, Types.PROPERTY_GATE, value, attributes, where);
     }
 
     /**
@@ -1266,7 +1174,12 @@ public final class SpringExtractor implements Extractor {
           if ("false".equals(register)) {
             attributes.put("autoRegister", false);
           }
-          fact(typeId(type), DISCOVERY_CLIENT, "discovery", attributes, path.getFirst().where());
+          fact(
+              typeId(type),
+              Types.DISCOVERY_CLIENT,
+              "discovery",
+              attributes,
+              path.getFirst().where());
           break;
         }
       }
@@ -1277,7 +1190,7 @@ public final class SpringExtractor implements Extractor {
           attributes.put("annotation", path.getFirst().type());
           fact(
               typeId(type),
-              INFRASTRUCTURE_SERVER,
+              Types.INFRASTRUCTURE_SERVER,
               server.getValue(),
               attributes,
               path.getFirst().where());
@@ -1296,7 +1209,7 @@ public final class SpringExtractor implements Extractor {
               "prePostEnabled", legacy ? "true".equals(prePost) : !"false".equals(prePost));
           attributes.put("securedEnabled", "true".equals(firstOf(on, "securedEnabled")));
           attributes.put("jsr250Enabled", "true".equals(firstOf(on, "jsr250Enabled")));
-          fact(typeId(type), METHOD_SECURITY, "on", attributes, path.getFirst().where());
+          fact(typeId(type), Types.METHOD_SECURITY, "on", attributes, path.getFirst().where());
           break;
         }
       }
@@ -1325,7 +1238,7 @@ public final class SpringExtractor implements Extractor {
         }
         Location where = path.getFirst().where();
         if (where != null) {
-          fact(subject, ACCESS_CHECK, value, attributes, where);
+          fact(subject, Types.ACCESS_CHECK, value, attributes, where);
         }
       }
     }
@@ -1346,8 +1259,7 @@ public final class SpringExtractor implements Extractor {
       for (TypeDecl t : lineage) {
         JavaAnalysis.Module source = declaring(type, t);
         for (Member m : t.members()) {
-          if (!m.id().type().equals(ModuleStructure.METHOD)
-              || !signature(m.id()).equals(signature)) {
+          if (!m.id().type().equals(Types.METHOD) || !signature(m.id()).equals(signature)) {
             continue;
           }
           List<ModuleStructure.Parameter> parameters = m.parameters();
@@ -1373,7 +1285,7 @@ public final class SpringExtractor implements Extractor {
               attributes.put("via", "binding");
               attributes.put("annotation", a.type());
               attributes.put("parameter", parameters.get(i).name());
-              fact(handler.id(), READS_REQUEST_VALUE, name, attributes, a.where(), source);
+              fact(handler.id(), Types.READS_REQUEST_VALUE, name, attributes, a.where(), source);
               break;
             }
           }
@@ -1416,7 +1328,7 @@ public final class SpringExtractor implements Extractor {
         attributes.put("via", "call");
         attributes.put("call", call.method());
         attributes.put("requestType", i.rootType());
-        fact(i.caller(), READS_REQUEST_VALUE, name, attributes, i.where());
+        fact(i.caller(), Types.READS_REQUEST_VALUE, name, attributes, i.where());
       }
     }
 
@@ -1447,7 +1359,7 @@ public final class SpringExtractor implements Extractor {
         }
         fact(
             subject,
-            TRANSACTIONAL,
+            Types.TRANSACTIONAL,
             propagation == null ? "REQUIRED" : propagation,
             attributes,
             path.getFirst().where());
@@ -1461,7 +1373,7 @@ public final class SpringExtractor implements Extractor {
         attributes.put("annotation", path.getFirst().type());
         fact(
             subject,
-            TRANSACTIONAL,
+            Types.TRANSACTIONAL,
             phase == null ? "AFTER_COMMIT" : phase,
             attributes,
             path.getFirst().where());
@@ -1609,7 +1521,7 @@ public final class SpringExtractor implements Extractor {
       if (cors.path != null) {
         attributes.put("path", cors.path);
       }
-      fact(subject, CORS_POLICY, String.join(", ", cors.origins), attributes, cors.where);
+      fact(subject, Types.CORS_POLICY, String.join(", ", cors.origins), attributes, cors.where);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -1648,7 +1560,7 @@ public final class SpringExtractor implements Extractor {
     private List<Advice> advice(TypeDecl type) {
       List<Advice> advice = new ArrayList<>();
       for (Member member : type.members()) {
-        if (!member.id().type().equals(ModuleStructure.METHOD)) {
+        if (!member.id().type().equals(Types.METHOD)) {
           continue;
         }
         for (Annotation a : member.annotations()) {
@@ -1688,7 +1600,7 @@ public final class SpringExtractor implements Extractor {
         annotations.forEach(annotationArray::add);
       }
       Annotation written = first(type.annotations(), ASPECT_ANNOTATION).getFirst();
-      fact(typeId(type), ASPECT, "aspect", attributes, written.where());
+      fact(typeId(type), Types.ASPECT, "aspect", attributes, written.where());
       for (Advice a : advice) {
         advised(aspect, a, names.get(a));
       }
@@ -1705,7 +1617,7 @@ public final class SpringExtractor implements Extractor {
           }
           List<TypeDecl> lineage = lineage(type);
           for (Member method : type.members()) {
-            if (!method.id().type().equals(ModuleStructure.METHOD)) {
+            if (!method.id().type().equals(Types.METHOD)) {
               continue;
             }
             String signature = signature(method.id());
@@ -1720,7 +1632,7 @@ public final class SpringExtractor implements Extractor {
               attributes.put("advice", advice.method().id().toString());
               attributes.put("kind", advice.kind());
               attributes.put("pointcut", advice.pointcut());
-              relation(subject, ADVISES, method.id(), attributes, advice.written().where());
+              relation(subject, Types.ADVISES, method.id(), attributes, advice.written().where());
               Annotation selecting =
                   selecting(
                       AspectPointcuts.selectingAnnotation(advice.pointcut(), candidate, names),
@@ -1733,7 +1645,12 @@ public final class SpringExtractor implements Extractor {
                 at.put("annotation", selecting.type());
                 JavaAnalysis.Module was = module;
                 module = m;
-                fact(method.id(), ADVISED_BY, aspect.type().binaryName(), at, selecting.where());
+                fact(
+                    method.id(),
+                    Types.ADVISED_BY,
+                    aspect.type().binaryName(),
+                    at,
+                    selecting.where());
                 if (checksAccess(aspect, advice, selecting.type())) {
                   ObjectNode check = FactJson.newObject();
                   check.put("via", "aspect");
@@ -1742,7 +1659,7 @@ public final class SpringExtractor implements Extractor {
                   check.put("advice", advice.method().id().toString());
                   fact(
                       method.id(),
-                      CUSTOM_ACCESS_CHECK,
+                      Types.CUSTOM_ACCESS_CHECK,
                       written(selecting),
                       check,
                       selecting.where());
@@ -1968,8 +1885,7 @@ public final class SpringExtractor implements Extractor {
             return null;
           }
           for (Member m : in.members()) {
-            if (m.id().type().equals(ModuleStructure.METHOD)
-                && signature(m.id()).startsWith(method + "(")) {
+            if (m.id().type().equals(Types.METHOD) && signature(m.id()).startsWith(method + "(")) {
               for (Annotation a : m.annotations()) {
                 if (a.type().equals(POINTCUT_ANNOTATION)) {
                   return firstOf(a, "value", "pointcut");
@@ -2177,9 +2093,10 @@ public final class SpringExtractor implements Extractor {
 
   /**
    * The facts linking gives from the values this extractor keeps as written (ADR 0094, #519): each
-   * endpoint its code serves ({@value #HANDLED_BY}) and each schedule ({@value #SCHEDULED_WRITTEN})
-   * resolved in each view of its module's config, as this extractor recorded them before: {@value
-   * #ENDPOINT} and {@value #SCHEDULED} facts, the default view's and each differing profile's.
+   * endpoint its code serves ({@value Types#HANDLED_BY}) and each schedule ({@value
+   * Types#SCHEDULED_WRITTEN}) resolved in each view of its module's config, as this extractor
+   * recorded them before: {@value #ENDPOINT} and {@value Types#SCHEDULED} facts, the default view's
+   * and each differing profile's.
    *
    * @param facts the snapshot's facts; only the written ones of this extractor are read
    * @param config the config of a module, by its entity ID and its repository's name
@@ -2196,8 +2113,8 @@ public final class SpringExtractor implements Extractor {
     Map<String, Fact> out = new LinkedHashMap<>();
     for (Fact f : facts) {
       boolean endpoint =
-          f.predicate().equals(HANDLED_BY) && f.subject().type().equals(HTTP_ENDPOINT);
-      boolean scheduled = f.predicate().equals(SCHEDULED_WRITTEN);
+          f.predicate().equals(Types.HANDLED_BY) && f.subject().type().equals(Types.HTTP_ENDPOINT);
+      boolean scheduled = f.predicate().equals(Types.SCHEDULED_WRITTEN);
       if (!endpoint && !scheduled) {
         continue;
       }
@@ -2233,7 +2150,7 @@ public final class SpringExtractor implements Extractor {
           attributes.set("annotation", a.get("annotation"));
           attributes.set("framework", a.get("framework"));
           subject = f.object().entityId();
-          predicate = ENDPOINT;
+          predicate = Types.ENDPOINT;
           object = httpMethod == null ? value.value() : httpMethod + " " + value.value();
         } else {
           a.properties()
@@ -2244,7 +2161,7 @@ public final class SpringExtractor implements Extractor {
                     }
                   });
           subject = f.subject();
-          predicate = SCHEDULED;
+          predicate = Types.SCHEDULED;
           object = value.value();
         }
         Fact fact =
@@ -2310,7 +2227,7 @@ public final class SpringExtractor implements Extractor {
 
   private static EntityId typeId(TypeDecl type) {
     try {
-      return new EntityId(BuiltInTypes.TYPE, type.binaryName());
+      return new EntityId(Types.TYPE, type.binaryName());
     } catch (IllegalArgumentException e) {
       return null;
     }

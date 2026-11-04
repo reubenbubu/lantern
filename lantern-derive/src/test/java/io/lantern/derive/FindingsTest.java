@@ -6,7 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
@@ -37,7 +37,7 @@ class FindingsTest {
             TestModel.about(
                 derived,
                 Findings.id(Findings.SNAPSHOT_DEPENDENCY, "shop/" + LIB),
-                Findings.RAISED));
+                Types.FINDING_RAISED));
     assertThat(unreleased.object().value()).isEqualTo(Findings.SNAPSHOT_DEPENDENCY);
     assertThat(Findings.strings(unreleased, "versions")).containsExactly("1.1-SNAPSHOT");
     assertThat(Findings.attribute(unreleased, "rule")).isEqualTo("findings/snapshot-dependency");
@@ -46,7 +46,9 @@ class FindingsTest {
     Fact drift =
         only(
             TestModel.about(
-                derived, Findings.id(Findings.DEPENDENCY_DRIFT, "shop/" + LIB), Findings.RAISED));
+                derived,
+                Findings.id(Findings.DEPENDENCY_DRIFT, "shop/" + LIB),
+                Types.FINDING_RAISED));
     assertThat(Findings.strings(drift, "versions")).containsExactly("1.0", "1.1-SNAPSHOT");
     assertThat(drift.lineage()).containsExactlyInAnyOrder(snapshot.claimId(), released.claimId());
 
@@ -61,13 +63,13 @@ class FindingsTest {
     EntityId order = EntityId.parse("type:com.example.orders.Order");
     EntityId invoice = EntityId.parse("type:com.example.billing.Invoice");
     model.add(SHOP, "deployable-unit", FactObject.string("spring-boot"));
-    model.add(SHOP, BuiltInTypes.CONTAINS, API);
-    model.add(API, BuiltInTypes.CONTAINS, orders);
-    model.add(API, BuiltInTypes.CONTAINS, billing);
-    model.add(orders, BuiltInTypes.CONTAINS, order);
-    model.add(billing, BuiltInTypes.CONTAINS, invoice);
-    Fact there = model.add(order, BuiltInTypes.CALLS, invoice);
-    Fact back = model.add(invoice, BuiltInTypes.EXTENDS, order);
+    model.add(SHOP, Types.CONTAINS, API);
+    model.add(API, Types.CONTAINS, orders);
+    model.add(API, Types.CONTAINS, billing);
+    model.add(orders, Types.CONTAINS, order);
+    model.add(billing, Types.CONTAINS, invoice);
+    Fact there = model.add(order, Types.CALLS, invoice);
+    Fact back = model.add(invoice, Types.EXTENDS, order);
 
     List<Fact> derived = model.derived(Findings.NAME);
 

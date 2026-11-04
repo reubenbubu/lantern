@@ -5,12 +5,8 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.GatewayRouteAttributes;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.gateway.GatewayExtractor;
-import io.lantern.extract.spring.SpringExtractor;
-import io.lantern.extract.websocket.WebSocketExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Kind;
 import io.lantern.link.Addresses.Target;
@@ -80,7 +76,7 @@ final class RouteLinker {
 
   void link() {
     Map<String, List<Fact>> routes = new TreeMap<>();
-    for (Fact f : index.of(GatewayExtractor.ROUTE)) {
+    for (Fact f : index.of(Types.GATEWAY_ROUTE)) {
       routes.computeIfAbsent(f.subject() + "|" + f.object().value(), k -> new ArrayList<>()).add(f);
     }
     // What each gateway's routes reach of each unit, by view ("" for the default one).
@@ -246,7 +242,7 @@ final class RouteLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.CALLS_HTTP
+            Types.CALLS_HTTP
                 + "|"
                 + gateway.id()
                 + "|"
@@ -256,7 +252,7 @@ final class RouteLinker {
                 + "|"
                 + route.object().value(),
             gateway.id(),
-            CrossRepoLinks.CALLS_HTTP,
+            Types.CALLS_HTTP,
             FactObject.entity(target.unit().id()),
             attributes,
             route.evidence(),
@@ -277,7 +273,7 @@ final class RouteLinker {
       return found;
     }
     String prefix = index.servletPrefix(target, view);
-    for (Fact endpoint : index.of(WebSocketExtractor.ENDPOINT)) {
+    for (Fact endpoint : index.of(Types.WEBSOCKET_ENDPOINT)) {
       String template = Endpoints.of(endpoint).path();
       if (template == null
           || !index.unitsOf(endpoint.subject()).contains(target)
@@ -357,7 +353,7 @@ final class RouteLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.CALLS_HTTP
+            Types.CALLS_HTTP
                 + "|"
                 + gateway.id()
                 + "|"
@@ -367,7 +363,7 @@ final class RouteLinker {
                 + "|"
                 + route.object().value(),
             gateway.id(),
-            CrossRepoLinks.CALLS_HTTP,
+            Types.CALLS_HTTP,
             FactObject.entity(system),
             attributes,
             route.evidence(),
@@ -396,7 +392,7 @@ final class RouteLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.UNRESOLVED_LINK
+            Types.UNRESOLVED_LINK
                 + "|"
                 + gateway.id()
                 + "|"
@@ -404,7 +400,7 @@ final class RouteLinker {
                 + "|route|"
                 + route.object().value(),
             gateway.id(),
-            CrossRepoLinks.UNRESOLVED_LINK,
+            Types.UNRESOLVED_LINK,
             FactObject.string(route(route).uri()),
             attributes,
             route.evidence(),
@@ -593,7 +589,7 @@ final class RouteLinker {
   private void unrouted(Unit gateway, String view, Map<Unit, List<Reach>> targets) {
     Map<String, Set<String>> calledBy = new TreeMap<>();
     for (Found f : out.found(view)) {
-      if (!f.predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
+      if (!f.predicate().equals(Types.CALLS_HTTP)) {
         continue;
       }
       String target = Claims.read(CallsHttpAttributes.class, f.attributes()).target();
@@ -608,10 +604,10 @@ final class RouteLinker {
         continue;
       }
       String prefix = index.servletPrefix(target, view);
-      for (Fact endpoint : index.of(SpringExtractor.ENDPOINT)) {
+      for (Fact endpoint : index.of(Types.ENDPOINT)) {
         String controller = Endpoints.of(endpoint).controller();
         EntityId code =
-            controller == null ? endpoint.subject() : new EntityId(BuiltInTypes.TYPE, controller);
+            controller == null ? endpoint.subject() : new EntityId(Types.TYPE, controller);
         String template = Endpoints.of(endpoint).path();
         if (template == null
             || !index.unitsOf(code).contains(target)
@@ -642,7 +638,7 @@ final class RouteLinker {
         out.add(
             view,
             new Found(
-                CrossRepoLinks.UNROUTED_ENDPOINT
+                Types.UNROUTED_ENDPOINT
                     + "|"
                     + gateway.id()
                     + "|"
@@ -650,7 +646,7 @@ final class RouteLinker {
                     + "|"
                     + text,
                 gateway.id(),
-                CrossRepoLinks.UNROUTED_ENDPOINT,
+                Types.UNROUTED_ENDPOINT,
                 FactObject.string(text),
                 attributes,
                 endpoint.evidence(),
@@ -805,11 +801,11 @@ final class RouteLinker {
     Fact enabled = null;
     Fact lowerCase = null;
     for (String key : LOCATOR) {
-      Fact on = index.config(gateway, view, ConfigExtractor.CONFIG_VALUE, key + ".enabled");
+      Fact on = index.config(gateway, view, Types.CONFIG_VALUE, key + ".enabled");
       if (on != null && "true".equalsIgnoreCase(on.object().value().strip())) {
         enabled = on;
         for (String name : List.of(".lower-case-service-id", ".lowerCaseServiceId")) {
-          Fact lower = index.config(gateway, view, ConfigExtractor.CONFIG_VALUE, key + name);
+          Fact lower = index.config(gateway, view, Types.CONFIG_VALUE, key + name);
           if (lower != null) {
             lowerCase = lower;
           }
@@ -821,7 +817,7 @@ final class RouteLinker {
       return;
     }
     boolean eureka =
-        index.configKeys(gateway, ConfigExtractor.CONFIG_VALUE).stream()
+        index.configKeys(gateway, Types.CONFIG_VALUE).stream()
             .anyMatch(k -> k.startsWith("eureka."));
     boolean lower =
         lowerCase != null && "true".equalsIgnoreCase(lowerCase.object().value().strip());
@@ -873,10 +869,10 @@ final class RouteLinker {
   /** The endpoints of a unit's code active in a view. */
   private List<Fact> endpointsOf(Unit unit, String view) {
     List<Fact> found = new ArrayList<>();
-    for (Fact endpoint : index.of(SpringExtractor.ENDPOINT)) {
+    for (Fact endpoint : index.of(Types.ENDPOINT)) {
       String controller = Endpoints.of(endpoint).controller();
       EntityId code =
-          controller == null ? endpoint.subject() : new EntityId(BuiltInTypes.TYPE, controller);
+          controller == null ? endpoint.subject() : new EntityId(Types.TYPE, controller);
       if (Endpoints.of(endpoint).path() != null
           && index.unitsOf(code).contains(unit)
           && index.active(endpoint.subject(), view)) {
@@ -910,15 +906,9 @@ final class RouteLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.ROUTED_ENDPOINT
-                + "|"
-                + gateway.id()
-                + "|"
-                + endpoint.subject()
-                + "|"
-                + text,
+            Types.ROUTED_ENDPOINT + "|" + gateway.id() + "|" + endpoint.subject() + "|" + text,
             gateway.id(),
-            CrossRepoLinks.ROUTED_ENDPOINT,
+            Types.ROUTED_ENDPOINT,
             FactObject.string(text),
             attributes,
             evidence,

@@ -87,7 +87,7 @@ import com.github.javaparser.symbolsolver.resolution.typesolvers.JarTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.JavaParserTypeSolver;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.java.ModuleStructure.Annotation;
 import io.lantern.extract.java.ModuleStructure.Call;
 import io.lantern.extract.java.ModuleStructure.Location;
@@ -277,7 +277,7 @@ final class JavaParserAnalyzer {
       for (com.github.javaparser.ast.stmt.ThrowStmt thrown :
           unit.findAll(com.github.javaparser.ast.stmt.ThrowStmt.class)) {
         EntityId thrower = owner(thrown);
-        if (thrower != null && thrower.type().equals(ModuleStructure.METHOD)) {
+        if (thrower != null && thrower.type().equals(Types.METHOD)) {
           structure.throwing.add(thrower);
         }
       }
@@ -325,12 +325,12 @@ final class JavaParserAnalyzer {
       switch (type) {
         case ClassOrInterfaceDeclaration c when c.isInterface() -> {
           kind = ModuleStructure.INTERFACE;
-          supertypes(c.getExtendedTypes(), BuiltInTypes.EXTENDS, type, supertypes);
+          supertypes(c.getExtendedTypes(), Types.EXTENDS, type, supertypes);
         }
         case ClassOrInterfaceDeclaration c -> {
           kind = ModuleStructure.CLASS;
-          supertypes(c.getExtendedTypes(), BuiltInTypes.EXTENDS, type, supertypes);
-          supertypes(c.getImplementedTypes(), BuiltInTypes.IMPLEMENTS, type, supertypes);
+          supertypes(c.getExtendedTypes(), Types.EXTENDS, type, supertypes);
+          supertypes(c.getImplementedTypes(), Types.IMPLEMENTS, type, supertypes);
           if (!hasConstructor) {
             add(
                 members,
@@ -340,7 +340,7 @@ final class JavaParserAnalyzer {
         }
         case EnumDeclaration e -> {
           kind = ModuleStructure.ENUM;
-          supertypes(e.getImplementedTypes(), BuiltInTypes.IMPLEMENTS, type, supertypes);
+          supertypes(e.getImplementedTypes(), Types.IMPLEMENTS, type, supertypes);
           for (EnumConstantDeclaration constant : e.getEntries()) {
             EntityId id = ModuleStructure.fieldId(binary, constant.getNameAsString());
             if (id != null) {
@@ -362,7 +362,7 @@ final class JavaParserAnalyzer {
         }
         case RecordDeclaration r -> {
           kind = ModuleStructure.RECORD;
-          supertypes(r.getImplementedTypes(), BuiltInTypes.IMPLEMENTS, type, supertypes);
+          supertypes(r.getImplementedTypes(), Types.IMPLEMENTS, type, supertypes);
           recordMembers(r, binary, where, members);
         }
         case AnnotationDeclaration a -> kind = ModuleStructure.ANNOTATION;
@@ -1217,7 +1217,7 @@ final class JavaParserAnalyzer {
         }
       }
       if (callee == null
-          || !(caller.type().equals(BuiltInTypes.TYPE)
+          || !(caller.type().equals(Types.TYPE)
               ? caller.key().equals(binary)
               : caller.key().startsWith(binary + "#"))) {
         return;
@@ -1279,7 +1279,7 @@ final class JavaParserAnalyzer {
         EntityId in = owner(a);
         String type = field.type();
         if (in == null
-            || !(in.type().equals(BuiltInTypes.TYPE)
+            || !(in.type().equals(Types.TYPE)
                 ? in.key().equals(type)
                 : in.key().startsWith(type + "#" + ModuleStructure.CONSTRUCTOR + "("))) {
           continue;

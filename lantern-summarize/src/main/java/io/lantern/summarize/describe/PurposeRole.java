@@ -5,8 +5,8 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
-import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Item;
@@ -391,7 +391,7 @@ public final class PurposeRole {
           Fact fact =
               Fact.create(
                   ArchitectureModel.SYSTEM,
-                  field.equals(PURPOSE_FIELD) ? LlmFacts.PURPOSE : LlmFacts.KEY_FACT,
+                  field.equals(PURPOSE_FIELD) ? Types.PURPOSE : Types.KEY_FACT,
                   FactObject.string(LlmFacts.C4),
                   attributes,
                   LlmFacts.origin(ROLE),

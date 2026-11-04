@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,36 +34,6 @@ public final class LlmFacts {
   /** The vocabulary source of the roles' types. */
   public static final String SOURCE = "llm";
 
-  /** A responsibility sentence: {@code (element, responsibility, "c4")}. */
-  public static final String RESPONSIBILITY = "responsibility";
-
-  /** An intent phrase: {@code (source, intent, "<interaction claim ID>")}. */
-  public static final String INTENT = "intent";
-
-  /** A unit's summary: {@code (unit, summary, "<level>")}. */
-  public static final String SUMMARY = "summary";
-
-  /**
-   * A flow's significance for a scope: {@code (flow, flow-significance, "<scope>")}
-   * (knowledge-build epic, section 11.5).
-   */
-  public static final String FLOW_SIGNIFICANCE = "flow-significance";
-
-  /** A flow's title, walkthrough and conditions: {@code (flow, flow-narrative, "c4")}. */
-  public static final String FLOW_NARRATIVE = "flow-narrative";
-
-  /** The system's purpose: {@code (system, purpose, "c4")} (section 11.6). */
-  public static final String PURPOSE = "purpose";
-
-  /** The system's key fact: {@code (system, key-fact, "c4")} (section 11.6). */
-  public static final String KEY_FACT = "key-fact";
-
-  /**
-   * A group's name: {@code (group, display-name, "c4")} with the name in {@code text} (section
-   * 11.8; ADR 0107). Other facts of this predicate, not of origin llm, hold a name as their value.
-   */
-  public static final String DISPLAY_NAME = "display-name";
-
   /** The attribute of a text that holds the support judge's verdict on it (section 11.7). */
   public static final String SUPPORT = "support";
 
@@ -72,14 +43,14 @@ public final class LlmFacts {
    */
   public static final Set<String> TEXTS =
       Set.of(
-          RESPONSIBILITY,
-          INTENT,
-          SUMMARY,
-          DISPLAY_NAME,
-          FLOW_SIGNIFICANCE,
-          FLOW_NARRATIVE,
-          PURPOSE,
-          KEY_FACT);
+          Types.RESPONSIBILITY,
+          Types.INTENT,
+          Types.SUMMARY,
+          Types.DISPLAY_NAME,
+          Types.FLOW_SIGNIFICANCE,
+          Types.FLOW_NARRATIVE,
+          Types.PURPOSE,
+          Types.KEY_FACT);
 
   /** Whether the fact is a text a role wrote: of origin llm, with one of {@link #TEXTS}. */
   public static boolean isText(Fact fact) {
@@ -134,7 +105,7 @@ public final class LlmFacts {
    * @param role the role that wrote it
    * @param model the model that wrote it, as {@code provider/model}
    * @param subject what it is about
-   * @param predicate its predicate, such as {@link #RESPONSIBILITY}
+   * @param predicate its predicate, such as {@link Types#RESPONSIBILITY}
    * @param object its value, such as {@link #C4} or an interaction's claim ID
    * @param text the text, without citations
    * @param cited the facts it cites, at least one
@@ -241,7 +212,7 @@ public final class LlmFacts {
     Fact fact =
         Fact.create(
             subject,
-            SUMMARY,
+            Types.SUMMARY,
             FactObject.string(level),
             attributes,
             origin(role),

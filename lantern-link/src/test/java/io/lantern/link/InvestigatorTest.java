@@ -9,7 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.harness.Harness;
 import io.lantern.harness.InMemoryAnswerStore;
@@ -117,7 +117,7 @@ class InvestigatorTest {
     add(
         MavenExtractor.NAME,
         "service:g:" + artifact,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("module:g:" + artifact)),
         null,
         repo,
@@ -126,7 +126,7 @@ class InvestigatorTest {
     add(
         DeployableUnits.NAME,
         "service:g:" + artifact,
-        DeployableUnits.DEPLOYABLE_UNIT,
+        Types.DEPLOYABLE_UNIT,
         FactObject.string("spring-boot"),
         null,
         repo,
@@ -162,7 +162,7 @@ class InvestigatorTest {
     return add(
         "lead-identity-from-request",
         "lead:" + kind + "/" + FILES_UNIT + "/header:X-User-Id",
-        Investigator.LEAD_TRIGGER,
+        Types.LEAD_TRIGGER,
         FactObject.string(kind),
         attributes.toString(),
         "fs",
@@ -299,12 +299,12 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    Fact verdict = of(result, Investigator.LEAD_VERDICT).getFirst();
+    Fact verdict = of(result, Types.LEAD_VERDICT).getFirst();
     assertThat(verdict.subject()).isEqualTo(lead.subject());
     assertThat(verdict.object().value()).isEqualTo("confirmed");
     assertThat(verdict.lineage())
         .containsExactly(lead.claimId() != null ? lead.claimId() : lead.id());
-    Fact risk = of(result, Investigator.RISK).getFirst();
+    Fact risk = of(result, Types.INVESTIGATED_RISK).getFirst();
     assertThat(risk.subject().toString()).isEqualTo(FILES_UNIT);
     assertThat(risk.origin())
         .isEqualTo(new Origin(Origin.Kind.LLM, "investigate", InvestigatePrompt.VERSION));
@@ -345,7 +345,7 @@ class InvestigatorTest {
     assertThat(second.messages().getLast().toolResults().getFirst().content())
         .contains("rejected")
         .contains("X-User-Id");
-    assertThat(of(result, Investigator.RISK)).hasSize(1);
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
   }
 
   @Test
@@ -355,8 +355,8 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(of(result, Investigator.RISK)).isEmpty();
-    Fact verdict = of(result, Investigator.LEAD_VERDICT).getFirst();
+    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+    Fact verdict = of(result, Types.LEAD_VERDICT).getFirst();
     assertThat(verdict.object().value()).isEqualTo("unclear");
     assertThat(verdict.attributes().path("reason").asString()).contains("rejected twice");
   }
@@ -371,8 +371,7 @@ class InvestigatorTest {
     long leadConversations =
         fake.sent().stream().map(c -> c.request()).filter(r -> leads(r) && turn(r) == 1).count();
     assertThat(leadConversations).isEqualTo(2);
-    assertThat(of(result, Investigator.LEAD_VERDICT).getFirst().object().value())
-        .isEqualTo("unclear");
+    assertThat(of(result, Types.LEAD_VERDICT).getFirst().object().value()).isEqualTo("unclear");
     // The lead asked again is an item planned of its own, so the record counts each once.
     assertThat(harness.records())
         .filteredOn(r -> r.role().equals("investigate-leads"))
@@ -396,8 +395,7 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(of(result, Investigator.LEAD_VERDICT).getFirst().object().value())
-        .isEqualTo("confirmed");
+    assertThat(of(result, Types.LEAD_VERDICT).getFirst().object().value()).isEqualTo("confirmed");
   }
 
   @Test
@@ -414,12 +412,7 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(
-            of(result, Investigator.LEAD_VERDICT)
-                .getFirst()
-                .attributes()
-                .path("finding")
-                .asString())
+    assertThat(of(result, Types.LEAD_VERDICT).getFirst().attributes().path("finding").asString())
         .isEqualTo(REFUTED_FINDING);
   }
 
@@ -442,7 +435,7 @@ class InvestigatorTest {
             .findFirst()
             .orElseThrow();
     assertThat(second.messages().getLast().toolResults().getFirst().content()).contains("cites");
-    assertThat(of(result, Investigator.RISK)).isEmpty();
+    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
   }
 
   @Test
@@ -465,7 +458,7 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(of(result, Investigator.RISK))
+    assertThat(of(result, Types.INVESTIGATED_RISK))
         .singleElement()
         .satisfies(
             risk -> {
@@ -492,7 +485,7 @@ class InvestigatorTest {
     add(
         "findings",
         "finding:shared-jwt-secret/elsewhere",
-        Investigator.FINDING_RAISED,
+        Types.FINDING_RAISED,
         FactObject.string("shared-jwt-secret"),
         raised.toString(),
         "fs",
@@ -502,15 +495,15 @@ class InvestigatorTest {
 
     Investigator.Result separate = investigate(fake);
 
-    assertThat(of(separate, Investigator.FINDING_WORDING)).isEmpty();
-    assertThat(of(separate, Investigator.RISK)).hasSize(1);
+    assertThat(of(separate, Types.FINDING_WORDING)).isEmpty();
+    assertThat(of(separate, Types.INVESTIGATED_RISK)).hasSize(1);
 
     // One in the file the lead's fact names, though not on the cited lines: its wording.
     Fact finding =
         add(
             "findings",
             "finding:shared-jwt-secret/here",
-            Investigator.FINDING_RAISED,
+            Types.FINDING_RAISED,
             FactObject.string("shared-jwt-secret"),
             raised.toString(),
             "fs",
@@ -519,7 +512,7 @@ class InvestigatorTest {
     Investigator.Result worded =
         investigate(submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null));
 
-    assertThat(of(worded, Investigator.FINDING_WORDING))
+    assertThat(of(worded, Types.FINDING_WORDING))
         .singleElement()
         .satisfies(w -> assertThat(w.subject()).isEqualTo(finding.subject()));
   }
@@ -532,9 +525,8 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(of(result, Investigator.LEAD_VERDICT).getFirst().object().value())
-        .isEqualTo("refuted");
-    assertThat(of(result, Investigator.RISK)).isEmpty();
+    assertThat(of(result, Types.LEAD_VERDICT).getFirst().object().value()).isEqualTo("refuted");
+    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
   }
 
   @Test
@@ -566,11 +558,11 @@ class InvestigatorTest {
         .contains("accepted in part")
         .contains("proposals.P2")
         .contains("not a deployable unit");
-    Fact found = of(result, Investigator.CONNECTION).getFirst();
+    Fact found = of(result, Types.INVESTIGATED_CONNECTION).getFirst();
     assertThat(found.subject().toString()).isEqualTo(FILES_UNIT);
     assertThat(found.object().value()).isEqualTo("external-system:s3");
     assertThat(found.attributes().path("mode").asString()).isEqualTo("unit");
-    assertThat(of(result, Investigator.RISK)).isEmpty();
+    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
   }
 
   @Test
@@ -594,7 +586,7 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(of(result, Investigator.CONNECTION)).isEmpty();
+    assertThat(of(result, Types.INVESTIGATED_CONNECTION)).isEmpty();
   }
 
   @Test
@@ -606,7 +598,7 @@ class InvestigatorTest {
         add(
             "findings",
             "finding:shared-jwt-secret/x",
-            Investigator.FINDING_RAISED,
+            Types.FINDING_RAISED,
             FactObject.string("shared-jwt-secret"),
             raised.toString(),
             "fs",
@@ -616,8 +608,8 @@ class InvestigatorTest {
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(of(result, Investigator.RISK)).isEmpty();
-    Fact wording = of(result, Investigator.FINDING_WORDING).getFirst();
+    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+    Fact wording = of(result, Types.FINDING_WORDING).getFirst();
     assertThat(wording.subject()).isEqualTo(finding.subject());
     assertThat(wording.attributes().path("title").asString())
         .isEqualTo("Files trust the caller's user header");
@@ -681,7 +673,7 @@ class InvestigatorTest {
     facts.add(
         Fact.create(
             EntityId.parse(FILES_UNIT),
-            LlmFacts.RESPONSIBILITY,
+            Types.RESPONSIBILITY,
             FactObject.string("Stores uploaded files."),
             FactJson.newObject(),
             new Origin(Origin.Kind.LLM, "describe-unit", "1"),
@@ -693,7 +685,7 @@ class InvestigatorTest {
     Investigator.Result result = investigate(again);
 
     assertThat(again.sent()).isEmpty();
-    assertThat(of(result, Investigator.RISK)).hasSize(1);
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
     assertThat(result.asked()).isZero();
   }
 
@@ -714,7 +706,7 @@ class InvestigatorTest {
     Investigator.Result result = investigate(client);
 
     assertThat(fake.sent()).isEmpty();
-    assertThat(of(result, Investigator.NOT_INVESTIGATED).stream().map(f -> f.subject().toString()))
+    assertThat(of(result, Types.NOT_INVESTIGATED).stream().map(f -> f.subject().toString()))
         .containsExactlyInAnyOrder(FILES_UNIT, GATEWAY_UNIT, Investigator.SYSTEM.toString());
   }
 

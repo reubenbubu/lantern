@@ -6,7 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -44,17 +44,17 @@ class FlowsTest {
     List<Fact> derived = model.derived(Flows.NAME);
 
     EntityId flow = Flows.id(SHOP, endpoint);
-    Fact triggered = only(TestModel.about(derived, flow, Flows.TRIGGERED_BY));
+    Fact triggered = only(TestModel.about(derived, flow, Types.TRIGGERED_BY));
     assertThat(triggered.object().entityId()).isEqualTo(PLACE);
     assertThat(triggered.lineage()).containsExactly(endpoint.claimId());
-    Fact shape = only(TestModel.about(derived, flow, Flows.FLOW_SHAPE));
+    Fact shape = only(TestModel.about(derived, flow, Types.FLOW_SHAPE));
     assertThat(shape.attributes().get("truncated").asBoolean()).isFalse();
     assertThat(shape.attributes().get("content").asString()).startsWith("sha256:");
 
     List<Fact> steps = steps(derived, flow);
     assertThat(steps)
         .extracting(s -> s.attributes().get("action").asString())
-        .containsExactly(FlowModel.HTTP_CALL, FlowModel.SEND, FlowModel.NO_LISTENER);
+        .containsExactly(Types.HTTP_CALL, FlowModel.SEND, FlowModel.NO_LISTENER);
     Fact first = steps.getFirst();
     assertThat(first.attributes().get("from").asString()).isEqualTo(SHOP.toString());
     assertThat(first.attributes().get("to").asString()).isEqualTo(BILLING.toString());
@@ -84,7 +84,7 @@ class FlowsTest {
     Set<EntityId> before = stepIds(model.derived(Flows.NAME));
 
     // A call made earlier in the same method.
-    model.add(ORDERS, BuiltInTypes.CONTAINS, CANCEL);
+    model.add(ORDERS, Types.CONTAINS, CANCEL);
     ObjectNode at = FactJson.newObject();
     at.put("source", PLACE.toString());
     model.add(
@@ -100,7 +100,7 @@ class FlowsTest {
     // Ten entry points, more than a document shows (seven), each calling out.
     for (int i = 0; i < 10; i++) {
       EntityId method = EntityId.parse("method:com.example.OrdersController#m" + i + "()");
-      model.add(ORDERS, BuiltInTypes.CONTAINS, method);
+      model.add(ORDERS, Types.CONTAINS, method);
       model.add(method, "endpoint", FactObject.string("GET /m" + i));
       link(method, BILLING, null);
     }
@@ -119,11 +119,11 @@ class FlowsTest {
     List<Fact> derived = model.derived(Flows.NAME);
 
     List<Fact> flows =
-        derived.stream().filter(f -> f.predicate().equals(Flows.TRIGGERED_BY)).toList();
+        derived.stream().filter(f -> f.predicate().equals(Types.TRIGGERED_BY)).toList();
     assertThat(flows).hasSize(10);
     Fact busyFlow =
         flows.stream().filter(f -> f.object().entityId().equals(busy)).findFirst().orElseThrow();
-    Fact shape = only(TestModel.about(derived, busyFlow.subject(), Flows.FLOW_SHAPE));
+    Fact shape = only(TestModel.about(derived, busyFlow.subject(), Types.FLOW_SHAPE));
     assertThat(shape.attributes().get("truncated").asBoolean()).isTrue();
     assertThat(shape.attributes().get("messages").asInt()).isEqualTo(Flows.MAX_MESSAGES);
     assertThat(steps(derived, busyFlow.subject()).getLast().attributes().get("action").asString())
@@ -133,10 +133,10 @@ class FlowsTest {
   @Test
   void aFlowOfAnotherFlowsShapeIsLinkedToIt() {
     Fact place = system();
-    model.add(ORDERS, BuiltInTypes.CONTAINS, CANCEL);
+    model.add(ORDERS, Types.CONTAINS, CANCEL);
     Fact cancel = model.add(CANCEL, "endpoint", FactObject.string("DELETE /orders"));
-    model.add(PLACE, BuiltInTypes.CALLS, NOTIFY);
-    model.add(CANCEL, BuiltInTypes.CALLS, NOTIFY);
+    model.add(PLACE, Types.CALLS, NOTIFY);
+    model.add(CANCEL, Types.CALLS, NOTIFY);
     link(NOTIFY, BILLING, null);
 
     List<Fact> derived = model.derived(Flows.NAME);
@@ -145,12 +145,12 @@ class FlowsTest {
     EntityId second = Flows.id(SHOP, cancel);
     EntityId later = first.key().compareTo(second.key()) < 0 ? second : first;
     EntityId representative = later == first ? second : first;
-    assertThat(TestModel.about(derived, later, Flows.SAME_SHAPE_AS))
+    assertThat(TestModel.about(derived, later, Types.SAME_SHAPE_AS))
         .extracting(f -> f.object().entityId())
         .containsExactly(representative);
-    assertThat(TestModel.about(derived, representative, Flows.SAME_SHAPE_AS)).isEmpty();
-    assertThat(only(TestModel.about(derived, first, Flows.FLOW_SHAPE)).object())
-        .isEqualTo(only(TestModel.about(derived, second, Flows.FLOW_SHAPE)).object());
+    assertThat(TestModel.about(derived, representative, Types.SAME_SHAPE_AS)).isEmpty();
+    assertThat(only(TestModel.about(derived, first, Types.FLOW_SHAPE)).object())
+        .isEqualTo(only(TestModel.about(derived, second, Types.FLOW_SHAPE)).object());
   }
 
   /** shop's OrdersController#place is POST /orders; billing's Payments#charge is POST /charge. */
@@ -158,14 +158,14 @@ class FlowsTest {
     for (EntityId[] unit :
         List.of(new EntityId[] {SHOP, SHOP_MODULE}, new EntityId[] {BILLING, BILLING_MODULE})) {
       model.add(unit[0], "deployable-unit", FactObject.string("spring-boot"));
-      model.add(unit[0], BuiltInTypes.CONTAINS, unit[1]);
+      model.add(unit[0], Types.CONTAINS, unit[1]);
     }
-    model.add(SHOP_MODULE, BuiltInTypes.CONTAINS, ORDERS);
-    model.add(SHOP_MODULE, BuiltInTypes.CONTAINS, HELPER);
-    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, PAYMENTS);
-    model.add(ORDERS, BuiltInTypes.CONTAINS, PLACE);
-    model.add(HELPER, BuiltInTypes.CONTAINS, NOTIFY);
-    model.add(PAYMENTS, BuiltInTypes.CONTAINS, CHARGE);
+    model.add(SHOP_MODULE, Types.CONTAINS, ORDERS);
+    model.add(SHOP_MODULE, Types.CONTAINS, HELPER);
+    model.add(BILLING_MODULE, Types.CONTAINS, PAYMENTS);
+    model.add(ORDERS, Types.CONTAINS, PLACE);
+    model.add(HELPER, Types.CONTAINS, NOTIFY);
+    model.add(PAYMENTS, Types.CONTAINS, CHARGE);
     model.add(CHARGE, "endpoint", FactObject.string("POST /charge"));
     return model.add(PLACE, "endpoint", FactObject.string("POST /orders"));
   }
@@ -190,14 +190,14 @@ class FlowsTest {
 
   private static List<Fact> steps(List<Fact> derived, EntityId flow) {
     return derived.stream()
-        .filter(f -> f.predicate().equals(Flows.STEP_OF) && f.object().entityId().equals(flow))
+        .filter(f -> f.predicate().equals(Types.STEP_OF) && f.object().entityId().equals(flow))
         .sorted(Comparator.comparingInt(f -> f.attributes().get("order").asInt()))
         .toList();
   }
 
   private static Set<EntityId> stepIds(List<Fact> derived) {
     return derived.stream()
-        .filter(f -> f.predicate().equals(Flows.STEP_OF))
+        .filter(f -> f.predicate().equals(Types.STEP_OF))
         .map(Fact::subject)
         .collect(Collectors.toSet());
   }

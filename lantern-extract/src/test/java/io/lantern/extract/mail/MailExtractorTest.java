@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import java.io.IOException;
@@ -79,7 +80,7 @@ class MailExtractorTest {
     Fact fact = facts.getFirst();
     assertThat(fact.subject().toString())
         .isEqualTo("method:com.example.EmailService#welcome(java.lang.String)");
-    assertThat(fact.predicate()).isEqualTo(MailExtractor.MAIL_SEND);
+    assertThat(fact.predicate()).isEqualTo(Types.MAIL_SEND);
     assertThat(fact.attributes().get("template").stringValue())
         .isEqualTo("org.springframework.mail.javamail.JavaMailSender");
     assertThat(new MailExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);

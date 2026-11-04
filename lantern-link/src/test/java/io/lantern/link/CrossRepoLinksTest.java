@@ -9,7 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
@@ -86,7 +86,7 @@ class CrossRepoLinksTest {
     add(
         MavenExtractor.NAME,
         "service:g:" + artifact,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("module:g:" + artifact)),
         null,
         repo + ":pom.xml",
@@ -94,7 +94,7 @@ class CrossRepoLinksTest {
     add(
         DeployableUnits.NAME,
         "service:g:" + artifact,
-        DeployableUnits.DEPLOYABLE_UNIT,
+        Types.DEPLOYABLE_UNIT,
         FactObject.string("spring-boot"),
         null,
         repo + ":pom.xml",
@@ -103,7 +103,7 @@ class CrossRepoLinksTest {
       add(
           DeployableUnits.NAME,
           "service:g:" + artifact,
-          DeployableUnits.APPLICATION_NAME,
+          Types.APPLICATION_NAME,
           FactObject.string(name),
           "{\"module\":\"module:g:" + artifact + "\"}",
           repo + ":src/main/resources/application.yml#2",
@@ -116,7 +116,7 @@ class CrossRepoLinksTest {
     add(
         MavenExtractor.NAME,
         "library:g:" + artifact,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("module:g:" + artifact)),
         null,
         repo + ":" + artifact + "/pom.xml",
@@ -124,7 +124,7 @@ class CrossRepoLinksTest {
     add(
         DeployableUnits.NAME,
         "service:g:" + unit,
-        DeployableUnits.BUNDLES,
+        Types.BUNDLES,
         FactObject.entity(EntityId.parse("library:g:" + artifact)),
         null,
         repo + ":pom.xml#9",
@@ -137,7 +137,7 @@ class CrossRepoLinksTest {
     add(
         JavaExtractor.NAME,
         "module:g:" + module,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("package:g:" + module + ":" + pkg)),
         null,
         repo + ":src/main/java",
@@ -145,7 +145,7 @@ class CrossRepoLinksTest {
     add(
         JavaExtractor.NAME,
         "package:g:" + module + ":" + pkg,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("type:" + type)),
         null,
         repo + ":src/main/java/" + type.replace('.', '/') + ".java#1",
@@ -157,7 +157,7 @@ class CrossRepoLinksTest {
     add(
         ConfigExtractor.NAME,
         "module:g:" + module,
-        ConfigExtractor.CONFIG_VALUE,
+        Types.CONFIG_VALUE,
         FactObject.string(value),
         "{\"key\":\"" + key + "\"" + (more == null ? "" : "," + more) + "}",
         repo + ":src/main/resources/" + file + "#3",
@@ -169,7 +169,7 @@ class CrossRepoLinksTest {
     add(
         SpringExtractor.NAME,
         "method:" + controller + "#" + method,
-        SpringExtractor.ENDPOINT,
+        Types.ENDPOINT,
         FactObject.string(httpMethod + " " + path),
         "{\"controller\":\""
             + controller
@@ -183,7 +183,7 @@ class CrossRepoLinksTest {
     add(
         SpringExtractor.NAME,
         "type:" + controller,
-        SpringExtractor.STEREOTYPE,
+        Types.STEREOTYPE,
         FactObject.string("controller"),
         "{\"rest\":true}",
         repo + ":src/main/java/" + controller.replace('.', '/') + ".java#5",
@@ -194,7 +194,7 @@ class CrossRepoLinksTest {
     add(
         HttpClientExtractor.NAME,
         "method:" + method,
-        HttpClientExtractor.HTTP_CALL,
+        Types.HTTP_CALL,
         FactObject.string(object),
         attributes,
         repo
@@ -225,7 +225,7 @@ class CrossRepoLinksTest {
     add(
         SpringExtractor.NAME,
         "type:" + type,
-        SpringExtractor.PROFILE_GATE,
+        Types.PROFILE_GATE,
         FactObject.string(expression),
         "{\"profiles\":[\"" + expression + "\"]}",
         repo + ":src/main/java/" + type.replace('.', '/') + ".java#4",
@@ -236,7 +236,7 @@ class CrossRepoLinksTest {
     add(
         PersistenceExtractor.NAME,
         "module:g:" + module,
-        PersistenceExtractor.DATASOURCE,
+        Types.DATASOURCE,
         FactObject.string(url),
         "{\"key\":\"spring.datasource.url\",\"technology\":\"PostgreSQL\""
             + (more == null ? "" : "," + more)
@@ -250,7 +250,7 @@ class CrossRepoLinksTest {
     add(
         RedisExtractor.NAME,
         "type:" + type,
-        RedisExtractor.REDIS_USE,
+        Types.REDIS_USE,
         FactObject.string(kind),
         attributes,
         repo + ":src/main/java/" + type.replace('.', '/') + ".java#5",
@@ -279,7 +279,7 @@ class CrossRepoLinksTest {
     add(
         DeploymentExtractor.NAME,
         "repo:" + repo,
-        DeploymentExtractor.DEPLOYMENT_CONTAINER,
+        Types.DEPLOYMENT_CONTAINER,
         FactObject.string(name),
         attributes,
         repo + ":compose.yaml#5",
@@ -384,7 +384,7 @@ class CrossRepoLinksTest {
     add(
         HttpClientExtractor.NAME,
         "type:s.App",
-        HttpClientExtractor.ENABLES,
+        Types.ENABLES,
         FactObject.entity(EntityId.parse("type:s.CatalogClient")),
         null,
         "shop:src/main/java/s/App.java#8",
@@ -401,7 +401,7 @@ class CrossRepoLinksTest {
     endpoint("cat", "c.ProductController", "product(long)", "GET", "/api/products/{id}");
     endpoint("cat", "c.ProductController", "stock(long)", "GET", "/api/products/{id}/stock");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactly(
             "service:g:shop-app CALLS_HTTP service:g:catalog-service {\"client\":\"feign\","
                 + "\"endpoint\":\"GET /api/products/{id}\",\"httpMethod\":\"GET\","
@@ -444,7 +444,7 @@ class CrossRepoLinksTest {
     endpoint("b", "p.PaymentController", "charge()", "POST", "/api/payments");
     endpoint("b", "p.PaymentController", "refund()", "POST", "/api/payments/{id}/refund");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .singleElement()
         .asString()
         .contains("CALLS_HTTP service:g:payments-service")
@@ -466,7 +466,7 @@ class CrossRepoLinksTest {
         5);
     unit("b", "stock-service", "stock");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactly(
             "service:g:orders CALLS_HTTP service:g:stock-service {\"client\":\"rest-client\","
                 + "\"httpMethod\":\"GET\",\"matchedBy\":\"artifact-id\",\"path\":\"/api/unknown\","
@@ -586,7 +586,7 @@ class CrossRepoLinksTest {
     messaging(
         "s",
         "s.Publisher#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "orders",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         4);
@@ -595,12 +595,12 @@ class CrossRepoLinksTest {
     messaging(
         "f",
         "f.Listener#on()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "orders",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         3);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+    assertThat(derive(Types.SENDS_MESSAGES_TO))
         .singleElement()
         .asString()
         .contains("\"absentIn\":[\"local\"]");
@@ -613,7 +613,7 @@ class CrossRepoLinksTest {
     messaging(
         "s",
         "s.Publisher#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "orders",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         4);
@@ -622,15 +622,15 @@ class CrossRepoLinksTest {
     messaging(
         "f",
         "f.Listener#on()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "orders",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         3);
 
     // The matcher reads the relations (#597), not the message facts.
     assertThat(new CrossRepoLinks().derive(facts, 1))
-        .noneMatch(f -> f.predicate().equals(CrossRepoLinks.SENDS_MESSAGES_TO));
-    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO)).hasSize(1);
+        .noneMatch(f -> f.predicate().equals(Types.SENDS_MESSAGES_TO));
+    assertThat(derive(Types.SENDS_MESSAGES_TO)).hasSize(1);
   }
 
   @Test
@@ -649,7 +649,7 @@ class CrossRepoLinksTest {
     type("b", "payments", "p.PaymentController");
     endpoint("b", "p.PaymentController", "charge()", "POST", "/api/payments");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .singleElement()
         .asString()
         .contains("CALLS_HTTP service:g:payments")
@@ -676,7 +676,7 @@ class CrossRepoLinksTest {
     type("p", "profile", "p.ProfileController");
     endpoint("p", "p.ProfileController", "all()", "GET", "/profiles");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .singleElement()
         .asString()
         .startsWith("service:g:bff CALLS_HTTP service:g:gateway")
@@ -699,7 +699,7 @@ class CrossRepoLinksTest {
     config("a", "bff", "application.properties", "server.port", "8081", null);
     unit("o", "orders", "orders");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP)).isEmpty();
+    assertThat(derive(Types.CALLS_HTTP)).isEmpty();
   }
 
   @Test
@@ -725,13 +725,13 @@ class CrossRepoLinksTest {
                 + "\"unresolved\":[\"TAX_SERVICE_URL\"]} 1.0");
     // The open-links rule writes it, not the HTTP rule that matched the call (#583).
     assertThat(linked())
-        .filteredOn(f -> f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK))
+        .filteredOn(f -> f.predicate().equals(Types.UNRESOLVED_LINK))
         .extracting(f -> f.origin().name())
         .containsExactly(ProtocolLinks.OPEN_LINKS);
     assertThat(linked())
         .filteredOn(f -> !f.origin().name().equals(ProtocolLinks.OPEN_LINKS))
         .extracting(Fact::predicate)
-        .doesNotContain(CrossRepoLinks.UNRESOLVED_LINK);
+        .doesNotContain(Types.UNRESOLVED_LINK);
   }
 
   @Test
@@ -774,7 +774,7 @@ class CrossRepoLinksTest {
     unit("s", "stock-eu", "stock-eu");
     unit("t", "stock-us", "stock-us");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:admin CALLS_HTTP service:g:stock-us",
@@ -826,7 +826,7 @@ class CrossRepoLinksTest {
     // Named only by its image: storefront's application name is "storefront".
     container("d", "shop-web", composeService("acme/storefront:1.0", "\"shop-web\"", null));
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactly(
             "service:g:edge CALLS_HTTP service:g:storefront-app"
                 + " {\"matchedBy\":\"container-host\",\"paths\":[\"/api/orders/**\"],"
@@ -867,7 +867,7 @@ class CrossRepoLinksTest {
         composeService(
             "acme/edge:1.0", "\"edge\"", "\"env\":{\"ORDERS_URI\":\"http://storefront:8080\"}"));
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactly(
             "service:g:edge CALLS_HTTP service:g:storefront-app"
                 + " {\"matchedBy\":\"host\",\"paths\":[\"/api/orders/**\"],"
@@ -952,7 +952,7 @@ class CrossRepoLinksTest {
             "\"env\":{\"ORDERS_URL\":\"http://shop-web:8080\"}"));
 
     List<Fact> links =
-        linked().stream().filter(f -> f.predicate().equals(CrossRepoLinks.CALLS_HTTP)).toList();
+        linked().stream().filter(f -> f.predicate().equals(Types.CALLS_HTTP)).toList();
     assertThat(links)
         .singleElement()
         .satisfies(
@@ -964,7 +964,7 @@ class CrossRepoLinksTest {
               // The container whose environment filled it in is among the link's facts.
               String fulfilmentContainer =
                   facts.stream()
-                      .filter(f -> f.predicate().equals(DeploymentExtractor.DEPLOYMENT_CONTAINER))
+                      .filter(f -> f.predicate().equals(Types.DEPLOYMENT_CONTAINER))
                       .filter(f -> f.object().value().equals("fulfilment"))
                       .findFirst()
                       .orElseThrow()
@@ -992,7 +992,7 @@ class CrossRepoLinksTest {
             "\"fulfilment\"",
             "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .singleElement()
         .asString()
         .startsWith("service:g:fulfilment CALLS_HTTP service:g:storefront-app")
@@ -1019,7 +1019,7 @@ class CrossRepoLinksTest {
             "\"fulfilment\"",
             "\"env\":{\"ORDERS_URL\":\"http://storefront:8080\"}"));
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .singleElement()
         .asString()
         .startsWith("service:g:fulfilment CALLS_HTTP service:g:storefront-app")
@@ -1074,7 +1074,7 @@ class CrossRepoLinksTest {
         composeService(
             "acme/edge:1.0", "\"edge\"", "\"env\":{\"ORDERS_URI\":\"lb://storefront\"}"));
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactly(
             "service:g:edge CALLS_HTTP service:g:storefront-app"
                 + " {\"matchedBy\":\"service-name\",\"paths\":[\"/api/orders/**\"],"
@@ -1182,7 +1182,7 @@ class CrossRepoLinksTest {
         "mailer",
         composeService("acme/mailer:1.0", "\"mailer\"", "\"env\":{\"SMTP_HOST\":\"mailhog\"}"));
 
-    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+    assertThat(derive(Types.SENDS_MAIL))
         .containsExactly(
             "service:g:notification SENDS_MAIL external-system:smtp.mail.example.com"
                 + " {\"host\":\"smtp.mail.example.com\",\"key\":\"spring.mail.host\","
@@ -1205,7 +1205,7 @@ class CrossRepoLinksTest {
         composeService(
             "acme/notification:1.0", "\"notification\"", "\"env\":{\"MAIL_HOST\":\"mailhog\"}"));
 
-    assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
+    assertThat(derive(Types.SENDS_MAIL)).isEmpty();
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1218,7 +1218,7 @@ class CrossRepoLinksTest {
     add(
         GatewayExtractor.NAME,
         subject,
-        GatewayExtractor.ROUTE,
+        Types.GATEWAY_ROUTE,
         FactObject.string(id),
         attributes,
         repo + ":src/main/java/gw/Routes.java#30",
@@ -1249,7 +1249,7 @@ class CrossRepoLinksTest {
     unit("u", "users-service", "users");
     unit("n", "notifications-service", "notifications");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactly(
             "service:g:edge CALLS_HTTP service:g:notifications-service"
                 + " {\"matchedBy\":\"service-name\",\"paths\":[\"/ws/**\"],"
@@ -1265,7 +1265,7 @@ class CrossRepoLinksTest {
     add(
         WebSocketExtractor.NAME,
         "method:" + method,
-        WebSocketExtractor.ENDPOINT,
+        Types.WEBSOCKET_ENDPOINT,
         FactObject.string(path),
         "{\"path\":\"" + path + "\",\"protocol\":\"stomp\",\"sockjs\":true}",
         repo + ":src/main/java/n/WsConfig.java#12",
@@ -1293,7 +1293,7 @@ class CrossRepoLinksTest {
     webSocketEndpoint("n", "n.WsConfig#stomp()", "/ws-notifications");
     webSocketEndpoint("n", "n.WsConfig#raw()", "/ws-raw");
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactlyInAnyOrder(
             "service:g:edge CALLS_HTTP service:g:notifications-service"
                 + " {\"endpoints\":[\"/ws-notifications\",\"/ws-raw\"],"
@@ -1343,7 +1343,7 @@ class CrossRepoLinksTest {
             + "\"url\":\"http://orders/internal/orders/1\"}",
         12);
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .contains(
             "service:g:edge CALLS_HTTP service:g:orders-service {\"matchedBy\":\"port\","
                 + "\"paths\":[\"/orders/**\"],\"protocol\":\"HTTP\",\"route\":\"orders\","
@@ -1351,14 +1351,14 @@ class CrossRepoLinksTest {
             "service:g:edge CALLS_HTTP external-system:partner.example.com"
                 + " {\"matchedBy\":\"external\",\"protocol\":\"HTTPS\",\"route\":\"partner\","
                 + "\"source\":\"module:g:edge\",\"url\":\"https://partner.example.com\"} 1.0");
-    assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK))
+    assertThat(derive(Types.UNRESOLVED_LINK))
         .containsExactly(
             "service:g:edge unresolved-link http://billing:8080 {\"kind\":\"route\","
                 + "\"reason\":\"unknown-host\",\"site\":\"route|compose\","
                 + "\"source\":\"module:g:edge\"} 1.0");
     // /orders/** reaches /api/** behind StripPrefix and PrefixPath; the internal endpoint is
     // reached only by another unit's call.
-    assertThat(derive(CrossRepoLinks.UNROUTED_ENDPOINT))
+    assertThat(derive(Types.UNROUTED_ENDPOINT))
         .containsExactly(
             "service:g:edge unrouted-endpoint GET /internal/orders/{id}"
                 + " {\"calledBy\":[\"service:g:reports\"],"
@@ -1405,7 +1405,7 @@ class CrossRepoLinksTest {
     // The route takes only POST: the discovery locator takes the GET.
     endpoint("o", "o.OrderController", "one()", "GET", "/api/orders/{id}");
 
-    assertThat(derive(CrossRepoLinks.ROUTED_ENDPOINT))
+    assertThat(derive(Types.ROUTED_ENDPOINT))
         .containsExactlyInAnyOrder(
             "service:g:edge routed-endpoint POST /profile/profile/admin/users"
                 + " {\"endpoint\":\"method:p.ProfileController#create()\","
@@ -1449,7 +1449,7 @@ class CrossRepoLinksTest {
     type("o", "orders-service", "o.OrderController");
     endpoint("o", "o.OrderController", "one()", "GET", "/api/orders/{id}");
 
-    assertThat(derive(CrossRepoLinks.ROUTED_ENDPOINT))
+    assertThat(derive(Types.ROUTED_ENDPOINT))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly("service:g:edge routed-endpoint GET /orders/api/orders/{id}");
   }
@@ -1467,7 +1467,7 @@ class CrossRepoLinksTest {
     endpoint("o", "o.OrderController", "place()", "POST", "/api/orders");
     endpoint("o", "o.OrderController", "internal()", "GET", "/internal/orders");
 
-    assertThat(derive(CrossRepoLinks.ROUTED_ENDPOINT))
+    assertThat(derive(Types.ROUTED_ENDPOINT))
         .containsExactly(
             "service:g:edge routed-endpoint POST /api/orders"
                 + " {\"endpoint\":\"method:o.OrderController#place()\","
@@ -1485,7 +1485,7 @@ class CrossRepoLinksTest {
     }
     return Fact.create(
         EntityId.parse("module:g:edge"),
-        GatewayExtractor.ROUTE,
+        Types.GATEWAY_ROUTE,
         FactObject.string("r"),
         attributes,
         new Origin(Origin.Kind.STATIC, GatewayExtractor.NAME, "1"),
@@ -1557,7 +1557,7 @@ class CrossRepoLinksTest {
     messaging(
         "s",
         "s.Publisher#created()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "shop.orders",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"routingKey\":\"order.created\"}",
         16);
@@ -1567,7 +1567,7 @@ class CrossRepoLinksTest {
     messaging(
         "p",
         "p.RabbitConfig#binding()",
-        MessagingExtractor.BINDING,
+        Types.MESSAGE_BINDING,
         "payments.order-events",
         "{\"broker\":\"rabbitmq\",\"exchange\":\"shop.orders\",\"exchangeType\":\"topic\","
             + "\"routingKey\":\"order.*\"}",
@@ -1575,7 +1575,7 @@ class CrossRepoLinksTest {
     messaging(
         "p",
         "p.RabbitConfig#refunds()",
-        MessagingExtractor.BINDING,
+        Types.MESSAGE_BINDING,
         "payments.refunds",
         "{\"broker\":\"rabbitmq\",\"exchange\":\"shop.orders\",\"exchangeType\":\"topic\","
             + "\"routingKey\":\"refund.#\"}",
@@ -1583,14 +1583,14 @@ class CrossRepoLinksTest {
     messaging(
         "p",
         "p.Listener#orderEvent()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "payments.order-events",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         15);
     messaging(
         "p",
         "p.Listener#refund()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "payments.refunds",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         20);
@@ -1623,14 +1623,14 @@ class CrossRepoLinksTest {
     messaging(
         "s",
         "s.Publisher#direct()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "direct.x",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"routingKey\":\"order.*\"}",
         10);
     messaging(
         "s",
         "s.Publisher#fanout()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "fanout.x",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"routingKey\":\"k\","
             + "\"unknown\":[\"routingKey\"]}",
@@ -1638,7 +1638,7 @@ class CrossRepoLinksTest {
     messaging(
         "s",
         "s.Publisher#unknown()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "direct.x",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"routingKey\":\"k\","
             + "\"unknown\":[\"routingKey\"]}",
@@ -1646,7 +1646,7 @@ class CrossRepoLinksTest {
     messaging(
         "s",
         "s.Publisher#anyExchange()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         MessagingExtractor.UNKNOWN_EXCHANGE,
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"unknown\":[\"exchange\"]}",
         13);
@@ -1656,7 +1656,7 @@ class CrossRepoLinksTest {
     messaging(
         "w",
         "w.Config#direct()",
-        MessagingExtractor.BINDING,
+        Types.MESSAGE_BINDING,
         "q.direct",
         "{\"broker\":\"rabbitmq\",\"exchange\":\"direct.x\",\"exchangeType\":\"direct\","
             + "\"routingKey\":\"order.created\"}",
@@ -1664,31 +1664,31 @@ class CrossRepoLinksTest {
     messaging(
         "w",
         "w.Config#fanout()",
-        MessagingExtractor.BINDING,
+        Types.MESSAGE_BINDING,
         "q.fanout",
         "{\"broker\":\"rabbitmq\",\"exchange\":\"fanout.x\",\"exchangeType\":\"fanout\"}",
         6);
     messaging(
         "w",
         "w.Listener#direct()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "q.direct",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         8);
     messaging(
         "w",
         "w.Listener#fanout()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "q.fanout",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         9);
 
     // A direct exchange takes the key literally: order.* does not match order.created.
-    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+    assertThat(derive(Types.SENDS_MESSAGES_TO))
         .singleElement()
         .asString()
         .contains("\"destination\":\"exchange:rabbitmq:fanout.x\"");
-    assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK))
+    assertThat(derive(Types.UNRESOLVED_LINK))
         .containsExactlyInAnyOrder(
             "service:g:shop unresolved-link direct.x {\"candidates\":[\"service:g:worker\"],"
                 + "\"kind\":\"message\",\"reason\":\"unknown-routing-key\","
@@ -1707,7 +1707,7 @@ class CrossRepoLinksTest {
     messaging(
         "lib",
         "l.Messages#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "notify.send",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         30);
@@ -1715,7 +1715,7 @@ class CrossRepoLinksTest {
     messaging(
         "lib",
         "l.Messages#heartbeat()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "heartbeat",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         40);
@@ -1727,7 +1727,7 @@ class CrossRepoLinksTest {
     unit("b", "admin", "admin");
     bundled("b", "admin", "messaging-lib");
 
-    assertThat(derive(CrossRepoLinks.PUBLISHES))
+    assertThat(derive(Types.PUBLISHES))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:admin PUBLISHES queue:rabbitmq:heartbeat",
@@ -1743,19 +1743,19 @@ class CrossRepoLinksTest {
     messaging(
         "lib",
         "l.Messages#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "notify.send",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         30);
     messaging(
         "lib",
         "l.Base#audit()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "audit",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         31);
-    relation("lib", "l.Messages", BuiltInTypes.IMPLEMENTS, "l.Api");
-    relation("lib", "l.Messages", BuiltInTypes.EXTENDS, "l.Base");
+    relation("lib", "l.Messages", Types.IMPLEMENTS, "l.Api");
+    relation("lib", "l.Messages", Types.EXTENDS, "l.Base");
     unit("a", "shop", "shop");
     bundled("a", "shop", "messaging-lib");
     type("a", "shop", "s.Orders");
@@ -1767,7 +1767,7 @@ class CrossRepoLinksTest {
     // admin calls the method l.Messages inherits from l.Base.
     calls("b", "b.Audit#run()", "l.Messages#audit()");
 
-    assertThat(derive(CrossRepoLinks.PUBLISHES))
+    assertThat(derive(Types.PUBLISHES))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:admin PUBLISHES queue:rabbitmq:audit",
@@ -1782,7 +1782,7 @@ class CrossRepoLinksTest {
     messaging(
         "lib",
         "l.Messages#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "notify.send",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         30);
@@ -1794,7 +1794,7 @@ class CrossRepoLinksTest {
     messaging(
         "w",
         "w.Jobs#done()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "jobs.done",
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         12);
@@ -1802,7 +1802,7 @@ class CrossRepoLinksTest {
     type("a", "shop", "s.Orders");
     calls("a", "s.Orders#place()", "w.Jobs#done()");
 
-    assertThat(derive(CrossRepoLinks.PUBLISHES))
+    assertThat(derive(Types.PUBLISHES))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:shop PUBLISHES queue:rabbitmq:jobs.done",
@@ -1825,7 +1825,7 @@ class CrossRepoLinksTest {
     add(
         JavaExtractor.NAME,
         "method:" + from,
-        BuiltInTypes.CALLS,
+        Types.CALLS,
         FactObject.entity(EntityId.parse("method:" + to)),
         null,
         repo
@@ -1842,14 +1842,14 @@ class CrossRepoLinksTest {
     messaging(
         "p",
         "p.Publisher#publish()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "payments.completed",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         20);
     messaging(
         "p",
         "p.Publisher#ship()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "shipments",
         "{\"broker\":\"jms\",\"destinationKind\":\"destination\"}",
         21);
@@ -1858,19 +1858,19 @@ class CrossRepoLinksTest {
     messaging(
         "f",
         "f.Listener#all()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "payments\\..*",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic-pattern\",\"group\":\"f\"}",
         15);
     messaging(
         "f",
         "f.Listener#shipments()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "shipments",
         "{\"broker\":\"jms\",\"destinationKind\":\"destination\"}",
         16);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+    assertThat(derive(Types.SENDS_MESSAGES_TO))
         .containsExactlyInAnyOrder(
             "service:g:payments SENDS_MESSAGES_TO service:g:fulfilment"
                 + " {\"destination\":\"queue:jms:shipments\",\"protocol\":\"JMS\","
@@ -1880,7 +1880,7 @@ class CrossRepoLinksTest {
                 + " {\"destination\":\"topic:kafka:payments.completed\",\"pattern\":\"payments\\\\..*\","
                 + "\"protocol\":\"Kafka\",\"source\":\"method:p.Publisher#publish()\","
                 + "\"target\":\"method:f.Listener#all()\"} 0.9");
-    assertThat(derive(CrossRepoLinks.CONSUMES))
+    assertThat(derive(Types.CONSUMES))
         .contains(
             "service:g:fulfilment CONSUMES topic:kafka:payments.completed {\"group\":\"f\","
                 + "\"pattern\":\"payments\\\\..*\",\"protocol\":\"Kafka\","
@@ -1896,19 +1896,19 @@ class CrossRepoLinksTest {
     messaging(
         "m",
         "m.Organizations#create()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "org.created",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         20);
     messaging(
         "m",
         "m.Organizations#defaults()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "org.created",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         30);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+    assertThat(derive(Types.SENDS_MESSAGES_TO))
         .containsExactly(
             "service:g:main SENDS_MESSAGES_TO service:g:main"
                 + " {\"destination\":\"topic:kafka:org.created\",\"protocol\":\"Kafka\","
@@ -1924,7 +1924,7 @@ class CrossRepoLinksTest {
     messaging(
         "s",
         "s.AuditTrail#placed()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "audit.orders",
         "{\"broker\":\"jms\",\"destinationKind\":\"destination\"}",
         19);
@@ -1933,16 +1933,16 @@ class CrossRepoLinksTest {
     messaging(
         "f",
         "f.AuditListener#placed()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "audit.orders",
         "{\"broker\":\"jms\",\"destinationKind\":\"destination\"}",
         14);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MESSAGES_TO))
+    assertThat(derive(Types.SENDS_MESSAGES_TO))
         .singleElement()
         .asString()
         .contains("\"view\":\"audit\"");
-    assertThat(derive(CrossRepoLinks.CONSUMES)).singleElement().asString().doesNotContain("view");
+    assertThat(derive(Types.CONSUMES)).singleElement().asString().doesNotContain("view");
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -1967,7 +1967,7 @@ class CrossRepoLinksTest {
     add(
         SqlExtractor.NAME,
         "module:g:shop",
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("schema:g:shop")),
         null,
         "s:src/main/resources/db/V1.sql",
@@ -1975,7 +1975,7 @@ class CrossRepoLinksTest {
     add(
         SqlExtractor.NAME,
         "schema:g:shop",
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("table:g:shop:orders")),
         null,
         "s:src/main/resources/db/V1.sql#1",
@@ -1992,7 +1992,7 @@ class CrossRepoLinksTest {
     add(
         PersistenceExtractor.NAME,
         "method:p.SettlementJob#settle()",
-        PersistenceExtractor.READS_TABLE,
+        Types.READS_TABLE,
         FactObject.entity(EntityId.parse("table:g:payments:orders")),
         "{\"statement\":\"select\"}",
         "p:src/main/java/p/SettlementJob.java#22",
@@ -2036,13 +2036,13 @@ class CrossRepoLinksTest {
         "jdbc:postgresql://${db.host}:5432/orders",
         "\"server\":\"${db.host}:5432\",\"database\":\"orders\",\"unresolved\":[\"db.host\"]");
 
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactlyInAnyOrder(
             "service:g:auth USES_DATABASE database:g:auth/postgresql:g:auth",
             "service:g:files USES_DATABASE database:g:files/postgresql:g:files",
             "service:g:main USES_DATABASE database:g:main/postgresql:orders");
-    assertThat(derive(CrossRepoLinks.UNRESOLVED_LINK)).isEmpty();
+    assertThat(derive(Types.UNRESOLVED_LINK)).isEmpty();
   }
 
   private void ownDatasource(
@@ -2050,7 +2050,7 @@ class CrossRepoLinksTest {
     add(
         PersistenceExtractor.NAME,
         "module:g:" + module,
-        PersistenceExtractor.DATASOURCE,
+        Types.DATASOURCE,
         FactObject.string(url),
         "{\"key\":\""
             + key
@@ -2172,12 +2172,12 @@ class CrossRepoLinksTest {
         .containsExactlyInAnyOrder(
             "database:g:auth-service/postgresql:g:auth-service display-name auth_db 1.0",
             "database:g:main-service/postgresql:g:main-service display-name main_db 1.0");
-    assertThat(derive(DeployableUnits.TECHNOLOGY))
+    assertThat(derive(Types.TECHNOLOGY))
         .filteredOn(l -> l.startsWith("database:"))
         .containsExactlyInAnyOrder(
             "database:g:auth-service/postgresql:g:auth-service technology PostgreSQL 17.5 1.0",
             "database:g:main-service/postgresql:g:main-service technology PostgreSQL 17.5 1.0");
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .anySatisfy(
             l ->
                 assertThat(l)
@@ -2188,7 +2188,7 @@ class CrossRepoLinksTest {
                             + "\"environment\":\"Kubernetes (dev)\",\"server\":\"postgres\"}]")
                     .contains("\"inferred\":")
                     .endsWith(" 0.8"));
-    assertThat(derive(Deployments.DEPLOYED_IN))
+    assertThat(derive(Types.DEPLOYED_IN))
         .containsExactlyInAnyOrder(
             "service:g:auth-service deployed-in Kubernetes (dev) {\"container\":\"authservice\","
                 + "\"environment\":\"dev\",\"platform\":\"kubernetes\"} 1.0",
@@ -2243,12 +2243,12 @@ class CrossRepoLinksTest {
                 + " 1.0",
             "database:g:main-service/postgresql:g:main-service display-name main-service database"
                 + " 1.0");
-    assertThat(derive(DeployableUnits.TECHNOLOGY))
+    assertThat(derive(Types.TECHNOLOGY))
         .filteredOn(l -> l.startsWith("database:"))
         .containsExactlyInAnyOrder(
             "database:g:auth-service/postgresql:g:auth-service technology PostgreSQL 16 1.0",
             "database:g:main-service/postgresql:g:main-service technology PostgreSQL 16 1.0");
-    assertThat(derive(Deployments.DEPLOYED_IN))
+    assertThat(derive(Types.DEPLOYED_IN))
         .filteredOn(l -> l.startsWith("database:g:auth-service"))
         .singleElement()
         .asString()
@@ -2281,14 +2281,14 @@ class CrossRepoLinksTest {
     add(
         PersistenceExtractor.NAME,
         "module:g:app",
-        PersistenceExtractor.DATASOURCE,
+        Types.DATASOURCE,
         FactObject.string("jdbc:postgresql://${rep.host}/${rep.name}"),
         "{\"key\":\"app.reporting.url\",\"technology\":\"PostgreSQL\","
             + "\"unresolved\":[\"rep.host\",\"rep.name\"]}",
         "a:src/main/resources/application.properties#9",
         1.0);
 
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactlyInAnyOrder(
             "service:g:app USES_DATABASE database:g:app/postgresql:g:app",
@@ -2308,7 +2308,7 @@ class CrossRepoLinksTest {
     add(
         PersistenceExtractor.NAME,
         "module:g:shop",
-        PersistenceExtractor.DATASOURCE,
+        Types.DATASOURCE,
         FactObject.string("jdbc:postgresql://report-db:5432/report"),
         "{\"key\":\"app.reporting.url\",\"server\":\"report-db:5432\",\"database\":\"report\"}",
         "s:src/main/resources/application.yml#9",
@@ -2317,7 +2317,7 @@ class CrossRepoLinksTest {
     add(
         SqlExtractor.NAME,
         "module:g:shop",
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("schema:g:shop")),
         null,
         "s:src/main/resources/db/V1.sql",
@@ -2325,7 +2325,7 @@ class CrossRepoLinksTest {
     add(
         SqlExtractor.NAME,
         "schema:g:shop",
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("table:g:shop:orders")),
         null,
         "s:src/main/resources/db/V1.sql#1",
@@ -2342,15 +2342,15 @@ class CrossRepoLinksTest {
     add(
         PersistenceExtractor.NAME,
         "method:r.Job#run()",
-        PersistenceExtractor.READS_TABLE,
+        Types.READS_TABLE,
         FactObject.entity(EntityId.parse("table:g:reports:orders")),
         "{\"statement\":\"select\"}",
         "r:src/main/java/r/Job.java#5",
         1.0);
 
     // Both use report-db, but shop's orders table is in shop-db.
-    assertThat(derive(CrossRepoLinks.ACCESSES_DATA_OF)).isEmpty();
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.ACCESSES_DATA_OF)).isEmpty();
+    assertThat(derive(Types.USES_DATABASE))
         .anyMatch(l -> l.startsWith("service:g:shop USES_DATABASE database:report-db:5432/report "))
         .anyMatch(
             l -> l.startsWith("service:g:reports USES_DATABASE database:report-db:5432/report "));
@@ -2395,7 +2395,7 @@ class CrossRepoLinksTest {
     redisImage("gw", "gateway", "redis:8-alpine", "Redis 8");
     redisImage("other", "other", "redis/redis-stack:7", "Redis Stack 7");
 
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .containsExactly(
             "service:g:bff USES_DATABASE database:redis:6379/redis"
                 + " {\"key\":\"spring.data.redis.host\",\"protocol\":\"RESP\","
@@ -2446,15 +2446,13 @@ class CrossRepoLinksTest {
         "${cache.host}",
         "\"unresolved\":[\"cache.host\"]");
 
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:auth USES_DATABASE database:${redis.host}:${redis.port}/redis",
             "service:g:gw USES_DATABASE database:${redis.host}:${redis.port}/redis",
             "service:g:main USES_DATABASE database:${cache.host}:6379/redis");
-    assertThat(derive(CrossRepoLinks.USES_DATABASE).getFirst())
-        .contains("\"inferred\"")
-        .endsWith(" 0.8");
+    assertThat(derive(Types.USES_DATABASE).getFirst()).contains("\"inferred\"").endsWith(" 0.8");
   }
 
   @Test
@@ -2473,12 +2471,12 @@ class CrossRepoLinksTest {
     config(
         "b", "b", "application.properties", "spring.data.redis.cluster.nodes[1]", "n1:7000", null);
 
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:a USES_DATABASE database:cache-a:6379/redis",
             "service:g:b USES_DATABASE database:n1:7000,n2:7001/redis");
-    assertThat(derive(CrossRepoLinks.USES_DATABASE).getFirst()).contains("\"ssl\":true");
+    assertThat(derive(Types.USES_DATABASE).getFirst()).contains("\"ssl\":true");
     assertThat(derive()).noneMatch(l -> l.contains("u:p"));
   }
 
@@ -2489,7 +2487,7 @@ class CrossRepoLinksTest {
     redisUse("c", "c", "app.Limiter", "rate-limiter", "{\"operation\":\"other\"}");
 
     // No server is configured anywhere: Spring Boot's default.
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .singleElement()
         .satisfies(
             l ->
@@ -2501,7 +2499,7 @@ class CrossRepoLinksTest {
     // One server is configured: the unit is taken to use it, inferred.
     unit("a", "a", "a");
     config("a", "a", "application.properties", "spring.data.redis.host", "cache", null);
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .anySatisfy(
             l ->
                 assertThat(l)
@@ -2513,7 +2511,7 @@ class CrossRepoLinksTest {
     // Several are: left open, no link and no guess.
     unit("b", "b", "b");
     config("b", "b", "application.properties", "spring.data.redis.host", "other", null);
-    assertThat(derive(CrossRepoLinks.USES_DATABASE))
+    assertThat(derive(Types.USES_DATABASE))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:a USES_DATABASE database:cache:6379/redis",
@@ -2561,7 +2559,7 @@ class CrossRepoLinksTest {
             "service:g:shop USES_BROKER message-broker:rabbitmq:rabbit:5672",
             "service:g:shop USES_INFRASTRUCTURE infrastructure:config:8888",
             "service:g:shop USES_INFRASTRUCTURE service:g:registry");
-    assertThat(derive(CrossRepoLinks.USES_INFRASTRUCTURE))
+    assertThat(derive(Types.USES_INFRASTRUCTURE))
         .anySatisfy(l -> assertThat(l).contains("\"role\":\"service-discovery\""))
         .anySatisfy(l -> assertThat(l).contains("\"role\":\"config-server\""));
   }
@@ -2597,7 +2595,7 @@ class CrossRepoLinksTest {
     messaging(
         "f",
         "f.Listener#on()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         "t",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         3);
@@ -2606,7 +2604,7 @@ class CrossRepoLinksTest {
     messaging(
         "p",
         "p.Publisher#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         "t",
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         4);
@@ -2619,7 +2617,7 @@ class CrossRepoLinksTest {
     add(
         FrontendExtractor.NAME,
         "frontend:" + repo + (directory.isEmpty() ? "" : "/" + directory),
-        FrontendExtractor.APP,
+        Types.FRONTEND_APP,
         FactObject.string("angular"),
         "{\"name\":\"web\",\"directory\":\""
             + directory
@@ -2632,7 +2630,7 @@ class CrossRepoLinksTest {
     add(
         FrontendExtractor.NAME,
         frontend,
-        FrontendExtractor.CALL,
+        Types.FRONTEND_CALL,
         FactObject.string((method == null ? "WebSocket" : method) + " " + url),
         "{"
             + (method == null ? "" : "\"httpMethod\":\"" + method + "\",")
@@ -2651,7 +2649,7 @@ class CrossRepoLinksTest {
     add(
         FrontendExtractor.NAME,
         frontend,
-        FrontendExtractor.PROXY,
+        Types.FRONTEND_PROXY,
         FactObject.string(prefix),
         "{\"target\":\"" + target + "\",\"source\":\"" + source + "\"}",
         frontend.substring(frontend.indexOf(':') + 1).split("/")[0] + ":nginx.conf#9",
@@ -2685,7 +2683,7 @@ class CrossRepoLinksTest {
     frontendCall("frontend:web", "GET", "https://maps.example.com/tiles/{z}", null, 7);
     frontendCall("frontend:web", "GET", "http://localhost:9999/nothing", null, 9);
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactlyInAnyOrder(
             "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
                 + "\"matchedBy\":\"published-port\",\"path\":\"/api/auth/sign-in\","
@@ -2749,7 +2747,7 @@ class CrossRepoLinksTest {
     frontendCall("frontend:shop/web-ui", "GET", "/bff/login", "\"navigation\":true", 7);
 
     List<String> links =
-        derive(CrossRepoLinks.CALLS_HTTP).stream().filter(l -> l.startsWith("frontend:")).toList();
+        derive(Types.CALLS_HTTP).stream().filter(l -> l.startsWith("frontend:")).toList();
     assertThat(links)
         .containsExactlyInAnyOrder(
             "frontend:web CALLS_HTTP service:g:api-gateway {\"httpMethod\":\"POST\","
@@ -2799,14 +2797,14 @@ class CrossRepoLinksTest {
     add(
         DeploymentExtractor.NAME,
         "repo:shop",
-        DeploymentExtractor.DEPLOYMENT_CONTAINER,
+        Types.DEPLOYMENT_CONTAINER,
         FactObject.string("shop-web"),
         "{\"platform\":\"compose\",\"environment\":\"default\",\"kind\":\"service\","
             + "\"build\":\"./web-ui\",\"hosts\":[\"shop-web\"],\"ports\":[\"4200:80\"]}",
         "shop:compose.yaml#40",
         1.0);
 
-    assertThat(derive(CrossRepoLinks.CALLS_HTTP))
+    assertThat(derive(Types.CALLS_HTTP))
         .containsExactlyInAnyOrder(
             "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"host\",\"path\":\"/bff/api/orders\",\"protocol\":\"JSON/HTTP\","
@@ -2814,12 +2812,12 @@ class CrossRepoLinksTest {
             "frontend:shop/web-ui CALLS_HTTP service:g:files {\"matchedBy\":\"host\","
                 + "\"protocol\":\"JSON/HTTP\",\"proxy\":\"/media/\",\"url\":\"http://files:8080\"}"
                 + " 0.81");
-    assertThat(derive(Deployments.DEPLOYED_IN))
+    assertThat(derive(Types.DEPLOYED_IN))
         .containsExactly(
             "frontend:shop/web-ui deployed-in Docker Compose (default)"
                 + " {\"container\":\"shop-web\",\"environment\":\"default\",\"platform\":\"compose\"}"
                 + " 1.0");
-    assertThat(derive(DataLinker.DISPLAY_NAME))
+    assertThat(derive(Types.DISPLAY_NAME))
         .containsExactly("frontend:shop/web-ui display-name shop-web 1.0");
     assertThat(FrontendLinker.folder("deploy/compose.yaml", "../web-ui Dockerfile.prod"))
         .isEqualTo("web-ui");
@@ -2833,7 +2831,7 @@ class CrossRepoLinksTest {
     add(
         PeopleExtractor.NAME,
         subject,
-        PeopleExtractor.PERSON_EVIDENCE,
+        Types.PERSON_EVIDENCE,
         FactObject.string(kind),
         attributes,
         where,
@@ -2844,7 +2842,7 @@ class CrossRepoLinksTest {
     add(
         SpringExtractor.NAME,
         "method:a.AuthController#in()",
-        SpringExtractor.ENDPOINT,
+        Types.ENDPOINT,
         FactObject.string("POST " + path),
         "{\"httpMethod\":\"POST\",\"path\":\""
             + path
@@ -2990,7 +2988,7 @@ class CrossRepoLinksTest {
     add(
         SpringExtractor.NAME,
         "method:a.AuthController#up()",
-        SpringExtractor.ENDPOINT,
+        Types.ENDPOINT,
         FactObject.string("POST /sign-up"),
         "{\"httpMethod\":\"POST\",\"path\":\"/sign-up\",\"controller\":\"a.AuthController\","
             + "\"annotation\":\"x\",\"framework\":\"spring-mvc\"}",
@@ -3089,7 +3087,7 @@ class CrossRepoLinksTest {
       add(
           SpringExtractor.NAME,
           "method:" + controller + "#h()",
-          SpringExtractor.ENDPOINT,
+          Types.ENDPOINT,
           FactObject.string("GET " + role[1]),
           "{\"httpMethod\":\"GET\",\"path\":\""
               + role[1]
@@ -3175,7 +3173,7 @@ class CrossRepoLinksTest {
     add(
         MailExtractor.NAME,
         "method:" + method,
-        MailExtractor.MAIL_SEND,
+        Types.MAIL_SEND,
         FactObject.string("send"),
         "{\"method\":\"send\",\"template\":\"org.springframework.mail.javamail.JavaMailSender\"}",
         repo
@@ -3195,7 +3193,7 @@ class CrossRepoLinksTest {
     config("n", "notification", "application.properties", "spring.mail.port", "587", null);
     mailSend("n", "n.EmailService#send(java.lang.String)", 35);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+    assertThat(derive(Types.SENDS_MAIL))
         .containsExactly(
             "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
                 + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
@@ -3214,14 +3212,14 @@ class CrossRepoLinksTest {
     add(
         MailExtractor.NAME,
         "method:n.SesService#send()",
-        MailExtractor.MAIL_SEND,
+        Types.MAIL_SEND,
         FactObject.string("sendEmail"),
         "{\"method\":\"sendEmail\",\"provider\":\"Amazon SES\","
             + "\"template\":\"software.amazon.awssdk.services.sesv2.SesV2Client\"}",
         "n:src/main/java/n/SesService.java#12",
         1.0);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+    assertThat(derive(Types.SENDS_MAIL))
         .containsExactly(
             "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
                 + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
@@ -3243,7 +3241,7 @@ class CrossRepoLinksTest {
     config("n", "notification", "application.properties", "spring.mail.port", "465", null);
     mailSend("n", "n.EmailService#send()", 12);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+    assertThat(derive(Types.SENDS_MAIL))
         .singleElement()
         .asString()
         .contains("\"protocol\":\"SMTPS\"");
@@ -3255,7 +3253,7 @@ class CrossRepoLinksTest {
     config(
         "n", "notification", "application.properties", "spring.mail.host", "smtp.gmail.com", null);
 
-    assertThat(derive(CrossRepoLinks.SENDS_MAIL))
+    assertThat(derive(Types.SENDS_MAIL))
         .containsExactly(
             "service:g:notification SENDS_MAIL external-system:smtp.gmail.com"
                 + " {\"host\":\"smtp.gmail.com\",\"key\":\"spring.mail.host\","
@@ -3271,7 +3269,7 @@ class CrossRepoLinksTest {
     for (String local :
         List.of("localhost", "127.0.0.1", "10.0.0.5", "mail.internal", "smtp.corp.local")) {
       config("n", "notification", "application.properties", "spring.mail.host", local, null);
-      assertThat(derive(CrossRepoLinks.SENDS_MAIL)).as(local).isEmpty();
+      assertThat(derive(Types.SENDS_MAIL)).as(local).isEmpty();
       facts.removeIf(f -> f.object().value().equals(local));
     }
     unit("m", "mailer", "mailer");
@@ -3283,7 +3281,7 @@ class CrossRepoLinksTest {
         "${SMTP_HOST}",
         "\"unresolved\":[\"SMTP_HOST\"]");
 
-    assertThat(derive(CrossRepoLinks.SENDS_MAIL)).isEmpty();
+    assertThat(derive(Types.SENDS_MAIL)).isEmpty();
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -3299,7 +3297,7 @@ class CrossRepoLinksTest {
     add(
         IdentityExtractor.NAME,
         "method:" + method,
-        IdentityExtractor.JWT_SECRET_KEY,
+        Types.JWT_SECRET_KEY,
         FactObject.string(keys.split(",")[0]),
         "{\"library\":\"jjwt\",\"call\":\"Keys.hmacShaKeyFor\",\"keys\":[\""
             + keys.replace(",", "\",\"")
@@ -3355,7 +3353,7 @@ class CrossRepoLinksTest {
         null);
     container("s", "keycloak", KEYCLOAK);
 
-    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .containsExactlyInAnyOrder(
             "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
                 + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
@@ -3398,7 +3396,7 @@ class CrossRepoLinksTest {
             + "\"env\":{\"ISSUER\":\"http://keycloak:8080/realms/shop\"}}");
     container("s", "keycloak", KEYCLOAK);
 
-    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .singleElement()
         .asString()
         .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
@@ -3427,7 +3425,7 @@ class CrossRepoLinksTest {
     // Published on another port, so the local default reaches nothing.
     container("s", "keycloak", KEYCLOAK.replace("8080:8080", "8180:8080"));
 
-    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .singleElement()
         .asString()
         .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
@@ -3459,7 +3457,7 @@ class CrossRepoLinksTest {
     // An issuer that is not a URL names no provider.
     config("p", "events", "application.yml", "platform.security.jwt.issuer", "urn:p:auth", null);
 
-    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .containsExactly(
             "service:g:events USES_IDENTITY_PROVIDER service:g:auth {\"key\":"
                 + "\"platform.security.jwt.jwk-set-uri\",\"matchedBy\":\"port\","
@@ -3495,7 +3493,7 @@ class CrossRepoLinksTest {
         "http://localhost:9999/realms/w",
         null);
 
-    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:web USES_IDENTITY_PROVIDER external-system:accounts.google.com",
@@ -3516,13 +3514,13 @@ class CrossRepoLinksTest {
     add(
         IdentityExtractor.NAME,
         "method:a.KeycloakConfig#keycloak()",
-        IdentityExtractor.IDENTITY_ADMIN_CLIENT,
+        Types.IDENTITY_ADMIN_CLIENT,
         FactObject.string("${keycloak.admin.server-url}"),
         "{\"product\":\"Keycloak\",\"url\":\"${keycloak.admin.server-url}\"}",
         "a:src/main/java/a/KeycloakConfig.java#27",
         1.0);
 
-    assertThat(derive(CrossRepoLinks.USES_IDENTITY_PROVIDER))
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .containsExactly(
             "service:g:admin USES_IDENTITY_PROVIDER external-system:sso.example.com"
                 + " {\"matchedBy\":\"external\",\"protocol\":\"Keycloak Admin REST over HTTPS\","
@@ -3559,7 +3557,7 @@ class CrossRepoLinksTest {
     config("c", "files", "application.properties", "files.jwt.key", "abc", null);
     jwtSecret("c", "c.files.Tokens#key()", "files.jwt.key", "\"verify\"");
 
-    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+    assertThat(derive(Types.SHARED_SECRET))
         .containsExactly(
             "service:g:auth shared-secret app.token.signing.key {\"algorithm\":\"HMAC\","
                 + "\"basis\":\"placeholder\",\"library\":\"jjwt\","
@@ -3593,7 +3591,7 @@ class CrossRepoLinksTest {
     config("c", "four", "application.properties", "jwt.key", "second", null);
     jwtSecret("c", "c.four.Jwt#key()", "jwt.key", "\"verify\"");
 
-    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+    assertThat(derive(Types.SHARED_SECRET))
         .extracting(
             l -> l.substring(0, l.indexOf(" {")) + " " + l.substring(l.lastIndexOf(' ') + 1))
         .containsExactly(
@@ -3612,12 +3610,11 @@ class CrossRepoLinksTest {
     config("c", "two", "application.properties", "tokens.hmac", "same-value-0123", null);
     jwtSecret("c", "c.two.Jwt#key()", "tokens.hmac", "\"verify\"");
 
-    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
+    assertThat(derive(Types.SHARED_SECRET))
         .extracting(l -> l.substring(0, l.indexOf(" {")))
         .containsExactly(
             "service:g:one shared-secret jwt.key", "service:g:two shared-secret tokens.hmac");
-    assertThat(derive(CrossRepoLinks.SHARED_SECRET))
-        .allMatch(l -> l.contains("\"basis\":\"value\""));
+    assertThat(derive(Types.SHARED_SECRET)).allMatch(l -> l.contains("\"basis\":\"value\""));
     assertThat(linked()).noneMatch(f -> f.toString().contains("same-value-0123"));
   }
 }

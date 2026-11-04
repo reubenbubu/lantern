@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
@@ -156,14 +157,14 @@ class IdentityProvidersIT {
     facts.addAll(new DeployableUnits().derive(facts, 1));
     List<String> lines = new ArrayList<>();
     for (Fact f : facts) {
-      if (f.predicate().equals(IdentityExtractor.JWT_SECRET_KEY)
-          || f.predicate().equals(IdentityExtractor.IDENTITY_ADMIN_CLIENT)) {
+      if (f.predicate().equals(Types.JWT_SECRET_KEY)
+          || f.predicate().equals(Types.IDENTITY_ADMIN_CLIENT)) {
         lines.add(f.subject() + " " + f.predicate() + " " + f.object().value());
       }
     }
     for (Fact f : new CrossRepoLinks().derive(facts, 1)) {
       String line = f.subject() + " " + f.predicate() + " " + f.object().value();
-      if (f.predicate().equals(CrossRepoLinks.USES_IDENTITY_PROVIDER)) {
+      if (f.predicate().equals(Types.USES_IDENTITY_PROVIDER)) {
         String target = TestAttributes.text(f, "target");
         lines.add(
             line
@@ -175,7 +176,7 @@ class IdentityProvidersIT {
                 + TestAttributes.text(f, "matchedBy")
                 + (target == null ? "" : " target=" + target)
                 + (f.attributes().has("view") ? " profile=" + TestAttributes.text(f, "view") : ""));
-      } else if (f.predicate().equals(CrossRepoLinks.SHARED_SECRET)) {
+      } else if (f.predicate().equals(Types.SHARED_SECRET)) {
         lines.add(
             line
                 + " basis="
@@ -184,7 +185,7 @@ class IdentityProvidersIT {
                 + TestAttributes.texts(f, "with")
                 + " uses="
                 + TestAttributes.texts(f, "uses"));
-      } else if (f.subject().type().equals(CrossRepoLinks.EXTERNAL_SYSTEM)) {
+      } else if (f.subject().type().equals(Types.EXTERNAL_SYSTEM)) {
         lines.add(line);
       }
     }

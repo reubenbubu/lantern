@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import io.lantern.derive.Findings;
 import io.lantern.harness.BlobLookup;
 import io.lantern.harness.Harness;
@@ -69,11 +70,11 @@ class NameGroupsTest {
             .filter(f -> f.predicate().equals("GROUPS") && f.object().value().equals(API))
             .findFirst()
             .orElseThrow();
-    all.add(said(API, LlmFacts.RESPONSIBILITY, LlmFacts.C4, apiSays, apiGroups));
+    all.add(said(API, Types.RESPONSIBILITY, LlmFacts.C4, apiSays, apiGroups));
     all.add(
         said(
             API,
-            LlmFacts.INTENT,
+            Types.INTENT,
             call.claimId() != null ? call.claimId() : call.id(),
             "Charges each order it takes",
             call));
@@ -182,7 +183,7 @@ class NameGroupsTest {
     Fact name =
         result.facts().stream()
             .filter(f -> f.subject().toString().equals(ORDERS))
-            .filter(f -> f.predicate().equals(LlmFacts.DISPLAY_NAME))
+            .filter(f -> f.predicate().equals(Types.DISPLAY_NAME))
             .findFirst()
             .orElseThrow();
     assertThat(name.attributes().path("text").asString()).isEqualTo("Ordering");
@@ -190,7 +191,7 @@ class NameGroupsTest {
     // It cites the API's responsibility, an earlier answer.
     String apiSaid =
         facts().stream()
-            .filter(f -> f.predicate().equals(LlmFacts.RESPONSIBILITY))
+            .filter(f -> f.predicate().equals(Types.RESPONSIBILITY))
             .findFirst()
             .orElseThrow()
             .id();
@@ -230,7 +231,7 @@ class NameGroupsTest {
     assertThat(
             cached.facts().stream()
                 .filter(f -> f.subject().toString().equals(BILLING))
-                .filter(f -> f.predicate().equals(LlmFacts.DISPLAY_NAME))
+                .filter(f -> f.predicate().equals(Types.DISPLAY_NAME))
                 .findFirst()
                 .orElseThrow()
                 .attributes()

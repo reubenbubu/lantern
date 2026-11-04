@@ -3,12 +3,11 @@ package io.lantern.summarize.describe;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
-import io.lantern.derive.ComponentInteractions;
+import io.lantern.core.types.Types;
 import io.lantern.derive.Components;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
-import io.lantern.derive.attributes.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Item;
 import io.lantern.harness.render.Blocks;
@@ -325,8 +324,7 @@ public final class DescribeItems {
     components.forEach(c -> componentNames.put(c.entity(), c.name()));
     for (ComponentShown component : components) {
       for (Fact line :
-          FactLines.sorted(
-              knowledge.relations(component.entity(), ComponentInteractions.COMPONENT_LINK))) {
+          FactLines.sorted(knowledge.relations(component.entity(), Types.COMPONENT_LINK))) {
         if ("code-end".equals(Elements.attribute(line, "kind", ""))) {
           continue;
         }

@@ -10,7 +10,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.link.AddressResolution;
@@ -98,12 +98,11 @@ class LinkRulesIT {
     }
   }
 
-  private static final Copy CONTAINS_TO_CALLS =
-      new Copy("calls", "1", BuiltInTypes.CONTAINS, BuiltInTypes.CALLS);
+  private static final Copy CONTAINS_TO_CALLS = new Copy("calls", "1", Types.CONTAINS, Types.CALLS);
   private static final Copy CALLS_TO_IMPLEMENTS =
-      new Copy("implements", "1", BuiltInTypes.CALLS, BuiltInTypes.IMPLEMENTS);
+      new Copy("implements", "1", Types.CALLS, Types.IMPLEMENTS);
   private static final Copy CONFIG_TO_EXTENDS =
-      new Copy("extends", "1", ConfigExtractor.CONFIG_VALUE, BuiltInTypes.EXTENDS);
+      new Copy("extends", "1", Types.CONFIG_VALUE, Types.EXTENDS);
 
   private Linker linker(LinkRule... rules) {
     return new Linker(facts, List.of(rules), new JdbcRuleRuns(jdbc));
@@ -112,7 +111,7 @@ class LinkRulesIT {
   private static Fact extracted(
       String extractor, String subject, String predicate, FactObject object, int line, long at) {
     ObjectNode attributes = FactJson.newObject();
-    if (predicate.equals(ConfigExtractor.CONFIG_VALUE)) {
+    if (predicate.equals(Types.CONFIG_VALUE)) {
       attributes.put("key", "spring.application.name");
     }
     return Fact.create(
@@ -132,14 +131,14 @@ class LinkRulesIT {
         extracted(
             MavenExtractor.NAME,
             "module:g:lib",
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             FactObject.entity(EntityId.parse("type:g.App")),
             line,
             at),
         extracted(
             ConfigExtractor.NAME,
             "module:g:lib",
-            ConfigExtractor.CONFIG_VALUE,
+            Types.CONFIG_VALUE,
             FactObject.string(name),
             1,
             at));
@@ -208,7 +207,7 @@ class LinkRulesIT {
             extracted(
                 MavenExtractor.NAME,
                 "module:g:lib",
-                BuiltInTypes.CONTAINS,
+                Types.CONTAINS,
                 FactObject.entity(EntityId.parse("type:g.Other")),
                 10,
                 2),
@@ -230,7 +229,7 @@ class LinkRulesIT {
         linker(
             CONTAINS_TO_CALLS,
             CALLS_TO_IMPLEMENTS,
-            new Copy("extends", "2", ConfigExtractor.CONFIG_VALUE, BuiltInTypes.EXTENDS));
+            new Copy("extends", "2", Types.CONFIG_VALUE, Types.EXTENDS));
 
     assertThat(link(newer, 2, lib(2, "name", 10)).ran()).containsExactly("extends");
   }
@@ -257,7 +256,7 @@ class LinkRulesIT {
     Fact old =
         Fact.create(
             EntityId.parse("module:g:lib"),
-            BuiltInTypes.CALLS,
+            Types.CALLS,
             FactObject.entity(EntityId.parse("type:g.Old")),
             FactJson.newObject(),
             new Origin(Origin.Kind.STATIC, "cross-repo-links", "18"),
@@ -292,7 +291,7 @@ class LinkRulesIT {
     attributes.put("key", key);
     return Fact.create(
         EntityId.parse("module:g:lib"),
-        ConfigExtractor.CONFIG_VALUE,
+        Types.CONFIG_VALUE,
         FactObject.string(value),
         attributes,
         new Origin(Origin.Kind.STATIC, ConfigExtractor.NAME, "1"),

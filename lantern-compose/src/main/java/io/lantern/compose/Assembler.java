@@ -7,13 +7,12 @@ import io.lantern.core.document.Inline;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Groups;
-import io.lantern.derive.attributes.Types;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -108,8 +107,8 @@ final class Assembler {
     }
     EntityId parent = parent(id);
     List<Fact> facts = new ArrayList<>(model.attributes(id));
-    if (id.type().equals(BuiltInTypes.SERVICE) || id.type().equals(BuiltInTypes.LIBRARY)) {
-      for (EntityId module : model.parts(id, BuiltInTypes.MODULE)) {
+    if (id.type().equals(Types.SERVICE) || id.type().equals(Types.LIBRARY)) {
+      for (EntityId module : model.parts(id, Types.MODULE)) {
         facts.addAll(model.containsFacts(id, module));
       }
     }
@@ -149,14 +148,14 @@ final class Assembler {
    * code, the main library's if it bundles one, else its own; for anything else itself.
    */
   EntityId summarized(EntityId id) {
-    if (!id.type().equals(BuiltInTypes.SERVICE)) {
+    if (!id.type().equals(Types.SERVICE)) {
       return id;
     }
     Optional<EntityId> main = model.mainLibraryModule(id);
     if (main.isPresent()) {
       return main.get();
     }
-    SortedSet<EntityId> modules = model.parts(id, BuiltInTypes.MODULE);
+    SortedSet<EntityId> modules = model.parts(id, Types.MODULE);
     return modules.isEmpty() ? id : modules.first();
   }
 
@@ -177,26 +176,26 @@ final class Assembler {
   /** The entity the given one belongs under in the navigation tree, or {@code null}. */
   private EntityId parent(EntityId id) {
     return switch (id.type()) {
-      case ArchitectureModel.REPO_ENTITY_TYPE, Types.ARTIFACT -> null;
-      case BuiltInTypes.MODULE -> {
-        SortedSet<EntityId> aggregators = model.wholes(id, BuiltInTypes.MODULE);
+      case Types.REPO, Types.ARTIFACT -> null;
+      case Types.MODULE -> {
+        SortedSet<EntityId> aggregators = model.wholes(id, Types.MODULE);
         if (!aggregators.isEmpty()) {
           yield aggregators.first();
         }
         yield repoOf(model.repos(id));
       }
-      case BuiltInTypes.SERVICE, BuiltInTypes.LIBRARY -> {
+      case Types.SERVICE, Types.LIBRARY -> {
         SortedSet<String> repos = new TreeSet<>();
-        for (EntityId module : model.parts(id, BuiltInTypes.MODULE)) {
+        for (EntityId module : model.parts(id, Types.MODULE)) {
           repos.addAll(model.repos(module));
         }
         yield repoOf(repos);
       }
-      case BuiltInTypes.TYPE -> {
-        SortedSet<EntityId> wholes = model.wholes(id, BuiltInTypes.PACKAGE);
-        wholes.addAll(model.wholes(id, BuiltInTypes.TYPE));
+      case Types.TYPE -> {
+        SortedSet<EntityId> wholes = model.wholes(id, Types.PACKAGE);
+        wholes.addAll(model.wholes(id, Types.TYPE));
         if (wholes.isEmpty()) {
-          wholes = model.wholes(id, BuiltInTypes.MODULE);
+          wholes = model.wholes(id, Types.MODULE);
         }
         yield wholes.isEmpty() ? null : wholes.first();
       }
@@ -225,7 +224,7 @@ final class Assembler {
   }
 
   static EntityId repo(String name) {
-    return new EntityId(ArchitectureModel.REPO_ENTITY_TYPE, name);
+    return new EntityId(Types.REPO, name);
   }
 
   /** Adds the facts to the document and returns their IDs, sorted and without duplicates. */
@@ -650,10 +649,10 @@ final class Assembler {
     if (shape.equals(PIPE)) {
       return DocumentEntity.Kind.QUEUE;
     }
-    if (vocabulary.isA(type, BuiltInTypes.ACTOR)) {
+    if (vocabulary.isA(type, Types.ACTOR)) {
       return DocumentEntity.Kind.PERSON;
     }
-    if (!type.equals(BuiltInTypes.SYSTEM) && vocabulary.isA(type, BuiltInTypes.SYSTEM)) {
+    if (!type.equals(Types.SYSTEM) && vocabulary.isA(type, Types.SYSTEM)) {
       return DocumentEntity.Kind.EXTERNAL;
     }
     return null;
@@ -669,7 +668,7 @@ final class Assembler {
     if (UNTAGGED.contains(type)) {
       return null;
     }
-    if (type.equals(BuiltInTypes.REPO)) {
+    if (type.equals(Types.REPO)) {
       return "Repository";
     }
     if (type.equals(Types.FRONTEND)) {
@@ -685,11 +684,11 @@ final class Assembler {
   /** The types {@link #tag} names no type for. */
   private static final Set<String> UNTAGGED =
       Set.of(
-          BuiltInTypes.TYPE,
+          Types.TYPE,
           Types.EXTERNAL_SYSTEM,
-          BuiltInTypes.SYSTEM,
-          BuiltInTypes.CONTAINER,
-          BuiltInTypes.COMPONENT,
+          Types.SYSTEM,
+          Types.CONTAINER,
+          Types.COMPONENT,
           Types.DATABASE,
           Types.PERSON);
 

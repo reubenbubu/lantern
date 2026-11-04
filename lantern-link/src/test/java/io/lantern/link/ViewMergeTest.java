@@ -10,6 +10,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class ViewMergeTest {
   private static Fact link(String to, String attributes) {
     return Fact.create(
         EntityId.parse("service:g:a"),
-        CrossRepoLinks.CALLS_HTTP,
+        Types.CALLS_HTTP,
         FactObject.entity(EntityId.parse("service:g:" + to)),
         (ObjectNode) FactJson.parse(attributes),
         new Origin(Origin.Kind.STATIC, "links", "1"),
@@ -35,9 +36,7 @@ class ViewMergeTest {
   }
 
   private static ClaimSink sink() {
-    return new ClaimSink(
-        RULE,
-        Set.of(CrossRepoLinks.CALLS_HTTP, DataLinker.DISPLAY_NAME, DeployableUnits.TECHNOLOGY));
+    return new ClaimSink(RULE, Set.of(Types.CALLS_HTTP, Types.DISPLAY_NAME, Types.TECHNOLOGY));
   }
 
   private static List<String> lines(List<LinkRule.Merged> merged) {
@@ -87,7 +86,7 @@ class ViewMergeTest {
     Fact plain =
         Fact.create(
             EntityId.parse("service:g:a"),
-            DataLinker.DISPLAY_NAME,
+            Types.DISPLAY_NAME,
             FactObject.string("A"),
             FactJson.newObject(),
             new Origin(Origin.Kind.STATIC, "links", "1"),
@@ -130,7 +129,7 @@ class ViewMergeTest {
     Fact gate =
         Fact.create(
             EntityId.parse("type:g.A"),
-            io.lantern.extract.spring.SpringExtractor.PROFILE_GATE,
+            Types.PROFILE_GATE,
             FactObject.string("!local & cloud"),
             (ObjectNode) FactJson.parse("{\"profiles\":[\"!local & cloud\"]}"),
             new Origin(Origin.Kind.STATIC, "spring", "1"),
@@ -140,7 +139,7 @@ class ViewMergeTest {
     Fact config =
         Fact.create(
             EntityId.parse("module:g:a"),
-            io.lantern.extract.config.ConfigExtractor.CONFIG_VALUE,
+            Types.CONFIG_VALUE,
             FactObject.string("x"),
             (ObjectNode) FactJson.parse("{\"key\":\"k\",\"profile\":\"docker\"}"),
             new Origin(Origin.Kind.STATIC, "config", "1"),

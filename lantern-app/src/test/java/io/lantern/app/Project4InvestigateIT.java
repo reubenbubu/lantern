@@ -9,7 +9,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.Git;
-import io.lantern.link.Investigator;
+import io.lantern.core.types.Types;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -246,8 +246,9 @@ class Project4InvestigateIT {
     List<Fact> held =
         facts.findValidAt(result.snapshot().number(), result.snapshot().commits().keySet());
     List<Fact> verdicts =
-        held.stream().filter(f -> f.predicate().equals(Investigator.LEAD_VERDICT)).toList();
-    List<Fact> risks = held.stream().filter(f -> f.predicate().equals(Investigator.RISK)).toList();
+        held.stream().filter(f -> f.predicate().equals(Types.LEAD_VERDICT)).toList();
+    List<Fact> risks =
+        held.stream().filter(f -> f.predicate().equals(Types.INVESTIGATED_RISK)).toList();
     Files.createDirectories(OUT);
     StringBuilder out = new StringBuilder();
     verdicts.forEach(
@@ -261,7 +262,7 @@ class Project4InvestigateIT {
     Files.writeString(OUT.resolve("asked.txt"), String.join("\n\n=====\n\n", ASKED));
     risks.forEach(r -> out.append(r.subject()).append(' ').append(r.attributes()).append('\n'));
     List<Fact> wordings =
-        held.stream().filter(f -> f.predicate().equals(Investigator.FINDING_WORDING)).toList();
+        held.stream().filter(f -> f.predicate().equals(Types.FINDING_WORDING)).toList();
     wordings.forEach(
         w ->
             out.append("worded ")

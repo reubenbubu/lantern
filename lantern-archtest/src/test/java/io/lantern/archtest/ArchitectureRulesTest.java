@@ -15,6 +15,7 @@ import io.lantern.extract.archfixture.ExtractorResolvingPlaceholders;
 import io.lantern.harness.archfixture.FakeHarness;
 import io.lantern.link.archfixture.FakeLinker;
 import io.lantern.link.archfixture.FakeResolver;
+import io.lantern.link.archfixture.LinkerComparingPredicates;
 import io.lantern.link.archfixture.LinkerReadingAttributes;
 import io.lantern.link.archfixture.LinkerReadingComposer;
 import io.lantern.llm.archfixture.FakeLlmClient;
@@ -86,13 +87,22 @@ class ArchitectureRulesTest {
   void composerCodeCopyingATypesNameIsRejected() {
     JavaClasses classes = new ClassFileImporter().importClasses(ComposerCopyingTypeNames.class);
 
-    assertThatThrownBy(
-            () -> ArchitectureRules.COMPOSE_NAMES_TYPES_THROUGH_THE_TYPED_LAYER.check(classes))
+    assertThatThrownBy(() -> ArchitectureRules.NAMES_TYPES_THROUGH_THE_TYPED_LAYER.check(classes))
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining(
             "ComposerCopyingTypeNames.CALLS_HTTP holds the type name 'CALLS_HTTP'")
         .hasMessageContaining("ComposerCopyingTypeNames.DATABASE holds the type name 'database'")
         .hasMessageNotContaining("HEADING");
+  }
+
+  @Test
+  void linkerCodeCopyingAPredicatesNameIsRejected() {
+    JavaClasses classes = new ClassFileImporter().importClasses(LinkerComparingPredicates.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.NAMES_TYPES_THROUGH_THE_TYPED_LAYER.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining(
+            "LinkerComparingPredicates.CALLS_HTTP holds the type name 'CALLS_HTTP'");
   }
 
   @Test

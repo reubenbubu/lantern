@@ -4,7 +4,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.core.types.Types;
 import io.lantern.extract.mail.MailExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Kind;
@@ -42,7 +42,7 @@ final class MailLinker {
   }
 
   void link() {
-    List<Fact> sends = index.of(MailExtractor.MAIL_SEND);
+    List<Fact> sends = index.of(Types.MAIL_SEND);
     for (String view : index.views()) {
       for (Unit unit : index.units.values()) {
         link(unit, view, sends);
@@ -83,7 +83,7 @@ final class MailLinker {
         "465".equals(port)
             || (!protocols.isEmpty()
                 && protocols.getFirst().object().value().trim().equalsIgnoreCase("smtps"));
-    EntityId system = new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, name);
+    EntityId system = new EntityId(Types.EXTERNAL_SYSTEM, name);
 
     List<Fact> sends = new ArrayList<>();
     for (Fact send : allSends) {
@@ -114,9 +114,9 @@ final class MailLinker {
   /** The unit's {@code spring.mail.host} in the view, a placeholder nothing resolves kept. */
   private Fact host(Unit unit, String view) {
     String wanted = DataLinker.relaxed(HOST);
-    for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
+    for (String k : index.configKeys(unit, Types.CONFIG_VALUE)) {
       if (DataLinker.relaxed(k).equals(wanted)) {
-        Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
+        Fact f = index.config(unit, view, Types.CONFIG_VALUE, k);
         if (f != null && !Claims.masked(f) && !f.object().value().isBlank()) {
           return f;
         }
@@ -150,7 +150,7 @@ final class MailLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.SENDS_MAIL
+            Types.SENDS_MAIL
                 + "|"
                 + unit.id()
                 + "|"
@@ -158,7 +158,7 @@ final class MailLinker {
                 + "|"
                 + (send == null ? "" : send.subject()),
             unit.id(),
-            CrossRepoLinks.SENDS_MAIL,
+            Types.SENDS_MAIL,
             FactObject.entity(system),
             attributes,
             evidence.evidence(),

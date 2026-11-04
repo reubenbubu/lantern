@@ -7,6 +7,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
@@ -118,8 +119,7 @@ class Project8ValuesIT {
                 extracted.stream()
                     .anyMatch(
                         f ->
-                            f.id().equals(id)
-                                && f.predicate().equals(DeploymentExtractor.DEPLOYMENT_CONTAINER)));
+                            f.id().equals(id) && f.predicate().equals(Types.DEPLOYMENT_CONTAINER)));
   }
 
   @Test
@@ -127,7 +127,7 @@ class Project8ValuesIT {
     // #516, item 2: the staging profile does not give customer-bff another route's filters.
     List<Fact> routes =
         derived.stream()
-            .filter(f -> f.predicate().equals(GatewayExtractor.ROUTE))
+            .filter(f -> f.predicate().equals(Types.GATEWAY_ROUTE))
             .filter(f -> f.object().value().equals("customer-bff"))
             .toList();
     assertThat(routes).isNotEmpty();
@@ -142,7 +142,7 @@ class Project8ValuesIT {
   @Test
   void onlyExpressionsWithPlaceholdersResolve() {
     assertThat(derived)
-        .filteredOn(f -> f.predicate().equals(ValueResolution.RESOLVES_TO))
+        .filteredOn(f -> f.predicate().equals(Types.RESOLVES_TO))
         .filteredOn(f -> !f.subject().toString().contains("${"))
         .isEmpty();
   }
@@ -151,14 +151,14 @@ class Project8ValuesIT {
   void everyDatasourceADeploymentRunsResolvesToItsServerThere() {
     List<String> addresses =
         extracted.stream()
-            .filter(f -> f.predicate().equals(PersistenceExtractor.CONNECTS_TO))
+            .filter(f -> f.predicate().equals(Types.CONNECTS_TO))
             .map(f -> f.object().value())
             .filter(a -> a.contains("${"))
             .distinct()
             .toList();
     List<String> scoped =
         derived.stream()
-            .filter(f -> f.predicate().equals(PersistenceExtractor.CONNECTS_TO))
+            .filter(f -> f.predicate().equals(Types.CONNECTS_TO))
             .map(f -> f.object().value())
             .filter(a -> a.contains("${"))
             .distinct()
@@ -181,7 +181,7 @@ class Project8ValuesIT {
     // #516, item 1: the direct, fanout and headers exchanges' queues, bound by @Qualifier.
     List<String> bindings =
         derived.stream()
-            .filter(f -> f.predicate().equals(MessagingExtractor.BINDING))
+            .filter(f -> f.predicate().equals(Types.MESSAGE_BINDING))
             .filter(f -> f.subject().toString().contains("NotificationRabbitConfiguration"))
             .map(
                 f ->
@@ -206,12 +206,10 @@ class Project8ValuesIT {
     String address = "address:io.fleetcare:billing-service:https://${accounting.status-host}";
     assertThat(extracted)
         .anyMatch(
-            f ->
-                f.predicate().equals(HttpClientExtractor.ADDRESSED_TO)
-                    && f.object().value().equals(address));
+            f -> f.predicate().equals(Types.ADDRESSED_TO) && f.object().value().equals(address));
     assertThat(
             derived.stream()
-                .filter(f -> f.predicate().equals(HttpClientExtractor.HTTP_CALL))
+                .filter(f -> f.predicate().equals(Types.HTTP_CALL))
                 .filter(f -> f.subject().toString().contains("PartnerStatusClient#fetch"))
                 .map(f -> f.object().value()))
         .isNotEmpty()
@@ -221,7 +219,7 @@ class Project8ValuesIT {
 
   private static List<Fact> resolutions(String entity) {
     return derived.stream()
-        .filter(f -> f.predicate().equals(ValueResolution.RESOLVES_TO))
+        .filter(f -> f.predicate().equals(Types.RESOLVES_TO))
         .filter(f -> f.subject().toString().equals(entity))
         .toList();
   }

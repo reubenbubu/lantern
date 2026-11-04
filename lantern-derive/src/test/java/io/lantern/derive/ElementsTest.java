@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.derive.attributes.Types;
+import io.lantern.core.types.Types;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;

@@ -9,6 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.AttributeSchema;
 import io.lantern.core.vocabulary.AttributeSchema.Property;
 import io.lantern.core.vocabulary.BuiltInTypes;
@@ -169,8 +170,8 @@ class ClaimIdentityTest {
   /** The runtime relationships: {@code INTERACTS_WITH} and everything under it. */
   static final Set<String> RUNTIME =
       Set.of(
-          BuiltInTypes.INTERACTS_WITH,
-          BuiltInTypes.CALLS,
+          Types.INTERACTS_WITH,
+          Types.CALLS,
           "CALLS_HTTP",
           "SENDS_MAIL",
           "USES_IDENTITY_PROVIDER",
@@ -184,7 +185,7 @@ class ClaimIdentityTest {
           "USES_INFRASTRUCTURE");
 
   /** The build relationships: {@code DEPENDS_ON} and everything under it. */
-  static final Set<String> BUILD = Set.of(BuiltInTypes.DEPENDS_ON, "BUILD_DEPENDS_ON", "PACKAGES");
+  static final Set<String> BUILD = Set.of(Types.DEPENDS_ON, "BUILD_DEPENDS_ON", "PACKAGES");
 
   /**
    * Every type the app loads: the built-in ones, then the extractors', the linker's and
@@ -212,7 +213,7 @@ class ClaimIdentityTest {
   static Set<String> expectedKeys(Vocabulary vocabulary, String type) {
     Set<String> declared = vocabulary.attributeSchema(type).properties().keySet();
     Set<String> keys = new TreeSet<>();
-    if (vocabulary.isA(type, BuiltInTypes.INTERACTS_WITH)) {
+    if (vocabulary.isA(type, Types.INTERACTS_WITH)) {
       declared.stream().filter(LINK_KEYS::contains).forEach(keys::add);
       return keys;
     }
@@ -318,10 +319,10 @@ class ClaimIdentityTest {
     Set<String> runtime = new TreeSet<>();
     Set<String> build = new TreeSet<>();
     for (VocabularyType type : vocabulary.types()) {
-      if (vocabulary.isA(type.name(), BuiltInTypes.INTERACTS_WITH)) {
+      if (vocabulary.isA(type.name(), Types.INTERACTS_WITH)) {
         runtime.add(type.name());
       }
-      if (vocabulary.isA(type.name(), BuiltInTypes.DEPENDS_ON)) {
+      if (vocabulary.isA(type.name(), Types.DEPENDS_ON)) {
         build.add(type.name());
       }
     }
@@ -337,8 +338,8 @@ class ClaimIdentityTest {
   @Test
   void aRendererFallingBackToAParentNeverDrawsABuildEdgeAsARuntimeLine() {
     Vocabulary vocabulary = vocabulary();
-    String runtimeLine = vocabulary.shape(BuiltInTypes.INTERACTS_WITH).orElseThrow();
-    String buildLine = vocabulary.shape(BuiltInTypes.DEPENDS_ON).orElseThrow();
+    String runtimeLine = vocabulary.shape(Types.INTERACTS_WITH).orElseThrow();
+    String buildLine = vocabulary.shape(Types.DEPENDS_ON).orElseThrow();
 
     assertThat(runtimeLine).isNotEqualTo(buildLine);
     for (String type : BUILD) {
@@ -353,19 +354,15 @@ class ClaimIdentityTest {
   void peopleAreActorsAndBrokersAndInfrastructureAreContainers() {
     Vocabulary vocabulary = vocabulary();
 
-    assertThat(vocabulary.find("person").orElseThrow().parent()).isEqualTo(BuiltInTypes.ACTOR);
-    assertThat(vocabulary.isA("person", BuiltInTypes.SYSTEM)).isFalse();
+    assertThat(vocabulary.find("person").orElseThrow().parent()).isEqualTo(Types.ACTOR);
+    assertThat(vocabulary.isA("person", Types.SYSTEM)).isFalse();
     assertThat(vocabulary.c4Level("person")).contains(C4Level.CONTEXT);
-    assertThat(vocabulary.find("message-broker").orElseThrow().parent())
-        .isEqualTo(BuiltInTypes.CONTAINER);
-    assertThat(vocabulary.find("infrastructure").orElseThrow().parent())
-        .isEqualTo(BuiltInTypes.CONTAINER);
-    assertThat(BuiltInTypes.definitions())
-        .extracting(VocabularyType::name)
-        .contains(BuiltInTypes.REPO);
+    assertThat(vocabulary.find("message-broker").orElseThrow().parent()).isEqualTo(Types.CONTAINER);
+    assertThat(vocabulary.find("infrastructure").orElseThrow().parent()).isEqualTo(Types.CONTAINER);
+    assertThat(BuiltInTypes.definitions()).extracting(VocabularyType::name).contains(Types.REPO);
     assertThat(Extractors.vocabularies().values().stream().flatMap(List::stream))
         .extracting(VocabularyType::name)
-        .doesNotContain(BuiltInTypes.REPO);
+        .doesNotContain(Types.REPO);
   }
 
   private static Fact fact(

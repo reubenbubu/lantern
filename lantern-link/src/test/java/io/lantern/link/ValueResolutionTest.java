@@ -6,6 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
@@ -32,11 +33,7 @@ class ValueResolutionTest {
   private static final long SNAPSHOT = 5;
 
   private static final java.util.Set<String> DATASOURCE_FACTS =
-      java.util.Set.of(
-          io.lantern.extract.persistence.PersistenceExtractor.DATASOURCE,
-          io.lantern.extract.persistence.PersistenceExtractor.DATA_STORE,
-          io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE,
-          io.lantern.extract.persistence.PersistenceExtractor.CONNECTS_TO);
+      java.util.Set.of(Types.DATASOURCE, Types.DATA_STORE, Types.HAS_DATASOURCE, Types.CONNECTS_TO);
 
   @TempDir Path temp;
 
@@ -48,7 +45,7 @@ class ValueResolutionTest {
 
     List<Fact> calls = oldStyle(new ValueResolution().derive(facts, SNAPSHOT));
 
-    assertThat(calls).allMatch(f -> f.predicate().equals(HttpClientExtractor.HTTP_CALL));
+    assertThat(calls).allMatch(f -> f.predicate().equals(Types.HTTP_CALL));
     assertThat(sorted(render(calls))).isEqualTo(sorted(golden("http-calls-parsed.txt")));
     // Run again, the same facts.
     assertThat(oldStyle(new ValueResolution().derive(facts, SNAPSHOT))).isEqualTo(calls);
@@ -76,7 +73,7 @@ class ValueResolutionTest {
       List<String> cited = TestAttributes.texts(f, "facts");
       assertThat(cited).hasSize(1);
       Fact config = facts.stream().filter(c -> c.id().equals(cited.getFirst())).findFirst().get();
-      assertThat(config.predicate()).isEqualTo(ConfigExtractor.CONFIG_VALUE);
+      assertThat(config.predicate()).isEqualTo(Types.CONFIG_VALUE);
       assertThat(f.evidence().declared().path()).endsWith(".java");
       assertThat(f.evidence().locations().get(1).role())
           .isEqualTo(io.lantern.core.fact.Evidence.Role.CONFIG);
@@ -94,7 +91,7 @@ class ValueResolutionTest {
     List<Fact> resolutions =
         new ValueResolution()
             .derive(facts, SNAPSHOT).stream()
-                .filter(f -> f.predicate().equals(ValueResolution.RESOLVES_TO))
+                .filter(f -> f.predicate().equals(Types.RESOLVES_TO))
                 .toList();
 
     // The datasources are read from config by this rule; their addresses resolve all the same.
@@ -144,7 +141,7 @@ class ValueResolutionTest {
       List<Fact> facts = extracted(fixture);
       List<Fact> derived = new ValueResolution().derive(facts, SNAPSHOT);
       List<Fact> resolutions =
-          derived.stream().filter(f -> f.predicate().equals(ValueResolution.RESOLVES_TO)).toList();
+          derived.stream().filter(f -> f.predicate().equals(Types.RESOLVES_TO)).toList();
       assertThat(resolutions).as(fixture).isNotEmpty();
       for (Fact r : resolutions) {
         String profile = TestAttributes.text(r, "view");
@@ -156,11 +153,11 @@ class ValueResolutionTest {
           }
           // The method the value is used by: a request's sender, or the messaging method.
           io.lantern.core.fact.EntityId method =
-              use.predicate().equals(HttpClientExtractor.ADDRESSED_TO)
+              use.predicate().equals(Types.ADDRESSED_TO)
                   ? facts.stream()
                       .filter(
                           s ->
-                              s.predicate().equals(HttpClientExtractor.SENT_BY)
+                              s.predicate().equals(Types.SENT_BY)
                                   && s.subject().equals(use.subject()))
                       .findFirst()
                       .get()
@@ -191,7 +188,7 @@ class ValueResolutionTest {
   private static List<Fact> resolutions(List<Fact> facts, String entity) {
     return new ValueResolution()
         .derive(facts, SNAPSHOT).stream()
-            .filter(f -> f.predicate().equals(ValueResolution.RESOLVES_TO))
+            .filter(f -> f.predicate().equals(Types.RESOLVES_TO))
             .filter(f -> f.subject().toString().equals(entity))
             .toList();
   }
@@ -278,13 +275,12 @@ class ValueResolutionTest {
         assertThat(relation.confidence()).isEqualTo(message.confidence());
         String module = relation.attributes().path("configModule").asString();
         String kind =
-            message.predicate().equals(MessagingExtractor.BINDING)
+            message.predicate().equals(Types.MESSAGE_BINDING)
                 ? "queue"
                 : message.attributes().path("destinationKind").asString();
         String name = message.attributes().path("broker").asString() + ":" + kind + ":";
         boolean literal = !Claims.masked(message) && Claims.unresolved(message).isEmpty();
-        assertThat(relation.object().entityId().type())
-            .isEqualTo(MessagingExtractor.DESTINATION_ENTITY);
+        assertThat(relation.object().entityId().type()).isEqualTo(Types.DESTINATION);
         assertThat(relation.object().entityId().key())
             .as(message.toString())
             .isEqualTo(
@@ -384,16 +380,13 @@ class ValueResolutionTest {
       // the config facts, are the extractor's facts of before: its golden file (#560, #567).
       List<Fact> all = new ArrayList<>();
       for (Fact f : written) {
-        if (!f.predicate().equals(io.lantern.extract.persistence.PersistenceExtractor.JPA_TABLE)
-            && !f.predicate().equals(io.lantern.extract.redis.RedisExtractor.CACHE_USE)) {
+        if (!f.predicate().equals(Types.JPA_TABLE) && !f.predicate().equals(Types.CACHE_USE)) {
           all.add(f);
         }
       }
       for (Fact f : oldStyle(new ValueResolution().derive(facts, SNAPSHOT))) {
-        if (!f.predicate()
-                .equals(io.lantern.extract.persistence.PersistenceExtractor.HAS_DATASOURCE)
-            && !f.predicate()
-                .equals(io.lantern.extract.persistence.PersistenceExtractor.CONNECTS_TO)) {
+        if (!f.predicate().equals(Types.HAS_DATASOURCE)
+            && !f.predicate().equals(Types.CONNECTS_TO)) {
           all.add(f);
         }
       }
@@ -412,14 +405,13 @@ class ValueResolutionTest {
     // the config facts, are the extractor's facts of before: its golden file (#519).
     List<Fact> all = new ArrayList<>();
     for (Fact f : written) {
-      if (!f.predicate().equals(io.lantern.extract.spring.SpringExtractor.HANDLED_BY)
-          && !f.predicate().equals(io.lantern.extract.spring.SpringExtractor.SCHEDULED_WRITTEN)) {
+      if (!f.predicate().equals(Types.HANDLED_BY)
+          && !f.predicate().equals(Types.SCHEDULED_WRITTEN)) {
         all.add(f);
       }
     }
     for (Fact f : new ValueResolution().derive(facts, SNAPSHOT)) {
-      if (f.predicate().equals(io.lantern.extract.spring.SpringExtractor.ENDPOINT)
-          || f.predicate().equals(io.lantern.extract.spring.SpringExtractor.SCHEDULED)) {
+      if (f.predicate().equals(Types.ENDPOINT) || f.predicate().equals(Types.SCHEDULED)) {
         all.add(f);
       }
     }
@@ -661,7 +653,7 @@ class ValueResolutionTest {
   /** The facts the extractors gave before: not the claims and relations value resolution adds. */
   private static List<Fact> oldStyle(List<Fact> facts) {
     return facts.stream()
-        .filter(f -> !f.predicate().equals(ValueResolution.RESOLVES_TO))
+        .filter(f -> !f.predicate().equals(Types.RESOLVES_TO))
         .filter(f -> !MessageRelations.RELATION.containsValue(f.predicate()))
         .toList();
   }

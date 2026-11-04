@@ -3,6 +3,7 @@ package io.lantern.app;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.AttributeSchema;
 import io.lantern.core.vocabulary.AttributeSchema.Property;
 import io.lantern.core.vocabulary.AttributeSchema.ValueType;
@@ -52,7 +53,7 @@ class VocabularyRegistryIT {
     Vocabulary current = registry.current();
 
     assertThat(current.types()).containsAll(BuiltInTypes.definitions());
-    assertThat(current.c4Level(BuiltInTypes.SERVICE)).contains(C4Level.CONTAINER);
+    assertThat(current.c4Level(Types.SERVICE)).contains(C4Level.CONTAINER);
     assertThat(
             jdbc.sql("SELECT count(*) FROM vocabulary_revisions WHERE source = 'built-in'")
                 .query(Long.class)
@@ -71,11 +72,11 @@ class VocabularyRegistryIT {
   @Test
   void everyChangeCreatesARevisionAndOldRevisionsStayReadable() {
     String name = unique("batch-job");
-    VocabularyType first = entity(name, BuiltInTypes.COMPONENT, null, AttributeSchema.NONE);
+    VocabularyType first = entity(name, Types.COMPONENT, null, AttributeSchema.NONE);
     VocabularyType second =
         entity(
             name,
-            BuiltInTypes.COMPONENT,
+            Types.COMPONENT,
             "clock",
             new AttributeSchema(Map.of("cron", Property.of(ValueType.STRING)), Set.of(), false));
 
@@ -153,8 +154,7 @@ class VocabularyRegistryIT {
   @Test
   void aTypeMayChangeItsParentAndOldRevisionsKeepTheOldOne() {
     String name = unique("shelf");
-    VocabularyType underContainer =
-        entity(name, BuiltInTypes.CONTAINER, null, AttributeSchema.NONE);
+    VocabularyType underContainer = entity(name, Types.CONTAINER, null, AttributeSchema.NONE);
     VocabularyType underNothing = entity(name, null, null, AttributeSchema.NONE);
 
     long added = registry.apply("test", List.of(underContainer));
@@ -234,7 +234,7 @@ class VocabularyRegistryIT {
 
   @Test
   void anotherSourceMayNotRedefineABuiltInType() {
-    VocabularyType service = registry.current().find(BuiltInTypes.SERVICE).orElseThrow();
+    VocabularyType service = registry.current().find(Types.SERVICE).orElseThrow();
     VocabularyType described =
         new VocabularyType(
             service.name(),

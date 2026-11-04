@@ -7,8 +7,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.AttributeValues;
-import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.attributes.BuildDependsOnAttributes;
 import io.lantern.extract.attributes.ConfigValueAttributes;
@@ -60,24 +60,6 @@ public final class DeployableUnits implements LinkRule {
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "deployable-units";
 
-  /** Attribute: a service is a deployable unit, and what makes it runnable. */
-  public static final String DEPLOYABLE_UNIT = "deployable-unit";
-
-  /** Attribute: the name a deployable unit runs under. */
-  public static final String APPLICATION_NAME = "application-name";
-
-  /** Attribute: what a deployable unit is built with. */
-  public static final String TECHNOLOGY = "technology";
-
-  /** Relationship: a deployable unit ships an in-set library. */
-  public static final String BUNDLES = "BUNDLES";
-
-  /**
-   * Attribute: the units that bundle an in-set library ask for versions other than the one its
-   * repository builds at the snapshot's commit.
-   */
-  public static final String VERSION_SKEW = "version-skew";
-
   /** Confidence of a unit found from an application class alone, relative to that class's fact. */
   static final double LIBRARY_UNIT_FACTOR = 0.8;
 
@@ -128,15 +110,15 @@ public final class DeployableUnits implements LinkRule {
   /** The extracted predicates the units are made of. */
   private static final List<String> READS =
       List.of(
-          BuiltInTypes.CONTAINS,
-          MavenExtractor.BUILD_DEPENDS_ON,
-          MavenExtractor.PACKAGES,
-          MavenExtractor.PACKAGING,
-          MavenExtractor.PARENT,
-          MavenExtractor.JAVA_RELEASE,
-          MavenExtractor.VERSION_ATTRIBUTE,
-          ConfigExtractor.CONFIG_VALUE,
-          SpringExtractor.MAIN_CLASS);
+          Types.CONTAINS,
+          Types.BUILD_DEPENDS_ON,
+          Types.PACKAGES,
+          Types.PACKAGING,
+          Types.PARENT,
+          Types.JAVA_RELEASE,
+          Types.VERSION,
+          Types.CONFIG_VALUE,
+          Types.MAIN_CLASS);
 
   /**
    * Of a config value, the units depend on the whole of a {@code spring.application.name}, and of
@@ -146,8 +128,7 @@ public final class DeployableUnits implements LinkRule {
    */
   @Override
   public String inputOf(Fact fact) {
-    if (!fact.predicate().equals(ConfigExtractor.CONFIG_VALUE)
-        || NAME_KEY.equals(Claims.key(fact))) {
+    if (!fact.predicate().equals(Types.CONFIG_VALUE) || NAME_KEY.equals(Claims.key(fact))) {
       return null;
     }
     return fact.subject() + " " + configFamily(fact);
@@ -226,7 +207,7 @@ public final class DeployableUnits implements LinkRule {
     List<Unit> units = new ArrayList<>();
     Set<EntityId> bundledByServices = new HashSet<>();
     for (Fact contains : index.containerOf.values()) {
-      if (contains.subject().type().equals(BuiltInTypes.SERVICE)) {
+      if (contains.subject().type().equals(Types.SERVICE)) {
         Unit unit =
             new Unit(
                 contains.subject(),
@@ -244,14 +225,14 @@ public final class DeployableUnits implements LinkRule {
       for (EntityId module : index.modulesOf(main.subject())) {
         Fact contains = index.containerOf.get(module);
         if (contains == null
-            || !contains.subject().type().equals(BuiltInTypes.LIBRARY)
+            || !contains.subject().type().equals(Types.LIBRARY)
             || bundledByServices.contains(contains.subject())
             || !libraryUnits.add(contains.subject())) {
           continue;
         }
         units.add(
             new Unit(
-                new EntityId(BuiltInTypes.SERVICE, contains.subject().key()),
+                new EntityId(Types.SERVICE, contains.subject().key()),
                 module,
                 main.evidence(),
                 round(main.confidence() * LIBRARY_UNIT_FACTOR),
@@ -328,7 +309,7 @@ public final class DeployableUnits implements LinkRule {
         for (EntityId m : index.modulesOf(main.subject())) {
           Fact contains = index.containerOf.get(m);
           if (contains != null
-              && contains.subject().type().equals(BuiltInTypes.LIBRARY)
+              && contains.subject().type().equals(Types.LIBRARY)
               && modules().contains(m)) {
             mainLibraries.add(contains.subject());
           }
@@ -350,7 +331,7 @@ public final class DeployableUnits implements LinkRule {
       facts.add(
           fact(
               id,
-              DEPLOYABLE_UNIT,
+              Types.DEPLOYABLE_UNIT,
               FactObject.string(kind),
               unit,
               local(main),
@@ -361,7 +342,14 @@ public final class DeployableUnits implements LinkRule {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("main", true);
         facts.add(
-            fact(id, BUNDLES, FactObject.entity(self), attributes, evidence, confidence, validity));
+            fact(
+                id,
+                Types.BUNDLES,
+                FactObject.entity(self),
+                attributes,
+                evidence,
+                confidence,
+                validity));
       }
       for (Bundled b : bundled) {
         ObjectNode attributes = FactJson.newObject();
@@ -375,7 +363,7 @@ public final class DeployableUnits implements LinkRule {
         facts.add(
             fact(
                 id,
-                BUNDLES,
+                Types.BUNDLES,
                 FactObject.entity(b.library()),
                 attributes,
                 local(b.first()),
@@ -459,7 +447,7 @@ public final class DeployableUnits implements LinkRule {
         facts.add(
             fact(
                 id,
-                APPLICATION_NAME,
+                Types.APPLICATION_NAME,
                 FactObject.string(name.object().value()),
                 attributes,
                 local(name),
@@ -473,7 +461,7 @@ public final class DeployableUnits implements LinkRule {
         facts.add(
             fact(
                 id,
-                APPLICATION_NAME,
+                Types.APPLICATION_NAME,
                 FactObject.string(key.substring(key.lastIndexOf(':') + 1)),
                 attributes,
                 evidence,
@@ -602,7 +590,7 @@ public final class DeployableUnits implements LinkRule {
       facts.add(
           fact(
               id,
-              TECHNOLOGY,
+              Types.TECHNOLOGY,
               FactObject.string(String.join(" / ", parts)),
               attributes,
               where,
@@ -628,12 +616,12 @@ public final class DeployableUnits implements LinkRule {
       for (Fact dep : index.deps.getOrDefault(step.module(), List.of())) {
         EntityId target = dep.object().entityId();
         Fact contains = index.containerOf.get(target);
-        if (!target.type().equals(BuiltInTypes.MODULE)
+        if (!target.type().equals(Types.MODULE)
             || !PACKAGED_SCOPES.contains(index.dep(dep).scope())
             || index.dep(dep).artifactType() != null
             || (step.first() != null && Boolean.TRUE.equals(index.dep(dep).optional()))
             || contains == null
-            || !contains.subject().type().equals(BuiltInTypes.LIBRARY)
+            || !contains.subject().type().equals(Types.LIBRARY)
             || !seen.add(target)) {
           continue;
         }
@@ -692,7 +680,7 @@ public final class DeployableUnits implements LinkRule {
           facts.add(
               fact(
                   library,
-                  VERSION_SKEW,
+                  Types.VERSION_SKEW,
                   FactObject.string(version),
                   attributes,
                   built.evidence(),
@@ -763,48 +751,44 @@ public final class DeployableUnits implements LinkRule {
         String extractor = f.origin().name();
         boolean entity = f.object().kind() == FactObject.Kind.ENTITY;
         switch (f.predicate()) {
-          case BuiltInTypes.CONTAINS -> {
+          case Types.CONTAINS -> {
             if (!entity) {
               break;
             }
             EntityId object = f.object().entityId();
             String subjectType = f.subject().type();
             if (extractor.equals(MavenExtractor.NAME)
-                && object.type().equals(BuiltInTypes.MODULE)
-                && (subjectType.equals(BuiltInTypes.SERVICE)
-                    || subjectType.equals(BuiltInTypes.LIBRARY))) {
+                && object.type().equals(Types.MODULE)
+                && (subjectType.equals(Types.SERVICE) || subjectType.equals(Types.LIBRARY))) {
               containerOf.merge(object, f, DeployableUnits::first);
             } else if (!extractor.equals(MavenExtractor.NAME)
-                && (object.type().equals(BuiltInTypes.PACKAGE)
-                    || object.type().equals(BuiltInTypes.TYPE))) {
+                && (object.type().equals(Types.PACKAGE) || object.type().equals(Types.TYPE))) {
               parents.computeIfAbsent(object, o -> new LinkedHashSet<>()).add(f.subject());
             }
           }
-          case MavenExtractor.BUILD_DEPENDS_ON -> {
+          case Types.BUILD_DEPENDS_ON -> {
             if (entity) {
               deps.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
             }
           }
-          case MavenExtractor.PACKAGES -> {
+          case Types.PACKAGES -> {
             if (entity) {
               packages
                   .computeIfAbsent(f.subject(), s -> new HashSet<>())
                   .add(f.object().entityId());
             }
           }
-          case MavenExtractor.PACKAGING -> packaging.put(f.subject(), f.object().value());
-          case MavenExtractor.PARENT -> parent.merge(f.subject(), f, DeployableUnits::first);
-          case MavenExtractor.JAVA_RELEASE ->
-              javaRelease.merge(f.subject(), f, DeployableUnits::first);
-          case MavenExtractor.VERSION_ATTRIBUTE -> {
-            if (extractor.equals(MavenExtractor.NAME)
-                && f.subject().type().equals(BuiltInTypes.MODULE)) {
+          case Types.PACKAGING -> packaging.put(f.subject(), f.object().value());
+          case Types.PARENT -> parent.merge(f.subject(), f, DeployableUnits::first);
+          case Types.JAVA_RELEASE -> javaRelease.merge(f.subject(), f, DeployableUnits::first);
+          case Types.VERSION -> {
+            if (extractor.equals(MavenExtractor.NAME) && f.subject().type().equals(Types.MODULE)) {
               moduleVersion.merge(f.subject(), f, DeployableUnits::first);
             }
           }
-          case ConfigExtractor.CONFIG_VALUE ->
+          case Types.CONFIG_VALUE ->
               config.computeIfAbsent(f.subject(), s -> new ArrayList<>()).add(f);
-          case SpringExtractor.MAIN_CLASS -> {
+          case Types.MAIN_CLASS -> {
             if (f.object().value().equals(SpringExtractor.SPRING_BOOT)) {
               bootMains.add(f);
             }
@@ -841,7 +825,7 @@ public final class DeployableUnits implements LinkRule {
           return fact;
         }
         try {
-          current = new EntityId(BuiltInTypes.MODULE, key);
+          current = new EntityId(Types.MODULE, key);
         } catch (IllegalArgumentException e) {
           return null;
         }
@@ -859,7 +843,7 @@ public final class DeployableUnits implements LinkRule {
         if (!seen.add(current)) {
           continue;
         }
-        if (current.type().equals(BuiltInTypes.MODULE)) {
+        if (current.type().equals(Types.MODULE)) {
           modules.add(current);
           continue;
         }

@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -68,22 +68,6 @@ public final class JavaExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "java-extractor";
-
-  /** Entity type of a method or constructor. */
-  public static final String METHOD = ModuleStructure.METHOD;
-
-  /** Entity type of a field or enum constant. */
-  public static final String FIELD = ModuleStructure.FIELD;
-
-  /** Attribute: what sort of type the subject is (class, interface, enum, record, annotation). */
-  public static final String KIND = "kind";
-
-  /**
-   * Attribute: the type is generated code, and by what: the generator its {@code @Generated}
-   * annotation names (such as {@code org.mapstruct.ap.MappingProcessor}), else {@code build} for a
-   * type in the build's generated sources.
-   */
-  public static final String GENERATED = "generated";
 
   /** The {@code @Generated} annotations code generators write on the types they generate. */
   private static final Set<String> GENERATED_ANNOTATIONS =
@@ -332,7 +316,7 @@ public final class JavaExtractor implements Extractor {
         } else if (t.packageName().isEmpty()) {
           container = moduleId;
         } else {
-          container = new EntityId(BuiltInTypes.PACKAGE, moduleKey + ":" + t.packageName());
+          container = new EntityId(Types.PACKAGE, moduleKey + ":" + t.packageName());
           String path = t.where().file().path();
           String directory = path.substring(0, Math.max(0, path.lastIndexOf('/')));
           packages.merge(
@@ -341,18 +325,12 @@ public final class JavaExtractor implements Extractor {
               (a, b) -> a.path().compareTo(b.path()) <= 0 ? a : b);
         }
         if (container != null) {
-          fact(
-              container,
-              BuiltInTypes.CONTAINS,
-              FactObject.entity(type),
-              repo,
-              t.where(),
-              confidence);
+          fact(container, Types.CONTAINS, FactObject.entity(type), repo, t.where(), confidence);
         }
-        fact(type, KIND, FactObject.string(t.kind()), repo, t.where(), confidence);
+        fact(type, Types.KIND, FactObject.string(t.kind()), repo, t.where(), confidence);
         String generator = generator(structure, t);
         if (generator != null) {
-          fact(type, GENERATED, FactObject.string(generator), repo, t.where(), confidence);
+          fact(type, Types.GENERATED, FactObject.string(generator), repo, t.where(), confidence);
         }
         for (Supertype s : t.supertypes()) {
           EntityId supertype = ModuleStructure.typeId(s.binaryName());
@@ -361,8 +339,8 @@ public final class JavaExtractor implements Extractor {
           }
         }
         for (Member m : t.members()) {
-          fact(type, BuiltInTypes.CONTAINS, FactObject.entity(m.id()), repo, m.where(), confidence);
-          if (m.id().type().equals(METHOD)) {
+          fact(type, Types.CONTAINS, FactObject.entity(m.id()), repo, m.where(), confidence);
+          if (m.id().type().equals(Types.METHOD)) {
             methods.add(m.id());
           }
         }
@@ -376,12 +354,7 @@ public final class JavaExtractor implements Extractor {
       for (PackageFact p : packages.values()) {
         Evidence evidence =
             Evidence.of(p.repo().repo().name(), p.path().isEmpty() ? null : p.path(), null, null);
-        put(
-            p.module(),
-            BuiltInTypes.CONTAINS,
-            FactObject.entity(p.pkg()),
-            evidence,
-            p.confidence());
+        put(p.module(), Types.CONTAINS, FactObject.entity(p.pkg()), evidence, p.confidence());
       }
       // One fact per caller and callee, with the first call as evidence.
       Map<List<EntityId>, PendingCall> first = new HashMap<>();
@@ -401,7 +374,7 @@ public final class JavaExtractor implements Extractor {
         PendingCall p = e.getValue();
         fact(
             p.call().caller(),
-            BuiltInTypes.CALLS,
+            Types.CALLS,
             FactObject.entity(e.getKey().get(1)),
             p.repo(),
             p.call().where(),

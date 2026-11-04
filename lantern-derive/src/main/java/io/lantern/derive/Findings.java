@@ -6,9 +6,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
-import io.lantern.link.ClaimChecks;
 import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
 import java.util.ArrayList;
@@ -55,9 +54,6 @@ public final class Findings implements LinkRule.OverFacts {
   /** Raised whenever the findings it gives for the same facts change. */
   public static final String VERSION = "1";
 
-  public static final String FINDING = "finding";
-  public static final String RAISED = "finding-raised";
-
   public static final String SNAPSHOT_DEPENDENCY = "snapshot-dependency";
   public static final String DEPENDENCY_DRIFT = "dependency-drift";
   public static final String PACKAGE_CYCLE = "package-cycle";
@@ -82,19 +78,23 @@ public final class Findings implements LinkRule.OverFacts {
   public static final String VIA_DEPENDENCY = "dependency";
   public static final String VIA_JAVA_RELEASE = "java-release";
 
-  /** The linker's (and the README claim checks') facts that are findings as they stand. */
+  /**
+   * The linker's (and the README claim checks') facts that are findings as they stand: each
+   * predicate, with the kind of finding it becomes (a kind is Findings' own name, even where it
+   * equals the predicate's).
+   */
   private static final Map<String, String> RECORDED =
       new TreeMap<>(
           Map.of(
-              "version-skew", VERSION_SKEW,
-              "shared-secret", SHARED_JWT_SECRET,
-              "unrouted-endpoint", UNROUTED_ENDPOINT,
-              "claim-contradiction", README_CONTRADICTION));
+              Types.VERSION_SKEW,
+              VERSION_SKEW,
+              Types.SHARED_SECRET,
+              SHARED_JWT_SECRET,
+              Types.UNROUTED_ENDPOINT,
+              UNROUTED_ENDPOINT,
+              Types.CLAIM_CONTRADICTION,
+              README_CONTRADICTION));
 
-  private static final String BUILD_DEPENDS_ON = "BUILD_DEPENDS_ON";
-  private static final String JAVA_RELEASE = "java-release";
-  private static final String TECHNOLOGY = "technology";
-  private static final String DEPLOYABLE_UNIT = "deployable-unit";
   private static final String SPRING_GROUP = "org.springframework:spring-";
   private static final String SNAPSHOT = "-SNAPSHOT";
 
@@ -108,12 +108,12 @@ public final class Findings implements LinkRule.OverFacts {
   @Override
   public Set<String> reads() {
     // The README claim checks' facts too: they run with the derive rules, before this one.
-    return Set.of(EXTRACTED, LINKED, ClaimChecks.CLAIM_CONTRADICTION);
+    return Set.of(EXTRACTED, LINKED, Types.CLAIM_CONTRADICTION);
   }
 
   @Override
   public Set<String> writes() {
-    return Set.of(RAISED);
+    return Set.of(Types.FINDING_RAISED);
   }
 
   /** The vocabulary types of the findings' facts besides the built-in ones. */
@@ -123,7 +123,7 @@ public final class Findings implements LinkRule.OverFacts {
 
   /** The finding of a kind with a key, percent-encoded where it holds whitespace. */
   public static EntityId id(String kind, String key) {
-    return new EntityId(FINDING, kind + "/" + DeploymentInstances.encoded(key, ""));
+    return new EntityId(Types.FINDING, kind + "/" + DeploymentInstances.encoded(key, ""));
   }
 
   @Override
@@ -153,10 +153,9 @@ public final class Findings implements LinkRule.OverFacts {
   private static void dependencies(Knowledge knowledge, String repo, Writer out) {
     SortedMap<EntityId, List<Fact>> byTarget = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId module : knowledge.modules(repo)) {
-      for (Fact fact : knowledge.relations(module, BUILD_DEPENDS_ON)) {
+      for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
         EntityId target = Knowledge.object(fact);
-        boolean own =
-            target.type().equals(BuiltInTypes.MODULE) && knowledge.repos(target).contains(repo);
+        boolean own = target.type().equals(Types.MODULE) && knowledge.repos(target).contains(repo);
         if (!own && !"test".equals(Screens.attribute(fact, "scope", "compile"))) {
           byTarget.computeIfAbsent(target, t -> new ArrayList<>()).add(fact);
         }
@@ -236,10 +235,10 @@ public final class Findings implements LinkRule.OverFacts {
    * names who uses it: the unit, or the service or library building the module, else the module.
    */
   private static void endOfLife(Knowledge knowledge, Writer out) {
-    for (Fact fact : knowledge.withPredicate(DEPLOYABLE_UNIT)) {
+    for (Fact fact : knowledge.withPredicate(Types.DEPLOYABLE_UNIT)) {
       EntityId unit = fact.subject();
       for (Fact technology : knowledge.attributes(unit)) {
-        if (!technology.predicate().equals(TECHNOLOGY)) {
+        if (!technology.predicate().equals(Types.TECHNOLOGY)) {
           continue;
         }
         if ("Spring Boot".equals(Screens.attribute(technology, "framework", null))) {
@@ -260,10 +259,10 @@ public final class Findings implements LinkRule.OverFacts {
     }
     for (String repo : knowledge.repos()) {
       for (EntityId module : knowledge.modules(repo)) {
-        for (Fact fact : knowledge.relations(module, BUILD_DEPENDS_ON)) {
+        for (Fact fact : knowledge.relations(module, Types.BUILD_DEPENDS_ON)) {
           EntityId target = Knowledge.object(fact);
           String version = Screens.attribute(fact, "version", null);
-          if (target.type().equals("artifact")
+          if (target.type().equals(Types.ARTIFACT)
               && target.key().startsWith(SPRING_GROUP)
               && version != null
               && !"test".equals(Screens.attribute(fact, "scope", "compile"))) {
@@ -277,11 +276,11 @@ public final class Findings implements LinkRule.OverFacts {
                 fact);
           }
         }
-        if (knowledge.attribute(module, "packaging").orElse("jar").equals("pom")) {
+        if (knowledge.attribute(module, Types.PACKAGING).orElse("jar").equals("pom")) {
           continue;
         }
         for (Fact fact : knowledge.attributes(module)) {
-          if (fact.predicate().equals(JAVA_RELEASE)) {
+          if (fact.predicate().equals(Types.JAVA_RELEASE)) {
             endOfLife(
                 out,
                 EndOfLife.Product.JAVA,
@@ -385,7 +384,7 @@ public final class Findings implements LinkRule.OverFacts {
       facts.add(
           Fact.create(
               id(kind, key),
-              RAISED,
+              Types.FINDING_RAISED,
               FactObject.string(kind),
               attributes,
               ORIGIN,
@@ -409,7 +408,7 @@ public final class Findings implements LinkRule.OverFacts {
     attributes.put("quote", quote);
     return Fact.create(
         id(INJECTION_SUSPECTED, repo + ":" + path),
-        RAISED,
+        Types.FINDING_RAISED,
         FactObject.string(INJECTION_SUSPECTED),
         attributes,
         SCREEN_ORIGIN,
@@ -439,7 +438,7 @@ public final class Findings implements LinkRule.OverFacts {
   /** The findings of a kind stored in the knowledge, by ID. */
   public static List<Fact> of(Knowledge knowledge, String kind) {
     List<Fact> found = new ArrayList<>();
-    for (Fact fact : knowledge.withPredicate(RAISED)) {
+    for (Fact fact : knowledge.withPredicate(Types.FINDING_RAISED)) {
       if (fact.object().value().equals(kind) && cited(knowledge, fact) != null) {
         found.add(fact);
       }

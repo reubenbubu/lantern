@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -73,42 +74,6 @@ public final class MessagingExtractor implements Extractor {
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
 
-  /** Attribute: the method handles messages, an entry point. */
-  public static final String LISTENER = "message-listener";
-
-  /** Attribute: the method sends messages. */
-  public static final String SEND = "message-send";
-
-  /** Attribute: the method binds a RabbitMQ queue to an exchange. */
-  public static final String BINDING = "message-binding";
-
-  /** Attribute: the method declares a queue, exchange or topic. */
-  public static final String DESTINATION = "message-destination";
-
-  /** Entity: a destination of a broker, as code names it. */
-  public static final String DESTINATION_ENTITY = "destination";
-
-  /** Relationship: the method sends to the destination (ADR 0094, #559). */
-  public static final String SENDS_TO = "SENDS_TO";
-
-  /** Relationship: the method listens on the destination. */
-  public static final String LISTENS_ON = "LISTENS_ON";
-
-  /** Relationship: the method binds the destination, a RabbitMQ queue, to an exchange. */
-  public static final String BINDS = "BINDS";
-
-  /** Relationship: the method, or a type for a field initializer, declares the destination. */
-  public static final String DECLARES = "DECLARES";
-
-  /** Attribute: the method is a function bean Spring Cloud Stream may bind. */
-  public static final String STREAM_FUNCTION = "stream-function";
-
-  /**
-   * Attribute: the type of the messages a method sends or receives, or (from the HTTP client
-   * extractor) of a request body or response a client method declares (#520).
-   */
-  public static final String PAYLOAD_TYPE = "payload-type";
-
   /** Listener parameters that are not the message: headers, channels, acknowledgements. */
   private static final Set<String> NOT_PAYLOADS =
       Set.of(
@@ -138,10 +103,26 @@ public final class MessagingExtractor implements Extractor {
 
   /** The relationship recorded as written for each fact linking records, and back. */
   private static final Map<String, String> RELATIONS =
-      Map.of(SEND, SENDS_TO, LISTENER, LISTENS_ON, BINDING, BINDS, DESTINATION, DECLARES);
+      Map.of(
+          Types.MESSAGE_SEND,
+          Types.SENDS_TO,
+          Types.MESSAGE_LISTENER,
+          Types.LISTENS_ON,
+          Types.MESSAGE_BINDING,
+          Types.BINDS,
+          Types.MESSAGE_DESTINATION,
+          Types.DECLARES);
 
   private static final Map<String, String> PREDICATES =
-      Map.of(SENDS_TO, SEND, LISTENS_ON, LISTENER, BINDS, BINDING, DECLARES, DESTINATION);
+      Map.of(
+          Types.SENDS_TO,
+          Types.MESSAGE_SEND,
+          Types.LISTENS_ON,
+          Types.MESSAGE_LISTENER,
+          Types.BINDS,
+          Types.MESSAGE_BINDING,
+          Types.DECLARES,
+          Types.MESSAGE_DESTINATION);
 
   /** The attribute of a written fact holding the destination's name as written. */
   private static final String NAME_VALUE = "name";
@@ -353,9 +334,10 @@ public final class MessagingExtractor implements Extractor {
    * The facts linking gives from the values this extractor keeps as written (ADR 0094, #559): each
    * written send, listener, binding and declaration resolved in each view of its module's config,
    * and the bindings of each module's Spring Cloud Stream functions, as this extractor recorded
-   * them before: {@value #SEND}, {@value #LISTENER}, {@value #BINDING} and {@value #DESTINATION}
-   * facts, the default view's and each differing profile's. A value a secret was substituted into
-   * is recorded as written, with {@code masked}.
+   * them before: {@value Types#MESSAGE_SEND}, {@value Types#MESSAGE_LISTENER}, {@value
+   * Types#MESSAGE_BINDING} and {@value Types#MESSAGE_DESTINATION} facts, the default view's and
+   * each differing profile's. A value a secret was substituted into is recorded as written, with
+   * {@code masked}.
    *
    * @param facts the snapshot's facts; only the written ones of this extractor are read
    * @param config the config of a module, by its entity ID and its repository's name
@@ -375,11 +357,11 @@ public final class MessagingExtractor implements Extractor {
     Map<String, Emitter> emitters = new LinkedHashMap<>();
     Map<String, Map<String, Emitter.Bound>> functions = new LinkedHashMap<>();
     for (Fact f : facts) {
-      boolean function = f.predicate().equals(STREAM_FUNCTION);
+      boolean function = f.predicate().equals(Types.STREAM_FUNCTION);
       boolean written =
           PREDICATES.containsKey(f.predicate())
               && f.object().kind() == FactObject.Kind.ENTITY
-              && f.object().entityId().type().equals(DESTINATION_ENTITY)
+              && f.object().entityId().type().equals(Types.DESTINATION)
               && BROKERS.contains(f.attributes().path("broker").stringValue(null));
       if (!function && !written) {
         continue;
@@ -637,7 +619,7 @@ public final class MessagingExtractor implements Extractor {
       if (group != null) {
         named.put("group", group);
       }
-      emit(method.id(), LISTENER, destination, named, attributes, where);
+      emit(method.id(), Types.MESSAGE_LISTENER, destination, named, attributes, where);
     }
 
     /** A {@code @QueueBinding} of a {@code @RabbitListener}: the queue listened on and bound. */
@@ -699,7 +681,7 @@ public final class MessagingExtractor implements Extractor {
         attributes.put("template", written.type());
         if (!broker.equals(RABBITMQ)) {
           attributes.put("destinationKind", broker.equals(KAFKA) ? "topic" : "destination");
-          emit(method.id(), SEND, Text.annotated(to), Map.of(), attributes, where);
+          emit(method.id(), Types.MESSAGE_SEND, Text.annotated(to), Map.of(), attributes, where);
           continue;
         }
         int slash = to.indexOf('/');
@@ -767,7 +749,7 @@ public final class MessagingExtractor implements Extractor {
           topic = text(first, caller);
         }
         if (topic != null) {
-          emit(caller, SEND, topic, Map.of(), attributes, i.where());
+          emit(caller, Types.MESSAGE_SEND, topic, Map.of(), attributes, i.where());
         }
         payload(caller, "send", i, arguments.size() - 1, KAFKA);
         return;
@@ -781,7 +763,7 @@ public final class MessagingExtractor implements Extractor {
         if (destination != null) {
           attributes.put("broker", JMS);
           attributes.put("destinationKind", "destination");
-          emit(caller, SEND, destination, Map.of(), attributes, i.where());
+          emit(caller, Types.MESSAGE_SEND, destination, Map.of(), attributes, i.where());
         }
         if (call.method().startsWith("convertAndSend")) {
           payload(caller, "send", i, addressed ? 1 : 0, JMS);
@@ -921,7 +903,7 @@ public final class MessagingExtractor implements Extractor {
         ArrayNode arguments = attributes.putArray("typeArguments");
         type.arguments().forEach(arguments::add);
       }
-      fact(subject, PAYLOAD_TYPE, FactObject.string(type.type()), attributes, where);
+      fact(subject, Types.PAYLOAD_TYPE, FactObject.string(type.type()), attributes, where);
     }
 
     /** The erased parameter types in a method's ID. */
@@ -957,13 +939,13 @@ public final class MessagingExtractor implements Extractor {
         } else if (keyUnknown) {
           unknown.add("routingKey");
         }
-        emit(subject, SEND, Text.literal(UNKNOWN_EXCHANGE), named, attributes, where);
+        emit(subject, Types.MESSAGE_SEND, Text.literal(UNKNOWN_EXCHANGE), named, attributes, where);
         return;
       }
       if (!configured(exchange) && exchange.written().isEmpty()) {
         if (key != null) {
           attributes.put("destinationKind", "queue");
-          emit(subject, SEND, key, named, attributes, where);
+          emit(subject, Types.MESSAGE_SEND, key, named, attributes, where);
         }
         return;
       }
@@ -973,7 +955,7 @@ public final class MessagingExtractor implements Extractor {
       } else if (keyUnknown) {
         attributes.putArray("unknown").add("routingKey");
       }
-      emit(subject, SEND, exchange, named, attributes, where);
+      emit(subject, Types.MESSAGE_SEND, exchange, named, attributes, where);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -1057,7 +1039,7 @@ public final class MessagingExtractor implements Extractor {
       if (key != null && !keyless) {
         named.put("routingKey", key);
       }
-      emit(subject, BINDING, queue, named, attributes, where);
+      emit(subject, Types.MESSAGE_BINDING, queue, named, attributes, where);
     }
 
     /**
@@ -1172,7 +1154,7 @@ public final class MessagingExtractor implements Extractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("broker", KAFKA);
         attributes.put("destinationKind", "topic");
-        emit(context, DESTINATION, topic, Map.of(), attributes, where);
+        emit(context, Types.MESSAGE_DESTINATION, topic, Map.of(), attributes, where);
       }
     }
 
@@ -1247,7 +1229,7 @@ public final class MessagingExtractor implements Extractor {
       if (durable != null) {
         attributes.put("durable", durable);
       }
-      emit(context, DESTINATION, d.name(), named, attributes, where);
+      emit(context, Types.MESSAGE_DESTINATION, d.name(), named, attributes, where);
     }
 
     /**
@@ -1317,8 +1299,8 @@ public final class MessagingExtractor implements Extractor {
     /**
      * The functions Spring Cloud Stream may bind: {@code @Bean} methods returning a {@code
      * Function}, {@code Consumer} or {@code Supplier} (or their two-input forms), and components
-     * implementing one, each a {@value #STREAM_FUNCTION} fact named after its bean. Linking binds
-     * them in each view as the module's config says.
+     * implementing one, each a {@value Types#STREAM_FUNCTION} fact named after its bean. Linking
+     * binds them in each view as the module's config says.
      */
     private void functions(JavaAnalysis.Module m) {
       Map<String, Bound> functions = new LinkedHashMap<>();
@@ -1342,7 +1324,7 @@ public final class MessagingExtractor implements Extractor {
             attributes.put("inputs", b.kind().inputs());
             attributes.put("outputs", b.kind().outputs());
             module(attributes, true);
-            fact(b.method(), STREAM_FUNCTION, FactObject.string(bean), attributes, b.where());
+            fact(b.method(), Types.STREAM_FUNCTION, FactObject.string(bean), attributes, b.where());
           });
     }
 
@@ -1498,7 +1480,7 @@ public final class MessagingExtractor implements Extractor {
       ObjectNode attributes = common.deepCopy();
       attributes.put("broker", STREAM);
       attributes.put("destinationKind", BINDING_KIND);
-      emit(subject, LISTENER, Text.literal(binding), Map.of(), attributes, where);
+      emit(subject, Types.MESSAGE_LISTENER, Text.literal(binding), Map.of(), attributes, where);
     }
 
     /**
@@ -1516,7 +1498,7 @@ public final class MessagingExtractor implements Extractor {
       if (binder != null) {
         named.put("binder", binder);
       }
-      emit(subject, SEND, binding, named, attributes, where);
+      emit(subject, Types.MESSAGE_SEND, binding, named, attributes, where);
     }
 
     // -------------------------------------------------------------------------------------------
@@ -1614,7 +1596,7 @@ public final class MessagingExtractor implements Extractor {
     }
 
     private static boolean isMethod(Member m) {
-      return m.id().type().equals(ModuleStructure.METHOD)
+      return m.id().type().equals(Types.METHOD)
           && !m.id().key().contains("#" + ModuleStructure.CONSTRUCTOR + "(");
     }
 
@@ -1633,9 +1615,9 @@ public final class MessagingExtractor implements Extractor {
     // Facts as written
 
     /**
-     * Records a value-bearing fact as written: the subject's {@value #SENDS_TO}, {@value
-     * #LISTENS_ON}, {@value #BINDS} or {@value #DECLARES} relationship to the destination the
-     * object names, with the values as written in code, which config may resolve ({@code
+     * Records a value-bearing fact as written: the subject's {@value Types#SENDS_TO}, {@value
+     * #LISTENS_ON}, {@value Types#BINDS} or {@value Types#DECLARES} relationship to the destination
+     * the object names, with the values as written in code, which config may resolve ({@code
      * configured}), and the fields or parameters each was followed through.
      */
     private void emit(
@@ -1647,7 +1629,9 @@ public final class MessagingExtractor implements Extractor {
         Location where) {
       String broker = attributes.get("broker").stringValue();
       String kind =
-          predicate.equals(BINDING) ? "queue" : attributes.get("destinationKind").stringValue();
+          predicate.equals(Types.MESSAGE_BINDING)
+              ? "queue"
+              : attributes.get("destinationKind").stringValue();
       boolean stream = broker.equals(STREAM);
       if (object.written().isEmpty()) {
         // An empty name names nothing, as an empty value gave no fact before.
@@ -1655,7 +1639,7 @@ public final class MessagingExtractor implements Extractor {
       }
       boolean scoped = stream || configured(object) || object.written().equals(UNKNOWN_EXCHANGE);
       ObjectNode a = attributes.deepCopy();
-      if (predicate.equals(BINDING)) {
+      if (predicate.equals(Types.MESSAGE_BINDING)) {
         a.remove("destinationKind");
       }
       ArrayNode configured = FactJson.newObject().arrayNode();
@@ -1678,7 +1662,7 @@ public final class MessagingExtractor implements Extractor {
       module(a, stream);
       String key = broker + ":" + kind + ":" + object.written();
       EntityId destination =
-          EntityKeys.of(DESTINATION_ENTITY, scoped ? module.id().key() + ":" + key : key);
+          EntityKeys.of(Types.DESTINATION, scoped ? module.id().key() + ":" + key : key);
       fact(subject, RELATIONS.get(predicate), FactObject.entity(destination), a, where);
     }
 
@@ -1743,8 +1727,9 @@ public final class MessagingExtractor implements Extractor {
 
   /**
    * The facts of one module's values as written, resolved in each view of its config: the {@value
-   * #SEND}, {@value #LISTENER}, {@value #BINDING} and {@value #DESTINATION} facts this extractor
-   * recorded before it kept values as written (ADR 0094, #559).
+   * #SEND}, {@value Types#MESSAGE_LISTENER}, {@value Types#MESSAGE_BINDING} and {@value
+   * Types#MESSAGE_DESTINATION} facts this extractor recorded before it kept values as written (ADR
+   * 0094, #559).
    */
   private static final class Emitter {
 
@@ -1791,7 +1776,7 @@ public final class MessagingExtractor implements Extractor {
         // The binding's broker and kind come from config, not from the code.
         base.remove("broker");
         base.remove("destinationKind");
-        if (predicate.equals(LISTENER)) {
+        if (predicate.equals(Types.MESSAGE_LISTENER)) {
           streamInput(subject, src, profile -> object.written(), base);
         } else {
           Text binder = named.get("binder");
@@ -1806,7 +1791,7 @@ public final class MessagingExtractor implements Extractor {
       }
       List<String> unknown = new ArrayList<>();
       a.path("unknown").forEach(u -> unknown.add(u.stringValue()));
-      if (predicate.equals(SEND)
+      if (predicate.equals(Types.MESSAGE_SEND)
           && RABBITMQ.equals(broker)
           && "exchange".equals(a.path("destinationKind").stringValue(null))
           && !unknown.contains("exchange")) {
@@ -1844,7 +1829,7 @@ public final class MessagingExtractor implements Extractor {
         Source src) {
       emitViews(
           subject,
-          SEND,
+          Types.MESSAGE_SEND,
           src,
           profile -> {
             CodeValue resolved = resolve(profile, exchange);
@@ -1874,8 +1859,8 @@ public final class MessagingExtractor implements Extractor {
     private record FunctionBinding(EntityId method, Source src, boolean input, String name) {}
 
     /**
-     * The bindings of a module's functions ({@value #STREAM_FUNCTION} facts), by bean name: bound
-     * in each view as the function definition says, or the only one when none is set.
+     * The bindings of a module's functions ({@value Types#STREAM_FUNCTION} facts), by bean name:
+     * bound in each view as the function definition says, or the only one when none is set.
      */
     void functions(Map<String, Bound> functions) {
       if (functions.isEmpty() || stream == null) {
@@ -1956,8 +1941,10 @@ public final class MessagingExtractor implements Extractor {
      */
     private void streamInput(
         EntityId subject, Source src, Function<String, String> binding, ObjectNode common) {
-      emitSlots(subject, LISTENER, src, p -> inputs(p, binding.apply(p), common, false));
-      emitSlots(subject, BINDING, src, p -> inputs(p, binding.apply(p), common, true));
+      emitSlots(
+          subject, Types.MESSAGE_LISTENER, src, p -> inputs(p, binding.apply(p), common, false));
+      emitSlots(
+          subject, Types.MESSAGE_BINDING, src, p -> inputs(p, binding.apply(p), common, true));
     }
 
     private Map<String, Shape> inputs(
@@ -2048,7 +2035,7 @@ public final class MessagingExtractor implements Extractor {
         ObjectNode common) {
       emitSlots(
           subject,
-          SEND,
+          Types.MESSAGE_SEND,
           src,
           p -> output(p, binding.apply(p), binder == null ? null : binder.apply(p), common));
     }
@@ -2233,7 +2220,7 @@ public final class MessagingExtractor implements Extractor {
         }
         SortedSet<String> followed = new TreeSet<>(s.object().followed());
         s.named().values().forEach(t -> followed.addAll(t.followed()));
-        if (!followed.isEmpty() && !predicate.equals(LISTENER)) {
+        if (!followed.isEmpty() && !predicate.equals(Types.MESSAGE_LISTENER)) {
           ArrayNode via = attributes.putArray("followed");
           followed.forEach(via::add);
         }

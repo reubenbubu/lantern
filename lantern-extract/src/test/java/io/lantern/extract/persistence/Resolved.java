@@ -2,6 +2,7 @@ package io.lantern.extract.persistence;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.ModuleValues;
@@ -35,14 +36,13 @@ final class Resolved {
     List<Fact> written = new PersistenceExtractor().extract(code, snapshot);
     List<Fact> facts = new ArrayList<>();
     for (Fact f : written) {
-      if (!f.predicate().equals(PersistenceExtractor.JPA_TABLE)) {
+      if (!f.predicate().equals(Types.JPA_TABLE)) {
         facts.add(f);
       }
     }
     facts.addAll(PersistenceExtractor.tables(written, configs(code), origin(), snapshot));
     for (Fact f : datasources(code, snapshot, secretKeys)) {
-      if (!f.predicate().equals(PersistenceExtractor.HAS_DATASOURCE)
-          && !f.predicate().equals(PersistenceExtractor.CONNECTS_TO)) {
+      if (!f.predicate().equals(Types.HAS_DATASOURCE) && !f.predicate().equals(Types.CONNECTS_TO)) {
         facts.add(f);
       }
     }

@@ -6,10 +6,10 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.EndpointAttributes;
 import io.lantern.extract.attributes.PersonEvidenceAttributes;
 import io.lantern.extract.people.PeopleExtractor;
-import io.lantern.extract.spring.SpringExtractor;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -42,12 +42,6 @@ public final class People implements LinkRule {
   public static final String VERSION = "1";
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
-
-  /** Entity: a person who uses the system. */
-  static final String PERSON = "person";
-
-  /** Attribute of a person: the kind of evidence it rests on, with its description. */
-  static final String PERSON_BASIS = "person-basis";
 
   /** The basis of a person made of a role. */
   static final String ROLE = "role";
@@ -93,12 +87,12 @@ public final class People implements LinkRule {
 
   @Override
   public Set<String> reads() {
-    return Set.of(PeopleExtractor.PERSON_EVIDENCE, SpringExtractor.ENDPOINT);
+    return Set.of(Types.PERSON_EVIDENCE, Types.ENDPOINT);
   }
 
   @Override
   public Set<String> writes() {
-    return Set.of(PERSON_BASIS, DataLinker.DISPLAY_NAME);
+    return Set.of(Types.PERSON_BASIS, Types.DISPLAY_NAME);
   }
 
   /** A person's evidence or an endpoint, with its attributes read. */
@@ -306,7 +300,7 @@ public final class People implements LinkRule {
   /** Writes a person: its name and the basis with its description, citations and frontends. */
   private static void write(
       String slug, Draft draft, List<Cited> routes, ClaimSink out, Validity validity) {
-    EntityId person = new EntityId(PERSON, slug);
+    EntityId person = new EntityId(Types.PERSON, slug);
     // The screens of frontends that are for this person.
     List<Cited> mine = new ArrayList<>();
     for (Cited route : routes) {
@@ -356,7 +350,7 @@ public final class People implements LinkRule {
     out.add(
         Fact.create(
             person,
-            PERSON_BASIS,
+            Types.PERSON_BASIS,
             FactObject.string(draft.basis),
             attributes,
             ORIGIN,
@@ -366,7 +360,7 @@ public final class People implements LinkRule {
     out.add(
         Fact.create(
             person,
-            DataLinker.DISPLAY_NAME,
+            Types.DISPLAY_NAME,
             FactObject.string(draft.name),
             FactJson.newObject(),
             ORIGIN,

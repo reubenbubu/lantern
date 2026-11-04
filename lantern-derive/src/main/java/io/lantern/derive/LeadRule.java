@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
@@ -35,15 +35,6 @@ import tools.jackson.databind.node.ObjectNode;
  * triggered it, one level.
  */
 public abstract class LeadRule implements LinkRule.OverFacts {
-
-  /** The entity type of a lead. */
-  public static final String LEAD = "lead";
-
-  /** The fact that a lead is raised: its value is the lead's kind. */
-  public static final String LEAD_TRIGGER = "lead-trigger";
-
-  static final String DEPLOYABLE_UNIT = "deployable-unit";
-  static final String METHOD = "method";
 
   private final String kind;
   private final String version;
@@ -77,7 +68,7 @@ public abstract class LeadRule implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Set.of(LEAD_TRIGGER);
+    return Set.of(Types.LEAD_TRIGGER);
   }
 
   /** The vocabulary types of leads. */
@@ -125,7 +116,7 @@ public abstract class LeadRule implements LinkRule.OverFacts {
           for (EntityId module : Components.codeModules(knowledge, unit)) {
             unitsOfType.computeIfAbsent(module, m -> new TreeSet<>(Knowledge.BY_ID)).add(unit);
             SortedSet<EntityId> types = new TreeSet<>(knowledge.typesWithin(module));
-            for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+            for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
               types.addAll(knowledge.typesWithin(pkg));
             }
             for (EntityId type : types) {
@@ -135,7 +126,7 @@ public abstract class LeadRule implements LinkRule.OverFacts {
         }
       }
       EntityId owner =
-          entity.type().equals(BuiltInTypes.TYPE) || entity.type().equals(BuiltInTypes.MODULE)
+          entity.type().equals(Types.TYPE) || entity.type().equals(Types.MODULE)
               ? entity
               : Components.ownerType(knowledge, entity);
       SortedSet<EntityId> found = unitsOfType.get(owner);
@@ -149,7 +140,7 @@ public abstract class LeadRule implements LinkRule.OverFacts {
     SortedSet<EntityId> typesOf(EntityId module) {
       SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
       types.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+      for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
         types.addAll(knowledge.typesWithin(pkg));
       }
       return types;
@@ -158,7 +149,7 @@ public abstract class LeadRule implements LinkRule.OverFacts {
     /** The deployable units. */
     SortedSet<EntityId> units() {
       SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-      knowledge.withPredicate(DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
+      knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
       return units;
     }
   }
@@ -210,8 +201,8 @@ public abstract class LeadRule implements LinkRule.OverFacts {
       facts.keySet().forEach(cites::add);
       Fact first = facts.values().iterator().next();
       return Fact.create(
-          new EntityId(LEAD, kind + "/" + DeploymentInstances.encoded(key, "")),
-          LEAD_TRIGGER,
+          new EntityId(Types.LEAD, kind + "/" + DeploymentInstances.encoded(key, "")),
+          Types.LEAD_TRIGGER,
           FactObject.string(kind),
           attributes,
           origin,
@@ -281,7 +272,7 @@ public abstract class LeadRule implements LinkRule.OverFacts {
   /** The methods of a type and the type itself. */
   static Set<EntityId> withMethods(Knowledge knowledge, EntityId type) {
     Set<EntityId> members = new LinkedHashSet<>(List.of(type));
-    members.addAll(knowledge.parts(type, METHOD));
+    members.addAll(knowledge.parts(type, Types.METHOD));
     return members;
   }
 }

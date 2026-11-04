@@ -7,8 +7,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.EntityKeys;
-import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Target;
 import io.lantern.link.Deployments.Placed;
@@ -59,11 +59,8 @@ public final class AddressResolution implements LinkRule {
   /** The rule's version. */
   public static final String VERSION = "1";
 
-  /** The entity type of an answer that is no unit or external system. */
-  static final String OUTCOME = "outcome";
-
-  static final EntityId AMBIGUOUS = new EntityId(OUTCOME, "ambiguous");
-  static final EntityId UNKNOWN = new EntityId(OUTCOME, "unknown");
+  static final EntityId AMBIGUOUS = new EntityId(Types.OUTCOME, "ambiguous");
+  static final EntityId UNKNOWN = new EntityId(Types.OUTCOME, "unknown");
 
   /** The value of {@code by} on a service name's claims. */
   static final String BY_NAME = "name";
@@ -77,10 +74,7 @@ public final class AddressResolution implements LinkRule {
       Rules.union(
           Set.of(EXTRACTED),
           ValueResolution.WRITES,
-          Set.of(
-              DeployableUnits.DEPLOYABLE_UNIT,
-              DeployableUnits.BUNDLES,
-              DeployableUnits.APPLICATION_NAME));
+          Set.of(Types.DEPLOYABLE_UNIT, Types.BUNDLES, Types.APPLICATION_NAME));
 
   @Override
   public RuleInfo info() {
@@ -94,7 +88,7 @@ public final class AddressResolution implements LinkRule {
 
   @Override
   public Set<String> writes() {
-    return Set.of(ValueResolution.RESOLVES_TO);
+    return Set.of(Types.RESOLVES_TO);
   }
 
   /** The questions the matchers ask, each once, in the order asked. */
@@ -353,7 +347,7 @@ public final class AddressResolution implements LinkRule {
     Evidence evidence = asked.source().evidence();
     return Fact.create(
         subject(q.from(), q.text()),
-        ValueResolution.RESOLVES_TO,
+        Types.RESOLVES_TO,
         FactObject.entity(object),
         attributes,
         ORIGIN,
@@ -377,8 +371,8 @@ public final class AddressResolution implements LinkRule {
       lineage.add(t.fact().id());
     }
     return Fact.create(
-        EntityKeys.of(HttpClientExtractor.ADDRESS, q.name().toLowerCase(Locale.ROOT)),
-        ValueResolution.RESOLVES_TO,
+        EntityKeys.of(Types.ADDRESS, q.name().toLowerCase(Locale.ROOT)),
+        Types.RESOLVES_TO,
         FactObject.entity(t == null ? UNKNOWN : t.unit().id()),
         attributes,
         ORIGIN,
@@ -405,8 +399,7 @@ public final class AddressResolution implements LinkRule {
       if (p.address() != null) {
         // The server's address entity, as value resolution writes a datasource's.
         object =
-            FactObject.entity(
-                EntityKeys.of(HttpClientExtractor.ADDRESS, p.address().toLowerCase(Locale.ROOT)));
+            FactObject.entity(EntityKeys.of(Types.ADDRESS, p.address().toLowerCase(Locale.ROOT)));
         attributes.put("matched", p.address());
       }
       if (p.database() != null) {
@@ -426,7 +419,7 @@ public final class AddressResolution implements LinkRule {
     // Seen where the datasource is configured.
     return Fact.create(
         subject(q.from(), q.text()),
-        ValueResolution.RESOLVES_TO,
+        Types.RESOLVES_TO,
         object,
         attributes,
         ORIGIN,
@@ -447,9 +440,9 @@ public final class AddressResolution implements LinkRule {
     String host = url.host();
     if (host != null && !host.contains("$") && !host.contains("{")) {
       String authority = url.port() == null ? host : host + ":" + url.port();
-      return EntityKeys.of(HttpClientExtractor.ADDRESS, authority.toLowerCase(Locale.ROOT));
+      return EntityKeys.of(Types.ADDRESS, authority.toLowerCase(Locale.ROOT));
     }
     String scope = from == null ? "frontend" : from.id().key();
-    return EntityKeys.of(HttpClientExtractor.ADDRESS, scope + ":" + text);
+    return EntityKeys.of(Types.ADDRESS, scope + ":" + text);
   }
 }

@@ -11,33 +11,13 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * The built-in vocabulary types, defined in {@code vocabulary/built-in-types.json} and loaded into
- * the registry on startup. The constants name them for typed access from code; a test keeps them in
- * line with the file. Types added at runtime have no constants and are used by name.
+ * the registry on startup. Code names them through {@link io.lantern.core.types.Types}, as it names
+ * every other vocabulary type (ADR 0114, #763).
  */
 public final class BuiltInTypes {
 
   /** The source recorded on vocabulary revisions that load the built-in types. */
   public static final String SOURCE = "built-in";
-
-  // Entity types
-  public static final String SYSTEM = "system";
-  public static final String ACTOR = "actor";
-  public static final String CONTAINER = "container";
-  public static final String COMPONENT = "component";
-  public static final String SERVICE = "service";
-  public static final String LIBRARY = "library";
-  public static final String MODULE = "module";
-  public static final String PACKAGE = "package";
-  public static final String TYPE = "type";
-  public static final String REPO = "repo";
-
-  // Relationship types
-  public static final String CONTAINS = "CONTAINS";
-  public static final String DEPENDS_ON = "DEPENDS_ON";
-  public static final String INTERACTS_WITH = "INTERACTS_WITH";
-  public static final String CALLS = "CALLS";
-  public static final String EXTENDS = "EXTENDS";
-  public static final String IMPLEMENTS = "IMPLEMENTS";
 
   private static final String RESOURCE = "/vocabulary/built-in-types.json";
 

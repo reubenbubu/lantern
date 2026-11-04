@@ -1,6 +1,6 @@
 # 0114: Type names in one generated class; element kinds from the vocabulary
 
-Status: accepted (#280)
+Status: accepted (#280); the class's place and the rule's scope changed by ADR 0121 (#763)
 
 ## Context
 

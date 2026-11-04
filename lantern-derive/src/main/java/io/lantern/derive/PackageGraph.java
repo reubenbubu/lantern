@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -24,15 +24,13 @@ import java.util.TreeSet;
  */
 public final class PackageGraph {
 
-  private static final String METHOD = "method";
-
   private PackageGraph() {}
 
   public static Map<EntityId, Map<EntityId, List<Fact>>> of(
       Knowledge knowledge, EntityId container) {
     Map<EntityId, SortedSet<EntityId>> packagesOfType = new TreeMap<>(Knowledge.BY_ID);
-    for (EntityId module : knowledge.parts(container, BuiltInTypes.MODULE)) {
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+    for (EntityId module : knowledge.parts(container, Types.MODULE)) {
+      for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
         for (EntityId type : knowledge.typesWithin(pkg)) {
           packagesOfType.computeIfAbsent(type, t -> new TreeSet<>(Knowledge.BY_ID)).add(pkg);
         }
@@ -61,11 +59,11 @@ public final class PackageGraph {
   /** What a type depends on: its supertypes and the calls it and its members make. */
   private static List<Fact> dependencies(Knowledge knowledge, EntityId type) {
     List<Fact> facts = new ArrayList<>();
-    facts.addAll(knowledge.relations(type, BuiltInTypes.EXTENDS));
-    facts.addAll(knowledge.relations(type, BuiltInTypes.IMPLEMENTS));
-    facts.addAll(knowledge.relations(type, BuiltInTypes.CALLS));
-    for (EntityId method : knowledge.parts(type, METHOD)) {
-      facts.addAll(knowledge.relations(method, BuiltInTypes.CALLS));
+    facts.addAll(knowledge.relations(type, Types.EXTENDS));
+    facts.addAll(knowledge.relations(type, Types.IMPLEMENTS));
+    facts.addAll(knowledge.relations(type, Types.CALLS));
+    for (EntityId method : knowledge.parts(type, Types.METHOD)) {
+      facts.addAll(knowledge.relations(method, Types.CALLS));
     }
     return facts;
   }

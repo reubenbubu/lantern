@@ -1,6 +1,7 @@
 package io.lantern.app;
 
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import io.lantern.harness.Harness;
 import io.lantern.harness.checks.WordingJudge;
 import java.io.IOException;
@@ -64,25 +65,25 @@ final class WordingJudgements {
   static Optional<String> kind(Fact fact) {
     String type = fact.subject().type();
     return switch (fact.predicate()) {
-      case "responsibility" ->
+      case Types.RESPONSIBILITY ->
           Optional.of(
-              type.equals("group")
+              type.equals(Types.GROUP)
                   ? "responsibility of a group of components"
                   : "responsibility of a " + type.replace('-', ' '));
       // Name groups' line intents are in no judged row: only Describe's intents are judged.
-      case "intent" ->
+      case Types.INTENT ->
           fact.origin().name().equals("name-groups")
               ? Optional.empty()
               : Optional.of("intent of a line drawn from a " + type.replace('-', ' '));
-      case "key-fact" -> Optional.of("the most important fact about the system");
-      case "display-name" -> Optional.of("name of a group of components");
+      case Types.KEY_FACT -> Optional.of("the most important fact about the system");
+      case Types.DISPLAY_NAME -> Optional.of("name of a group of components");
       default -> Optional.empty();
     };
   }
 
   /** The element a text is about, as the judge is shown it. */
   private static String about(Fact fact) {
-    return fact.predicate().equals("key-fact") ? "the system" : fact.subject().toString();
+    return fact.predicate().equals(Types.KEY_FACT) ? "the system" : fact.subject().toString();
   }
 
   /**

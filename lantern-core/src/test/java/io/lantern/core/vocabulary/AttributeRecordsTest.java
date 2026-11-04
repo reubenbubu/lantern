@@ -3,6 +3,7 @@ package io.lantern.core.vocabulary;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.FactJson;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.AttributeSchema.Property;
 import io.lantern.core.vocabulary.AttributeSchema.ValueType;
 import java.io.IOException;
@@ -47,7 +48,7 @@ class AttributeRecordsTest {
         new VocabularyType(
             "CALLS_HTTP",
             TypeKind.RELATIONSHIP,
-            BuiltInTypes.CALLS,
+            Types.CALLS,
             null,
             null,
             null,
@@ -71,7 +72,7 @@ class AttributeRecordsTest {
     Map<String, String> sources =
         AttributeRecords.generate(
             vocabulary(),
-            List.of("http-call", "CALLS_HTTP", BuiltInTypes.CALLS, BuiltInTypes.SERVICE),
+            List.of("http-call", "CALLS_HTTP", Types.CALLS, Types.SERVICE),
             "io.acme.attributes");
 
     assertThat(sources).containsOnlyKeys("HttpCallAttributes.java", "CallsHttpAttributes.java");

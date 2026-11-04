@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
@@ -149,7 +150,7 @@ class Project0LinksIT {
     List<Fact> links = new ArrayList<>(new CrossRepoLinks().derive(facts, 1));
     facts.addAll(links);
     links.stream()
-        .filter(f -> f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK))
+        .filter(f -> f.predicate().equals(Types.UNRESOLVED_LINK))
         .forEach(
             f -> openLinks.put(f.claimId() != null ? f.claimId() : f.id(), f.object().value()));
     List<Fact> claims = new ClaimChecks().derive(facts, 1);

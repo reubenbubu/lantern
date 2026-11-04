@@ -3,8 +3,7 @@ package io.lantern.summarize;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
-import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -56,7 +55,7 @@ public final class SummaryTree {
     this.types = types;
     for (Fact fact : facts) {
       bySubject.computeIfAbsent(fact.subject(), s -> new ArrayList<>()).add(fact);
-      if (fact.predicate().equals(BuiltInTypes.CONTAINS)
+      if (fact.predicate().equals(Types.CONTAINS)
           && fact.object().kind() == FactObject.Kind.ENTITY) {
         EntityId part = EntityId.parse(fact.object().value());
         contains.computeIfAbsent(fact.subject(), s -> new LinkedHashSet<>()).add(part);
@@ -90,7 +89,7 @@ public final class SummaryTree {
     SummaryTree tree = new SummaryTree(facts, types);
     Map<String, Set<EntityId>> modulesByRepo = new TreeMap<>();
     for (Fact fact : facts) {
-      if (fact.subject().type().equals(BuiltInTypes.MODULE)) {
+      if (fact.subject().type().equals(Types.MODULE)) {
         modulesByRepo
             .computeIfAbsent(fact.evidence().repo(), r -> new HashSet<>())
             .add(fact.subject());
@@ -108,7 +107,7 @@ public final class SummaryTree {
           }
           repos.add(
               new SummaryNode(
-                  new EntityId(SummaryLevel.REPO_ENTITY_TYPE, repo),
+                  new EntityId(Types.REPO, repo),
                   SummaryLevel.REPO,
                   readmeClaims(facts, repo),
                   top));
@@ -125,8 +124,8 @@ public final class SummaryTree {
         facts.stream()
             .filter(
                 f ->
-                    f.predicate().equals(DocsExtractor.CLAIM)
-                        && f.subject().type().equals(DocsExtractor.README)
+                    f.predicate().equals(Types.CLAIM)
+                        && f.subject().type().equals(Types.README)
                         && f.evidence().repo().equals(repo)
                         && f.evidence().path() != null)
             .toList();

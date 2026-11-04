@@ -4,7 +4,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -47,11 +47,11 @@ public final class Knowledge {
         resolvedLinks.putIfAbsent(resolves.asString(), fact);
       }
       byPredicate.computeIfAbsent(fact.predicate(), p -> new ArrayList<>()).add(fact);
-      if (fact.predicate().equals(BuiltInTypes.CONTAINS) && isEntity(fact)) {
+      if (fact.predicate().equals(Types.CONTAINS) && isEntity(fact)) {
         containsByWhole.computeIfAbsent(fact.subject(), s -> new ArrayList<>()).add(fact);
         containsByPart.computeIfAbsent(object(fact), p -> new ArrayList<>()).add(fact);
       }
-      if (fact.subject().type().equals(BuiltInTypes.MODULE)) {
+      if (fact.subject().type().equals(Types.MODULE)) {
         String repo = fact.evidence().repo();
         modulesByRepo.computeIfAbsent(repo, r -> new TreeSet<>(BY_ID)).add(fact.subject());
         reposByModule.computeIfAbsent(fact.subject(), m -> new TreeSet<>()).add(repo);
@@ -196,19 +196,19 @@ public final class Knowledge {
 
   /** The services and libraries that build the module. */
   public SortedSet<EntityId> containers(EntityId module) {
-    SortedSet<EntityId> containers = wholes(module, BuiltInTypes.SERVICE);
-    containers.addAll(wholes(module, BuiltInTypes.LIBRARY));
+    SortedSet<EntityId> containers = wholes(module, Types.SERVICE);
+    containers.addAll(wholes(module, Types.LIBRARY));
     return containers;
   }
 
   /** The types directly in a package, module or type, and their member types, recursively. */
   public SortedSet<EntityId> typesWithin(EntityId whole) {
     SortedSet<EntityId> types = new TreeSet<>(BY_ID);
-    List<EntityId> todo = new ArrayList<>(parts(whole, BuiltInTypes.TYPE));
+    List<EntityId> todo = new ArrayList<>(parts(whole, Types.TYPE));
     while (!todo.isEmpty()) {
       EntityId type = todo.removeLast();
       if (types.add(type)) {
-        todo.addAll(parts(type, BuiltInTypes.TYPE));
+        todo.addAll(parts(type, Types.TYPE));
       }
     }
     return types;

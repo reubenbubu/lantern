@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -26,7 +27,6 @@ import io.lantern.extract.java.ModuleStructure.Invocation;
 import io.lantern.extract.java.ModuleStructure.Location;
 import io.lantern.extract.java.ModuleStructure.Member;
 import io.lantern.extract.java.ModuleStructure.TypeDecl;
-import io.lantern.extract.messaging.MessagingExtractor;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -60,24 +60,6 @@ public final class WebSocketExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "websocket-extractor";
-
-  /** Attribute: the method registers a WebSocket endpoint. */
-  public static final String ENDPOINT = "websocket-endpoint";
-
-  /** Attribute: the method configures a STOMP destination prefix. */
-  public static final String PREFIX = "stomp-prefix";
-
-  /** Attribute: the method handles STOMP messages or subscriptions, an entry point. */
-  public static final String MAPPING = "stomp-mapping";
-
-  /** Attribute: the method pushes messages to STOMP subscribers. */
-  public static final String SEND = "stomp-send";
-
-  /** Attribute: the method registers an interceptor on the STOMP client channel. */
-  public static final String INTERCEPTOR = "stomp-interceptor";
-
-  /** Attribute: the subject class intercepts the messages of a STOMP client channel. */
-  public static final String CHANNEL_INTERCEPTOR = "stomp-channel-interceptor";
 
   /** Protocols of a WebSocket endpoint. */
   public static final String STOMP = "stomp";
@@ -235,7 +217,7 @@ public final class WebSocketExtractor implements Extractor {
       if (handshakeHandler != null) {
         attributes.put("handshakeHandler", handshakeHandler);
       }
-      run.fact(module, method, ENDPOINT, path, attributes, where);
+      run.fact(module, method, Types.WEBSOCKET_ENDPOINT, path, attributes, where);
     }
   }
 
@@ -390,7 +372,7 @@ public final class WebSocketExtractor implements Extractor {
                     ObjectNode attributes = FactJson.newObject();
                     attributes.put("kind", kind);
                     attributes.setAll(relay);
-                    fact(module, i.caller(), PREFIX, prefix, attributes, i.where());
+                    fact(module, i.caller(), Types.STOMP_PREFIX, prefix, attributes, i.where());
                   });
         }
       }
@@ -426,7 +408,7 @@ public final class WebSocketExtractor implements Extractor {
           if (declared != null) {
             intercepts(declared, attributes);
           }
-          fact(module, i.caller(), INTERCEPTOR, type, attributes, i.where());
+          fact(module, i.caller(), Types.STOMP_INTERCEPTOR, type, attributes, i.where());
         }
       }
     }
@@ -516,7 +498,7 @@ public final class WebSocketExtractor implements Extractor {
       fact(
           module,
           new EntityId("type", owner),
-          CHANNEL_INTERCEPTOR,
+          Types.STOMP_CHANNEL_INTERCEPTOR,
           owner,
           attributes,
           declaration(type));
@@ -554,7 +536,7 @@ public final class WebSocketExtractor implements Extractor {
       List<Annotation> onClass = mappingPath(type.annotations(), MESSAGE_MAPPING);
       String prefix = onClass == null ? "" : first(onClass, "value").orElse("");
       for (Member m : type.members()) {
-        if (m.id().type().equals(ModuleStructure.METHOD) && methodName(m.id()) != null) {
+        if (m.id().type().equals(Types.METHOD) && methodName(m.id()) != null) {
           for (String mapping : List.of(MESSAGE_MAPPING, SUBSCRIBE_MAPPING)) {
             List<Annotation> path = mappingPath(m.annotations(), mapping);
             if (path != null) {
@@ -627,7 +609,7 @@ public final class WebSocketExtractor implements Extractor {
         fact(
             module,
             method.id(),
-            MAPPING,
+            Types.STOMP_MAPPING,
             join(prefix, destination).isEmpty() ? "/" : join(prefix, destination),
             attributes,
             written.where() != null ? written.where() : method.where());
@@ -737,16 +719,8 @@ public final class WebSocketExtractor implements Extractor {
       attributes.put("configRepo", module.repo().repo().name());
       String key = STOMP + ":destination:" + text.value();
       EntityId to =
-          EntityKeys.of(
-              MessagingExtractor.DESTINATION_ENTITY,
-              text.dynamic() ? module.id().key() + ":" + key : key);
-      fact(
-          module,
-          i.caller(),
-          MessagingExtractor.SENDS_TO,
-          FactObject.entity(to),
-          attributes,
-          i.where());
+          EntityKeys.of(Types.DESTINATION, text.dynamic() ? module.id().key() + ":" + key : key);
+      fact(module, i.caller(), Types.SENDS_TO, FactObject.entity(to), attributes, i.where());
     }
 
     /**
@@ -915,13 +889,17 @@ public final class WebSocketExtractor implements Extractor {
     }
   }
 
-  /** The attributes of a STOMP send written in code that its {@value #SEND} fact leaves out. */
+  /**
+   * The attributes of a STOMP send written in code that its {@value Types#STOMP_SEND} fact leaves
+   * out.
+   */
   private static final List<String> WRITTEN_ONLY =
       List.of("broker", "destinationKind", "name", "configModule", "configRepo");
 
   /**
-   * The {@value #SEND} facts linking records (ADR 0094, #559): one for each STOMP send written in
-   * code, a {@code SENDS_TO} fact to its destination, as this extractor recorded it before.
+   * The {@value Types#STOMP_SEND} facts linking records (ADR 0094, #559): one for each STOMP send
+   * written in code, a {@code SENDS_TO} fact to its destination, as this extractor recorded it
+   * before.
    *
    * @param facts the snapshot's facts; only the STOMP sends written in code are read
    * @param origin the origin of the facts
@@ -931,7 +909,7 @@ public final class WebSocketExtractor implements Extractor {
     Validity validity = Validity.from(snapshot);
     List<Fact> sends = new ArrayList<>();
     for (Fact f : facts) {
-      if (!f.predicate().equals(MessagingExtractor.SENDS_TO)
+      if (!f.predicate().equals(Types.SENDS_TO)
           || f.object().kind() != FactObject.Kind.ENTITY
           || !STOMP.equals(f.attributes().path("broker").stringValue(null))) {
         continue;
@@ -941,7 +919,7 @@ public final class WebSocketExtractor implements Extractor {
       sends.add(
           Fact.create(
               f.subject(),
-              SEND,
+              Types.STOMP_SEND,
               FactObject.string(f.attributes().path("name").stringValue("")),
               attributes,
               origin,
@@ -953,8 +931,7 @@ public final class WebSocketExtractor implements Extractor {
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(
-          NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(MessagingExtractor.SENDS_TO));
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(Types.SENDS_TO));
 
   @Override
   public ExtractorInfo info() {

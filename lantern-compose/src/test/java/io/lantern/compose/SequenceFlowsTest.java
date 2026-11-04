@@ -19,6 +19,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ScopeFlows;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -827,7 +828,7 @@ class SequenceFlowsTest {
       facts.add(
           Fact.create(
               io.lantern.derive.Flows.id(EntityId.parse(SHIP), trigger),
-              io.lantern.harness.LlmFacts.FLOW_SIGNIFICANCE,
+              Types.FLOW_SIGNIFICANCE,
               FactObject.string(io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE),
               (ObjectNode)
                   FactJson.parse(

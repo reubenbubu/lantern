@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.sandbox.BuildModule;
@@ -169,7 +169,7 @@ class JavaExtractorTest {
    */
   private static Set<String> lombokMembers(List<Fact> facts) {
     return facts.stream()
-        .filter(f -> f.predicate().equals(BuiltInTypes.CONTAINS))
+        .filter(f -> f.predicate().equals(Types.CONTAINS))
         .filter(f -> !f.subject().key().endsWith("Builder"))
         .filter(f -> f.object().value().contains("#<init>(") || f.object().value().endsWith("#log"))
         .map(f -> f.subject() + " CONTAINS " + f.object().value())
@@ -265,7 +265,7 @@ class JavaExtractorTest {
         // Not checked against the repository: generated files are not in it.
         triples(new JavaExtractor().extract(List.of(new RepoBuild(repo, commit, build)), SNAPSHOT))
             .stream()
-            .filter(t -> t.contains(" " + JavaExtractor.GENERATED + " "))
+            .filter(t -> t.contains(" " + Types.GENERATED + " "))
             .collect(Collectors.toCollection(java.util.TreeSet::new));
 
     assertThat(generatedFacts)

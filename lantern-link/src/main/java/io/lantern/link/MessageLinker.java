@@ -4,10 +4,10 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.BindsAttributes;
 import io.lantern.extract.attributes.ListensOnAttributes;
 import io.lantern.extract.attributes.SendsToAttributes;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
@@ -52,9 +52,9 @@ final class MessageLinker {
   }
 
   void link() {
-    Map<String, List<Fact>> sends = sites(MessagingExtractor.SENDS_TO);
-    Map<String, List<Fact>> listeners = sites(MessagingExtractor.LISTENS_ON);
-    Map<String, List<Fact>> bindings = sites(MessagingExtractor.BINDS);
+    Map<String, List<Fact>> sends = sites(Types.SENDS_TO);
+    Map<String, List<Fact>> listeners = sites(Types.LISTENS_ON);
+    Map<String, List<Fact>> bindings = sites(Types.BINDS);
     for (String view : index.views()) {
       List<Use> sent = uses(sends, view, true, true);
       List<Use> received = uses(listeners, view, true, false);
@@ -101,8 +101,8 @@ final class MessageLinker {
   /** The destination's name a relation gives, as resolved. */
   private static String name(Fact relation) {
     return switch (relation.predicate()) {
-      case MessagingExtractor.SENDS_TO -> Claims.of(relation, SendsToAttributes.class).name();
-      case MessagingExtractor.LISTENS_ON -> Claims.of(relation, ListensOnAttributes.class).name();
+      case Types.SENDS_TO -> Claims.of(relation, SendsToAttributes.class).name();
+      case Types.LISTENS_ON -> Claims.of(relation, ListensOnAttributes.class).name();
       default -> Claims.of(relation, BindsAttributes.class).name();
     };
   }
@@ -145,8 +145,7 @@ final class MessageLinker {
             && !unit.modules().isEmpty()
             && !index.modulesOf(fact.subject()).contains(unit.modules().getFirst())) {
           LinkText.Resolved resolved =
-              LinkText.resolve(
-                  written, key -> index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key));
+              LinkText.resolve(written, key -> index.config(unit, view, Types.CONFIG_VALUE, key));
           destination = resolved.text();
           used = resolved.used();
           masked = resolved.masked();
@@ -180,12 +179,12 @@ final class MessageLinker {
       return null;
     }
     return switch (broker) {
-      case MessagingExtractor.KAFKA -> new EntityId(CrossRepoLinks.TOPIC, broker + ":" + name);
-      case MessagingExtractor.JMS -> new EntityId(CrossRepoLinks.QUEUE, broker + ":" + name);
+      case MessagingExtractor.KAFKA -> new EntityId(Types.TOPIC, broker + ":" + name);
+      case MessagingExtractor.JMS -> new EntityId(Types.QUEUE, broker + ":" + name);
       case MessagingExtractor.RABBITMQ ->
           "exchange".equals(kind)
-              ? new EntityId(CrossRepoLinks.EXCHANGE, broker + ":" + name)
-              : new EntityId(CrossRepoLinks.QUEUE, broker + ":" + name);
+              ? new EntityId(Types.EXCHANGE, broker + ":" + name)
+              : new EntityId(Types.QUEUE, broker + ":" + name);
       default -> null;
     };
   }
@@ -205,9 +204,8 @@ final class MessageLinker {
     if (exchange == null || !MessagingExtractor.RABBITMQ.equals(binding.broker())) {
       return;
     }
-    EntityId from = new EntityId(CrossRepoLinks.EXCHANGE, binding.broker() + ":" + exchange);
-    EntityId to =
-        new EntityId(CrossRepoLinks.QUEUE, binding.broker() + ":" + binding.destination());
+    EntityId from = new EntityId(Types.EXCHANGE, binding.broker() + ":" + exchange);
+    EntityId to = new EntityId(Types.QUEUE, binding.broker() + ":" + binding.destination());
     ObjectNode attributes = FactJson.newObject();
     String key = Message.of(fact).routingKey();
     if (key != null) {
@@ -222,9 +220,9 @@ final class MessageLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.ROUTES_TO + "|" + from + "|" + to + "|" + fact.subject() + "|" + key,
+            Types.ROUTES_TO + "|" + from + "|" + to + "|" + fact.subject() + "|" + key,
             from,
-            CrossRepoLinks.ROUTES_TO,
+            Types.ROUTES_TO,
             FactObject.entity(to),
             attributes,
             fact.evidence(),
@@ -266,15 +264,9 @@ final class MessageLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.PUBLISHES
-                + "|"
-                + send.unit().id()
-                + "|"
-                + destination
-                + "|"
-                + fact.subject(),
+            Types.PUBLISHES + "|" + send.unit().id() + "|" + destination + "|" + fact.subject(),
             send.unit().id(),
-            CrossRepoLinks.PUBLISHES,
+            Types.PUBLISHES,
             FactObject.entity(destination),
             attributes,
             fact.evidence(),
@@ -397,7 +389,7 @@ final class MessageLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.SENDS_MESSAGES_TO
+            Types.SENDS_MESSAGES_TO
                 + "|"
                 + send.unit().id()
                 + "|"
@@ -409,7 +401,7 @@ final class MessageLinker {
                 + "|"
                 + destination,
             send.unit().id(),
-            CrossRepoLinks.SENDS_MESSAGES_TO,
+            Types.SENDS_MESSAGES_TO,
             FactObject.entity(listener.unit().id()),
             attributes,
             s.evidence(),
@@ -435,8 +427,7 @@ final class MessageLinker {
           names.add(send.destination());
         }
       }
-      names.forEach(
-          n -> topics.add(new EntityId(CrossRepoLinks.TOPIC, listener.broker() + ":" + n)));
+      names.forEach(n -> topics.add(new EntityId(Types.TOPIC, listener.broker() + ":" + n)));
     } else {
       EntityId destination = destination(listener);
       if (destination != null) {
@@ -457,15 +448,9 @@ final class MessageLinker {
       out.add(
           view,
           new Found(
-              CrossRepoLinks.CONSUMES
-                  + "|"
-                  + listener.unit().id()
-                  + "|"
-                  + topic
-                  + "|"
-                  + fact.subject(),
+              Types.CONSUMES + "|" + listener.unit().id() + "|" + topic + "|" + fact.subject(),
               listener.unit().id(),
-              CrossRepoLinks.CONSUMES,
+              Types.CONSUMES,
               FactObject.entity(topic),
               attributes,
               fact.evidence(),
@@ -496,15 +481,9 @@ final class MessageLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.UNRESOLVED_LINK
-                + "|"
-                + use.unit().id()
-                + "|"
-                + fact.subject()
-                + "|"
-                + site(fact),
+            Types.UNRESOLVED_LINK + "|" + use.unit().id() + "|" + fact.subject() + "|" + site(fact),
             use.unit().id(),
-            CrossRepoLinks.UNRESOLVED_LINK,
+            Types.UNRESOLVED_LINK,
             FactObject.string(use.destination()),
             attributes,
             fact.evidence(),
@@ -520,9 +499,9 @@ final class MessageLinker {
   private static String site(Fact fact) {
     String kind =
         switch (fact.predicate()) {
-          case MessagingExtractor.SENDS_TO -> "message-send";
-          case MessagingExtractor.LISTENS_ON -> "message-listener";
-          default -> "message-binding";
+          case Types.SENDS_TO -> Types.MESSAGE_SEND;
+          case Types.LISTENS_ON -> Types.MESSAGE_LISTENER;
+          default -> Types.MESSAGE_BINDING;
         };
     String written = Claims.written(fact);
     return kind + "|" + (written != null ? written : name(fact));
@@ -551,16 +530,16 @@ final class MessageLinker {
 
     static Message of(Fact f) {
       return switch (f.predicate()) {
-        case MessagingExtractor.SENDS_TO -> {
+        case Types.SENDS_TO -> {
           SendsToAttributes a = Claims.of(f, SendsToAttributes.class);
           yield new Message(
               a.broker(), a.destinationKind(), null, a.routingKey(), null, a.unknown(), null);
         }
-        case MessagingExtractor.LISTENS_ON -> {
+        case Types.LISTENS_ON -> {
           ListensOnAttributes a = Claims.of(f, ListensOnAttributes.class);
           yield new Message(a.broker(), a.destinationKind(), null, null, null, null, a.group());
         }
-        case MessagingExtractor.BINDS -> {
+        case Types.BINDS -> {
           BindsAttributes a = Claims.of(f, BindsAttributes.class);
           yield new Message(
               a.broker(), null, a.exchange(), a.routingKey(), a.exchangeType(), null, null);

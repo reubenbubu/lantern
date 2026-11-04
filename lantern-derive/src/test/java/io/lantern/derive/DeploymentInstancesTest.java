@@ -6,6 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.types.Types;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
@@ -30,11 +31,11 @@ class DeploymentInstancesTest {
 
     EntityId instance = DeploymentInstances.id(infra);
     assertThat(instance.toString()).isEqualTo("deployment-instance:compose:local/postgres");
-    List<Fact> as = TestModel.about(derived, instance, DeploymentInstances.DEPLOYED_AS);
+    List<Fact> as = TestModel.about(derived, instance, Types.DEPLOYED_AS);
     assertThat(as).hasSize(1);
     assertThat(as.getFirst().attributes().get("image").asString()).isEqualTo("postgres:16");
     assertThat(as.getFirst().lineage()).containsExactlyInAnyOrder(infra.claimId(), shop.claimId());
-    List<Fact> running = TestModel.about(derived, instance, DeploymentInstances.RUNS);
+    List<Fact> running = TestModel.about(derived, instance, Types.RUNS);
     assertThat(running).hasSize(1);
     assertThat(running.getFirst().object().entityId()).isEqualTo(DATABASE);
     assertThat(running.getFirst().lineage()).containsExactly(runs.claimId());

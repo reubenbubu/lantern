@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -62,10 +63,7 @@ public final class PeopleExtractor implements Extractor {
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "people-extractor";
 
-  /** Attribute: the subject shows people use the system; its value is the kind of evidence. */
-  public static final String PERSON_EVIDENCE = "person-evidence";
-
-  /** The kinds of evidence, as the value of {@link #PERSON_EVIDENCE}. */
+  /** The kinds of evidence, as the value of {@link Types#PERSON_EVIDENCE}. */
   public static final String ROLE = "role";
 
   public static final String MEMBERSHIP = "membership";
@@ -629,7 +627,7 @@ public final class PeopleExtractor implements Extractor {
       String held = null;
       for (TypeDecl account : accounts()) {
         for (Member field : account.members()) {
-          if (field.type() == null || !field.id().type().equals(ModuleStructure.FIELD)) {
+          if (field.type() == null || !field.id().type().equals(Types.FIELD)) {
             continue;
           }
           String fieldName = field.id().key().substring(field.id().key().indexOf('#') + 1);
@@ -662,7 +660,7 @@ public final class PeopleExtractor implements Extractor {
       }
       for (Member constant : type.members()) {
         if (constant.where() == null
-            || !constant.id().type().equals(ModuleStructure.FIELD)
+            || !constant.id().type().equals(Types.FIELD)
             || !type.binaryName().equals(constant.type())) {
           continue;
         }
@@ -699,7 +697,7 @@ public final class PeopleExtractor implements Extractor {
         return true;
       }
       return type.members().stream()
-          .filter(f -> f.id().type().equals(ModuleStructure.FIELD))
+          .filter(f -> f.id().type().equals(Types.FIELD))
           .map(f -> f.id().key().substring(f.id().key().indexOf('#') + 1).toLowerCase(Locale.ROOT))
           .anyMatch(n -> n.contains("password") || n.equals("credentials"));
     }
@@ -929,7 +927,7 @@ public final class PeopleExtractor implements Extractor {
       Fact fact =
           Fact.create(
               subject,
-              PERSON_EVIDENCE,
+              Types.PERSON_EVIDENCE,
               FactObject.string(kind),
               attributes,
               ORIGIN,

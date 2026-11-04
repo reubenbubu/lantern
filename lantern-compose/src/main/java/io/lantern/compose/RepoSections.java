@@ -17,12 +17,11 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.Unknowns;
-import io.lantern.derive.attributes.Types;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -102,7 +101,7 @@ final class RepoSections {
       inScope.add(module);
       containers.addAll(model.containers(module));
       inScope.addAll(model.typesWithin(module));
-      for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
+      for (EntityId pkg : model.parts(module, Types.PACKAGE)) {
         inScope.add(pkg);
         inScope.addAll(model.typesWithin(pkg));
       }
@@ -333,8 +332,7 @@ final class RepoSections {
           List.of(
               new CrossReference(
                   assembler.name(container), CrossReference.Target.entity(container)),
-              TextRun.of(
-                  container.type().equals(BuiltInTypes.SERVICE) ? ", a service" : ", a library"));
+              TextRun.of(container.type().equals(Types.SERVICE) ? ", a service" : ", a library"));
       items.add(new ListBlock.Item(content, assembler.facts(containerFacts(container))));
     }
     if (!items.isEmpty()) {
@@ -356,7 +354,7 @@ final class RepoSections {
       List<EntityId> units = new ArrayList<>();
       List<Fact> facts = new ArrayList<>();
       for (EntityId unit : Elements.units(model)) {
-        for (EntityId module : model.parts(unit, BuiltInTypes.MODULE)) {
+        for (EntityId module : model.parts(unit, Types.MODULE)) {
           if (model.repos(module).contains(name) && !units.contains(unit)) {
             units.add(unit);
             facts.addAll(model.containsFacts(unit, module));
@@ -440,7 +438,7 @@ final class RepoSections {
     Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(ArchitectureModel.BY_ID);
     for (Fact fact : model.withPredicate(Types.BUILD_DEPENDS_ON)) {
       if (!ArchitectureModel.isEntity(fact)
-          || !fact.subject().type().equals(BuiltInTypes.MODULE)
+          || !fact.subject().type().equals(Types.MODULE)
           || ArchitectureModel.isTestScope(fact)) {
         continue;
       }
@@ -461,7 +459,7 @@ final class RepoSections {
   /** The facts that a container builds its modules, and how they are packaged. */
   private List<Fact> containerFacts(EntityId container) {
     List<Fact> facts = new ArrayList<>();
-    for (EntityId module : model.parts(container, BuiltInTypes.MODULE)) {
+    for (EntityId module : model.parts(container, Types.MODULE)) {
       facts.addAll(model.containsFacts(container, module));
       facts.addAll(model.attributes(module, Types.PACKAGING));
     }
@@ -476,7 +474,7 @@ final class RepoSections {
     int serviceCount = 0;
     int libraryCount = 0;
     for (EntityId container : containers) {
-      if (container.type().equals(BuiltInTypes.SERVICE)) {
+      if (container.type().equals(Types.SERVICE)) {
         serviceCount++;
         services.addAll(containerFacts(container));
       } else {
@@ -491,7 +489,7 @@ final class RepoSections {
     for (EntityId module : modules) {
       moduleFacts.addAll(model.attributes(module, Types.PACKAGING));
       types.addAll(model.typesWithin(module));
-      for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
+      for (EntityId pkg : model.parts(module, Types.PACKAGE)) {
         types.addAll(model.typesWithin(pkg));
       }
       for (Fact fact : model.relations(module, Types.BUILD_DEPENDS_ON)) {
@@ -588,7 +586,7 @@ final class RepoSections {
               + (scope.equals("compile") ? "" : " (" + scope + ")")
               + (optional ? " (optional)" : "");
       List<Tree.Node> children =
-          target.type().equals(BuiltInTypes.MODULE) && expanded.add(target)
+          target.type().equals(Types.MODULE) && expanded.add(target)
               ? dependencyNodes(target, expanded, false)
               : List.of();
       nodes.add(
@@ -606,7 +604,7 @@ final class RepoSections {
   private void structure(String section, List<Block> blocks) {
     List<Tree.Node> roots = new ArrayList<>();
     for (EntityId module : modules) {
-      boolean top = model.wholes(module, BuiltInTypes.MODULE).stream().noneMatch(modules::contains);
+      boolean top = model.wholes(module, Types.MODULE).stream().noneMatch(modules::contains);
       if (top) {
         roots.add(moduleNode(module, List.of(), new HashSet<>()));
       }
@@ -619,12 +617,12 @@ final class RepoSections {
   private Tree.Node moduleNode(EntityId module, List<Fact> facts, Set<EntityId> visiting) {
     visiting.add(module);
     List<Tree.Node> children = new ArrayList<>();
-    for (EntityId sub : model.parts(module, BuiltInTypes.MODULE)) {
+    for (EntityId sub : model.parts(module, Types.MODULE)) {
       if (modules.contains(sub) && !visiting.contains(sub)) {
         children.add(moduleNode(sub, model.containsFacts(module, sub), visiting));
       }
     }
-    for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
+    for (EntityId pkg : model.parts(module, Types.PACKAGE)) {
       children.add(
           new Tree.Node(
               assembler.name(pkg),

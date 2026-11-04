@@ -3,13 +3,12 @@ package io.lantern.summarize.describe;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.derive.attributes.Types;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
 import io.lantern.harness.Outcome;
@@ -208,7 +207,7 @@ public final class Describer {
         Fact fact =
             DescribeRole.fact(text.described(), text.worded(), text.role(), text.model(), snapshot);
         Verdict verdict = verdicts.get(judgedKey(text).toString());
-        if (fact.predicate().equals(io.lantern.harness.LlmFacts.RESPONSIBILITY)
+        if (fact.predicate().equals(Types.RESPONSIBILITY)
             && verdict != null
             && verdict.text().equals(text.worded().text())) {
           fact = io.lantern.harness.LlmFacts.withSupport(fact, verdict.support());
@@ -225,7 +224,7 @@ public final class Describer {
                   .forEach(
                       fact -> {
                         if (purpose != null
-                            && fact.predicate().equals(io.lantern.harness.LlmFacts.PURPOSE)
+                            && fact.predicate().equals(Types.PURPOSE)
                             && purpose.text().equals(fact.attributes().path("text").asString(""))) {
                           fact = io.lantern.harness.LlmFacts.withSupport(fact, purpose.support());
                         }
@@ -1157,7 +1156,7 @@ public final class Describer {
     SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
     for (EntityId module : Elements.codeModules(knowledge, unit)) {
       code.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+      for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
         code.addAll(knowledge.typesWithin(pkg));
       }
     }
@@ -1180,7 +1179,7 @@ public final class Describer {
    */
   static List<Fact> claims(EntityId unit, Knowledge knowledge) {
     SortedSet<String> repos = new TreeSet<>();
-    knowledge.parts(unit, BuiltInTypes.MODULE).forEach(m -> repos.addAll(knowledge.repos(m)));
+    knowledge.parts(unit, Types.MODULE).forEach(m -> repos.addAll(knowledge.repos(m)));
     List<Fact> result = new ArrayList<>();
     for (String repo : repos) {
       result.addAll(readmeClaims(repo, knowledge));

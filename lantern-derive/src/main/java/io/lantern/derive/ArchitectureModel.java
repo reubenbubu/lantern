@@ -3,9 +3,8 @@ package io.lantern.derive;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
-import io.lantern.derive.attributes.Types;
 import io.lantern.harness.LlmFacts;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,10 +37,7 @@ public final class ArchitectureModel {
   public static final String SYSTEM_SCOPE = "system";
 
   /** The software system all repositories of a snapshot form, the system scope's subject. */
-  public static final EntityId SYSTEM = new EntityId(BuiltInTypes.SYSTEM, "snapshot");
-
-  /** The entity type of repository summaries, which have no entity in the fact store. */
-  public static final String REPO_ENTITY_TYPE = "repo";
+  public static final EntityId SYSTEM = new EntityId(Types.SYSTEM, "snapshot");
 
   /** The ordering of texts: the most confident first, then by fact ID. */
   private static final Comparator<Fact> PREFERRED =
@@ -89,7 +85,7 @@ public final class ArchitectureModel {
     facts.forEach(f -> byId.putIfAbsent(f.id(), f));
     // A component's sentence also describes the type it is anchored on, which its diagram draws.
     Map<EntityId, EntityId> anchors = new HashMap<>();
-    for (Fact anchored : knowledge.withPredicate(Components.ANCHORED_ON)) {
+    for (Fact anchored : knowledge.withPredicate(Types.ANCHORED_ON)) {
       if (Knowledge.isEntity(anchored)) {
         anchors.putIfAbsent(anchored.subject(), Knowledge.object(anchored));
       }
@@ -97,7 +93,7 @@ public final class ArchitectureModel {
     List<Fact> componentTexts = new ArrayList<>();
     for (Fact text : texts) {
       switch (text.predicate()) {
-        case LlmFacts.RESPONSIBILITY -> {
+        case Types.RESPONSIBILITY -> {
           responsibilities.putIfAbsent(text.subject(), text);
           if (anchors.containsKey(text.subject())) {
             componentTexts.add(text);
@@ -109,29 +105,29 @@ public final class ArchitectureModel {
             // 0069).
             for (String cited : cites(text.attributes().get("cites"))) {
               Fact fact = byId.get(cited);
-              if (fact != null && fact.predicate().equals("kind")) {
+              if (fact != null && fact.predicate().equals(Types.KIND)) {
                 documented.add(cited);
               }
             }
           }
         }
-        case LlmFacts.INTENT -> {
+        case Types.INTENT -> {
           // A group's intent is keyed by its other end and protocol, which another group's may
           // share (ADR 0107): it is kept by the group as well.
-          if (text.subject().type().equals(Groups.GROUP)) {
+          if (text.subject().type().equals(Types.GROUP)) {
             groupIntents.putIfAbsent(text.subject() + " " + text.object().value(), text);
           } else {
             intents.putIfAbsent(text.object().value(), text);
           }
         }
-        case LlmFacts.SUMMARY -> summaries.putIfAbsent(text.subject(), text);
-        case LlmFacts.DISPLAY_NAME -> displayNames.putIfAbsent(text.subject(), text);
-        case LlmFacts.FLOW_NARRATIVE ->
+        case Types.SUMMARY -> summaries.putIfAbsent(text.subject(), text);
+        case Types.DISPLAY_NAME -> displayNames.putIfAbsent(text.subject(), text);
+        case Types.FLOW_NARRATIVE ->
             narratives.computeIfAbsent(text.subject(), f -> new ArrayList<>()).add(text);
-        case LlmFacts.FLOW_SIGNIFICANCE ->
+        case Types.FLOW_SIGNIFICANCE ->
             significance.computeIfAbsent(text.object().value(), s -> new ArrayList<>()).add(text);
-        case LlmFacts.PURPOSE -> purposes.add(text);
-        case LlmFacts.KEY_FACT -> keyFacts.add(text);
+        case Types.PURPOSE -> purposes.add(text);
+        case Types.KEY_FACT -> keyFacts.add(text);
         default -> {}
       }
     }
@@ -273,7 +269,7 @@ public final class ArchitectureModel {
   public Optional<EntityId> mainLibraryModule(EntityId unit) {
     for (Fact fact : knowledge.relations(unit, Types.BUNDLES)) {
       if (Elements.attribute(fact, "main", "false").equals("true")) {
-        SortedSet<EntityId> modules = knowledge.parts(object(fact), BuiltInTypes.MODULE);
+        SortedSet<EntityId> modules = knowledge.parts(object(fact), Types.MODULE);
         if (!modules.isEmpty()) {
           return Optional.of(modules.first());
         }
@@ -399,7 +395,7 @@ public final class ArchitectureModel {
   public Optional<Text> intent(Fact interaction) {
     String key = interaction.claimId() != null ? interaction.claimId() : interaction.id();
     return Optional.ofNullable(intents.get(key))
-        .filter(f -> !f.subject().type().equals("person"))
+        .filter(f -> !f.subject().type().equals(Types.PERSON))
         .map(ArchitectureModel::text);
   }
 
