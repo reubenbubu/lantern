@@ -237,8 +237,11 @@ resting on it changed too, and a warm rerun of project-4 made 241 calls.
 - **A check that rejects more raises the version** (amendment for #715). A cached answer is reused
   while what it cites still exists; the checks it passed when it was asked are not run again. So a
   change that makes a role's checks reject what they accepted before raises that role's prompt
-  version in the same change, and no answer stored before it escapes the new check. Resolve moved
-  to version 8 for this reason.
+  version in the same change. A role that falls back to its last stored answer when a new one is
+  rejected, refused or fails (Resolve keeps its earlier pick) must also skip answers stored before
+  the stricter checks, and the change raises that floor too (`ResolvePrompt.CHECKED_SINCE`). Only
+  then does no answer stored before escape the new check. Resolve moved to version 8 for this
+  reason, with its floor at 8.
 - **Every rejection is written down.** Each answer the checks rejected is listed with the run's
   documents as `rejections.jsonl.gz`: the role, the subject, the attempt (1 the first answer, 2
   after the repair turn), the text rejected and the reasons. It covers the first answer rejected

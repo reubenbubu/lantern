@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -33,6 +35,27 @@ final class ResolvePrompt {
 
   /** The prompt's version, part of every answer's cache key and the version of the facts. */
   static final String VERSION = "8";
+
+  /**
+   * The first version whose stored answers passed today's checks (#715). A link whose answer is
+   * rejected, refused or failed keeps an earlier pick only if it was stored under this version or
+   * later; raise it with {@link #VERSION} whenever Resolve's checks reject more (ADR 0100).
+   */
+  static final int CHECKED_SINCE = 8;
+
+  private static final Pattern LEADING_NUMBER = Pattern.compile("^(\\d+)");
+
+  /**
+   * Whether an answer stored under a prompt version passed today's checks: its leading number, a
+   * {@code +<hash>} or a calibration's tag aside, is at least {@link #CHECKED_SINCE}.
+   */
+  static boolean checkedToday(String promptVersion) {
+    if (promptVersion == null) {
+      return false;
+    }
+    Matcher number = LEADING_NUMBER.matcher(promptVersion);
+    return number.find() && Integer.parseInt(number.group(1)) >= CHECKED_SINCE;
+  }
 
   /** Block 2's instructions, as the epic writes them. */
   static final String TASK = resource("resolve.task.txt");

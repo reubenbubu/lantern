@@ -1594,6 +1594,70 @@ class LinkResolverTest {
     assertThat(result.facts()).singleElement();
   }
 
+  /**
+   * When version 8's answer is rejected twice, the link is not kept by an earlier pick stored
+   * before its checks: that answer cites lines no tool showed, which today's checks reject (#715).
+   */
+  @Test
+  void aRejectedAnswerDoesNotFallBackToAPickStoredBeforeTheStricterChecks() {
+    taxCall();
+    seedUncheckedVersion7Answer();
+    Function<LlmRequest, String> wrong =
+        r ->
+            turn(r) <= 2
+                ? "{\"I1\": "
+                    + entry("K9", "high", "x x x x x x x x", ref(first(r), "http-call"))
+                    + "}"
+                : null;
+
+    LinkResolver.Result result = resolve(submitting(wrong));
+
+    assertThat(result.rejected()).hasSize(1);
+    assertThat(result.facts()).as("facts from the version 7 answer").isEmpty();
+  }
+
+  /** As above, when the budget leaves no call to ask version 8 (#715). */
+  @Test
+  void aSkippedCallDoesNotFallBackToAPickStoredBeforeTheStricterChecks() {
+    taxCall();
+    seedUncheckedVersion7Answer();
+    FakeLlmProvider fake = submittingOnce(PICK_TAX);
+
+    LinkResolver.Result result = resolve(fake, new BudgetGuard("run", 100L, null));
+
+    assertThat(fake.sent()).isEmpty();
+    assertThat(result.skipped()).hasSize(1);
+    assertThat(result.facts()).as("facts from the version 7 answer").isEmpty();
+  }
+
+  /** Stores, as a run before #715 did, a version 7 pick of tax citing lines no tool showed. */
+  private void seedUncheckedVersion7Answer() {
+    LinkResolver.Result before =
+        new LinkResolver(
+                harness(client(lookingFurther(), BudgetGuard.unlimited("t"))),
+                FILES,
+                LinkResolver.role("7"))
+            .resolve(linked(), 1);
+    String subject = before.facts().getFirst().attributes().get("resolves").asString();
+    StoredAnswer v7 = store.latest(LinkResolver.ROLE.name(), subject).orElseThrow();
+    store.save(
+        new StoredAnswer(
+            v7.fingerprint(),
+            v7.role(),
+            v7.subject(),
+            v7.promptVersion(),
+            v7.provider(),
+            v7.model(),
+            v7.omitted(),
+            v7.answer().replace("TaxController.java:3-6", "TaxController.java:1-2"),
+            v7.dropped(),
+            v7.filesRead(),
+            v7.inputs()));
+    StoredAnswer seeded = store.latest(LinkResolver.ROLE.name(), subject).orElseThrow();
+    assertThat(seeded.promptVersion()).isEqualTo("7");
+    assertThat(seeded.answer()).contains("TaxController.java:1-2");
+  }
+
   @Test
   void findInCodeGivesTheLinesThatHoldATextWithTheirFileAndNumber() {
     taxCall();
