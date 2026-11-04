@@ -57,6 +57,9 @@ import tools.jackson.databind.node.ObjectNode;
 public final class FrontendExtractor implements Extractor {
 
   /** The extractor's version; change it whenever the facts it produces change. */
+  /** The extractor's name, which its facts' origin carries. */
+  public static final String NAME = "frontend";
+
   public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
@@ -74,7 +77,7 @@ public final class FrontendExtractor implements Extractor {
 
   private static final String RESOURCE = "/vocabulary/frontend-types.json";
 
-  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, Types.FRONTEND, VERSION);
+  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
   private static final long MAX_BYTES = 2L * 1024 * 1024;
 
@@ -1646,7 +1649,7 @@ public final class FrontendExtractor implements Extractor {
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(Types.FRONTEND, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of());
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of());
 
   @Override
   public ExtractorInfo info() {

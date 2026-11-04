@@ -20,6 +20,9 @@ public class LinkerComparingPredicates {
     return query.withPredicate("endpoint");
   }
 
+  /** The sends, as a list of predicates. */
+  static final List<String> SENDS = List.of("http-call");
+
   /** A stand-in for a fact query. */
   public interface Query {
     List<Fact> withPredicate(String predicate);

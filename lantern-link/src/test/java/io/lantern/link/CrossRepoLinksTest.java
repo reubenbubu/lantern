@@ -13,7 +13,9 @@ import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
+import io.lantern.extract.frontend.FrontendExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
+import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.identity.IdentityExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.mail.MailExtractor;
@@ -190,7 +192,7 @@ class CrossRepoLinksTest {
 
   private void call(String repo, String method, String object, String attributes, int line) {
     add(
-        Types.HTTP_CLIENT,
+        HttpClientExtractor.NAME,
         "method:" + method,
         Types.HTTP_CALL,
         FactObject.string(object),
@@ -380,7 +382,7 @@ class CrossRepoLinksTest {
     type("shop", "shop-app", "s.App");
     type("shop", "shop-app", "s.CatalogClient");
     add(
-        Types.HTTP_CLIENT,
+        HttpClientExtractor.NAME,
         "type:s.App",
         Types.ENABLES,
         FactObject.entity(EntityId.parse("type:s.CatalogClient")),
@@ -2613,7 +2615,7 @@ class CrossRepoLinksTest {
 
   private void frontend(String repo, String directory) {
     add(
-        Types.FRONTEND,
+        FrontendExtractor.NAME,
         "frontend:" + repo + (directory.isEmpty() ? "" : "/" + directory),
         Types.FRONTEND_APP,
         FactObject.string("angular"),
@@ -2626,7 +2628,7 @@ class CrossRepoLinksTest {
 
   private void frontendCall(String frontend, String method, String url, String more, int line) {
     add(
-        Types.FRONTEND,
+        FrontendExtractor.NAME,
         frontend,
         Types.FRONTEND_CALL,
         FactObject.string((method == null ? "WebSocket" : method) + " " + url),
@@ -2645,7 +2647,7 @@ class CrossRepoLinksTest {
 
   private void frontendProxy(String frontend, String prefix, String target, String source) {
     add(
-        Types.FRONTEND,
+        FrontendExtractor.NAME,
         frontend,
         Types.FRONTEND_PROXY,
         FactObject.string(prefix),

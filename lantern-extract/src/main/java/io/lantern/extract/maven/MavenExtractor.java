@@ -76,9 +76,6 @@ public final class MavenExtractor implements Extractor {
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "maven-extractor";
 
-  /** Attribute: the version a module's POM declares. */
-  public static final String VERSION_ATTRIBUTE = "version";
-
   /** The Maven plugins of coverage tools, by {@code groupId:artifactId}. */
   public static final Set<String> COVERAGE_PLUGINS =
       Set.of(
@@ -186,7 +183,7 @@ public final class MavenExtractor implements Extractor {
         add(
             facts,
             id,
-            VERSION_ATTRIBUTE,
+            Types.VERSION,
             FactObject.string(m.version()),
             m.evidence(declared),
             m,

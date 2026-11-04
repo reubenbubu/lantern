@@ -58,7 +58,9 @@ public final class Findings implements LinkRule.OverFacts {
   public static final String DEPENDENCY_DRIFT = "dependency-drift";
   public static final String PACKAGE_CYCLE = "package-cycle";
   public static final String END_OF_LIFE = "end-of-life";
+  public static final String VERSION_SKEW = "version-skew";
   public static final String SHARED_JWT_SECRET = "shared-jwt-secret";
+  public static final String UNROUTED_ENDPOINT = "unrouted-endpoint";
   public static final String README_CONTRADICTION = "readme-contradiction";
 
   /**
@@ -76,17 +78,21 @@ public final class Findings implements LinkRule.OverFacts {
   public static final String VIA_DEPENDENCY = "dependency";
   public static final String VIA_JAVA_RELEASE = "java-release";
 
-  /** The linker's (and the README claim checks') facts that are findings as they stand. */
+  /**
+   * The linker's (and the README claim checks') facts that are findings as they stand: each
+   * predicate, with the kind of finding it becomes (a kind is Findings' own name, even where it
+   * equals the predicate's).
+   */
   private static final Map<String, String> RECORDED =
       new TreeMap<>(
           Map.of(
-              "version-skew",
               Types.VERSION_SKEW,
-              "shared-secret",
+              VERSION_SKEW,
+              Types.SHARED_SECRET,
               SHARED_JWT_SECRET,
-              "unrouted-endpoint",
               Types.UNROUTED_ENDPOINT,
-              "claim-contradiction",
+              UNROUTED_ENDPOINT,
+              Types.CLAIM_CONTRADICTION,
               README_CONTRADICTION));
 
   private static final String SPRING_GROUP = "org.springframework:spring-";

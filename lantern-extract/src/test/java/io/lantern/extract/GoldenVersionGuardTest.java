@@ -2,7 +2,6 @@ package io.lantern.extract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.lantern.core.types.Types;
 import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.extract.frontend.FrontendExtractor;
@@ -50,9 +49,9 @@ class GoldenVersionGuardTest {
           Map.entry(
               "deployment", new String[] {DeploymentExtractor.NAME, DeploymentExtractor.VERSION}),
           Map.entry("docs", new String[] {DocsExtractor.NAME, DocsExtractor.VERSION}),
-          Map.entry("frontend", new String[] {Types.FRONTEND, FrontendExtractor.VERSION}),
+          Map.entry("frontend", new String[] {FrontendExtractor.NAME, FrontendExtractor.VERSION}),
           Map.entry("gateway", new String[] {GatewayExtractor.NAME, GatewayExtractor.VERSION}),
-          Map.entry("http", new String[] {Types.HTTP_CLIENT, HttpClientExtractor.VERSION}),
+          Map.entry("http", new String[] {HttpClientExtractor.NAME, HttpClientExtractor.VERSION}),
           Map.entry("java", new String[] {JavaExtractor.NAME, JavaExtractor.VERSION}),
           Map.entry("maven", new String[] {MavenExtractor.NAME, MavenExtractor.VERSION}),
           Map.entry(

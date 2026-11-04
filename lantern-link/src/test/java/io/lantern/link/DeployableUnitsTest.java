@@ -541,7 +541,7 @@ class DeployableUnitsTest {
     add(
         MavenExtractor.NAME,
         "module:" + module,
-        MavenExtractor.VERSION_ATTRIBUTE,
+        Types.VERSION,
         FactObject.string(version),
         null,
         repo + ":" + module.substring(module.indexOf(':') + 1) + "/pom.xml#8",

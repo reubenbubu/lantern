@@ -12,6 +12,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.types.Types;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
@@ -258,7 +259,7 @@ class LinkerIT {
     List<Fact> all = new ArrayList<>(service(snapshot, "orders", "o.TaxClient"));
     all.add(
         fact(
-            Types.HTTP_CLIENT,
+            HttpClientExtractor.NAME,
             "method:o.TaxClient#quote()",
             Types.HTTP_CALL,
             FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),

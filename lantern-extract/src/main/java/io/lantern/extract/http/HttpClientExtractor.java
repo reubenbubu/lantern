@@ -70,6 +70,9 @@ import tools.jackson.databind.node.ObjectNode;
 public final class HttpClientExtractor implements Extractor {
 
   /** The extractor's version; change it whenever the facts it produces change. */
+  /** The extractor's name, which its facts' origin carries. */
+  public static final String NAME = "http-client";
+
   public static final String VERSION = "10";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
@@ -92,7 +95,7 @@ public final class HttpClientExtractor implements Extractor {
 
   private static final String RESOURCE = "/vocabulary/http-types.json";
 
-  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, Types.HTTP_CLIENT, VERSION);
+  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
   private static final String SPRING = "org.springframework.";
   private static final List<String> FEIGN_CLIENTS =
@@ -2349,8 +2352,7 @@ public final class HttpClientExtractor implements Extractor {
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(
-          Types.HTTP_CLIENT, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(Types.PAYLOAD_TYPE));
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(Types.PAYLOAD_TYPE));
 
   @Override
   public ExtractorInfo info() {

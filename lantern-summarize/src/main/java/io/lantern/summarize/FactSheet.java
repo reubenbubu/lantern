@@ -33,13 +33,13 @@ final class FactSheet {
     ENTRY_POINTS(
         "Entry points",
         List.of(
-            "main-class",
-            "endpoint",
-            "message-listener",
-            "websocket-endpoint",
-            "stomp-mapping",
-            "scheduled",
-            "background-job")),
+            Types.MAIN_CLASS,
+            Types.ENDPOINT,
+            Types.MESSAGE_LISTENER,
+            Types.WEBSOCKET_ENDPOINT,
+            Types.STOMP_MAPPING,
+            Types.SCHEDULED,
+            Types.BACKGROUND_JOB)),
     LINKS(
         "Links",
         List.of(
@@ -51,21 +51,21 @@ final class FactSheet {
             Types.CONSUMES,
             Types.USES_BROKER,
             Types.USES_INFRASTRUCTURE,
-            "http-call",
-            "message-send",
-            "stomp-send",
-            "mail-send",
-            "http-client")),
+            Types.HTTP_CALL,
+            Types.MESSAGE_SEND,
+            Types.STOMP_SEND,
+            Types.MAIL_SEND,
+            Types.HTTP_CLIENT)),
     DATA_STORES(
         "Data stores",
         List.of(
             Types.USES_DATABASE,
             Types.ACCESSES_DATA_OF,
-            "datasource",
+            Types.DATASOURCE,
             Types.MAPS_TO,
             Types.READS_TABLE,
             Types.WRITES_TABLE)),
-    TECHNOLOGY("Technology", List.of("technology", "deployable-unit", "java-release"));
+    TECHNOLOGY("Technology", List.of(Types.TECHNOLOGY, Types.DEPLOYABLE_UNIT, Types.JAVA_RELEASE));
 
     private final String title;
     private final List<String> predicates;

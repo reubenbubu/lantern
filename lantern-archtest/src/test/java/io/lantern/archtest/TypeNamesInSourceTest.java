@@ -19,8 +19,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The sources of every module that reads facts write no type's name as a string where they read
- * facts: no relationship type's name anywhere, and no type's name given to a fact query (ADR 0114,
- * widened by #763). A constant would be caught by {@link
+ * facts: no relationship type's name anywhere, no other type's name whose words are joined by a
+ * hyphen anywhere (such names are never English words), and no type's name given to a fact query
+ * (ADR 0114, widened by #763). A constant would be caught by {@link
  * ArchitectureRules#NAMES_TYPES_THROUGH_THE_TYPED_LAYER}; a literal is inlined, so only the source
  * shows it.
  */
@@ -42,14 +43,27 @@ class TypeNamesInSourceTest {
 
   /**
    * Literals that only happen to equal a type's name where the scan looks, as file and literal: a
-   * document block's kind read from JSON, an SQL keyword and a Spring stereotype's value.
+   * document block's kind read from JSON or a section's block ID, an extractor's name, an SQL
+   * keyword, a Spring stereotype's value, a finding's kind, a value of an attribute, and an LLM
+   * role's name.
    */
   static final Set<String> NOT_TYPE_NAMES =
       Set.of(
           "DocumentJson.java table",
           "DocumentJson.java diagram",
           "SqlScript.java REFERENCES",
-          "Components.java service");
+          "Components.java service",
+          "Components.java entry-point",
+          "Findings.java java-release",
+          "Findings.java version-skew",
+          "Findings.java unrouted-endpoint",
+          "Investigator.java version-skew",
+          "Investigator.java unrouted-endpoint",
+          "FlowJudgements.java flow-significance",
+          "FlowJudgements.java flow-narrative",
+          "RepoSections.java key-fact",
+          "UnknownsPage.java not-investigated",
+          "HttpClientExtractor.java http-client");
 
   private static final Pattern LITERAL = Pattern.compile("\"((?:[^\"\\\\]|\\\\.)*)\"");
 
@@ -75,7 +89,8 @@ class TypeNamesInSourceTest {
         .containsExactly(
             "LinkerComparingPredicates.java:12 \"CALLS_HTTP\"",
             "LinkerComparingPredicates.java:16 \"USES_DATABASE\"",
-            "LinkerComparingPredicates.java:20 withPredicate(\"endpoint\"");
+            "LinkerComparingPredicates.java:20 withPredicate(\"endpoint\"",
+            "LinkerComparingPredicates.java:24 \"http-call\"");
   }
 
   /** Each type name the files write where they read facts, as {@code file:line text}. */
@@ -98,13 +113,15 @@ class TypeNamesInSourceTest {
         while (query.find()) {
           if (all.contains(query.group(1))
               && !relationships.contains(query.group(1))
+              && !query.group(1).contains("-")
               && !NOT_TYPE_NAMES.contains(file.getFileName() + " " + query.group(1))) {
             found.add(where + query.group());
           }
         }
         Matcher literal = LITERAL.matcher(line);
         while (literal.find()) {
-          if (relationships.contains(literal.group(1))
+          String text = literal.group(1);
+          if ((relationships.contains(text) || (text.contains("-") && all.contains(text)))
               && !NOT_TYPE_NAMES.contains(file.getFileName() + " " + literal.group(1))) {
             found.add(where + literal.group());
           }

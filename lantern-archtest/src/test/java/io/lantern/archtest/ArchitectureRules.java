@@ -346,8 +346,8 @@ final class ArchitectureRules {
 
   /**
    * Constants whose value only happens to equal a type's name: a command option, a field of an LLM
-   * role's answer, a value of an attribute ({@code by}, {@code via}, a component's role, a scope)
-   * or a key inside a fact's attributes. Renaming the type must not change them (ADR 0114, #763).
+   * role's answer, a value of an attribute ({@code by}, {@code via}, a component's role, a scope) a
+   * finding's kind or an extractor's name. Renaming the type must not change them (ADR 0114, #763).
    */
   static final Set<String> NOT_TYPE_NAMES =
       Set.of(
@@ -364,7 +364,10 @@ final class ArchitectureRules {
           "io.lantern.derive.Components.ASPECT_ROLE",
           "io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE",
           "io.lantern.derive.Groups.SYSTEM",
-          "io.lantern.extract.maven.MavenExtractor.VERSION_ATTRIBUTE");
+          "io.lantern.derive.Findings.VERSION_SKEW",
+          "io.lantern.derive.Findings.UNROUTED_ENDPOINT",
+          "io.lantern.extract.frontend.FrontendExtractor.NAME",
+          "io.lantern.extract.http.HttpClientExtractor.NAME");
 
   /**
    * No module that reads facts defines a constant holding a vocabulary type's name: each names

@@ -116,7 +116,7 @@ public final class DeployableUnits implements LinkRule {
           Types.PACKAGING,
           Types.PARENT,
           Types.JAVA_RELEASE,
-          MavenExtractor.VERSION_ATTRIBUTE,
+          Types.VERSION,
           Types.CONFIG_VALUE,
           Types.MAIN_CLASS);
 
@@ -781,7 +781,7 @@ public final class DeployableUnits implements LinkRule {
           case Types.PACKAGING -> packaging.put(f.subject(), f.object().value());
           case Types.PARENT -> parent.merge(f.subject(), f, DeployableUnits::first);
           case Types.JAVA_RELEASE -> javaRelease.merge(f.subject(), f, DeployableUnits::first);
-          case MavenExtractor.VERSION_ATTRIBUTE -> {
+          case Types.VERSION -> {
             if (extractor.equals(MavenExtractor.NAME) && f.subject().type().equals(Types.MODULE)) {
               moduleVersion.merge(f.subject(), f, DeployableUnits::first);
             }

@@ -111,7 +111,7 @@ public final class LeadRules {
   static final class SendBeforeCommit extends LeadRule {
     // A list, not a set: each method's sends are kept in this order, the same in every run (#682).
     private static final List<String> SENDS =
-        List.of("message-send", "http-call", "mail-send", "stomp-send");
+        List.of(Types.MESSAGE_SEND, Types.HTTP_CALL, Types.MAIL_SEND, Types.STOMP_SEND);
 
     /** Propagations that run the method outside a transaction, or join one only if it exists. */
     private static final Set<String> NO_TRANSACTION = Set.of("NOT_SUPPORTED", "NEVER", "SUPPORTS");

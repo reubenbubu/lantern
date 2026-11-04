@@ -499,9 +499,9 @@ final class MessageLinker {
   private static String site(Fact fact) {
     String kind =
         switch (fact.predicate()) {
-          case Types.SENDS_TO -> "message-send";
-          case Types.LISTENS_ON -> "message-listener";
-          default -> "message-binding";
+          case Types.SENDS_TO -> Types.MESSAGE_SEND;
+          case Types.LISTENS_ON -> Types.MESSAGE_LISTENER;
+          default -> Types.MESSAGE_BINDING;
         };
     String written = Claims.written(fact);
     return kind + "|" + (written != null ? written : name(fact));

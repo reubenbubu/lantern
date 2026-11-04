@@ -11,6 +11,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.types.Types;
 import io.lantern.extract.gateway.GatewayExtractor;
+import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
@@ -167,7 +168,7 @@ class LinkResolverTest {
     unit("a", "orders");
     type("a", "orders", "o.TaxClient");
     add(
-        Types.HTTP_CLIENT,
+        HttpClientExtractor.NAME,
         "method:o.TaxClient#quote()",
         Types.HTTP_CALL,
         FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
@@ -580,7 +581,7 @@ class LinkResolverTest {
     unit("m", "orders");
     type("m", "orders", "o.TaxClient");
     add(
-        Types.HTTP_CLIENT,
+        HttpClientExtractor.NAME,
         "method:o.TaxClient#quote()",
         Types.HTTP_CALL,
         FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
@@ -956,7 +957,7 @@ class LinkResolverTest {
     for (int i = 1; i <= 5; i++) {
       type("a", "orders", "o.Client" + i);
       add(
-          Types.HTTP_CLIENT,
+          HttpClientExtractor.NAME,
           "method:o.Client" + i + "#call()",
           Types.HTTP_CALL,
           FactObject.string("GET ${URL" + i + "}/v2/q" + i),
@@ -1036,7 +1037,7 @@ class LinkResolverTest {
     unit("a", "orders");
     type("a", "orders", "o.TaxClient");
     add(
-        Types.HTTP_CLIENT,
+        HttpClientExtractor.NAME,
         "method:o.TaxClient#quote()",
         Types.HTTP_CALL,
         FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),

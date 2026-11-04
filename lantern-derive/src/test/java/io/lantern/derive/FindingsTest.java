@@ -127,9 +127,9 @@ class FindingsTest {
     List<Fact> derived = model.derived(Findings.NAME);
 
     Fact finding = only(derived);
-    assertThat(finding.object().value()).isEqualTo(Types.VERSION_SKEW);
+    assertThat(finding.object().value()).isEqualTo(Findings.VERSION_SKEW);
     assertThat(finding.subject())
-        .isEqualTo(Findings.id(Types.VERSION_SKEW, LIB + "/" + fact.claimId()));
+        .isEqualTo(Findings.id(Findings.VERSION_SKEW, LIB + "/" + fact.claimId()));
     assertThat(finding.lineage()).containsExactly(fact.claimId());
   }
 
