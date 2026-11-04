@@ -102,3 +102,45 @@ test('the legend of a sequence has the async arrowhead when a message is async',
   assert.match(legend, /Return/);
   assert.doesNotMatch(legendHTML(['container'], { seq: true }), /Async message/);
 });
+
+// The after-layout readability check (#366), loaded from the template source like mdInline.
+const readability = new Function(
+  `${template.match(/^const READABLE = \{[\s\S]*?^\};$/m)[0]}\n` +
+    `${template.match(/^function segmentsCross[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function lineCrossings[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function readabilityOf[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^const isReadable = .*$/m)[0]}\n` +
+    'return {READABLE, lineCrossings, readabilityOf, isReadable};',
+)();
+
+test('lines that only touch or run side by side do not cross; lines through each other do', () => {
+  const { lineCrossings } = readability;
+  // A plus sign: one crossing.
+  assert.equal(lineCrossings([[[0, 5], [10, 5]], [[5, 0], [5, 10]]]), 1);
+  // An L meeting a line at its end, and two parallel lines: none.
+  assert.equal(lineCrossings([[[0, 0], [10, 0]], [[10, 0], [10, 10]]]), 0);
+  assert.equal(lineCrossings([[[0, 0], [10, 0]], [[0, 2], [10, 2]]]), 0);
+  // An orthogonal line with a bend crossing two others.
+  assert.equal(lineCrossings([[[0, 5], [20, 5], [20, 20]], [[5, 0], [5, 10]], [[15, 0], [15, 30]]]), 2);
+});
+
+test('a view with many crossing lines is not readable; a sparse one that fits is', () => {
+  const { READABLE, readabilityOf, isReadable } = readability;
+  // A grid of 6 horizontal and 6 vertical lines: 36 crossings.
+  const dense = [];
+  for (let i = 0; i < 6; i++) {
+    dense.push([[0, 50 + i * 100], [700, 50 + i * 100]]);
+    dense.push([[50 + i * 100, 0], [50 + i * 100, 700]]);
+  }
+  const fitting = [0, 0, 900, 600];
+  const denseView = readabilityOf(dense, fitting);
+  assert.equal(denseView.crossings, 36);
+  assert.equal(denseView.fits, true);
+  assert.equal(isReadable(denseView), false);
+  // Three lines that never meet, on a view that fits: readable.
+  const sparse = readabilityOf([[[0, 0], [100, 0]], [[0, 50], [100, 50]], [[0, 100], [100, 100]]], fitting);
+  assert.deepEqual([sparse.crossings, sparse.fits, isReadable(sparse)], [0, true, true]);
+  // The same lines on a view too large for the page at a readable scale: not readable.
+  const huge = readabilityOf([[[0, 0], [100, 0]]], [0, 0, READABLE.canvas[0] / READABLE.scale + 1, 400]);
+  assert.deepEqual([huge.fits, isReadable(huge)], [false, false]);
+});
