@@ -579,7 +579,7 @@ public final class Investigator {
             line += ": " + entry.path("title").asString("");
             risk(entry, lead, InvestigateRole.Mode.LEADS, null, fp);
           }
-          answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(line);
+          answered(lead, line);
         }
         case OMITTED -> unclear(lead, "not answered", fp);
         case DROPPED -> unclear(lead, "its answer was rejected twice", fp);
@@ -596,7 +596,17 @@ public final class Investigator {
 
     private void unclear(Lead lead, String reason, String fp) {
       facts.add(verdictFact(lead, "unclear", FactJson.newObject(), reason, fp));
-      answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(lead.id() + " unclear");
+      answered(lead, lead.id() + " unclear");
+    }
+
+    /**
+     * Notes a lead's answer for the exploration of every unit it touches, not only the unit its
+     * conversation is about, so exploring a unit sees every lead checked on it (#747).
+     */
+    private void answered(Lead lead, String line) {
+      List<String> units = lead.units().isEmpty() ? List.of(lead.unit()) : lead.units();
+      new LinkedHashSet<>(units)
+          .forEach(unit -> answers.computeIfAbsent(unit, u -> new ArrayList<>()).add(line));
     }
 
     private Fact verdictFact(Lead lead, String verdict, JsonNode entry, String reason, String fp) {

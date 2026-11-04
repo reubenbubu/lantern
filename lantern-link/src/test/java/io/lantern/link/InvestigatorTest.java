@@ -1172,6 +1172,39 @@ class InvestigatorTest {
   }
 
   @Test
+  void exploringAUnitIsShownEveryLeadThatTouchesIt() {
+    Fact lead = headerLead();
+    ObjectNode attributes = (ObjectNode) lead.attributes().deepCopy();
+    attributes.withArray("units").add(GATEWAY_UNIT);
+    add(
+        "lead-identity-from-request",
+        "lead:identity-from-request/" + GATEWAY_UNIT + "/header:X-User-Id",
+        Types.LEAD_TRIGGER,
+        FactObject.string("identity-from-request"),
+        attributes.toString(),
+        "fs",
+        CONTROLLER,
+        6);
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+
+    investigate(fake);
+
+    // The gateway's exploration sees the lead whose conversation was about files, since it
+    // touches the gateway too (#747).
+    String gateway =
+        fake.sent().stream()
+            .map(c -> c.request())
+            .filter(r -> !leads(r))
+            .map(r -> r.system() + "\n" + r.messages().getFirst().text())
+            .filter(t -> t.contains("The deployable unit " + GATEWAY_UNIT))
+            .findFirst()
+            .orElseThrow();
+    assertThat(gateway)
+        .contains("<answers>")
+        .contains("lead:identity-from-request/" + GATEWAY_UNIT);
+  }
+
+  @Test
   void theSystemIsShownTheRisksItsUnitsHave() {
     headerLead();
     FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
