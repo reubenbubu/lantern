@@ -162,7 +162,7 @@ public final class Knowledge {
     return about(subject).stream().filter(f -> !isEntity(f)).toList();
   }
 
-  /** The value of the first attribute fact with the predicate, by fact ID. */
+  /** The value of the first attribute fact with the predicate, in {@link #STABLE} order. */
   public Optional<String> attribute(EntityId subject, String predicate) {
     return attributes(subject).stream()
         .filter(f -> f.predicate().equals(predicate))

@@ -222,7 +222,7 @@ public final class ArchitectureModel {
     return knowledge.attribute(subject, predicate);
   }
 
-  /** The facts of the origin kind, by ID. */
+  /** The facts of the origin kind, in {@link Knowledge#STABLE} order. */
   public List<Fact> withOrigin(Origin.Kind kind) {
     return knowledge.withOrigin(kind);
   }
