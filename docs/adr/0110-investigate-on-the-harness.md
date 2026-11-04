@@ -180,3 +180,22 @@ conversation read it; Investigate has no sides.
   this ADR agree.
 - **Re-measure.** The measurement of leads a request again on Claude Haiku 5.5 is done by #756,
   with the recalibration of the batched roles; the size stays 1 until it reports.
+
+## Amendment (#747): one risk per kind per unit
+
+- **Key.** A confirmed lead's `investigated-risk`, or the `finding-wording` it gives, is keyed on
+  the lead's kind instead of its claim ID. The confirmed leads of one kind in one unit (its first
+  unit) are one risk: the first lead's wording, in the order the leads are asked (by unit, then
+  lead), and every lead's `names`, `cites`, evidence and lead (`leads`, with `lead` the first),
+  each lead's claim in its lineage. A lead that restates a finding not yet worded still words
+  that finding, so two findings of a kind stay two rows, as the fixed checks found them.
+- **Explored risks.** A Mode B or C risk that restates no finding but cites a range overlapping
+  the evidence of a risk or worded finding already stored about its first unit is not stored: it
+  is the same problem said again. It is logged, and still counts among the unit's answers, so
+  the system conversation is not asked to find it again.
+- **Not changed.** Leads, verdicts and what each conversation is shown stay as they are, so
+  replays of earlier recordings still match. Showing exploration every lead that touches its unit
+  is the second half of #747, measured on a real run.
+- **Why.** On project-4 the before-commit leads fired per sending method gave 13 rows of one
+  problem; the reader needs it once, with every place it occurs (`docs/quality-bar.md`, Words say
+  what the diagram cannot).

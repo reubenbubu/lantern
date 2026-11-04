@@ -694,6 +694,126 @@ class InvestigatorTest {
     assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
   }
 
+  /** A second lead of the header kind in the files unit, on another header, at line 7. */
+  private Fact orgLead() {
+    Fact read =
+        add(
+            "spring",
+            "method:f.FileController#upload()",
+            "reads-request-value",
+            FactObject.string("X-Org-Id"),
+            "{\"source\":\"header\"}",
+            "fs",
+            CONTROLLER,
+            7);
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("trigger", "The header X-Org-Id is read by the code of files");
+    attributes.putArray("units").add(FILES_UNIT);
+    attributes.putArray("code").add("method:f.FileController#upload()");
+    attributes.put("content", "sha256:def");
+    attributes.putArray("facts").add(read.id());
+    return add(
+        "lead-identity-from-request",
+        "lead:identity-from-request/" + FILES_UNIT + "/header:X-Org-Id",
+        Types.LEAD_TRIGGER,
+        FactObject.string("identity-from-request"),
+        attributes.toString(),
+        "fs",
+        CONTROLLER,
+        7);
+  }
+
+  private static final String CONFIRMED_ORG =
+      """
+      {"lead": "I1", "verdict": "confirmed", "kind": "risk",
+       "title": "Files trust the caller's organization header",
+       "finding": "upload passes the file to storage under the organization the caller names, and nothing checks that the caller belongs to it.",
+       "consequence": "Any caller can store files in any organization, so one organization's files can be overwritten by a caller from another one.",
+       "impact": "high", "confidence": "high", "units": ["service:g:files"],
+       "names": ["storage"], "cites": ["fs:src/main/java/f/FileController.java:7-7"]}""";
+
+  @Test
+  void theConfirmedLeadsOfOneKindInAUnitAreOneRiskCitingEveryPlace() {
+    Fact header = headerLead();
+    Fact org = orgLead();
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                !leads(r) || turn(r) != 1
+                    ? null
+                    : r.messages().getFirst().text().contains("header:X-Org-Id")
+                        ? CONFIRMED_ORG
+                        : CONFIRMED);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.LEAD_VERDICT)).hasSize(2);
+    assertThat(result.confirmed()).isEqualTo(2);
+    Fact risk = of(result, Types.INVESTIGATED_RISK).stream().collect(onlyOne());
+    assertThat(risk.object().value()).isEqualTo("identity-from-request");
+    // The first lead's wording, every lead's places.
+    assertThat(risk.attributes().path("title").asString())
+        .isIn(
+            "Files trust the caller's user header", "Files trust the caller's organization header");
+    assertThat(texts(risk.attributes().path("cites")))
+        .containsExactlyInAnyOrder("fs:" + CONTROLLER + ":5-7", "fs:" + CONTROLLER + ":7-7");
+    assertThat(texts(risk.attributes().path("leads")))
+        .containsExactlyInAnyOrder(header.subject().toString(), org.subject().toString());
+    assertThat(risk.evidence().locations()).hasSize(2);
+    assertThat(risk.lineage()).containsExactlyInAnyOrder(claimOf(header), claimOf(org));
+  }
+
+  @Test
+  void aRiskFoundExploringThatCitesTheLinesOfARiskOfItsUnitIsNotASecondRisk() {
+    headerLead();
+    String overlapping = uploadRisk("fs:" + CONTROLLER + ":6-6");
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                turn(r) != 1
+                    ? null
+                    : leads(r) ? CONFIRMED : unit(r, FILES_UNIT) ? overlapping : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.INVESTIGATED_RISK))
+        .singleElement()
+        .satisfies(r -> assertThat(r.attributes().path("mode").asString()).isEqualTo("leads"));
+  }
+
+  @Test
+  void aRiskFoundExploringThatCitesOtherLinesIsARiskOfItsOwn() {
+    headerLead();
+    String elsewhere = uploadRisk("fs:" + STORAGE + ":3-3").replace("MultipartFile", "bucket");
+    Investigator.Result both =
+        investigate(
+            submitting(
+                r ->
+                    turn(r) != 1
+                        ? null
+                        : leads(r) ? CONFIRMED : unit(r, FILES_UNIT) ? elsewhere : null));
+    assertThat(of(both, Types.INVESTIGATED_RISK)).hasSize(2);
+  }
+
+  private static List<String> texts(tools.jackson.databind.JsonNode array) {
+    List<String> texts = new ArrayList<>();
+    array.forEach(v -> texts.add(v.asString()));
+    return texts;
+  }
+
+  private static String claimOf(Fact fact) {
+    return fact.claimId() != null ? fact.claimId() : fact.id();
+  }
+
+  private static <T> java.util.stream.Collector<T, ?, T> onlyOne() {
+    return java.util.stream.Collectors.collectingAndThen(
+        java.util.stream.Collectors.toList(),
+        list -> {
+          assertThat(list).hasSize(1);
+          return list.getFirst();
+        });
+  }
+
   @Test
   void exploringAUnitKeepsTheProposalsThatHoldAndSendsBackTheRest() {
     headerLead();

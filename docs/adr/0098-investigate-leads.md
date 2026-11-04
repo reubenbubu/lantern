@@ -75,3 +75,10 @@ leaves it open. The agent decided these points under the owner's standing go-ahe
   holds only under one profile can raise a contract mismatch; a call whose path still holds a
   placeholder raises none; a parameter mismatch (the right path,
   another query parameter) is not a contract mismatch here.
+
+## Amendment (#747): a lead is a place, a risk is a problem
+
+Leads keep their keys above, so each is judged on its own code. A risk is not a lead: the
+confirmed leads of one kind in one unit become one risk citing every place (ADR 0110, amendment
+for #747). A `send-before-commit` lead per sending method, or a `weak-access-check` per endpoint,
+so gives the reader one row per unit, not one per method.
