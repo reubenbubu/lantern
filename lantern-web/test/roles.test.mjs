@@ -505,7 +505,7 @@ test('Describe on the page: a line counts when labelled with the intent of its o
   const lifted = link('xq', 'PUBLISHES', 'component:service:a/type:p.X', 'queue:orders');
   const llm = [intentFor('c-ab', 'Looks up prices'), intentFor('c-xq', 'Announces new orders')];
   const row = describeRow(report, [...linked, lifted], llm, run);
-  assert.deepEqual(row.drawn, { lines: 4, own: 2, generic: 1, other: 1, coverage: 0.5 });
+  assert.deepEqual(row.drawn, { lines: 4, own: 2, generic: 1, genericWithIntent: 0, other: 1, coverage: 0.5 });
   assert.equal(row.scores['line:service-a->service-b'], 1);
   assert.equal(row.scores['line:service-b->service-a'], 0);
 });
