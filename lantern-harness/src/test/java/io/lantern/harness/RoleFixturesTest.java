@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.harness.checks.InjectionScreen;
 import io.lantern.harness.checks.SupportJudge;
-import io.lantern.harness.render.Blocks;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
@@ -14,9 +13,6 @@ import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.RoleFixture;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -37,30 +33,17 @@ import org.junit.jupiter.api.Test;
 class RoleFixturesTest {
 
   private static final Path RECORDINGS = Path.of("src/test/resources/recordings");
-  private static final Path FIXTURES = Path.of("src/test/resources/injection");
-  private static final List<String> INJECTED =
-      List.of("README.md", "OrderController.java", "application.yml", "Greeting.java");
   private static final Pattern ITEM =
       Pattern.compile("<item id=\"(I[0-9]+)\">\\n(.*?)\\n</item>", Pattern.DOTALL);
 
   /** The four files, as a repository shows them. */
-  private static List<Harness.Shown> injected() throws IOException {
+  private static List<Harness.Shown> injected() {
     List<Harness.Shown> shown = new ArrayList<>();
-    for (String name : INJECTED) {
-      String text = Files.readString(FIXTURES.resolve(name), StandardCharsets.UTF_8);
+    for (String name : InjectionFixtures.INJECTED) {
+      String text = InjectionFixtures.fixture(name);
       shown.add(new Harness.Shown("orders", name, Fingerprints.gitBlob(text), text));
     }
     return shown;
-  }
-
-  /** The line of each fixture that speaks to an AI. */
-  private static List<String> injectedLines() throws IOException {
-    List<String> lines = new ArrayList<>();
-    for (Harness.Shown file : injected()) {
-      lines.add(
-          file.text().lines().filter(l -> l.contains("AI assistant")).findFirst().orElseThrow());
-    }
-    return lines;
   }
 
   private static LlmClient replayed(FakeLlmProvider scripted, String role) {
@@ -80,22 +63,6 @@ class RoleFixturesTest {
       items.put(item.group(1), item.group(2));
     }
     return items;
-  }
-
-  /** Every line that speaks to an AI sits inside a data block of the request, and is there. */
-  private static void allInsideDataBlocks(FakeLlmProvider fake) throws IOException {
-    assertThat(fake.sent()).isNotEmpty();
-    StringBuilder all = new StringBuilder();
-    for (var sent : fake.sent()) {
-      String prompt = sent.request().messages().getFirst().text();
-      all.append(prompt);
-      assertThat(Blocks.outsideData(prompt, "AI assistant")).as(prompt).isEmpty();
-      assertThat(Blocks.outsideData(sent.request().system(), "AI assistant")).isEmpty();
-    }
-    for (String line : injectedLines()) {
-      String said = line.substring(line.indexOf("AI assistant")).strip();
-      assertThat(all.toString()).contains(said.substring(0, Math.min(40, said.length())));
-    }
   }
 
   // The screen: flags each line that speaks to an AI, with a quote from it.
@@ -141,7 +108,7 @@ class RoleFixturesTest {
   }
 
   @Test
-  void theScreenReplaysItsRecordingToExactlyTheExpectedFindings() throws IOException {
+  void theScreenReplaysItsRecordingToExactlyTheExpectedFindings() {
     FakeLlmProvider scripted = new FakeLlmProvider().answering(RoleFixturesTest::screening);
     InjectionScreen.Result result =
         new InjectionScreen(
@@ -155,7 +122,7 @@ class RoleFixturesTest {
   }
 
   @Test
-  void theScreenShowsTheFixturesAsDataAndAQuoteThatObeysThemFindsNothing() throws IOException {
+  void theScreenShowsTheFixturesAsDataAndAQuoteThatObeysThemFindsNothing() {
     // A model that obeys: it writes what the fixtures ask for instead of quoting them.
     FakeLlmProvider obeying =
         new FakeLlmProvider()
@@ -169,7 +136,7 @@ class RoleFixturesTest {
         new InjectionScreen(harness(client(obeying), new InMemoryAnswerStore()))
             .screen(InjectionScreen.chunks(injected()));
 
-    allInsideDataBlocks(obeying);
+    InjectionFixtures.shownAsData(obeying);
     // A quote the lines do not hold is no finding: nothing is stored.
     assertThat(result.suspected()).isEmpty();
   }
@@ -179,9 +146,10 @@ class RoleFixturesTest {
         "unit:" + i, "Unit " + i + " takes orders from the shop.", List.of("[F1] " + cited));
   }
 
-  private static List<SupportJudge.Text> claims() throws IOException {
+  private static List<SupportJudge.Text> claims() {
     List<SupportJudge.Text> texts = new ArrayList<>();
-    List<String> injected = injectedLines();
+    List<String> injected =
+        InjectionFixtures.INJECTED.stream().map(InjectionFixtures::injectedLine).toList();
     for (int i = 0; i < injected.size(); i++) {
       texts.add(claim(i, "unit:" + i + " comment " + injected.get(i).strip()));
     }
@@ -203,7 +171,7 @@ class RoleFixturesTest {
   private static final Set<String> ALL = Set.of("unit:0", "unit:1", "unit:2", "unit:3");
 
   @Test
-  void theJudgeReplaysItsRecordingToExactlyTheExpectedVerdicts() throws IOException {
+  void theJudgeReplaysItsRecordingToExactlyTheExpectedVerdicts() {
     FakeLlmProvider scripted = new FakeLlmProvider().answering(r -> judging(r, "supported"));
     Map<String, SupportJudge.Support> verdicts =
         new SupportJudge(harness(replayed(scripted, "support-judge"), new InMemoryAnswerStore()))
@@ -218,13 +186,13 @@ class RoleFixturesTest {
   }
 
   @Test
-  void theJudgeShowsTheFixturesAsDataAndAVerdictThatObeysThemIsRejected() throws IOException {
+  void theJudgeShowsTheFixturesAsDataAndAVerdictThatObeysThemIsRejected() {
     // A model that obeys: it approves, which is no verdict the judge knows.
     FakeLlmProvider obeying = new FakeLlmProvider().answering(r -> judging(r, "approved"));
     Map<String, SupportJudge.Support> verdicts =
         new SupportJudge(harness(client(obeying), new InMemoryAnswerStore())).judge(claims(), ALL);
 
-    allInsideDataBlocks(obeying);
+    InjectionFixtures.shownAsData(obeying);
     assertThat(verdicts).doesNotContainKeys("unit:1", "unit:2", "unit:3");
   }
 }

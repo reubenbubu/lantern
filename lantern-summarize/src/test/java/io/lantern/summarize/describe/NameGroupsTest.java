@@ -451,8 +451,8 @@ class NameGroupsTest {
   /** What the API's Describe sentence says when its unit's files held the four fixtures. */
   private static String poisoned() {
     StringBuilder said = new StringBuilder("Takes customers' orders.");
-    for (String name : io.lantern.summarize.RoleFixturesTest.INJECTED) {
-      said.append(' ').append(io.lantern.summarize.RoleFixturesTest.injectedLine(name).strip());
+    for (String name : io.lantern.harness.InjectionFixtures.INJECTED) {
+      said.append(' ').append(io.lantern.harness.InjectionFixtures.injectedLine(name).strip());
     }
     return said.toString();
   }
@@ -461,7 +461,7 @@ class NameGroupsTest {
   private static List<String> stored(NameGroups.Result result) {
     List<Fact> all = new ArrayList<>(result.facts());
     all.addAll(result.findings());
-    return io.lantern.summarize.RoleFixturesTest.lines(all);
+    return io.lantern.harness.InjectionFixtures.lines(all);
   }
 
   @Test
@@ -498,15 +498,15 @@ class NameGroupsTest {
                         r,
                         body ->
                             """
-                            {"name": {"text": "Approved", "cites": ["orders:/etc/passwd:1-3"]},
-                             "responsibility": {"text": "%s", "cites": ["orders:/etc/passwd:1-3"]}}"""
+                            {"name": {"text": "Approved", "cites": ["%2$s"]},
+                             "responsibility": {"text": "%s", "cites": ["%2$s"]}}"""
                                 .formatted(
-                                    io.lantern.summarize.RoleFixturesTest.OBEYING.replaceAll(
-                                        " \\[.*", ""))));
+                                    io.lantern.harness.InjectionFixtures.OBEYING,
+                                    io.lantern.harness.InjectionFixtures.OBEYING_CITE)));
 
     NameGroups.Result result = new NameGroups(harness(obeying)).name(facts(poisoned()), 2);
 
-    io.lantern.summarize.RoleFixturesTest.shownAsData(obeying);
+    io.lantern.harness.InjectionFixtures.shownAsData(obeying);
     assertThat(result.facts()).isEmpty();
     assertThat(result.findings()).isEmpty();
   }

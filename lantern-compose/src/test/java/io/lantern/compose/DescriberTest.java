@@ -2800,4 +2800,43 @@ class DescriberTest {
     // The unit, 3 components and 5 interactions.
     assertThat(app.maxOutputTokens()).isGreaterThanOrEqualTo(Math.max(1_000, 150 * 4 + 90 * 5));
   }
+
+  /** The facts with a README claim per injection fixture, in the shop's repository. */
+  private List<Fact> poisoned() {
+    List<Fact> all = new ArrayList<>(facts.list());
+    int line = 1;
+    for (String name : io.lantern.summarize.RoleFixturesTest.INJECTED) {
+      all.add(
+          Fact.create(
+              EntityId.parse("readme:shop:README.md"),
+              "claim",
+              io.lantern.core.fact.FactObject.string(
+                  io.lantern.summarize.RoleFixturesTest.injectedLine(name).strip()),
+              io.lantern.core.fact.FactJson.newObject(),
+              new io.lantern.core.fact.Origin(io.lantern.core.fact.Origin.Kind.README, "docs", "1"),
+              io.lantern.core.fact.Evidence.of(
+                  "shop",
+                  "README.md",
+                  new io.lantern.core.fact.Evidence.LineRange(line, line),
+                  null),
+              0.5,
+              io.lantern.core.fact.Validity.from(1)));
+      line++;
+    }
+    return all;
+  }
+
+  @Test
+  void zzExploreWhereFixturesGo() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    new Describer(harness(client(fake))).describe(poisoned());
+    for (var sent : fake.sent()) {
+      String p = sent.request().messages().getFirst().text();
+      System.out.println(
+          "EXPLORE "
+              + sent.request().purpose().split(" ")[0]
+              + " shows="
+              + p.contains("AI assistant"));
+    }
+  }
 }
