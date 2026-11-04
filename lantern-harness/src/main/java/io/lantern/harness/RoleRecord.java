@@ -47,6 +47,7 @@ public final class RoleRecord implements LlmCallLog {
   private String warmUp;
   private final List<String> asked = new ArrayList<>();
   private final List<String> unasked = new ArrayList<>();
+  private final List<String> failedSubjects = new ArrayList<>();
   private final List<String> reused = new ArrayList<>();
   private final Map<String, AskedWhy> why = new HashMap<>();
 
@@ -132,7 +133,11 @@ public final class RoleRecord implements LlmCallLog {
     }
     switch (outcome.kind()) {
       case CACHED -> reused.add(subject);
-      case NOT_ASKED, FAILED -> unasked.add(subject);
+      case NOT_ASKED -> unasked.add(subject);
+      case FAILED -> {
+        unasked.add(subject);
+        failedSubjects.add(subject);
+      }
       default -> asked.add(subject);
     }
   }
@@ -195,6 +200,14 @@ public final class RoleRecord implements LlmCallLog {
    */
   public synchronized List<String> unasked() {
     return List.copyOf(unasked);
+  }
+
+  /**
+   * The subjects of the items whose request failed, a part of {@link #unasked()}, so the scorer can
+   * count them apart from those not asked (#734).
+   */
+  public synchronized List<String> failed() {
+    return List.copyOf(failedSubjects);
   }
 
   /** The subjects of the items the answer cache answered. */

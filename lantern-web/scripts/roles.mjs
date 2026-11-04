@@ -47,16 +47,21 @@ export function reportId(entity) {
 
 const ratio = (a, b) => (b === 0 ? null : a / b);
 
+/** The outcomes of an item no answer was had for: not asked, its request failed, or never an item. */
+const UNJUDGED = new Set(['notAsked', 'failed', 'notAnItem']);
+
 /**
- * The three-outcome score of a role's items (#662): each item correct, wrong or abstained, or not
- * asked (for budget, a model without what it needs, or a failure), which is counted apart.
+ * The three-outcome score of a role's items (#662): each item correct, wrong or abstained, or left
+ * unjudged and counted apart: not asked (budget, a model without what it needs), failed, or never
+ * an item (#734).
  *
- * @param items `{ id, outcome, unknown }`, outcome one of correct, wrong, abstained, notAsked;
- *     unknown when the reference's right answer is "unknown"
+ * @param items `{ id, outcome, unknown }`, outcome one of correct, wrong, abstained, notAsked,
+ *     failed, notAnItem; unknown when the reference's right answer is "unknown"
  * @param p the penalty of a wrong answer
  */
+
 export function threeOutcomes(items, p) {
-  const judged = items.filter((i) => i.outcome !== 'notAsked');
+  const judged = items.filter((i) => !UNJUDGED.has(i.outcome));
   const count = (o) => judged.filter((i) => i.outcome === o).length;
   const correct = count('correct');
   const wrong = count('wrong');
@@ -70,7 +75,9 @@ export function threeOutcomes(items, p) {
   return {
     measured: true,
     items: judged.length,
-    notAsked: items.length - judged.length,
+    notAsked: items.filter((i) => i.outcome === 'notAsked').length,
+    failed: items.filter((i) => i.outcome === 'failed').length,
+    notItems: items.filter((i) => i.outcome === 'notAnItem').length,
     correct,
     wrong,
     abstained,
@@ -91,8 +98,9 @@ function record(run, role) {
 /**
  * Resolve: each open link of the answer key, as the run answered it. A pick is the target of a
  * link of origin llm/resolve that resolves the open link's claim; no pick of a link the role asked
- * or had cached is an abstention; a link it did not ask (budget, a model without tool use, a
- * failure) or never had as an item (no candidates) is not asked.
+ * or had cached is an abstention. A link it did not ask (budget, a model without tool use) is not
+ * asked, one whose request failed is failed, and one it never had as an item (no candidates) is not
+ * an item; the three are counted apart and none is judged (#734).
  */
 export function resolveRow(key, linked, llm, run) {
   const entries = key?.resolve ?? [];
@@ -106,6 +114,7 @@ export function resolveRow(key, linked, llm, run) {
   }
   const resolve = record(run, 'resolve');
   const unasked = new Set(resolve?.unaskedSubjects ?? []);
+  const failed = new Set(resolve?.failedSubjects ?? []);
   // The links the role had an answer for this run: asked, or answered from the cache.
   const answered = new Set([...(resolve?.askedSubjects ?? []), ...(resolve?.cachedSubjects ?? [])]);
   const items = entries.map((entry) => {
@@ -116,8 +125,11 @@ export function resolveRow(key, linked, llm, run) {
     const pick = picks.get(entry.link);
     let outcome;
     if (pick !== undefined) outcome = !unknown && right.has(pick) ? 'correct' : 'wrong';
-    // Not asked for budget, a model without tool use, or failed; or never an item (no candidates).
-    else if (unasked.has(entry.link) || !answered.has(entry.link)) outcome = 'notAsked';
+    // Its request failed; not asked for budget or a model without tool use; never an item (no
+    // candidates).
+    else if (failed.has(entry.link)) outcome = 'failed';
+    else if (unasked.has(entry.link)) outcome = 'notAsked';
+    else if (!answered.has(entry.link)) outcome = 'notAnItem';
     // Asked and answered unknown or left out: abstained, which is right when the key says unknown.
     else outcome = unknown ? 'correct' : 'abstained';
     const abstainedRight = pick === undefined && outcome === 'correct';
