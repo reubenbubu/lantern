@@ -871,7 +871,7 @@ class Project0EndToEndIT {
                 + "\"label\":\"Calls POST /api/orders\",\"technology\":\"HTTP\"}");
     assertThat(data.get("pages").get(0).toString())
         .contains("\"from\":\"actor-unknown-caller\",\"to\":\"system-snapshot\"");
-    assertThat(data.get("pages").get(8).toString())
+    assertThat(data.get("pages").get(pages.indexOf("decisions")).toString())
         .contains("payments: GET /api/orders/{orderId}. storefront: POST /api/orders.");
     assertThat(data.toString()).doesNotContain("Every Unknown caller line points to");
     assertThat(containers.get("relationships").toString())
