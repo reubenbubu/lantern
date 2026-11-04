@@ -19,6 +19,7 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.Elements.Line;
 import io.lantern.derive.Groups;
 import io.lantern.derive.ScopeFlows;
+import io.lantern.derive.UnknownCallers;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -411,6 +412,17 @@ final class C4Views {
       edge.facts.addAll(cited);
       edge.phrased(null);
     }
+    // The Unknown caller, where entry points of the scope's units nothing reaches (#766).
+    for (Line link : links) {
+      if (link.relationship().equals(UnknownCallers.CALLS_UNREACHED) && units.contains(link.to())) {
+        nodes.computeIfAbsent(
+            link.from(), e -> node(e, null, null, List.of(link.facts().getFirst())));
+        EdgeBuilder edge = edges.get(link.from(), link.relationship(), system);
+        edge.add(link.plain(), null, null, null, null);
+        edge.facts.addAll(link.facts());
+        edge.phrased(null);
+      }
+    }
     List<Block> blocks = new ArrayList<>();
     blocks.add(counts(section, people));
     blocks.add(
@@ -512,7 +524,12 @@ final class C4Views {
   private static final Concern REQUESTS =
       new Concern(
           "Requests",
-          Set.of(Types.CALLS_HTTP, Elements.USES, Types.SENDS_MAIL, Types.USES_IDENTITY_PROVIDER));
+          Set.of(
+              Types.CALLS_HTTP,
+              Elements.USES,
+              UnknownCallers.CALLS_UNREACHED,
+              Types.SENDS_MAIL,
+              Types.USES_IDENTITY_PROVIDER));
   private static final Concern DATA =
       new Concern("Data", Set.of(Types.USES_DATABASE, Types.ACCESSES_DATA_OF));
   private static final Concern MESSAGING =
@@ -1057,7 +1074,7 @@ final class C4Views {
     // Inside the system's boundary where the diagram draws it.
     EntityId parent =
         isType(entity.type(), Types.EXTERNAL_SYSTEM)
-                || isType(entity.type(), Types.PERSON)
+                || isType(entity.type(), Types.ACTOR)
                 || !nodes.containsKey(system)
             ? null
             : system;

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "CALLS_UNREACHED",
+    "kind": "relationship",
+    "parent": "INTERACTS_WITH",
+    "shape": "arrow",
+    "description": "The subject, the one Unknown caller (actor:unknown-caller), calls entry points of the object unit that nothing in the analysed set reaches and no person is shown to use (ADR 0074, amendment for #365; #766): HTTP and WebSocket endpoints, listeners on queues or topics nothing publishes to, or a gateway's routes when nothing calls the gateway. A kind of INTERACTS_WITH, a type of its own so derivation does not write what the linker writes. Who really calls them is unknown.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts of the entry points nothing reaches: endpoint, websocket-endpoint, message-listener or routed-endpoint facts." }
+      },
+      "required": ["facts"],
+      "additionalProperties": false
+    }
+  }
+]

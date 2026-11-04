@@ -44,6 +44,9 @@ public final class Derivation {
   /** The vocabulary source of the groups' types. */
   public static final String GROUPS_SOURCE = "derive-groups";
 
+  /** The vocabulary source of the Unknown caller's type. */
+  public static final String UNKNOWN_CALLERS_SOURCE = "derive-unknown-callers";
+
   /** The source of the leads' vocabulary types. */
   public static final String LEADS_SOURCE = "derive-leads";
 
@@ -60,7 +63,8 @@ public final class Derivation {
                 new Flows(),
                 new ClaimChecks(),
                 new Findings(),
-                new Groups()));
+                new Groups(),
+                new UnknownCallers()));
     rules.addAll(LeadRules.all());
     return List.copyOf(rules);
   }
@@ -74,6 +78,7 @@ public final class Derivation {
     sources.put(FLOWS_SOURCE, Flows.vocabulary());
     sources.put(FINDINGS_SOURCE, Findings.vocabulary());
     sources.put(GROUPS_SOURCE, Groups.vocabulary());
+    sources.put(UNKNOWN_CALLERS_SOURCE, UnknownCallers.vocabulary());
     sources.put(LEADS_SOURCE, LeadRule.vocabulary());
     return sources;
   }

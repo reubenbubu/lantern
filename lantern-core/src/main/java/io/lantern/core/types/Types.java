@@ -67,6 +67,9 @@ public final class Types {
   /** The relationship type {@code CALLS_HTTP}. */
   public static final String CALLS_HTTP = "CALLS_HTTP";
 
+  /** The relationship type {@code CALLS_UNREACHED}. */
+  public static final String CALLS_UNREACHED = "CALLS_UNREACHED";
+
   /** The attribute type {@code claim}. */
   public static final String CLAIM = "claim";
 

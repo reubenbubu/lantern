@@ -50,7 +50,10 @@ public final class ElementNames {
         yield name.orElse(key.substring(key.lastIndexOf(':') + 1));
       }
       case Types.SYSTEM -> systemName;
-      case Types.ACTOR -> id.equals(ScopeFlows.SUBSCRIBERS) ? ScopeFlows.SUBSCRIBERS_NAME : key;
+      case Types.ACTOR ->
+          id.equals(ScopeFlows.SUBSCRIBERS)
+              ? ScopeFlows.SUBSCRIBERS_NAME
+              : id.equals(UnknownCallers.CALLER) ? UnknownCallers.CALLER_NAME : key;
       case Types.DATABASE -> {
         Optional<String> display = knowledge.attribute(id, Types.DISPLAY_NAME);
         if (display.isPresent()) {

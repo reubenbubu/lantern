@@ -602,6 +602,7 @@ public final class Elements {
     }
     result.addAll(otherLinks());
     result.addAll(peopleLinks());
+    result.addAll(unknownCallerLinks());
     // What Investigate found, marked as such on every line that draws it (ADR 0110).
     for (EntityId unit : units(knowledge)) {
       for (Fact fact : knowledge.relations(unit, Types.INVESTIGATED_CONNECTION)) {
@@ -730,6 +731,61 @@ public final class Elements {
               });
     }
     return result;
+  }
+
+  /**
+   * The lines from the Unknown caller to the units whose entry points meant to be called nothing in
+   * the set reaches (ADR 0074, amendment for #365; #766): naming up to two of them and how many
+   * more, with their protocols, citing the line's fact and the entry points'.
+   */
+  private List<Line> unknownCallerLinks() {
+    List<Line> result = new ArrayList<>();
+    for (Fact line : knowledge.withPredicate(UnknownCallers.CALLS_UNREACHED)) {
+      List<Fact> facts = new ArrayList<>(List.of(line));
+      SortedSet<String> protocols = new TreeSet<>();
+      List<String> named = new ArrayList<>();
+      for (String id : strings(line, "facts")) {
+        Fact entry = knowledge.fact(id);
+        if (entry == null) {
+          continue;
+        }
+        facts.add(entry);
+        named.add(entry.object().value());
+        protocols.add(entryProtocol(line, entry));
+      }
+      String detail =
+          named.size() <= 2
+              ? String.join(", ", named)
+              : String.join(", ", named.subList(0, 2)) + " and " + (named.size() - 2) + " more";
+      result.add(
+          new Line(
+              UnknownCallers.CALLER,
+              UnknownCallers.CALLS_UNREACHED,
+              Knowledge.object(line),
+              "Calls entry points nothing in the set reaches",
+              "Calls",
+              detail.isEmpty() ? null : detail,
+              protocols.isEmpty() ? null : String.join(", ", protocols),
+              null,
+              null,
+              facts));
+    }
+    return result;
+  }
+
+  /** The protocol an entry point is called by: HTTP, WebSocket, or its listener's. */
+  private String entryProtocol(Fact line, Fact entry) {
+    return switch (entry.predicate()) {
+      case Types.WEBSOCKET_ENDPOINT -> "WebSocket";
+      case Types.MESSAGE_LISTENER ->
+          knowledge.relations(Knowledge.object(line), Types.CONSUMES).stream()
+              .filter(c -> entry.subject().toString().equals(attribute(c, "source")))
+              .map(c -> attribute(c, "protocol"))
+              .filter(Objects::nonNull)
+              .findFirst()
+              .orElse("Messaging");
+      default -> "HTTP";
+    };
   }
 
   /** The screens a person has, by frontend ({@link Screens#screens}). */
