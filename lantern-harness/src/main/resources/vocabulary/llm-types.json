@@ -10,7 +10,8 @@
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "evidenced when it cites what people wrote: a README or document claim, Javadoc in a cited excerpt, or an evidenced summary; else inferred." },
         "support": { "type": "string", "enum": ["supported", "partly", "unsupported"], "description": "The support judge's verdict on the text against its cited inputs, when it checked it (knowledge-build epic, section 11.7; ADR 0101): its confidence was multiplied by 1, 0.8 or 0.5." },
-        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "required": ["text", "basis"],
       "additionalProperties": false
@@ -27,7 +28,8 @@
         "text": { "type": "string", "description": "The phrase, without citations." },
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "As for a responsibility." },
-        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "required": ["text", "basis"],
       "additionalProperties": false
@@ -50,7 +52,8 @@
           }
         },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Of the first sentence, on what the unit is for: evidenced when it cites what people wrote (a README claim, Javadoc in a cited excerpt, or an evidenced summary); else inferred." },
-        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "required": ["sentences", "basis"],
       "additionalProperties": false
@@ -71,6 +74,7 @@
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "As for a responsibility." },
         "model": { "type": "string", "description": "The model that judged it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." },
         "content": { "type": "string", "description": "The content hash of the flow's steps the judgement holds for." }
       },
       "required": ["significant", "category", "basis"],
@@ -93,6 +97,7 @@
         "fieldCites": { "type": "object", "description": "The facts each of walkthrough, preconditions and postconditions cites: an array of fact IDs by field." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "As for a responsibility." },
         "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." },
         "content": { "type": "string", "description": "The content hash of the flow's steps the narrative holds for." }
       },
       "required": ["basis"],
@@ -111,7 +116,8 @@
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites, an earlier answer standing for the facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "evidenced when it cites a README claim; else inferred (ADR 0060)." },
         "support": { "type": "string", "enum": ["supported", "partly", "unsupported"], "description": "The support judge's verdict on the text against its cited inputs, when it checked it (knowledge-build epic, section 11.7; ADR 0101): its confidence was multiplied by 1, 0.8 or 0.5." },
-        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "required": ["text", "basis"],
       "additionalProperties": false
@@ -128,7 +134,8 @@
         "text": { "type": "string", "description": "The sentence, without citations." },
         "cites": { "type": "array", "items": { "type": "string" }, "description": "The facts it cites, an earlier answer standing for the facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "evidenced when it cites a README claim; else inferred (ADR 0060)." },
-        "model": { "type": "string", "description": "The model that wrote it, as provider/model." }
+        "model": { "type": "string", "description": "The model that wrote it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "required": ["text", "basis"],
       "additionalProperties": false
@@ -164,10 +171,12 @@
           },
           "description": "The file ranges it cites, as repo:path:from-to, each verified to hold its names."
         },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Whether it rests on what people wrote: evidenced when it cites a README or document claim, else inferred from code and configuration (#753)." },
         "model": {
           "type": "string",
           "description": "The model that wrote it, as provider/model."
         },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." },
         "reason": {
           "type": "string",
           "description": "Why the verdict is unclear when the model gave none: the lead was not answered, or its answer was rejected twice."
@@ -248,10 +257,12 @@
           ],
           "description": "Which Investigate mode found it: checking leads, exploring a unit, or the whole system."
         },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Whether it rests on what people wrote: evidenced when it cites a README or document claim, else inferred from code and configuration (#753)." },
         "model": {
           "type": "string",
           "description": "The model that wrote it, as provider/model."
-        }
+        },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "required": [
         "title",
@@ -334,10 +345,12 @@
           ],
           "description": "Which Investigate mode found it: checking leads, exploring a unit, or the whole system."
         },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Whether it rests on what people wrote: evidenced when it cites a README or document claim, else inferred from code and configuration (#753)." },
         "model": {
           "type": "string",
           "description": "The model that wrote it, as provider/model."
-        }
+        },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "additionalProperties": false
     },
@@ -405,10 +418,12 @@
           ],
           "description": "Which Investigate mode found it: checking leads, exploring a unit, or the whole system."
         },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Whether it rests on what people wrote: evidenced when it cites a README or document claim, else inferred from code and configuration (#753)." },
         "model": {
           "type": "string",
           "description": "The model that wrote it, as provider/model."
-        }
+        },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "required": [
         "interaction"

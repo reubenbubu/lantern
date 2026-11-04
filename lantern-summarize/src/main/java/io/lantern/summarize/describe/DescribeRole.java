@@ -552,7 +552,13 @@ public final class DescribeRole {
   }
 
   /** The fact of a worded text: a responsibility or an intent. */
-  static Fact fact(Described described, Worded worded, RoleSpec role, String model, long snapshot) {
+  static Fact fact(
+      Described described,
+      Worded worded,
+      RoleSpec role,
+      String model,
+      String answer,
+      long snapshot) {
     boolean intent = worded.field().startsWith(INTERACTIONS + ".");
     String object;
     if (intent) {
@@ -570,6 +576,7 @@ public final class DescribeRole {
     return LlmFacts.text(
         role,
         model,
+        answer,
         worded.about(),
         intent ? Types.INTENT : Types.RESPONSIBILITY,
         object,

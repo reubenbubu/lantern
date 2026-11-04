@@ -252,7 +252,8 @@ public final class NameGroups {
         unknown.add(n.group().id().toString());
         continue;
       }
-      boolean hasName = facts(n, JSON.readTree(answer), model, snapshot, written, findings);
+      boolean hasName =
+          facts(n, JSON.readTree(answer), model, outcome.answerKey(), snapshot, written, findings);
       if (!hasName) {
         unknown.add(n.group().id().toString());
       }
@@ -506,6 +507,7 @@ public final class NameGroups {
       Named n,
       JsonNode answer,
       String model,
+      String fingerprint,
       long snapshot,
       List<Fact> written,
       List<Fact> findings) {
@@ -518,6 +520,7 @@ public final class NameGroups {
             LlmFacts.text(
                 ROLE,
                 model,
+                fingerprint,
                 group,
                 field.equals(NAME) ? Types.DISPLAY_NAME : Types.RESPONSIBILITY,
                 LlmFacts.C4,
@@ -537,6 +540,7 @@ public final class NameGroups {
                       LlmFacts.text(
                           ROLE,
                           model,
+                          fingerprint,
                           group,
                           Types.INTENT,
                           line.getValue().key(),
@@ -550,7 +554,7 @@ public final class NameGroups {
       EntityId with = EntityId.parse(merge.path("with").stringValue());
       Optional<Cited> reason = cited(n, merge.get("reason"));
       if (reason.isPresent() && !with.equals(group)) {
-        findings.add(mergeFinding(group, with, reason.get(), snapshot));
+        findings.add(mergeFinding(group, with, reason.get(), model, fingerprint, snapshot));
       }
     }
     return hasName;
@@ -588,7 +592,8 @@ public final class NameGroups {
    * A merge suggestion as a finding, {@code finding:group-merge/<a>/<b>} with the two groups' keys
    * sorted, so the suggestion made from either side is one finding.
    */
-  static Fact mergeFinding(EntityId group, EntityId with, Cited reason, long snapshot) {
+  static Fact mergeFinding(
+      EntityId group, EntityId with, Cited reason, String model, String answer, long snapshot) {
     List<EntityId> pair = new ArrayList<>(List.of(group, with));
     pair.sort(Knowledge.BY_ID);
     ObjectNode attributes = FactJson.newObject();
@@ -596,6 +601,9 @@ public final class NameGroups {
     attributes.put("target", pair.get(1).toString());
     attributes.put("rule", Findings.NAME + "/" + GROUP_MERGE);
     attributes.put("reason", reason.text());
+    attributes.put("basis", reason.basis().jsonName());
+    attributes.put("model", model);
+    attributes.put(LlmFacts.ANSWER, answer);
     var ids = attributes.putArray("facts");
     new LinkedHashSet<>(reason.facts()).forEach(f -> ids.add(f.id()));
     Fact fact =

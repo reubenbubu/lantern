@@ -287,9 +287,9 @@ class Project0LinksIT {
   }
 
   /**
-   * One line per fact, without the confidence, the IDs of the facts it comes from and its link ID,
-   * the package com.acme.shop as "~"; a picked link's {@code resolves} as what the open link it
-   * closes says was called or sent to.
+   * One line per fact, without the confidence, the IDs of the facts it comes from, its link ID and
+   * a picked link's stored answer, the package com.acme.shop as "~"; a picked link's {@code
+   * resolves} as what the open link it closes says was called or sent to.
    */
   private static List<String> render(List<Fact> facts) {
     return facts.stream()
@@ -299,6 +299,10 @@ class Project0LinksIT {
               attributes.remove("facts");
               attributes.remove("link");
               attributes.remove("claim");
+              // A picked link's stored answer differs by run: only its shape is checked (#753).
+              if (attributes.has("answer")) {
+                assertThat(attributes.remove("answer").asString()).matches("[0-9a-f]{64}");
+              }
               if (attributes.has("resolves")) {
                 String link = attributes.get("resolves").asString();
                 attributes.put("resolves", openLinks.getOrDefault(link, link));
@@ -492,7 +496,7 @@ class Project0LinksIT {
     }
     assertBothResolved(
         // The answer cites the candidate's endpoint, so the link names it (ADR 0105).
-        "service:~:fulfilment CALLS_HTTP service:~:storefront-app {\"client\":\"web-client\","
+        "service:~:fulfilment CALLS_HTTP service:~:storefront-app {\"basis\":\"inferred\",\"client\":\"web-client\","
             + "\"endpoint\":\"GET /api/orders/{id}\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
             + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
@@ -522,7 +526,7 @@ class Project0LinksIT {
           .contains("service:com.acme.shop:payments application-name \"payments\"");
     }
     assertBothResolved(
-        "service:~:fulfilment CALLS_HTTP service:~:payments {\"client\":\"web-client\","
+        "service:~:fulfilment CALLS_HTTP service:~:payments {\"basis\":\"inferred\",\"client\":\"web-client\","
             + "\"endpoint\":\"GET /api/orders/{orderId}\","
             + "\"httpMethod\":\"GET\",\"matchedBy\":\"llm\",\"model\":\"fake/fake\","
             + "\"path\":\"/api/orders/{id}\",\"protocol\":\"JSON/HTTP\","
@@ -564,7 +568,7 @@ class Project0LinksIT {
     }
     assertBothResolved(
         // With the key attributes static matching writes: the same claim (ADR 0105).
-        "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"bindingKey\":\"refund.*\","
+        "service:~:fulfilment SENDS_MESSAGES_TO service:~:payments {\"basis\":\"inferred\",\"bindingKey\":\"refund.*\","
             + "\"destination\":\"exchange:rabbitmq:shop.returns\",\"model\":\"fake/fake\","
             + "\"protocol\":\"AMQP\",\"queue\":\"queue:rabbitmq:payments.refund-requests\","
             + "\"reason\":\"The answer that project-0 documents for this open link.\","

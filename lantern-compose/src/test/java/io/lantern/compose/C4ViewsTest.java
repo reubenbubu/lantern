@@ -357,6 +357,7 @@ class C4ViewsTest {
         io.lantern.harness.LlmFacts.text(
             io.lantern.summarize.describe.DescribeRole.UNITS,
             "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             EntityId.parse("person:user"),
             Types.INTENT,
             basis.id() + "/frontend:shop/web",
@@ -379,6 +380,7 @@ class C4ViewsTest {
         io.lantern.harness.LlmFacts.text(
             io.lantern.summarize.describe.DescribeRole.UNITS,
             "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             EntityId.parse("person:user"),
             Types.INTENT,
             basis.id() + "/frontend:shop/admin",

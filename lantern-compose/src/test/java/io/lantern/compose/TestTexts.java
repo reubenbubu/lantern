@@ -116,6 +116,7 @@ final class TestTexts {
                       : LlmFacts.text(
                           ROLE,
                           "test/test",
+                          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                           element,
                           Types.RESPONSIBILITY,
                           LlmFacts.C4,
@@ -153,6 +154,7 @@ final class TestTexts {
                   LlmFacts.text(
                       ROLE,
                       "test/test",
+                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                       link.subject(),
                       Types.INTENT,
                       link.claimId() != null ? link.claimId() : link.id(),

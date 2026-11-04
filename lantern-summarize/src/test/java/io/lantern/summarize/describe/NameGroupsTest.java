@@ -85,6 +85,7 @@ class NameGroupsTest {
     return LlmFacts.text(
         DescribeRole.UNITS,
         "fake/fake-model",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         EntityId.parse(subject),
         predicate,
         object,

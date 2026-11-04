@@ -17,12 +17,15 @@ import tools.jackson.databind.node.ObjectNode;
  * Name groups role (ADR 0107): of origin llm, the value is the document kind it is worded for, c4,
  * and the name is the text attribute.
  *
+ * @param answer Descriptive. The stored answer it comes from: its fingerprint in the answer cache,
+ *     which names the role, prompt version, model and inputs of the request (#753).
  * @param basis Descriptive. For a group's name, as for a responsibility.
  * @param cites Descriptive. For a group's name, the facts it cites.
  * @param model Descriptive. For a group's name, the model that wrote it, as provider/model.
  * @param text Descriptive. For a group's name, the name, without citations.
  */
 public record DisplayNameAttributes(
+    String answer,
     String basis,
     List<String> cites,
     String model,
@@ -37,6 +40,7 @@ public record DisplayNameAttributes(
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static DisplayNameAttributes from(ObjectNode attributes) {
     return new DisplayNameAttributes(
+        AttributeValues.string(attributes, "answer"),
         AttributeValues.string(attributes, "basis"),
         AttributeValues.strings(attributes, "cites"),
         AttributeValues.string(attributes, "model"),
@@ -46,6 +50,7 @@ public record DisplayNameAttributes(
   /** The attributes as a fact holds them; absent ones are left out. */
   public ObjectNode toJson() {
     ObjectNode attributes = FactJson.newObject();
+    AttributeValues.put(attributes, "answer", answer);
     AttributeValues.put(attributes, "basis", basis);
     AttributeValues.put(attributes, "cites", cites);
     AttributeValues.put(attributes, "model", model);

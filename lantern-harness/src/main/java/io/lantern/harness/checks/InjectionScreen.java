@@ -95,7 +95,12 @@ public final class InjectionScreen {
    * @param to the last flagged line
    * @param quote the words it quoted
    */
-  public record Suspected(Chunk chunk, int from, int to, String quote) {}
+  /**
+   * @param model the model that flagged it, as {@code provider/model}
+   * @param answer the stored answer it comes from, by its fingerprint (#753)
+   */
+  public record Suspected(
+      Chunk chunk, int from, int to, String quote, String model, String answer) {}
 
   private final Harness harness;
 
@@ -173,9 +178,10 @@ public final class InjectionScreen {
     RoleSession session = harness.session(ROLE);
     session.plan(items, Tokens.estimate(CommonPrompt.SYSTEM + TASK));
     Map<String, Outcome> outcomes = session.askPackets(items, PACKETS);
+    String model = session.model().provider() + "/" + session.model().model();
     List<Suspected> suspected = new ArrayList<>();
     outcomes.forEach(
-        (key, outcome) -> suspected(byKey.get(key), outcome).ifPresent(suspected::add));
+        (key, outcome) -> suspected(byKey.get(key), outcome, model).ifPresent(suspected::add));
     boolean complete =
         outcomes.values().stream()
             .allMatch(
@@ -191,7 +197,7 @@ public final class InjectionScreen {
    * The flag of an answered chunk, when it says suspected and its quote appears in the lines it
    * gives within the chunk; otherwise the chunk counts as not suspected (epic, 11.7, Checks).
    */
-  static Optional<Suspected> suspected(Chunk chunk, Outcome outcome) {
+  static Optional<Suspected> suspected(Chunk chunk, Outcome outcome, String model) {
     if (chunk == null || outcome == null || outcome.answer() == null) {
       return Optional.empty();
     }
@@ -219,7 +225,7 @@ public final class InjectionScreen {
         String.join(" ", chunk.lines().subList(from - chunk.from(), to - chunk.from() + 1))
             .replaceAll("\\s+", " ");
     return cited.contains(quote.replaceAll("\\s+", " "))
-        ? Optional.of(new Suspected(chunk, from, to, quote))
+        ? Optional.of(new Suspected(chunk, from, to, quote, model, outcome.fingerprint()))
         : Optional.empty();
   }
 

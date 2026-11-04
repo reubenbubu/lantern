@@ -73,7 +73,11 @@ public final class Findings implements LinkRule.OverFacts {
   public static final String GROUP_MERGE = "group-merge";
 
   /** The origin of the injection screen's findings (ADR 0101). */
-  public static final Origin SCREEN_ORIGIN = new Origin(Origin.Kind.LLM, "injection-screen", "1");
+  public static final Origin SCREEN_ORIGIN =
+      new Origin(
+          Origin.Kind.LLM,
+          io.lantern.harness.checks.InjectionScreen.ROLE.name(),
+          io.lantern.harness.checks.InjectionScreen.ROLE.promptVersion());
 
   /** How an end-of-life finding's version is in use: see {@link #endOfLife}. */
   public static final String VIA_UNIT = "unit";
@@ -402,8 +406,24 @@ public final class Findings implements LinkRule.OverFacts {
    * the file: {@code finding:injection-suspected/<repo>:<path>}.
    */
   public static Fact injectionSuspected(
-      String repo, String path, String blob, int from, int to, String quote, long snapshot) {
+      String repo,
+      String path,
+      String blob,
+      int from,
+      int to,
+      String quote,
+      String model,
+      String answer,
+      long snapshot) {
     ObjectNode attributes = FactJson.newObject();
+    // Who flagged it and from what answer (#753); it quotes what people wrote in the file.
+    if (model != null) {
+      attributes.put("model", model);
+    }
+    if (answer != null) {
+      attributes.put("answer", answer);
+    }
+    attributes.put("basis", "evidenced");
     attributes.put("about", "file:" + repo + ":" + path);
     attributes.put("repo", repo);
     attributes.put("rule", NAME + "/" + INJECTION_SUSPECTED);

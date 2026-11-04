@@ -390,10 +390,13 @@
           "type": "string",
           "description": "No longer given since #666: reason replaced it. Why the LLM resolver picked this candidate, in its own words; kept so facts stored before stay valid."
         },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Whether it rests on what people wrote: evidenced when it cites a README or document claim, else inferred from code and configuration (#753)." },
         "model": {
           "type": "string",
           "description": "The provider and model that picked this link, as provider/model. Present only on links of origin llm."
-        }
+        },
+        "ranges": { "type": "array", "items": { "type": "string" }, "description": "For a link of origin llm, the code ranges its answer cites, as repo:path:from-to (#753)." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "additionalProperties": false
     }
@@ -666,10 +669,13 @@
           "type": "string",
           "description": "No longer given since #666: reason replaced it. Why the LLM resolver picked this candidate, in its own words; kept so facts stored before stay valid."
         },
+        "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "Whether it rests on what people wrote: evidenced when it cites a README or document claim, else inferred from code and configuration (#753)." },
         "model": {
           "type": "string",
           "description": "The provider and model that picked this link, as provider/model. Present only on links of origin llm."
-        }
+        },
+        "ranges": { "type": "array", "items": { "type": "string" }, "description": "For a link of origin llm, the code ranges its answer cites, as repo:path:from-to (#753)." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "additionalProperties": false
     }
@@ -1122,7 +1128,8 @@
         "text": { "type": "string", "description": "For a group's name, the name, without citations." },
         "cites": { "type": "array", "items": { "type": "string" }, "description": "For a group's name, the facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "For a group's name, as for a responsibility." },
-        "model": { "type": "string", "description": "For a group's name, the model that wrote it, as provider/model." }
+        "model": { "type": "string", "description": "For a group's name, the model that wrote it, as provider/model." },
+        "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },
       "additionalProperties": false
     }

@@ -56,7 +56,9 @@ class ClaimIdentityTest {
           "absentIn",
           "cites",
           "summary",
-          "description");
+          "description",
+          // Since #753, the stored answer an LLM fact comes from: a new answer is the same claim.
+          "answer");
 
   /**
    * Descriptive beyond the global list, per type (epic, Key attributes, the table). Since #518
@@ -125,9 +127,11 @@ class ClaimIdentityTest {
           // so a newer table updates the finding rather than raising another. Since #526, where in
           // a
           // file the injection screen found text addressed to an AI, and its quote: one per file.
-          // Since #536, why Name groups suggests merging two groups, in its words.
+          // Since #536, why Name groups suggests merging two groups, in its words. Since #753, the
+          // model of a finding an LLM role raised, and its basis.
           Map.entry(
-              "finding-raised", Set.of("support", "line", "ends", "lines", "quote", "reason")),
+              "finding-raised",
+              Set.of("support", "line", "ends", "lines", "quote", "reason", "model", "basis")),
           // Since #536, a group's name the LLM worded: its text, basis and model, as a
           // responsibility's.
           Map.entry("display-name", Set.of("text", "basis", "model")),

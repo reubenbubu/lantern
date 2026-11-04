@@ -562,41 +562,44 @@ public final class Investigator {
 
     private void verdict(Lead lead, Outcome outcome) {
       Outcome.Kind kind = outcome == null ? Outcome.Kind.FAILED : outcome.kind();
+      // The item's fingerprint: the key of the answer it comes from in the answer cache (#753).
+      String fp = outcome == null ? null : outcome.answerKey();
       switch (kind) {
         case CACHED, ANSWERED -> {
           if (outcome.answer() == null) {
-            unclear(lead, "not answered");
+            unclear(lead, "not answered", fp);
             return;
           }
           JsonNode entry = FactJson.parse(outcome.answer());
           String verdict = entry.path("verdict").asString("unclear");
-          facts.add(verdictFact(lead, verdict, entry, null));
+          facts.add(verdictFact(lead, verdict, entry, null, fp));
           String line = lead.id() + " " + verdict;
           if (verdict.equals("confirmed")) {
             confirmed++;
             line += ": " + entry.path("title").asString("");
-            risk(entry, lead, InvestigateRole.Mode.LEADS, null);
+            risk(entry, lead, InvestigateRole.Mode.LEADS, null, fp);
           }
           answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(line);
         }
-        case OMITTED -> unclear(lead, "not answered");
-        case DROPPED -> unclear(lead, "its answer was rejected twice");
+        case OMITTED -> unclear(lead, "not answered", fp);
+        case DROPPED -> unclear(lead, "its answer was rejected twice", fp);
         // A lead not asked is unclear with the reason; its unit is still explored (Mode B), so only
         // what Mode B or C leaves out is marked not investigated.
         case NOT_ASKED, FAILED ->
             unclear(
                 lead,
                 "not asked: "
-                    + (outcome == null || outcome.reason() == null ? "failed" : outcome.reason()));
+                    + (outcome == null || outcome.reason() == null ? "failed" : outcome.reason()),
+                fp);
       }
     }
 
-    private void unclear(Lead lead, String reason) {
-      facts.add(verdictFact(lead, "unclear", FactJson.newObject(), reason));
+    private void unclear(Lead lead, String reason, String fp) {
+      facts.add(verdictFact(lead, "unclear", FactJson.newObject(), reason, fp));
       answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(lead.id() + " unclear");
     }
 
-    private Fact verdictFact(Lead lead, String verdict, JsonNode entry, String reason) {
+    private Fact verdictFact(Lead lead, String verdict, JsonNode entry, String reason, String fp) {
       ObjectNode attributes = FactJson.newObject();
       if (entry.path("title").isString() && verdict.equals("confirmed")) {
         attributes.put("title", entry.get("title").stringValue());
@@ -607,7 +610,7 @@ public final class Investigator {
       }
       copyList(entry, "names", attributes);
       copyList(entry, "cites", attributes);
-      attributes.put("model", modelName);
+      provenance(attributes, fp);
       if (reason != null) {
         attributes.put("reason", reason);
       }
@@ -735,9 +738,9 @@ public final class Investigator {
           for (JsonNode proposal :
               FactJson.parse(outcome.answer()).path(InvestigatePrompt.PROPOSALS)) {
             if ("connection".equals(proposal.path("kind").asString(""))) {
-              connection(proposal, unit, mode);
+              connection(proposal, unit, mode, outcome.answerKey());
             } else {
-              risk(proposal, null, mode, unit);
+              risk(proposal, null, mode, unit, outcome.answerKey());
             }
           }
         }
@@ -832,7 +835,8 @@ public final class Investigator {
      * cited lines overlap a risk of its unit restates it, so a problem is one risk with every place
      * it occurs (#747).
      */
-    private void risk(JsonNode entry, Lead lead, InvestigateRole.Mode mode, String conversation) {
+    private void risk(
+        JsonNode entry, Lead lead, InvestigateRole.Mode mode, String conversation, String fp) {
       List<String> units = units(entry, lead, conversation);
       // A lead's risk is keyed on its kind, so the leads of one kind in one unit are one risk.
       String key = lead != null ? lead.kind() : String.join(",", sortedNames(entry));
@@ -853,7 +857,7 @@ public final class Investigator {
       copyList(entry, "names", attributes);
       copyList(entry, "cites", attributes);
       attributes.put("mode", mode.jsonName());
-      attributes.put("model", modelName);
+      provenance(attributes, fp);
       Optional<Fact> restated = restated(entry, lead, units);
       String group = units.getFirst() + " " + key;
       // Only a risk of its own gathers the leads of its kind: a lead restating no finding joins it,
@@ -1124,7 +1128,7 @@ public final class Investigator {
       return false;
     }
 
-    private void connection(JsonNode entry, String unit, InvestigateRole.Mode mode) {
+    private void connection(JsonNode entry, String unit, InvestigateRole.Mode mode, String fp) {
       String from = entry.path("from").asString(unit == null ? "" : unit).strip();
       String to = entry.path("to").asString("").strip();
       String interaction = entry.path("interaction").asString("other");
@@ -1143,7 +1147,7 @@ public final class Investigator {
       copyList(entry, "names", attributes);
       copyList(entry, "cites", attributes);
       attributes.put("mode", mode.jsonName());
-      attributes.put("model", modelName);
+      provenance(attributes, fp);
       facts.add(
           Fact.create(
               EntityId.parse(from),
@@ -1154,6 +1158,18 @@ public final class Investigator {
               evidence(entry, null),
               confidence(entry),
               validity));
+    }
+
+    /**
+     * Who wrote a fact and from what (#753): the model, the item's fingerprint in the answer cache,
+     * and its basis, always inferred, since Investigate reads code and cites its lines.
+     */
+    private void provenance(ObjectNode attributes, String fp) {
+      attributes.put("model", modelName);
+      if (fp != null) {
+        attributes.put(LlmFacts.ANSWER, fp);
+      }
+      attributes.put("basis", LlmFacts.Basis.INFERRED.jsonName());
     }
 
     /** The ranges an entry cites as evidence, each with its file's blob; else the fallback. */

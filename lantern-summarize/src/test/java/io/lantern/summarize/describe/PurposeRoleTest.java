@@ -154,6 +154,7 @@ class PurposeRoleTest {
                     + a
                     + "\"]}}"),
             "m",
+            "0".repeat(64),
             1);
     assertThat(texts).hasSize(2);
     assertThat(

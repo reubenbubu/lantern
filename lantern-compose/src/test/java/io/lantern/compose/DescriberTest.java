@@ -1112,6 +1112,7 @@ class DescriberTest {
         io.lantern.harness.LlmFacts.text(
             DescribeRole.UNITS,
             "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             APP,
             io.lantern.core.types.Types.RESPONSIBILITY,
             io.lantern.harness.LlmFacts.C4,
@@ -1123,6 +1124,7 @@ class DescriberTest {
         io.lantern.harness.LlmFacts.text(
             DescribeRole.UNITS,
             "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             WORKER,
             io.lantern.core.types.Types.RESPONSIBILITY,
             io.lantern.harness.LlmFacts.C4,
