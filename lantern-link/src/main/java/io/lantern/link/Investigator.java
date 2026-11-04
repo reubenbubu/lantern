@@ -826,11 +826,17 @@ public final class Investigator {
 
     // --- Storing -----------------------------------------------------------------------------
 
-    /** A risk: the finding it restates, worded; else an {@code investigated-risk}. */
+    /**
+     * A risk: the finding it restates, worded; else an {@code investigated-risk}. A confirmed lead
+     * of a kind its unit already holds a risk of joins that risk, and a risk found exploring whose
+     * cited lines overlap a risk of its unit restates it, so a problem is one risk with every place
+     * it occurs (#747).
+     */
     private void risk(JsonNode entry, Lead lead, InvestigateRole.Mode mode, String conversation) {
       List<String> units = units(entry, lead, conversation);
-      String key = lead != null ? lead.claim() : String.join(",", sortedNames(entry));
-      if (!keys.add("risk " + units.getFirst() + " " + key)) {
+      // A lead's risk is keyed on its kind, so the leads of one kind in one unit are one risk.
+      String key = lead != null ? lead.kind() : String.join(",", sortedNames(entry));
+      if (lead == null && !keys.add("risk " + units.getFirst() + " " + key)) {
         return;
       }
       ObjectNode attributes = FactJson.newObject();
@@ -849,9 +855,33 @@ public final class Investigator {
       attributes.put("mode", mode.jsonName());
       attributes.put("model", modelName);
       Optional<Fact> restated = restated(entry, lead, units);
+      String group = units.getFirst() + " " + key;
+      // Only a risk of its own gathers the leads of its kind: a lead restating no finding joins it,
+      // and never a fixed check's finding it does not restate.
+      if (lead != null && restated.isEmpty()) {
+        Integer held = byKind.get(group);
+        if (held != null) {
+          facts.set(held, joined(facts.get(held), entry, lead, units));
+          return;
+        }
+      }
       // A finding is worded once: a second risk restating it says nothing the first did not.
       if (restated.isPresent() && !worded.add(restated.get().id())) {
         return;
+      }
+      if (lead == null && restated.isEmpty()) {
+        Optional<Fact> overlapped = overlapped(entry, units.getFirst());
+        if (overlapped.isPresent()) {
+          LOG.info(
+              "Investigate: \"{}\" restates the risk {} of {}, so it is not stored again",
+              entry.path("title").asString(""),
+              overlapped.get().object().value(),
+              units.getFirst());
+          answers
+              .computeIfAbsent(units.getFirst(), u -> new ArrayList<>())
+              .add("risk: " + entry.path("title").asString(""));
+          return;
+        }
       }
       List<String> lineage = new ArrayList<>();
       if (restated.isPresent()) {
@@ -870,6 +900,9 @@ public final class Investigator {
               evidence(entry, null),
               confidence(entry),
               validity);
+      if (lead != null && restated.isEmpty()) {
+        byKind.putIfAbsent(group, facts.size());
+      }
       facts.add(lineage.isEmpty() ? fact : fact.withLineage(lineage));
       if (lead == null) {
         answers
@@ -942,6 +975,86 @@ public final class Investigator {
 
     private final Set<String> worded = new LinkedHashSet<>();
 
+    /** Where in the facts each unit's risk of a lead kind is, by unit and kind. */
+    private final Map<String, Integer> byKind = new LinkedHashMap<>();
+
+    /**
+     * A risk with another confirmed lead of its kind joined: the first lead's wording kept, the
+     * highest impact and confidence of the two, the lead's names, citations, units and evidence
+     * added, and the lead added to its lineage, which so lists every lead the risk gathers.
+     */
+    private Fact joined(Fact risk, JsonNode entry, Lead lead, List<String> units) {
+      ObjectNode attributes = Claims.json(risk);
+      for (String list : List.of("names", "cites")) {
+        Set<String> values = new LinkedHashSet<>();
+        Claims.json(risk).path(list).forEach(v -> values.add(v.asString()));
+        for (JsonNode v : entry.path(list)) {
+          if (v.isString()) {
+            values.add(v.stringValue().strip());
+          }
+        }
+        ArrayNode joined = attributes.putArray(list);
+        values.forEach(joined::add);
+      }
+      Set<String> allUnits = new LinkedHashSet<>();
+      Claims.json(risk).path("units").forEach(v -> allUnits.add(v.asString()));
+      allUnits.addAll(units);
+      ArrayNode unitList = attributes.putArray("units");
+      allUnits.forEach(unitList::add);
+      for (String name : List.of("impact", "confidence")) {
+        String held = Claims.json(risk).path(name).asString("");
+        String other = entry.path(name).asString("").strip();
+        if (RANK.getOrDefault(other.toLowerCase(Locale.ROOT), 0)
+            > RANK.getOrDefault(held.toLowerCase(Locale.ROOT), 0)) {
+          attributes.put(name, other);
+        }
+      }
+      List<Evidence.Location> locations = new ArrayList<>(risk.evidence().locations());
+      for (Evidence.Location location : evidence(entry, risk.evidence()).locations()) {
+        if (!locations.contains(location)) {
+          locations.add(location);
+        }
+      }
+      List<String> lineage = new ArrayList<>(risk.lineage());
+      lineage.add(lead.claim());
+      return Fact.create(
+              risk.subject(),
+              risk.predicate(),
+              risk.object(),
+              attributes,
+              ORIGIN,
+              new Evidence(locations),
+              Math.max(risk.confidence(), confidence(entry)),
+              validity)
+          .withLineage(lineage);
+    }
+
+    /** How a stated impact or confidence ranks: high above medium above low. */
+    private static final Map<String, Integer> RANK = Map.of("high", 3, "medium", 2, "low", 1);
+
+    /**
+     * A risk already stored about the unit, its own or a finding it worded, whose cited lines every
+     * one of the entry's ranges overlaps: the same places, so the same problem said again. A risk
+     * that also cites lines of its own is a risk of its own.
+     */
+    private Optional<Fact> overlapped(JsonNode entry, String unit) {
+      for (Fact fact : facts) {
+        boolean about =
+            switch (fact.predicate()) {
+              case Types.INVESTIGATED_RISK -> fact.subject().toString().equals(unit);
+              case Types.FINDING_WORDING -> {
+                JsonNode first = Claims.json(fact).path("units").path(0);
+                yield first.isString() && first.stringValue().equals(unit);
+              }
+              default -> false;
+            };
+        if (about && citesOnlyItsEvidence(entry, fact)) {
+          return Optional.of(fact);
+        }
+      }
+      return Optional.empty();
+    }
+
     /** Whether a finding rests on a fact the lead shows, or on a file one of them names. */
     private static boolean restsOnTheLead(Fact finding, Lead lead) {
       Set<String> shown = new LinkedHashSet<>();
@@ -971,6 +1084,22 @@ public final class Investigator {
         }
       }
       return false;
+    }
+
+    /** Whether every one of a risk's cited ranges, and at least one, overlaps a fact's evidence. */
+    private static boolean citesOnlyItsEvidence(JsonNode entry, Fact fact) {
+      List<String> cites = InvestigateRole.cites(entry);
+      if (cites.isEmpty()) {
+        return false;
+      }
+      for (String cite : cites) {
+        ObjectNode one = FactJson.newObject();
+        one.putArray("cites").add(cite);
+        if (!citesItsEvidence(one, fact)) {
+          return false;
+        }
+      }
+      return true;
     }
 
     /** Whether one of a risk's cited ranges overlaps a finding's evidence. */
