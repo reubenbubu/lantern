@@ -65,16 +65,34 @@ class RoleFixturesTest {
     return SourceFiles.blobSha(text.getBytes(StandardCharsets.UTF_8), 40);
   }
 
-  /** The repository: two types whose files hold fixtures, a README claim and a config comment. */
+  /** A class whose file holds the four fixtures' lines in its comment, as a copied note could. */
+  static final String NOTES =
+      "package shop.orders;\n\n/*\n"
+          + String.join(
+              "\n",
+              io.lantern.harness.InjectionFixtures.INJECTED.stream()
+                  .map(n -> " * " + injectedLine(n).strip())
+                  .toList())
+          + "\n */\nclass Notes {}\n";
+
+  /** The text of a type's file: a fixture, or the notes. */
+  static String source(String type) {
+    return type.equals("Notes") ? NOTES : fixture(type + ".java");
+  }
+
+  /**
+   * The repository: three types whose files hold fixtures (the notes all four), a README claim per
+   * fixture and a config comment.
+   */
   static List<Fact> orders() {
     List<Fact> facts = new ArrayList<>();
     String pom = blob("pom");
     facts.add(fact(MODULE, "packaging", FactObject.string("jar"), "pom.xml", pom));
     facts.add(fact(MODULE, "CONTAINS", FactObject.entity(EntityId.parse(PKG)), "pom.xml", pom));
-    for (String type : List.of("OrderController", "Greeting")) {
+    for (String type : List.of("OrderController", "Greeting", "Notes")) {
       String path = "src/main/java/shop/orders/" + type + ".java";
       String id = "type:shop.orders." + type;
-      String blob = blob(fixture(type + ".java"));
+      String blob = blob(source(type));
       facts.add(fact(PKG, "CONTAINS", FactObject.entity(EntityId.parse(id)), path, blob));
       facts.add(fact(id, "kind", FactObject.string("class"), path, blob));
     }
@@ -85,7 +103,10 @@ class RoleFixturesTest {
             FactObject.string(injectedLine("application.yml").replaceFirst("^#\\s*", "")),
             "src/main/resources/application.yml",
             blob(fixture("application.yml"))));
-    facts.add(TestFacts.claim(REPO, "README.md", 5, injectedLine("README.md")));
+    int line = 1;
+    for (String name : io.lantern.harness.InjectionFixtures.INJECTED) {
+      facts.add(TestFacts.claim(REPO, "README.md", line++, injectedLine(name).strip()));
+    }
     return facts;
   }
 
@@ -93,7 +114,8 @@ class RoleFixturesTest {
       TestFacts.files(
           (repo, path) ->
               repo.equals(REPO) && path.startsWith("src/main/java/shop/orders/")
-                  ? Optional.of(fixture(path.substring(path.lastIndexOf('/') + 1)))
+                  ? Optional.of(
+                      source(path.substring(path.lastIndexOf('/') + 1).replace(".java", "")))
                   : Optional.empty());
 
   private static LlmClient client(FakeLlmProvider fake, LlmProvider provider) {
@@ -142,7 +164,17 @@ class RoleFixturesTest {
     List<Fact> facts = orders();
     Summarizer.Result result = summarizer(obeying, obeying).summarize(SummaryTree.fromFacts(facts));
 
-    shownAsData(obeying);
+    // Each role is shown all four: the types' and the module's, package's and repository's.
+    shownAsData(
+        obeying.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.purpose().startsWith("summarize type "))
+            .toList());
+    shownAsData(
+        obeying.sent().stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> !r.purpose().startsWith("summarize type "))
+            .toList());
     // Every answer cites a file outside the repositories: rejected twice, nothing stored.
     assertThat(result.summaries()).isEmpty();
     assertThat(lines(Summarizer.facts(result, facts, 1))).isEmpty();

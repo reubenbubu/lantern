@@ -2901,6 +2901,8 @@ class DescriberTest {
     List<String> ofRole = produced.stream().filter(l -> l.startsWith(role + "@")).toList();
     assertThat(ofRole).isNotEmpty();
     assertThat(ofRole).isEqualTo(expected.stream().filter(l -> l.startsWith(role + "@")).toList());
+    // And nothing else: the whole run stores exactly the expected facts.
+    assertThat(produced).isEqualTo(expected);
   }
 
   @Test

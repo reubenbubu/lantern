@@ -1333,13 +1333,17 @@ class InvestigatorTest {
     List<String> expected = io.lantern.llm.RoleFixture.expected(INVESTIGATE_RECORDINGS, produced);
     String mode =
         switch (role) {
-          case "investigate-leads" -> "lead-verdict";
+          case "investigate-leads" -> "lead-verdict|\"mode\":\"leads\"";
           case "investigate-units" -> "\"mode\":\"unit\"";
           default -> "\"mode\":\"system\"";
         };
-    List<String> ofRole = produced.stream().filter(l -> l.contains(mode)).toList();
+    java.util.function.Predicate<String> ofMode =
+        l -> java.util.Arrays.stream(mode.split("\\|")).anyMatch(l::contains);
+    List<String> ofRole = produced.stream().filter(ofMode).toList();
     assertThat(ofRole).isNotEmpty();
-    assertThat(ofRole).isEqualTo(expected.stream().filter(l -> l.contains(mode)).toList());
+    assertThat(ofRole).isEqualTo(expected.stream().filter(ofMode).toList());
+    // And nothing else: the whole run stores exactly the expected facts.
+    assertThat(produced).isEqualTo(expected);
   }
 
   /** Where the injection fixtures sit in the files unit's repository. */

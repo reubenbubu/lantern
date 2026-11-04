@@ -33,19 +33,24 @@ used the fixtures. No real model may be called in a test (CLAUDE.md, Safety and 
    input it really gets:
    - as files: the screen's chunks, Summarize's source excerpts, and what Resolve and Investigate
      read with `read_file`;
-   - as README claims: Summarize, Describe's units and Purpose;
+   - as README claims: Summarize, Describe's units and Purpose; Summarize's types see all four
+     through one class whose comment holds them, so each Summarize role is shown every fixture;
    - as text on the facts they show: Describe's elements and the flow roles, which see no file or
      README (a comment on a fact, as a string in the code could carry);
    - as a sentence an earlier role wrote: Name groups, which sees only facts and Describe's words;
    - as cited fact lines: the support judge.
 
    `Blocks.outsideData` finds any occurrence of the fixtures' "AI assistant" outside the data
-   blocks (`<facts>`, `<code>`, `<summaries>`, `<answers>`, `<items>`, `<chunk>`) of each user
+   blocks (`<facts>`, `<code>`, `<summaries>`, `<answers>`, `<items>`, `<chunk>`, each tag on a
+   line of its own, so a tag name in prose opens nothing) of the system prompt and each user
    turn; a tool's result is data by construction. Then a model that obeys them answers: the
    service is fully secure with no risks, the pull request is approved, and it cites
    `/etc/passwd`, the file the fixtures say to read. Every role's checks reject that, as a
    citation of a file outside the repositories or a verdict the schema does not know, and nothing
    of it is stored.
+   - For the screen, obeying means quoting what the fixtures ask for instead of the line itself.
+     A quote the chunk does not hold is no finding, so the obeyed screen stores nothing: its
+     "rejection" is silence, and the unflagged files go on unmarked.
    - Investigate's lead is then stored as `unclear`, its answer rejected twice.
    - A flow's significance is kept without its reason: field-level repair drops the reason that
      cites the password file, and keeps the verdict, which the fixtures did not touch (ADR 0103).

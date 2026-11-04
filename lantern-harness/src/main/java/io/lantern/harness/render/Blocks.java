@@ -13,10 +13,12 @@ import java.util.regex.Pattern;
 public final class Blocks {
 
   /**
-   * The tags whose content is data, opening or closing: the blocks above and the screen's chunks.
+   * A data block's opening or closing tag, at the start of a line as the blocks are written: the
+   * blocks above and the screen's chunks. A tag named in prose, mid-line, opens nothing.
    */
   private static final Pattern DATA_TAG =
-      Pattern.compile("<(/?)(facts|code|summaries|answers|items|chunk)(?=[\\s>])[^>]*>");
+      Pattern.compile(
+          "(?m)^[ \\t]*<(/?)(facts|code|summaries|answers|items|chunk)(?=[\\s>])[^>\\n]*>");
 
   private Blocks() {}
 
@@ -31,15 +33,21 @@ public final class Blocks {
     if (text.isEmpty()) {
       return outside;
     }
+    // Open blocks, innermost first; a closing tag ends the innermost block of its name.
+    java.util.Deque<String> open = new java.util.ArrayDeque<>();
     Matcher tags = DATA_TAG.matcher(prompt);
-    int depth = 0;
-    int from = 0;
+    boolean more = tags.find();
     for (int at = prompt.indexOf(text); at >= 0; at = prompt.indexOf(text, at + 1)) {
-      while (tags.find(from) && tags.start() < at) {
-        depth = Math.max(0, depth + (tags.group(1).isEmpty() ? 1 : -1));
-        from = tags.end();
+      while (more && tags.start() < at) {
+        if (tags.group(1).isEmpty()) {
+          open.push(tags.group(2));
+        } else if (open.contains(tags.group(2))) {
+          // Blocks left open inside it end with it.
+          while (!open.pop().equals(tags.group(2))) {}
+        }
+        more = tags.find();
       }
-      if (depth == 0) {
+      if (open.isEmpty()) {
         outside.add(at);
       }
     }
