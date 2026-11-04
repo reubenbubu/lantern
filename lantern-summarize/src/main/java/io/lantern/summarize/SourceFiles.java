@@ -1,6 +1,7 @@
 package io.lantern.summarize;
 
 import io.lantern.core.fact.Evidence;
+import io.lantern.extract.config.FileSecrets;
 import io.lantern.extract.config.MaskedValues;
 import io.lantern.extract.config.SourceSecrets;
 import java.nio.charset.StandardCharsets;
@@ -79,6 +80,29 @@ public interface SourceFiles {
               String shown = SourceSecrets.scrub(text, secretKeys());
               MaskedValues.taken(text, shown, maskedValues());
               return shown;
+            });
+  }
+
+  /**
+   * The text of a file at a commit as a role is shown its lines, its secrets masked by {@link
+   * FileSecrets} whatever kind of file it is, and each value masking took out handed to {@link
+   * #maskedValues}; empty if it cannot be read or is never shown, such as a key or a binary file.
+   * Line breaks are kept, so a cited line keeps its number.
+   *
+   * @param repo the repository name, as in the facts' evidence
+   * @param commit the commit
+   * @param path the file path relative to the repository root
+   */
+  default Optional<String> shownAt(String repo, String commit, String path) {
+    return read(repo, commit, path)
+        .flatMap(
+            content -> {
+              String shown = FileSecrets.masked(path, content, secretKeys());
+              if (shown != null) {
+                MaskedValues.taken(
+                    new String(content, StandardCharsets.UTF_8), shown, maskedValues());
+              }
+              return Optional.ofNullable(shown);
             });
   }
 

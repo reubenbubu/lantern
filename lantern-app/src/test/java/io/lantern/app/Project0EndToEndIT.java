@@ -123,7 +123,11 @@ class Project0EndToEndIT {
     @Bean
     FakeLlmProvider fakeLlmProvider() {
       return new FakeLlmProvider()
-          .callingTools(FakeLlmConfiguration::toolCalls)
+          .callingTools(
+              request -> {
+                List<io.lantern.llm.LlmToolCall> calls = FakeLlmConfiguration.toolCalls(request);
+                return calls.isEmpty() ? plaintextSecretConfirmed(request) : calls;
+              })
           .answering(
               request -> {
                 String check = FakeLlmConfiguration.modelCheck(request);
@@ -379,6 +383,127 @@ class Project0EndToEndIT {
    * them, and so do the leads not asked. The answer may be one the model left out or that was
    * rejected: the cache holds those too.
    */
+  /** A lead item of Investigate's first turn: its ID and its text. */
+  private static final java.util.regex.Pattern LEAD_ITEM =
+      java.util.regex.Pattern.compile(
+          "<item id=\"(I[0-9]+)\">\n(Lead [^\n]*, of kind plaintext-secret\\..*?)\n</item>",
+          java.util.regex.Pattern.DOTALL);
+
+  private static final java.util.regex.Pattern LEAD_UNIT =
+      java.util.regex.Pattern.compile("Units: ([^,\\s]+?)(?:,|\\.?\\n)");
+
+  private static final java.util.regex.Pattern EXCERPT =
+      java.util.regex.Pattern.compile(
+          "<code repo=\"([^\"]+)\" path=\"([^\"]+)\" lines=\"(\\d+)-(\\d+)\">\n(.*?)</code>",
+          java.util.regex.Pattern.DOTALL);
+
+  /**
+   * Investigate's first turn on a plaintext-secret lead, which only {@link
+   * #aSecretOnACitedLineReachesNoPrompt} plants: it reads the line holding the secret's key and
+   * confirms the lead with a risk citing that line, so the support judge, which judges every risk,
+   * is shown it (#751). Nothing for any other request.
+   */
+  static List<io.lantern.llm.LlmToolCall> plaintextSecretConfirmed(
+      io.lantern.llm.LlmRequest request) {
+    if (request.role() != Role.INVESTIGATE || request.messages().size() != 1) {
+      return List.of();
+    }
+    java.util.regex.Matcher lead = LEAD_ITEM.matcher(request.messages().getFirst().text());
+    if (!lead.find()) {
+      return List.of();
+    }
+    java.util.regex.Matcher unit = LEAD_UNIT.matcher(lead.group(2));
+    java.util.regex.Matcher code = EXCERPT.matcher(lead.group(2));
+    if (!unit.find()) {
+      return List.of();
+    }
+    while (code.find()) {
+      String[] lines = code.group(5).split("\n");
+      for (int i = 0; i < lines.length; i++) {
+        if (!lines[i].contains(PLANTED_KEY)) {
+          continue;
+        }
+        int line = Integer.parseInt(code.group(3)) + i;
+        String cite = code.group(1) + ":" + code.group(2) + ":" + line + "-" + line;
+        String risk =
+            """
+            {"lead": "%s", "verdict": "confirmed", "kind": "risk",
+             "title": "The webhook secret is written in plain text",
+             "finding": "The payments config writes the webhook secret as a literal value, so anyone who can read the repository can read the secret.",
+             "consequence": "Anyone with read access to the repository can sign webhook calls as the payment provider and have payments accept them.",
+             "impact": "high", "confidence": "high", "units": ["%s"],
+             "names": ["%s"], "cites": ["%s"]}"""
+                .formatted(lead.group(1), unit.group(1).strip(), PLANTED_KEY, cite);
+        return List.of(
+            new io.lantern.llm.LlmToolCall(
+                "read",
+                "read_file",
+                JSON.readTree(
+                    "{\"repo\":\"%s\",\"path\":\"%s\",\"from\":%d,\"to\":%d}"
+                        .formatted(code.group(1), code.group(2), line, line))),
+            new io.lantern.llm.LlmToolCall(
+                "submit", "submit", JSON.readTree("{\"items\": [" + risk + "]}")));
+      }
+    }
+    return List.of();
+  }
+
+  /** The key and value of the secret {@link #aSecretOnACitedLineReachesNoPrompt} plants. */
+  private static final String PLANTED_KEY = "payments.webhook-secret";
+
+  private static final String PLANTED_SECRET = "whsec-e2e-plaintext-7f3a91";
+
+  /**
+   * No request of a whole run holds a secret of the code it analyzes (#751, epic section 10):
+   * payments' config gets a webhook secret written in plain text, which the fake investigator
+   * confirms as a risk citing its line, so the support judge, which judges every risk, reads that
+   * line; it is shown masked, as every role is shown it, and no request the run sends holds the
+   * secret. A new path into a prompt that forgets to mask fails this test.
+   */
+  @Test
+  @Order(5)
+  void aSecretOnACitedLineReachesNoPrompt(@TempDir Path clones) throws IOException {
+    Map<String, Path> repos = new TreeMap<>(project0());
+    String repo = "payments";
+    String path = "src/main/resources/application.properties";
+    Path clone = clones.resolve(repo);
+    Git.run(clones, "clone", "--quiet", repos.get(repo).toString(), clone.toString());
+    Files.writeString(
+        clone.resolve(path),
+        Files.readString(clone.resolve(path)) + PLANTED_KEY + "=" + PLANTED_SECRET + "\n");
+    Git.run(
+        clone,
+        "-c",
+        "user.name=Lantern test",
+        "-c",
+        "user.email=test@lantern.invalid",
+        "commit",
+        "--quiet",
+        "-am",
+        "A secret in plain text");
+    repos.put(repo, clone);
+    int sent = fake.sent().size();
+
+    run.run("project-0", null, repos);
+
+    List<io.lantern.llm.LlmRequest> requests =
+        fake.sent().subList(sent, fake.sent().size()).stream().map(s -> s.request()).toList();
+    // No request of the run, of any role, holds the planted secret.
+    assertThat(requests)
+        .as("requests holding the planted secret")
+        // A request's record prints every part of it: system, turns, tool calls and results.
+        .noneMatch(r -> r.toString().contains(PLANTED_SECRET));
+    // And not because nothing showed its line: it was confirmed as a risk and judged, masked.
+    assertThat(requests)
+        .as("a judge request showing the risk's masked line")
+        .anyMatch(
+            r ->
+                // The judge asks on the model of the role that wrote the text (ADR 0101).
+                r.purpose().startsWith("support-judge")
+                    && r.messages().stream()
+                        .anyMatch(m -> m.text().contains(PLANTED_KEY + "=******")));
+  }
+
   private List<String> llmProvenanceProblems(List<Fact> held) {
     List<String> problems = new ArrayList<>();
     Set<String> checkedKinds = new java.util.TreeSet<>();
