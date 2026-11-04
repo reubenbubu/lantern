@@ -43,12 +43,6 @@ public final class JsonFaults {
           + (message == null ? "unreadable" : message.lines().findFirst().orElse(message))
           + ")";
     }
-    if (!rest.isEmpty()) {
-      String shown = rest.length() > 20 ? rest.substring(0, 20) + "…" : rest;
-      return "a complete object is followed by more text, "
-          + shown
-          + "; close each bracket once and write nothing after the object";
-    }
     JsonNode items = root.get("items");
     if (items == null || !items.isObject()) {
       return "it has no object under \"items\"";
@@ -59,6 +53,12 @@ public final class JsonFaults {
           + item
           + "\" under \"items\""
           + (keys.isEmpty() ? "" : "; key each entry by its item ID, not by " + keys);
+    }
+    if (!rest.isEmpty()) {
+      String shown = rest.length() > 20 ? rest.substring(0, 20) + "…" : rest;
+      return "a complete object is followed by more text, "
+          + shown
+          + "; close each bracket once and write nothing after the object";
     }
     return null;
   }

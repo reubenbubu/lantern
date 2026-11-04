@@ -114,5 +114,6 @@ An order that left out a significant flow or held one not marked significant fai
 answer; after one repair the scope fell back to rank (4 of 7 scopes on project-4 and 4 of 10 on
 project-8 in the 1F cold run). The order is now made to hold exactly the flows marked
 significant before the checks: an entry not marked significant is removed, and a significant flow
-it leaves out is added after the others, in the order the flows were listed, which is by rank. The
+it leaves out is added after the others, by the scope's rank, whatever order the item lists the
+flows in. The
 fix is logged; no repair turn is spent on it. A flow left unanswered still goes back to the model.

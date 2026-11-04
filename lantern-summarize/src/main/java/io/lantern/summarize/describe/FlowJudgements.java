@@ -198,13 +198,32 @@ public final class FlowJudgements {
    * @param crossing the keys of the flows that cross a unit boundary
    * @param containers the containers the item's steps name, which its texts may name without citing
    *     a fact that does (#685)
+   * @param ranked the keys of its flows by rank, best first, which a repaired order follows (#744)
    */
   public record Asked(
       Item item,
       Refs refs,
       Map<String, ScopeFlows.Candidate> flows,
       Set<String> crossing,
-      Set<String> containers) {}
+      Set<String> containers,
+      List<String> ranked) {
+
+    /** An item whose flows are ranked as listed. */
+    public Asked(
+        Item item,
+        Refs refs,
+        Map<String, ScopeFlows.Candidate> flows,
+        Set<String> crossing,
+        Set<String> containers) {
+      this(
+          item,
+          refs,
+          flows,
+          crossing,
+          containers,
+          flows == null ? List.of() : List.copyOf(flows.keySet()));
+    }
+  }
 
   /**
    * The significance item of a scope: each candidate flow with its trigger, containers, steps and
@@ -221,6 +240,20 @@ public final class FlowJudgements {
       String scope,
       String title,
       List<ScopeFlows.Candidate> candidates,
+      Map<EntityId, DescribeRole.Answered> responsibilities,
+      java.util.function.Function<EntityId, String> names) {
+    return significance(scope, title, candidates, candidates, responsibilities, names);
+  }
+
+  /**
+   * As {@link #significance(String, String, List, Map, java.util.function.Function)}, with the
+   * candidates' rank, best first, where they are listed in another order (#744).
+   */
+  static Asked significance(
+      String scope,
+      String title,
+      List<ScopeFlows.Candidate> candidates,
+      List<ScopeFlows.Candidate> byRank,
       Map<EntityId, DescribeRole.Answered> responsibilities,
       java.util.function.Function<EntityId, String> names) {
     Refs refs = new Refs();
@@ -278,7 +311,17 @@ public final class FlowJudgements {
     Item item = new Item(scope, scope, inputs, text.toString());
     Set<String> containers = new java.util.TreeSet<>();
     candidates.forEach(c -> containers.addAll(c.containers()));
-    return new Asked(item, refs, flows, crossing, containers);
+    List<String> ranked = new ArrayList<>();
+    for (ScopeFlows.Candidate candidate : byRank) {
+      flows.forEach(
+          (ref, listed) -> {
+            if (listed == candidate && !ranked.contains(ref)) {
+              ranked.add(ref);
+            }
+          });
+    }
+    flows.keySet().stream().filter(ref -> !ranked.contains(ref)).forEach(ranked::add);
+    return new Asked(item, refs, flows, crossing, containers, List.copyOf(ranked));
   }
 
   /**
@@ -614,8 +657,7 @@ public final class FlowJudgements {
     /**
      * The entry with its order holding exactly the flows it marks significant (#744, ADR 0108): an
      * entry not marked significant is removed, and a significant flow the order leaves out is added
-     * after the others, in the order the flows were listed (by rank). A mechanical fix needs no
-     * repair turn.
+     * after the others, by the scope's rank. A mechanical fix needs no repair turn.
      */
     private JsonNode withOrderRepaired(JsonNode entry) {
       if (!(entry instanceof ObjectNode object) || !entry.path("flows").isObject()) {
@@ -635,8 +677,8 @@ public final class FlowJudgements {
           order.add(ref);
         }
       }
-      for (String ref : significant) {
-        if (!order.contains(ref)) {
+      for (String ref : asked.ranked()) {
+        if (significant.contains(ref) && !order.contains(ref)) {
           order.add(ref);
         }
       }

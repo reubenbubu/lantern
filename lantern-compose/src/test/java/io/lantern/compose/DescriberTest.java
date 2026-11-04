@@ -2294,8 +2294,10 @@ class DescriberTest {
                         : answer(request);
                   }
                   // W2 is significant but left out of the order, which holds W1, not significant.
-                  return choosing(request.messages().getFirst().text(), "schedule")
-                      .replace("\"order\": [\"W2\"]", "\"order\": [\"W1\"]");
+                  String chosen = choosing(request.messages().getFirst().text(), "schedule");
+                  String broken = chosen.replace("\"order\": [\"W2\"]", "\"order\": [\"W1\"]");
+                  assertThat(broken).isNotEqualTo(chosen);
+                  return broken;
                 });
 
     Describer.Result result = describe(fake);
