@@ -1,0 +1,124 @@
+package io.lantern.link;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.lantern.core.fact.FactJson;
+import io.lantern.harness.verify.CheckInputs;
+import io.lantern.harness.verify.CheckedText;
+import io.lantern.harness.verify.ItemAnswer;
+import io.lantern.harness.verify.ProposedClaim;
+import io.lantern.harness.verify.Rejection;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Investigate's Coverage and contradicting Conflict through its own pipeline (#769): a verdict or
+ * proposal declaring a name its cited lines do not hold, and a claim against a static one.
+ */
+class InvestigateRoleChecksTest {
+
+  private static final String CODE =
+      "package f;\n"
+          + "class FileController {\n"
+          + "  void upload(String user) {\n"
+          + "    store(user);\n"
+          + "  }\n";
+
+  private static InvestigateRole role(InvestigateRole.Mode mode) {
+    GraphTools.Graph graph =
+        new GraphTools.Graph(
+            List.of(),
+            (repo, path) ->
+                repo.equals("fs") && path.equals("F.java")
+                    ? Optional.of(CODE.getBytes(StandardCharsets.UTF_8))
+                    : Optional.empty());
+    return new InvestigateRole(
+        mode, "", "", graph, "service:g:files", Set.of("service:g:files"), e -> false, Set.of());
+  }
+
+  private static List<Rejection> checked(InvestigateRole role, String entry) {
+    ItemAnswer answer = role.read("I1", null, FactJson.parse(entry));
+    return role.pipeline().check(answer, role.inputs(List.of(), List.of("I1")));
+  }
+
+  @Test
+  void aVerdictDeclaringANameItsCitedLinesDoNotHoldIsRejectedByCoverage() {
+    List<Rejection> found =
+        checked(
+            role(InvestigateRole.Mode.LEADS),
+            "{\"verdict\": \"confirmed\", \"names\": [\"X-User-Id\"], \"cites\": [\"fs:F.java:3-4\"]}");
+
+    assertThat(found)
+        .anyMatch(
+            r ->
+                r.check().equals("Coverage")
+                    && r.reason()
+                        .equals("Declares the name X-User-Id, which its cited lines do not hold."));
+  }
+
+  @Test
+  void aProposalCitingARangeThatHoldsNoneOfItsNamesIsRejectedByCoverage() {
+    List<Rejection> found =
+        checked(
+            role(InvestigateRole.Mode.UNIT),
+            "{\"proposals\": {\"P1\": {\"kind\": \"risk\", \"names\": [\"upload\"],"
+                + " \"cites\": [\"fs:F.java:3-3\", \"fs:F.java:1-1\"]}}}");
+
+    assertThat(found)
+        .anyMatch(
+            r ->
+                r.check().equals("Coverage")
+                    && r.field().equals("proposals.P1")
+                    && r.reason()
+                        .contains("fs:F.java:1-1, which holds none of its declared names"));
+  }
+
+  @Test
+  void aClaimContradictingAStaticClaimIsRejectedByConflict() {
+    InvestigateRole role = role(InvestigateRole.Mode.UNIT);
+    CheckInputs inputs = role.inputs(List.of(), List.of("I1"));
+    CheckInputs withStatic =
+        new CheckInputs(
+            inputs.schema(),
+            inputs.references(),
+            inputs.citable(),
+            inputs.ranges(),
+            inputs.files(),
+            Map.of(CheckInputs.claimKey("service:g:files", "calls"), Set.of("service:g:auth")),
+            inputs.secrets(),
+            inputs.shown());
+    ItemAnswer answer =
+        new ItemAnswer(
+            "I1",
+            FactJson.newObject(),
+            List.of(
+                new CheckedText(
+                    "proposals.P1.cites",
+                    CheckedText.Kind.PROSE,
+                    "",
+                    List.of("fs:F.java:3-3"),
+                    io.lantern.harness.Contract.Range.ANY,
+                    "",
+                    Set.of("upload"))),
+            List.of(
+                new ProposedClaim(
+                    "proposals.P1.calls", "service:g:files", "calls", "service:g:mail")));
+
+    List<Rejection> found = role.pipeline().check(answer, withStatic);
+
+    // A contradiction, not a repetition, and it rejects the whole proposal.
+    assertThat(found)
+        .anyMatch(
+            r ->
+                r.check().equals("Conflict")
+                    && r.field().equals("proposals.P1")
+                    && r.reason()
+                        .equals(
+                            "Contradicts a claim the static analysis made: service:g:files calls"
+                                + " service:g:auth."));
+  }
+}

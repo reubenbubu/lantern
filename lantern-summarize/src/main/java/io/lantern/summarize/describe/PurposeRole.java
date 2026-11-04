@@ -236,7 +236,7 @@ public final class PurposeRole {
   }
 
   /** The layout, checks and storage of the system's item. */
-  private static final class OneItem implements PacketRole {
+  static final class OneItem implements PacketRole {
 
     private final Asked asked;
 
