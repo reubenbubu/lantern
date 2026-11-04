@@ -60,8 +60,8 @@ final class C4Views {
   /**
    * The most elements a container or component diagram shows before detail is folded away or it is
    * split (docs/design.md, Readable diagrams; ADR 0117): the least size at which the studies saw
-   * readers struggle, with dense lines (docs/research/readable-large-diagrams.md). Provisional
-   * until #366 measures readability after layout.
+   * readers struggle, with dense lines (docs/research/readable-large-diagrams.md). #366 added the
+   * measures after layout (ADR 0123), which report a view but do not yet fold or split it (#764).
    */
   static final int MAX_ELEMENTS = 50;
 

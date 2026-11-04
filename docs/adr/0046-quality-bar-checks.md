@@ -29,7 +29,8 @@ sequence flows, the Brief's blast radius); those fail, so the report shows what 
   - *One abstraction level*: a context diagram shows systems, external systems and people; a
     container diagram also deployable units, databases, topics, queues and exchanges; a component
     diagram also types (components). Boundaries are not counted.
-  - *At most 15 elements* (boundaries not counted; a sequence's participants).
+  - *At most 15 elements* (boundaries not counted; a sequence's participants). Since #369 the
+    check is *Readable*, and 15 holds only for a sequence's participants (ADR 0117).
   - *Technology*: every container and component box, except external systems and people.
   - *Lines*: labelled, and not with a generic verb alone ("uses", "depends on", "calls", "connects
     to", "sends messages", "reads and writes" and the like); linked to facts; when all its facts
@@ -74,7 +75,7 @@ ADR 0052, quality evidence in ADR 0062).
 
 ## Amendment (#369): the check "At most 15 elements" becomes "Readable".
 
-- no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold. The check reports a diagram over any readability threshold.
+- no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). 15 elements was that default until #699 replaced it (ADR 0117) and #366 added the after-layout measures (ADR 0123); read "above 15" and "at most 15 elements" in this ADR as the readability thresholds of `docs/design.md`, Readable diagrams. The check reports a diagram over any readability threshold.
 - The Architecture Explorer and Executive Brief checks stay as built, but those documents are out of scope for now (`docs/design.md`, Non-goals).
 
 ## Amendment (#700): checks of what elements and lines lack are queries on the model.

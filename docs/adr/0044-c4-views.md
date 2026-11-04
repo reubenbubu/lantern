@@ -41,8 +41,8 @@ currency and ranked risks were split off to #163 and #164.
   own module or a library they bundle. A RabbitMQ queue that an exchange routes to and no unit sends
   to directly is not a box: the line runs from the exchange to the consumer with the queue in its
   technology (`AMQP · payments.order-events`), the design's "via" label, so a broker never becomes
-  one box and the diagram stays small. A diagram of more than 15 elements is split by concern
-  (amendment for #270). Service discovery, config
+  one box and the diagram stays small. A diagram over the readability thresholds (15 elements when this was written; see the amendment for
+  #369) is split by concern (amendment for #270). Service discovery, config
   servers, tracing and brokers (`USES_INFRASTRUCTURE`, `USES_BROKER`) are left out, and
   `SENDS_MESSAGES_TO` is drawn through the topic or queue it goes through.
 - **Lines** are one per pair of elements and relationship, built from the link facts: the label
@@ -108,16 +108,16 @@ in a sequence diagram, in its info.
 The container section no longer splits into one view per unit, which repeated lines on several
 pages, showed the whole system on none and sent an element's links to whichever page drew it first.
 
-- **One view of the whole system** while it shows at most 15 elements besides the system's
-  boundary. Above that it is split by concern, each view its own subsection and so its own page:
+- **One view of the whole system** while it is within the readability thresholds (then 15
+  elements besides the system's boundary; amendment for #369). Above that it is split by concern, each view its own subsection and so its own page:
   "Requests and data" (HTTP calls, people's screens, mail, identity providers, databases and the
   tables of other units) with every container of the scope, then "Messaging" (sends, deliveries and
-  exchange routes) with the units that send or receive. A view still above 15 splits into
+  exchange routes) with the units that send or receive. A view still above them splits into
   "Requests" (still with every container) and "Data"; a concern view still above that is drawn per
   unit with its neighbours in that concern ("Messaging around notification-service"), leaving out a
   unit with no line in it (except, among requests, a unit with no line at all, which is drawn
   alone) and a unit whose view shows only what a view before it shows, so no diagram repeats
-  another. A per-unit view still above 15 is drawn whole and fails "At most 15 elements" (ADR
+  another. A per-unit view still above them is drawn whole and fails the readability check (ADR
   0046). "Messaging" and "Data" are left out when they have no line; the first view, which draws
   every container, is always drawn.
 - **From the entry inward.** Per-unit container views and the component pages run frontends first,
@@ -144,5 +144,5 @@ and external systems from annotations (Phase 3); stored layouts.
 
 ## Amendment (#369): no fixed element cap; people.
 
-- no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.
+- no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). 15 elements was that default until #699 replaced it (ADR 0117) and #366 added the after-layout measures (ADR 0123); read "above 15" and "at most 15 elements" in this ADR as the readability thresholds of `docs/design.md`, Readable diagrams.
 - The context diagram's note that "the code names no people" was replaced by ADR 0070 and ADR 0074; since ADR 0074's amendment for #365, people come only from human-facing evidence and entry points nothing reaches are called by an `Unknown caller`.

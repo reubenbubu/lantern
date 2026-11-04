@@ -140,7 +140,7 @@ The ADRs are accepted as written; nobody reviews them later (amendment for #369)
 The targets are unmeasured until 2A's baseline, and whether Investigate's proposals reach the
 references' recall within the budget is only known from 2D's runs.
 
-## Amendment (#369): the "split above 15" rules of the container and component views are default thresholds, not caps: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.
+## Amendment (#369): the "split above 15" rules of the container and component views are default thresholds, not caps: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). 15 elements was that default until #699 replaced it (ADR 0117) and #366 added the after-layout measures (ADR 0123); read "above 15" and "at most 15 elements" in this ADR as the readability thresholds of `docs/design.md`, Readable diagrams.
 
 ADRs are no longer the user's to review: an ADR records a decision that follows `docs/quality-bar.md`
 and `docs/design.md` and is accepted as written (`CLAUDE.md`, When to stop and ask).
