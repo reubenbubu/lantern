@@ -982,10 +982,10 @@ public final class Investigator {
      * citations, units and evidence added, and the lead added to its lineage.
      */
     private Fact joined(Fact risk, JsonNode entry, Lead lead, List<String> units) {
-      ObjectNode attributes = risk.attributes();
+      ObjectNode attributes = Claims.json(risk);
       for (String list : List.of("names", "cites")) {
         Set<String> values = new LinkedHashSet<>();
-        risk.attributes().path(list).forEach(v -> values.add(v.asString()));
+        Claims.json(risk).path(list).forEach(v -> values.add(v.asString()));
         for (JsonNode v : entry.path(list)) {
           if (v.isString()) {
             values.add(v.stringValue().strip());
@@ -995,12 +995,12 @@ public final class Investigator {
         values.forEach(joined::add);
       }
       Set<String> allUnits = new LinkedHashSet<>();
-      risk.attributes().path("units").forEach(v -> allUnits.add(v.asString()));
+      Claims.json(risk).path("units").forEach(v -> allUnits.add(v.asString()));
       allUnits.addAll(units);
       ArrayNode unitList = attributes.putArray("units");
       allUnits.forEach(unitList::add);
       Set<String> leads = new LinkedHashSet<>();
-      risk.attributes().path("leads").forEach(v -> leads.add(v.asString()));
+      Claims.json(risk).path("leads").forEach(v -> leads.add(v.asString()));
       leads.add(lead.id());
       ArrayNode leadList = attributes.putArray("leads");
       leads.forEach(leadList::add);
@@ -1034,7 +1034,7 @@ public final class Investigator {
             switch (fact.predicate()) {
               case Types.INVESTIGATED_RISK -> fact.subject().toString().equals(unit);
               case Types.FINDING_WORDING -> {
-                JsonNode first = fact.attributes().path("units").path(0);
+                JsonNode first = Claims.json(fact).path("units").path(0);
                 yield first.isString() && first.stringValue().equals(unit);
               }
               default -> false;
