@@ -184,7 +184,7 @@ public final class Unknowns {
    */
   public List<Caller> unknownCallers() {
     List<Caller> result = new ArrayList<>();
-    for (Fact fact : knowledge.withPredicate(UnknownCallers.CALLS_UNREACHED)) {
+    for (Fact fact : knowledge.withPredicate(Types.CALLS_UNREACHED)) {
       if (Knowledge.isEntity(fact) && units.contains(Knowledge.object(fact))) {
         List<Fact> entries = new ArrayList<>();
         for (String id : Screens.strings(fact, "facts")) {

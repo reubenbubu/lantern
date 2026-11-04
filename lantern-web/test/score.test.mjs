@@ -221,6 +221,28 @@ test('connections match by their ends and direction, once per pair', () => {
   assert.deepEqual(c.byProtocol.messaging, { reference: 1, matched: 0, report: 2 });
 });
 
+test('the Unknown caller is listed with its lines and left out of the scores (#766)', () => {
+  const withCaller = {
+    ...report,
+    elements: { ...report.elements, u: { kind: 'person', name: 'Unknown caller', description: 'Unknown: ...' } },
+    pages: [
+      page('ctx', 'context', [diagram('c', [{ from: 'u', to: 's', label: 'Calls entry points nothing in the set reaches' }])]),
+      ...report.pages.map((p) =>
+        p.id !== 'cnt'
+          ? p
+          : { ...p, sections: [diagram('d', [...p.sections[0].relationships, { from: 'u', to: 'o', label: 'Calls', technology: 'HTTP' }])] },
+      ),
+    ],
+  };
+  const before = score(report, reference, aliases);
+  const after = score(withCaller, reference, aliases);
+  assert.deepEqual(after.connections, before.connections);
+  assert.deepEqual(after.elements.people, before.elements.people);
+  assert.deepEqual(after.unknownCallers, { lines: [{ to: 'orders', detail: 'Calls' }], pass: true });
+  assert.match(scorecardMarkdown({ set: 'x', report: 'r', reportTitle: 't', reference: 'ref', scores: after }), /## Unknown caller lines\n\n- Unknown caller to orders: Calls/);
+  assert.deepEqual(before.unknownCallers, { lines: [], pass: true });
+});
+
 test('flows match by trigger and are compared by participants', () => {
   const s = score(report, reference, aliases);
   assert.equal(s.flows.matched, 1);

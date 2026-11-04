@@ -127,7 +127,7 @@ class UnknownCallersTest {
     Fact wrong =
         Fact.create(
             UnknownCallers.CALLER,
-            UnknownCallers.CALLS_UNREACHED,
+            Types.CALLS_UNREACHED,
             FactObject.entity(BILLING),
             at,
             charge.origin(),
@@ -183,7 +183,7 @@ class UnknownCallersTest {
 
   private static List<Fact> lines(TestModel model) {
     return model.derived(UnknownCallers.NAME).stream()
-        .filter(f -> f.predicate().equals(UnknownCallers.CALLS_UNREACHED))
+        .filter(f -> f.predicate().equals(Types.CALLS_UNREACHED))
         .toList();
   }
 

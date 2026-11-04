@@ -19,7 +19,6 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.Elements.Line;
 import io.lantern.derive.Groups;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.derive.UnknownCallers;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -414,7 +413,7 @@ final class C4Views {
     }
     // The Unknown caller, where entry points of the scope's units nothing reaches (#766).
     for (Line link : links) {
-      if (link.relationship().equals(UnknownCallers.CALLS_UNREACHED) && units.contains(link.to())) {
+      if (link.relationship().equals(Types.CALLS_UNREACHED) && units.contains(link.to())) {
         nodes.computeIfAbsent(
             link.from(), e -> node(e, null, null, List.of(link.facts().getFirst())));
         EdgeBuilder edge = edges.get(link.from(), link.relationship(), system);
@@ -527,7 +526,7 @@ final class C4Views {
           Set.of(
               Types.CALLS_HTTP,
               Elements.USES,
-              UnknownCallers.CALLS_UNREACHED,
+              Types.CALLS_UNREACHED,
               Types.SENDS_MAIL,
               Types.USES_IDENTITY_PROVIDER));
   private static final Concern DATA =

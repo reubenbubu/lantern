@@ -30,7 +30,7 @@ import tools.jackson.databind.node.ObjectNode;
  * publishes to; a scheduled job is none. An endpoint a gateway routes to is reached through it, and
  * the gateway's routes are then the entry points: a gateway nothing calls gets the line instead.
  *
- * <p>One {@link #CALLS_UNREACHED} fact per unit, from the caller to the unit, citing the entry
+ * <p>One {@code CALLS_UNREACHED} fact per unit, from the caller to the unit, citing the entry
  * points' facts. Reaching is a property of the finished link graph, so the rule is derived, not
  * linked (knowledge-build epic, section 9).
  */
@@ -46,9 +46,6 @@ public final class UnknownCallers implements LinkRule.OverFacts {
 
   /** What the Unknown caller is named wherever it is drawn. */
   public static final String CALLER_NAME = "Unknown caller";
-
-  /** The relationship from the Unknown caller to a unit with entry points nothing reaches. */
-  public static final String CALLS_UNREACHED = Types.CALLS_UNREACHED;
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
@@ -78,7 +75,7 @@ public final class UnknownCallers implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Set.of(CALLS_UNREACHED);
+    return Set.of(Types.CALLS_UNREACHED);
   }
 
   /** The vocabulary type of the rule's facts. */
@@ -100,7 +97,7 @@ public final class UnknownCallers implements LinkRule.OverFacts {
               result.add(
                   Fact.create(
                       CALLER,
-                      CALLS_UNREACHED,
+                      Types.CALLS_UNREACHED,
                       FactObject.entity(unit),
                       attributes,
                       ORIGIN,
@@ -233,7 +230,7 @@ public final class UnknownCallers implements LinkRule.OverFacts {
     for (Origin.Kind kind : Origin.Kind.values()) {
       all.addAll(knowledge.withOrigin(kind));
     }
-    for (Fact line : knowledge.withPredicate(CALLS_UNREACHED)) {
+    for (Fact line : knowledge.withPredicate(Types.CALLS_UNREACHED)) {
       EntityId unit = Knowledge.object(line);
       for (String id : Screens.strings(line, "facts")) {
         Fact entry = knowledge.fact(id);

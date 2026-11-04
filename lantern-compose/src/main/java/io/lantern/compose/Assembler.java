@@ -788,7 +788,7 @@ final class Assembler {
    * lines that make it.
    */
   private Text unknownCaller() {
-    List<String> ids = facts(model.withPredicate(UnknownCallers.CALLS_UNREACHED));
+    List<String> ids = facts(model.withPredicate(Types.CALLS_UNREACHED));
     return new Text(
         List.of(
             TextRun.of(

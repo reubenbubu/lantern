@@ -182,7 +182,8 @@ class ClaimIdentityTest {
           "USES_DATABASE",
           "ACCESSES_DATA_OF",
           "USES_BROKER",
-          "USES_INFRASTRUCTURE");
+          "USES_INFRASTRUCTURE",
+          "CALLS_UNREACHED");
 
   /** The build relationships: {@code DEPENDS_ON} and everything under it. */
   static final Set<String> BUILD = Set.of(Types.DEPENDS_ON, "BUILD_DEPENDS_ON", "PACKAGES");

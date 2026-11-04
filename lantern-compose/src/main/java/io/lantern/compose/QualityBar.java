@@ -143,7 +143,8 @@ final class QualityBar {
 
   /** The entity types each diagram kind may show, besides the boundaries it draws others in. */
   private static final Set<String> CONTEXT_TYPES =
-      Set.of(Types.SYSTEM, Types.EXTERNAL_SYSTEM, Types.PERSON);
+      // A person, or the Unknown caller (#766): both actors.
+      Set.of(Types.SYSTEM, Types.EXTERNAL_SYSTEM, Types.ACTOR);
 
   private static final Set<String> CONTAINER_TYPES =
       Set.of(
@@ -155,7 +156,7 @@ final class QualityBar {
           Types.QUEUE,
           Types.EXCHANGE,
           Types.EXTERNAL_SYSTEM,
-          Types.PERSON);
+          Types.ACTOR);
 
   /**
    * Two or more capitals, digits between them, and a plural s: AMQP, JDBC, APIs, B2B; not part of a

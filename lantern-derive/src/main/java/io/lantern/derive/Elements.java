@@ -740,7 +740,7 @@ public final class Elements {
    */
   private List<Line> unknownCallerLinks() {
     List<Line> result = new ArrayList<>();
-    for (Fact line : knowledge.withPredicate(UnknownCallers.CALLS_UNREACHED)) {
+    for (Fact line : knowledge.withPredicate(Types.CALLS_UNREACHED)) {
       List<Fact> facts = new ArrayList<>(List.of(line));
       SortedSet<String> protocols = new TreeSet<>();
       List<String> named = new ArrayList<>();
@@ -760,7 +760,7 @@ public final class Elements {
       result.add(
           new Line(
               UnknownCallers.CALLER,
-              UnknownCallers.CALLS_UNREACHED,
+              Types.CALLS_UNREACHED,
               Knowledge.object(line),
               "Calls entry points nothing in the set reaches",
               "Calls",
