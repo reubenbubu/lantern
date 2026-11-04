@@ -123,3 +123,10 @@ the epic's section 11.7 says: a responsibility sentence or purpose the judge che
 multiplied by 1, 0.8 or 0.5. A sentence the judge did not check has none. A document marks a
 sentence whose stored verdict is `unsupported` with "Not supported by its sources", as before. The
 claim list stays in the judge's cached answer.
+
+## Amendment for #765
+
+- An injection finding is also listed on the risks and findings page of the C4 report and the
+  other templates that have one, in the "Other findings" table with the merge suggestions of Name
+  groups (ADR 0107, amendment for #765): every one in the system's documents, a repository's own
+  in its documents.

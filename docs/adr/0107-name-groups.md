@@ -72,3 +72,14 @@ the epic left open. The agent decided these under the owner's standing go-ahead 
 ## Amendment (#760): limits in the role's contract
 
 This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.
+
+## Amendment for #765
+
+- A group no role named is drawn with its key's last part followed by "(not named)", as the
+  knowledge-build epic (section 11.8) asks, so a reader can tell it from a name the model chose.
+- A line drawn into a group (a queue to the units that consume it) takes the intent the group
+  stored for that line, looked up by its other end, as a line leaving the group does: the group
+  stores each line from its own side, as its members' facts run.
+- Merge suggestions are listed on the risks and findings page of the C4 report and the other
+  templates that have one, in an "Other findings" table, opening with "Found by the LLM:": all of
+  them in the system's documents, a repository's own feature areas' in its documents.
