@@ -13,6 +13,7 @@ import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Groups;
+import io.lantern.derive.UnknownCallers;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -132,7 +133,9 @@ final class Assembler {
         // An element only Investigate found, by the connections it found (ADR 0110).
         || (responsibility(id) == null && foundOnlyByTheInvestigator(id))
         // A domain or feature area a diagram draws, by what Name groups wrote of it (ADR 0107).
-        || (id.type().equals(Types.GROUP) && responsibility(id) != null)) {
+        || (id.type().equals(Types.GROUP) && responsibility(id) != null)
+        // The Unknown caller, marked unknown (#766).
+        || id.equals(UnknownCallers.CALLER)) {
       undescribed.add(id);
     }
     return id;
@@ -589,19 +592,21 @@ final class Assembler {
       List<Inline> description =
           // A person is described by Describe's sentence where it wrote one, else by the
           // linker's own note (#767).
-          entity.id().type().equals(Types.PERSON)
-                  && personBasis(entity.id()) != null
-                  && responsibility == null
-              ? person(entity.id()).content()
-              : entity.id().type().equals(Types.FRONTEND) && responsibility == null
-                  ? frontend(entity.id()).content()
-                  : responsibility == null && foundOnlyByTheInvestigator(entity.id())
-                      ? investigated(entity.id()).content()
-                      : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
-                          ? purpose().content()
-                          : responsibility != null
-                              ? responsibility(entity.id(), responsibility).content()
-                              : summarizedDescription(entity.id()).content();
+          entity.id().equals(UnknownCallers.CALLER)
+              ? unknownCaller().content()
+              : entity.id().type().equals(Types.PERSON)
+                      && personBasis(entity.id()) != null
+                      && responsibility == null
+                  ? person(entity.id()).content()
+                  : entity.id().type().equals(Types.FRONTEND) && responsibility == null
+                      ? frontend(entity.id()).content()
+                      : responsibility == null && foundOnlyByTheInvestigator(entity.id())
+                          ? investigated(entity.id()).content()
+                          : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+                              ? purpose().content()
+                              : responsibility != null
+                                  ? responsibility(entity.id(), responsibility).content()
+                                  : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
@@ -772,6 +777,25 @@ final class Assembler {
   private Fact personBasis(EntityId id) {
     return Elements.personBasis(model, id);
   }
+
+  /**
+   * What the Unknown caller is (ADR 0074, amendment for #365; #766): marked unknown, citing the
+   * lines that make it.
+   */
+  private Text unknownCaller() {
+    List<String> ids = facts(model.withPredicate(Types.CALLS_UNREACHED));
+    return new Text(
+        List.of(
+            TextRun.of(
+                UNKNOWN_SENTENCE
+                    + " Something outside the analysed repositories calls these entry points:"
+                    + " nothing in them reaches them and no person is shown to use them."),
+            new Citation(ids)),
+        ids);
+  }
+
+  /** What opens the Unknown caller's description. */
+  static final String UNKNOWN_SENTENCE = "Unknown:";
 
   /**
    * The description of a person: the sentence the linker wrote from the code's own words, opened

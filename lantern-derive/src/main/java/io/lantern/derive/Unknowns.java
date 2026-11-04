@@ -20,7 +20,7 @@ import java.util.function.Predicate;
  * containers and components without a technology, the elements without a responsibility sentence
  * and the lines between containers without a protocol. The composer lists the first ones on the
  * unknowns page and checks the quality bar with the others, so neither depends on how a diagram
- * happens to be drawn. The unknown caller is not in the model yet (#365).
+ * happens to be drawn. The Unknown caller's lines are among them (#766).
  */
 public final class Unknowns {
 
@@ -37,6 +37,19 @@ public final class Unknowns {
    * @param verdict the verdict fact
    */
   public record Lead(String kind, List<EntityId> about, String reason, Fact verdict) {}
+
+  /**
+   * What is wrong with the Unknown caller's lines to the scope's units, checked apart from how they
+   * are found ({@link UnknownCallers#violations}); empty when every line holds.
+   */
+  public List<String> unknownCallerViolations() {
+    return UnknownCallers.violations(knowledge).stream()
+        .filter(v -> units.stream().anyMatch(u -> v.startsWith("The line to " + u + " ")))
+        .toList();
+  }
+
+  /** A line of the Unknown caller: the unit, the line's fact and the entry points it cites. */
+  public record Caller(EntityId unit, Fact line, List<Fact> entries) {}
 
   /** A component of a unit in scope. */
   public record Part(EntityId unit, Elements.Component component) {}
@@ -162,6 +175,28 @@ public final class Unknowns {
                 l -> String.join("\u0000", l.about().stream().map(EntityId::toString).toList()))
             .thenComparing(l -> Objects.toString(l.reason(), ""))
             .thenComparing(l -> l.verdict().subject().toString()));
+    return result;
+  }
+
+  /**
+   * The Unknown caller's lines to the scope's units (#766): the units whose entry points meant to
+   * be called nothing in the set reaches and no person uses, each line citing them.
+   */
+  public List<Caller> unknownCallers() {
+    List<Caller> result = new ArrayList<>();
+    for (Fact fact : knowledge.withPredicate(Types.CALLS_UNREACHED)) {
+      if (Knowledge.isEntity(fact) && units.contains(Knowledge.object(fact))) {
+        List<Fact> entries = new ArrayList<>();
+        for (String id : Screens.strings(fact, "facts")) {
+          Fact entry = knowledge.fact(id);
+          if (entry != null) {
+            entries.add(entry);
+          }
+        }
+        result.add(new Caller(Knowledge.object(fact), fact, List.copyOf(entries)));
+      }
+    }
+    result.sort(Comparator.comparing(c -> c.unit().toString()));
     return result;
   }
 

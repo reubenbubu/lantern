@@ -828,6 +828,8 @@ class Project0EndToEndIT {
                     "container", 4L,
                     "database", 2L,
                     "external", 2L,
+                    // The Unknown caller (#766).
+                    "person", 1L,
                     "queue", 5L,
                     "system", 1L)));
     List<String> pages = new ArrayList<>();
@@ -857,6 +859,21 @@ class Project0EndToEndIT {
         .doesNotContain("Acronyms are explained in the glossary")
         .doesNotContain("A legend for every shape");
     JsonNode containers = data.get("pages").get(1).get("sections").get(0);
+    // The Unknown caller (#766): storefront's POST /api/orders and payments' order lookup are
+    // reached by nothing in project-0 and used by no person.
+    assertThat(containers.get("relationships").toString())
+        .contains(
+            "{\"from\":\"actor-unknown-caller\",\"to\":\"service-com-acme-shop-payments\","
+                + "\"label\":\"Calls GET /api/orders/{orderId}\",\"technology\":\"HTTP\"}")
+        .contains(
+            "{\"from\":\"actor-unknown-caller\","
+                + "\"to\":\"service-com-acme-shop-storefront-app\","
+                + "\"label\":\"Calls POST /api/orders\",\"technology\":\"HTTP\"}");
+    assertThat(data.get("pages").get(0).toString())
+        .contains("\"from\":\"actor-unknown-caller\",\"to\":\"system-snapshot\"");
+    assertThat(data.get("pages").get(pages.indexOf("decisions")).toString())
+        .contains("payments: GET /api/orders/{orderId}. storefront: POST /api/orders.");
+    assertThat(data.toString()).doesNotContain("Every Unknown caller line points to");
     assertThat(containers.get("relationships").toString())
         // HTTP-1: Feign by client name, with the endpoint and protocol.
         .contains(

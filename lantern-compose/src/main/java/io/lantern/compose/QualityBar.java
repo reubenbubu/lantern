@@ -95,6 +95,8 @@ final class QualityBar {
   static final String LINE_FACTS = "Every line links to the facts behind it";
   static final String CONDITIONAL = "A conditional line names its profile";
   static final String PROTOCOL = "Lines between containers name a protocol";
+  static final String UNKNOWN_CALLER =
+      "Every Unknown caller line points to entry points nothing in the set reaches";
   static final String FRAGMENTS = "At most one level of fragments";
   static final String ACRONYMS = "Acronyms are explained in the glossary";
   static final String READER = "It states its reader";
@@ -141,7 +143,8 @@ final class QualityBar {
 
   /** The entity types each diagram kind may show, besides the boundaries it draws others in. */
   private static final Set<String> CONTEXT_TYPES =
-      Set.of(Types.SYSTEM, Types.EXTERNAL_SYSTEM, Types.PERSON);
+      // A person, or the Unknown caller (#766): both actors.
+      Set.of(Types.SYSTEM, Types.EXTERNAL_SYSTEM, Types.ACTOR);
 
   private static final Set<String> CONTAINER_TYPES =
       Set.of(
@@ -153,7 +156,7 @@ final class QualityBar {
           Types.QUEUE,
           Types.EXCHANGE,
           Types.EXTERNAL_SYSTEM,
-          Types.PERSON);
+          Types.ACTOR);
 
   /**
    * Two or more capitals, digits between them, and a plural s: AMQP, JDBC, APIs, B2B; not part of a
@@ -227,6 +230,11 @@ final class QualityBar {
         .forEach(l -> noProtocol.add(name.apply(l.from()) + " to " + name.apply(l.to())));
     if (!noProtocol.isEmpty()) {
       bar.fail(PROTOCOL, null, "No protocol on " + names(noProtocol) + ".");
+    }
+    // Checked apart from how the lines are found (#766).
+    List<String> wrong = unknowns.unknownCallerViolations();
+    if (!wrong.isEmpty()) {
+      bar.fail(UNKNOWN_CALLER, null, names(wrong) + ".");
     }
     return List.copyOf(bar.failures);
   }

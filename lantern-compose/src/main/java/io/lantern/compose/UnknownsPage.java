@@ -7,6 +7,7 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.Fact;
 import io.lantern.derive.Elements;
 import io.lantern.derive.ScopeFlows;
+import io.lantern.derive.UnknownCallers;
 import io.lantern.derive.Unknowns;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,7 +22,7 @@ import java.util.Set;
  * unknowns page (Quality bar, C4 report; knowledge-build epic, section 12; #700): the links Lantern
  * could not make, the leads the LLM investigator could not decide or was not asked about, the units
  * it did not look at, and the elements whose responsibility is not known. Each is a query on the
- * model ({@link Unknowns}); the unknown caller joins them when the model holds it (#365).
+ * model ({@link Unknowns}); and the units the Unknown caller calls (#766).
  */
 final class UnknownsPage {
 
@@ -39,6 +40,7 @@ final class UnknownsPage {
   List<Block> blocks(String section) {
     List<Block> blocks = new ArrayList<>();
     notLinked(section).ifPresent(blocks::add);
+    unknownCaller(section).ifPresent(blocks::add);
     notDecided(section).ifPresent(blocks::add);
     notInvestigated(section).ifPresent(blocks::add);
     notDescribed(section).ifPresent(blocks::add);
@@ -78,6 +80,40 @@ final class UnknownsPage {
             "Not linked",
             content,
             assembler.facts(facts)));
+  }
+
+  /**
+   * The units whose entry points meant to be called nothing in the set reaches and no person uses
+   * (ADR 0074, amendment for #365; #766): who calls them is unknown.
+   */
+  private Optional<Callout> unknownCaller(String section) {
+    List<Unknowns.Caller> lines = unknowns.unknownCallers();
+    if (lines.isEmpty()) {
+      return Optional.empty();
+    }
+    List<Inline> content = new ArrayList<>();
+    content.add(
+        TextRun.of(
+            "Nothing in the analysed repositories reaches these entry points and no person is"
+                + " shown to use them, so who calls them is unknown; the diagrams draw an "
+                + UnknownCallers.CALLER_NAME
+                + " for them."));
+    List<Fact> cited = new ArrayList<>();
+    for (Unknowns.Caller line : lines) {
+      cited.add(line.line());
+      cited.addAll(line.entries());
+      List<String> entries = line.entries().stream().map(e -> e.object().value()).toList();
+      content.add(
+          TextRun.of(" " + assembler.name(line.unit()) + ": " + String.join(", ", entries) + "."));
+    }
+    return Optional.of(
+        new Callout(
+            assembler.id(section, "unknown-caller"),
+            Callout.Variant.NOTE,
+            null,
+            "Unknown caller",
+            content,
+            assembler.facts(cited)));
   }
 
   /** The leads the LLM investigator left unclear, each with the units it concerns and why. */

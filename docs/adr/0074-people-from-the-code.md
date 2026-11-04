@@ -142,3 +142,43 @@ goes to version 18.
 
 A person is described by Describe's sentence when there is one, still marked inferred; the
 linker's note describes a person only when Describe wrote none (ADR 0122).
+
+## Amendment (#766): the Unknown caller is derived
+
+The Unknown caller part of #365 is built; people only from human-facing evidence stays with #365.
+A derive rule, `unknown-callers` (`UnknownCallers`), runs after the linker's rules and writes one
+`CALLS_UNREACHED` fact per unit, from `actor:unknown-caller` to the unit. The fact cites the facts
+of the unit's entry points that nothing reaches. `CALLS_UNREACHED` is a type of the rule's own, under
+`INTERACTS_WITH`. The epic named `INTERACTS_WITH` itself, but it takes no attributes and derivation
+does not write the linker's types (as `GROUPS` under `CONTAINS`).
+
+- **Entry points meant to be called:** HTTP and WebSocket endpoints of the unit's methods. Also a
+  message listener whose queues or topics, as the unit's `CONSUMES` facts name them, nothing
+  publishes to, an exchange that routes to them included. A listener with no named destination is
+  left out: the code does not say what it listens on.
+- **Reached:** a link whose object is the unit names the method as its `target` (a unit's HTTP
+  call, a message sent to the unit, an identity-provider URL); a frontend's call `reaches` it in that
+  unit; or a gateway's `routed-endpoint` names it.
+- **Used by a person:** a `person-basis` cites a fact about the method or its class.
+- **Gateways:** a gateway's routes are its entry points. A gateway that nothing calls gets the line,
+  citing its routes. One call to the gateway, such as from a frontend, counts for all its routes.
+- **Where it shows:**
+  - the context diagram: one actor outside the system, with one line to it;
+  - each container diagram: a line to each unit, naming up to two entry points and how many more,
+    with their protocols;
+  - the unknowns page, which lists each unit's entry points.
+
+  It is described as "Unknown: …", citing its lines.
+- **Reached without a name:** a link into the unit that names no entry point (an HTTP call
+  matched to the unit but no endpoint, a gateway's WebSocket route to several endpoints, a message
+  sent with no listener named) or a connection Investigate found into it leaves none of the unit's
+  entry points of that kind unreached: what it calls is not known.
+- **Checked again:** a quality check walks the facts by a second code path to confirm every line
+  cites only entry points of its own unit that nothing reaches (`UnknownCallers.violations`). It
+  uses the same notion of reaching, so it catches slips in the rule, not a kind of reaching both
+  leave out. The scorecard lists the lines apart
+  and leaves them out of the element and connection scores, since it marks what the code cannot
+  tell.
+
+Not built yet: a flow whose entry point the Unknown caller calls still starts with a note, not at
+the actor (ADR 0047, amendment for #365).

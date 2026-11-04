@@ -1126,18 +1126,7 @@ final class FlowTracer {
 
   /** The methods of the unit's code (its modules and the libraries it bundles), by type ID. */
   private List<EntityId> unitMethods(EntityId unit) {
-    SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
-    for (EntityId module : Components.codeModules(knowledge, unit)) {
-      code.addAll(knowledge.typesWithin(module));
-      for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
-        code.addAll(knowledge.typesWithin(pkg));
-      }
-    }
-    List<EntityId> result = new ArrayList<>();
-    for (EntityId type : code) {
-      result.addAll(knowledge.parts(type, Types.METHOD));
-    }
-    return result;
+    return UnknownCallers.unitMethods(knowledge, unit);
   }
 
   private void unresolved(Trace trace, EntityId unit, Fact fact, List<String> profiles) {

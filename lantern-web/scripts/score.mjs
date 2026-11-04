@@ -192,6 +192,62 @@ function sectionsAbout(data, pattern) {
   );
 }
 
+/** What the Unknown caller is named in a report (#766). */
+const UNKNOWN_CALLER = 'Unknown caller';
+
+/** The quality check the composer fails when an Unknown caller line cites a reached entry point. */
+const UNKNOWN_CALLER_CHECK = 'Every Unknown caller line points to entry points nothing in the set reaches';
+
+/**
+ * The Unknown caller's lines a report's diagrams draw (#766), once per element they reach, with
+ * the entry points the line names; and whether the report fails its check of them.
+ */
+export function unknownCallersOf(data) {
+  const name = (id) => data.elements?.[id]?.name ?? id;
+  const lines = new Map();
+  for (const { section } of diagrams(data)) {
+    for (const r of section.relationships ?? []) {
+      if (name(r.from) !== UNKNOWN_CALLER || data.elements?.[r.to]?.kind === 'system') continue;
+      const to = name(r.to);
+      const detail = r.description ?? r.label ?? '';
+      if (!lines.has(to) || (!lines.get(to) && detail)) lines.set(to, detail);
+    }
+  }
+  const failed = data.pages.some((page) =>
+    page.sections.some(
+      (s) => s.type === 'list' && /^quality-report/.test(s.id) && s.items.some((i) => String(i).includes(UNKNOWN_CALLER_CHECK)),
+    ),
+  );
+  return {
+    lines: [...lines.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([to, detail]) => ({ to, detail })),
+    pass: !failed,
+  };
+}
+
+/** The report without the Unknown caller and its lines, for scoring (#766). */
+function withoutUnknownCaller(data) {
+  const ids = new Set(
+    Object.entries(data.elements ?? {})
+      .filter(([, e]) => e.name === UNKNOWN_CALLER)
+      .map(([id]) => id),
+  );
+  if (ids.size === 0) return data;
+  const elements = Object.fromEntries(Object.entries(data.elements).filter(([id]) => !ids.has(id)));
+  const pages = data.pages.map((page) => ({
+    ...page,
+    sections: page.sections.map((section) =>
+      section.type !== 'diagram'
+        ? section
+        : {
+            ...section,
+            elements: (section.elements ?? []).filter((id) => !ids.has(id)),
+            relationships: section.relationships.filter((r) => !ids.has(r.from) && !ids.has(r.to)),
+          },
+    ),
+  }));
+  return { ...data, elements, pages };
+}
+
 /** The risks a report states: rows of a risks or findings table (its Finding column), or items. */
 export function risksOf(data) {
   return sectionsAbout(data, /risk|finding/i).flatMap((section) => {
@@ -583,7 +639,9 @@ function selfReportedGaps(data) {
  * @param inputs what the rows per role read beside the report (roles.mjs): `answerKey`, `linked`
  *     and `llm` (the run's facts), `run`, `warm` and `change` (run records); each may be missing
  */
-export function score(report, reference, aliases = {}, inputs = {}) {
+export function score(original, reference, aliases = {}, inputs = {}) {
+  // The Unknown caller marks what the code cannot tell; it is listed apart, not scored (#766).
+  const report = withoutUnknownCaller(original);
   const matched = matchElements(report, reference, aliases);
   const scope = inScope(report, matched);
   const refName = (id) => reference.elements[id]?.name ?? id;
@@ -737,6 +795,7 @@ export function score(report, reference, aliases = {}, inputs = {}) {
     .filter((c) => !c.pass)
     .map((c) => c.id);
   result.selfReportedGaps = selfReportedGaps(report);
+  result.unknownCallers = unknownCallersOf(original);
   result.roles = roleRows(report, reference, matched, repFlows, inputs, (t) => canonical(normalizeTrigger(t)));
   result.contracts = contractRows(inputs);
   return result;
@@ -968,6 +1027,20 @@ export function scorecardMarkdown(card) {
     );
   }
   if (s.contracts) lines.push(...contractLines(s.contracts.sizes, s.contracts.quality, s.contracts.tolerancePoints));
+  if (s.unknownCallers) {
+    const u = s.unknownCallers;
+    lines.push('', '## Unknown caller lines', '');
+    if (u.lines.length === 0) lines.push('None drawn.');
+    for (const line of u.lines) lines.push(`- ${UNKNOWN_CALLER} to ${line.to}${line.detail ? `: ${line.detail}` : ''}`);
+    if (u.lines.length > 0) {
+      lines.push(
+        '',
+        u.pass
+          ? 'Each points to entry points nothing in the set reaches (the composer\'s check passes).'
+          : 'FAIL: the composer\'s check finds a line citing an entry point something reaches.',
+      );
+    }
+  }
   lines.push('', '## Quality-bar checks', '');
   for (const check of s.checks) {
     const shown = check.failures.slice(0, 5).join('; ');
