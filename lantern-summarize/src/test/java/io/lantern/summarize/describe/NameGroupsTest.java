@@ -102,11 +102,15 @@ class NameGroupsTest {
   }
 
   private Harness harnessOf(FakeLlmProvider fake) {
+    return harnessOf(fake, BudgetGuard.unlimited("test"));
+  }
+
+  private Harness harnessOf(FakeLlmProvider fake, BudgetGuard budget) {
     return new Harness(
         new LlmClient(
             ModelSettings.single(fake.model("fake-model")),
             List.of(fake),
-            BudgetGuard.unlimited("test"),
+            budget,
             new InMemoryLlmCallLog(),
             Clock.systemUTC()),
         store,
@@ -374,6 +378,54 @@ class NameGroupsTest {
         .contains("\"Invoice Controller\" is the name of a member, InvoiceController")
         .contains("\"Spring Boot payments\" names the technology Spring Boot");
     assertThat(result.unknown()).isEmpty();
+  }
+
+  @Test
+  void aMergeSuggestedByBothGroupsIsOneFinding() {
+    // Each group's item shows the other as G1 (#769).
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                r ->
+                    answer(
+                        r,
+                        body ->
+                            """
+                            {"name": {"text": "%s", "cites": ["F1"]},
+                             "merge": {"with": "G1", "reason": {"text": "%s",
+                                                                "cites": ["F1"]}}}"""
+                                .formatted(
+                                    body.startsWith("Group " + ORDERS) ? "Ordering" : "Billing",
+                                    body.startsWith("Group " + ORDERS)
+                                        ? "Both handle the money customers pay for their orders."
+                                        : "Both follow one order from its purchase to its payment.")));
+
+    NameGroups.Result result = new NameGroups(harness(fake)).name(facts(), 2);
+
+    assertThat(result.findings())
+        .singleElement()
+        .satisfies(
+            merge ->
+                assertThat(merge.subject())
+                    .isEqualTo(Findings.id(NameGroups.GROUP_MERGE, BILLING + "/" + ORDERS)));
+  }
+
+  @Test
+  void anExhaustedBudgetLeavesTheGroupsUnnamedWithoutFailingAndALaterRunAsks() {
+    FakeLlmProvider fake = new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
+
+    NameGroups.Result stopped =
+        new NameGroups(harnessOf(fake, new BudgetGuard("run", 100L, null))).name(facts(), 2);
+
+    // Nothing is sent or stored, and the groups are unnamed (#769).
+    assertThat(fake.sent()).isEmpty();
+    assertThat(stopped.facts()).isEmpty();
+    assertThat(stopped.findings()).isEmpty();
+    assertThat(stopped.unknown()).containsExactlyInAnyOrder(ORDERS, BILLING);
+    assertThat(store.size()).isZero();
+
+    // With budget left, a later run names them.
+    assertThat(new NameGroups(harness(fake)).name(facts(), 3).facts()).hasSize(5);
   }
 
   @Test
