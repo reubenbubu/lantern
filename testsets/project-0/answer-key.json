@@ -1,0 +1,208 @@
+{
+  "set": "project-0",
+  "preparedBy": "the agent (Claude Code), for #734: read from the code at these commits and from project-0's case list (HTTP-6 to HTTP-9, MSG-5 to MSG-9); nothing taken from a model's answers in a run",
+  "status": "checked blind by an Opus subagent on 4 Nov 2026 under the rule of 3 Nov (CLAUDE.md): it agreed on all nine entries; accepted by the owner on 4 Nov 2026 (#734)",
+  "how": "Open links: listed from the unresolved-link facts of a fake-model run at the pin; each target read from the calling code, its configuration and the receivers' bindings or routes. A link two candidates both receive lists both; a pick of either is right. HTTP-5 (the tax service, outside the set) has no candidates and is not listed. project-0 has no reference, so no risks or decoys.",
+  "commits": {
+    "catalog-lib": "5bc5ec4ba4ffec38da7c0aaf3596be3365ec192f",
+    "catalog": "fc39b6e72803baa33b9e0e3d7ac8cf32fabce394",
+    "fulfilment": "8a1c3ab0a69470c933e76a18eee90236a4f68ece",
+    "payments": "b39201332b32385d116f0f3d35f21c119e8726ed",
+    "storefront": "e3e7a93736034021f6f9fe157e6a80b969f38f2d"
+  },
+  "resolve": [
+    {
+      "link": "951582f64b8b17a5439f892fc13b038264043d79c1bdc6d6d2aaee9d84ee0872",
+      "unit": "service:com.acme.shop:fulfilment",
+      "call": "GET http://storefront-web:8080/api/orders/{id}",
+      "candidates": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": "service:com.acme.shop:storefront-app",
+      "because": "HTTP-6: the host storefront-web carries the storefront's application name, and storefront serves GET /api/orders/{id}; payments serves the same path but nothing in the address names it.",
+      "cites": [
+        "fulfilment:src/main/resources/application.yml:16-17",
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/OrderClient.java:13-18",
+        "storefront:storefront-app/src/main/resources/application.yml:3-3",
+        "storefront:storefront-app/src/main/java/com/acme/shop/storefront/web/OrderController.java:12-26"
+      ],
+      "names": [
+        "storefront-web",
+        "storefront.base-url"
+      ]
+    },
+    {
+      "link": "23ef901aa23868d32571786aed2c2b655830d57015f1f4ca6bf788f8266568cc",
+      "unit": "service:com.acme.shop:fulfilment",
+      "call": "GET ${PAYMENTS_SERVICE_URL}/api/orders/{id}",
+      "candidates": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": "service:com.acme.shop:payments",
+      "because": "HTTP-7: the client is the payment-status client, its property payments.base-url and its variable PAYMENTS_SERVICE_URL both name payments, which serves GET /api/orders/{orderId}.",
+      "cites": [
+        "fulfilment:src/main/resources/application.yml:22-23",
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/PaymentStatusClient.java:14-19",
+        "payments:src/main/java/com/acme/shop/payments/OrderPaymentController.java:10-13"
+      ],
+      "names": [
+        "PaymentStatusClient",
+        "payments.base-url",
+        "PAYMENTS_SERVICE_URL"
+      ]
+    },
+    {
+      "link": "b94074f20602a82f69ccb3c3e6949f336c70c909579b1b3b25092e93aaef3ce3",
+      "unit": "service:com.acme.shop:fulfilment",
+      "call": "shop.returns, routing key refund.<reason>",
+      "candidates": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": "service:com.acme.shop:payments",
+      "because": "MSG-5: every key it sends starts with refund.; payments binds payments.refund-requests to shop.returns with refund.*, storefront binds return.*, which no refund. key matches.",
+      "cites": [
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/ReturnsPublisher.java:19-19",
+        "payments:src/main/java/com/acme/shop/payments/ReturnsConfig.java:27-27",
+        "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:27-27"
+      ],
+      "names": [
+        "refund.*",
+        "shop.returns"
+      ]
+    },
+    {
+      "link": "1d46a1b5dcffbfc3f3ef479e10a65703acdf8b4d11dfab578e564bdc1af92fba",
+      "unit": "service:com.acme.shop:fulfilment",
+      "call": "shop.parcels, routing key parcel.delayed.<carrier>",
+      "candidates": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "because": "MSG-6: payments binds payments.parcel-delays with parcel.delayed.# and storefront binds storefront.parcel-events with parcel.#, so every key parcel.delayed.<carrier> reaches both.",
+      "cites": [
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/ParcelDelayPublisher.java:19-19",
+        "payments:src/main/java/com/acme/shop/payments/ParcelDelaysConfig.java:27-27",
+        "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ParcelEventsConfig.java:27-27"
+      ],
+      "names": [
+        "parcel.delayed.#",
+        "parcel.#",
+        "shop.parcels"
+      ]
+    },
+    {
+      "link": "5741f3ce5f28ae4fe2cdd58589d8dc2ba9f734830c123aec5e0a06eff373dd4c",
+      "unit": "service:com.acme.shop:storefront-app",
+      "call": "shop.cancellations, routing key cancel.<reason>",
+      "candidates": [
+        "service:com.acme.shop:fulfilment",
+        "service:com.acme.shop:payments"
+      ],
+      "answer": [
+        "service:com.acme.shop:fulfilment",
+        "service:com.acme.shop:payments"
+      ],
+      "because": "MSG-7: payments binds payments.cancellations and fulfilment binds fulfilment.cancellations to shop.cancellations, both with cancel.*, so a one-word reason reaches both.",
+      "cites": [
+        "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/CancellationPublisher.java:19-19",
+        "payments:src/main/java/com/acme/shop/payments/CancellationsConfig.java:27-27",
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/CancellationsConfig.java:27-27"
+      ],
+      "names": [
+        "cancel.*",
+        "shop.cancellations"
+      ]
+    },
+    {
+      "link": "8b2c865410fe3b25abf46f1991ea2a65bf19eb628fbd574e44b736d25aa48428",
+      "unit": "service:com.acme.shop:payments",
+      "call": "shop.disputes, routing key dispute.<network>.opened",
+      "candidates": [
+        "service:com.acme.shop:fulfilment",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": [
+        "service:com.acme.shop:fulfilment",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "because": "MSG-8: storefront binds storefront.disputes with dispute.*.opened and fulfilment binds fulfilment.disputes with dispute.#, so a one-word network reaches both.",
+      "cites": [
+        "payments:src/main/java/com/acme/shop/payments/DisputePublisher.java:19-19",
+        "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/DisputesConfig.java:27-27",
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/DisputesConfig.java:27-27"
+      ],
+      "names": [
+        "dispute.*.opened",
+        "dispute.#",
+        "shop.disputes"
+      ]
+    },
+    {
+      "link": "c264144f50142a5fc7dc7256ca63d626f19fdb92d8b3c8894153d6a73f9d035f",
+      "unit": "service:com.acme.shop:fulfilment",
+      "call": "shop.returns, routing key passed in by the caller",
+      "candidates": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": "unknown",
+      "because": "MSG-9: the routing key is the method's parameter and nothing in the set calls relay, so it could match payments' refund.*, storefront's return.* or neither.",
+      "cites": [
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/ReturnsRelay.java:16-17",
+        "payments:src/main/java/com/acme/shop/payments/ReturnsConfig.java:27-27",
+        "storefront:storefront-app/src/main/java/com/acme/shop/storefront/order/ReturnsConfig.java:27-27"
+      ],
+      "names": [
+        "ReturnsRelay",
+        "routingKey"
+      ]
+    },
+    {
+      "link": "e8de8c8f5e50c7daa4263e895d687998be19fa85dcef1902f61ff9813e33b58a",
+      "unit": "service:com.acme.shop:fulfilment",
+      "call": "GET ${LEGACY_ORDERS_URL}/api/orders/{id}",
+      "candidates": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": "unknown",
+      "because": "HTTP-8: LEGACY_ORDERS_URL is set nowhere in the set and names neither service; both serve GET /api/orders/{id}, and the client reads from an order system being retired, which may be neither.",
+      "cites": [
+        "fulfilment:src/main/resources/application.yml:30-31",
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/LegacyOrderClient.java:13-18"
+      ],
+      "names": [
+        "LEGACY_ORDERS_URL",
+        "legacy.orders-url"
+      ]
+    },
+    {
+      "link": "3ba258ec0d94c5afdae2664151a37eb5648a2ce3c74ede46d4da92cd070192c2",
+      "unit": "service:com.acme.shop:fulfilment",
+      "call": "GET ${ORDER_ARCHIVE_URL}/api/orders/{id}",
+      "candidates": [
+        "service:com.acme.shop:payments",
+        "service:com.acme.shop:storefront-app"
+      ],
+      "answer": "unknown",
+      "because": "HTTP-9: ORDER_ARCHIVE_URL is set nowhere in the set and names neither service; both serve GET /api/orders/{id}, and an order archive is neither.",
+      "cites": [
+        "fulfilment:src/main/resources/application.yml:34-35",
+        "fulfilment:src/main/java/com/acme/shop/fulfilment/OrderArchiveClient.java:13-18"
+      ],
+      "names": [
+        "ORDER_ARCHIVE_URL",
+        "archive.base-url"
+      ]
+    }
+  ],
+  "risks": [],
+  "decoys": []
+}
