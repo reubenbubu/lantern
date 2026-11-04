@@ -1004,8 +1004,10 @@ public final class C4ReportRenderer {
         }
         if (foundByLlm(edge.facts())) {
           relationship.put("llm", true);
-          if (label != null) {
+          if (label != null && !unmarked(label).isBlank()) {
             relationship.put("label", unmarked(label));
+          } else if (label != null) {
+            relationship.remove("label");
           }
         }
         related.add(edge.from());

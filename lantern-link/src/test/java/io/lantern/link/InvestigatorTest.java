@@ -1125,10 +1125,23 @@ class InvestigatorTest {
         .contains("Connects to infrastructure (tracing)");
     // The named list is the contract's: logging, metrics, registries and config servers too.
     assertThat(InvestigateRole.Proposals.infrastructure("external-system:loki Pushes logs"))
-        .isEqualTo("logs");
+        .isEqualTo("loki");
     assertThat(InvestigateRole.Proposals.infrastructure("service:g:config-server Reads settings"))
         .isEqualTo("config-server");
+    // Business connections that share a word with infrastructure pass.
     assertThat(InvestigateRole.Proposals.infrastructure("external-system:s3 Stores uploads"))
+        .isNull();
+    assertThat(
+            InvestigateRole.Proposals.infrastructure(
+                "database:audit Stores audit logs of each order"))
+        .isNull();
+    assertThat(
+            InvestigateRole.Proposals.infrastructure(
+                "external-system:schema-registry Checks each event's schema kafka"))
+        .isNull();
+    assertThat(
+            InvestigateRole.Proposals.infrastructure(
+                "service:g:metrics Reports sales metrics to managers"))
         .isNull();
   }
 

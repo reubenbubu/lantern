@@ -127,10 +127,11 @@
   ],
   "lists": {
     "infrastructure": [
-      "tracing", "traces", "spans", "zipkin", "jaeger", "tempo", "opentelemetry", "otel",
-      "logging", "logs", "loki", "logstash", "fluentd", "fluent-bit",
-      "metrics", "prometheus", "grafana", "graphite", "micrometer",
-      "service registry", "registry", "discovery", "eureka", "consul",
+      "tracing", "distributed tracing", "zipkin", "jaeger", "opentelemetry", "otel", "grafana tempo",
+      "log aggregation", "centralized logging", "loki", "logstash", "fluentd", "fluent-bit", "kibana",
+      "prometheus", "grafana", "graphite", "statsd", "micrometer", "datadog", "new relic", "newrelic",
+      "splunk", "sentry",
+      "service registry", "service discovery", "eureka", "consul",
       "config server", "config-server", "configuration server", "spring cloud config"
     ]
   },
