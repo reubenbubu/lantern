@@ -1693,7 +1693,7 @@ class DescriberTest {
   void aFlowsDeliveryShowsTheReceivingUnitsIntentForWhatItConsumes() {
     TestFacts runtime = TestFacts.runtime();
     Fact consumes = runtime.find("service:com.example:worker", "CONSUMES");
-    Function<Map<String, Describer.Phrase>, List<String>> messages =
+    Function<Map<String, Describer.Phrase>, List<SequenceDiagram.Message>> deliveries =
         phrases ->
             all(new Composer("1")
                     .compose(
@@ -1711,8 +1711,9 @@ class DescriberTest {
                     m ->
                         m.from().toString().equals("topic:kafka:orders")
                             && m.to().toString().equals("service:com.example:worker"))
-                .map(SequenceDiagram.Message::label)
                 .toList();
+    Function<Map<String, Describer.Phrase>, List<String>> messages =
+        phrases -> deliveries.apply(phrases).stream().map(SequenceDiagram.Message::label).toList();
 
     assertThat(messages.apply(Map.of())).isNotEmpty().allMatch(m -> m.startsWith("Delivers "));
     // The worker's intent for what it consumes words the delivery, not the listener's name (#740).
@@ -1721,6 +1722,23 @@ class DescriberTest {
                 Map.of(consumes.id(), new Describer.Phrase("Ships paid orders from", List.of()))))
         .isNotEmpty()
         .allMatch(m -> m.startsWith("Ships paid orders from"));
+    // It cites the link its words come from, which is not one of the delivery's own facts (#740).
+    String cited = consumes.claimId() != null ? consumes.claimId() : consumes.id();
+    assertThat(deliveries.apply(Map.of()))
+        .noneMatch(m -> m.facts().contains(consumes.id()) || m.facts().contains(cited));
+    // Even when the phrase cites other facts only.
+    Fact other =
+        runtime.list().stream()
+            .filter(f -> !f.equals(consumes) && !f.predicate().equals("CONSUMES"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(
+            deliveries.apply(
+                Map.of(
+                    consumes.id(),
+                    new Describer.Phrase("Ships paid orders from", List.of(other.id())))))
+        .isNotEmpty()
+        .allMatch(m -> m.facts().contains(consumes.id()) || m.facts().contains(cited));
   }
 
   @Test
