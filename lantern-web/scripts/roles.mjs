@@ -890,13 +890,31 @@ export function connectionsRow(llm, refConnections, subjectOf, judged = null) {
   return {
     measured: true,
     found: found.length,
-    reference: reference.size,
-    matched: matched.size,
+    // Pairs of elements the reference connects, whichever way: a pair drawn both ways counts once.
+    reference: new Set(refConnections.map((l) => l.split(' -> ').sort().join(' -> '))).size,
+    matched: new Set([...matched].map((l) => l.split(' -> ').sort().join(' -> '))).size,
     right,
     wrong,
     precision: ratio(right, right + wrong),
     unjudged,
   };
+}
+
+/**
+ * The judgement file's verdicts that name no finding or connection of the run (#748): a key with a
+ * typo would otherwise leave its finding unjudged without a word. A verdict on a finding of another
+ * run is listed too, which is expected when the file covers several runs.
+ */
+export function unusedVerdicts(judged, llm) {
+  if (!judged || !llm) return [];
+  const findings = new Set(
+    llm.filter((f) => f.predicate === 'investigated-risk' || f.predicate === 'finding-wording').map(findingKey),
+  );
+  const connections = new Set(llm.filter((f) => f.predicate === 'INVESTIGATED_CONNECTION').map(connectionKey));
+  return [
+    ...(judged.findings ?? []).filter((j) => !findings.has(j.key)).map((j) => j.key),
+    ...(judged.connections ?? []).filter((j) => !connections.has(j.key)).map((j) => j.key),
+  ];
 }
 
 /**

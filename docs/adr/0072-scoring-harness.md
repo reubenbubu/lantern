@@ -352,14 +352,19 @@ connections it found were not scored at all.
 - **Precision over every drawn risk.** Each drawn `investigated-risk` is right (a verdict, or a
   match to a reference risk), wrong (a verdict, or a match to a decoy) or unjudged; precision is
   right over right plus wrong, each drawn risk counted as often as it is drawn, and the row says how
-  many are unjudged. Recall stays over the reference risks; the paired item scores are unchanged.
+  many are unjudged. Recall stays over the reference risks. A right verdict counts for recall only
+  through its `reference`, or when the key also matches the finding to a reference risk; the
+  scorecard lists verdicts whose key names nothing the run drew, so a typo shows.
 - **The fixed checks apart.** A `finding-wording`, Investigate's words on a fixed check's finding,
   is scored the same way in its own row, "Fixed checks worded", and no longer counts in
-  Investigate's.
+  Investigate's. Its hits leave Investigate's item scores too, so a paired comparison with a
+  scorecard from before #748 shows a drop on the sets where fixed checks were hit (project-4,
+  project-8); re-score the earlier run with this scorer before comparing.
 - **Connections by their two ends.** Each `INVESTIGATED_CONNECTION` is right when its two ends
   match two reference elements the reference connects, in either direction (the model reads which
   way a connection goes), or a verdict says so; otherwise unjudged unless a verdict says wrong.
-  The row is "Investigate connections".
+  The row is "Investigate connections"; it counts reference connections per pair of elements,
+  whichever way they are drawn.
 - **The spread of two runs.** `score.mjs compare` adds a row with each run's recall and precision
   and how many points apart they are; `score.mjs paired` adds a table of them per set.
 

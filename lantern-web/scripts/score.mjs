@@ -39,6 +39,7 @@ import {
   investigateRow,
   investigateSpread,
   isGenericLabel,
+  unusedVerdicts,
   itemPairs,
   nameGroupsRow,
   notMeasured,
@@ -854,6 +855,7 @@ function roleRows(report, reference, matched, repFlows, inputs, spell = normaliz
       subjectOf,
       judgements,
     ),
+    unusedVerdicts: unusedVerdicts(judgements, llm),
     nameGroups: withJudge(nameGroupsRow(run), judged.nameGroups),
     purpose: judged.purpose,
     harness: harnessRow(run, warm, change, inputs.changeFile ?? null),
@@ -1037,6 +1039,10 @@ export function scorecardMarkdown(card) {
       lines.push('', `Unjudged connections (${found.unjudged.length}, by their two ends): ${found.unjudged.join('; ')}.`);
     }
     if (card.judgements) lines.push('', `Judgement file: \`${card.judgements}\`.`);
+    const unused = s.roles.unusedVerdicts ?? [];
+    if (unused.length > 0) {
+      lines.push('', `Verdicts naming nothing this run drew (${unused.length}; a typo, or another run's): ${unused.join('; ')}.`);
+    }
     if (s.roles.resolve.wrongItems?.length > 0) {
       lines.push('', `Resolve's wrong picks: ${s.roles.resolve.wrongItems.join('; ')}.`);
     }

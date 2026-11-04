@@ -17,6 +17,7 @@ import {
   fixedCheckRow,
   investigateRow,
   investigateSpread,
+  unusedVerdicts,
   matchFlows,
   pairedDifference,
   reportId,
@@ -311,6 +312,7 @@ test('Investigate: a wording of a fixed check\'s finding is of the key\'s catego
   const own = investigateRow(key, llm, (e) => (e === 'service:gw' ? 'gateway' : null), () => 0, 0.5);
   assert.equal(own.found, 0);
   assert.equal(own.matched, 0);
+  assert.deepEqual(own.scores, { r1: 0 });
   // No decoys: TPR − FPR cannot be told.
   assert.equal(row.tprMinusFpr, null);
 });
@@ -759,6 +761,15 @@ test('Investigate connections: scored by their two ends, either way round, a jud
   assert.equal(row.matched, 2);
   assert.equal(row.precision, 2 / 3);
   assert.deepEqual(row.unjudged, ['service:a -> external-system:q']);
+  // The reference's pairs, whichever way round: a -> b and b -> a are one.
+  assert.equal(connectionsRow([], ['a -> b', 'b -> a', 'c -> z'], () => null).reference, 2);
+  // A broken scorer matching one direction only would leave b -> a unjudged.
+  assert.ok(!row.unjudged.includes('service:b -> service:a'));
+  // A verdict whose key names nothing the run found is listed (#748).
+  assert.deepEqual(
+    unusedVerdicts({ connections: [{ key: 'service:a -> service:c', verdict: 'wrong' }, { key: 'service:x -> service:y', verdict: 'right' }] }, llm),
+    ['service:x -> service:y'],
+  );
 });
 
 test('Investigate spread: two runs of one set, apart in points (#748)', () => {
