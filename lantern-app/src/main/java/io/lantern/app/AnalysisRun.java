@@ -379,8 +379,16 @@ public final class AnalysisRun {
                   Optional.ofNullable(registered.get(name))
                       .or(() -> registry.find(name))
                       .map(Repo::path));
+      // What masking takes out of the files shown to the roles, which no accepted answer may hold;
+      // filled as the files are shown, and read live by the harness's Secrets check (#645).
+      Set<String> secrets = java.util.concurrent.ConcurrentHashMap.newKeySet();
       GraphTools.RepoFiles snapshotFiles =
           new GraphTools.RepoFiles() {
+            @Override
+            public void masked(String value) {
+              secrets.add(value);
+            }
+
             @Override
             public Optional<byte[]> read(String repo, String path) {
               return Optional.ofNullable(snapshot.commits().get(repo))
@@ -406,7 +414,7 @@ public final class AnalysisRun {
                   answers,
                   runBudget,
                   (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
-                  Set.of())
+                  secrets)
               .batchingAbove(batchAbove);
       itemsPerRequest.forEach(harness::itemsPerRequest);
       calibrations.forEach(harness::calibrating);
@@ -432,7 +440,8 @@ public final class AnalysisRun {
       // Prompts show source excerpts read from git at the commits the facts were observed in.
       GitSourceFiles sources =
           new GitSourceFiles(name -> Optional.ofNullable(registered.get(name)).map(Repo::path))
-              .withSecretKeys(secretKeys);
+              .withSecretKeys(secretKeys)
+              .withMaskedValues(secrets::add);
       // The summaries read the facts the extractors recorded before they kept values as written:
       // value resolution's facts per profile (ADR 0094), derived here as linking does; its views
       // of deployments need the units, which linking derives later, and summaries do not read them.
@@ -511,7 +520,8 @@ public final class AnalysisRun {
                       Optional.ofNullable(registered.get(name))
                           .or(() -> registry.find(name))
                           .map(Repo::path))
-              .withSecretKeys(secretKeys);
+              .withSecretKeys(secretKeys)
+              .withMaskedValues(secrets::add);
       Describer.Result described =
           new Describer(harness, allSources)
               .describe(systemFacts, extracted, summarized.summaries());
@@ -615,6 +625,10 @@ public final class AnalysisRun {
                   harness.records()));
       LOG.info("Wrote {}", runRecord);
       LOG.info("Wrote {}", Rejections.write(out, harness.rejections()));
+      // The values the Secrets check looked for, counted, never written (#645).
+      LOG.info(
+          "Masking took {} values out of the files shown to the roles; no answer kept holds one",
+          secrets.size());
       // With the first link step's facts, the facts extractors recorded before they kept values as
       // written, which extraction coverage counts as theirs (ADR 0094).
       List<Fact> written = new ArrayList<>(found);

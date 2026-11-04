@@ -84,8 +84,8 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   never submitted again; an item never submitted at all counts as omitted and is cached. Resolve keeps its own answer turn until its 1F
   prompt; per-turn breakpoints and compaction are #349.
 - **No secret values yet.** The Secrets check rejects a text holding a value the masking marked as
-  secret; the run's values are added to every check's inputs. The masking (ADR 0054) does not yet hand the values it masked to the harness, so the set
-  is empty for now (#645).
+  secret; the run's values are added to every check's inputs. Since #645 the masking (ADR 0054) hands the values it masked to the harness
+  (amendment for #645 below).
 - **No observations of origin `llm` for summaries and wordings yet.** They are stored as answers and
   read by the composer as before; Resolve already stores its links as facts. Storing accepted
   answers as observations comes with the roles that 1F rebuilds and the composer of 1G, which read
@@ -332,3 +332,17 @@ price.
 Every group is within 10%; before, describe was off by 28% and the model checks by 41%. The scales
 come from one set, fitted on the same runs they are judged by. #756's baselines on all five sets
 check them.
+
+## Amendment (#645): the masking hands its values to the harness
+
+The Secrets check now has values to look for. Where the masked text of a file leaves for a role, a
+source file Summarize or Describe is shown (`SourceFiles.shown`) or a file a tool shows Resolve or
+Investigate (`GraphTools.Graph.shown`), `MaskedValues` compares each line before and after masking
+and hands on what masking replaced or dropped: the whole value, and, for a span without spaces
+such as a URL's credentials, its user and password apart. The run keeps them in one set that the
+harness reads live, so a value found in a file shown late still counts for every later answer.
+Values shorter than six characters are not looked for (`Harness.SHORTEST_SECRET`), and masked
+prose, such as an exception message under a secret's name, counts whole, never word by word, so
+words like "password" stay usable. An answer holding one is sent back once with the reason and
+dropped if it holds it again. The values are never written: the run's log gives their count only.
+

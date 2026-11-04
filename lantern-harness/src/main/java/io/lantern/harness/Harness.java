@@ -66,7 +66,8 @@ public final class Harness {
    * @param answers the answer cache
    * @param budget the run's budget, split by role group
    * @param blobs the blobs of the snapshot's files, to revalidate answers that read files
-   * @param secrets the values masking marked as secret, which no accepted answer may hold
+   * @param secrets the values masking marked as secret, which no accepted answer may hold; read
+   *     live, so a set the masking adds to while it shows files to the roles counts in full (#645)
    */
   public Harness(
       LlmClient client,
@@ -78,11 +79,7 @@ public final class Harness {
     this.answers = Objects.requireNonNull(answers, "answers");
     this.budget = Objects.requireNonNull(budget, "budget");
     this.blobs = Objects.requireNonNull(blobs, "blobs");
-    this.secrets =
-        Set.copyOf(
-            Objects.requireNonNull(secrets, "secrets").stream()
-                .filter(s -> s.length() >= SHORTEST_SECRET)
-                .toList());
+    this.secrets = Objects.requireNonNull(secrets, "secrets");
   }
 
   /** A harness with an answer cache in memory and no run budget, for tests and one-off runs. */
@@ -250,14 +247,20 @@ public final class Harness {
     return blobs;
   }
 
-  /** The values masking marked as secret. */
+  /** The values masking marked as secret so far, but those too short to look for. */
   Set<String> secrets() {
-    return secrets;
+    Set<String> kept = new java.util.TreeSet<>();
+    for (String secret : List.copyOf(secrets)) {
+      if (secret.length() >= SHORTEST_SECRET) {
+        kept.add(secret);
+      }
+    }
+    return kept;
   }
 
   /** A secret value the text holds, or null if it holds none. */
   String secretIn(String text) {
-    for (String secret : secrets) {
+    for (String secret : secrets()) {
       if (text.contains(secret)) {
         return secret;
       }
