@@ -125,7 +125,8 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
   correct, though not a pick; a pick there is wrong.
 - **Describe**: the share of the report's containers, stores, queues, external systems, people and
   components (by their anchor type's ID) with a responsibility of origin llm, and of the lines the
-  report draws, a person's left out (they keep their fixed labels), whose label is an intent it
+  report draws, a person's left out (they keep their fixed labels; measured since the amendment for
+  #739), whose label is an intent it
   wrote, citation markers aside: what a reader sees worded. Its judge score comes with #668. (#742 replaced the line count; see its amendment.)
 - **Flows**: a report flow matches a reference flow when its trigger is the same entry point and
   their participants overlap by at least two thirds of the larger set, one to one, best overlap
@@ -209,8 +210,9 @@ three numbers (`lantern-web/scripts/roles.mjs`, `describeRow`):
   data access, found connections, people's uses, messages to other units, infrastructure use
   (project-3) and an exchange's route (project-8). Whether an intent says something true and
   specific stays the wording judge's row (#668, #757).
-- **Drawn coverage.** Of the lines the report draws, a person's left out, the share labelled with
-  the intent Describe wrote for a link of their own.
+- **Drawn coverage.** Of the lines the report draws, the share labelled with the intent Describe
+  wrote for a link of their own; a person's line, since #739, with the intent it wrote for the
+  person's use of a frontend (amendment for #739 below).
   - A line's own link runs between its two ends, or between elements inside or around them, since
     a view draws a link between the boxes it shows.
   - A consumer's line runs from any queue, exchange or topic to the consumer, since a view draws
@@ -387,7 +389,8 @@ The row now also measures `steps`:
   the report, so ends and label are all there is;
 - `intended` when a link Describe worded runs between its ends; `own` when it reads one of those
   links' intents; `fallbackWithIntent` when it is intended but reads something else;
-- a step from or to a person is left out until people's lines are measured (#739).
+- a step to a person is left out; a step from one is measured as a person's line is (amendment for
+  #739).
 
 The scorecard's Describe cell shows "steps N drawn, N intended, N own, N fallback", so `compare`
 shows both runs' figures, and `paired` lists them per set. Each intended step is an item of the row,
@@ -395,4 +398,22 @@ right when own, in the paired comparison. It is keyed by its diagram, its two en
 steps between them came before (`step:<diagram>/<from>-><to>#<n>`), so a note added or dropped on
 a rerun shifts no key. The steps join the lines in Describe's one paired difference. A run scored
 before #740 has no step items, so a pair of an older and a newer run compares the lines alone.
+
+## Amendment (#739): people's lines and steps are measured
+
+Since #806 a line from a person shows the intent Describe stored for the person's use of a
+frontend, but the Describe row left every person's line out, its comment saying their labels were
+fixed. They are now measured, in the drawn lines and in the steps:
+
+- a person's frontends are those its basis names, matched to the drawn frontends by name, and those
+  a line the diagrams draw from the person reaches (`personsOf`, the one definition the model
+  coverage and the page share);
+- a line or step from a person to a frontend is intended when Describe stored an intent for the
+  person's use of that frontend (`<basis>/<frontend>`), and own when it reads one;
+- a line from a person to the system box, which the context view draws, takes the intents of any of
+  the person's frontends;
+- a person's line is generic, and counts in `genericWithIntent`, as any other line.
+
+The paragraph of the #742 amendment that says a person's fixed "Uses" lines fail the label check
+until people's lines are worded still holds for a person no intent words.
 

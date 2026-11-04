@@ -582,6 +582,47 @@ class C4ViewsTest {
                 + " [JSON/HTTP]");
   }
 
+  @Test
+  void aComponentLineShowsTheIntentDescribeStoredForIt() {
+    List<Fact> derived = new ArrayList<>(io.lantern.derive.Derivation.withModel(facts.list(), 1));
+    Fact line =
+        derived.stream()
+            .filter(
+                f ->
+                    f.predicate().equals(Types.COMPONENT_LINK)
+                        && f.subject().toString().endsWith("type:com.example.web.Controller")
+                        && f.object().value().endsWith("type:com.example.domain.JpaOrders"))
+            .findFirst()
+            .orElseThrow();
+    // Describe words a component line as it words any interaction (ADR 0103, #739).
+    derived.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            line.subject(),
+            Types.INTENT,
+            line.claimId() != null ? line.claimId() : line.id(),
+            "Lists the stored orders",
+            List.of(line),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    Document document =
+        new Composer("1")
+            .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, derived);
+    Diagram diagram = block(section(document, "components").sections().getFirst(), Diagram.class);
+
+    assertThat(edges(diagram))
+        .contains(
+            "type:com.example.web.Controller -> type:com.example.domain.JpaOrders:"
+                + " Lists the stored orders")
+        .noneMatch(
+            e ->
+                e.startsWith(
+                    "type:com.example.web.Controller -> type:com.example.domain.JpaOrders: Calls"));
+  }
+
   /** The runtime facts plus an aspect advising the controller's {@code list()}. */
   private Diagram componentsWithAspect(String aspect, boolean inUnit, String aspectJson) {
     List<Fact> withAspect = new ArrayList<>(facts.list());
