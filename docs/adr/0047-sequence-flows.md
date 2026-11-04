@@ -258,3 +258,26 @@ The flow significance role is shown one candidate for each stored shape, which t
 
 A flow page's title no longer names its trigger in brackets; the trigger, where the flow runs and
 its handler are in its Overview table (ADR 0122).
+
+## Amendment (#740): each step is worded by its own link's intent
+
+A step's label is the intent phrase stored for its own link, with the technology second; the
+fallback label ("Calls X", "Delivers to X", "Uses the screens") stays where that link has no stored
+intent, and where one link stands for several requests. The step then cites the link it is worded
+from as well as its own facts. Which link words each step:
+
+- a delivery from a topic or queue: the receiving unit's `CONSUMES` link to it, or to the queue it
+  comes through, of the default view, else the delivery's own fact;
+- a data step: the unit's `USES_DATABASE` link to the store among the step's own facts, with what
+  it reads and writes, or the repository method it calls, moved to the code column with the
+  protocol ("Reads orders · JDBC", "Calls OrderRepository.save · JDBC");
+- a person's step: the intent Describe stored for the person's use of that frontend (ADR 0103,
+  amendment for #739);
+- a scheduled job and a STOMP push: their own fact, which no role words yet, so they keep their
+  fallback;
+- a frontend's call and the gateway route that forwards it: no change. One link covers every call
+  from a frontend to one target, and one route every request through it, so their stored intent
+  is one request's. Each request needs its own identity first (#810); a gateway call that matches
+  no endpoint shares the routes' link the same way (#811).
+
+The fake runs' counts are in #740's PR.

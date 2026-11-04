@@ -83,6 +83,7 @@ public final class ScopeFlows {
   private final Elements elements;
   private final Set<EntityId> scope;
   private final Function<EntityId, String> names;
+  private java.util.SortedMap<EntityId, Fact> people;
 
   /** Every stored flow as traced here, in the order stored, once read. */
   private List<Trace> traces;
@@ -124,6 +125,14 @@ public final class ScopeFlows {
   /** As the other constructor, naming elements as {@link Elements#names} does. */
   public ScopeFlows(Knowledge knowledge, Elements elements, Set<EntityId> scope) {
     this(knowledge, elements, scope, elements.names()::name);
+  }
+
+  /** The scope's people, each with its basis fact, read once. */
+  private java.util.SortedMap<EntityId, Fact> people() {
+    if (people == null) {
+      people = elements.people();
+    }
+    return people;
   }
 
   // Entry points and starts.
@@ -180,6 +189,8 @@ public final class ScopeFlows {
    * @param facts the facts it rests on
    * @param phrased the link whose intent phrase (ADR 0050) labels it instead, where there is one,
    *     the phrase's cited facts then added to its own; null when it has none
+   * @param phrasedCode its code when the phrase labels it, such as a data step's repository method
+   *     and protocol (#740); null to keep {@code code}
    */
   public record Message(
       EntityId from,
@@ -190,7 +201,8 @@ public final class ScopeFlows {
       List<String> profiles,
       String info,
       List<Fact> facts,
-      Fact phrased)
+      Fact phrased,
+      String phrasedCode)
       implements Step {}
 
   /** A note over participants, none for the whole flow. */
@@ -295,7 +307,8 @@ public final class ScopeFlows {
             List.of(),
             "In a web browser.",
             start.personFacts,
-            null);
+            // The person's basis: their intent for this frontend words the step (#740).
+            people().get(start.person));
       }
       steps(flow.steps());
     }
@@ -376,7 +389,8 @@ public final class ScopeFlows {
         participants.add(to);
       }
       steps.add(
-          new Message(from, to, plain, code, async, profiles, info, List.copyOf(facts), phrased));
+          new Message(
+              from, to, plain, code, async, profiles, info, List.copyOf(facts), phrased, null));
     }
 
     private void note(List<EntityId> over, String text, List<String> profiles, List<Fact> facts) {
@@ -493,7 +507,8 @@ public final class ScopeFlows {
               profiles,
               deliveryInfo(first),
               facts,
-              null);
+              // The receiving unit's link to what it consumes words it (#740).
+              consumes(step.to(), step.from(), queue, first));
         }
         case FlowModel.SCHEDULE ->
             message(
@@ -505,7 +520,8 @@ public final class ScopeFlows {
                 profiles,
                 null,
                 facts,
-                null);
+                // The job's own fact words it where it has an intent (#740).
+                first);
         case FlowModel.JOB_LATER -> {
           EntityId unit = step.over().getFirst();
           note(
@@ -591,7 +607,26 @@ public final class ScopeFlows {
           List.of(),
           info.isEmpty() ? null : String.join(" ", info),
           step.facts(),
+          // Not its link's intent: one claim covers every call from the frontend to the target,
+          // so the intent would be one request's, or none's (#740, #810).
           null);
+    }
+
+    /**
+     * The unit's {@code CONSUMES} link to the destination a delivery comes from, or to the queue it
+     * comes through, whose intent words the delivery (#740); else the delivery's own fact.
+     */
+    private Fact consumes(EntityId unit, EntityId from, String queue, Fact delivery) {
+      EntityId through = queue == null ? null : parse(queue);
+      return knowledge.relations(unit, Types.CONSUMES).stream()
+          .filter(
+              f ->
+                  Knowledge.isEntity(f)
+                      && (Knowledge.object(f).equals(from) || Knowledge.object(f).equals(through))
+                      && Knowledge.view(f) == null
+                      && !elements.alternativeLinks().containsKey(f))
+          .findFirst()
+          .orElse(delivery);
     }
 
     /** The gateway the frontend called routing the call on to the entry point's unit. */
@@ -740,7 +775,7 @@ public final class ScopeFlows {
           step.profiles(),
           paths.isEmpty() ? null : "Connected over " + String.join(" or ", paths) + ".",
           step.facts(),
-          null);
+          push);
     }
 
     private void unresolved(FlowModel.Step step, Fact fact) {
@@ -778,6 +813,18 @@ public final class ScopeFlows {
         }
       }
       String code = step.detail().isEmpty() ? null : step.detail().getFirst();
+      // The unit's intent for its store words the step; the repository method stays its code
+      // (#740).
+      Fact store =
+          step.facts().stream()
+              .filter(
+                  f ->
+                      f.predicate().equals(Types.USES_DATABASE)
+                          && Knowledge.isEntity(f)
+                          && f.subject().equals(unit)
+                          && Knowledge.object(f).equals(step.to()))
+              .findFirst()
+              .orElse(null);
       message(
           unit,
           step.to(),
@@ -787,7 +834,24 @@ public final class ScopeFlows {
           step.profiles(),
           info.isEmpty() ? null : String.join(" ", info),
           step.facts(),
-          null);
+          store);
+      if (store != null) {
+        // With the store's intent as its label, what it reads and writes, or the repository
+        // method it calls, goes to the code column (#740).
+        Message last = (Message) steps.removeLast();
+        steps.add(
+            new Message(
+                last.from(),
+                last.to(),
+                last.plain(),
+                last.code(),
+                last.async(),
+                last.profiles(),
+                last.info(),
+                last.facts(),
+                last.phrased(),
+                code == null ? label(parts) : label(parts) + " · " + code));
+      }
     }
 
     /** Which of the tables a unit reads or writes are another unit's, or null for none. */

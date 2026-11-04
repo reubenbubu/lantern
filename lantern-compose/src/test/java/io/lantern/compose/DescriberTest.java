@@ -1658,6 +1658,90 @@ class DescriberTest {
   }
 
   @Test
+  void aFlowsDataStepShowsTheUnitsStoreIntentWithWhatItReadsAsItsCode() {
+    TestFacts runtime = TestFacts.runtime();
+    Fact store = runtime.find(APP.toString(), "USES_DATABASE");
+    Function<Map<String, Describer.Phrase>, List<String>> messages =
+        phrases ->
+            all(new Composer("1")
+                    .compose(
+                        ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                        SNAPSHOT,
+                        TestTexts.with(runtime.list(), new TestTexts.Written(Map.of(), phrases)))
+                    .sections())
+                .flatMap(s -> s.blocks().stream())
+                .filter(SequenceDiagram.class::isInstance)
+                .map(SequenceDiagram.class::cast)
+                .flatMap(d -> d.steps().stream())
+                .filter(SequenceDiagram.Message.class::isInstance)
+                .map(SequenceDiagram.Message.class::cast)
+                .filter(m -> m.to().toString().equals("database:db:5432/shop"))
+                .map(m -> m.label() + " [" + m.code() + "]")
+                .toList();
+
+    assertThat(messages.apply(Map.of())).isNotEmpty().allMatch(m -> m.startsWith("Reads "));
+    // With the unit's intent for the store, the step leads with it; what it reads is its code
+    // (#740).
+    assertThat(
+            messages.apply(
+                Map.of(store.id(), new Describer.Phrase("Keeps its orders in", List.of()))))
+        .isNotEmpty()
+        .allMatch(m -> m.startsWith("Keeps its orders in [Reads "));
+  }
+
+  @Test
+  void aFlowsDeliveryShowsTheReceivingUnitsIntentForWhatItConsumes() {
+    TestFacts runtime = TestFacts.runtime();
+    Fact consumes = runtime.find("service:com.example:worker", "CONSUMES");
+    Function<Map<String, Describer.Phrase>, List<SequenceDiagram.Message>> deliveries =
+        phrases ->
+            all(new Composer("1")
+                    .compose(
+                        ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                        SNAPSHOT,
+                        TestTexts.with(runtime.list(), new TestTexts.Written(Map.of(), phrases)))
+                    .sections())
+                .flatMap(s -> s.blocks().stream())
+                .filter(SequenceDiagram.class::isInstance)
+                .map(SequenceDiagram.class::cast)
+                .flatMap(d -> d.steps().stream())
+                .filter(SequenceDiagram.Message.class::isInstance)
+                .map(SequenceDiagram.Message.class::cast)
+                .filter(
+                    m ->
+                        m.from().toString().equals("topic:kafka:orders")
+                            && m.to().toString().equals("service:com.example:worker"))
+                .toList();
+    Function<Map<String, Describer.Phrase>, List<String>> messages =
+        phrases -> deliveries.apply(phrases).stream().map(SequenceDiagram.Message::label).toList();
+
+    assertThat(messages.apply(Map.of())).isNotEmpty().allMatch(m -> m.startsWith("Delivers "));
+    // The worker's intent for what it consumes words the delivery, not the listener's name (#740).
+    assertThat(
+            messages.apply(
+                Map.of(consumes.id(), new Describer.Phrase("Ships paid orders from", List.of()))))
+        .isNotEmpty()
+        .allMatch(m -> m.startsWith("Ships paid orders from"));
+    // It cites the link its words come from, which is not one of the delivery's own facts (#740).
+    String cited = consumes.claimId() != null ? consumes.claimId() : consumes.id();
+    assertThat(deliveries.apply(Map.of()))
+        .noneMatch(m -> m.facts().contains(consumes.id()) || m.facts().contains(cited));
+    // Even when the phrase cites other facts only.
+    Fact other =
+        runtime.list().stream()
+            .filter(f -> !f.equals(consumes) && !f.predicate().equals("CONSUMES"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(
+            deliveries.apply(
+                Map.of(
+                    consumes.id(),
+                    new Describer.Phrase("Ships paid orders from", List.of(other.id())))))
+        .isNotEmpty()
+        .allMatch(m -> m.facts().contains(consumes.id()) || m.facts().contains(cited));
+  }
+
+  @Test
   void aLowerFirstLetterKeepsAcronyms() {
     assertThat(C4Views.lowerFirst("Reports payments")).isEqualTo("reports payments");
     assertThat(C4Views.lowerFirst("SQL dumps")).isEqualTo("SQL dumps");

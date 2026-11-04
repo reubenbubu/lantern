@@ -671,6 +671,43 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void aPersonsStepShowsTheIntentStoredForTheirUseOfTheFrontend() {
+    browser();
+    relate(
+        "front",
+        UI,
+        "CALLS_HTTP",
+        FRONT,
+        "{\"httpMethod\": \"POST\", \"path\": \"/orders\", \"protocol\": \"JSON/HTTP\","
+            + " \"proxy\": \"/orders\", \"reaches\": \""
+            + PLACE
+            + "\", \"reachesUnit\": \""
+            + FRONT
+            + "\", \"reachesEndpoint\": \"POST /orders\"}",
+        3);
+    Fact basis =
+        facts.stream().filter(f -> f.predicate().equals("person-basis")).findFirst().orElseThrow();
+    // Describe stores a person's intent under its basis and the frontend (ADR 0103, #739).
+    facts.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            EntityId.parse("person:customer"),
+            Types.INTENT,
+            basis.id() + "/" + UI,
+            "Places orders through",
+            List.of(basis),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    SequenceDiagram diagram = diagram(flows(system(facts)).sections().getFirst());
+
+    // The person's intent words the flow's first step, not "Uses the screens" (#740).
+    assertThat(steps(diagram.steps()))
+        .contains("person:customer > frontend:front/ui: Places orders through (In a web browser.)");
+  }
+
+  @Test
   void aFrontendsCallThroughAGatewayRouteStartsTheFlowItReaches() {
     browser();
     // ship's status endpoint reaches nothing else; called from the browser it is a flow.
