@@ -87,6 +87,26 @@ class Project0LinksIT {
           "method:com.acme.shop.fulfilment.ReturnsPublisher#refundDue(long,java.lang.String)",
           "service:com.acme.shop:payments");
 
+  /**
+   * The links project-0 leaves open with candidates where no one candidate is the answer, by the
+   * code that makes the call or send, with their candidates (#734): both receive (MSG-6 to MSG-8),
+   * or the code does not show where it goes (MSG-9, HTTP-8, HTTP-9). The fake answers them unknown.
+   */
+  private static final Map<String, List<String>> NO_ONE_ANSWER =
+      Map.of(
+          "method:com.acme.shop.fulfilment.ParcelDelayPublisher#delayed(long,java.lang.String)",
+          List.of("payments", "storefront-app"),
+          "method:com.acme.shop.storefront.order.CancellationPublisher#cancelled(long,java.lang.String)",
+          List.of("fulfilment", "payments"),
+          "method:com.acme.shop.payments.DisputePublisher#opened(long,java.lang.String)",
+          List.of("fulfilment", "storefront-app"),
+          "method:com.acme.shop.fulfilment.ReturnsRelay#relay(java.lang.String,long)",
+          List.of("payments", "storefront-app"),
+          "method:com.acme.shop.fulfilment.LegacyOrderClient#legacyOrder(long)",
+          List.of("payments", "storefront-app"),
+          "method:com.acme.shop.fulfilment.OrderArchiveClient#archivedOrder(long)",
+          List.of("payments", "storefront-app"));
+
   /** What the LLM resolver, with a fake model, was asked with builds and without. */
   private static final List<String> builtPrompts = new ArrayList<>();
 
@@ -177,7 +197,9 @@ class Project0LinksIT {
             .resolve(all, 1);
     assertThat(result.rejected()).as("answers rejected").isEmpty();
     assertThat(result.skipped()).as("calls skipped").isEmpty();
-    assertThat(result.unknown()).as("answered unknown").isZero();
+    // The six links with no one target to pick: three both their candidates receive (MSG-6 to
+    // MSG-8) and three whose target the code does not show (MSG-9, HTTP-8, HTTP-9, #734).
+    assertThat(result.unknown()).as("answered unknown").isEqualTo(NO_ONE_ANSWER.size());
     resolved.addAll(result.facts());
     fake.sent().stream()
         .filter(sent -> sent.request().messages().size() == 1)
@@ -445,14 +467,19 @@ class Project0LinksIT {
   @Test
   void theResolverIsAskedOnceAboutEachLinkLeftOpenWithCandidates() {
     for (List<String> prompts : List.of(builtPrompts, unbuiltPrompts)) {
+      List<String> asked = new ArrayList<>(ANSWERS.keySet());
+      asked.addAll(NO_ONE_ANSWER.keySet());
       assertThat(prompts)
           .extracting(Project0LinksIT::code)
-          .containsExactlyInAnyOrderElementsOf(ANSWERS.keySet());
-      // The candidates by unit ID, not ranked (ADR 0045): payments first in every case.
+          .containsExactlyInAnyOrderElementsOf(asked);
+      // The candidates by unit ID, not ranked (ADR 0045): payments then storefront-app for each
+      // of fulfilment's links to the two.
       for (String prompt : prompts) {
+        List<String> candidates =
+            NO_ONE_ANSWER.getOrDefault(code(prompt), List.of("payments", "storefront-app"));
         assertThat(prompt)
-            .contains("\n[K1] service:com.acme.shop:payments\n")
-            .contains("\n[K2] service:com.acme.shop:storefront-app\n")
+            .contains("\n[K1] service:com.acme.shop:" + candidates.get(0) + "\n")
+            .contains("\n[K2] service:com.acme.shop:" + candidates.get(1) + "\n")
             .doesNotContain("[K3]");
       }
     }
@@ -462,15 +489,17 @@ class Project0LinksIT {
 
   @Test
   void theResolverLooksUpEachAnswersEndpointsWithAToolFirst() {
-    // fulfilment's three open links are one conversation, with builds and without (ADR 0105).
-    assertThat(conversations).hasSize(2);
+    // Four to a conversation per calling unit (ADR 0105): fulfilment's seven open links are two,
+    // storefront's and payments' one each, with builds and without.
+    assertThat(conversations).hasSize(8);
     assertThat(conversations)
         .allSatisfy(
-            c -> {
-              assertThat(c.turns()).isEqualTo(3);
-              assertThat(c.toolCalls()).isEqualTo(Map.of("facts_about", 2, "submit", 1));
-              assertThat(c.ending()).isEqualTo(io.lantern.llm.LlmConversation.Ending.ANSWERED);
-            });
+            c -> assertThat(c.ending()).isEqualTo(io.lantern.llm.LlmConversation.Ending.ANSWERED));
+    // The packets holding HTTP-6, HTTP-7 or MSG-5 look up the units they pick before submitting.
+    assertThat(conversations)
+        .filteredOn(c -> c.toolCalls().containsKey("facts_about"))
+        .isNotEmpty()
+        .allSatisfy(c -> assertThat(c.toolCalls()).containsEntry("submit", 1));
     // HTTP-7 and MSG-5 pick payments, HTTP-6 the storefront app.
     assertThat(toolResults)
         .anyMatch(r -> r.startsWith("Facts about service:com.acme.shop:payments:\n[F"))
