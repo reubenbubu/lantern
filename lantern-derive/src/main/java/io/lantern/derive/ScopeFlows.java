@@ -510,7 +510,8 @@ public final class ScopeFlows {
                 profiles,
                 null,
                 facts,
-                null);
+                // The job's own fact words it where it has an intent (#740).
+                first);
         case FlowModel.JOB_LATER -> {
           EntityId unit = step.over().getFirst();
           note(
@@ -748,7 +749,7 @@ public final class ScopeFlows {
           step.profiles(),
           paths.isEmpty() ? null : "Connected over " + String.join(" or ", paths) + ".",
           step.facts(),
-          null);
+          push);
     }
 
     private void unresolved(FlowModel.Step step, Fact fact) {
