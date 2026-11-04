@@ -18,6 +18,7 @@ import io.lantern.harness.RunBudget;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
+import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -343,6 +344,40 @@ class InvestigatorTest {
         .contains("- " + FILES_UNIT);
     assertThat(request.tools().stream().map(t -> t.name()).toList())
         .containsExactlyInAnyOrder("facts_about", "read_file", "find_in_code", "submit");
+  }
+
+  @Test
+  void anExhaustedBudgetStopsInvestigateWithoutFailingAndALaterRunAsks() {
+    headerLead();
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+    LlmClient spent =
+        new LlmClient(
+            ModelSettings.single(new FakeLlmProvider(fake.name()).model("m")),
+            List.of(fake),
+            new BudgetGuard("run", 100L, null),
+            log,
+            Clock.systemUTC());
+
+    Investigator.Result stopped = investigate(spent);
+
+    // Nothing is sent or stored; the lead is unclear, not asked, and the run goes on (#769).
+    assertThat(fake.sent()).isEmpty();
+    assertThat(of(stopped, Types.INVESTIGATED_RISK)).isEmpty();
+    assertThat(of(stopped, Types.LEAD_VERDICT))
+        .singleElement()
+        .satisfies(
+            v -> {
+              assertThat(v.object().value()).isEqualTo("unclear");
+              assertThat(Claims.json(v).path("reason").asString())
+                  .startsWith("not asked: Budget 'run'");
+            });
+    assertThat(store.size()).isZero();
+    assertThat(log.calls())
+        .isNotEmpty()
+        .allSatisfy(c -> assertThat(c.outcome()).isEqualTo(LlmCall.Outcome.REFUSED));
+
+    // With budget left, a later run asks and confirms the lead.
+    assertThat(of(investigate(fake), Types.INVESTIGATED_RISK)).hasSize(1);
   }
 
   @Test
