@@ -102,3 +102,109 @@ test('the legend of a sequence has the async arrowhead when a message is async',
   assert.match(legend, /Return/);
   assert.doesNotMatch(legendHTML(['container'], { seq: true }), /Async message/);
 });
+
+// The after-layout readability check (#366), loaded from the template source like mdInline.
+const readability = new Function(
+  `${template.match(/^const READABLE = \{[\s\S]*?^\};$/m)[0]}\n` +
+    `${template.match(/^function segmentsCross[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function lineCrossings[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function readabilityOf[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^const isReadable = .*$/m)[0]}\n` +
+    `${template.match(/^function readabilityWhy[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function readabilityGaps[\s\S]*?^\}/m)[0]}\n` +
+    'return {READABLE, lineCrossings, readabilityOf, isReadable, readabilityGaps};',
+)();
+
+test('lines that only touch or run side by side do not cross; lines through each other do', () => {
+  const { lineCrossings } = readability;
+  // A plus sign: one crossing.
+  assert.equal(lineCrossings([[[0, 5], [10, 5]], [[5, 0], [5, 10]]]), 1);
+  // An L meeting a line at its end, and two parallel lines: none.
+  assert.equal(lineCrossings([[[0, 0], [10, 0]], [[10, 0], [10, 10]]]), 0);
+  assert.equal(lineCrossings([[[0, 0], [10, 0]], [[0, 2], [10, 2]]]), 0);
+  // An orthogonal line with a bend crossing two others.
+  assert.equal(lineCrossings([[[0, 5], [20, 5], [20, 20]], [[5, 0], [5, 10]], [[15, 0], [15, 30]]]), 2);
+});
+
+test('a view with many crossing lines is not readable; a sparse one that fits is', () => {
+  const { READABLE, readabilityOf, isReadable } = readability;
+  // A grid of 6 horizontal and 6 vertical lines: 36 crossings.
+  const dense = [];
+  for (let i = 0; i < 6; i++) {
+    dense.push([[0, 50 + i * 100], [700, 50 + i * 100]]);
+    dense.push([[50 + i * 100, 0], [50 + i * 100, 700]]);
+  }
+  const fitting = [0, 0, 900, 600];
+  const denseView = readabilityOf(dense, fitting);
+  assert.equal(denseView.crossings, 36);
+  assert.equal(denseView.fits, true);
+  assert.equal(isReadable(denseView), false);
+  // Three lines that never meet, on a view that fits: readable.
+  const sparse = readabilityOf([[[0, 0], [100, 0]], [[0, 50], [100, 50]], [[0, 100], [100, 100]]], fitting);
+  assert.deepEqual([sparse.crossings, sparse.fits, isReadable(sparse)], [0, true, true]);
+  // The same lines on a view too large for the page at a readable scale: not readable.
+  const huge = readabilityOf([[[0, 0], [100, 0]]], [0, 0, READABLE.canvas[0] / READABLE.scale + 1, 400]);
+  assert.deepEqual([huge.fits, isReadable(huge)], [false, false]);
+});
+
+test("a page's quality report lists each of its views that is not readable after layout", () => {
+  const { READABLE, readabilityGaps } = readability;
+  const page = {
+    id: 'containers',
+    title: 'Containers',
+    sections: [
+      { type: 'diagram', id: 'dense', caption: 'Requests [all]', readability: { crossings: READABLE.maxCrossings + 1, fits: true, width: 900, height: 600 } },
+      { type: 'diagram', id: 'sparse', readability: { crossings: 0, fits: true, width: 900, height: 600 } },
+      { type: 'diagram', id: 'huge', readability: { crossings: 0, fits: false, width: 4000, height: 900 } },
+      { type: 'text', id: 'prose', readability: { crossings: 99, fits: false } },
+    ],
+  };
+  assert.deepEqual(readabilityGaps(page), [
+    `**Readable after layout** ([Requests \\[all\\]](#/containers/dense)): its lines cross ${READABLE.maxCrossings + 1} times (at most ${READABLE.maxCrossings}).`,
+    '**Readable after layout** ([Containers](#/containers/huge)): it is 4000 × 900 px, too large to read without zooming.',
+  ]);
+  assert.deepEqual(readabilityGaps({ id: 'p', title: 'P', sections: [page.sections[1]] }), []);
+});
+
+// The quality reports the gaps reach, with the page's other parts stood in for.
+function reports(pages) {
+  const measured = [];
+  return {
+    measured,
+    ...new Function(
+      'PAGES',
+      'measured',
+      `${template.match(/^const READABLE = \{[\s\S]*?^\};$/m)[0]}\n` +
+        `${template.match(/^const isReadable = .*$/m)[0]}\n` +
+        `${template.match(/^function readabilityWhy[\s\S]*?^\}/m)[0]}\n` +
+        `${template.match(/^function readabilityGaps[\s\S]*?^\}/m)[0]}\n` +
+        `${template.match(/^function qualitySection[\s\S]*?^\}/m)[0]}\n` +
+        `${template.match(/^function afterLayoutReport[\s\S]*?^\}/m)[0]}\n` +
+        'const SECTION_BASE = {callout: s => "callout:" + s.body, list: s => "list:" + JSON.stringify(s.items)};\n' +
+        'const renderSection = (s) => s.title + ":" + JSON.stringify(s.items);\n' +
+        'function measureAll(){ measured.push(true); }\n' +
+        'return {qualitySection, afterLayoutReport};',
+    )(pages, measured),
+  };
+}
+
+test('a page with a view not readable gets a quality report when it has none; one with a report does not', () => {
+  const huge = { type: 'diagram', id: 'huge', readability: { crossings: 0, fits: false, width: 4000, height: 900 } };
+  const { afterLayoutReport } = reports([]);
+  assert.equal(
+    afterLayoutReport({ id: 'c', title: 'Components', sections: [huge] }),
+    'Quality report:["**Readable after layout** ([Components](#/c/huge)): it is 4000 × 900 px, too large to read without zooming."]',
+  );
+  assert.equal(afterLayoutReport({ id: 'c', title: 'C', sections: [huge, { type: 'list', id: 'q', quality: true, items: [] }] }), '');
+  assert.equal(afterLayoutReport({ id: 'c', title: 'C', sections: [{ ...huge, readability: { crossings: 0, fits: true, width: 900, height: 600 } }] }), '');
+});
+
+test('the report that says every check passed measures every view first and lists the gaps of every page', () => {
+  const later = { id: 'containers', title: 'Containers', sections: [{ type: 'diagram', id: 'dense', readability: { crossings: 50, fits: true, width: 900, height: 600 } }] };
+  const first = { id: 'context', title: 'Context', sections: [] };
+  const { qualitySection, measured } = reports([first, later]);
+  const passed = { type: 'callout', id: 'q', quality: true, body: 'Every check passed.' };
+  assert.equal(qualitySection(passed, first), 'list:["**Readable after layout** ([Containers](#/containers/dense)): its lines cross 50 times (at most 5)."]');
+  assert.equal(measured.length, 1);
+  assert.equal(reports([first]).qualitySection(passed, first), 'callout:Every check passed.');
+});

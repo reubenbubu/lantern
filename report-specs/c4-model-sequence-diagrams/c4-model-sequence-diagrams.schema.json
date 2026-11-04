@@ -169,7 +169,8 @@
       "properties": {
         "type": { "const": "callout" }, "id": true, "title": true, "eyebrow": true,
         "body": { "$ref": "#/$defs/markdown" },
-        "tone": { "enum": ["info", "warning", "success"], "default": "info" }
+        "tone": { "enum": ["info", "warning", "success"], "default": "info" },
+        "quality": { "type": "boolean", "description": "This page's quality report: the page adds the gaps it measures after layout (#366)." }
       },
       "unevaluatedProperties": false
     },
@@ -179,7 +180,8 @@
       "required": ["items"],
       "properties": {
         "type": { "const": "list" }, "id": true, "title": true, "eyebrow": true,
-        "items": { "type": "array", "items": { "$ref": "#/$defs/markdown" } }
+        "items": { "type": "array", "items": { "$ref": "#/$defs/markdown" } },
+        "quality": { "type": "boolean", "description": "This page's quality report: the page adds the gaps it measures after layout (#366)." }
       },
       "unevaluatedProperties": false
     },

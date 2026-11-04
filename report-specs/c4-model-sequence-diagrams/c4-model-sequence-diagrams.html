@@ -4391,6 +4391,8 @@ for (const p of PAGES) for (const s of (p.sections || [])){
     if (systems.length) spec.nodes = [...(spec.nodes || []).filter(n => !systems.includes(n)), ...systems.map(id => ({id, hero: !s.boundary && id === focus}))];
     spec._focus = focus;
     spec._key = key;
+    spec._level = p.level;
+    spec._section = s;
     if (s.boundary) spec.boundary = {id:s.boundary, contains:[...ids].filter(id => EL[id] && EL[id].parent === s.boundary)};
     spec._ids = ids;
     DIAGRAMS[key] = spec;
@@ -5367,6 +5369,97 @@ function ruleOverlaySVG(spec, map, uid, src){
   }).join('') + `</g>`;
 }
 
+/* ==========================================================================
+   READABILITY AFTER LAYOUT (#366)
+   A container or component diagram is readable when it fits the page at a scale its smallest
+   labels stay legible at, and its lines cross at most READABLE.maxCrossings times. Both are
+   measured on the drawn geometry, written into the document's section as `readability`, and a
+   diagram that fails says so under it. Thresholds: docs/design.md, Readable diagrams.
+   ========================================================================== */
+const READABLE = {
+  // the maximized diagram (.mx) on a 1920 × 1080 screen: the width beside the sidebar, and the
+  // height below its bar
+  canvas: [1632, 1024],
+  // the smallest scale at which a line label (11.5px) stays at least 9px tall
+  scale: 0.8,
+  // the most line crossings before a view warns (docs/design.md, Readable diagrams)
+  maxCrossings: 5,
+};
+const MEASURED_LEVELS = new Set(['containers', 'components']);
+
+/** Whether two segments cross at a point inside both; touching or running along each other is no crossing. */
+function segmentsCross(a, b, c, d){
+  const cr = (o, p, q) => (p[0]-o[0])*(q[1]-o[1]) - (p[1]-o[1])*(q[0]-o[0]);
+  const d1 = cr(c, d, a), d2 = cr(c, d, b), d3 = cr(a, b, c), d4 = cr(a, b, d);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+/** How many times the drawn lines (each a list of points) cross one another. */
+function lineCrossings(lines){
+  let n = 0;
+  for (let i=0;i<lines.length;i++) for (let j=i+1;j<lines.length;j++){
+    const A = lines[i], B = lines[j];
+    for (let a=1;a<A.length;a++) for (let b=1;b<B.length;b++) if (segmentsCross(A[a-1], A[a], B[b-1], B[b])) n++;
+  }
+  return n;
+}
+/** The readability of a drawn diagram: its crossings, whether it fits the page, and its size. */
+function readabilityOf(lines, vb){
+  const [cw, ch] = READABLE.canvas;
+  const scale = Math.min(cw / vb[2], ch / vb[3]);
+  return {crossings: lineCrossings(lines), fits: scale >= READABLE.scale, width: Math.round(vb[2]), height: Math.round(vb[3])};
+}
+const isReadable = r => r.fits && r.crossings <= READABLE.maxCrossings;
+/** Measures a container or component diagram as drawn and writes the result into its section. */
+function measureDiagram(raw, spec, geoms){
+  // the section is the drawn diagram's own: a cached layout may come from another page's twin
+  if (!MEASURED_LEVELS.has(raw._level) || !raw._section) return;
+  raw._section.readability = readabilityOf(geoms.map(g => g.pts), spec.vb);
+}
+/** Why a measured diagram is not readable, or null when it is. */
+function readabilityWhy(r){
+  if (!r || isReadable(r)) return null;
+  const why = [];
+  if (!r.fits) why.push(`it is ${r.width} × ${r.height} px, too large to read without zooming`);
+  if (r.crossings > READABLE.maxCrossings) why.push(`its lines cross ${r.crossings} times (at most ${READABLE.maxCrossings})`);
+  return why.join('; ');
+}
+/** What a diagram that is not readable says under it, or nothing. */
+function readabilityNote(spec){
+  const why = readabilityWhy(spec._section && spec._section.readability);
+  return why ? `<div class="callout tone-warning readability">${ICON.info}<div><p><b>Hard to read:</b> ${esc(why)}.</p></div></div>` : '';
+}
+/** The quality report's Readable gaps of a page: each diagram on it drawn before the report that is not readable. */
+function readabilityGaps(p){
+  return (p.sections || []).filter(s => s.type === 'diagram').map(s => {
+    const why = readabilityWhy(s.readability);
+    const name = String(s.caption || s.title || p.title).replace(/[\\[\]*`]/g, c => '\\' + c);
+    return why ? `**Readable after layout** ([${name}](#/${p.id}/${s.id})): ${why}.` : null;
+  }).filter(Boolean);
+}
+/**
+ * A page's quality report (marked \`quality\`), with the page's after-layout gaps added to it. The
+ * report that says every check passed speaks for the whole document, so it first measures every
+ * view and lists the gaps of all pages.
+ */
+function qualitySection(s, p){
+  let gaps;
+  if (s.type === 'callout'){ measureAll(); gaps = PAGES.flatMap(readabilityGaps); }
+  else gaps = readabilityGaps(p);
+  if (s.type === 'callout' && !gaps.length) return SECTION_BASE.callout(s);
+  return SECTION_BASE.list({...s, items: [...(s.type === 'list' ? s.items || [] : []), ...gaps]});
+}
+/** Lays out every container and component diagram and returns each one's readability, by key. */
+function measureAll(){
+  const out = {};
+  for (const [key, spec] of Object.entries(DIAGRAMS)){
+    if (!MEASURED_LEVELS.has(spec._level)) continue;
+    try { c4SVG(spec, key, key); out[key] = {...spec._section.readability, title: spec.title, sub: spec.sub, readable: isReadable(spec._section.readability)}; }
+    catch(err){ out[key] = {error: String(err)}; }
+  }
+  return out;
+}
+window.lanternReadability = measureAll;
+
 function c4SVG(raw, view, key=''){
   const spec = layoutDiagram(raw);
   const uid = ++UID;
@@ -5484,6 +5577,7 @@ function c4SVG(raw, view, key=''){
   }
   const geoms = spec.edges.map((e, i) => { const k = pk(e); seen[k] = (seen[k]||0) + 1; return edgeGeom(e, routes[i], map[e.f], map[e.t], seen[k]-1, cnt[k], lanes[i]); });
   placeLabels(geoms, spec.nodes);
+  measureDiagram(raw, spec, geoms);
   s += geoms.map(g => edgeSVG(g, uid)).join('') + geoms.map(edgeLabelSVG).join('');
   s += spec.nodes.map(n => nodeSVG(n, view, uid, ruled.has(n.id))).join('');
   s += ruleOverlaySVG(spec, map, uid, key && DIAGRAMS[key] ? DIAGRAMS[key] : raw);
@@ -5760,7 +5854,7 @@ function diagramCard(kind, key){
     </div>
     <div class="dcanvas">${isSeq ? seqSVG(spec, key) : c4SVG(spec, key, key)}</div>
     <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, seq:isSeq, async})}</figcaption>
-  </figure>`;
+  </figure>${isSeq ? '' : readabilityNote(spec)}`;
 }
 
 /* ==========================================================================
@@ -5798,10 +5892,14 @@ function columnSpec(c){
   return col;
 }
 
-const SECTION = {
-  text: s => `<div class="prose">${md(s.body)}</div>`,
+const SECTION_BASE = {
   callout: s => `<div class="callout tone-${esc(s.tone || 'info')}">${ICON.info}<div>${md(s.body)}</div></div>`,
   list: s => `<ul class="clean ticks">${(s.items||[]).map(i => `<li>${mdInline(i)}</li>`).join('')}</ul>`,
+};
+const SECTION = {
+  text: s => `<div class="prose">${md(s.body)}</div>`,
+  callout: (s, p) => s.quality ? qualitySection(s, p) : SECTION_BASE.callout(s),
+  list: (s, p) => s.quality ? qualitySection(s, p) : SECTION_BASE.list(s),
   stats: s => {
     const n = s.columns || Math.min(4, (s.items||[]).length || 1);
     return `<div class="grid stats-${esc(s.variant || 'default')}" style="grid-template-columns:repeat(${n},minmax(0,1fr))">${(s.items||[]).map(i =>
@@ -5846,7 +5944,14 @@ function renderPage(p){
   const meta = e ? [e.tech && `<span class="pill">${esc(e.tech)}</span>`, e.props.owner && `<span class="pill">Owner · ${esc(e.props.owner)}</span>`,
     CATALOGUE[p.element] && `<a class="pill" href="#/${CATALOGUE[p.element].page}/el-${p.element}">↑ ${esc(CATALOGUE[p.element].title)}</a>`].filter(Boolean).join('') : '';
   return `<header class="page-head"><div class="eyebrow"><span class="lvl">${L.badge}</span> ${esc(L.label)}</div><h1>${esc(p.title)}</h1>${p.summary ? `<div class="lead">${md(p.summary)}</div>` : ''}${meta ? `<div class="page-meta">${meta}</div>` : ''}</header>`
-    + (p.sections || []).map(s => renderSection(s, p)).join('');
+    + (p.sections || []).map(s => renderSection(s, p)).join('')
+    + afterLayoutReport(p);
+}
+/** A quality report for a page that has none but draws a view that is not readable (#366). */
+function afterLayoutReport(p){
+  if ((p.sections || []).some(s => s.quality)) return '';
+  const gaps = readabilityGaps(p);
+  return gaps.length ? renderSection({type: 'list', id: 'quality-after-layout', title: 'Quality report', items: gaps}, p) : '';
 }
 
 function levelArt(level){

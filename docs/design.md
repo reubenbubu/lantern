@@ -489,6 +489,23 @@ Change-history measures (activity level, hotspots of complex code that changes o
 
 Until #764 lands, 50 elements and 2 lines per element, the sizes at which studies first saw readers struggle and the top of what they call sparse (`docs/research/readable-large-diagrams.md`), are only a quality warning; a sequence diagram shows at most 15 participants.
 
+**Readable after layout** (#366, ADR 0123). The C4 report's template measures each container and component view as it draws it, writes the result into the view's section as `readability`, and lists each view that fails as a "Readable after layout" item, with why, in its page's quality report (one the template adds when the page has none). The report that says every check passed first measures every view of the document, and lists their gaps instead when there are any. The view itself says "Hard to read" under it. The measure exists only in the browser; the template exposes it as `window.lanternReadability()` for a headless browser. The thresholds are named values in one place in the template (`READABLE`):
+
+- **Crossings:** the number of points where two drawn lines cross, touching or running alongside not counted; a view warns above 5, the bar's value.
+- **Fit:** the view fits when it can be shown whole on the maximized diagram canvas of a 1920 × 1080 screen (1632 × 1024 px beside the sidebar and below the bar) at a scale of at least 0.8, at which an 11.5 px line label stays at least 9 px tall.
+
+Measured on the five sets' fake-run reports (the template's layout in Chrome, 4 Nov 2026):
+
+| Set | Views | Over 5 crossings | Does not fit | Readable |
+| --- | --- | --- | --- | --- |
+| project-1 | 4 | 0 | 0 | 4 |
+| project-2 | 10 | 4 | 5 | 5 |
+| project-3 | 3 | 0 | 0 | 3 |
+| project-4 | 8 | 3 | 6 | 2 |
+| project-8 | 19 | 2 | 8 | 11 |
+
+Of the 44 views, 29 have no crossing and six have 1 to 5; the other nine have 7 to 194, and none of those fits. So 5 separates the views that read from those that do not, and every view over it also fails on fit. The scorer's `diagram-size` stays the pre-layout count, as laying out in Node is too slow to score with.
+
 ## Derivation
 
 After linking, derive rules compute the architecture model once per snapshot and store it as facts with lineage, so the LLM roles describe it and documents select from it instead of computing it (`docs/epics/001-knowledge-build.md`, section 9; keys and lineage from `docs/research/architecture-model.md`). They have the link rules' shape and run in the linker after the rules whose facts they read, so each runs again only when what it reads changed; lineage is one level, the facts the rule read (ADR 0097).

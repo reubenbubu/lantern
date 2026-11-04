@@ -156,13 +156,15 @@
       "type" : "list",
       "id" : "quality",
       "title" : "Quality report",
-      "items" : [ "**Every line is labelled with an intent phrase** ([Containers](#/structure/containers)): The line from orders to orders-db has no label.", "**Every element has a responsibility sentence** ([orders-db](#/structure/el-database-orders-db))", "**It states its reader**" ]
+      "items" : [ "**Every line is labelled with an intent phrase** ([Containers](#/structure/containers)): The line from orders to orders-db has no label.", "**Every element has a responsibility sentence** ([orders-db](#/structure/el-database-orders-db))", "**It states its reader**" ],
+      "quality" : true
     }, {
       "type" : "callout",
       "id" : "quality-passed",
       "title" : "Quality report",
       "body" : "Every check Lantern makes on this document passed.",
-      "tone" : "success"
+      "tone" : "success",
+      "quality" : true
     } ]
   } ]
 }
