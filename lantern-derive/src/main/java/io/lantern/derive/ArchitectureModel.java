@@ -494,7 +494,9 @@ public final class ArchitectureModel {
 
   /**
    * The flows the flow significance role judged significant for a scope (section 11.5), in its rank
-   * order, by flow ID; empty when it did not judge the scope.
+   * order, by flow ID; empty when it did not judge the scope. A judgement made on other steps than
+   * the flow has now is not read, as a narrative's is not (#743); when none is left, the scope is
+   * not judged.
    *
    * @param scope {@code system}, or a repository's name
    */
@@ -504,7 +506,18 @@ public final class ArchitectureModel {
       return Optional.empty();
     }
     Map<EntityId, Fact> byFlow = new HashMap<>();
-    judged.forEach(f -> byFlow.putIfAbsent(f.subject(), f));
+    judged.stream()
+        .filter(
+            f -> {
+              // One that names no steps, or whose flow's steps are not known here, is read.
+              String held = f.attributes().path("content").asString("");
+              String now = FlowModel.content(knowledge, f.subject()).orElse("");
+              return held.isEmpty() || now.isEmpty() || held.equals(now);
+            })
+        .forEach(f -> byFlow.putIfAbsent(f.subject(), f));
+    if (byFlow.isEmpty()) {
+      return Optional.empty();
+    }
     return Optional.of(
         byFlow.values().stream()
             .filter(f -> f.attributes().path("significant").asBoolean(false))

@@ -117,3 +117,25 @@ significant before the checks: an entry not marked significant is removed, and a
 it leaves out is added after the others, by the scope's rank, whatever order the item lists the
 flows in. The
 fix is logged; no repair turn is spent on it. A flow left unanswered still goes back to the model.
+
+## Amendment (#743): the fewest flows, none inside another, judged on today's steps
+
+Once #730 let the significance answer land, the model drew 14 flows on project-2 and 19 on
+project-4, against references of 6. Its list also kept flows that are part of another drawn flow.
+Now:
+
+- **Prompt (version 8).** It says that almost every listed flow leaves its service, so that alone
+  does not make a flow significant. It asks for the fewest flows that together explain what the
+  system is for and how it works: one per scenario, not one per endpoint, and none that another
+  flow it marks already contains or repeats with other data. "There is no target number" is gone.
+- **Containment.** The model's list skips any flow whose entry point an earlier chosen flow
+  reaches, as the rank path does (`ScopeFlows.chosen`). The flow is drawn within the one that
+  reaches it.
+- **Stale judgements.** A significance judgement stores the content hash of the flow's steps it
+  saw. It is read only while that hash matches the flow's steps now, as a narrative's is. A
+  judgement that names no steps, or whose flow's steps are not known, is read as before. A scope
+  left with no judgement it can read is not judged, so the rank decides.
+
+The five sets' flow-selection rows (#746), judged and on the rank fallback, before and after,
+come from the 1H test drop's real runs on Haiku 5.5 and Sonnet 5.5. Fake runs judge no flow
+significant, so they show only the rank fallback, and this change leaves it unchanged.

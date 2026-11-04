@@ -80,6 +80,33 @@ class ScopeFlowsTest {
   }
 
   @Test
+  void theModelsChoiceSkipsAFlowAnEarlierChosenFlowReaches() {
+    system();
+    link(PLACE, BILLING, CHARGE);
+    send(CHARGE, TOPIC);
+    ScopeFlows flows = flows(Set.of(SHOP, BILLING), new ArrayList<>());
+    String place = place(flows).flow().id().toString();
+    String charge =
+        flows.traces().stream()
+            .filter(t -> t.entry().method().equals(CHARGE))
+            .findFirst()
+            .orElseThrow()
+            .flow()
+            .id()
+            .toString();
+    assertThat(flows.candidates()).hasSize(2);
+
+    // Placing an order reaches the charge, which is drawn as part of it (#743).
+    assertThat(flows.chosen(List.of(place, charge)))
+        .extracting(t -> t.flow().id().toString())
+        .containsExactly(place);
+    // The charge, chosen first, does not reach the order's entry point, so both are drawn.
+    assertThat(flows.chosen(List.of(charge, place)))
+        .extracting(t -> t.flow().id().toString())
+        .containsExactly(charge, place);
+  }
+
+  @Test
   void everyElementAStepNamesGoesThroughTheNamingHook() {
     system();
     link(PLACE, BILLING, CHARGE);

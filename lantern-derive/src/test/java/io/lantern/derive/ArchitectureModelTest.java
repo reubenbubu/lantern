@@ -147,6 +147,34 @@ class ArchitectureModelTest {
     assertThat(read.significantFlows("shop")).isEmpty();
   }
 
+  @Test
+  void aSignificanceJudgedOnOtherStepsIsNotRead() {
+    EntityId second = EntityId.parse("flow:service:g:shop/def");
+    ObjectNode shape = FactJson.newObject();
+    shape.put("content", "c1");
+    Fact steps =
+        Fact.create(
+            FLOW,
+            Types.FLOW_SHAPE,
+            FactObject.string("request"),
+            shape,
+            new Origin(Origin.Kind.RULE, "flows", "1"),
+            LlmFacts.evidence(List.of(unit)),
+            1.0,
+            Validity.from(1));
+    Fact stale = significance(FLOW, "system", true, 1, "c0");
+    Fact fresh = significance(FLOW, "repo", true, 1, "c1");
+
+    ArchitectureModel read =
+        new ArchitectureModel(with(steps, stale, significance(second, "system", true, 2), fresh));
+
+    // The judgement on the flow's earlier steps is left out; one that names no steps is read.
+    assertThat(read.significantFlows("system")).contains(List.of(second.toString()));
+    assertThat(read.significantFlows("repo")).contains(List.of(FLOW.toString()));
+    // A scope whose every judgement is stale is not judged, so the rank decides.
+    assertThat(new ArchitectureModel(with(steps, stale)).significantFlows("system")).isEmpty();
+  }
+
   private List<Fact> with(Fact... texts) {
     List<Fact> all = new ArrayList<>(model.facts);
     all.addAll(List.of(texts));
@@ -162,7 +190,15 @@ class ArchitectureModelTest {
   }
 
   private Fact significance(EntityId flow, String scope, boolean significant, Integer rank) {
+    return significance(flow, scope, significant, rank, null);
+  }
+
+  private Fact significance(
+      EntityId flow, String scope, boolean significant, Integer rank, String content) {
     ObjectNode attributes = FactJson.newObject();
+    if (content != null) {
+      attributes.put("content", content);
+    }
     attributes.put("significant", significant);
     attributes.put("category", "other");
     if (rank != null) {

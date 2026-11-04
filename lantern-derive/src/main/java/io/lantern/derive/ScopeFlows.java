@@ -960,7 +960,11 @@ public final class ScopeFlows {
       List<Trace> kept = new ArrayList<>();
       for (String id : judged) {
         Trace trace = byId.get(id);
-        if (trace != null && !kept.contains(trace)) {
+        // A flow whose entry point an earlier chosen flow reaches is part of that flow, and is
+        // drawn there, as on the rank path (#743).
+        if (trace != null
+            && !kept.contains(trace)
+            && kept.stream().noneMatch(k -> k.reached.contains(trace.entry.key()))) {
           kept.add(trace);
         }
       }
