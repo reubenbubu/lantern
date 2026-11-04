@@ -107,6 +107,16 @@ so Describe stores an intent for each request rather than one for all of a front
 target. `CALLS_HTTP` gains the key attribute `request`. The frontend linker sets it to the
 request's method and path as written (`POST /api/tasks`), or its URL when it has no path, and
 without a method when the code gives none. Other `CALLS_HTTP` links do not set it, so their
-identity is unchanged. The same request from another line of the code is the same claim. So is the same path with another query string or host, since the request is read from the path. The cost
+identity is unchanged. The same request from another line of the code is the same claim. So is
+the same path with another query string or host, since the request is read from the path. The cost
 is more links to word: about one per distinct request, which Describe already asks about as lines
 a flow can draw.
+
+## Amendment for #811: a call that matches no endpoint keeps its request
+
+The owner decided on 4 Nov 2026 (#811) that a unit's HTTP call whose path matches no endpoint of
+its target keeps its own identity. Without an `endpoint`, such a call had the same key as the
+gateway's routes to that unit, so the two shared one claim and one intent: a permissions lookup
+read as the sign-in route. The HTTP linker now sets `request` on a call with no endpoint, as the
+frontend linker does: the method and path, or the URL when it has no path. A call that matches an
+endpoint keeps the endpoint as its key and does not set it; routes do not set it either.

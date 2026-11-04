@@ -470,8 +470,58 @@ class CrossRepoLinksTest {
         .containsExactly(
             "service:g:orders CALLS_HTTP service:g:stock-service {\"client\":\"rest-client\","
                 + "\"httpMethod\":\"GET\",\"matchedBy\":\"artifact-id\",\"path\":\"/api/unknown\","
-                + "\"protocol\":\"HTTP\",\"source\":\"method:o.Client#go()\","
+                + "\"protocol\":\"HTTP\",\"request\":\"GET /api/unknown\","
+                + "\"source\":\"method:o.Client#go()\","
                 + "\"url\":\"http://stock-service/api/unknown\"} 0.64");
+  }
+
+  @Test
+  void aCallThatMatchesNoEndpointIsAClaimApartFromTheGatewaysRoutesToTheSameUnit() {
+    // The owner's choice on #811: an unmatched call keeps its method and path as its identity.
+    unit("a", "edge", "edge");
+    type("a", "edge", "gw.Routes");
+    type("a", "edge", "gw.Permissions");
+    route(
+        "a",
+        "type:gw.Routes",
+        "sign-in",
+        "{\"definedIn\":\"config\",\"uri\":\"http://stock-service\","
+            + "\"paths\":[\"/api/sign-in/**\"]}");
+    call(
+        "a",
+        "gw.Permissions#lookup()",
+        "GET http://stock-service/users/{id}/permissions",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\","
+            + "\"path\":\"/users/{id}/permissions\","
+            + "\"url\":\"http://stock-service/users/{id}/permissions\"}",
+        5);
+    call(
+        "a",
+        "gw.Permissions#roles()",
+        "GET http://stock-service/users/{id}/roles",
+        "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/users/{id}/roles\","
+            + "\"url\":\"http://stock-service/users/{id}/roles\"}",
+        9);
+    unit("b", "stock-service", "stock");
+
+    Vocabulary vocabulary = DeployableUnitsTest.vocabulary();
+    Map<String, java.util.Set<String>> claims = new java.util.TreeMap<>();
+    linked().stream()
+        .filter(f -> f.predicate().equals(Types.CALLS_HTTP))
+        .forEach(
+            f ->
+                claims
+                    .computeIfAbsent(vocabulary.claimId(f), c -> new java.util.TreeSet<>())
+                    .add(
+                        f.attributes().hasNonNull("route")
+                            ? "route " + f.attributes().get("route").asString()
+                            : f.attributes().path("request").asString()));
+
+    assertThat(claims.values())
+        .containsExactlyInAnyOrder(
+            java.util.Set.of("route sign-in"),
+            java.util.Set.of("GET /users/{id}/permissions"),
+            java.util.Set.of("GET /users/{id}/roles"));
   }
 
   @Test
