@@ -125,7 +125,8 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
   correct, though not a pick; a pick there is wrong.
 - **Describe**: the share of the report's containers, stores, queues, external systems, people and
   components (by their anchor type's ID) with a responsibility of origin llm, and of the lines the
-  report draws, a person's left out (they keep their fixed labels), whose label is an intent it
+  report draws, a person's left out (they keep their fixed labels; measured since the amendment for
+  #739), whose label is an intent it
   wrote, citation markers aside: what a reader sees worded. Its judge score comes with #668. (#742 replaced the line count; see its amendment.)
 - **Flows**: a report flow matches a reference flow when its trigger is the same entry point and
   their participants overlap by at least two thirds of the larger set, one to one, best overlap

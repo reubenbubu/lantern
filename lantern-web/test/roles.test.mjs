@@ -646,6 +646,49 @@ test("Describe on the page: a person's line reads the intent stored for the pers
   assert.deepEqual(worded.steps, { messages: 1, intended: 1, own: 1, fallbackWithIntent: 0 });
 });
 
+test("Describe on the page: a person's line to one frontend never reads the intent stored for another, and a step to a person is left out (#739)", () => {
+  const report = {
+    elements: {
+      'person-planner': { kind: 'person', name: 'Planner' },
+      'frontend-shop': { kind: 'container', name: 'shop' },
+      'frontend-desk': { kind: 'container', name: 'desk' },
+    },
+    pages: [
+      {
+        sections: [
+          {
+            type: 'diagram',
+            relationships: [
+              // It reads desk's intent, though the line runs to shop, which has none.
+              { from: 'person-planner', to: 'frontend-shop', label: 'Dispatches jobs' },
+              { from: 'person-planner', to: 'frontend-desk', label: 'Dispatches jobs' },
+            ],
+          },
+          {
+            type: 'sequence',
+            id: 'flow-1',
+            steps: [
+              { from: 'person-planner', to: 'frontend-desk', message: 'Dispatches jobs' },
+              // A reply to the person: left out.
+              { from: 'frontend-desk', to: 'person-planner', message: 'Shows the job list' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const facts = [
+    { id: 'f-pb', claim: 'c-pb', predicate: 'person-basis', subject: 'person:planner', object: { kind: 'string', value: 'route' }, attributes: { frontends: ['shop', 'desk'] } },
+    { id: 'f-fs', predicate: 'PART_OF', subject: 'frontend:shop', object: { kind: 'entity', value: 'service:a' } },
+    { id: 'f-fd', predicate: 'PART_OF', subject: 'frontend:desk', object: { kind: 'entity', value: 'service:a' } },
+  ];
+  const row = describeRow(report, facts, [intentFor('c-pb/frontend:desk', 'Dispatches jobs')], run);
+  assert.equal(row.scores['line:person-planner->frontend-desk'], 1);
+  assert.notEqual(row.scores['line:person-planner->frontend-shop'], 1);
+  assert.equal(row.drawn.own, 1);
+  assert.deepEqual(row.steps, { messages: 1, intended: 1, own: 1, fallbackWithIntent: 0 });
+});
+
 test("Describe on the page: a consumer's line runs from what it reads, and a link may have several intents", () => {
   const report = {
     elements: {
