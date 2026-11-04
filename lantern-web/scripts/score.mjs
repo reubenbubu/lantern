@@ -907,7 +907,7 @@ export function roleCells(roles) {
   const d = roles.describe;
   cell.Describe = !d.measured
     ? why(d)
-    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}); ${describeModelCell(d.model)}; drawn: ${d.drawn.own}/${d.drawn.lines} lines with their own intent (${percent(d.drawn.coverage)}), ${d.drawn.generic} generic; judge ${judgedCell(d.judge)}`;
+    : `elements ${d.elementsDescribed}/${d.elements} (${percent(d.elementCoverage)}); ${describeModelCell(d.model)}; drawn: ${d.drawn.own}/${d.drawn.lines} lines with their own intent (${percent(d.drawn.coverage)}), ${d.drawn.generic} generic${d.drawn.genericWithIntent === undefined ? "" : ` (${d.drawn.genericWithIntent} of them on a line whose link has a stored intent)`}; judge ${judgedCell(d.judge)}`;
   const f = roles.flows;
   cell.Flows = !f.measured
     ? why(f)

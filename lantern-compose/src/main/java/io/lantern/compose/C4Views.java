@@ -201,12 +201,10 @@ final class C4Views {
     final List<Fact> facts = new ArrayList<>();
 
     /**
-     * The intent phrases of the edge's links with how many links say each, used as its label only
-     * if every link has one.
+     * The intent phrases of the edge's links with how many links say each, used as its label when
+     * any link has one (#739).
      */
     final SortedMap<String, Integer> phrases = new TreeMap<>();
-
-    boolean unphrased;
 
     /** The intent Name groups stored for a line leaving a group, which labels it; or null. */
     String intent;
@@ -227,13 +225,11 @@ final class C4Views {
     }
 
     /**
-     * Adds the intent phrase of a link of the edge, with the facts it cites, or marks the edge as
-     * having a link without one, which keeps its static label.
+     * Adds the intent phrase of a link of the edge, with the facts it cites; a link without one
+     * adds nothing, and the edge keeps its static label only when none of its links has one.
      */
     void phrased(Assembler.Phrased phrase) {
-      if (phrase == null) {
-        unphrased = true;
-      } else {
+      if (phrase != null) {
         phrases.merge(phrase.text(), 1, Integer::sum);
         facts.addAll(phrase.facts());
       }
@@ -279,7 +275,7 @@ final class C4Views {
     }
 
     /**
-     * The intent phrase of its links when every link has one: one intent per line, the one most of
+     * The intent phrase of its links when any link has one: one intent per line, the one most of
      * its links say (the first alphabetically on a tie); the rest stay with the line's facts. Else
      * what the links record.
      */
@@ -287,7 +283,7 @@ final class C4Views {
       if (intent != null) {
         return intent;
       }
-      if (!unphrased && !phrases.isEmpty()) {
+      if (!phrases.isEmpty()) {
         return phrases.entrySet().stream()
             .max(
                 Map.Entry.<String, Integer>comparingByValue()
@@ -339,7 +335,12 @@ final class C4Views {
      */
     void add(EntityId from, EntityId to, Line link) {
       EdgeBuilder edge = get(from, link.relationship(), to);
-      edge.add(link, assembler.phrase(link.facts().getFirst()));
+      edge.add(
+          link,
+          link.relationship().equals(Elements.USES) && link.from().type().equals(Types.PERSON)
+              // A person's use of a frontend is worded per frontend (ADR 0103, amendment for #739).
+              ? assembler.personPhrase(link.facts().getFirst(), link.to())
+              : assembler.phrase(link.facts().getFirst()));
       if (from.type().equals(Types.GROUP) && edge.intent == null) {
         intent(edge, assembler.groupIntent(from, to + " " + link.relationship()));
       }
@@ -409,7 +410,10 @@ final class C4Views {
           null,
           null);
       edge.facts.addAll(cited);
-      edge.phrased(null);
+      // The person's intent for each frontend they use (ADR 0103, amendment for #739).
+      for (EntityId frontend : elements.screens(person.getValue()).keySet()) {
+        edge.phrased(assembler.personPhrase(person.getValue(), frontend));
+      }
     }
     // The Unknown caller, where entry points of the scope's units nothing reaches (#766).
     for (Line link : links) {
@@ -1417,10 +1421,12 @@ final class C4Views {
             };
         String prefix = ComponentInteractions.APPLIES.equals(kind) ? "Applies on routes" : plain;
         EdgeBuilder edge = edges.get(fromEnd, relationship, toEnd);
+        // The intent Describe stored for the component line (#739).
+        Assembler.Phrased phrase = assembler.phrase(line);
         for (Fact cited : model.derivedFrom(line)) {
           edge.add(plain, prefix, detail, null, null);
           edge.facts.add(cited);
-          edge.phrased(null);
+          edge.phrased(phrase);
         }
         if (fromEnd.type().equals(Types.GROUP) && edge.intent == null) {
           // Name groups keyed the line by its other end as the model names it, and its kind.
@@ -1471,7 +1477,8 @@ final class C4Views {
               edges.get(shown.apply(component.main()), Types.USES_DATABASE, link.to());
           edge.add(access, null, null, link.technology(), link.profile());
           edge.facts.addAll(link.facts());
-          edge.phrased(null);
+          // The unit's intent for its store, which the component's access serves (#739).
+          edge.phrased(assembler.phrase(link.facts().getFirst()));
         }
       }
     }

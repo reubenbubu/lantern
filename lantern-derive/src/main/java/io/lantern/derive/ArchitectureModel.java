@@ -400,6 +400,15 @@ public final class ArchitectureModel {
   }
 
   /**
+   * The intent phrase of a person's use of a frontend (ADR 0103): stored under the person's basis
+   * and the frontend, since one basis stands for every frontend the person uses.
+   */
+  public Optional<Text> personIntent(Fact basis, EntityId frontend) {
+    String key = basis.claimId() != null ? basis.claimId() : basis.id();
+    return Optional.ofNullable(intents.get(key + "/" + frontend)).map(ArchitectureModel::text);
+  }
+
+  /**
    * The name Name groups gave a group (section 11.8; ADR 0107), without citations.
    *
    * @param group the group

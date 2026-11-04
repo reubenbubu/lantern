@@ -505,9 +505,23 @@ test('Describe on the page: a line counts when labelled with the intent of its o
   const lifted = link('xq', 'PUBLISHES', 'component:service:a/type:p.X', 'queue:orders');
   const llm = [intentFor('c-ab', 'Looks up prices'), intentFor('c-xq', 'Announces new orders')];
   const row = describeRow(report, [...linked, lifted], llm, run);
-  assert.deepEqual(row.drawn, { lines: 4, own: 2, generic: 1, other: 1, coverage: 0.5 });
+  assert.deepEqual(row.drawn, { lines: 4, own: 2, generic: 1, genericWithIntent: 0, other: 1, coverage: 0.5 });
   assert.equal(row.scores['line:service-a->service-b'], 1);
   assert.equal(row.scores['line:service-b->service-a'], 0);
+});
+
+test('Describe on the page: a generic label on a line whose link has a stored intent is counted apart (#739)', () => {
+  const report = {
+    elements: {
+      'service-a': { kind: 'container', name: 'a' },
+      'service-b': { kind: 'container', name: 'b' },
+    },
+    pages: [{ sections: [{ type: 'diagram', relationships: [{ from: 'service-a', to: 'service-b', label: 'Calls get' }] }] }],
+  };
+  const row = describeRow(report, linked, [intentFor('c-ab', 'Looks up prices')], run);
+  assert.deepEqual(row.drawn, { lines: 1, own: 0, generic: 1, genericWithIntent: 1, other: 0, coverage: 0 });
+  // Without a stored intent, the generic label is not counted among them.
+  assert.equal(describeRow(report, linked, [], run).drawn.genericWithIntent, 0);
 });
 
 test("Describe on the page: a consumer's line runs from what it reads, and a link may have several intents", () => {

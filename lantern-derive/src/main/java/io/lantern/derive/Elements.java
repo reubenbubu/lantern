@@ -789,7 +789,7 @@ public final class Elements {
   }
 
   /** The screens a person has, by frontend ({@link Screens#screens}). */
-  private Map<EntityId, List<Fact>> screens(Fact basis) {
+  public Map<EntityId, List<Fact>> screens(Fact basis) {
     return Screens.screens(knowledge, basis);
   }
 

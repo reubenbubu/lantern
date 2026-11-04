@@ -131,3 +131,22 @@ Size 1 trial a cost $0.009. 217 elements were scored.
 ## Amendment (#760): limits in the role's contract
 
 This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.
+
+## Amendment (#739): every stored intent is drawn
+
+The 1F and 1G review found intents Describe stored that never reached the page. Now:
+
+- **People's lines.** A person's line to a frontend shows the intent Describe stored for that use
+  (`<claim ID>/<frontend>`), and the system context's line from the person shows the most common of
+  the person's intents for the frontends they use. This replaces the choice above that kept those
+  lines' labels; "Uses" stays only where Describe wrote none.
+- **Component lines.** A line between two components shows the intent stored for its
+  `COMPONENT_LINK`.
+- **Lines to stores.** A component's line to its unit's store shows the unit's intent for that
+  store, not "Reads and writes".
+- **Merged lines.** A line that merges several links shows the most common intent among those that
+  have one (the first alphabetically on a tie), once any has one. Before, one link without an
+  intent sent the whole line back to its static label.
+
+The scorecard's drawn coverage (#742) now also counts the generic labels on lines whose own link
+has a stored intent. The count should be 0.

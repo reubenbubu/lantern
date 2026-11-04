@@ -1573,7 +1573,7 @@ class DescriberTest {
   }
 
   @Test
-  void aLineIsLabelledWithOneIntentOnlyWhenEveryLinkHasAPhrase() {
+  void aMergedLineShowsTheMostCommonIntentOfItsLinksOnceAnyHasOne() {
     String other =
         """
         {"protocol": "Kafka", "routingKey": "order.paid", "source": \
@@ -1609,6 +1609,9 @@ class DescriberTest {
                     Map.of(),
                     Map.of(
                         sends.get(0).id(), new Describer.Phrase("Announces orders", List.of())))))
+        // One link of the two has an intent: the line shows it (#739), not "Sends order.paid".
+        .isEqualTo("Announces orders");
+    assertThat(label.apply(new TestTexts.Written(Map.of(), Map.of())))
         .isEqualTo("Sends order.paid");
     assertThat(
             label.apply(
@@ -1620,6 +1623,38 @@ class DescriberTest {
                         sends.get(1).id(),
                         new Describer.Phrase("Reports payments", List.of())))))
         .isEqualTo("Announces orders");
+  }
+
+  @Test
+  void componentLinesToStoresAndProfileOnlyLinesShowTheirStoredIntent() {
+    TestFacts runtime = TestFacts.runtime();
+    Fact store = runtime.find(APP.toString(), "USES_DATABASE");
+    Fact pay = runtime.find(APP.toString(), "CALLS_HTTP");
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                TestTexts.with(
+                    runtime.list(),
+                    new TestTexts.Written(
+                        Map.of(),
+                        Map.of(
+                            store.id(), new Describer.Phrase("Keeps its orders in", List.of()),
+                            pay.id(), new Describer.Phrase("Charges cards through", List.of())))));
+    // A component's line to its unit's store shows the unit's intent for the store, not "Reads
+    // and writes" (#739).
+    assertThat(edges(diagrams(document, Diagram.Kind.C4_COMPONENT).getFirst()))
+        .anyMatch(e -> e.endsWith("-> database:db:5432/shop: Keeps its orders in"))
+        .noneMatch(e -> e.endsWith("-> database:db:5432/shop: Reads and writes"));
+    // A line drawn only under a Spring profile keeps its intent; the profile is its own field.
+    Diagram.Edge charge =
+        diagrams(document, Diagram.Kind.C4_CONTAINER).getFirst().edges().stream()
+            .filter(e -> e.to().equals(PAY))
+            .findFirst()
+            .orElseThrow();
+    assertThat(charge.label()).isEqualTo("Charges cards through");
+    assertThat(charge.profiles()).containsExactly("prod");
   }
 
   @Test
