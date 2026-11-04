@@ -389,6 +389,40 @@ class InvestigatorTest {
   }
 
   @Test
+  void theSameFactsMakeTheSameRequestsEveryTime() {
+    headerLead();
+    List<Fact> reversed = new ArrayList<>(facts);
+    java.util.Collections.reverse(reversed);
+    FakeLlmProvider one = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+    FakeLlmProvider two = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+    for (var run : List.of(Map.entry(one, List.copyOf(facts)), Map.entry(two, reversed))) {
+      new Investigator(
+              new Harness(
+                  client(run.getKey()),
+                  new InMemoryAnswerStore(),
+                  RunBudget.NONE,
+                  (repo, path) ->
+                      FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
+                  Set.of()),
+              FILES,
+              Map.of(
+                  "identity-from-request", "Whether anything verifies it.",
+                  "plaintext-secret", "Whether the secret is kept in the code."))
+          .investigate(run.getValue(), 1);
+    }
+
+    // Byte for byte, whatever order the facts come in (#769).
+    Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .map(r -> r.purpose() + "\n" + r.system() + "\n" + r.messages())
+                .sorted()
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one)).isNotEmpty();
+  }
+
+  @Test
   void aRiskOfMediumConfidenceHoldsItsFactor() {
     assertThat(riskConfidence("medium")).isEqualTo(0.45);
   }
