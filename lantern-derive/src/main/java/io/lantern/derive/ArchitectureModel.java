@@ -494,7 +494,8 @@ public final class ArchitectureModel {
 
   /**
    * The flows the flow significance role judged significant for a scope (section 11.5), in its rank
-   * order, by flow ID; empty when it did not judge the scope.
+   * order, by flow ID; empty when it did not judge the scope, or when any of its judgements was
+   * made on other steps than the flow has now, as a narrative's would not be read (#743).
    *
    * @param scope {@code system}, or a repository's name
    */
@@ -505,6 +506,20 @@ public final class ArchitectureModel {
     }
     Map<EntityId, Fact> byFlow = new HashMap<>();
     judged.forEach(f -> byFlow.putIfAbsent(f.subject(), f));
+    // One judgement made on other steps than its flow has now makes the scope's choice stale, since
+    // the flows were judged against each other: the rank decides until the role judges it again.
+    // One that names no steps, or whose flow's steps are not known here, is read.
+    boolean stale =
+        byFlow.values().stream()
+            .anyMatch(
+                f -> {
+                  String held = f.attributes().path("content").asString("");
+                  String now = FlowModel.content(knowledge, f.subject()).orElse("");
+                  return !held.isEmpty() && !now.isEmpty() && !held.equals(now);
+                });
+    if (stale) {
+      return Optional.empty();
+    }
     return Optional.of(
         byFlow.values().stream()
             .filter(f -> f.attributes().path("significant").asBoolean(false))

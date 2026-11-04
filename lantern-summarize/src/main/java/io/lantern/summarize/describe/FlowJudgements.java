@@ -64,7 +64,7 @@ public final class FlowJudgements {
       org.slf4j.LoggerFactory.getLogger(FlowJudgements.class);
 
   /** The version of the significance prompt. */
-  static final String SIGNIFICANCE_VERSION = "7";
+  static final String SIGNIFICANCE_VERSION = "8";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
   static final String NARRATIVE_VERSION = "9";
