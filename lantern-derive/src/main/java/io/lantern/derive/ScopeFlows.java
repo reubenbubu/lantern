@@ -34,6 +34,15 @@ import java.util.function.Predicate;
  */
 public final class ScopeFlows {
 
+  /**
+   * The browsers subscribed to a unit's STOMP destinations, the participant a push goes to (#745):
+   * clients no fact of the code names.
+   */
+  public static final EntityId SUBSCRIBERS = new EntityId(Types.ACTOR, "subscribed-browsers");
+
+  /** What the subscribed browsers are named wherever a flow draws them. */
+  public static final String SUBSCRIBERS_NAME = "Subscribed browsers";
+
   /** The most flows a scope shows (docs/design.md: three to seven). */
   public static final int MAX_FLOWS = 7;
 
@@ -712,27 +721,26 @@ public final class ScopeFlows {
     }
 
     /**
-     * A message pushed to STOMP subscribers: a note over the unit, since the subscribers are
-     * clients (a browser) that no fact of the code names; the WebSocket endpoints of the unit say
-     * where they connect (ADR 0080).
+     * A message pushed to STOMP subscribers: an asynchronous message to the subscribed browsers, a
+     * participant of their own since no fact of the code names the clients; the WebSocket endpoints
+     * of the unit say where they connect (ADR 0080; ADR 0047, amendment for #745).
      */
     private void stompPush(FlowModel.Step step, Fact push) {
       EntityId unit = step.over().getFirst();
       SortedSet<String> paths = new TreeSet<>();
       step.facts().stream().skip(1).forEach(e -> paths.add(e.object().value()));
       boolean toUser = "true".equals(attribute(push, "toUser"));
-      StringBuilder text =
-          new StringBuilder(nameOf(unit))
-              .append(
-                  toUser
-                      ? " pushes to the user's STOMP subscribers of "
-                      : " pushes to the STOMP subscribers of ")
-              .append(push.object().value());
-      if (!paths.isEmpty()) {
-        text.append(", connected over ").append(String.join(" or ", paths));
-      }
-      text.append(" [STOMP over WebSocket]. It does not wait for them.");
-      note(step.over(), text.toString(), step.profiles(), step.facts());
+      message(
+          unit,
+          SUBSCRIBERS,
+          (toUser ? "Pushes to the user's subscribers of " : "Pushes to the subscribers of ")
+              + push.object().value(),
+          "STOMP over WebSocket",
+          true,
+          step.profiles(),
+          paths.isEmpty() ? null : "Connected over " + String.join(" or ", paths) + ".",
+          step.facts(),
+          null);
     }
 
     private void unresolved(FlowModel.Step step, Fact fact) {

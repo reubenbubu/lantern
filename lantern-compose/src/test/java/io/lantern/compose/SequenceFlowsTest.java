@@ -432,7 +432,7 @@ class SequenceFlowsTest {
   }
 
   @Test
-  void aMessagePushedOverStompIsANoteNamingTheEndpointClientsConnectTo() {
+  void aMessagePushedOverStompGoesToTheSubscribedBrowsersNamingTheEndpointTheyConnectTo() {
     // ship's listener pushes what it received to the browsers subscribed to /topic/parcels.
     attribute(
         "ship", LISTEN, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 9);
@@ -450,9 +450,8 @@ class SequenceFlowsTest {
         .containsSubsequence(
             "topic:kafka:orders >> service:x:ship: Delivers to Listener.on [Kafka]",
             "service:x:ship > database:db:5432/ship: Reads parcel [JDBC]",
-            "note [service:x:ship]: ship pushes to the STOMP subscribers of /topic/parcels,"
-                + " connected over /ws-parcels [STOMP over WebSocket]. It does not wait for"
-                + " them.");
+            "service:x:ship >> actor:subscribed-browsers: Pushes to the subscribers of"
+                + " /topic/parcels [STOMP over WebSocket] (Connected over /ws-parcels.)");
   }
 
   @Test
@@ -460,9 +459,20 @@ class SequenceFlowsTest {
     // ship's status endpoint reaches nothing else, but pushes to browsers subscribed over STOMP.
     attribute("ship", STATUS, "stomp-send", "/topic/status", "{\"method\": \"convertAndSend\"}", 4);
 
-    assertThat(flows(system(facts)).sections())
-        .extracting(SequenceFlowsTest::trigger)
-        .contains("GET /status on ship");
+    Section flow =
+        flows(system(facts)).sections().stream()
+            .filter(f -> trigger(f).startsWith("GET /status on ship"))
+            .findFirst()
+            .orElseThrow();
+    // A sequence diagram of two participants, not a list (#745).
+    SequenceDiagram diagram = diagram(flow);
+    assertThat(diagram.participants())
+        .extracting(p -> p.id().toString())
+        .containsExactly("service:x:ship", "actor:subscribed-browsers");
+    assertThat(steps(diagram.steps()))
+        .contains(
+            "service:x:ship >> actor:subscribed-browsers: Pushes to the subscribers of"
+                + " /topic/status [STOMP over WebSocket]");
   }
 
   @Test
