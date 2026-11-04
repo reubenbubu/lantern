@@ -180,4 +180,3 @@ conversation read it; Investigate has no sides.
   this ADR agree.
 - **Re-measure.** The measurement of leads a request again on Claude Haiku 5.5 is done by #756,
   with the recalibration of the batched roles; the size stays 1 until it reports.
-
