@@ -99,7 +99,8 @@ and crossing lines are signals of a diagram that has stopped being readable; how
 them is in the design.
 
 Size is a soft target, a warning and never a reason to drop content: an overview shows about 10
-to 20 boxes, with a warning above 25 boxes or about 30 distinct lines; a component view about 8 to
+to 20 boxes, with a warning above 25 boxes or about 30 distinct lines, and below 5 boxes when a finer grouping
+exists; a component view about 8 to
 20, with a warning above 25. Each line between two boxes is drawn once. 7 ± 2 is no target. After
 layout, lines cross as little as possible (a warning above about 5 crossings), and the smallest text
 is readable at page width without zooming. A view that is too large is drawn at a coarser grouping

@@ -130,19 +130,19 @@ A group whose internal ties are weaker than its outside ties is flagged as low m
 - **Stability:**
   - Store the choice under a key made from its inputs: the candidate levels, their counts, the view's question and the rubric version. The same inputs give the same choice without asking the judgement again.
   - When inputs change, keep the previous level unless it is no longer admissible, or another level is clearly better on criterion 1 or 2.
-  - Archambault & Purchase show stability helps memory a little, but not enough to keep a worse level.
+  - Archambault & Purchase show stability helps memory a little, but not enough to keep a worse level (abstract only, so low weight).
 
 **3. Soft size targets.** These are warnings in the quality report, never failures.
-- **Overview (container or system view): about 10 to 20 boxes, warn above 25. Distinct lines: warn above about 30.** Brown says 20+ elements "starts to get complicated". Störrle's best size is about 50 elements counting lines and labels, and 20 boxes with about 25 labelled lines comes to roughly that. Warn below 5 boxes when a finer admissible level exists: a view that coarse says little (Bunch's trade-off between cluster size and cluster count).
-- **Component view: about 8 to 20 boxes, warn above 25.** Same evidence. C4 treats component views as optional, and Spring Modulith draws one per module with its neighbours, so the cure for a large one is a view per group, not a bigger view.
+- **Overview (container or system view): about 10 to 20 boxes, warn above 25. Distinct lines: warn above about 30.** Brown says 20+ elements "starts to get complicated". Störrle's best size is about 50 elements counting lines and labels, and 20 boxes with about 25 labelled lines comes to roughly that. Warn below 5 boxes when a finer admissible level exists: a view that coarse says little (Bunch's trade-off between cluster size and cluster count, from a secondary source, so a judgement). 30 lines rounds up the 25 of that estimate, so 25 boxes and 30 lines is a warning, not the best size.
+- **Component view: about 8 to 20 boxes, warn above 25.** Same evidence for the upper side; the lower bound of 8 is a judgement no source gives. C4 treats component views as optional, and Spring Modulith draws one per module with its neighbours, so the cure for a large one is a view per group, not a bigger view.
 - Do not use 7 ± 2 as a target (Cowan, Moody).
 
-**4. After-layout gate (final word).** Measure on the laid-out diagram:
+**4. After-layout check (final word).** Measure on the laid-out diagram. Crossings and flaws are warnings; only fit moves a view:
 - **Crossings:** target 0, warn above about 5. Crossings are Purchase's strongest aesthetic, and Huang shows sharp-angled ones cost most.
-- **Layout flaws:** total flaws (crossings, overlaps, touching, bends) at most 15 to 20, and fewer than 0.5 per element (Störrle).
+- **Layout flaws:** total flaws (crossings, overlaps, touching, bends) at most 15 to 20, and fewer than 0.5 per element (Störrle). Not adopted yet: Lantern measures crossings and fit first (#366); the other flaws need their own measures, and can be added as warnings later.
 - **Fit:** the smallest box text is readable at page width without zooming.
 
-If the gate fails, step to the next coarser admissible level. If the coarsest level still fails, apply these in order:
+If the view does not fit, step to the next coarser admissible level. If the coarsest level still fails, apply these in order:
 1. Show each line once between two boxes, with a combined label.
 2. Fold detail, keeping groups as boundaries with the parts inside them listed rather than drawn.
 3. **Split by question.** Keep the coarse overview, and add one view per group that shows the group's parts plus their direct neighbours (Brown, the C4 FAQ, Spring Modulith). Record the loss of "the big picture" in the quality report.
@@ -161,7 +161,7 @@ The size rule becomes a soft target with a warning:
 - component view about 8 to 20 boxes, warn above 25;
 - each line between two boxes drawn once.
 
-Layout quality becomes the hard measure: crossings, and layout flaws at most 15 to 20 and fewer than 0.5 per element, with readable text at page width. Each rule links to this note.
+Layout is measured after drawing: crossings warn above about 5, and a view whose smallest text is not readable at page width moves to a coarser level. Störrle's flaw limits are not adopted yet. Each rule links to this note.
 
 ## What it changes in the design
 
