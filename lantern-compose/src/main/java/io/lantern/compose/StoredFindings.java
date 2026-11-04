@@ -17,8 +17,8 @@ import java.util.Set;
  * The findings stored for the risks and findings page besides Investigate's (knowledge-build epic,
  * sections 11.7 and 11.8): text the injection screen found addressed to an AI (ADR 0101), and the
  * merges of two groups Name groups suggested and Lantern never applies (ADR 0107). A system's
- * documents show all of them; a repository's the injections in its files and the suggestions about
- * its units' feature areas.
+ * documents show all of them; a repository's the injections in its files and the suggestions that
+ * name a feature area of one of its units.
  */
 final class StoredFindings {
 
@@ -44,7 +44,7 @@ final class StoredFindings {
     this.injections = repo == null ? Findings.injections(model) : Findings.injections(model, repo);
     this.merges =
         Findings.groupMerges(model).stream()
-            .filter(m -> repo == null || inScope(m.first(), units))
+            .filter(m -> repo == null || inScope(m.first(), units) || inScope(m.second(), units))
             .toList();
   }
 

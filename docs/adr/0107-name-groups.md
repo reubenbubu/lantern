@@ -82,4 +82,5 @@ This ADR's word limits and margins now live in the role's response contract, `pr
   stores each line from its own side, as its members' facts run.
 - Merge suggestions are listed on the risks and findings page of the C4 report and the other
   templates that have one, in an "Other findings" table, opening with "Found by the LLM:": all of
-  them in the system's documents, a repository's own feature areas' in its documents.
+  them in the system's documents, and in a repository's documents those that name one of its
+  units' feature areas, as either group of the pair.
