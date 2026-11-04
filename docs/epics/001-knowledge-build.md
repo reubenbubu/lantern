@@ -1416,7 +1416,7 @@ The single-conversation design, its uncached turns and its separate store are wh
 | Cross-repo linking | Link rules and `ClaimQuery`; `ValueResolution`; deployment environments as views; the Unknown caller row moves to derivation |
 | LLM integration | Roles table as section 11 (Investigate modes, Flows, Purpose and key fact); the `bulk` tier; Grounding becomes the verification pipeline; Cost and reliability becomes the harness (items, packets, caching, run modes, budgets) |
 | Composition | A new "Derivation" subsection before "Diagrams". Sequence diagrams: flows are chosen by the stored significance judgement, with no fixed number. The composer reads `ArchitectureModel` |
-| Phasing | Milestones 1A to 1G run before 2C |
+| Phasing | Milestones 1A to 1H run before 2C (1H added 3 Nov 2026) |
 
 **ADRs**
 
@@ -1453,7 +1453,7 @@ The largest risk is step 1: changing fact identity touches every module. The lar
 
 **Questions for the owner:**
 
-1. **Milestone.** Decided: milestones 1A to 1G, before 2C (section 14).
+1. **Milestone.** Decided: milestones 1A to 1G, before 2C (section 14); 1H added on 3 Nov 2026.
 2. **PR #328.** Keep it open and harvest it into step 6, rather than merging? Recommended: yes.
 3. **Summary scope.** Summarise only types that are entry points or in components, plus all packages, modules and repositories? Recommended: yes. Other types are not drawn and are cited rarely.
 4. **Calibration budget.** How much may the one-off packet-size and baseline recordings per role spend? Recommended: set it per role after a dry run's estimate, within ADR 0070's $40 for 2D.

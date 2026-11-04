@@ -33,7 +33,7 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class InjectionScreen {
 
-  /** The screen's role, on the high-volume tier until the bulk tier exists (1F). */
+  /** The screen's role, on the bulk tier ({@code Role.SCREEN}). */
   public static final RoleSpec ROLE =
       RoleSpec.single(
               "injection-screen",

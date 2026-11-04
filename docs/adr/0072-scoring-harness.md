@@ -94,7 +94,7 @@ Since #254 a repository without a Maven build is analyzed without a build (ADR 0
 #254), so `score-testsets.sh` and `TestSetScoreIT` analyze every repository a set's pins name,
 project-3's and project-4's frontends and deployment repositories included.
 
-## Amendment (#369): the scorer's "at most 15 elements a diagram" check is the readability check: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). Until #366 measures the defaults, 15 elements stays the threshold, so the behaviour here is unchanged; read "above 15" and "at most 15 elements" in this ADR as that default threshold.
+## Amendment (#369): the scorer's "at most 15 elements a diagram" check is the readability check: no fixed element cap. The quality bar (`docs/quality-bar.md`, Diagrams stay readable) sets no element cap; a view is split at the same level, or detail folded away, when a readability signal passes its configurable threshold (`docs/design.md`, Checking the quality bar, Readable diagrams). 15 elements was that default until #699 replaced it (ADR 0117) and #366 added the after-layout measures (ADR 0123); read "above 15" and "at most 15 elements" in this ADR as the readability thresholds of `docs/design.md`, Readable diagrams.
 
 ## Amendment (#667): a row per LLM role, against an answer key
 

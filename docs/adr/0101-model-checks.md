@@ -16,9 +16,9 @@ go-ahead for milestone 1E.
 
 - **Two model roles.** `JUDGE` and `SCREEN` join the configurable roles, both on the high-volume
   tier by default.
-  - The judge is of another tier than the texts it checks, which today are all written by
-    Describe on the reasoning tier.
-  - The screen moves to the bulk tier when 1F adds it.
+  - The judge runs on the high-volume tier. Describe writes on the reasoning tier, but other
+    writing roles may share the judge's model, and nothing refuses that yet (#751).
+  - The screen runs on the bulk tier, which 1F added.
   - Both are in the `model-checks` share of the run budget (ADR 0100, amendment for #42).
   - Both use the epic's prompts and schemas word for word, after the common system prompt of
     section 11.0 (`CommonPrompt`), which every request the harness lays out will share.
@@ -34,16 +34,16 @@ go-ahead for milestone 1E.
     from Describe through the judge to the document's note (#654).
   - Each item shows the text and each fact it cites, as the Describe prompt showed it. Its
     fingerprint rests on the text and those lines, so a text judged once is not judged again.
-  - Intent phrases, flow narratives and summaries are not judged yet. Phrases are diagram labels
-    that take no note. The flow and summary roles are rebuilt in 1F, and the judge follows them
-    there.
+  - Intent phrases, flow narratives, summaries, group names and Investigate's risks are not
+    judged. Phrases are diagram labels that take no note. 1F rebuilt the flow and summary roles
+    without bringing the judge to them; #751 does.
 - **What a verdict does.**
   - The claims add up as the epic says: `unsupported` if any claim is, else `partly` if any is,
     else `supported`.
   - An unsupported sentence is kept and opens with "Not supported by its sources:", emphasized,
     before any "Inferred:" label, in every document that shows it.
-  - The confidence factors (1, 0.8, 0.5) are defined but not yet applied. Responsibility
-    sentences are not stored as observations with a confidence until 1F/1G (ADR 0100).
+  - The confidence factors (1, 0.8, 0.5) multiply the confidence of the text's stored observation,
+    which carries the verdict as `support` (`LlmFacts.withSupport`).
   - The verdicts are cached as the judge role's answers in `llm_answers`, the log counts the
     sentences checked and found unsupported, and the role's run record counts its items.
 - **What the screen reads.**
@@ -65,7 +65,7 @@ go-ahead for milestone 1E.
     the finding, so the C4 report marks the row as found by the LLM (ADR 0086).
   - It does not block the run.
   - The epic also asks that texts citing a flagged range be judged regardless of the sample. That
-    waits for 1F: the screen runs after Describe, and today's texts cite facts, not ranges.
+    is not done: the screen runs after Describe (#751).
 - **The fake model** answers every judge item as supported and every chunk as not suspected. Fake
   runs then show what the checks cost, and their documents do not change.
 - **Fixtures.** `lantern-harness/src/test/resources/injection` holds text addressed to an AI in a
@@ -81,12 +81,11 @@ go-ahead for milestone 1E.
     on LLM facts (ADR 0086), and these sentences cite static facts. The note marks them in every
     template.
   - The run record counts the judge's items, not its verdicts per role. The log counts the
-    sentences checked and found unsupported. Verdicts per role come with the 1F roles that store
-    their texts as observations.
+    sentences checked and found unsupported. Verdicts per role are #751's.
   - A judge packet may mix the Describe roles' sentences and the purpose, up to 10 texts. They are
     all responsibility sentences of one kind.
-  - The claim list is kept in the judge's cached answer, not beside the text, which is not stored
-    as an observation until 1F/1G.
+  - The claim list is kept in the judge's cached answer; the text's observation carries only the
+    verdict.
   - Findings are shown as a repository risk. There is no separate findings page.
   - A complete screen ends only the findings of files it read in that run. A finding on a file no
     prompt showed this time, such as one only a cached Resolve answer read, still holds.

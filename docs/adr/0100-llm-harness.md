@@ -43,8 +43,8 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   repair turns unchanged, so the fake-model documents hold. Each keeps its own check, run inside the
   harness together with its Secrets check. The harness's eight checks (Schema, References, Ranges,
   Names, Coverage, Form, Conflict, Secrets; a ninth, Generic, since ADR 0106) and its packet
-  envelope are built and tested now and used by the new role prompts of milestone 1F; the legacy
-  prompts ask one item per request.
+  envelope are used by every role prompt since milestone 1F rebuilt them; no role keeps a legacy
+  prompt.
 - **Two rendering fixes the incrementality gate found.** A summary's fact sheet showed the fact IDs
   that a link fact lists in its `facts` attribute, and a flow narrative listed each step's facts in
   fact-ID order. Fact IDs change with extractor versions and commits, so a one-file change re-asked
@@ -65,7 +65,7 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   once, then recorded as not asked. The epic says "stored as not-asked"; it is kept in the run
   record but not cached in `llm_answers`, since a cached marker would stop every later run from
   asking it, and documents state it as unknown as they do any item without an answer. The first packet goes alone, so it writes the shared prefix,
-  the rest in parallel. Packet sizes stay at 1 until 1F calibrates them.
+  the rest in parallel. Each role's packet size is its calibrated one (ADR 0112).
 - **Prompt layout.** A `PromptLayout` puts blocks 1 and 2 in the system prompt, with a cache break
   after block 2, and blocks 3 to 5 in the user turn, with breaks after block 3 and after block 4 when
   packets share it. Breaks are abstract `CacheBreak` hints, at most 4 a request; the Anthropic
@@ -81,15 +81,15 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   from the prompt cache, which #349 adds and which then sets 30,000. A capped Resolve conversation
   stores nothing and leaves its link open, as a conversation stopped at the old safety cap did. A
   `submit` tool verifies each item as it arrives; a second failure drops it, as does a first failure
-  never submitted again; an item never submitted at all counts as omitted and is cached. Resolve keeps its own answer turn until its 1F
-  prompt; per-turn breakpoints and compaction are #349.
+  never submitted again; an item never submitted at all counts as omitted and is cached. Resolve submits through the harness's
+  `submit` tool like the other conversations (ADR 0105); per-turn breakpoints and compaction are #349.
 - **No secret values yet.** The Secrets check rejects a text holding a value the masking marked as
   secret; the run's values are added to every check's inputs. Since #645 the masking (ADR 0054) hands the values it masked to the harness
   (amendment for #645 below).
 - **No observations of origin `llm` for summaries and wordings yet.** They are stored as answers and
   read by the composer as before; Resolve already stores its links as facts. Storing accepted
-  answers as observations comes with the roles that 1F rebuilds and the composer of 1G, which read
-  them.
+  answers as observations came with the roles 1F rebuilt and the composer of 1G, which reads them;
+  each LLM fact records the stored answer it came from (ADR 0124).
 - **The run record shows each role**: items planned, cached, asked, answered, omitted, dropped, not
   asked and failed; calls and batch calls; tokens (fresh, five-minute and one-hour cache write, cache read); cost; and the
   estimate. It also lists the subjects asked, which the incrementality test reads.
@@ -105,9 +105,10 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
 - A new answer under a new fingerprint is a new row of `llm_answers`; one under a stored
   fingerprint replaces it and becomes the newest. The newest row per role and subject is what a
   fallback to an earlier answer reads.
-- Open for 1F: the Conflict check rejects any proposal whose subject and predicate already have a
+- Open: the Conflict check rejects any proposal whose subject and predicate already have a
   static object, which would block a second connection of a many-valued predicate (a unit's HTTP
-  calls). Investigate's ADR decides which predicates it applies to before Investigate uses it.
+  calls). No role passes it static objects yet, Investigate included, so it rejects nothing; a role
+  that uses it decides in its ADR which predicates it applies to.
 
 ## Amendment for #42: the run budget and its estimate
 
