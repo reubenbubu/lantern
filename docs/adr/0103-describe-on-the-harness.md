@@ -150,3 +150,24 @@ The 1F and 1G review found intents Describe stored that never reached the page. 
 
 The scorecard's drawn coverage (#742) now also counts the generic labels on lines whose own link
 has a stored intent. The count should be 0.
+
+## Amendment (#738): every interaction a view can draw
+
+"Every interaction" above meant seven fixed kinds of link. It now means every interaction a view
+can draw, the set the scorecard's model coverage counts (#742). This replaces "a route between an
+exchange and a queue is not a unit's interaction". A unit's or frontend's item asks, after its
+fixed links, about:
+
+- **Every other line of the container diagrams** (`Elements.lines()`), other than a person's: what
+  Investigate found, its other interactions drawn by what they descend from, the unknown caller's
+  lines, and routes between exchanges and queues. A line belongs to the unit its link starts
+  from. Failing that, it belongs to the unit or frontend at either end. A route between two
+  destinations belongs to the first unit, in ID order, with a line to either end.
+- **Every other interaction with another unit or frontend**, which the flows draw: chiefly messages
+  one unit sends that reach a listener of another (`SENDS_MESSAGES_TO`), shown with the queue or
+  topic they go through.
+
+A component's use of a store stays out: it takes the unit's intent for that store (#739). A
+project-0 test (`Project0EndToEndIT`) checks that the interactions Describe asks about
+(`Describer.interactionsAsked`) are exactly those a view of the system report can draw, counted
+the way the scorecard counts them.

@@ -356,6 +356,12 @@ class Project0EndToEndIT {
       assertThat(DocumentJson.write(again)).as(report.id()).isEqualTo(DocumentJson.write(report));
     }
     checkSystemReport(system.document());
+    // Describe asks about every interaction a view can draw (#738), as the scorecard counts them
+    // (#742), apart from a component's use of a store, which takes its unit's store intent (#739).
+    assertThat(io.lantern.summarize.describe.Describer.interactionsAsked(held))
+        .isEqualTo(
+            drawableInteractions(
+                held, vocabulary.current(), C4ReportRenderer.toJson(written).data()));
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));
   }
@@ -892,6 +898,65 @@ class Project0EndToEndIT {
     assertThat(again.newFacts()).isZero();
     assertThat(again.facts()).isEqualTo(shop.facts());
     assertThat(fake.sent()).as("LLM requests when analyzing project-0 again").hasSize(calls);
+  }
+
+  /**
+   * The IDs of the facts of every interaction a view of the system report can draw, as the
+   * scorecard's model coverage counts them (lantern-web/scripts/roles.mjs, interactionsOf; #742):
+   * each link of a kind under INTERACTS_WITH between two ends the report draws (a queue folded into
+   * its exchange's line drawn through the exchange), other than a profile's alternative; each line
+   * between two components of one unit other than to code at the end of a call; and each person's
+   * use of a frontend the report draws. A component's data access is left out (#739).
+   */
+  static java.util.SortedSet<String> drawableInteractions(
+      List<Fact> facts, io.lantern.core.vocabulary.Vocabulary vocabulary, JsonNode report) {
+    JsonNode elements = report.path("elements");
+    java.util.function.Predicate<String> shown =
+        entity ->
+            elements.has(
+                entity
+                    .toLowerCase(java.util.Locale.ROOT)
+                    .replaceAll("[^a-z0-9]+", "-")
+                    .replaceAll("^-|-$", ""));
+    Map<String, List<String>> routedFrom = new TreeMap<>();
+    Map<String, String> unitOf = new TreeMap<>();
+    for (Fact f : facts) {
+      if (f.predicate().equals(Types.ROUTES_TO) && io.lantern.derive.Knowledge.isEntity(f)) {
+        routedFrom
+            .computeIfAbsent(f.object().value(), k -> new ArrayList<>())
+            .add(f.subject().toString());
+      }
+      if (f.predicate().equals(Types.PART_OF) && io.lantern.derive.Knowledge.isEntity(f)) {
+        unitOf.put(f.subject().toString(), f.object().value());
+      }
+    }
+    java.util.function.Predicate<String> drawn =
+        entity ->
+            shown.test(entity)
+                || routedFrom.getOrDefault(entity, List.of()).stream().anyMatch(shown);
+    Set<Fact> alternatives =
+        io.lantern.derive.Screens.alternatives(new io.lantern.derive.Knowledge(facts)).keySet();
+    java.util.SortedSet<String> result = new java.util.TreeSet<>();
+    for (Fact f : facts) {
+      if (vocabulary.isA(f.predicate(), Types.INTERACTS_WITH)
+          && io.lantern.derive.Knowledge.isEntity(f)
+          && drawn.test(f.subject().toString())
+          && (f.predicate().equals(Types.ROUTES_TO) ? shown : drawn).test(f.object().value())
+          && !alternatives.contains(f)) {
+        result.add(f.id());
+      }
+      if (f.predicate().equals(Types.COMPONENT_LINK)
+          && !"code-end".equals(io.lantern.derive.Elements.attribute(f, "kind", ""))
+          && unitOf.get(f.subject().toString()) != null
+          && unitOf.get(f.subject().toString()).equals(unitOf.get(f.object().value()))) {
+        result.add(f.id());
+      }
+      if (f.predicate().equals("person-basis")
+          && !io.lantern.derive.Elements.strings(f, "frontends").isEmpty()) {
+        result.add(f.id());
+      }
+    }
+    return result;
   }
 
   /**
