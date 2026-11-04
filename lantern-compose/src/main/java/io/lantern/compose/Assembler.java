@@ -7,6 +7,7 @@ import io.lantern.core.document.Inline;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.Origin;
 import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
@@ -116,6 +117,11 @@ final class Assembler {
     if (parent != null) {
       entity(parent);
       facts.addAll(model.containsFacts(parent, id));
+    }
+    // An element only Investigate's connections show cites them, so it is marked as the LLM's
+    // finding wherever it appears, Describe's sentence or not (#749).
+    if (knownOnlyFromTheInvestigator(id)) {
+      facts.addAll(investigatedTo(id));
     }
     entities.put(
         id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts), kind(id), tag(id)));
@@ -716,6 +722,35 @@ final class Assembler {
         .filter(f -> ArchitectureModel.isEntity(f) && ArchitectureModel.object(f).equals(id))
         .toList();
   }
+
+  /**
+   * Whether only what the LLM found shows the element: Investigate's connections end at it, every
+   * fact about it comes from the LLM (such as Describe's sentence), and no fact of static analysis
+   * or derivation relates anything to it.
+   */
+  private boolean knownOnlyFromTheInvestigator(EntityId id) {
+    if (!destination(id) || investigatedTo(id).isEmpty()) {
+      return false;
+    }
+    if (model.about(id).stream().anyMatch(f -> f.origin().kind() != Origin.Kind.LLM)) {
+      return false;
+    }
+    if (notFromTheLlm == null) {
+      Set<EntityId> objects = new java.util.HashSet<>();
+      for (Origin.Kind kind : Origin.Kind.values()) {
+        if (kind != Origin.Kind.LLM) {
+          model.withOrigin(kind).stream()
+              .filter(ArchitectureModel::isEntity)
+              .forEach(f -> objects.add(ArchitectureModel.object(f)));
+        }
+      }
+      notFromTheLlm = objects;
+    }
+    return !notFromTheLlm.contains(id);
+  }
+
+  /** The entities a fact not from the LLM relates something to, found once. */
+  private Set<EntityId> notFromTheLlm;
 
   /** Whether only Investigate's connections know the entity: no fact is about it. */
   private boolean foundOnlyByTheInvestigator(EntityId id) {
