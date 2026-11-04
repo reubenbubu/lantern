@@ -230,6 +230,8 @@ recommendation. Note non-obvious choices in the PR description.
   spot something else, open an issue for it.
 - Work in small steps that each build.
 - Match the style of the surrounding code.
+- Tightening a role's checks raises its prompt version in the same PR
+  (`docs/adr/0100-llm-harness.md`).
 - Never call something done without running the build and tests. Report failures as failures,
   with the output. Say plainly what you did not verify.
 

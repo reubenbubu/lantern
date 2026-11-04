@@ -144,25 +144,30 @@ public final class LinkResolver implements LinkRule.OverFacts {
   static final ConversationLimits LIMITS = new ConversationLimits(6, 30_000, 4_000);
 
   /** The role as the harness runs it, before its tools are known (ADR 0100). */
-  public static final RoleSpec ROLE =
-      RoleSpec.single(
-              "resolve",
-              Role.RESOLVE,
-              Prompts.version(
-                  ResolvePrompt.VERSION,
-                  "common.system.txt",
-                  "resolve.task.txt",
-                  "resolve.schema.json"),
-              "resolve",
-              RunMode.INTERACTIVE,
-              300)
-          .withPacketSize(PACKET_SIZE)
-          .withTools(List.of(), LIMITS)
-          .withThinking(200)
-          .withTurns(6.5, 1_500);
+  public static final RoleSpec ROLE = role(ResolvePrompt.VERSION);
+
+  /**
+   * The role at a prompt version: {@link #ROLE} at {@link ResolvePrompt#VERSION}, or another for a
+   * test that stands for answers stored under an earlier version.
+   */
+  static RoleSpec role(String version) {
+    return RoleSpec.single(
+            "resolve",
+            Role.RESOLVE,
+            Prompts.version(
+                version, "common.system.txt", "resolve.task.txt", "resolve.schema.json"),
+            "resolve",
+            RunMode.INTERACTIVE,
+            300)
+        .withPacketSize(PACKET_SIZE)
+        .withTools(List.of(), LIMITS)
+        .withThinking(200)
+        .withTurns(6.5, 1_500);
+  }
 
   private final Harness harness;
   private final GraphTools.RepoFiles files;
+  private final RoleSpec role;
   private final AtomicInteger asked = new AtomicInteger();
   private final AtomicInteger reused = new AtomicInteger();
 
@@ -180,8 +185,14 @@ public final class LinkResolver implements LinkRule.OverFacts {
    *     GraphTools.RepoFiles#NONE} offers neither
    */
   public LinkResolver(Harness harness, GraphTools.RepoFiles files) {
+    this(harness, files, ROLE);
+  }
+
+  /** As {@link #LinkResolver(Harness, GraphTools.RepoFiles)}, asking as the given role. */
+  LinkResolver(Harness harness, GraphTools.RepoFiles files, RoleSpec role) {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.files = Objects.requireNonNull(files, "files");
+    this.role = Objects.requireNonNull(role, "role");
   }
 
   @Override
@@ -295,7 +306,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     }
     ModelConfig model = harness.model(Role.RESOLVE);
     GraphTools.Graph graph = new GraphTools.Graph(facts, files);
-    RoleSession session = harness.session(ROLE.withTools(graph.tools().tools(), LIMITS));
+    RoleSession session = harness.session(role.withTools(graph.tools().tools(), LIMITS));
     String map = systemMap(index, deployments, facts);
     Map<String, Question> bySubject = new LinkedHashMap<>();
     Map<String, Item> items = new LinkedHashMap<>();

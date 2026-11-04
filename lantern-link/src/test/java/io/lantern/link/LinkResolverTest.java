@@ -19,6 +19,7 @@ import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.harness.Harness;
 import io.lantern.harness.InMemoryAnswerStore;
 import io.lantern.harness.RunBudget;
+import io.lantern.harness.StoredAnswer;
 import io.lantern.harness.checks.CommonPrompt;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
@@ -1543,6 +1544,54 @@ class LinkResolverTest {
               assertThat(c.toolCalls())
                   .isEqualTo(Map.of("facts_about", 1, "read_file", 1, "submit", 1));
             });
+  }
+
+  /**
+   * An answer stored before #715, under prompt version 7, citing lines no tool showed: the checks
+   * #715 added would reject it, and a cached answer is reused without them, so the version was
+   * raised and the answer is not found under the current one; the model is asked again (ADR 0100,
+   * "A check that rejects more raises the version").
+   */
+  @Test
+  void anAnswerStoredUnderTheVersionBeforeTheStricterChecksIsNotReused() {
+    taxCall();
+    LinkResolver.Result before =
+        new LinkResolver(
+                harness(client(lookingFurther(), BudgetGuard.unlimited("t"))),
+                FILES,
+                LinkResolver.role("7"))
+            .resolve(linked(), 1);
+    String subject = before.facts().getFirst().attributes().get("resolves").asString();
+    StoredAnswer v7 = store.latest(LinkResolver.ROLE.name(), subject).orElseThrow();
+    assertThat(v7.promptVersion()).isEqualTo("7");
+    // As a run before #715 stored it: its range is lines 1 to 2, which no tool showed.
+    store.save(
+        new StoredAnswer(
+            v7.fingerprint(),
+            v7.role(),
+            v7.subject(),
+            v7.promptVersion(),
+            v7.provider(),
+            v7.model(),
+            v7.omitted(),
+            v7.answer().replace("TaxController.java:3-6", "TaxController.java:1-2"),
+            v7.dropped(),
+            v7.filesRead(),
+            v7.inputs()));
+    assertThat(store.latest(LinkResolver.ROLE.name(), subject).orElseThrow().answer())
+        .as("the seeded answer cites the unshown range")
+        .contains("TaxController.java:1-2");
+    FakeLlmProvider again = lookingFurther();
+
+    LinkResolver.Result result = resolveWithFiles(again);
+
+    assertThat(again.sent()).as("requests after the version was raised").isNotEmpty();
+    assertThat(
+            ResolveRole.storedCites(
+                store.latest(LinkResolver.ROLE.name(), v7.subject()).orElseThrow().answer()))
+        .contains("t:src/main/java/t/TaxController.java:3-6")
+        .doesNotContain("t:src/main/java/t/TaxController.java:1-2");
+    assertThat(result.facts()).singleElement();
   }
 
   @Test

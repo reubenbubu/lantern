@@ -32,7 +32,7 @@ import tools.jackson.databind.JsonNode;
 final class ResolvePrompt {
 
   /** The prompt's version, part of every answer's cache key and the version of the facts. */
-  static final String VERSION = "7";
+  static final String VERSION = "8";
 
   /** Block 2's instructions, as the epic writes them. */
   static final String TASK = resource("resolve.task.txt");
