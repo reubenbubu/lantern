@@ -830,11 +830,29 @@ class EndToEndIT {
    * wording (#245). Holds when no answer is rejected or retried, as with the fake model.
    */
   static void assertEveryCallCountedUnderItsRole(AnalysisRun.Result run, int calls) {
-    Map<Role, Long> byRole = run.llm().callsByRole();
+    Map<Role, Long> logged = run.llm().callsByRole();
     assertThat(run.llm().calls()).as("LLM calls logged").isEqualTo(calls);
-    assertThat(byRole.values().stream().mapToLong(Long::longValue).sum())
-        .as("LLM calls logged under a role: " + byRole)
+    assertThat(logged.values().stream().mapToLong(Long::longValue).sum())
+        .as("LLM calls logged under a role: " + logged)
         .isEqualTo(calls);
+    // The support judge on a writer's model is logged under that model's role (#751): the
+    // writers' own calls are the rest.
+    Map<Role, Long> byRole = new java.util.EnumMap<>(Role.class);
+    byRole.putAll(logged);
+    long judgedOnWriters = 0;
+    for (io.lantern.harness.RoleRecord record : run.roles()) {
+      if (record.role().startsWith("support-judge-")) {
+        Role model =
+            Role.valueOf(
+                record
+                    .role()
+                    .substring("support-judge-".length())
+                    .replace('-', '_')
+                    .toUpperCase(java.util.Locale.ROOT));
+        byRole.merge(model, -(long) record.calls(), Long::sum);
+        judgedOnWriters += record.calls();
+      }
+    }
     // Types are summarized on the bulk role, the units above them on the other (ADR 0104).
     assertThat(
             byRole.getOrDefault(Role.SUMMARIZE, 0L) + byRole.getOrDefault(Role.SUMMARIZE_TYPES, 0L))
@@ -888,6 +906,7 @@ class EndToEndIT {
                 + wordings
                 + investigateCalls
                 + byRole.getOrDefault(Role.JUDGE, 0L)
+                + judgedOnWriters
                 + byRole.getOrDefault(Role.SCREEN, 0L));
   }
 
