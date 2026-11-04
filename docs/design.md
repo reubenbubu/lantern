@@ -65,7 +65,7 @@ flowchart TD
 
 Only the composer decides what a document says. Renderers just format its output, which keeps new output formats cheap to add.
 
-Architecture tests keep that order: no stage depends on a later one (extract, link, derive, the LLM roles, compose, render), renderers read no facts from the store and call no stage that makes them (ADR 0093), and the composer depends on no LLM, harness or role code, the linker's LLM roles (Investigate, Resolve) included (principle 10, ADR 0116). The LLM roles that describe the system (Describe, flow significance and narrative, Purpose, Name groups) live with Summarize in `lantern-summarize` and store their texts before anything is composed; what they ask about comes from the model queries in `lantern-derive` that the composer draws from too.
+Architecture tests keep that order: no stage depends on a later one (extract, link, derive, Investigate, Describe and the other writing roles, compose, render; ADR 0093, amendment for #554), renderers read no facts from the store and call no stage that makes them (ADR 0093), and the composer depends on no LLM, harness or role code, the linker's LLM roles (Investigate, Resolve) included (principle 10, ADR 0116). The LLM roles that describe the system (Describe, flow significance and narrative, Purpose, Name groups) live with Summarize in `lantern-summarize` and store their texts before anything is composed; what they ask about comes from the model queries in `lantern-derive` that the composer draws from too.
 
 ## Ingestion and build sandbox
 

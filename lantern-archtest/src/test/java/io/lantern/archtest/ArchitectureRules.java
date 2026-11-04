@@ -47,16 +47,36 @@ final class ArchitectureRules {
 
   /**
    * The stages in the order they build the knowledge ({@code docs/design.md}, Overview; the
-   * knowledge-build epic, section 5): extract, link, derive, the LLM roles, compose, render.
+   * knowledge-build epic, section 5): extract, link, derive, Investigate, Describe and the other
+   * writing roles, compose, render.
    */
   static final List<Stage> STAGES =
       List.of(
           Stage.of("extract", "io.lantern.extract.."),
-          Stage.of("link", "io.lantern.link.."),
+          new Stage(
+              "link",
+              resideInAnyPackage("io.lantern.link..")
+                  .and(DescribedPredicate.not(investigateCode()))
+                  .as("the link stage [io.lantern.link.., Investigate excepted]")),
           Stage.of("derive", "io.lantern.derive.."),
-          Stage.of("LLM roles", "io.lantern.summarize..", "io.lantern.investigate.."),
+          new Stage("investigate", investigateCode()),
+          Stage.of("describe", "io.lantern.summarize.."),
           Stage.of("compose", "io.lantern.compose.."),
           new Stage("render", RENDERERS));
+
+  /**
+   * Investigate's code, which comes before Describe (knowledge-build epic, section 5; #554): the
+   * package {@code io.lantern.investigate} once it exists, and until then Investigate's classes in
+   * the linker, those whose names start with {@code Investigat}.
+   */
+  static DescribedPredicate<JavaClass> investigateCode() {
+    return DescribedPredicate.describe(
+        "the investigate stage [io.lantern.investigate.., io.lantern.link.Investigat*]",
+        c ->
+            c.getPackageName().startsWith("io.lantern.investigate")
+                || (c.getPackageName().startsWith("io.lantern.link")
+                    && c.getName().startsWith(c.getPackageName() + ".Investigat")));
+  }
 
   /**
    * The composer only reads the stored model: it calls no LLM and runs no role, whose texts are

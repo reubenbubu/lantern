@@ -1,5 +1,6 @@
 package io.lantern.archtest;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -15,10 +16,12 @@ import io.lantern.extract.archfixture.ExtractorResolvingPlaceholders;
 import io.lantern.harness.archfixture.FakeHarness;
 import io.lantern.link.archfixture.FakeLinker;
 import io.lantern.link.archfixture.FakeResolver;
+import io.lantern.link.archfixture.InvestigatorReadingADescription;
 import io.lantern.link.archfixture.LinkerComparingPredicates;
 import io.lantern.link.archfixture.LinkerReadingAttributes;
 import io.lantern.link.archfixture.LinkerReadingComposer;
 import io.lantern.llm.archfixture.FakeLlmClient;
+import io.lantern.summarize.archfixture.DescriberReadingARisk;
 import io.lantern.summarize.archfixture.FakeRole;
 import org.junit.jupiter.api.Test;
 
@@ -72,6 +75,41 @@ class ArchitectureRulesTest {
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining("LinkerReadingComposer")
         .hasMessageContaining("the link stage comes before");
+  }
+
+  @Test
+  void investigateDependingOnDescribeIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(InvestigatorReadingADescription.class, FakeRole.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.STAGES_DEPEND_ONLY_ON_EARLIER_STAGES.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("InvestigatorReadingADescription")
+        .hasMessageContaining("the investigate stage comes before describe");
+  }
+
+  @Test
+  void describeMayDependOnInvestigate() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(DescriberReadingARisk.class, InvestigatorReadingADescription.class);
+
+    assertThatCode(
+            () ->
+                ArchitectureRules.STAGES_DEPEND_ONLY_ON_EARLIER_STAGES.check(
+                    new ClassFileImporter().importClasses(DescriberReadingARisk.class)))
+        .doesNotThrowAnyException();
+    assertThat(
+            ArchitectureRules.investigateCode()
+                .test(classes.get(InvestigatorReadingADescription.class)))
+        .isTrue();
+    assertThat(
+            ArchitectureRules.investigateCode()
+                .test(
+                    new ClassFileImporter()
+                        .importClass(io.lantern.link.archfixture.FakeLinker.class)))
+        .isFalse();
   }
 
   @Test
