@@ -130,7 +130,6 @@ public final class UnitInteractions {
           && elements.vocabulary().isA(link.predicate(), Types.INTERACTS_WITH)
           && !alternatives.contains(link)
           && units.contains(Knowledge.object(link))
-          && !Knowledge.object(link).equals(unit)
           && held.add(link)) {
         result.add(new Held(Kind.UNIT_LINK, unit, link, null, unit, Knowledge.object(link), null));
       }
@@ -147,9 +146,18 @@ public final class UnitInteractions {
         }
       }
     }
+    // A person who uses the frontend: by its name in the person's basis, or by a line the
+    // diagrams draw from the person to it, whose basis may name it otherwise.
     String name = elements.names().name(unit);
+    Set<EntityId> drawn = new HashSet<>();
+    for (Elements.Line line : elements.lines()) {
+      if (line.to().equals(unit) && line.from().type().equals(Types.PERSON)) {
+        drawn.add(line.from());
+      }
+    }
     for (Map.Entry<EntityId, Fact> person : elements.people().entrySet()) {
-      if (Elements.strings(person.getValue(), "frontends").contains(name)) {
+      if (Elements.strings(person.getValue(), "frontends").contains(name)
+          || drawn.contains(person.getKey())) {
         result.add(
             new Held(Kind.PERSON, unit, person.getValue(), null, person.getKey(), unit, null));
       }

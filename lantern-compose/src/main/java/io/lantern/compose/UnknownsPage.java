@@ -253,17 +253,23 @@ final class UnknownsPage {
         line.facts().forEach(f -> details.putIfAbsent(f, line.detail()));
       }
     }
+    // Interactions that still read alike, such as two calls of one endpoint from different code,
+    // read as one line with their count.
+    Map<String, Integer> lines = new LinkedHashMap<>();
     for (UnitInteractions.Held interaction : interactions) {
       String detail = details.get(interaction.fact());
-      content.add(
-          TextRun.of(
-              " "
-                  + end(interaction.unit(), interaction.from())
-                  + " to "
-                  + end(interaction.unit(), interaction.to())
-                  + (detail == null ? "" : " (" + detail + ")")
-                  + "."));
+      lines.merge(
+          end(interaction.unit(), interaction.from())
+              + " to "
+              + end(interaction.unit(), interaction.to())
+              + (detail == null ? "" : " (" + detail + ")"),
+          1,
+          Integer::sum);
     }
+    lines.forEach(
+        (line, count) ->
+            content.add(
+                TextRun.of(" " + line + (count == 1 ? "" : ", " + count + " interactions") + ".")));
     // A note: what the model does not hold cites no fact (Quality bar, ADR 0046).
     return Optional.of(
         new Callout(

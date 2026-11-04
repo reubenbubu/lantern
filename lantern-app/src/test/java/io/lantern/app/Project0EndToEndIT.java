@@ -976,10 +976,23 @@ class Project0EndToEndIT {
             .flatMap(b -> ((io.lantern.core.document.Callout) b).content().stream().skip(1))
             .map(i -> ((io.lantern.core.document.TextRun) i).text().strip())
             .toList();
-    assertThat(listed).hasSize(2).doesNotHaveDuplicates();
-    for (int i = 0; i < 2; i++) {
-      assertThat(listed.get(i))
-          .startsWith(names.name(left.get(i).from()) + " to " + names.name(left.get(i).to()));
+    // Two interactions that read alike are one line with their count.
+    assertThat(
+            listed.stream()
+                .mapToInt(
+                    l -> {
+                      java.util.regex.Matcher m =
+                          java.util.regex.Pattern.compile(", (\\d+) interactions\\.$").matcher(l);
+                      return m.find() ? Integer.parseInt(m.group(1)) : 1;
+                    })
+                .sum())
+        .isEqualTo(2);
+    for (io.lantern.derive.UnitInteractions.Held interaction : left) {
+      assertThat(listed)
+          .anyMatch(
+              l ->
+                  l.startsWith(
+                      names.name(interaction.from()) + " to " + names.name(interaction.to())));
     }
   }
 

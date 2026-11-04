@@ -342,10 +342,12 @@ public final class DescribeItems {
                                   + WordingPrompt.kind(through)
                                   + "), to")
                       + ' '
-                      + FactLines.oneLine(assembler.name(held.to()))
-                      + " ("
-                      + WordingPrompt.kind(held.to())
-                      + ")",
+                      + (held.to().equals(unit)
+                          ? "its own listeners"
+                          : FactLines.oneLine(assembler.name(held.to()))
+                              + " ("
+                              + WordingPrompt.kind(held.to())
+                              + ")"),
                   fact));
         }
         case COMPONENT_LINK -> {
