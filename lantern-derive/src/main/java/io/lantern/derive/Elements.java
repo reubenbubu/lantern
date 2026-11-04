@@ -125,6 +125,11 @@ public final class Elements {
     return alternatives;
   }
 
+  /** The vocabulary the elements are typed by. */
+  public Vocabulary vocabulary() {
+    return vocabulary;
+  }
+
   /** How the elements are named. */
   public ElementNames names() {
     return names;

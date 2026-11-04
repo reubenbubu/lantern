@@ -263,6 +263,29 @@ public final class Describer {
   }
 
   /**
+   * The IDs of the link, line and person facts whose interactions Describe asks about over these
+   * facts, across every unit and frontend (#738): what a test compares with the interactions any
+   * view can draw.
+   */
+  public static SortedSet<String> interactionsAsked(Collection<Fact> facts) {
+    List<Fact> shown = withoutTexts(facts);
+    Knowledge knowledge = new Knowledge(shown);
+    ElementNames names = new ElementNames(knowledge, SYSTEM_NAME);
+    Elements elements =
+        new Elements(knowledge, new ArchitectureModel(shown).vocabulary(), names, Set.of());
+    DescribeItems items =
+        new DescribeItems(knowledge, names, elements, e -> Optional.empty(), Map.of());
+    SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
+    units.addAll(Elements.units(knowledge));
+    units.addAll(Elements.frontends(knowledge));
+    SortedSet<String> result = new TreeSet<>();
+    for (EntityId unit : units) {
+      items.interactionFacts(unit).forEach(f -> result.add(f.id()));
+    }
+    return result;
+  }
+
+  /**
    * The facts without the responsibilities, intents, summaries, group names, flow judgements,
    * purpose and key fact the LLM roles wrote.
    */

@@ -61,6 +61,8 @@ public final class DescribeItems {
   private final Set<Fact> alternatives;
   private final Function<Evidence, Optional<String>> files;
   private final Map<EntityId, Summary> summaries;
+  private Map<EntityId, List<Elements.Line>> otherLines;
+  private Set<EntityId> unitsAndFrontends;
 
   DescribeItems(
       Knowledge knowledge,
@@ -105,6 +107,11 @@ public final class DescribeItems {
 
   /** An interaction of a unit, as its items show it. */
   private record Interaction(EntityId source, String line, Fact fact) {}
+
+  /** The facts of the interactions the unit's items ask about, in the order they show them. */
+  List<Fact> interactionFacts(EntityId unit) {
+    return interactions(unit, components(unit)).stream().map(Interaction::fact).toList();
+  }
 
   /** The unit's items: one, or several over the same unit context when it is large. */
   List<Described> unit(EntityId unit) {
@@ -297,21 +304,52 @@ public final class DescribeItems {
   }
 
   /**
-   * The unit's interactions: its links to other containers, the lines between its components, and
-   * the people who use it.
+   * The unit's interactions: its links to other containers, every other line of the diagrams it
+   * holds (#738), the lines between its components, and the people who use it.
    */
   private List<Interaction> interactions(EntityId unit, List<ComponentShown> components) {
     List<Interaction> result = new ArrayList<>();
+    Set<Fact> asked = new java.util.HashSet<>();
     for (String predicate : Describer.LINKS) {
       for (Fact link : FactLines.sorted(knowledge.relations(unit, predicate))) {
         if (alternatives.contains(link)) {
           continue;
         }
         EntityId other = Knowledge.object(link);
+        asked.add(link);
         result.add(
             new Interaction(
                 unit,
                 Describer.verb(predicate)
+                    + ' '
+                    + FactLines.oneLine(assembler.name(other))
+                    + " ("
+                    + WordingPrompt.kind(other)
+                    + ")",
+                link));
+      }
+    }
+    for (Elements.Line line : otherLines().getOrDefault(unit, List.of())) {
+      Fact fact = line.facts().getFirst();
+      if (asked.add(fact)) {
+        result.add(otherInteraction(unit, line, fact));
+      }
+    }
+    // Every other interaction between two units or frontends, which the flows draw: messages one
+    // sends that reach a listener of another, through a queue or topic.
+    for (Fact link : FactLines.sorted(knowledge.about(unit))) {
+      if (Knowledge.isEntity(link)
+          && elements.vocabulary().isA(link.predicate(), Types.INTERACTS_WITH)
+          && !alternatives.contains(link)
+          && unitsAndFrontends().contains(Knowledge.object(link))
+          && asked.add(link)) {
+        EntityId other = Knowledge.object(link);
+        result.add(
+            new Interaction(
+                unit,
+                (link.predicate().equals(Types.SENDS_MESSAGES_TO)
+                        ? "sends messages, through a queue or topic, to"
+                        : "interacts with")
                     + ' '
                     + FactLines.oneLine(assembler.name(other))
                     + " ("
@@ -356,6 +394,108 @@ public final class DescribeItems {
       }
     }
     return result;
+  }
+
+  /**
+   * Every line of the diagrams that Describe's fixed links leave out, other than a person's, by the
+   * unit or frontend whose item asks about it (#738, ADR 0103): what Investigate found, a unit's
+   * other interactions, the unknown caller's lines and routes between exchanges and queues. A line
+   * is held by the end its link starts from when that end runs code, else by the other end; a route
+   * between two destinations by the first unit, in ID order, with a line to either of its ends.
+   */
+  private Map<EntityId, List<Elements.Line>> otherLines() {
+    if (otherLines != null) {
+      return otherLines;
+    }
+    Set<EntityId> units = unitsAndFrontends();
+    Map<EntityId, List<Elements.Line>> result = new LinkedHashMap<>();
+    List<Elements.Line> lines = elements.lines();
+    for (Elements.Line line : lines) {
+      if (Describer.LINKS.contains(line.relationship())
+          || line.from().type().equals(Types.PERSON)
+          || line.facts().isEmpty()) {
+        continue;
+      }
+      EntityId owner =
+          units.contains(line.facts().getFirst().subject())
+              ? line.facts().getFirst().subject()
+              : units.contains(line.from())
+                  ? line.from()
+                  : units.contains(line.to()) ? line.to() : null;
+      if (owner == null) {
+        owner =
+            lines.stream()
+                .filter(
+                    l ->
+                        Set.of(line.from(), line.to()).contains(l.to())
+                            || Set.of(line.from(), line.to()).contains(l.from()))
+                .flatMap(l -> java.util.stream.Stream.of(l.from(), l.to()))
+                .filter(units::contains)
+                .min(Knowledge.BY_ID)
+                .orElse(null);
+      }
+      if (owner != null) {
+        result.computeIfAbsent(owner, u -> new ArrayList<>()).add(line);
+      }
+    }
+    otherLines = result;
+    return result;
+  }
+
+  /** The units and frontends, which Describe has an item for. */
+  private Set<EntityId> unitsAndFrontends() {
+    if (unitsAndFrontends == null) {
+      Set<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
+      result.addAll(Elements.units(knowledge));
+      result.addAll(Elements.frontends(knowledge));
+      unitsAndFrontends = result;
+    }
+    return unitsAndFrontends;
+  }
+
+  /** How one of the {@link #otherLines()} reads in the item of the unit that holds it. */
+  private Interaction otherInteraction(EntityId unit, Elements.Line line, Fact fact) {
+    String plain =
+        switch (line.relationship()) {
+          case Types.INVESTIGATED_CONNECTION -> "connects, as the LLM found, to";
+          case Types.ROUTES_TO -> "routes messages to";
+          case Types.CALLS_UNREACHED -> "calls entry points that nothing in the set reaches of";
+          default ->
+              line.plain().isEmpty()
+                  ? "uses"
+                  : Character.toLowerCase(line.plain().charAt(0)) + line.plain().substring(1);
+        };
+    if (line.from().equals(unit)) {
+      EntityId other = line.to();
+      return new Interaction(
+          unit,
+          plain
+              + ' '
+              + FactLines.oneLine(assembler.name(other))
+              + " ("
+              + WordingPrompt.kind(other)
+              + ")",
+          fact);
+    }
+    // A line the unit holds without starting it: the unknown caller's, or a route between two
+    // destinations, read from the end it starts at.
+    String to =
+        line.to().equals(unit)
+            ? "it"
+            : FactLines.oneLine(assembler.name(line.to()))
+                + " ("
+                + WordingPrompt.kind(line.to())
+                + ")";
+    return new Interaction(
+        line.from(),
+        FactLines.oneLine(assembler.name(line.from()))
+            + " ("
+            + WordingPrompt.kind(line.from())
+            + ") "
+            + plain
+            + ' '
+            + to,
+        fact);
   }
 
   private List<Summary> unitSummaries(EntityId unit) {
