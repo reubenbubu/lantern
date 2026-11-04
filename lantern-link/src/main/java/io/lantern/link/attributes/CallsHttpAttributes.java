@@ -70,6 +70,9 @@ import tools.jackson.databind.node.ObjectNode;
  *     serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to.
  * @param reason Descriptive. What settles the LLM resolver's pick, in 6 to 35 words of its own.
  *     Present only on links of origin llm.
+ * @param request Key. For a frontend's call, the request it makes: its method and path as written,
+ *     such as POST /api/tasks, or its URL when it has no path. It keeps each request a claim of its
+ *     own, with its own intent (#810).
  * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
  *     link for. Present only on links of origin llm.
  * @param route Descriptive. The id of the gateway route the link is, for a link from a Spring Cloud
@@ -114,6 +117,7 @@ public record CallsHttpAttributes(
     String reachesEndpoint,
     String reachesUnit,
     String reason,
+    String request,
     String resolves,
     String route,
     String source,
@@ -126,7 +130,7 @@ public record CallsHttpAttributes(
   public static final String TYPE = "CALLS_HTTP";
 
   /** The key attributes: those that are part of what the fact claims. */
-  public static final List<String> KEY_ATTRIBUTES = List.of("endpoint", "protocol", "view");
+  public static final List<String> KEY_ATTRIBUTES = List.of("endpoint", "protocol", "request", "view");
 
   /** Reads the declared attributes of a fact; undeclared ones are ignored. */
   public static CallsHttpAttributes from(ObjectNode attributes) {
@@ -157,6 +161,7 @@ public record CallsHttpAttributes(
         AttributeValues.string(attributes, "reachesEndpoint"),
         AttributeValues.string(attributes, "reachesUnit"),
         AttributeValues.string(attributes, "reason"),
+        AttributeValues.string(attributes, "request"),
         AttributeValues.string(attributes, "resolves"),
         AttributeValues.string(attributes, "route"),
         AttributeValues.string(attributes, "source"),
@@ -195,6 +200,7 @@ public record CallsHttpAttributes(
     AttributeValues.put(attributes, "reachesEndpoint", reachesEndpoint);
     AttributeValues.put(attributes, "reachesUnit", reachesUnit);
     AttributeValues.put(attributes, "reason", reason);
+    AttributeValues.put(attributes, "request", request);
     AttributeValues.put(attributes, "resolves", resolves);
     AttributeValues.put(attributes, "route", route);
     AttributeValues.put(attributes, "source", source);

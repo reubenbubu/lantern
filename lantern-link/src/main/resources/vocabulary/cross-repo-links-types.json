@@ -247,7 +247,7 @@
   {
     "name": "CALLS_HTTP",
     "kind": "relationship",
-    "keyAttributes": ["endpoint", "protocol", "view"],
+    "keyAttributes": ["endpoint", "protocol", "request", "view"],
     "parent": "CALLS",
     "description": "The subject unit or frontend calls the object unit or external system over HTTP. One fact per call in the code and endpoint matched, one per gateway route that sends requests to it (route set), and for a frontend one per URL its code calls from the browser and one per proxy of its server that no call goes through.",
     "attributeSchema": {
@@ -295,6 +295,10 @@
         "path": {
           "type": "string",
           "description": "The request path, after the URL's authority or a leading placeholder."
+        },
+        "request": {
+          "type": "string",
+          "description": "For a frontend's call, the request it makes: its method and path as written, such as POST /api/tasks, or its URL when it has no path. It keeps each request a claim of its own, with its own intent (#810)."
         },
         "url": {
           "type": "string",

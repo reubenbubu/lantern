@@ -275,9 +275,10 @@ from as well as its own facts. Which link words each step:
   amendment for #739);
 - a scheduled job and a STOMP push: their own fact, which no role words yet, so they keep their
   fallback;
-- a frontend's call and the gateway route that forwards it: no change. One link covers every call
-  from a frontend to one target, and one route every request through it, so their stored intent
-  is one request's. Each request needs its own identity first (#810); a gateway call that matches
-  no endpoint shares the routes' link the same way (#811).
+- a frontend's call and the gateway route that forwards it: since #810, the intent of the
+  frontend's link for that request, which is a claim of its own (ADR 0090, amendment for #810).
+  The route step reads the same intent, since it forwards that request; the route's own link
+  covers every request through it. A gateway call that matches no endpoint still shares the
+  routes' link (#811).
 
 The fake runs' counts are in #740's PR.

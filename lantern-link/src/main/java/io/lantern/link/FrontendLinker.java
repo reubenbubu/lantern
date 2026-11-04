@@ -310,6 +310,8 @@ final class FrontendLinker {
     } else {
       attributes.put("url", Web.of(from).target());
     }
+    // Each request is a claim of its own, so each gets its own intent (#810, owner's choice).
+    attributes.put("request", request(method, attributes));
     attributes.put(
         "protocol",
         target.to().type().equals(Types.EXTERNAL_SYSTEM)
@@ -373,6 +375,18 @@ final class FrontendLinker {
             from.evidence(),
             CrossRepoLinks.round(from.confidence() * target.factor()),
             facts));
+  }
+
+  /**
+   * The request a frontend's call makes, as its identity: its method, if known, and its path, or
+   * its URL when it has none (#810).
+   */
+  static String request(String method, ObjectNode attributes) {
+    String where =
+        attributes.hasNonNull("path")
+            ? attributes.get("path").asString()
+            : attributes.path("url").asString("");
+    return method == null ? where : method + " " + where;
   }
 
   /**
