@@ -118,6 +118,10 @@ final class SequenceFlows {
                     : assembler.phrase(message.phrased());
         List<Fact> facts = new ArrayList<>(message.facts());
         if (phrase != null) {
+          // The link it is worded from, so the label cites what its words rest on (#740).
+          if (!facts.contains(message.phrased())) {
+            facts.add(message.phrased());
+          }
           facts.addAll(phrase.facts());
         }
         yield new SequenceDiagram.Message(

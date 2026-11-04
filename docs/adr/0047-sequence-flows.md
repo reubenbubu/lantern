@@ -262,22 +262,22 @@ its handler are in its Overview table (ADR 0122).
 ## Amendment (#740): each step is worded by its own link's intent
 
 A step's label is the intent phrase stored for its own link, with the technology second; the
-fallback label ("Calls X", "Delivers to X", "Uses the screens") stays only where that link has no
-stored intent. Which link words each step:
+fallback label ("Calls X", "Delivers to X", "Uses the screens") stays where that link has no stored
+intent, and where one link stands for several requests. The step then cites the link it is worded
+from as well as its own facts. Which link words each step:
 
-- a frontend's call: the call itself;
-- a gateway forwarding a frontend's request: that request, not the route, since every request
-  through one route would otherwise show the route's one intent;
 - a delivery from a topic or queue: the receiving unit's `CONSUMES` link to it, or to the queue it
-  comes through, else the delivery's own fact;
-- a data step: the unit's `USES_DATABASE` link to the store, with what it reads and writes, or the
-  repository method it calls, moved to the code column (`store · Repository.method`);
+  comes through, of the default view, else the delivery's own fact;
+- a data step: the unit's `USES_DATABASE` link to the store among the step's own facts, with what
+  it reads and writes, or the repository method it calls, moved to the code column with the
+  protocol ("Reads orders · JDBC", "Calls OrderRepository.save · JDBC");
 - a person's step: the intent Describe stored for the person's use of that frontend (ADR 0103,
   amendment for #739);
 - a scheduled job and a STOMP push: their own fact, which no role words yet, so they keep their
-  fallback.
+  fallback;
+- a frontend's call and the gateway route that forwards it: no change. One link covers every call
+  from a frontend to one target, and one route every request through it, so their stored intent
+  is one request's. Each request needs its own identity first (#810); a gateway call that matches
+  no endpoint shares the routes' link the same way (#811).
 
-On fake runs the generic labels fell from 6, 20, 10, 54 and 11 to 2, 0, 4, 16 and 2 on project-1
-to project-4 and project-8. What remains is steps whose link has no stored intent: people with
-none stored, STOMP pushes, a scheduled job, and a route through the discovery locator.
-
+The fake runs' counts are in #740's PR.

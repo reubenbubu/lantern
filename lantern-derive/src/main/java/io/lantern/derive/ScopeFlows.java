@@ -83,6 +83,7 @@ public final class ScopeFlows {
   private final Elements elements;
   private final Set<EntityId> scope;
   private final Function<EntityId, String> names;
+  private java.util.SortedMap<EntityId, Fact> people;
 
   /** Every stored flow as traced here, in the order stored, once read. */
   private List<Trace> traces;
@@ -124,6 +125,14 @@ public final class ScopeFlows {
   /** As the other constructor, naming elements as {@link Elements#names} does. */
   public ScopeFlows(Knowledge knowledge, Elements elements, Set<EntityId> scope) {
     this(knowledge, elements, scope, elements.names()::name);
+  }
+
+  /** The scope's people, each with its basis fact, read once. */
+  private java.util.SortedMap<EntityId, Fact> people() {
+    if (people == null) {
+      people = elements.people();
+    }
+    return people;
   }
 
   // Entry points and starts.
@@ -299,7 +308,7 @@ public final class ScopeFlows {
             "In a web browser.",
             start.personFacts,
             // The person's basis: their intent for this frontend words the step (#740).
-            elements.people().get(start.person));
+            people().get(start.person));
       }
       steps(flow.steps());
     }
@@ -598,8 +607,9 @@ public final class ScopeFlows {
           List.of(),
           info.isEmpty() ? null : String.join(" ", info),
           step.facts(),
-          // The frontend's call words its own request (#740).
-          link);
+          // Not its link's intent: one claim covers every call from the frontend to the target,
+          // so the intent would be one request's, or none's (#740, #810).
+          null);
     }
 
     /**
@@ -613,6 +623,7 @@ public final class ScopeFlows {
               f ->
                   Knowledge.isEntity(f)
                       && (Knowledge.object(f).equals(from) || Knowledge.object(f).equals(through))
+                      && Knowledge.view(f) == null
                       && !elements.alternativeLinks().containsKey(f))
           .findFirst()
           .orElse(delivery);
@@ -641,9 +652,7 @@ public final class ScopeFlows {
           step.profiles(),
           routeInfo.toString(),
           step.facts(),
-          // The request's own intent, not the route's, which every request through it shares
-          // (#740).
-          start.link);
+          route);
     }
 
     /** A gateway routing the request it receives to the unit, with the request as it serves it. */
@@ -807,12 +816,13 @@ public final class ScopeFlows {
       // The unit's intent for its store words the step; the repository method stays its code
       // (#740).
       Fact store =
-          knowledge.relations(unit, Types.USES_DATABASE).stream()
+          step.facts().stream()
               .filter(
                   f ->
-                      Knowledge.isEntity(f)
-                          && Knowledge.object(f).equals(step.to())
-                          && !elements.alternativeLinks().containsKey(f))
+                      f.predicate().equals(Types.USES_DATABASE)
+                          && Knowledge.isEntity(f)
+                          && f.subject().equals(unit)
+                          && Knowledge.object(f).equals(step.to()))
               .findFirst()
               .orElse(null);
       message(
