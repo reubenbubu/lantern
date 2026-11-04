@@ -63,3 +63,14 @@ use the LLM.
   open. None of this changes the fake-model
   scorecards on project-0 to project-4 and project-8 (#283's PR).
 - A new extractor that follows values uses `Values` rather than its own copy.
+
+## Amendment for #554: Investigate before Describe
+
+The stage rule splits the LLM roles into two stages, in the epic's order (section 5): Investigate,
+then Describe and the other writing roles (`io.lantern.summarize`). Investigate's stage is the
+package `io.lantern.investigate` once it exists. Until then it is Investigate's classes in the
+linker, those whose names start with `Investigat`, and the link stage leaves them out. So the
+linker may not depend on Investigate, Investigate may not depend on Describe, and Describe may
+read what Investigate found. Main already obeys this. `ArchitectureRulesTest` shows Investigate
+depending on a Describe role rejected. The rule that the composer depends on no stage package is
+#761's (`COMPOSER_READS_THE_MODEL`).
