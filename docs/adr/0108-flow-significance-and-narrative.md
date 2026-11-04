@@ -128,13 +128,15 @@ Now:
   does not make a flow significant. It asks for the fewest flows that together explain what the
   system is for and how it works: one per scenario, not one per endpoint, and none that another
   flow it marks already contains or repeats with other data. "There is no target number" is gone.
-- **Containment.** The model's list skips any flow whose entry point an earlier chosen flow
-  reaches, as the rank path does (`ScopeFlows.chosen`). The flow is drawn within the one that
+- **Containment.** The model's list drops any flow whose entry point another flow it chose
+  reaches, whichever it listed first, as the rank path does (`ScopeFlows.chosen`). Of two that
+  reach each other, the one listed first stays. The dropped flow is drawn within the one that
   reaches it.
 - **Stale judgements.** A significance judgement stores the content hash of the flow's steps it
-  saw. It is read only while that hash matches the flow's steps now, as a narrative's is. A
-  judgement that names no steps, or whose flow's steps are not known, is read as before. A scope
-  left with no judgement it can read is not judged, so the rank decides.
+  saw. When any of a scope's judgements no longer matches its flow's steps, the scope's choice is
+  stale, since its flows were judged against each other, and the rank decides until the role
+  judges the scope again. A judgement that names no steps, or whose flow's steps are not known, is
+  read as before.
 
 The five sets' flow-selection rows (#746), judged and on the rank fallback, before and after,
 come from the 1H test drop's real runs on Haiku 5.5 and Sonnet 5.5. Fake runs judge no flow

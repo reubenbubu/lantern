@@ -960,14 +960,27 @@ public final class ScopeFlows {
       List<Trace> kept = new ArrayList<>();
       for (String id : judged) {
         Trace trace = byId.get(id);
-        // A flow whose entry point an earlier chosen flow reaches is part of that flow, and is
-        // drawn there, as on the rank path (#743).
-        if (trace != null
-            && !kept.contains(trace)
-            && kept.stream().noneMatch(k -> k.reached.contains(trace.entry.key()))) {
+        if (trace != null && !kept.contains(trace)) {
           kept.add(trace);
         }
       }
+      // A flow whose entry point another chosen flow reaches is part of that flow, and is drawn
+      // there, as on the rank path, whichever the model listed first (#743); of two that reach
+      // each other, the one listed first stays.
+      List<Trace> contained = new ArrayList<>();
+      for (Trace trace : kept) {
+        for (Trace other : kept) {
+          if (other != trace
+              && !contained.contains(other)
+              && other.reached.contains(trace.entry.key())
+              && !(trace.reached.contains(other.entry.key())
+                  && kept.indexOf(trace) < kept.indexOf(other))) {
+            contained.add(trace);
+            break;
+          }
+        }
+      }
+      kept.removeAll(contained);
       // The model is shown one flow for each stored shape, which tells flows apart by the messages
       // they follow; two it keeps may still be one picture with other labels (a PUT and a DELETE of
       // the same resource), so only its first of each drawn shape is drawn (#701).

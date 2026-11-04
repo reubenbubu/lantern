@@ -168,11 +168,14 @@ class ArchitectureModelTest {
     ArchitectureModel read =
         new ArchitectureModel(with(steps, stale, significance(second, "system", true, 2), fresh));
 
-    // The judgement on the flow's earlier steps is left out; one that names no steps is read.
-    assertThat(read.significantFlows("system")).contains(List.of(second.toString()));
+    // One judgement on the flow's earlier steps makes the scope unjudged, so the rank decides,
+    // whatever its other judgements say; one on today's steps, or naming no steps, is read.
+    assertThat(read.significantFlows("system")).isEmpty();
     assertThat(read.significantFlows("repo")).contains(List.of(FLOW.toString()));
-    // A scope whose every judgement is stale is not judged, so the rank decides.
-    assertThat(new ArchitectureModel(with(steps, stale)).significantFlows("system")).isEmpty();
+    assertThat(
+            new ArchitectureModel(with(steps, significance(second, "system", true, 1)))
+                .significantFlows("system"))
+        .contains(List.of(second.toString()));
   }
 
   private List<Fact> with(Fact... texts) {

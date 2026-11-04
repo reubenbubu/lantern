@@ -100,10 +100,10 @@ class ScopeFlowsTest {
     assertThat(flows.chosen(List.of(place, charge)))
         .extracting(t -> t.flow().id().toString())
         .containsExactly(place);
-    // The charge, chosen first, does not reach the order's entry point, so both are drawn.
+    // Whichever the model listed first.
     assertThat(flows.chosen(List.of(charge, place)))
         .extracting(t -> t.flow().id().toString())
-        .containsExactly(charge, place);
+        .containsExactly(place);
   }
 
   @Test
