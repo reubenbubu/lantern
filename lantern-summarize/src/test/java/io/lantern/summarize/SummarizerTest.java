@@ -2101,6 +2101,60 @@ class SummarizerTest {
   }
 
   @Test
+  void anAnswerRepeatingAValueTheMaskingTookOutIsSentBackOnceThenDropped() {
+    // The masking hands what it took out of the shown file to the harness's Secrets check (#645).
+    String secret = "hunter2-very-secret";
+    String source =
+        ExcerptsTest.ORDER.replace(
+            "@Id private Long id;", "private static final String PASSWORD = \"" + secret + "\";");
+    Set<String> secrets = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    SourceFiles files =
+        new SourceFiles() {
+          @Override
+          public Optional<byte[]> read(String repo, String commit, String path) {
+            return Optional.of(source.getBytes(StandardCharsets.UTF_8));
+          }
+
+          @Override
+          public Optional<byte[]> blob(String repo, String blob, String path) {
+            return Optional.of(source.getBytes(StandardCharsets.UTF_8));
+          }
+
+          @Override
+          public java.util.function.Consumer<String> maskedValues() {
+            return secrets::add;
+          }
+        };
+    FakeLlmProvider echoing =
+        new FakeLlmProvider()
+            .answering(
+                Answers.epic(
+                    r ->
+                        citingAll(r)
+                            .replace(
+                                "as a well-behaved model words it",
+                                "guarded by the password " + secret + ",")));
+    SummaryNode order = orderWithSource(blob(source));
+
+    Harness harness =
+        new Harness(client("model-a", echoing), store, RunBudget.NONE, BlobLookup.NONE, secrets);
+    Summarizer.Result result = new Summarizer(harness, files).summarize(List.of(order));
+
+    assertThat(secrets).contains(secret);
+    // What is kept of the rejected answers never holds the value.
+    assertThat(harness.rejections()).isNotEmpty();
+    assertThat(harness.rejections())
+        .allSatisfy(r -> assertThat(String.valueOf(r.answer())).doesNotContain(secret));
+    assertThat(echoing.sent().getFirst().request().messages().getFirst().text())
+        .doesNotContain(secret);
+    // Asked, sent back once with the reason, then dropped.
+    assertThat(echoing.sent()).hasSize(2);
+    assertThat(echoing.sent().get(1).request().messages().getLast().text())
+        .contains("a value marked as secret");
+    assertThat(result.summaries()).isEmpty();
+  }
+
+  @Test
   void everySummaryIsStoredAsAClaimOfItsLevelWithItsSentencesAndTheirFacts() {
     List<Fact> facts = TestFacts.shop().list();
     Summarizer.Result result = summarizer().summarize(SummaryTree.fromFacts(facts));

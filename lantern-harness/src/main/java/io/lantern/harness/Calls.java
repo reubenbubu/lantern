@@ -111,8 +111,8 @@ public final class Calls {
     repaired = true;
   }
 
-  private static void logRejected(String purpose, Rejected reason, LlmResponse answer) {
-    String text = answer.text();
+  private void logRejected(String purpose, Rejected reason, LlmResponse answer) {
+    String text = session.harness().redacted(answer.text());
     if (text.length() > LOGGED_ANSWER) {
       text = text.substring(0, LOGGED_ANSWER) + "... (" + text.length() + " characters)";
     }

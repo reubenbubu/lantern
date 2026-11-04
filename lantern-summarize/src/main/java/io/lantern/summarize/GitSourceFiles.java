@@ -31,18 +31,23 @@ public final class GitSourceFiles implements SourceFiles {
 
   private final Function<String, Optional<Path>> directories;
   private final Set<String> secretKeys;
+  private final java.util.function.Consumer<String> maskedValues;
 
   /**
    * @param directories the git working tree of each repository, by name, or empty for a repository
    *     whose files cannot be read
    */
   public GitSourceFiles(Function<String, Optional<Path>> directories) {
-    this(directories, Set.of());
+    this(directories, Set.of(), value -> {});
   }
 
-  private GitSourceFiles(Function<String, Optional<Path>> directories, Set<String> secretKeys) {
+  private GitSourceFiles(
+      Function<String, Optional<Path>> directories,
+      Set<String> secretKeys,
+      java.util.function.Consumer<String> maskedValues) {
     this.directories = Objects.requireNonNull(directories, "directories");
     this.secretKeys = Set.copyOf(secretKeys);
+    this.maskedValues = Objects.requireNonNull(maskedValues, "maskedValues");
   }
 
   /**
@@ -51,12 +56,25 @@ public final class GitSourceFiles implements SourceFiles {
    * @param keys config keys known to hold a secret, such as {@code ConfigExtractor.jwtSecretKeys}
    */
   public GitSourceFiles withSecretKeys(Set<String> keys) {
-    return new GitSourceFiles(directories, keys);
+    return new GitSourceFiles(directories, keys, maskedValues);
+  }
+
+  /**
+   * The same files, handing each value masking takes out of a file shown to a role to the sink,
+   * such as the LLM harness's set of secrets (#645).
+   */
+  public GitSourceFiles withMaskedValues(java.util.function.Consumer<String> sink) {
+    return new GitSourceFiles(directories, secretKeys, sink);
   }
 
   @Override
   public Set<String> secretKeys() {
     return secretKeys;
+  }
+
+  @Override
+  public java.util.function.Consumer<String> maskedValues() {
+    return maskedValues;
   }
 
   @Override

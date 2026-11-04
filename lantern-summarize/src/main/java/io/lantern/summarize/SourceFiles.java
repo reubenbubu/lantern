@@ -1,6 +1,7 @@
 package io.lantern.summarize;
 
 import io.lantern.core.fact.Evidence;
+import io.lantern.extract.config.MaskedValues;
 import io.lantern.extract.config.SourceSecrets;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -51,6 +52,14 @@ public interface SourceFiles {
   }
 
   /**
+   * Where {@link #shown} hands each value it masked or removed, for the LLM harness's Secrets check
+   * (#645); nowhere by default.
+   */
+  default java.util.function.Consumer<String> maskedValues() {
+    return value -> {};
+  }
+
+  /**
    * The text of the file of a fact's evidence as prompts show it (ADR 0024, ADR 0054): read by the
    * blob of its declared location (ADR 0091), only if the content has that blob SHA, with its
    * secrets masked or removed by {@link SourceSecrets}; empty if it has no blob, cannot be read or
@@ -65,8 +74,12 @@ public interface SourceFiles {
     return blob(evidence.repo(), evidence.blob(), evidence.path())
         .filter(content -> blobSha(content, evidence.blob().length()).equals(evidence.blob()))
         .map(
-            content ->
-                SourceSecrets.scrub(new String(content, StandardCharsets.UTF_8), secretKeys()));
+            content -> {
+              String text = new String(content, StandardCharsets.UTF_8);
+              String shown = SourceSecrets.scrub(text, secretKeys());
+              MaskedValues.taken(text, shown, maskedValues());
+              return shown;
+            });
   }
 
   /**

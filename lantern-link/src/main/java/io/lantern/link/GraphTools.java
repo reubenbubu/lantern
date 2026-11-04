@@ -4,6 +4,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
 import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.extract.config.MaskedValues;
 import io.lantern.extract.config.SourceSecrets;
 import io.lantern.extract.config.UrlCredentials;
 import io.lantern.harness.render.FactLines;
@@ -73,6 +74,12 @@ public final class GraphTools implements ToolBox {
     default List<Hit> find(String repo, String text, int max) {
       return List.of();
     }
+
+    /**
+     * Takes a value masking took out of a file before a tool showed it, for the LLM harness's
+     * Secrets check (#645); ignored by default.
+     */
+    default void masked(String value) {}
   }
 
   /** A line of a file that holds a text {@code find_in_code} looked for. */
@@ -174,16 +181,25 @@ public final class GraphTools implements ToolBox {
       }
       return files
           .read(repo, path)
-          .map(content -> masked(path, content, secretKeys))
+          .map(content -> shown(path, content))
           .map(text -> text.lines().toList());
+    }
+
+    /** A file as the tools show it, handing what masking took out of it to the files (#645). */
+    String shown(String path, byte[] content) {
+      String text = masked(path, content, secretKeys);
+      if (text != null) {
+        MaskedValues.taken(new String(content, StandardCharsets.UTF_8), text, files::masked);
+      }
+      return text;
     }
   }
 
+  private final Graph graph;
   private final List<Fact> facts;
   private final Map<String, String> rendered;
   private final Set<String> repos;
   private final RepoFiles files;
-  private final Set<String> secretKeys;
   private final Map<String, Fact> shown = new LinkedHashMap<>();
   private final Map<String, io.lantern.harness.FileRead> read = new LinkedHashMap<>();
   private final Map<String, io.lantern.harness.Harness.Shown> texts = new LinkedHashMap<>();
@@ -194,11 +210,11 @@ public final class GraphTools implements ToolBox {
   private final int factsBefore;
 
   private GraphTools(Graph graph, int factsBefore) {
+    this.graph = graph;
     this.facts = graph.facts;
     this.rendered = graph.rendered;
     this.repos = graph.repos;
     this.files = graph.files;
-    this.secretKeys = graph.secretKeys;
     this.factsBefore = factsBefore;
   }
 
@@ -609,7 +625,7 @@ public final class GraphTools implements ToolBox {
    */
   private String shownFile(String repo, String path, byte[] content) {
     String blob = io.lantern.harness.Fingerprints.gitBlob(content);
-    String text = masked(path, content, secretKeys);
+    String text = graph.shown(path, content);
     synchronized (this) {
       read.putIfAbsent(repo + '\u0000' + path, new io.lantern.harness.FileRead(repo, path, blob));
       if (text != null) {
