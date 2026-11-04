@@ -144,16 +144,20 @@ public final class RoleRecord implements LlmCallLog {
       case CACHED -> reused.add(subject);
       case NOT_ASKED -> {
         unasked.add(subject);
-        unaskedWhy.putIfAbsent(subject, outcome.reason() == null ? "not asked" : outcome.reason());
+        unaskedWhy.put(subject, outcome.reason() == null ? "not asked" : outcome.reason());
       }
       case FAILED -> {
         unasked.add(subject);
-        unaskedWhy.putIfAbsent(
+        unaskedWhy.put(
             subject,
             "the request failed" + (outcome.reason() == null ? "" : ": " + outcome.reason()));
         failedSubjects.add(subject);
       }
-      default -> asked.add(subject);
+      default -> {
+        asked.add(subject);
+        // Answered after all: no longer unasked.
+        unaskedWhy.remove(subject);
+      }
     }
   }
 
@@ -257,7 +261,6 @@ public final class RoleRecord implements LlmCallLog {
     this.packetSize = packetSize;
   }
 
-  /** The record as the run record writes it. */
   /** Why each item not asked, a failed one included, was not, by its subject (#741). */
   public synchronized Map<String, String> unaskedReasons() {
     return Map.copyOf(unaskedWhy);
@@ -281,6 +284,7 @@ public final class RoleRecord implements LlmCallLog {
     return result;
   }
 
+  /** The record as the run record writes it. */
   public synchronized ObjectNode toJson() {
     ObjectNode node = JSON.createObjectNode();
     node.put("role", role);

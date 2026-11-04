@@ -156,7 +156,9 @@ public final class UnitInteractions {
       }
     }
     for (Map.Entry<EntityId, Fact> person : elements.people().entrySet()) {
-      if (Elements.strings(person.getValue(), "frontends").contains(name)
+      String key = unit.key().substring(unit.key().lastIndexOf(':') + 1);
+      if (Elements.strings(person.getValue(), "frontends").stream()
+              .anyMatch(n -> n.equalsIgnoreCase(name) || n.equalsIgnoreCase(key))
           || drawn.contains(person.getKey())) {
         result.add(
             new Held(Kind.PERSON, unit, person.getValue(), null, person.getKey(), unit, null));

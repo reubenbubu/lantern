@@ -276,11 +276,30 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
     if (!e) continue;
     for (const n of [e.name, String(f.subject).split(':').pop()]) if (n) byName.set(String(n).toLowerCase(), f.subject);
   }
+  // Or by a line the diagrams draw from the person to a frontend, whose basis may name it
+  // otherwise (#741).
+  const byReportId = new Map();
+  for (const f of facts) if (report.elements?.[reportId(f.subject)]) byReportId.set(reportId(f.subject), f.subject);
+  const drawnTo = new Map();
+  for (const page of report.pages ?? []) {
+    for (const section of page.sections ?? []) {
+      for (const r of section.relationships ?? []) {
+        if (report.elements?.[r.from]?.kind !== 'person') continue;
+        const to = byReportId.get(r.to);
+        if (!to || !String(to).startsWith('frontend:')) continue;
+        if (!drawnTo.has(r.from)) drawnTo.set(r.from, new Set());
+        drawnTo.get(r.from).add(to);
+      }
+    }
+  }
   for (const f of facts) {
     if (f.predicate !== 'person-basis') continue;
-    const owners = list(f.attributes?.frontends)
-      .map((n) => byName.get(String(n).toLowerCase()))
-      .filter(Boolean);
+    const owners = [
+      ...list(f.attributes?.frontends)
+        .map((n) => byName.get(String(n).toLowerCase()))
+        .filter(Boolean),
+      ...(drawnTo.get(reportId(f.subject)) ?? []),
+    ];
     // One interaction per frontend the person uses, whose intent is stored under the basis and the
     // frontend (ADR 0103, #739; #741).
     for (const frontend of new Set(owners)) {

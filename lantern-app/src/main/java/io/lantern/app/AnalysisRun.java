@@ -666,11 +666,6 @@ public final class AnalysisRun {
     }
   }
 
-  /**
-   * Records the facts the LLM roles wrote, each role's by its origin, so that afterwards exactly
-   * these hold in the snapshot: a text the role did not write this time, such as one not asked
-   * under a budget, stops holding and is unknown.
-   */
   /** The origin of the facts that say a role did not ask about an item (#741). */
   static final Origin NOT_ASKED_ORIGIN = new Origin(Origin.Kind.LLM, Types.NOT_ASKED, "1");
 
@@ -682,10 +677,16 @@ public final class AnalysisRun {
     List<Fact> result = new ArrayList<>();
     String repo = new java.util.TreeSet<>(snapshot.commits().keySet()).first();
     for (io.lantern.harness.RoleRecord role : roles) {
-      // Investigate stores what it did not look at itself (not-investigated, ADR 0110).
-      if (role.role().startsWith("investigate")) {
+      // Investigate stores what it did not look at itself (not-investigated, ADR 0110); a link
+      // Resolve was not asked about is listed as not linked; a judge's sample writes nothing the
+      // documents show.
+      if (role.role().startsWith("investigate")
+          || role.role().equals("resolve")
+          || role.role().contains("judge")) {
         continue;
       }
+      // The injection screen's items are parts of files, named as such, not entities.
+      boolean files = role.role().equals("injection-screen");
       new java.util.TreeMap<>(role.unaskedReasons())
           .forEach(
               (subject, reason) -> {
@@ -694,6 +695,9 @@ public final class AnalysisRun {
                 attributes.put("reason", stableReason(reason));
                 EntityId entity;
                 try {
+                  if (files) {
+                    throw new IllegalArgumentException("a part of a file");
+                  }
                   entity = EntityId.parse(subject);
                 } catch (IllegalArgumentException e) {
                   entity = io.lantern.derive.ArchitectureModel.SYSTEM;
@@ -730,6 +734,11 @@ public final class AnalysisRun {
     return colon > 0 ? reason.substring(0, colon) : reason;
   }
 
+  /**
+   * Records the facts the LLM roles wrote, each role's by its origin, so that afterwards exactly
+   * these hold in the snapshot: a text the role did not write this time, such as one not asked
+   * under a budget, stops holding and is unknown.
+   */
   private void recordLlmFacts(Snapshot snapshot, Map<Origin, List<Fact>> byOrigin) {
     recordLlmFacts(snapshot, byOrigin, snapshot.commits().keySet());
   }

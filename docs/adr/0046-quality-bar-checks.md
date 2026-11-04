@@ -102,14 +102,20 @@ The 1F and 1G review found gaps the reader could not see. Now:
 - **Not asked.** Every item any role did not ask the model about, or got no answer for, is stored
   as a `not-asked` fact. Its object is the role, its `reason` is in words that read the same from
   run to run ("a budget refused it", "the request failed", "missing from the answer twice"), and
-  its origin is its own, so the next run, which asks again, ends it. Investigate keeps its own
-  `not-investigated`. A note citing nothing lists them by role, what each is about and why; items
+  its origin is its own, so the next run, which asks again, ends it. Some roles are left out:
+  Investigate keeps its own `not-investigated`; a link Resolve was not asked about is already
+  under "Not linked"; and the judges' samples write nothing the documents show. The injection
+  screen's items are parts of files and are named as such. A note citing nothing lists them by role, what each is about and why; items
   of one role, about the same thing, not asked for the same reason, read as one line with their
   count. The system's scope lists all of them; a repository's, those about its units.
 - **Refuted leads.** The quality report lists every lead the investigator refuted, as "A lead the
   LLM investigator refuted": what it is about, the finding that refutes it and the file ranges it
-  cites, citing the verdict. It is not a failure of the document; the quality report is where
-  knowledge-build epic section 11.2 puts them, so a reader can check a refutation.
+  cites, citing the verdict. Knowledge-build epic section 11.2 puts them in the quality report, so
+  a reader can check a refutation. They are listed there as README claims the code contradicts
+  are, so a document whose only entries are refuted leads no longer reads "No check failed".
+- On a run where a budget refused some units' items, the page lists their interactions under
+  "Intent not known" too. Model coverage counts those as "not asked", not "don't know", so the two
+  counts are equal only when nothing was refused.
 - **The run record** counts, for each role and each kind of field (the part of a field's name
   before its first dot, such as `interactions`), the fields the model left out of an item it
   answered, withdrew in a repair turn after they were rejected, or had dropped after they were
