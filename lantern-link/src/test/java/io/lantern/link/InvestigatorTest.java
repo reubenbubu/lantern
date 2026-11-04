@@ -1202,6 +1202,14 @@ class InvestigatorTest {
     assertThat(gateway)
         .contains("<answers>")
         .contains("lead:identity-from-request/" + GATEWAY_UNIT);
+    // The system conversation sees the lead once, under its first unit.
+    String system =
+        fake.sent().stream()
+            .map(c -> c.request().messages().getFirst().text())
+            .filter(t -> t.contains("The whole system"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(system).doesNotContain(GATEWAY_UNIT + ": lead:identity-from-request");
   }
 
   @Test

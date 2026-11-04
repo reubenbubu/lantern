@@ -209,7 +209,8 @@ conversation read it; Investigate has no sides.
   in the unit's `answers` block) is shown to the exploration (Mode B) of every unit the lead
   names, not only of its first unit, whose conversation checks it. A unit a lead also touches no
   longer explores as if nothing on it had been checked, so it does not find the same problem
-  again. This changes what Mode B is shown, so earlier recordings of a unit a lead touches second
+  again. The system conversation (Mode C) still sees each lead once, under its first unit. This
+  changes what Mode B is shown, so earlier recordings of a unit a lead touches second
   no longer replay; a real run on the five sets measures it against #756's baseline.
 - **Why.** On project-4 the before-commit leads, fired per sending method, gave 13 rows of one
   problem; the reader needs it once, with every place it occurs (`docs/quality-bar.md`, Words say
