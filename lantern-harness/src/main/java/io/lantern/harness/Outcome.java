@@ -8,8 +8,22 @@ package io.lantern.harness;
  * @param answer the accepted answer as the role stores it, for {@link Kind#CACHED} and {@link
  *     Kind#ANSWERED}; otherwise {@code null}
  * @param reason why it has no answer, for the other kinds; otherwise {@code null}
+ * @param stored whether the answer cache holds a row under the fingerprint for it: an answer, an
+ *     omission or a drop (#753)
  */
-public record Outcome(Kind kind, String fingerprint, String answer, String reason) {
+public record Outcome(Kind kind, String fingerprint, String answer, String reason, boolean stored) {
+
+  /** An outcome, stored when its kind is one the answer cache keeps a row for. */
+  public Outcome(Kind kind, String fingerprint, String answer, String reason) {
+    this(kind, fingerprint, answer, reason, keeps(kind));
+  }
+
+  private static boolean keeps(Kind kind) {
+    return kind == Kind.CACHED
+        || kind == Kind.ANSWERED
+        || kind == Kind.OMITTED
+        || kind == Kind.DROPPED;
+  }
 
   /** What happened to an item. */
   public enum Kind {
@@ -47,7 +61,20 @@ public record Outcome(Kind kind, String fingerprint, String answer, String reaso
     return answer != null;
   }
 
+  /**
+   * The key of the answer cache's row it comes from, which an LLM fact records as its {@code
+   * answer} (ADR 0124); {@code null} when nothing was stored for it.
+   */
+  public String answerKey() {
+    return stored ? fingerprint : null;
+  }
+
   static Outcome of(Kind kind, String fingerprint, String answer, String reason) {
     return new Outcome(kind, fingerprint, answer, reason);
+  }
+
+  /** A drop not stored: a cut-off answer or a capped conversation, asked again next run. */
+  static Outcome unstoredDrop(String fingerprint, String reason) {
+    return new Outcome(Kind.DROPPED, fingerprint, null, reason, false);
   }
 }

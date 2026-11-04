@@ -337,7 +337,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
           Optional<Picked> picked =
               outcome.answer() == null
                   ? Optional.empty()
-                  : picked(question, outcome.answer(), byKey, modelName, outcome.fingerprint());
+                  : picked(question, outcome.answer(), byKey, modelName, outcome.answerKey());
           if (picked.isEmpty()) {
             unknown++;
           } else {

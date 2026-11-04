@@ -20,7 +20,8 @@ short of it:
 
 1. **`answer`.** Every fact an LLM role stores from an answer records `answer`: the fingerprint of
    its item in the answer cache, the key of the `llm_answers` row that holds the answer (or the
-   model's omission, or the rejected answer's drop, which the cache keeps too, #682). It names
+   model's omission, or the rejected answer's drop, which the cache keeps too, #682). The
+   harness's `Outcome.answerKey()` gives it, and is empty when no row was stored. It names
    the request, or the conversation for roles that read files, that produced the fact. It is
    descriptive, not part of the claim: a new answer to the same question is the same claim.
    - Summarize, Describe, Name groups, the flow roles, Purpose and Investigate's verdicts, risks
@@ -28,9 +29,15 @@ short of it:
      confirm keeps the answer of the first lead it is stored for.
    - Resolve's links and the injection screen's findings record theirs too, and Name groups' merge
      suggestions (findings of `finding-raised`) carry `model`, `answer` and `basis`.
-   - Facts no request produced carry none: Investigate's `not-investigated` facts, and the
-     verdict `unclear` of a lead that was not asked (its role's budget was spent, or the call
-     failed), whose `reason` begins "not asked: ".
+   - Facts with no stored answer carry none: Investigate's `not-investigated` facts; the verdict
+     `unclear` of a lead that was not asked (its role's budget was spent, or the call failed),
+     whose `reason` begins "not asked: "; and that of a lead whose answer was dropped without
+     being stored (cut off at its length limit, or its conversation capped before a repair), which
+     the next run asks again.
+   - The origin's prompt version is the role's. The injection screen's findings now take it from
+     the screen's role, which said "1" while the role was at "2". Investigate and Resolve keep
+     their prompt's base version: Investigate's three prompts share one origin, and the base
+     differs from the role's only while a prompt file is edited locally.
 2. **`basis`.** Investigate's verdicts, risks and connections and Resolve's links are `inferred`:
    each is the model's judgement of code and facts, not something people wrote. A finding of the
    injection screen is `evidenced`: it quotes the file.
@@ -42,8 +49,11 @@ short of it:
    Changing them to claim IDs would change the data model for every reader; the claim IDs are
    already recorded, so it is not done here.
 5. **The check.** `Project0EndToEndIT` checks every `llm` fact of a fake project-0 run: role and
-   prompt version, model, `answer` (stored in the cache, for the same model), `basis`, and a
-   lineage of stored claims.
+   prompt version, model, `answer` (stored in the cache, for the same model), `basis`, a lineage
+   of stored claims (or, for a fact that cites only code, its cited ranges or locations), and
+   that a resolved link's ranges lie in files its conversation read. It writes the roles and
+   predicates it checked to `target/project-0/llm-provenance-checked.txt`. The fake model picks
+   no link on project-0, so `ranges` is covered by `LinkResolverTest`.
 
 ## Consequences
 

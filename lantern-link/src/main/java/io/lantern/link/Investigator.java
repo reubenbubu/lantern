@@ -563,7 +563,7 @@ public final class Investigator {
     private void verdict(Lead lead, Outcome outcome) {
       Outcome.Kind kind = outcome == null ? Outcome.Kind.FAILED : outcome.kind();
       // The item's fingerprint: the key of the answer it comes from in the answer cache (#753).
-      String fp = outcome == null ? null : outcome.fingerprint();
+      String fp = outcome == null ? null : outcome.answerKey();
       switch (kind) {
         case CACHED, ANSWERED -> {
           if (outcome.answer() == null) {
@@ -590,8 +590,7 @@ public final class Investigator {
                 lead,
                 "not asked: "
                     + (outcome == null || outcome.reason() == null ? "failed" : outcome.reason()),
-                // No request was sent, so no answer was stored for it (ADR 0124).
-                null);
+                fp);
       }
     }
 
@@ -739,9 +738,9 @@ public final class Investigator {
           for (JsonNode proposal :
               FactJson.parse(outcome.answer()).path(InvestigatePrompt.PROPOSALS)) {
             if ("connection".equals(proposal.path("kind").asString(""))) {
-              connection(proposal, unit, mode, outcome.fingerprint());
+              connection(proposal, unit, mode, outcome.answerKey());
             } else {
-              risk(proposal, null, mode, unit, outcome.fingerprint());
+              risk(proposal, null, mode, unit, outcome.answerKey());
             }
           }
         }

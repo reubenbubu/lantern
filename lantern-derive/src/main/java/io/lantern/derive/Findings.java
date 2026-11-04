@@ -73,7 +73,11 @@ public final class Findings implements LinkRule.OverFacts {
   public static final String GROUP_MERGE = "group-merge";
 
   /** The origin of the injection screen's findings (ADR 0101). */
-  public static final Origin SCREEN_ORIGIN = new Origin(Origin.Kind.LLM, "injection-screen", "1");
+  public static final Origin SCREEN_ORIGIN =
+      new Origin(
+          Origin.Kind.LLM,
+          io.lantern.harness.checks.InjectionScreen.ROLE.name(),
+          io.lantern.harness.checks.InjectionScreen.ROLE.promptVersion());
 
   /** How an end-of-life finding's version is in use: see {@link #endOfLife}. */
   public static final String VIA_UNIT = "unit";

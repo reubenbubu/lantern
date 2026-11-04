@@ -535,7 +535,7 @@ public final class Describer {
           PurposeRole.Worded key = worded.get(PurposeRole.KEY_FACT);
           if (key != null) {}
           String model = purposeSession.model().provider() + "/" + purposeSession.model().model();
-          String fingerprint = outcome.fingerprint();
+          String fingerprint = outcome.answerKey();
           tally.flowFacts.add(snapshot -> PurposeRole.facts(worded, model, fingerprint, snapshot));
         });
     LOG.info(
@@ -661,7 +661,7 @@ public final class Describer {
       Set<String> said = new java.util.HashSet<>();
       for (DescribeRole.Worded text : worded) {
         said.add(text.field());
-        texts.add(new LlmText(role, model, outcome.fingerprint(), described, text));
+        texts.add(new LlmText(role, model, outcome.answerKey(), described, text));
         String markers = markers(text.cited());
         if (text.field().startsWith(DescribeRole.INTERACTIONS + ".")) {
           Fact interaction =
@@ -875,7 +875,7 @@ public final class Describer {
           }
           chosen.put(scope.key(), order);
           String stored = outcome.answer();
-          String fingerprint = outcome.fingerprint();
+          String fingerprint = outcome.answerKey();
           tally.flowFacts.add(
               snapshot ->
                   FlowJudgements.judged(
@@ -930,7 +930,7 @@ public final class Describer {
           }
           Scope scope = scopeOf.get(key);
           String stored = outcome.answer();
-          String fingerprint = outcome.fingerprint();
+          String fingerprint = outcome.answerKey();
           FlowJudgements.narrative(asked, stored, flow, narModel, fingerprint, scope.knowledge(), 0)
               .ifPresent(n -> tally.flows.put(key, n.flow()));
           tally.flowFacts.add(

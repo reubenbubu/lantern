@@ -253,8 +253,7 @@ public final class NameGroups {
         continue;
       }
       boolean hasName =
-          facts(
-              n, JSON.readTree(answer), model, outcome.fingerprint(), snapshot, written, findings);
+          facts(n, JSON.readTree(answer), model, outcome.answerKey(), snapshot, written, findings);
       if (!hasName) {
         unknown.add(n.group().id().toString());
       }

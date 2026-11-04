@@ -363,14 +363,16 @@ class Project0EndToEndIT {
   /**
    * What is missing from where the LLM facts say they came from (#753, ADR 0124): the role and its
    * prompt version, the model, the stored answer (a fingerprint the answer cache holds, of that
-   * role and model), whether it is evidenced or inferred, and the claims of the facts it cites. A
-   * link the LLM resolved also cites the code it read, where it read any. The facts that say a unit
-   * was not investigated come from no answer, as no request was made for them, and so do the leads
-   * not asked. The answer may be one the model left out or that was rejected: the cache holds those
-   * too.
+   * role and model), whether it is evidenced or inferred, and the claims of the facts it cites, or
+   * the code it cites when it cites no fact; a resolved link's cited ranges lie in files its
+   * conversation read. A link the LLM resolved also cites the code it read, where it read any. The
+   * facts that say a unit was not investigated come from no answer, as no request was made for
+   * them, and so do the leads not asked. The answer may be one the model left out or that was
+   * rejected: the cache holds those too.
    */
   private List<String> llmProvenanceProblems(List<Fact> held) {
     List<String> problems = new ArrayList<>();
+    Set<String> checkedKinds = new java.util.TreeSet<>();
     int checked = 0;
     for (Fact fact : held) {
       if (fact.origin().kind() != Origin.Kind.LLM
@@ -392,9 +394,13 @@ class Project0EndToEndIT {
       if (basis == null || !Set.of("evidenced", "inferred").contains(basis)) {
         problems.add(what + ": no basis");
       }
-      if (fact.lineage().isEmpty()) {
-        problems.add(what + ": cites no fact");
-      } else {
+      boolean citesCode =
+          fact.attributes().path("ranges").size() > 0
+              || fact.evidence().locations().stream()
+                  .anyMatch(l -> l.role() == io.lantern.core.fact.Evidence.Role.CITED);
+      if (fact.lineage().isEmpty() && !citesCode) {
+        problems.add(what + ": cites no fact and no code");
+      } else if (!fact.lineage().isEmpty()) {
         // The lineage names the cited facts by their claim IDs, which the store holds (ADR 0091).
         long claims =
             jdbc.sql("SELECT count(*) FROM claims WHERE id = ANY(string_to_array(?, ','))")
@@ -416,6 +422,23 @@ class Project0EndToEndIT {
               .param(answer)
               .query(String.class)
               .list();
+      // The code ranges a resolved link cites lie in files its conversation read.
+      for (var range : fact.attributes().path("ranges")) {
+        String[] at = range.asString().split(":");
+        long read =
+            jdbc.sql(
+                    "SELECT count(*) FROM llm_answers, jsonb_array_elements(files_read) f"
+                        + " WHERE fingerprint = ? AND f->>'repo' = ? AND f->>'path' = ?")
+                .param(answer)
+                .param(at[0])
+                .param(at.length > 1 ? at[1] : "")
+                .query(Long.class)
+                .single();
+        if (read == 0) {
+          problems.add(what + ": cites " + range.asString() + ", a file its answer did not read");
+        }
+      }
+      checkedKinds.add(fact.origin().name() + " " + fact.predicate());
       if (stored.isEmpty()) {
         problems.add(what + ": answer " + answer + " is not stored");
       } else if (model != null && !stored.getFirst().endsWith(" " + model)) {
@@ -423,6 +446,14 @@ class Project0EndToEndIT {
       }
     }
     assertThat(checked).as("LLM facts on project-0").isPositive();
+    // Which roles' facts the fake run stores, for the record (target/project-0).
+    try {
+      Files.createDirectories(OUT);
+      Files.writeString(
+          OUT.resolve("llm-provenance-checked.txt"), String.join("\n", checkedKinds) + "\n");
+    } catch (IOException e) {
+      throw new java.io.UncheckedIOException(e);
+    }
     return problems;
   }
 

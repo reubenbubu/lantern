@@ -1127,7 +1127,7 @@ public final class RoleSession {
     harness.rejected(
         new RejectedAnswer(spec.name(), item.subject(), 0, null, List.of(String.valueOf(reason))));
     if (!kept) {
-      return Outcome.of(Outcome.Kind.DROPPED, fingerprint, null, reason);
+      return Outcome.unstoredDrop(fingerprint, reason);
     }
     harness
         .answers()
