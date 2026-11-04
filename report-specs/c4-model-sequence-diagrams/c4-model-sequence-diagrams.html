@@ -4514,15 +4514,18 @@ function wrap(text, max, lines){
   return out;
 }
 
-/* Markdown-lite: **bold**, *italic*, `code` (kept literal), [links](url), paragraphs and "- " lists. */
+/* Markdown-lite: **bold**, *italic*, `code` (kept literal), [links](url), paragraphs and "- " lists;
+   a backslash before \\ * [ ] or ` shows that character as written. */
 function mdInline(s){
-  const spans = [];
-  return esc(s).replace(/\u0000/g, '')
-    .replace(/`([^`]+)`/g, (m, c) => '\u0000' + (spans.push(c) - 1) + '\u0000')
+  const spans = [], chars = [];
+  return esc(s).replace(/[\u0000\u0001]/g, '')
+    .replace(/\\([\\*\[\]`])/g, (m, c) => '\u0001' + (chars.push(c) - 1) + '\u0001')
+    .replace(/`([^`]+)`/g, (m, c) => '\u0000' + (spans.push(c.replace(/\u0001(\d+)\u0001/g, (n, i) => '\\' + chars[i])) - 1) + '\u0000')
     .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
     .replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => /^(https?:|#|mailto:)/.test(u) ? `<a href="${u}"${/^https?:/.test(u) ? ' target="_blank" rel="noopener"' : ''}>${t}</a>` : t)
-    .replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${spans[i]}</code>`);
+    .replace(/\u0000(\d+)\u0000/g, (m, i) => `<code>${spans[i]}</code>`)
+    .replace(/\u0001(\d+)\u0001/g, (m, i) => chars[i]);
 }
 function md(s){
   return String(s ?? '').trim().split(/\n\s*\n/).map(block => {
@@ -5782,7 +5785,7 @@ function columnSpec(c){
   col.cell = id => {
     const e = EL[id];
     if (k === 'name') return elCell(id);
-    if (k === 'description') return mdInline(e.desc);
+    if (k === 'description') return esc(e.desc);
     if (k === 'technology') return esc(e.tech);
     if (k === 'kind') return esc(KIND[e.kind].label);
     if (k === 'zoom'){ const lk = linkFor(id, null); return lk && lk.drill ? `<a class="drill" href="${lk.href}">${esc(lk.sub.split(' · ')[0])} diagram ${ICON.arrow}</a>` : ''; }

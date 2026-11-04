@@ -66,6 +66,22 @@ test('a code span inside link text and an unmatched backtick', () => {
   assert.equal(mdInline('a ` b **c**'), 'a ` b <b>c</b>');
 });
 
+test('a backslash shows link, emphasis and code syntax as written (#752)', () => {
+  // The body C4ReportRendererTest expects for a responsibility an LLM wrote.
+  const body =
+    'Serves \\[x\\](https://example.com) and \\*\\*bold\\*\\* *files* under' +
+    ' /files/\\*\\*; `/api/**`. See [the (notes)](#/context/context-text).';
+  const html = mdInline(body);
+  assert.equal(
+    html,
+    'Serves [x](https://example.com) and **bold** <em>files</em> under /files/**;' +
+      ' <code>/api/**</code>. See <a href="#/context/context-text">the (notes)</a>.',
+  );
+  assert.doesNotMatch(html, /<a href="https:|<b>|<strong>/);
+  assert.equal(mdInline('a \\\\ b \\` c'), 'a \\ b ` c');
+  assert.equal(mdInline('`a \\* b`'), '<code>a \\* b</code>');
+});
+
 // legendHTML draws the legend under each diagram; load it, with the element kinds, from the
 // template source.
 const legendHTML = new Function(

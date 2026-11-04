@@ -338,13 +338,13 @@
     "id" : "sequences-shop-app-jobs-run",
     "level" : "sequence",
     "title" : "Run (Jobs.run on its schedule in shop-app)",
-    "summary" : "Starts when the schedule 0 0 * * * * fires in shop-app, handled by Jobs.run. It reaches orders, shop on db and worker. It hands work on asynchronously through orders.",
+    "summary" : "Starts when the schedule 0 0 \\* \\* \\* \\* fires in shop-app, handled by Jobs.run. It reaches orders, shop on db and worker. It hands work on asynchronously through orders.",
     "sections" : [ {
       "type" : "table",
       "id" : "sequences-shop-app-jobs-run-trigger",
       "title" : "Overview",
       "columns" : [ "Trigger", "Pre-conditions", "Post-conditions" ],
-      "rows" : [ [ "The schedule 0 0 * * * * (Jobs.run)", "Not known from the code.", "Not known from the code." ] ]
+      "rows" : [ [ "The schedule 0 0 \\* \\* \\* \\* (Jobs.run)", "Not known from the code.", "Not known from the code." ] ]
     }, {
       "type" : "sequence",
       "id" : "sequences-shop-app-jobs-run-diagram",

@@ -396,6 +396,46 @@ class C4ReportRendererTest {
     assertThat(sections.get(3).get("title").asString()).isEqualTo("Notes");
   }
 
+  @Test
+  void escapesLinkAndEmphasisSyntaxInTextAndKeepsTheLinksItMakesFromFacts() {
+    EntityId system = EntityId.parse("repo:shop");
+    Paragraph responsibility =
+        new Paragraph(
+            "context.text",
+            List.of(
+                TextRun.of("Serves [x](https://example.com) and **bold** "),
+                new TextRun("files", TextRun.Style.EMPHASIS),
+                TextRun.of(" under /files/**; "),
+                new TextRun("/api/**", TextRun.Style.CODE),
+                TextRun.of(". See "),
+                new CrossReference(
+                    "the [notes]", CrossReference.Target.block("context.text"), false),
+                TextRun.of(".")),
+            List.of());
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Document document =
+        document(
+            List.of(entity(system)),
+            section("context", system, List.of(context, responsibility), List.of()));
+
+    JsonNode sections =
+        C4ReportRenderer.toJson(document).data().get("pages").get(0).get("sections");
+
+    // The template's Markdown-lite shows the escaped characters as written (report-spec-c4 test).
+    assertThat(sections.get(2).get("id").asString()).isEqualTo("context-text");
+    assertThat(sections.get(2).get("body").asString())
+        .isEqualTo(
+            "Serves \\[x\\](https://example.com) and \\*\\*bold\\*\\* *files* under"
+                + " /files/\\*\\*; `/api/**`. See [the (notes)](#/context/context-text).");
+  }
+
   private static Document document(List<DocumentEntity> entities, Section... sections) {
     return new Document(
         "shop.c4",

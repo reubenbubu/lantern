@@ -58,7 +58,8 @@ decided ID mapping is in a comment on #112.
 - **Left out because the spec has no place for it:** citations and fact links (the spec has no
   evidence links), the snapshot's commits, and Spring profiles except as a sentence in a message's
   walkthrough text. A message without a known sender or receiver becomes a note naming the unknown
-  end. Markdown-lite has no escape, so a `*` or backtick in text may show as formatting.
+  end. Markdown-lite had no escape, so a `*` or backtick in text could show as formatting; the
+  amendment for #752 adds one.
 - **Document fields**: the title, the document ID as its reference and the snapshot number as its
   version. Status, owner, classification and revision history wait for annotations and snapshot
   history (Phase 3); a date waits until documents record one, since the model has no generation
@@ -74,3 +75,17 @@ The index's introduction is no longer all content on no page. It holds the first
 paragraphs and callouts (the system's purpose and key fact), then the reader and pinned commits
 (ADR 0063); the first section's lists are left out, and a later section's blocks on no page go to
 a page. The rules are in ADR 0048, amendment for #681.
+
+## Amendment (#752): text shows as written
+
+Any URL or emphasis an LLM writes must show as plain text (knowledge-build epic, section 10,
+Security; `docs/design.md`, Security). The renderer now escapes, with a backslash, every `\`, `*`,
+`[`, `]` and backtick in the text runs it writes into the spec's Markdown-lite fields, whatever
+their origin, so a link or bold a model wrote (or copied from a README) and a path such as
+`/files/**` show the characters as written. Only what the renderer itself formats stays
+formatting: emphasis and code runs of the document model, and the links it makes from
+cross-references to facts and pages. The template's `mdInline` reads a backslash before one of
+those five characters as that character, and the element description column, which is never
+formatted, is escaped as HTML only. The Form check is unchanged. Tests:
+`C4ReportRendererTest.escapesLinkAndEmphasisSyntaxInTextAndKeepsTheLinksItMakesFromFacts` and the
+template's test in `lantern-web/test/report-spec-c4.test.mjs`.

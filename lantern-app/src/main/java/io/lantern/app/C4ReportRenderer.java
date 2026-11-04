@@ -1111,7 +1111,7 @@ public final class C4ReportRenderer {
 
     private static String run(TextRun run) {
       if (run.style() == null) {
-        return run.text();
+        return literal(run.text());
       }
       String mark =
           switch (run.style()) {
@@ -1120,10 +1120,32 @@ public final class C4ReportRenderer {
             case CODE -> "`";
           };
       String text = run.text();
+      if (run.style() != TextRun.Style.CODE) {
+        text = literal(text);
+      }
       if (text.isBlank() || text.contains(mark.substring(0, 1)) || !text.strip().equals(text)) {
         return text;
       }
       return mark + text + mark;
+    }
+
+    /**
+     * A text as the spec's Markdown-lite shows it as written: its link, emphasis and code syntax
+     * escaped with a backslash, so a link or bold an LLM wrote (or a path such as {@code
+     * /files/**}) renders as plain text (knowledge-build epic, section 10, Security; #752). Links
+     * the renderer makes itself, from cross-references to facts, are written after it and stay
+     * links.
+     */
+    static String literal(String text) {
+      StringBuilder out = new StringBuilder(text.length());
+      for (int i = 0; i < text.length(); i++) {
+        char c = text.charAt(i);
+        if (c == '\\' || c == '*' || c == '[' || c == ']' || c == '`') {
+          out.append('\\');
+        }
+        out.append(c);
+      }
+      return out.toString();
     }
 
     /** A link to where a cross-reference's target went, or the plain text if it is on no page. */
@@ -1142,8 +1164,8 @@ public final class C4ReportRenderer {
               yield page == null ? null : "#/" + page;
             }
           };
-      String label = text.replace('[', '(').replace(']', ')');
-      return href == null ? text : "[" + label + "](" + href + ")";
+      String label = literal(text.replace('[', '(').replace(']', ')'));
+      return href == null ? literal(text) : "[" + label + "](" + href + ")";
     }
 
     private static String href(Location location) {
