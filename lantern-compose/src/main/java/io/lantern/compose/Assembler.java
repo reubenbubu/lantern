@@ -327,7 +327,7 @@ final class Assembler {
   }
 
   private Text purpose(Text text) {
-    return unsupported(RepoSections.SYSTEM, evidenced(text, false) ? text : inferred(text));
+    return unsupported(RepoSections.SYSTEM, evidenced(RepoSections.SYSTEM) ? text : inferred(text));
   }
 
   /**
@@ -336,7 +336,7 @@ final class Assembler {
    */
   private Text responsibility(EntityId about, String sentence) {
     Text text = rich(about, sentence);
-    return unsupported(about, evidenced(text, true) ? text : opened(INFERRED_SENTENCE, text));
+    return unsupported(about, evidenced(about) ? text : opened(INFERRED_SENTENCE, text));
   }
 
   /**
@@ -350,18 +350,12 @@ final class Assembler {
   }
 
   /**
-   * Whether the text cites what people wrote (ADR 0059, ADR 0060): a README claim or, when {@code
-   * code}, the fact above code with Javadoc that a unit's prompt showed (ADR 0069). The prompt
-   * about the system's purpose shows the facts its units' sentences cite without their code.
+   * Whether the stored sentence about the element rests on what people wrote (ADR 0059, ADR 0060,
+   * ADR 0069), as the role that wrote it stored it in its {@code basis}; read, not derived again
+   * from the citations that are in the snapshot (#767).
    */
-  private boolean evidenced(Text text, boolean code) {
-    return text.facts().stream()
-        .map(model::fact)
-        .anyMatch(
-            f ->
-                f != null
-                    && (ArchitectureModel.isClaim(f)
-                        || code && model.documented().contains(f.id())));
+  private boolean evidenced(EntityId about) {
+    return sentence(about).map(ArchitectureModel.Text::evidenced).orElse(false);
   }
 
   /** The text opened with {@value #INFERRED}, emphasized. */
@@ -593,7 +587,11 @@ final class Assembler {
       DocumentEntity entity = entities.get(undescribed.removeFirst());
       String responsibility = responsibility(entity.id());
       List<Inline> description =
-          entity.id().type().equals(Types.PERSON) && personBasis(entity.id()) != null
+          // A person is described by Describe's sentence where it wrote one, else by the
+          // linker's own note (#767).
+          entity.id().type().equals(Types.PERSON)
+                  && personBasis(entity.id()) != null
+                  && responsibility == null
               ? person(entity.id()).content()
               : entity.id().type().equals(Types.FRONTEND) && responsibility == null
                   ? frontend(entity.id()).content()

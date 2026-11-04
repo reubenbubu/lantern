@@ -75,7 +75,7 @@ class DescriberTest {
   private static final EntityId LIST = EntityId.parse("method:com.example.web.Controller#list()");
   private static final EntityId RUN = EntityId.parse("method:com.example.web.Jobs#run()");
   private static final String LIST_FLOW = "GET /orders on shop-app";
-  private static final String RUN_FLOW = "Jobs.run on its schedule in shop-app";
+  private static final String RUN_FLOW = "The schedule 0 0 * * * * in shop-app";
 
   private final TestFacts facts = TestFacts.runtime();
   private final InMemoryAnswerStore store = new InMemoryAnswerStore();
@@ -761,11 +761,25 @@ class DescriberTest {
   }
 
   private static Section flowSection(Document document, String title) {
-    // A flow's title names its scenario, then its trigger in brackets.
+    // A flow's title is its scenario; its Overview table names its trigger (#767).
     return all(document.sections())
-        .filter(s -> s.title().equals(title) || s.title().endsWith(" (" + title + ")"))
+        .filter(s -> s.title().equals(title) || trigger(s).equals(title))
         .findFirst()
         .orElseThrow();
+  }
+
+  /** The trigger a flow's Overview table names, without its handler; empty for another section. */
+  private static String trigger(Section section) {
+    String trigger =
+        section.blocks().stream()
+            .filter(Table.class::isInstance)
+            .map(Table.class::cast)
+            .filter(t -> "Overview".equals(t.title()) && !t.rows().isEmpty())
+            .map(t -> text(t.rows().getFirst().cells().getFirst()))
+            .findFirst()
+            .orElse("");
+    int open = trigger.lastIndexOf(" (");
+    return open < 0 || !trigger.endsWith(")") ? trigger : trigger.substring(0, open);
   }
 
   private static Table.Row overview(Section flow) {
@@ -839,8 +853,8 @@ class DescriberTest {
     Document document = system(describe(new FakeLlmProvider().answering(DescriberTest::answer)));
 
     Section flow = flowSection(document, LIST_FLOW);
-    // The model's title names the scenario, before the trigger (ADR 0047, amendment for #272).
-    assertThat(flow.title()).isEqualTo("Shop lists its orders (" + LIST_FLOW + ")");
+    // The model's title is the page's title; the trigger is in its Overview table (ADR 0122).
+    assertThat(flow.title()).isEqualTo("Shop lists its orders");
     Paragraph prose = (Paragraph) flow.blocks().getFirst();
     String endpoint = facts.find(LIST.toString(), "endpoint").id();
     String send = facts.find(APP.toString(), "PUBLISHES").id();
@@ -879,7 +893,8 @@ class DescriberTest {
                 ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
                 SNAPSHOT,
                 TestTexts.with(repoFacts, both));
-    assertThat(all(repo.sections())).noneMatch(s -> s.title().endsWith(" (" + LIST_FLOW + ")"));
+    assertThat(all(repo.sections()))
+        .noneMatch(s -> s.title().equals("Shop lists its orders") || trigger(s).equals(LIST_FLOW));
     assertThat(fake.sent())
         .extracting(s -> s.request().messages().getFirst().text())
         .noneMatch(p -> p.contains("No listener for it was found"));
@@ -1083,6 +1098,57 @@ class DescriberTest {
         .isEqualTo(Assembler.INFERRED_SENTENCE + " Processes new orders.");
     assertThat(text(description.apply(DATABASE)))
         .isEqualTo(Assembler.INFERRED_SENTENCE + " Keeps the shop's orders and their lines.");
+  }
+
+  @Test
+  void whetherASentenceIsInferredIsTheBasisItsRoleStoredNotItsCitations() {
+    // The role stored "inferred" for a sentence citing a README claim, and "evidenced" for one
+    // citing only code: the document shows what was stored (#767).
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    Fact claim =
+        withClaim.stream().filter(f -> f.predicate().equals("claim")).findFirst().orElseThrow();
+    List<Fact> all = new ArrayList<>(withClaim);
+    all.add(
+        io.lantern.harness.LlmFacts.text(
+            DescribeRole.UNITS,
+            "test/test",
+            APP,
+            io.lantern.core.types.Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            "Takes the shop's orders.",
+            List.of(claim),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+    all.add(
+        io.lantern.harness.LlmFacts.text(
+            DescribeRole.UNITS,
+            "test/test",
+            WORKER,
+            io.lantern.core.types.Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            "Processes new orders.",
+            List.of(facts.find(WORKER.toString(), "deployable-unit")),
+            io.lantern.harness.LlmFacts.Basis.EVIDENCED,
+            1));
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                io.lantern.derive.Derivation.withModel(all, 1));
+
+    Function<EntityId, String> description =
+        id ->
+            text(document.entities().stream()
+                    .filter(e -> e.id().equals(id))
+                    .findFirst()
+                    .orElseThrow()
+                    .description())
+                .strip();
+    assertThat(description.apply(APP))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Takes the shop's orders.");
+    assertThat(description.apply(WORKER)).isEqualTo("Processes new orders.");
   }
 
   @Test
@@ -1918,7 +1984,7 @@ class DescriberTest {
     Document document = system(result);
     assertThat(sequences(document).sections())
         .extracting(Section::title)
-        .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
+        .containsExactly("Shop lists its orders");
     assertThat(callouts(sequences(document))).isEmpty();
     // Each judgement is a claim: the flow's scope, whether it is significant, its rank and reason.
     List<Fact> judged =
@@ -1996,7 +2062,7 @@ class DescriberTest {
         .contains("The order must hold exactly the flows marked significant; it holds W2, W1.");
     assertThat(sequences(system(result)).sections())
         .extracting(Section::title)
-        .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
+        .containsExactly("Shop lists its orders");
   }
 
   @Test
@@ -2022,7 +2088,7 @@ class DescriberTest {
                     .contains("<rejection item=\"I1\" field=\"flows.W1.reason\">"));
     assertThat(sequences(system(result)).sections())
         .extracting(Section::title)
-        .containsExactly("Shop lists its orders (" + RUN_FLOW + ")");
+        .containsExactly("Shop lists its orders");
     // The flow whose reason was left out is still judged, without a reason.
     assertThat(result.facts(2).get(io.lantern.harness.LlmFacts.origin(FlowJudgements.SIGNIFICANCE)))
         .filteredOn(f -> f.object().value().equals("system"))

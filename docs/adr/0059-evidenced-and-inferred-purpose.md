@@ -58,3 +58,8 @@ evidenced or inferred, and for documents to show inferred ones as such.
 How often real models mark a purpose evidenced, and whether they take it from the README when
 there is one, needs real calls, which tests do not make. The fixture projects have no README, so
 their documents show every summary as inferred.
+
+## Amendment (#767): the stored basis decides
+
+Documents read whether a text is evidenced or inferred from the `basis` its role stored, no longer
+from its citations (ADR 0122).

@@ -1087,52 +1087,6 @@
         "text" : "The system's purpose is not known."
       } ],
       "facts" : [ ]
-    }, {
-      "kind" : "list",
-      "id" : "overview.repositories",
-      "ordered" : false,
-      "items" : [ {
-        "content" : [ {
-          "kind" : "ref",
-          "text" : "base",
-          "target" : {
-            "kind" : "entity",
-            "id" : "repo:base"
-          }
-        }, {
-          "kind" : "text",
-          "text" : ": runs "
-        }, {
-          "kind" : "ref",
-          "text" : "worker",
-          "target" : {
-            "kind" : "entity",
-            "id" : "service:com.example:worker"
-          }
-        } ],
-        "facts" : [ "14b57f614700605dbc03ec55d088d210571daf29a7f3795edf18828e86817cf5" ]
-      }, {
-        "content" : [ {
-          "kind" : "ref",
-          "text" : "shop",
-          "target" : {
-            "kind" : "entity",
-            "id" : "repo:shop"
-          }
-        }, {
-          "kind" : "text",
-          "text" : ": runs "
-        }, {
-          "kind" : "ref",
-          "text" : "shop-app",
-          "target" : {
-            "kind" : "entity",
-            "id" : "service:com.example:app"
-          }
-        } ],
-        "facts" : [ "b0eb5400d240445c0940cf27c4580af2d3f2a8891341164f1cc0a3a8c9bc9f7b" ]
-      } ],
-      "facts" : [ ]
     } ],
     "sections" : [ ]
   }, {
@@ -1417,7 +1371,7 @@
     } ],
     "sections" : [ {
       "id" : "sequences.shop-app.Controller.list",
-      "title" : "List (GET /orders on shop-app)",
+      "title" : "List",
       "levels" : [ "L1", "L2" ],
       "facts" : [ ],
       "blocks" : [ {
@@ -1442,7 +1396,7 @@
         "rows" : [ {
           "cells" : [ [ {
             "kind" : "text",
-            "text" : "GET /orders (Controller.list)"
+            "text" : "GET /orders on shop-app (Controller.list)"
           } ], [ {
             "kind" : "text",
             "text" : "Not known from the code."
@@ -1457,7 +1411,7 @@
         "kind" : "diagram",
         "id" : "sequences.shop-app.Controller.list.diagram",
         "diagramKind" : "sequence",
-        "title" : "List (GET /orders on shop-app)",
+        "title" : "List",
         "participants" : [ {
           "id" : "service:com.example:app",
           "technology" : "Spring Boot 3.5.0 / Java 21",
@@ -1547,7 +1501,7 @@
       "sections" : [ ]
     }, {
       "id" : "sequences.shop-app.Jobs.run",
-      "title" : "Run (Jobs.run on its schedule in shop-app)",
+      "title" : "Run",
       "levels" : [ "L1", "L2" ],
       "facts" : [ ],
       "blocks" : [ {
@@ -1572,7 +1526,7 @@
         "rows" : [ {
           "cells" : [ [ {
             "kind" : "text",
-            "text" : "The schedule 0 0 * * * * (Jobs.run)"
+            "text" : "The schedule 0 0 * * * * in shop-app (Jobs.run)"
           } ], [ {
             "kind" : "text",
             "text" : "Not known from the code."
@@ -1587,7 +1541,7 @@
         "kind" : "diagram",
         "id" : "sequences.shop-app.Jobs.run.diagram",
         "diagramKind" : "sequence",
-        "title" : "Run (Jobs.run on its schedule in shop-app)",
+        "title" : "Run",
         "participants" : [ {
           "id" : "service:com.example:app",
           "technology" : "Spring Boot 3.5.0 / Java 21",

@@ -96,3 +96,8 @@ shows: one short paragraph under the title, the system's purpose and key fact (A
 - **A later section that is no page itself** (such as the note above the main flows that says they
   were chosen by rank) puts its blocks, under its title, after the summary of the first page among
   its subsections, or else at the end of the first page, instead of in the introduction.
+
+## Amendment (#767): no repository list in the overview
+
+The system's overview section no longer lists its repositories: the C4 report showed only its
+paragraphs and callouts, and names each repository with its commit under its title (ADR 0122).

@@ -145,7 +145,11 @@ public final class ScopeFlows {
       EntityId via,
       Fact route) {}
 
-  /** A flow's title, its trigger as the overview names it, and the clause saying what starts it. */
+  /**
+   * What starts a flow: the trigger and where, once a flow page's title (now its scenario alone,
+   * #767); the trigger as the overview names it, with where it runs and its handler; and the clause
+   * saying what starts it.
+   */
   public record Heading(String title, String trigger, String starts) {}
 
   // Steps.
@@ -1129,7 +1133,14 @@ public final class ScopeFlows {
       String gateway = nameOf(trace.gateway.gateway());
       return new Heading(
           request + " on " + gateway,
-          request + " to " + gateway + " (" + methodName(entry.method) + ")",
+          request
+              + " to "
+              + gateway
+              + ", routed to "
+              + nameOf(entry.unit)
+              + " ("
+              + methodName(entry.method)
+              + ")",
           gateway + " receives " + request + " and routes it to " + nameOf(entry.unit));
     }
     if (start == null) {
@@ -1159,7 +1170,14 @@ public final class ScopeFlows {
     }
     return new Heading(
         heading.title(),
-        request + " from " + nameOf(start.frontend) + " (" + methodName(entry.method) + ")",
+        request
+            + " from "
+            + nameOf(start.frontend)
+            + " to "
+            + nameOf(entry.unit)
+            + " ("
+            + methodName(entry.method)
+            + ")",
         starts.toString());
   }
 
@@ -1170,19 +1188,19 @@ public final class ScopeFlows {
       case Types.ENDPOINT ->
           new Heading(
               value + " on " + nameOf(entry.unit),
-              value + " (" + handler + ")",
+              value + " on " + nameOf(entry.unit) + " (" + handler + ")",
               nameOf(entry.unit) + " receives " + value);
       case Types.MESSAGE_LISTENER ->
           new Heading(
               "Message on " + value + " to " + nameOf(entry.unit),
-              "A message on " + value + " (" + handler + ")",
+              "A message on " + value + " to " + nameOf(entry.unit) + " (" + handler + ")",
               "a message arrives on " + value + " for " + nameOf(entry.unit));
       case Types.STOMP_MAPPING -> {
         boolean subscribe = "subscribe".equals(attribute(entry.fact, "kind"));
         String what = subscribe ? "STOMP subscription to " : "STOMP message to ";
         yield new Heading(
             what + value + " on " + nameOf(entry.unit),
-            "A " + what + value + " (" + handler + ")",
+            "A " + what + value + " on " + nameOf(entry.unit) + " (" + handler + ")",
             subscribe
                 ? "a client subscribes to " + value + " on " + nameOf(entry.unit)
                 : "a client sends a STOMP message to " + value + " on " + nameOf(entry.unit));
@@ -1190,7 +1208,13 @@ public final class ScopeFlows {
       case Types.WEBSOCKET_ENDPOINT ->
           new Heading(
               "WebSocket connection to " + value + " on " + nameOf(entry.unit),
-              "A WebSocket connection to " + value + " (" + handler + ")",
+              "A WebSocket connection to "
+                  + value
+                  + " on "
+                  + nameOf(entry.unit)
+                  + " ("
+                  + handler
+                  + ")",
               "a client connects to " + value + " on " + nameOf(entry.unit));
       default -> {
         String kind = attribute(entry.fact, "trigger");
@@ -1206,12 +1230,12 @@ public final class ScopeFlows {
           String named = timed ? job + " on the schedule " + schedule : job + " " + value;
           yield new Heading(
               handler + " on its schedule in " + nameOf(entry.unit),
-              "The " + named + " (" + handler + ")",
+              "The " + named + " in " + nameOf(entry.unit) + " (" + handler + ")",
               "the " + named + " runs in " + nameOf(entry.unit));
         }
         yield new Heading(
             handler + " on its schedule in " + nameOf(entry.unit),
-            "The schedule " + schedule + " (" + handler + ")",
+            "The schedule " + schedule + " in " + nameOf(entry.unit) + " (" + handler + ")",
             "the schedule " + schedule + " fires in " + nameOf(entry.unit));
       }
     };

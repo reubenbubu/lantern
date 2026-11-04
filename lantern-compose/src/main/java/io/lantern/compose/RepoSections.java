@@ -344,43 +344,12 @@ final class RepoSections {
   }
 
   /**
-   * The system's purpose (ADR 0060) and key fact (ADR 0109), then its repositories, each with the
-   * deployable units whose own code it holds.
+   * The system's purpose (ADR 0060) and key fact (ADR 0109). Its repositories are not listed here:
+   * the C4 report shows only this section's text under its title, and names each repository with
+   * its pinned commit there (ADR 0048, amendments for #681 and #767).
    */
   private void systemOverview(String section, List<Block> blocks) {
     blocks.addAll(purpose(section));
-    List<ListBlock.Item> items = new ArrayList<>();
-    for (String name : repos) {
-      EntityId id = Assembler.repo(name);
-      List<Inline> content = new ArrayList<>();
-      content.add(new CrossReference(name, CrossReference.Target.entity(id)));
-      List<EntityId> units = new ArrayList<>();
-      List<Fact> facts = new ArrayList<>();
-      for (EntityId unit : Elements.units(model)) {
-        for (EntityId module : model.parts(unit, Types.MODULE)) {
-          if (model.repos(module).contains(name) && !units.contains(unit)) {
-            units.add(unit);
-            facts.addAll(model.containsFacts(unit, module));
-          }
-        }
-      }
-      if (units.isEmpty()) {
-        content.add(TextRun.of(": no deployable unit"));
-      } else {
-        content.add(TextRun.of(": runs "));
-        for (int i = 0; i < units.size(); i++) {
-          if (i > 0) {
-            content.add(TextRun.of(i == units.size() - 1 ? " and " : ", "));
-          }
-          EntityId unit = units.get(i);
-          content.add(new CrossReference(assembler.name(unit), CrossReference.Target.entity(unit)));
-        }
-      }
-      items.add(new ListBlock.Item(content, assembler.facts(facts)));
-    }
-    if (!items.isEmpty()) {
-      blocks.add(new ListBlock(assembler.id(section, "repositories"), false, items, List.of()));
-    }
   }
 
   /**

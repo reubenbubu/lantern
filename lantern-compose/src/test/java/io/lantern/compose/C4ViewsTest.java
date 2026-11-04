@@ -9,7 +9,6 @@ import io.lantern.core.document.Diagram;
 import io.lantern.core.document.Document;
 import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
-import io.lantern.core.document.ListBlock;
 import io.lantern.core.document.Metrics;
 import io.lantern.core.document.QualityReport;
 import io.lantern.core.document.Section;
@@ -37,6 +36,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
@@ -260,6 +260,53 @@ class C4ViewsTest {
   }
 
   @Test
+  void aPersonDescribeWroteASentenceForShowsItAndNotTheLinkersNote() {
+    TestFacts withPerson = TestFacts.runtime();
+    withPerson.attribute(
+        "shop",
+        "type:com.example.InviteController",
+        "person-evidence",
+        "role",
+        "{\"name\":\"INVITED\",\"type\":\"com.example.InviteController\"}");
+    Fact evidence = withPerson.find("type:com.example.InviteController", "person-evidence");
+    withPerson.attribute(
+        "shop",
+        "person:invited-user",
+        "person-basis",
+        "role",
+        "{\"basis\":\"role\",\"description\":\"The code has invitations.\",\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"]}");
+    withPerson.attribute("shop", "person:invited-user", "display-name", "Invited user");
+    EntityId person = EntityId.parse("person:invited-user");
+    List<Fact> all =
+        TestTexts.with(
+            withPerson.list(),
+            new TestTexts.Written(
+                Map.of(person, "Accepts an invitation to join. [fact:" + evidence.id() + "]"),
+                Map.of()));
+
+    Function<List<Fact>, String> described =
+        facts ->
+            repo(facts).entities().stream()
+                .filter(e -> e.id().equals(person))
+                .findFirst()
+                .orElseThrow()
+                .description()
+                .stream()
+                .map(i -> i instanceof TextRun run ? run.text() : "")
+                .collect(java.util.stream.Collectors.joining())
+                .strip();
+
+    // Describe's sentence, not the linker's own note (#767).
+    assertThat(described.apply(all))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Accepts an invitation to join.");
+    // Without one, the linker's note.
+    assertThat(described.apply(withPerson.list()))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " The code has invitations.");
+  }
+
+  @Test
   void aFrontendIsAContainerWithItsTechnologyItsCallsAndThePeopleWithScreensInIt() {
     TestFacts withFrontend = TestFacts.runtime();
     withFrontend.attribute(
@@ -353,14 +400,9 @@ class C4ViewsTest {
 
     assertThat(edges(diagram))
         .contains("topic:kafka:orders -> service:com.example:worker: Delivers messages [Kafka]");
-    // The system's purpose, unknown without the LLM's wording (ADR 0060), then its repositories.
-    assertThat(section(document, "overview").blocks()).hasSize(2);
-    assertThat(section(document, "overview").blocks().getLast())
-        .satisfies(
-            b ->
-                assertThat(((ListBlock) b).items())
-                    .extracting(i -> text(i.content()))
-                    .containsExactly(": runs ", ": runs "));
+    // The system's purpose, unknown without the LLM's wording (ADR 0060); its repositories are
+    // named with their commits under the report's title, not listed here (#767).
+    assertThat(section(document, "overview").blocks()).hasSize(1);
     assertThat(section(document, "overview").entity()).isEqualTo(RepoSections.SYSTEM);
   }
 

@@ -209,8 +209,9 @@ final class SequenceFlows {
               List.of()));
     }
     List<Section> result = new ArrayList<>();
+    Set<String> titles = new HashSet<>();
     for (ScopeFlows.Trace trace : kept) {
-      result.add(flowSection(section, trace));
+      result.add(flowSection(section, trace, titles));
     }
     return result;
   }
@@ -238,7 +239,12 @@ final class SequenceFlows {
     return FlowModel.content(model, flow).orElse(null);
   }
 
-  private Section flowSection(String section, ScopeFlows.Trace trace) {
+  /**
+   * A flow's page. Its title is the scenario alone; the request, message or schedule that starts it
+   * is the trigger in its Overview table (#767). A title another flow of the scope already has gets
+   * its unit's name, then its handler's, so each page's title is its own.
+   */
+  private Section flowSection(String section, ScopeFlows.Trace trace, Set<String> titles) {
     ScopeFlows.Entry entry = trace.entry();
     String handler = ScopeFlows.methodName(entry.method());
     String id = assembler.id(section, nameOf(entry.unit()) + "." + handler);
@@ -250,7 +256,18 @@ final class SequenceFlows {
     Assembler.FlowWording worded = assembler.flow(flow, content(flow));
     String scenario =
         worded == null || worded.title() == null ? ScopeFlows.scenario(entry) : worded.title();
-    String title = scenario + " (" + heading.title() + ")";
+    String title = scenario;
+    if (!titles.add(title)) {
+      title = scenario + " (" + nameOf(entry.unit()) + ")";
+      if (!titles.add(title)) {
+        title = scenario + " (" + nameOf(entry.unit()) + ", " + handler + ")";
+        // One handler can start two flows of a unit (two paths, or a gateway route to it too).
+        String base = title;
+        for (int n = 2; !titles.add(title); n++) {
+          title = base + " " + n;
+        }
+      }
+    }
     Assembler.Text walkthrough =
         worded == null ? null : assembler.worded(entry.method(), worded.walkthrough());
     Assembler.Text preconditions =
