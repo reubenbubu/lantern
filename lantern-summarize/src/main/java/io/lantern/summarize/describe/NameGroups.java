@@ -6,14 +6,12 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.derive.ComponentInteractions;
-import io.lantern.derive.Components;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Findings;
 import io.lantern.derive.Groups;
 import io.lantern.derive.Knowledge;
-import io.lantern.core.types.Types;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;
@@ -206,9 +204,9 @@ public final class NameGroups {
       if (fact.origin().kind() != Origin.Kind.LLM) {
         continue;
       }
-      if (fact.predicate().equals(LlmFacts.RESPONSIBILITY)) {
+      if (fact.predicate().equals(Types.RESPONSIBILITY)) {
         responsibilities.putIfAbsent(fact.subject(), fact);
-      } else if (fact.predicate().equals(LlmFacts.INTENT)) {
+      } else if (fact.predicate().equals(Types.INTENT)) {
         intents.putIfAbsent(fact.object().value().toString(), fact);
       }
     }
@@ -303,16 +301,14 @@ public final class NameGroups {
     if (kind.equals(Groups.FEATURE_AREA)) {
       Set<EntityId> unitComponents = new TreeSet<>(Knowledge.BY_ID);
       String unit = groups.getFirst().scope();
-      for (Fact partOf : knowledge.withPredicate(Components.PART_OF)) {
+      for (Fact partOf : knowledge.withPredicate(Types.PART_OF)) {
         if (Knowledge.isEntity(partOf) && Knowledge.object(partOf).toString().equals(unit)) {
           unitComponents.add(partOf.subject());
         }
       }
       groups.forEach(g -> unitComponents.addAll(g.members()));
       for (EntityId component : unitComponents) {
-        for (Fact line :
-            FactLines.sorted(
-                knowledge.relations(component, ComponentInteractions.COMPONENT_LINK))) {
+        for (Fact line : FactLines.sorted(knowledge.relations(component, Types.COMPONENT_LINK))) {
           if ("code-end".equals(Elements.attribute(line, "kind", ""))) {
             continue;
           }
@@ -358,9 +354,9 @@ public final class NameGroups {
     text.append("Group ").append(group.id()).append(", ").append(kindWords).append('\n');
     List<Fact> own = new ArrayList<>();
     knowledge.about(group.id()).stream()
-        .filter(f -> f.predicate().equals(Groups.GROUP_OF))
+        .filter(f -> f.predicate().equals(Types.GROUP_OF))
         .forEach(own::add);
-    own.addAll(knowledge.relations(group.id(), Groups.GROUPS));
+    own.addAll(knowledge.relations(group.id(), Types.GROUPS));
     text.append("Why its members belong together (its basis) and how each joined:\n");
     facts(text, refs, inputs, own);
     text.append("Members:\n");
@@ -469,12 +465,10 @@ public final class NameGroups {
    * it, the gateway's routes by what they are; anything else as the assembler names it.
    */
   static String name(Knowledge knowledge, ElementNames assembler, EntityId element) {
-    if (element.type().equals(io.lantern.core.vocabulary.BuiltInTypes.COMPONENT)) {
-      for (Fact anchor : knowledge.relations(element, Components.ANCHORED_ON)) {
+    if (element.type().equals(Types.COMPONENT)) {
+      for (Fact anchor : knowledge.relations(element, Types.ANCHORED_ON)) {
         EntityId main = Knowledge.object(anchor);
-        return main.type().equals(io.lantern.core.vocabulary.BuiltInTypes.MODULE)
-            ? Elements.CONFIG_ROUTES
-            : assembler.name(main);
+        return main.type().equals(Types.MODULE) ? Elements.CONFIG_ROUTES : assembler.name(main);
       }
     }
     return assembler.name(element);
@@ -525,7 +519,7 @@ public final class NameGroups {
                 ROLE,
                 model,
                 group,
-                field.equals(NAME) ? LlmFacts.DISPLAY_NAME : LlmFacts.RESPONSIBILITY,
+                field.equals(NAME) ? Types.DISPLAY_NAME : Types.RESPONSIBILITY,
                 LlmFacts.C4,
                 text.get().text(),
                 text.get().facts(),
@@ -544,7 +538,7 @@ public final class NameGroups {
                           ROLE,
                           model,
                           group,
-                          LlmFacts.INTENT,
+                          Types.INTENT,
                           line.getValue().key(),
                           t.text(),
                           t.facts(),
@@ -607,7 +601,7 @@ public final class NameGroups {
     Fact fact =
         Fact.create(
             Findings.id(GROUP_MERGE, pair.get(0) + "/" + pair.get(1)),
-            Findings.RAISED,
+            Types.FINDING_RAISED,
             FactObject.string(GROUP_MERGE),
             attributes,
             LlmFacts.origin(ROLE),

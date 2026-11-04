@@ -30,9 +30,6 @@ public record HandledByAttributes(
     String httpMethod,
     String path) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "HANDLED_BY";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("annotation", "basePath", "configModule", "configRepo", "controller", "framework", "httpMethod", "path");
 

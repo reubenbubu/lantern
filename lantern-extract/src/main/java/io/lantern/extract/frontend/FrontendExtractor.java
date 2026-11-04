@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -55,41 +56,11 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class FrontendExtractor implements Extractor {
 
-  /** The extractor's name, recorded as the origin of its facts. */
-  public static final String NAME = "frontend";
-
   /** The extractor's version; change it whenever the facts it produces change. */
   public static final String VERSION = "4";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "frontend-extractor";
-
-  /** Entity: a frontend, a single-page app. */
-  public static final String FRONTEND = "frontend";
-
-  /** Attribute: the subject is a frontend; the value is its framework. */
-  public static final String APP = "frontend-app";
-
-  /** Attribute: a URL the frontend's code calls from the browser. */
-  public static final String CALL = "frontend-call";
-
-  /** Attribute: a path prefix the frontend's server passes on to another server. */
-  public static final String PROXY = "frontend-proxy";
-
-  /**
-   * Attribute: a value a call's URL is built from, a constant or field of its file or an entry of
-   * an environment file, at the line that declares it.
-   */
-  public static final String URL = "frontend-url";
-
-  /** Attribute: how the frontend signs its requests or guards its pages. */
-  public static final String AUTH = "frontend-auth";
-
-  /** Attribute: an Angular page (component) or service of the frontend. */
-  public static final String COMPONENT = "frontend-component";
-
-  /** Attribute: an absolute URL the frontend's templates or styles load. */
-  public static final String RESOURCE_URL = "frontend-resource";
 
   /** The protocols of calls, as their {@code protocol}. */
   public static final String HTTP = "HTTP";
@@ -103,7 +74,7 @@ public final class FrontendExtractor implements Extractor {
 
   private static final String RESOURCE = "/vocabulary/frontend-types.json";
 
-  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
+  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, Types.FRONTEND, VERSION);
 
   private static final long MAX_BYTES = 2L * 1024 * 1024;
 
@@ -585,7 +556,8 @@ public final class FrontendExtractor implements Extractor {
                   ? repo.repo().name()
                   : directory.substring(directory.lastIndexOf('/') + 1);
       EntityId subject =
-          new EntityId(FRONTEND, repo.repo().name() + (directory.isEmpty() ? "" : "/" + directory));
+          new EntityId(
+              Types.FRONTEND, repo.repo().name() + (directory.isEmpty() ? "" : "/" + directory));
 
       ObjectNode attributes = FactJson.newObject();
       attributes.put("name", name);
@@ -637,7 +609,7 @@ public final class FrontendExtractor implements Extractor {
       attributes.put("technology", technology.toString());
       add(
           subject,
-          APP,
+          Types.FRONTEND_APP,
           framework[1],
           attributes,
           evidence(manifest, dependencyLine(manifest.text(), framework[0])),
@@ -957,7 +929,13 @@ public final class FrontendExtractor implements Extractor {
             ArrayNode array = attributes.putArray("routes");
             guarded.forEach(array::add);
           }
-          add(subject, AUTH, part.kind(), attributes, evidence(source, text, part), 0.9);
+          add(
+              subject,
+              Types.FRONTEND_AUTH,
+              part.kind(),
+              attributes,
+              evidence(source, text, part),
+              0.9);
         }
         for (FrontendCode.Part part : FrontendCode.components(text)) {
           ObjectNode attributes = attributes(part);
@@ -966,7 +944,13 @@ public final class FrontendExtractor implements Extractor {
             ArrayNode array = attributes.putArray("routes");
             paths.forEach(array::add);
           }
-          add(subject, COMPONENT, part.kind(), attributes, evidence(source, text, part), 0.9);
+          add(
+              subject,
+              Types.FRONTEND_COMPONENT,
+              part.kind(),
+              attributes,
+              evidence(source, text, part),
+              0.9);
         }
       }
       List<Source> all = new ArrayList<>(scripts);
@@ -988,7 +972,7 @@ public final class FrontendExtractor implements Extractor {
           }
           add(
               subject,
-              RESOURCE_URL,
+              Types.FRONTEND_RESOURCE,
               resource.url(),
               attributes,
               evidence(source, line(lines, resource.offset())),
@@ -1276,7 +1260,7 @@ public final class FrontendExtractor implements Extractor {
       }
       add(
           subject,
-          CALL,
+          Types.FRONTEND_CALL,
           (site.method() == null ? WEBSOCKET : site.method()) + " " + url,
           attributes,
           evidence(source, lineOf(source.text(), site.offset())),
@@ -1300,7 +1284,7 @@ public final class FrontendExtractor implements Extractor {
           declared.put("name", name);
           declared.put("source", "constant");
           String value = constants.get(name).trim().replaceAll("^(['\"`])(.*)\\1$", "$2");
-          add(subject, URL, value, declared, evidence(source, line), 0.9);
+          add(subject, Types.FRONTEND_URL, value, declared, evidence(source, line), 0.9);
         }
       }
       environmentUsed.forEach(
@@ -1314,7 +1298,13 @@ public final class FrontendExtractor implements Extractor {
               declared.put("defaultBuild", true);
             }
             String value = environmentValue(where, key);
-            add(subject, URL, value, declared, evidence(where.source(), where.line()), 0.9);
+            add(
+                subject,
+                Types.FRONTEND_URL,
+                value,
+                declared,
+                evidence(where.source(), where.line()),
+                0.9);
           });
       return true;
     }
@@ -1547,7 +1537,7 @@ public final class FrontendExtractor implements Extractor {
       ObjectNode attributes = FactJson.newObject();
       attributes.put("target", target);
       attributes.put("source", source);
-      add(subject, PROXY, prefix, attributes, evidence, 0.9);
+      add(subject, Types.FRONTEND_PROXY, prefix, attributes, evidence, 0.9);
     }
 
     /** The prefix locations of an nginx config that pass requests on with {@code proxy_pass}. */
@@ -1656,7 +1646,7 @@ public final class FrontendExtractor implements Extractor {
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of());
+      ExtractorInfo.of(Types.FRONTEND, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of());
 
   @Override
   public ExtractorInfo info() {

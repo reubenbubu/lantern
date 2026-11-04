@@ -6,7 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
@@ -36,7 +36,7 @@ class ComponentInteractionsTest {
     assertThat(lines).hasSize(1);
     Fact line = lines.getFirst();
     assertThat(line.object().entityId()).isEqualTo(Components.id(UNIT, AUDIT));
-    assertThat(line.attributes().get("relationship").asString()).isEqualTo(BuiltInTypes.CALLS);
+    assertThat(line.attributes().get("relationship").asString()).isEqualTo(Types.CALLS);
     assertThat(line.attributes().get("at").asString()).isEqualTo(PLACE.toString());
     assertThat(line.attributes().get("detail").asString()).isEqualTo("record");
     assertThat(line.lineage()).containsExactly(call.claimId());
@@ -53,7 +53,7 @@ class ComponentInteractionsTest {
         TestModel.about(
                 model.derived(ComponentInteractions.NAME),
                 Components.id(UNIT, ORDERS),
-                ComponentInteractions.COMPONENT_LINK)
+                Types.COMPONENT_LINK)
             .stream()
             .filter(
                 f -> f.attributes().get("kind").asString().equals(ComponentInteractions.CODE_END))
@@ -78,7 +78,7 @@ class ComponentInteractionsTest {
             model.derived(ComponentInteractions.NAME).stream()
                 .filter(
                     f ->
-                        f.predicate().equals(ComponentInteractions.COMPONENT_LINK)
+                        f.predicate().equals(Types.COMPONENT_LINK)
                             && f.attributes()
                                 .get("kind")
                                 .asString()
@@ -95,7 +95,7 @@ class ComponentInteractionsTest {
         TestModel.about(
             model.derived(ComponentInteractions.NAME),
             Components.id(UNIT, AUDIT),
-            ComponentInteractions.DATA_ACCESS);
+            Types.DATA_ACCESS);
 
     assertThat(access).hasSize(1);
     assertThat(access.getFirst().object().value()).isEqualTo("Writes");
@@ -105,9 +105,9 @@ class ComponentInteractionsTest {
   /** A unit with two controllers both using Audit, OrdersController#place calling it. */
   private Fact unit() {
     model.add(UNIT, "deployable-unit", FactObject.string("spring-boot"));
-    model.add(UNIT, BuiltInTypes.CONTAINS, MODULE);
+    model.add(UNIT, Types.CONTAINS, MODULE);
     for (EntityId type : List.of(ORDERS, ADMIN, AUDIT)) {
-      model.add(MODULE, BuiltInTypes.CONTAINS, type);
+      model.add(MODULE, Types.CONTAINS, type);
     }
     ObjectNode rest = FactJson.newObject();
     rest.put("rest", true);
@@ -116,13 +116,13 @@ class ComponentInteractionsTest {
     model.add(AUDIT, "stereotype", FactObject.string("service"));
     model.add(ORDERS, "INJECTS", AUDIT);
     model.add(ADMIN, "INJECTS", AUDIT);
-    model.add(ORDERS, BuiltInTypes.CONTAINS, PLACE);
-    model.add(AUDIT, BuiltInTypes.CONTAINS, RECORD);
-    return model.add(PLACE, BuiltInTypes.CALLS, RECORD);
+    model.add(ORDERS, Types.CONTAINS, PLACE);
+    model.add(AUDIT, Types.CONTAINS, RECORD);
+    return model.add(PLACE, Types.CALLS, RECORD);
   }
 
   private static List<Fact> calls(List<Fact> derived, EntityId component) {
-    return TestModel.about(derived, component, ComponentInteractions.COMPONENT_LINK).stream()
+    return TestModel.about(derived, component, Types.COMPONENT_LINK).stream()
         .filter(f -> f.attributes().get("kind").asString().equals(ComponentInteractions.CALLS))
         .toList();
   }

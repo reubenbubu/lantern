@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -69,41 +69,11 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class HttpClientExtractor implements Extractor {
 
-  /** The extractor's name, recorded as the origin of its facts. */
-  public static final String NAME = "http-client";
-
   /** The extractor's version; change it whenever the facts it produces change. */
   public static final String VERSION = "10";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "http-client-extractor";
-
-  /** Attribute: the subject sends an HTTP request. */
-  public static final String HTTP_CALL = "http-call";
-
-  /** Entity type: one request some code sends, its URL as written. */
-  public static final String REQUEST = "request";
-
-  /** Entity type: where a request goes, the base of its URL as written. */
-  public static final String ADDRESS = "address";
-
-  /** Relationship: a request is sent by the method, or the type for code outside methods. */
-  public static final String SENT_BY = "SENT_BY";
-
-  /** Relationship: a request goes to an address. */
-  public static final String ADDRESSED_TO = "ADDRESSED_TO";
-
-  /** Attribute: the subject interface is a declarative HTTP client. */
-  public static final String HTTP_CLIENT = "http-client";
-
-  /** Attribute: the subject {@code @Bean} method makes an HTTP client or client builder. */
-  public static final String CLIENT_BEAN = "http-client-bean";
-
-  /** Relationship: the subject type turns on the object client interface. */
-  public static final String ENABLES = "ENABLES";
-
-  /** Relationship: the subject type has the object client interface injected. */
-  public static final String INJECTS = "INJECTS";
 
   /** Client kinds, as the {@code client} attribute holds them. */
   public static final String FEIGN = "feign";
@@ -115,12 +85,6 @@ public final class HttpClientExtractor implements Extractor {
   public static final String JAKARTA_CLIENT = "jakarta-rest-client";
   public static final String HTTP_INTERFACE = "http-interface";
 
-  /**
-   * Attribute: the type of a request body a client method sends, or of the response it returns; the
-   * type is the messaging extractor's, which records messages' payloads (#520).
-   */
-  public static final String PAYLOAD_TYPE = "payload-type";
-
   private static final String REQUEST_BODY = "org.springframework.web.bind.annotation.RequestBody";
   public static final String JAVA_HTTP_CLIENT = "java-http-client";
   public static final String OKHTTP = "okhttp";
@@ -128,7 +92,7 @@ public final class HttpClientExtractor implements Extractor {
 
   private static final String RESOURCE = "/vocabulary/http-types.json";
 
-  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
+  private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, Types.HTTP_CLIENT, VERSION);
 
   private static final String SPRING = "org.springframework.";
   private static final List<String> FEIGN_CLIENTS =
@@ -426,7 +390,7 @@ public final class HttpClientExtractor implements Extractor {
         if (path != null) {
           break;
         }
-        if (m.id().type().equals(ModuleStructure.METHOD)) {
+        if (m.id().type().equals(Types.METHOD)) {
           path = code.annotationPath(m.annotations(), HTTP_EXCHANGE);
         }
       }
@@ -462,7 +426,12 @@ public final class HttpClientExtractor implements Extractor {
             } else {
               attributes.put("member", p.in().toString());
             }
-            relation(typeId(ownerType(p.in())), ENABLES, typeId(p.client()), attributes, p.where());
+            relation(
+                typeId(ownerType(p.in())),
+                Types.ENABLES,
+                typeId(p.client()),
+                attributes,
+                p.where());
           }
         }
       }
@@ -940,7 +909,7 @@ public final class HttpClientExtractor implements Extractor {
       if (base != null && base.module() == module) {
         attributes.put("baseUrl", UrlCredentials.withoutCredentials(clean(base.base().text())));
       }
-      fact(member.id(), CLIENT_BEAN, kind, attributes, member.where(), module);
+      fact(member.id(), Types.HTTP_CLIENT_BEAN, kind, attributes, member.where(), module);
     }
 
     /** What a client is injected as: its name, and the qualifier written on it, or null. */
@@ -1072,7 +1041,7 @@ public final class HttpClientExtractor implements Extractor {
       EntityId typeId = typeId(type.binaryName());
       ObjectNode attributes = FactJson.newObject();
       attributes.put("annotation", written.type());
-      fact(typeId, HTTP_CLIENT, client.kind(), attributes, written.where(), module);
+      fact(typeId, Types.HTTP_CLIENT, client.kind(), attributes, written.where(), module);
 
       String base = "";
       String service = null;
@@ -1127,7 +1096,7 @@ public final class HttpClientExtractor implements Extractor {
       for (TypeDecl t : lineage) {
         JavaAnalysis.Module source = t == type ? module : code.module(t.binaryName());
         for (Member m : t.members()) {
-          if (!m.id().type().equals(ModuleStructure.METHOD)) {
+          if (!m.id().type().equals(Types.METHOD)) {
             continue;
           }
           String signature = signature(m.id());
@@ -1234,7 +1203,7 @@ public final class HttpClientExtractor implements Extractor {
         ArrayNode arguments = attributes.putArray("typeArguments");
         type.arguments().forEach(arguments::add);
       }
-      fact(method.id(), PAYLOAD_TYPE, type.type(), attributes, where, source);
+      fact(method.id(), Types.PAYLOAD_TYPE, type.type(), attributes, where, source);
     }
 
     /** A request mapping: its paths and HTTP methods, and the annotation written. */
@@ -1403,7 +1372,7 @@ public final class HttpClientExtractor implements Extractor {
             attributes.put("annotation", path.getFirst().type());
             relation(
                 typeId(type.binaryName()),
-                ENABLES,
+                Types.ENABLES,
                 typeId(c.getKey()),
                 attributes,
                 path.getFirst().where() != null ? path.getFirst().where() : type.where());
@@ -1425,7 +1394,7 @@ public final class HttpClientExtractor implements Extractor {
           if (clients.containsKey(t) && !t.equals(type.binaryName())) {
             ObjectNode attributes = FactJson.newObject();
             attributes.put("member", m.id().toString());
-            relation(typeId(type.binaryName()), INJECTS, typeId(t), attributes, m.where());
+            relation(typeId(type.binaryName()), Types.INJECTS, typeId(t), attributes, m.where());
           }
         }
       }
@@ -2038,7 +2007,7 @@ public final class HttpClientExtractor implements Extractor {
         sites.add(site);
         ordinal = sites.size() - 1;
       }
-      EntityId request = entityId(REQUEST, ordinal == 0 ? key : key + "#" + (ordinal + 1));
+      EntityId request = entityId(Types.REQUEST, ordinal == 0 ? key : key + "#" + (ordinal + 1));
       ObjectNode attributes = FactJson.newObject();
       if (call.method() != null) {
         attributes.put("httpMethod", call.method());
@@ -2065,7 +2034,7 @@ public final class HttpClientExtractor implements Extractor {
       }
       put(
           request,
-          SENT_BY,
+          Types.SENT_BY,
           FactObject.entity(call.subject()),
           attributes,
           call.where(),
@@ -2074,7 +2043,7 @@ public final class HttpClientExtractor implements Extractor {
       if (address != null) {
         put(
             request,
-            ADDRESSED_TO,
+            Types.ADDRESSED_TO,
             FactObject.entity(address),
             FactJson.newObject(),
             call.where(),
@@ -2092,15 +2061,15 @@ public final class HttpClientExtractor implements Extractor {
       Split split = split(client.equals(FEIGN) ? withScheme(url) : url);
       if (split.base() == null || split.base().isEmpty()) {
         String lead = leading(url);
-        return entityId(ADDRESS, config.id().key() + ":" + (lead != null ? lead : "*"));
+        return entityId(Types.ADDRESS, config.id().key() + ":" + (lead != null ? lead : "*"));
       }
       if (split.absolute()) {
         String authority = split.base().substring(split.base().indexOf("://") + 3);
         if (!authority.isEmpty() && !authority.contains("$") && !authority.contains("{")) {
-          return entityId(ADDRESS, authority.toLowerCase(java.util.Locale.ROOT));
+          return entityId(Types.ADDRESS, authority.toLowerCase(java.util.Locale.ROOT));
         }
       }
-      return entityId(ADDRESS, config.id().key() + ":" + split.base());
+      return entityId(Types.ADDRESS, config.id().key() + ":" + split.base());
     }
 
     private void fact(
@@ -2318,7 +2287,7 @@ public final class HttpClientExtractor implements Extractor {
 
   /** The erased parameter types in a method's or constructor's ID. */
   private static List<String> parameterTypes(EntityId method) {
-    if (!method.type().equals(ModuleStructure.METHOD)) {
+    if (!method.type().equals(Types.METHOD)) {
       return List.of();
     }
     String key = method.key();
@@ -2373,14 +2342,15 @@ public final class HttpClientExtractor implements Extractor {
 
   private static EntityId typeId(String binaryName) {
     try {
-      return new EntityId(BuiltInTypes.TYPE, binaryName);
+      return new EntityId(Types.TYPE, binaryName);
     } catch (IllegalArgumentException e) {
       return null;
     }
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(PAYLOAD_TYPE));
+      ExtractorInfo.of(
+          Types.HTTP_CLIENT, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(Types.PAYLOAD_TYPE));
 
   @Override
   public ExtractorInfo info() {

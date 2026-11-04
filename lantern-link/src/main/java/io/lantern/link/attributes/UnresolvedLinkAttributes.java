@@ -53,9 +53,6 @@ public record UnresolvedLinkAttributes(
     List<String> unresolved,
     String view) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "unresolved-link";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("candidates", "kind", "reason", "site", "source", "view");
 

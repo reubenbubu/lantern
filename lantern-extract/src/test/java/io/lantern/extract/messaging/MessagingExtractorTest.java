@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
@@ -519,7 +520,7 @@ class MessagingExtractorTest {
     Vocabulary vocabulary = Fixtures.vocabulary();
 
     // A listener is an entry point, as #96 finds them.
-    assertThat(vocabulary.isA(MessagingExtractor.LISTENER, "entry-point")).isTrue();
+    assertThat(vocabulary.isA(Types.MESSAGE_LISTENER, "entry-point")).isTrue();
   }
 
   private static List<String> withoutConfidence(List<Fact> facts) {

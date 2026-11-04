@@ -16,9 +16,6 @@ import tools.jackson.databind.node.ObjectNode;
 public record InjectsAttributes(
     String member) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "INJECTS";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("member");
 

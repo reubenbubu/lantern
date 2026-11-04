@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.http.HttpClientExtractor;
@@ -111,15 +112,15 @@ class HttpFactsIT {
     assertThat(extracted)
         .extracting(Fact::predicate)
         .containsExactlyInAnyOrder(
-            HttpClientExtractor.HTTP_CLIENT,
+            Types.HTTP_CLIENT,
             // Each request as written, sent by the code and addressed to its URL's base (#557).
-            HttpClientExtractor.SENT_BY,
-            HttpClientExtractor.ADDRESSED_TO,
-            HttpClientExtractor.SENT_BY,
-            HttpClientExtractor.ADDRESSED_TO,
-            HttpClientExtractor.ENABLES,
-            HttpClientExtractor.INJECTS,
-            HttpClientExtractor.INJECTS);
+            Types.SENT_BY,
+            Types.ADDRESSED_TO,
+            Types.SENT_BY,
+            Types.ADDRESSED_TO,
+            Types.ENABLES,
+            Types.INJECTS,
+            Types.INJECTS);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();

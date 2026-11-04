@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
@@ -37,13 +38,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
   /** Raised whenever the instances it gives for the same facts change. */
   public static final String VERSION = "1";
 
-  public static final String DEPLOYMENT_INSTANCE = "deployment-instance";
-  public static final String DEPLOYED_AS = "deployed-as";
-  public static final String RUNS = "RUNS";
-
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
-  private static final String DEPLOYMENT_CONTAINER = "deployment-container";
-  private static final String DEPLOYED_IN = "deployed-in";
   private static final List<String> COPIED =
       List.of("platform", "environment", "image", "build", "product", "version");
 
@@ -59,7 +54,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Set.of(DEPLOYED_AS, RUNS);
+    return Set.of(Types.DEPLOYED_AS, Types.RUNS);
   }
 
   /** The vocabulary types of the instances' facts besides the built-in ones. */
@@ -104,7 +99,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
     Map<String, List<Fact>> runningFacts = new TreeMap<>();
     List<Fact> containers = new ArrayList<>();
     Set<EntityId> instances = new HashSet<>();
-    for (Fact instance : model.withPredicate(DEPLOYED_AS)) {
+    for (Fact instance : model.withPredicate(Types.DEPLOYED_AS)) {
       for (Fact container : model.derivedFrom(instance)) {
         if (repos.isEmpty() || repos.contains(container.evidence().repo())) {
           containers.add(container);
@@ -113,7 +108,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
       if (!instances.add(instance.subject())) {
         continue;
       }
-      for (Fact runs : model.relations(instance.subject(), RUNS)) {
+      for (Fact runs : model.relations(instance.subject(), Types.RUNS)) {
         for (Fact fact : model.derivedFrom(runs)) {
           String container = Elements.attribute(fact, "fact", null);
           if (container != null) {
@@ -174,7 +169,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
     String platform = attribute(container, "platform");
     String environment = attribute(container, "environment");
     return new EntityId(
-        DEPLOYMENT_INSTANCE,
+        Types.DEPLOYMENT_INSTANCE,
         (platform == null ? "-" : encoded(platform, ":/"))
             + ":"
             + (environment != null
@@ -224,13 +219,13 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
     Map<String, List<Fact>> deployedIn = new LinkedHashMap<>();
     for (Fact fact : facts) {
       String container = attribute(fact, "fact");
-      if (fact.predicate().equals(DEPLOYED_IN) && container != null) {
+      if (fact.predicate().equals(Types.DEPLOYED_IN) && container != null) {
         deployedIn.computeIfAbsent(container, c -> new ArrayList<>()).add(fact);
       }
     }
     List<Fact> derived = new ArrayList<>();
     for (Fact container : facts) {
-      if (!container.predicate().equals(DEPLOYMENT_CONTAINER)) {
+      if (!container.predicate().equals(Types.DEPLOYMENT_CONTAINER)) {
         continue;
       }
       EntityId instance = id(container);
@@ -249,7 +244,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
       derived.add(
           Fact.create(
               instance,
-              DEPLOYED_AS,
+              Types.DEPLOYED_AS,
               container.object(),
               attributes,
               ORIGIN,
@@ -263,7 +258,7 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
         derived.add(
             Fact.create(
                 instance,
-                RUNS,
+                Types.RUNS,
                 FactObject.entity(runs.subject()),
                 cites,
                 ORIGIN,

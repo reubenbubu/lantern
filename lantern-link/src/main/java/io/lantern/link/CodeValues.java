@@ -2,6 +2,7 @@ package io.lantern.link;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.ConfigValueAttributes;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.Resolution;
@@ -83,7 +84,7 @@ public final class CodeValues {
     this.known = ConfigExtractor.normalizedKeys(secretKeys);
     Map<EntityId, Map<String, Map<String, Entry>>> views = new HashMap<>();
     for (Fact f : facts) {
-      if (!f.predicate().equals(ConfigExtractor.CONFIG_VALUE)) {
+      if (!f.predicate().equals(Types.CONFIG_VALUE)) {
         continue;
       }
       ConfigValueAttributes config = Claims.of(f, ConfigValueAttributes.class);

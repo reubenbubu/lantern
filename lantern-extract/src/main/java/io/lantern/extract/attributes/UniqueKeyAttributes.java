@@ -17,9 +17,6 @@ public record UniqueKeyAttributes(
     List<String> columns,
     String name) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "UNIQUE_KEY";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("columns", "name");
 

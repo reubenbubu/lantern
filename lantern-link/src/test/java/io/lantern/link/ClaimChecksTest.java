@@ -9,7 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.docs.DocsExtractor;
@@ -60,7 +60,7 @@ class ClaimChecksTest {
         Origin.Kind.README,
         DocsExtractor.NAME,
         "readme:" + repo + ":" + path,
-        DocsExtractor.CLAIM,
+        Types.CLAIM,
         FactObject.string(text),
         null,
         repo,
@@ -73,7 +73,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         DeployableUnits.NAME,
         "service:g:" + artifact,
-        DeployableUnits.DEPLOYABLE_UNIT,
+        Types.DEPLOYABLE_UNIT,
         FactObject.string("spring-boot"),
         null,
         repo,
@@ -140,7 +140,7 @@ class ClaimChecksTest {
         link(
             "storefront",
             "storefront-app",
-            CrossRepoLinks.CALLS_HTTP,
+            Types.CALLS_HTTP,
             "service:g:catalog-service",
             "{\"protocol\":\"JSON/HTTP\"}",
             0.9);
@@ -148,7 +148,7 @@ class ClaimChecksTest {
         link(
             "storefront",
             "storefront-app",
-            CrossRepoLinks.CALLS_HTTP,
+            Types.CALLS_HTTP,
             "service:g:payments",
             "{\"protocol\":\"JSON/HTTP\"}",
             1.0);
@@ -156,19 +156,19 @@ class ClaimChecksTest {
         value(
             "storefront",
             "service:g:storefront-app",
-            CrossRepoLinks.UNRESOLVED_LINK,
+            Types.UNRESOLVED_LINK,
             "GET ${TAX_SERVICE_URL}/v2/quotes",
             "{\"kind\":\"http\",\"reason\":\"unresolved-placeholder\"}");
     value(
         "storefront",
         "service:g:storefront-app",
-        CrossRepoLinks.UNRESOLVED_LINK,
+        Types.UNRESOLVED_LINK,
         "orders.${x}",
         "{\"kind\":\"message\",\"reason\":\"unresolved-placeholder\"}");
     link(
         "storefront",
         "storefront-app",
-        CrossRepoLinks.PUBLISHES,
+        Types.PUBLISHES,
         "exchange:rabbitmq:shop.orders",
         "{\"protocol\":\"AMQP\"}",
         1.0);
@@ -177,7 +177,7 @@ class ClaimChecksTest {
     link(
         "fulfilment",
         "fulfilment",
-        CrossRepoLinks.CALLS_HTTP,
+        Types.CALLS_HTTP,
         "service:g:catalog-service",
         "{\"protocol\":\"JSON/HTTP\"}",
         1.0);
@@ -187,7 +187,7 @@ class ClaimChecksTest {
     assertThat(derived).hasSize(1);
     Fact f = derived.getFirst();
     assertThat(f.subject().toString()).isEqualTo("readme:storefront:README.md");
-    assertThat(f.predicate()).isEqualTo(ClaimChecks.CLAIM_CONTRADICTION);
+    assertThat(f.predicate()).isEqualTo(Types.CLAIM_CONTRADICTION);
     assertThat(f.object().value()).isEqualTo(ClaimChecks.SYNCHRONOUS_CALLS);
     assertThat(f.evidence()).isEqualTo(claim.evidence());
     assertThat(f.origin().kind()).isEqualTo(Origin.Kind.STATIC);
@@ -221,7 +221,7 @@ class ClaimChecksTest {
         link(
             "payments",
             "payments",
-            CrossRepoLinks.ACCESSES_DATA_OF,
+            Types.ACCESSES_DATA_OF,
             "service:g:storefront-app",
             "{\"reads\":[\"orders\"]}",
             1.0);
@@ -229,7 +229,7 @@ class ClaimChecksTest {
         link(
             "payments",
             "payments",
-            CrossRepoLinks.USES_DATABASE,
+            Types.USES_DATABASE,
             "database:shop-db:5432/shop",
             "{\"technology\":\"PostgreSQL\"}",
             1.0);
@@ -237,7 +237,7 @@ class ClaimChecksTest {
         link(
             "storefront",
             "storefront-app",
-            CrossRepoLinks.USES_DATABASE,
+            Types.USES_DATABASE,
             "database:shop-db:5432/shop",
             "{\"technology\":\"PostgreSQL\"}",
             1.0);
@@ -265,7 +265,7 @@ class ClaimChecksTest {
     link(
         "payments",
         "payments",
-        CrossRepoLinks.ACCESSES_DATA_OF,
+        Types.ACCESSES_DATA_OF,
         "service:g:storefront-app",
         "{\"writes\":[\"orders\"]}",
         1.0);
@@ -279,17 +279,11 @@ class ClaimChecksTest {
   @Test
   void claimsTheCodeAgreesWithOrThatAreNotCheckableAreLeftAlone() {
     unit("orders", "orders", "src/main/java/g/App.java");
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:billing", "{\"protocol\":\"HTTP\"}", 1.0);
     link(
         "orders",
         "orders",
-        CrossRepoLinks.CALLS_HTTP,
-        "service:g:billing",
-        "{\"protocol\":\"HTTP\"}",
-        1.0);
-    link(
-        "orders",
-        "orders",
-        CrossRepoLinks.USES_DATABASE,
+        Types.USES_DATABASE,
         "database:db:5432/orders",
         "{\"technology\":\"PostgreSQL\"}",
         1.0);
@@ -307,7 +301,7 @@ class ClaimChecksTest {
   @Test
   void onlyTheUnitsOwnOutgoingCallsSaidGenerallyAreReadAsNoSynchronousCalls() {
     unit("orders", "orders", "src/main/java/g/App.java");
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:billing", null, 1.0);
     claim("orders", "README.md", "It does not retry HTTP calls.");
     claim("orders", "README.md", "Nothing calls this service over HTTP; it only consumes events.");
     claim("orders", "README.md", "No other service calls orders synchronously.");
@@ -322,7 +316,7 @@ class ClaimChecksTest {
   @Test
   void restIsReadOnlyAsTheAcronym() {
     unit("orders", "orders", "src/main/java/g/App.java");
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:billing", null, 1.0);
     claim("orders", "README.md", "Orders never calls other services through rest.");
     claim("orders", "README.md", "Orders makes no REST calls.");
     claim("orders", "README.md", "Orders does not call other services over HTTP.");
@@ -338,7 +332,7 @@ class ClaimChecksTest {
     link(
         "orders",
         "orders",
-        CrossRepoLinks.USES_DATABASE,
+        Types.USES_DATABASE,
         "database:db:5432/orders",
         "{\"technology\":\"PostgreSQL\"}",
         1.0);
@@ -357,7 +351,7 @@ class ClaimChecksTest {
   @Test
   void javaVersionsNamingAFeatureAreNotTheRuntime() {
     unit("orders", "orders", "src/main/java/g/App.java");
-    value("orders", "service:g:orders", DeployableUnits.TECHNOLOGY, "Java 21", "{\"java\":\"21\"}");
+    value("orders", "service:g:orders", Types.TECHNOLOGY, "Java 21", "{\"java\":\"21\"}");
     claim("orders", "README.md", "Calls go through the JDK 11 HttpClient.");
     claim("orders", "README.md", "The code uses Java 8 streams throughout.");
     claim("orders", "README.md", "Written in Java 17 style.");
@@ -374,21 +368,21 @@ class ClaimChecksTest {
     link(
         "orders",
         "orders",
-        CrossRepoLinks.USES_DATABASE,
+        Types.USES_DATABASE,
         "database:db:5432/orders",
         "{\"technology\":\"PostgreSQL\"}",
         1.0);
     link(
         "orders",
         "orders",
-        CrossRepoLinks.USES_DATABASE,
+        Types.USES_DATABASE,
         "database:localhost:5432/shop",
         "{\"view\":\"local\"}",
         1.0);
     link(
         "billing",
         "billing",
-        CrossRepoLinks.USES_DATABASE,
+        Types.USES_DATABASE,
         "database:localhost:5432/shop",
         "{\"view\":\"local\"}",
         1.0);
@@ -399,7 +393,7 @@ class ClaimChecksTest {
   @Test
   void aReadmeInAFolderWithoutUnitsChecksNothing() {
     unit("orders", "orders", "orders-app/src/main/java/g/App.java");
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:billing", null, 1.0);
     claim("orders", "docs/README.md", "Orders makes no synchronous calls.");
     claim("orders", "orders-lib/README.md", "Orders makes no synchronous calls.");
 
@@ -409,7 +403,7 @@ class ClaimChecksTest {
   @Test
   void aLibraryRepositoryHasNoUnitsToCheck() {
     claim("lib", "README.md", "This library never calls another service synchronously.");
-    link("lib", "x", CrossRepoLinks.CALLS_HTTP, "service:g:y", null, 1.0);
+    link("lib", "x", Types.CALLS_HTTP, "service:g:y", null, 1.0);
 
     assertThat(derive()).isEmpty();
   }
@@ -420,7 +414,7 @@ class ClaimChecksTest {
     unit("shop", "billing", "billing/src/main/java/g/App.java");
     claim("shop", "orders/README.md", "Orders makes no synchronous calls.");
     claim("shop", "billing/README.md", "Billing makes no synchronous calls.");
-    link("shop", "billing", CrossRepoLinks.CALLS_HTTP, "service:g:orders", null, 1.0);
+    link("shop", "billing", Types.CALLS_HTTP, "service:g:orders", null, 1.0);
 
     List<Fact> derived = derive();
 
@@ -439,7 +433,7 @@ class ClaimChecksTest {
         link(
             "orders",
             "orders",
-            CrossRepoLinks.USES_DATABASE,
+            Types.USES_DATABASE,
             "database:db:5432/orders",
             "{\"technology\":\"PostgreSQL\"}",
             1.0);
@@ -462,7 +456,7 @@ class ClaimChecksTest {
     link(
         "orders",
         "orders",
-        CrossRepoLinks.PUBLISHES,
+        Types.PUBLISHES,
         "exchange:rabbitmq:orders",
         "{\"protocol\":\"AMQP\"}",
         1.0);
@@ -481,7 +475,7 @@ class ClaimChecksTest {
     value(
         "orders",
         "service:g:orders",
-        DeployableUnits.TECHNOLOGY,
+        Types.TECHNOLOGY,
         "Spring Boot 3.5.14 / Java 21",
         "{\"framework\":\"Spring Boot\",\"frameworkVersion\":\"3.5.14\",\"java\":\"21\"}");
     claim("orders", "README.md", "Orders runs on Java 17.");
@@ -520,7 +514,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         MavenExtractor.NAME,
         "service:g:" + artifact,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("module:g:" + artifact)),
         null,
         repo,
@@ -531,7 +525,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         DeployableUnits.NAME,
         "service:g:" + artifact,
-        DeployableUnits.APPLICATION_NAME,
+        Types.APPLICATION_NAME,
         FactObject.string(artifact),
         null,
         repo,
@@ -544,7 +538,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         ConfigExtractor.NAME,
         "module:g:" + module,
-        ConfigExtractor.CONFIG_VALUE,
+        Types.CONFIG_VALUE,
         FactObject.string(value),
         "{\"key\":\""
             + key
@@ -565,7 +559,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         "java",
         "module:g:" + module,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("package:g:" + module + ":g")),
         null,
         repo,
@@ -575,7 +569,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         "java",
         "package:g:" + module + ":g",
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("type:" + controller)),
         null,
         repo,
@@ -585,7 +579,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         SpringExtractor.NAME,
         "method:" + controller + "#m" + facts.size() + "()",
-        SpringExtractor.ENDPOINT,
+        Types.ENDPOINT,
         FactObject.string(httpMethod + " " + path),
         "{\"controller\":\""
             + controller
@@ -667,7 +661,7 @@ class ClaimChecksTest {
 
     assertThat(derived).hasSize(1);
     Fact f = derived.getFirst();
-    assertThat(f.object().value()).isEqualTo(ClaimChecks.ENDPOINT);
+    assertThat(f.object().value()).isEqualTo(Types.ENDPOINT);
     assertThat(f.attributes().get("stated").asString()).isEqualTo("DELETE /orders/{id}, /refunds");
     // The endpoints nearest the path stated, or all of them when none shares its first segment.
     assertThat(contradictedBy(f)).contains(get.id(), post.id()).hasSize(3);
@@ -688,14 +682,14 @@ class ClaimChecksTest {
         link(
             "orders",
             "orders",
-            CrossRepoLinks.PUBLISHES,
+            Types.PUBLISHES,
             "topic:kafka:orders.created",
             "{\"protocol\":\"Kafka\"}",
             1.0);
     link(
         "orders",
         "orders",
-        CrossRepoLinks.PUBLISHES,
+        Types.PUBLISHES,
         "exchange:rabbitmq:shop.orders",
         "{\"protocol\":\"AMQP\",\"routingKey\":\"order.paid\"}",
         1.0);
@@ -703,7 +697,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         CrossRepoLinks.NAME,
         "exchange:rabbitmq:shop.orders",
-        CrossRepoLinks.ROUTES_TO,
+        Types.ROUTES_TO,
         FactObject.entity(EntityId.parse("queue:rabbitmq:payments.orders")),
         "{\"protocol\":\"AMQP\"}",
         "payments",
@@ -712,7 +706,7 @@ class ClaimChecksTest {
     link(
         "orders",
         "orders",
-        CrossRepoLinks.PUBLISHES,
+        Types.PUBLISHES,
         "topic:kafka:orders.send",
         "{\"protocol\":\"Kafka\"}",
         1.0);
@@ -737,7 +731,7 @@ class ClaimChecksTest {
 
     assertThat(derived).hasSize(1);
     Fact f = derived.getFirst();
-    assertThat(f.object().value()).isEqualTo(ClaimChecks.DESTINATION);
+    assertThat(f.object().value()).isEqualTo(Types.DESTINATION);
     assertThat(f.attributes().get("stated").asString()).isEqualTo("orders.placed");
     assertThat(f.attributes().get("found").toString())
         .isEqualTo("[\"orders.created\",\"orders.send\",\"shop.orders\"]");
@@ -750,14 +744,14 @@ class ClaimChecksTest {
     link(
         "orders",
         "orders",
-        CrossRepoLinks.PUBLISHES,
+        Types.PUBLISHES,
         "topic:kafka:orders.created",
         "{\"protocol\":\"Kafka\"}",
         1.0);
     value(
         "orders",
         "service:g:orders",
-        CrossRepoLinks.UNRESOLVED_LINK,
+        Types.UNRESOLVED_LINK,
         "orders.${x}",
         "{\"kind\":\"message\",\"reason\":\"unresolved-placeholder\"}");
     claim("orders", "README.md", "It publishes to the orders.placed topic.");
@@ -771,7 +765,7 @@ class ClaimChecksTest {
     service("billing", "billing-service");
     service("catalog", "catalog");
     Fact billing =
-        link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing-service", null, 1.0);
+        link("orders", "orders", Types.CALLS_HTTP, "service:g:billing-service", null, 1.0);
     claim("orders", "README.md", "Orders never calls billing.");
     claim("orders", "README.md", "It does not call catalog over HTTP.");
     claim("orders", "README.md", "Orders calls the billing service to charge orders.");
@@ -793,8 +787,7 @@ class ClaimChecksTest {
     service("orders", "orders");
     service("billing", "billing");
     service("catalog", "catalog");
-    Fact billing =
-        link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
+    Fact billing = link("orders", "orders", Types.CALLS_HTTP, "service:g:billing", null, 1.0);
     claim("orders", "README.md", "Orders calls catalog for prices.");
     claim("orders", "README.md", "It only calls billing.");
 
@@ -806,7 +799,7 @@ class ClaimChecksTest {
     value(
         "orders",
         "service:g:orders",
-        CrossRepoLinks.UNRESOLVED_LINK,
+        Types.UNRESOLVED_LINK,
         "GET ${CATALOG_URL}/prices",
         "{\"kind\":\"http\",\"reason\":\"unresolved-placeholder\"}");
 
@@ -818,9 +811,8 @@ class ClaimChecksTest {
     service("orders", "orders");
     service("billing", "billing");
     service("catalog", "catalog");
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
-    Fact catalog =
-        link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:catalog", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:billing", null, 1.0);
+    Fact catalog = link("orders", "orders", Types.CALLS_HTTP, "service:g:catalog", null, 1.0);
     claim("orders", "README.md", "It only calls billing.");
 
     List<Fact> derived = derive();
@@ -833,7 +825,7 @@ class ClaimChecksTest {
   void onlyCommunicatingAsynchronouslyIsContradictedByHttpCalls() {
     service("orders", "orders");
     service("catalog", "catalog");
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:catalog", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:catalog", null, 1.0);
     claim("orders", "README.md", "Orders only communicates asynchronously.");
     claim("orders", "README.md", "All communication with other services is asynchronous.");
     claim("orders", "README.md", "It talks to other services only through Kafka events.");
@@ -883,7 +875,7 @@ class ClaimChecksTest {
     link(
         "orders",
         "orders",
-        CrossRepoLinks.CONSUMES,
+        Types.CONSUMES,
         "queue:rabbitmq:orders.inbox",
         "{\"protocol\":\"AMQP\"}",
         1.0);
@@ -891,7 +883,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         CrossRepoLinks.NAME,
         "exchange:rabbitmq:shop.payments",
-        CrossRepoLinks.ROUTES_TO,
+        Types.ROUTES_TO,
         FactObject.entity(EntityId.parse("queue:rabbitmq:orders.inbox")),
         "{\"protocol\":\"AMQP\"}",
         "payments",
@@ -902,7 +894,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         MessagingExtractor.NAME,
         "method:g.orders.Controller#listen()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         FactObject.string("payments\\..*"),
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic-pattern\"}",
         "orders",
@@ -921,7 +913,7 @@ class ClaimChecksTest {
     link(
         "orders",
         "orders",
-        CrossRepoLinks.PUBLISHES,
+        Types.PUBLISHES,
         "topic:kafka:orders.created",
         "{\"protocol\":\"Kafka\"}",
         1.0);
@@ -930,7 +922,7 @@ class ClaimChecksTest {
         Origin.Kind.STATIC,
         MessagingExtractor.NAME,
         "method:g.orders.Controller#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         FactObject.string("${secret.topic}"),
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\",\"masked\":true}",
         "orders",
@@ -948,9 +940,9 @@ class ClaimChecksTest {
     service("catalog", "catalog");
     service("search-a", "search");
     service("search-b", "search-service");
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:billing", null, 1.0);
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:catalog", null, 1.0);
-    link("orders", "orders", CrossRepoLinks.CALLS_HTTP, "service:g:search", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:billing", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:catalog", null, 1.0);
+    link("orders", "orders", Types.CALLS_HTTP, "service:g:search", null, 1.0);
     claim("orders", "README.md", "It never calls billing or catalog.");
     claim("orders", "README.md", "It never calls billing or PayGate.");
     claim("orders", "README.md", "It never calls search.");

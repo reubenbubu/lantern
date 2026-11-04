@@ -95,9 +95,6 @@ public record ResolvesToAttributes(
     String view,
     String written) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "RESOLVES_TO";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("address", "by", "deployment", "from", "view");
 

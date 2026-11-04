@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.Expression;
@@ -39,7 +40,7 @@ class RedisExtractorTest {
     List<Fact> written = new RedisExtractor().extract(inputs, SNAPSHOT);
     assertThat(written)
         .noneMatch(f -> f.attributes().path("source").stringValue("").equals("config"))
-        .anyMatch(f -> f.predicate().equals(RedisExtractor.CACHE_USE));
+        .anyMatch(f -> f.predicate().equals(Types.CACHE_USE));
     // Neither a password nor a managed or test-only dependency reaches a fact.
     assertThat(Fixtures.render(facts))
         .doesNotContain("secret", "redisson", "jedis", "lettuce", "\"spring-data-redis\"")
@@ -55,7 +56,7 @@ class RedisExtractorTest {
     List<Fact> written = new RedisExtractor().extract(repos, SNAPSHOT);
     List<Fact> facts = new java.util.ArrayList<>();
     for (Fact f : written) {
-      if (!f.predicate().equals(RedisExtractor.CACHE_USE)) {
+      if (!f.predicate().equals(Types.CACHE_USE)) {
         facts.add(f);
       }
     }

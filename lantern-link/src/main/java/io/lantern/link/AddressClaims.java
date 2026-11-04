@@ -2,6 +2,7 @@ package io.lantern.link;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Kind;
 import io.lantern.link.Addresses.Target;
@@ -31,7 +32,7 @@ final class AddressClaims implements AddressAnswers {
 
   AddressClaims(LinkIndex index) {
     this.index = Objects.requireNonNull(index, "index");
-    for (Fact f : index.of(ValueResolution.RESOLVES_TO)) {
+    for (Fact f : index.of(Types.RESOLVES_TO)) {
       if (!f.origin().name().equals(AddressResolution.NAME)) {
         continue;
       }
@@ -136,7 +137,7 @@ final class AddressClaims implements AddressAnswers {
     if (object.equals(AddressResolution.UNKNOWN)) {
       return new Answer(Kind.UNKNOWN, List.of(), null, a.matched(), url, filledBy, false);
     }
-    if (object.type().equals(CrossRepoLinks.EXTERNAL_SYSTEM)) {
+    if (object.type().equals(Types.EXTERNAL_SYSTEM)) {
       return new Answer(Kind.EXTERNAL, List.of(), object, a.matched(), url, filledBy, false);
     }
     Target target =

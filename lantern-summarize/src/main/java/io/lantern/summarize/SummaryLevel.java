@@ -1,7 +1,7 @@
 package io.lantern.summarize;
 
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 
 /** The levels of the summary hierarchy, from a single type up to a repository. */
 public enum SummaryLevel {
@@ -18,10 +18,6 @@ public enum SummaryLevel {
 
   /** The most sentences kept of a summary of a unit with a single part, or of one part. */
   static final int ONE_PART_SENTENCE_COUNT = 3;
-
-  /** The entity type of repository summaries, which have no entity in the fact store. */
-  public static final String REPO_ENTITY_TYPE =
-      io.lantern.derive.ArchitectureModel.REPO_ENTITY_TYPE;
 
   private final String noun;
   private final int minSentences;
@@ -61,10 +57,10 @@ public enum SummaryLevel {
    */
   public static SummaryLevel of(EntityId entity) {
     return switch (entity.type()) {
-      case BuiltInTypes.TYPE -> TYPE;
-      case BuiltInTypes.PACKAGE -> PACKAGE;
-      case BuiltInTypes.MODULE -> MODULE;
-      case REPO_ENTITY_TYPE -> REPO;
+      case Types.TYPE -> TYPE;
+      case Types.PACKAGE -> PACKAGE;
+      case Types.MODULE -> MODULE;
+      case Types.REPO -> REPO;
       default -> null;
     };
   }

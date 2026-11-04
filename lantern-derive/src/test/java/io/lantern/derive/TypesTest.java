@@ -10,9 +10,9 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@code io.lantern.core.types.Types} is what {@link TypeNames} generates from every
- * vocabulary (ADR 0114). Run with {@code -Dlantern.records.write=true} to rewrite it after a type
- * is added, renamed or removed.
+ * {@code io.lantern.core.types.Types} is what {@link TypeNames} generates from every vocabulary
+ * (ADR 0114). Run with {@code -Dlantern.records.write=true} to rewrite it after a type is added,
+ * renamed or removed.
  */
 class TypesTest {
 

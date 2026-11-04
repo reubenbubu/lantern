@@ -6,7 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -124,12 +124,12 @@ class ScopeFlowsTest {
     for (EntityId[] unit :
         List.of(new EntityId[] {SHOP, SHOP_MODULE}, new EntityId[] {BILLING, BILLING_MODULE})) {
       model.add(unit[0], "deployable-unit", FactObject.string("spring-boot"));
-      model.add(unit[0], BuiltInTypes.CONTAINS, unit[1]);
+      model.add(unit[0], Types.CONTAINS, unit[1]);
     }
-    model.add(SHOP_MODULE, BuiltInTypes.CONTAINS, ORDERS);
-    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, PAYMENTS);
-    model.add(ORDERS, BuiltInTypes.CONTAINS, PLACE);
-    model.add(PAYMENTS, BuiltInTypes.CONTAINS, CHARGE);
+    model.add(SHOP_MODULE, Types.CONTAINS, ORDERS);
+    model.add(BILLING_MODULE, Types.CONTAINS, PAYMENTS);
+    model.add(ORDERS, Types.CONTAINS, PLACE);
+    model.add(PAYMENTS, Types.CONTAINS, CHARGE);
     model.add(CHARGE, "endpoint", FactObject.string("POST /charge"));
     return model.add(PLACE, "endpoint", FactObject.string("POST /orders"));
   }

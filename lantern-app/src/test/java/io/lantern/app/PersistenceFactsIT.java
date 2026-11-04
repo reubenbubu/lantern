@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
@@ -100,13 +101,13 @@ class PersistenceFactsIT {
     assertThat(extracted)
         .extracting(Fact::predicate)
         .containsExactlyInAnyOrder(
-            PersistenceExtractor.DATASOURCE,
-            PersistenceExtractor.HAS_DATASOURCE,
-            PersistenceExtractor.CONNECTS_TO,
-            PersistenceExtractor.JPA_TABLE,
-            PersistenceExtractor.MAPS_TO,
-            PersistenceExtractor.REPOSITORY_FOR,
-            PersistenceExtractor.WRITES_TABLE);
+            Types.DATASOURCE,
+            Types.HAS_DATASOURCE,
+            Types.CONNECTS_TO,
+            Types.JPA_TABLE,
+            Types.MAPS_TO,
+            Types.REPOSITORY_FOR,
+            Types.WRITES_TABLE);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();

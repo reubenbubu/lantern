@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -68,20 +69,11 @@ public final class RedisExtractor implements Extractor {
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "redis-extractor";
 
-  /** Attribute: the subject uses Redis; its value is the kind of use. */
-  public static final String REDIS_USE = "redis-use";
-
-  /**
-   * Attribute: the subject uses a Spring cache, with what its module's code says of the cache
-   * provider; linking tells from the module's config whether the cache is Redis (#567).
-   */
-  public static final String CACHE_USE = "cache-use";
-
   /** The attributes of a cache use that say what the module's code says of the provider. */
   private static final List<String> PROVIDER_SIGNALS =
       List.of("redisManager", "otherManager", "springDataRedis", "earlierProvider");
 
-  /** The kinds of use, as the value of {@link #REDIS_USE}. */
+  /** The kinds of use, as the value of {@link Types#REDIS_USE}. */
   public static final String TEMPLATE = "template";
 
   public static final String HASH = "hash";
@@ -358,11 +350,11 @@ public final class RedisExtractor implements Extractor {
   /**
    * The facts linking gives from each module's config (#567), as this extractor recorded them
    * before it stopped reading config: Spring Session, the rate limiter and the cache that config
-   * names, and the cache uses written in code ({@value #CACHE_USE}) of the modules whose cache
+   * names, and the cache uses written in code ({@value Types#CACHE_USE}) of the modules whose cache
    * provider, told from the code and the config ({@code spring.cache.type}), is Redis, with the
    * time to live config sets.
    *
-   * @param written the snapshot's facts; only {@value #CACHE_USE} facts are read
+   * @param written the snapshot's facts; only {@value Types#CACHE_USE} facts are read
    * @param configs the config of each module
    * @param origin the origin of the facts
    * @param snapshot the snapshot number the facts hold from
@@ -373,7 +365,7 @@ public final class RedisExtractor implements Extractor {
     run.origin = origin;
     configs.forEach(run::config);
     for (Fact f : written) {
-      if (f.predicate().equals(CACHE_USE)) {
+      if (f.predicate().equals(Types.CACHE_USE)) {
         run.cacheUse(f);
       }
     }
@@ -431,7 +423,7 @@ public final class RedisExtractor implements Extractor {
               Fact fact =
                   Fact.create(
                       use.subject(),
-                      CACHE_USE,
+                      Types.CACHE_USE,
                       FactObject.string(CACHE),
                       attributes,
                       origin,
@@ -926,7 +918,7 @@ public final class RedisExtractor implements Extractor {
       Fact fact =
           Fact.create(
               subject,
-              REDIS_USE,
+              Types.REDIS_USE,
               FactObject.string(kind),
               attributes,
               origin,

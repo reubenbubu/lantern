@@ -54,9 +54,6 @@ public record RoutedEndpointAttributes(
     String url,
     String view) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "routed-endpoint";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("discoveryLocator", "endpoint", "route", "served", "source", "target", "url", "view");
 

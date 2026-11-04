@@ -29,9 +29,6 @@ public record PayloadTypeAttributes(
     String role,
     List<String> typeArguments) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "payload-type";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("broker", "role", "typeArguments");
 

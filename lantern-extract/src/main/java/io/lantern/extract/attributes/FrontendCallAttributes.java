@@ -34,9 +34,6 @@ public record FrontendCallAttributes(
     String url,
     String written) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "frontend-call";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("httpMethod", "navigation", "protocol", "url");
 

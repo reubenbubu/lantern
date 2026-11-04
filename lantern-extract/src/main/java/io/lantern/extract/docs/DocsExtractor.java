@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -62,42 +63,6 @@ public final class DocsExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "docs-extractor";
-
-  /** Entity type of a README file. */
-  public static final String README = "readme";
-
-  /** Entity type of a document that is neither a README nor a decision record. */
-  public static final String DOCUMENT = "document";
-
-  /** Entity type of a decision record. */
-  public static final String DECISION = "decision";
-
-  /** Attribute: one paragraph, list item, table row, quote or diagram of a README or document. */
-  public static final String CLAIM = "claim";
-
-  /** Attribute: a diagram in a README or document, its source as written. */
-  public static final String DIAGRAM = "diagram";
-
-  /** Attribute: a decision record's title. */
-  public static final String TITLE = "title";
-
-  /** Attribute: a decision record's number. */
-  public static final String NUMBER = "decision-number";
-
-  /** Attribute: a decision record's status, as written. */
-  public static final String STATUS = "decision-status";
-
-  /** Attribute: a decision record's date, as written. */
-  public static final String DATE = "decision-date";
-
-  /** Attribute: a decision record's context section. */
-  public static final String CONTEXT = "decision-context";
-
-  /** Attribute: a decision record's decision section. */
-  public static final String OUTCOME = "decision-outcome";
-
-  /** Attribute: one of a decision record's consequences sections. */
-  public static final String CONSEQUENCES = "decision-consequences";
 
   /** Confidence of README claims: documentation the code may have left behind. */
   static final double README_CONFIDENCE = 0.5;
@@ -237,10 +202,10 @@ public final class DocsExtractor implements Extractor {
       if (!decision(source, doc, facts) && DecisionRecord.numbered(name(path))) {
         // A numbered page in plain prose, with no status or sections, does not read as a
         // record; its text is read as a document's rather than lost.
-        claims(source.id(DOCUMENT), source, doc, facts, known);
+        claims(source.id(Types.DOCUMENT), source, doc, facts, known);
       }
     } else {
-      claims(source.id(readme ? README : DOCUMENT), source, doc, facts, known);
+      claims(source.id(readme ? Types.README : Types.DOCUMENT), source, doc, facts, known);
     }
   }
 
@@ -358,23 +323,41 @@ public final class DocsExtractor implements Extractor {
     if (record == null) {
       return false;
     }
-    EntityId id = source.id(DECISION);
-    put(facts, id, TITLE, FactObject.string(record.title.value()), source, record.title);
+    EntityId id = source.id(Types.DECISION);
+    put(facts, id, Types.TITLE, FactObject.string(record.title.value()), source, record.title);
     if (record.number != null) {
-      put(facts, id, NUMBER, FactObject.integer(record.number.value()), source, record.number);
+      put(
+          facts,
+          id,
+          Types.DECISION_NUMBER,
+          FactObject.integer(record.number.value()),
+          source,
+          record.number);
     }
     if (record.status != null) {
-      put(facts, id, STATUS, FactObject.string(record.status.value()), source, record.status);
+      put(
+          facts,
+          id,
+          Types.DECISION_STATUS,
+          FactObject.string(record.status.value()),
+          source,
+          record.status);
     }
     if (record.date != null) {
-      put(facts, id, DATE, FactObject.string(record.date.value()), source, record.date);
+      put(
+          facts,
+          id,
+          Types.DECISION_DATE,
+          FactObject.string(record.date.value()),
+          source,
+          record.date);
     }
     for (SectionText s : record.sections) {
       String predicate =
           switch (s.section()) {
-            case CONTEXT -> CONTEXT;
-            case OUTCOME -> OUTCOME;
-            case CONSEQUENCES -> CONSEQUENCES;
+            case CONTEXT -> Types.DECISION_CONTEXT;
+            case OUTCOME -> Types.DECISION_OUTCOME;
+            case CONSEQUENCES -> Types.DECISION_CONSEQUENCES;
           };
       facts.put(
           id,
@@ -432,7 +415,7 @@ public final class DocsExtractor implements Extractor {
       }
       facts.put(
           id,
-          b.kind() == Kind.DIAGRAM ? DIAGRAM : CLAIM,
+          b.kind() == Kind.DIAGRAM ? Types.DIAGRAM : Types.CLAIM,
           FactObject.string(maskSecrets(b.text(), known)),
           attributes,
           source.evidence(b.start(), b.end()),

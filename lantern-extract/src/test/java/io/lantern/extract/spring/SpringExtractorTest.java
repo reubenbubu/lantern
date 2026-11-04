@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.JavaAnalysis;
@@ -60,7 +61,7 @@ class SpringExtractorTest {
         SpringExtractor.NAME,
         SpringExtractor.VERSION);
     assertThat(written)
-        .noneMatch(f -> f.predicate().equals(SpringExtractor.ENDPOINT))
+        .noneMatch(f -> f.predicate().equals(Types.ENDPOINT))
         .noneMatch(f -> f.attributes().has("profile"));
     return facts;
   }

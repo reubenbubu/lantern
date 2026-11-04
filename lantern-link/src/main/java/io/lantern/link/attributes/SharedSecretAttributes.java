@@ -51,9 +51,6 @@ public record SharedSecretAttributes(
     String view,
     List<String> with) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "shared-secret";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("algorithm", "basis", "library", "placeholders", "source", "uses", "view", "with");
 

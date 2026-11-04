@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.JavaAnalysis;
@@ -67,20 +68,20 @@ class PersistenceExtractorTest {
     JavaAnalysis code =
         JavaExtractor.analyze(List.of(new RepoBuild(repo, Fixtures.head(repo), null)));
     assertThat(new PersistenceExtractor().extract(code, SNAPSHOT))
-        .noneMatch(f -> f.predicate().equals(PersistenceExtractor.DATASOURCE))
-        .noneMatch(f -> f.predicate().equals(PersistenceExtractor.DATA_STORE))
+        .noneMatch(f -> f.predicate().equals(Types.DATASOURCE))
+        .noneMatch(f -> f.predicate().equals(Types.DATA_STORE))
         // A JPA entity's name is as written; linking names its table (#567).
         .noneMatch(
             f ->
-                f.predicate().equals(PersistenceExtractor.MAPS_TO)
+                f.predicate().equals(Types.MAPS_TO)
                     && f.attributes().path("framework").stringValue("").equals("jpa"))
-        .anyMatch(f -> f.predicate().equals(PersistenceExtractor.JPA_TABLE));
+        .anyMatch(f -> f.predicate().equals(Types.JPA_TABLE));
     List<Fact> entities =
         Resolved.datasources(code, SNAPSHOT, Set.of()).stream()
             .filter(
                 f ->
-                    f.predicate().equals(PersistenceExtractor.HAS_DATASOURCE)
-                        || f.predicate().equals(PersistenceExtractor.CONNECTS_TO))
+                    f.predicate().equals(Types.HAS_DATASOURCE)
+                        || f.predicate().equals(Types.CONNECTS_TO))
             .toList();
     Fixtures.assertGolden("persistence/persistence-datasources.txt", entities);
     assertThat(Fixtures.render(entities))
@@ -176,8 +177,7 @@ class PersistenceExtractorTest {
   private static boolean isSql(Fact f) {
     return f.evidence().repo().equals("persistence")
         && f.evidence().path().startsWith("app/src/main/java")
-        && (f.predicate().equals(PersistenceExtractor.READS_TABLE)
-            || f.predicate().equals(PersistenceExtractor.WRITES_TABLE));
+        && (f.predicate().equals(Types.READS_TABLE) || f.predicate().equals(Types.WRITES_TABLE));
   }
 
   /** The app module's table access, rendered. */

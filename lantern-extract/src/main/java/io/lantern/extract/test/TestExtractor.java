@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -57,18 +58,6 @@ public final class TestExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "test-extractor";
-
-  /** Entity type of a test class. */
-  public static final String TEST_CLASS = "test-class";
-
-  /** Relationship: a test class tests the code of a module. */
-  public static final String TESTS = "TESTS";
-
-  /** Attribute: a container a module's tests start, such as a Testcontainers database. */
-  public static final String TEST_CONTAINER = "test-container";
-
-  /** Attribute: an architecture rule a module's tests declare with ArchUnit's library rules. */
-  public static final String ARCHITECTURE_RULE = "architecture-rule";
 
   /** Confidence of the facts: the annotations are matched by their imports, not resolved. */
   static final double CONFIDENCE = 0.9;
@@ -190,7 +179,7 @@ public final class TestExtractor implements Extractor {
               repo,
               validity,
               module.getKey(),
-              TEST_CONTAINER,
+              Types.TEST_CONTAINER,
               c.value(),
               attributes,
               read,
@@ -238,7 +227,7 @@ public final class TestExtractor implements Extractor {
               repo,
               validity,
               module.getKey(),
-              ARCHITECTURE_RULE,
+              Types.ARCHITECTURE_RULE,
               r.kind(),
               attributes,
               read,
@@ -263,7 +252,7 @@ public final class TestExtractor implements Extractor {
           Fact fact =
               Fact.create(
                   subject,
-                  TESTS,
+                  Types.TESTS,
                   FactObject.entity(module.getKey()),
                   attributes,
                   ORIGIN,
@@ -346,7 +335,7 @@ public final class TestExtractor implements Extractor {
   /** The test class's entity ID, or null if the key is not a valid entity key. */
   private static EntityId entity(EntityId module, String binaryName) {
     try {
-      return new EntityId(TEST_CLASS, module.key() + ":" + binaryName);
+      return new EntityId(Types.TEST_CLASS, module.key() + ":" + binaryName);
     } catch (IllegalArgumentException e) {
       return null;
     }

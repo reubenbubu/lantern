@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.DeploymentContainerAttributes;
 import io.lantern.extract.deployment.DeploymentExtractor;
 import io.lantern.link.LinkIndex.Unit;
@@ -35,9 +36,6 @@ import tools.jackson.databind.node.ObjectNode;
  * relaxed binding does ({@code AUTH_DATASOURCE_HOST} sets {@code auth.datasource.host}).
  */
 final class Deployments {
-
-  /** Attribute the linker gives a unit or data store: a container that runs it. */
-  static final String DEPLOYED_IN = "deployed-in";
 
   /** A container of one environment, read from its fact. */
   record Container(
@@ -122,7 +120,7 @@ final class Deployments {
   private final Map<EntityId, List<Container>> byUnit = new HashMap<>();
 
   Deployments(LinkIndex index) {
-    for (Fact f : index.of(DeploymentExtractor.DEPLOYMENT_CONTAINER)) {
+    for (Fact f : index.of(Types.DEPLOYMENT_CONTAINER)) {
       Set<String> names = new LinkedHashSet<>();
       names.add(normalized(f.object().value()));
       Claims.list(container(f).hosts()).forEach(h -> names.add(normalized(h)));
@@ -346,7 +344,7 @@ final class Deployments {
     attributes.put("fact", c.fact().id());
     return Fact.create(
         subject,
-        DEPLOYED_IN,
+        Types.DEPLOYED_IN,
         FactObject.string(c.label()),
         attributes,
         origin,

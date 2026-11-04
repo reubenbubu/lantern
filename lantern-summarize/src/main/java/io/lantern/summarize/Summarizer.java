@@ -4,7 +4,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
-import io.lantern.extract.docs.DocsExtractor;
+import io.lantern.core.types.Types;
 import io.lantern.harness.Calls;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
@@ -1292,7 +1292,7 @@ public final class Summarizer {
       }
       List<Fact> facts = promptFacts(node);
       for (int i = 0; i < facts.size(); i++) {
-        if (facts.get(i).predicate().equals(DocsExtractor.CLAIM)) {
+        if (facts.get(i).predicate().equals(Types.CLAIM)) {
           evidence.add("F" + (i + 1));
         }
       }

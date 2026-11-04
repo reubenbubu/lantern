@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -70,36 +70,6 @@ public final class SqlExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "sql-extractor";
-
-  /** Entity type: the schema a module's migrations build. */
-  public static final String SCHEMA = "schema";
-
-  /** Entity type: a table of a schema. */
-  public static final String TABLE = "table";
-
-  /** Entity type: a column of a table. */
-  public static final String COLUMN = "column";
-
-  /** Relationship: a table's primary key includes the column. */
-  public static final String PRIMARY_KEY = "PRIMARY_KEY";
-
-  /** Relationship: a unique key of the table includes the column. */
-  public static final String UNIQUE_KEY = "UNIQUE_KEY";
-
-  /** Relationship: a foreign key of the table references the other table. */
-  public static final String REFERENCES = "REFERENCES";
-
-  /** Attribute: a column's SQL type. */
-  public static final String DATA_TYPE = "data-type";
-
-  /** Attribute: whether a column accepts null. */
-  public static final String NULLABLE = "nullable";
-
-  /** Attribute: a column's place in its table, from 1. */
-  public static final String POSITION = "position";
-
-  /** Attribute (the Java extractor's): how a schema is migrated. */
-  public static final String KIND = "kind";
 
   /** The {@code kind} of a schema built by Flyway, Liquibase or other SQL files. */
   public static final String FLYWAY = "flyway";
@@ -253,7 +223,7 @@ public final class SqlExtractor implements Extractor {
         }
       }
       String key = module != null ? module.key() : repo.repo().name();
-      facts(repo, module, entity(SCHEMA, key), key, model, kinds, validity, facts);
+      facts(repo, module, entity(Types.SCHEMA, key), key, model, kinds, validity, facts);
     }
   }
 
@@ -354,7 +324,7 @@ public final class SqlExtractor implements Extractor {
     Set<Where> used = new LinkedHashSet<>();
     List<Fact> found = new ArrayList<>();
     for (SchemaModel.Table table : model.tables()) {
-      EntityId tableId = entity(TABLE, key + ":" + table.name);
+      EntityId tableId = entity(Types.TABLE, key + ":" + table.name);
       if (tableId == null) {
         continue;
       }
@@ -363,7 +333,7 @@ public final class SqlExtractor implements Extractor {
           used,
           repo,
           schema,
-          BuiltInTypes.CONTAINS,
+          Types.CONTAINS,
           FactObject.entity(tableId),
           null,
           table.defined,
@@ -371,7 +341,7 @@ public final class SqlExtractor implements Extractor {
       int position = 0;
       for (SchemaModel.Column column : table.columns.values()) {
         position++;
-        EntityId columnId = entity(COLUMN, key + ":" + table.name + "#" + column.name);
+        EntityId columnId = entity(Types.COLUMN, key + ":" + table.name + "#" + column.name);
         if (columnId == null) {
           continue;
         }
@@ -380,7 +350,7 @@ public final class SqlExtractor implements Extractor {
             used,
             repo,
             tableId,
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             FactObject.entity(columnId),
             null,
             column.defined,
@@ -390,7 +360,7 @@ public final class SqlExtractor implements Extractor {
             used,
             repo,
             columnId,
-            POSITION,
+            Types.POSITION,
             FactObject.integer(position),
             null,
             column.defined,
@@ -401,7 +371,7 @@ public final class SqlExtractor implements Extractor {
               used,
               repo,
               columnId,
-              DATA_TYPE,
+              Types.DATA_TYPE,
               FactObject.string(column.type),
               null,
               column.typeAt,
@@ -412,20 +382,20 @@ public final class SqlExtractor implements Extractor {
             used,
             repo,
             columnId,
-            NULLABLE,
+            Types.NULLABLE,
             FactObject.bool(column.nullable),
             null,
             column.nullableAt,
             validity);
       }
       if (table.primaryKey != null) {
-        key(found, used, repo, key, tableId, table, PRIMARY_KEY, table.primaryKey, validity);
+        key(found, used, repo, key, tableId, table, Types.PRIMARY_KEY, table.primaryKey, validity);
       }
       for (SchemaModel.Key unique : table.uniqueKeys) {
-        key(found, used, repo, key, tableId, table, UNIQUE_KEY, unique, validity);
+        key(found, used, repo, key, tableId, table, Types.UNIQUE_KEY, unique, validity);
       }
       for (SchemaModel.ForeignKey fk : table.foreignKeys) {
-        EntityId target = entity(TABLE, key + ":" + fk.table());
+        EntityId target = entity(Types.TABLE, key + ":" + fk.table());
         if (target == null) {
           continue;
         }
@@ -443,7 +413,7 @@ public final class SqlExtractor implements Extractor {
             used,
             repo,
             tableId,
-            REFERENCES,
+            Types.REFERENCES,
             FactObject.entity(target),
             attributes,
             fk.where(),
@@ -474,7 +444,7 @@ public final class SqlExtractor implements Extractor {
           null,
           repo,
           module,
-          BuiltInTypes.CONTAINS,
+          Types.CONTAINS,
           FactObject.entity(schema),
           null,
           wholeFile(first),
@@ -486,7 +456,7 @@ public final class SqlExtractor implements Extractor {
           null,
           repo,
           schema,
-          KIND,
+          Types.KIND,
           FactObject.string(kind.getKey()),
           null,
           wholeFile(kind.getValue()),
@@ -513,7 +483,7 @@ public final class SqlExtractor implements Extractor {
       attributes.put("name", k.name());
     }
     for (String column : k.columns()) {
-      EntityId columnId = entity(COLUMN, key + ":" + table.name + "#" + column);
+      EntityId columnId = entity(Types.COLUMN, key + ":" + table.name + "#" + column);
       if (columnId != null) {
         add(
             found,
@@ -576,7 +546,7 @@ public final class SqlExtractor implements Extractor {
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(KIND));
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(Types.KIND));
 
   @Override
   public ExtractorInfo info() {

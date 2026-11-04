@@ -2,7 +2,7 @@ package io.lantern.extract.java;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.repo.Git;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.ModuleStructure.SourceFile;
 import io.lantern.extract.maven.MavenExtractor;
@@ -111,7 +111,7 @@ final class RepoSources {
       EntityId id = entry.getValue();
       if (build != null) {
         try {
-          id = new EntityId(BuiltInTypes.MODULE, build.groupId() + ":" + build.artifactId());
+          id = new EntityId(Types.MODULE, build.groupId() + ":" + build.artifactId());
         } catch (IllegalArgumentException e) {
           // Keep the ID from the POM as written.
         }

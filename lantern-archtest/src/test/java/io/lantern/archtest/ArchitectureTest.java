@@ -40,6 +40,6 @@ class ArchitectureTest {
   static final ArchRule composerReadsTheModel = ArchitectureRules.COMPOSER_READS_THE_MODEL;
 
   @ArchTest
-  static final ArchRule composeNamesTypesThroughTheTypedLayer =
-      ArchitectureRules.COMPOSE_NAMES_TYPES_THROUGH_THE_TYPED_LAYER;
+  static final ArchRule namesTypesThroughTheTypedLayer =
+      ArchitectureRules.NAMES_TYPES_THROUGH_THE_TYPED_LAYER;
 }

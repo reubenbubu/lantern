@@ -19,13 +19,12 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Unknowns;
 import io.lantern.derive.Vocabularies;
-import io.lantern.core.types.Types;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -142,12 +141,12 @@ final class QualityBar {
 
   /** The entity types each diagram kind may show, besides the boundaries it draws others in. */
   private static final Set<String> CONTEXT_TYPES =
-      Set.of(BuiltInTypes.SYSTEM, Types.EXTERNAL_SYSTEM, Types.PERSON);
+      Set.of(Types.SYSTEM, Types.EXTERNAL_SYSTEM, Types.PERSON);
 
   private static final Set<String> CONTAINER_TYPES =
       Set.of(
-          BuiltInTypes.CONTAINER,
-          BuiltInTypes.SERVICE,
+          Types.CONTAINER,
+          Types.SERVICE,
           Types.FRONTEND,
           Types.DATABASE,
           Types.TOPIC,
@@ -322,7 +321,7 @@ final class QualityBar {
             // A domain or feature area stands for its members, at their level (ADR 0117).
             case C4_CONTAINER -> extendsOneOf(type, CONTAINER_TYPES) || type.equals(Types.GROUP);
             case C4_COMPONENT ->
-                type.equals(BuiltInTypes.TYPE)
+                type.equals(Types.TYPE)
                     || extendsOneOf(type, CONTAINER_TYPES)
                     || type.equals(Types.GROUP);
             case DEPENDENCY -> true;
@@ -619,7 +618,7 @@ final class QualityBar {
         }
         for (Diagram.Node node : d.nodes()) {
           if (node.facts().isEmpty()
-              && !node.id().type().equals(BuiltInTypes.SYSTEM)
+              && !node.id().type().equals(Types.SYSTEM)
               && !ends.contains(node.id())
               && !hasFacts(node.id())) {
             uncited.add(node.label());

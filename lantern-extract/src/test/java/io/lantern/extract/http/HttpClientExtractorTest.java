@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.JavaAnalysis;
@@ -48,7 +49,7 @@ class HttpClientExtractorTest {
         facts,
         inputs.stream().map(RepoBuild::repo).toList(),
         SNAPSHOT,
-        HttpClientExtractor.NAME,
+        Types.HTTP_CLIENT,
         HttpClientExtractor.VERSION);
     // Running again on the same input gives the same facts.
     assertThat(new HttpClientExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);

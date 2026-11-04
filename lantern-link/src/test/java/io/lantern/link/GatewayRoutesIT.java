@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.gateway.GatewayExtractor;
@@ -148,12 +149,12 @@ class GatewayRoutesIT {
                 + (TestAttributes.text(f, "endpoint") == null
                     ? ""
                     : " endpoint=" + TestAttributes.text(f, "endpoint")));
-      } else if (f.predicate().equals(CrossRepoLinks.UNROUTED_ENDPOINT)) {
+      } else if (f.predicate().equals(Types.UNROUTED_ENDPOINT)) {
         lines.add(line + " on " + TestAttributes.text(f, "target") + calledBy(f));
-      } else if (f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK)
+      } else if (f.predicate().equals(Types.UNRESOLVED_LINK)
           && "route".equals(TestAttributes.text(f, "kind"))) {
         lines.add(line + " " + TestAttributes.text(f, "reason"));
-      } else if (f.predicate().equals(CrossRepoLinks.CALLS_HTTP)) {
+      } else if (f.predicate().equals(Types.CALLS_HTTP)) {
         others.add(
             line + " " + TestAttributes.text(f, "protocol") + " " + f.attributes().get("path"));
       }

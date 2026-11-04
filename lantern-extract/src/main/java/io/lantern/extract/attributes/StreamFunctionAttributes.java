@@ -31,9 +31,6 @@ public record StreamFunctionAttributes(
     Long outputs,
     Boolean streamOnClasspath) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "stream-function";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("binders", "configModule", "configRepo", "inputs", "outputs", "streamOnClasspath");
 

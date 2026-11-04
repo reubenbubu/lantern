@@ -8,6 +8,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.ConfigExtractor;
@@ -44,11 +45,11 @@ class MessagingValuesIT {
 
   private static final Set<String> MESSAGE_FACTS =
       Set.of(
-          MessagingExtractor.SEND,
-          MessagingExtractor.LISTENER,
-          MessagingExtractor.BINDING,
-          MessagingExtractor.DESTINATION,
-          WebSocketExtractor.SEND);
+          Types.MESSAGE_SEND,
+          Types.MESSAGE_LISTENER,
+          Types.MESSAGE_BINDING,
+          Types.MESSAGE_DESTINATION,
+          Types.STOMP_SEND);
 
   @Test
   void linkingGivesTheMessagingFactsTheExtractorGaveOnTheDevelopmentSets() throws IOException {
@@ -67,12 +68,9 @@ class MessagingValuesIT {
       facts.addAll(written);
 
       for (Fact f : written) {
-        if (!f.predicate().equals(MessagingExtractor.STREAM_FUNCTION)
-            && f.attributes().has("configModule")) {
+        if (!f.predicate().equals(Types.STREAM_FUNCTION) && f.attributes().has("configModule")) {
           assertThat(f.object().kind()).as(set + " " + f).isEqualTo(FactObject.Kind.ENTITY);
-          assertThat(f.object().entityId().type())
-              .as(set + " " + f)
-              .isEqualTo(MessagingExtractor.DESTINATION_ENTITY);
+          assertThat(f.object().entityId().type()).as(set + " " + f).isEqualTo(Types.DESTINATION);
         }
         assertThat(f.attributes().has("profile")).as(set + " " + f).isFalse();
         assertThat(MESSAGE_FACTS).as(set + " " + f).doesNotContain(f.predicate());

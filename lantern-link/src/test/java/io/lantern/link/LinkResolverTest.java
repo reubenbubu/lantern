@@ -9,9 +9,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.gateway.GatewayExtractor;
-import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
@@ -107,21 +106,21 @@ class LinkResolverTest {
     add(
         MavenExtractor.NAME,
         "service:g:" + artifact,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("module:g:" + artifact)),
         null,
         repo + ":pom.xml");
     add(
         DeployableUnits.NAME,
         "service:g:" + artifact,
-        DeployableUnits.DEPLOYABLE_UNIT,
+        Types.DEPLOYABLE_UNIT,
         FactObject.string("spring-boot"),
         null,
         repo + ":pom.xml");
     add(
         DeployableUnits.NAME,
         "service:g:" + artifact,
-        DeployableUnits.APPLICATION_NAME,
+        Types.APPLICATION_NAME,
         FactObject.string(artifact),
         "{\"module\":\"module:g:" + artifact + "\"}",
         repo + ":src/main/resources/application.yml#2");
@@ -132,14 +131,14 @@ class LinkResolverTest {
     add(
         JavaExtractor.NAME,
         "module:g:" + module,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("package:g:" + module + ":" + pkg)),
         null,
         repo + ":src/main/java");
     add(
         JavaExtractor.NAME,
         "package:g:" + module + ":" + pkg,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         FactObject.entity(EntityId.parse("type:" + type)),
         null,
         repo + ":src/main/java/" + type.replace('.', '/') + ".java#1");
@@ -150,14 +149,14 @@ class LinkResolverTest {
     add(
         SpringExtractor.NAME,
         "method:" + controller + "#quotes()",
-        SpringExtractor.ENDPOINT,
+        Types.ENDPOINT,
         FactObject.string("GET " + path),
         "{\"controller\":\"" + controller + "\",\"httpMethod\":\"GET\",\"path\":\"" + path + "\"}",
         repo + ":src/main/java/" + controller.replace('.', '/') + ".java#20");
     add(
         SpringExtractor.NAME,
         "type:" + controller,
-        SpringExtractor.STEREOTYPE,
+        Types.STEREOTYPE,
         FactObject.string("controller"),
         "{\"rest\":true}",
         repo + ":src/main/java/" + controller.replace('.', '/') + ".java#5");
@@ -168,9 +167,9 @@ class LinkResolverTest {
     unit("a", "orders");
     type("a", "orders", "o.TaxClient");
     add(
-        HttpClientExtractor.NAME,
+        Types.HTTP_CLIENT,
         "method:o.TaxClient#quote()",
-        HttpClientExtractor.HTTP_CALL,
+        Types.HTTP_CALL,
         FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
         "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\","
             + "\"unresolved\":[\"TAX_SERVICE_URL\"],\"written\":\"${clients.tax.url}/v2/quotes\"}",
@@ -372,14 +371,14 @@ class LinkResolverTest {
 
     Fact unresolved =
         linked().stream()
-            .filter(f -> f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK))
+            .filter(f -> f.predicate().equals(Types.UNRESOLVED_LINK))
             .findFirst()
             .orElseThrow();
     assertThat(result.asked()).isEqualTo(1);
     assertThat(result.facts()).hasSize(1);
     Fact link = result.facts().getFirst();
     assertThat(link.subject()).isEqualTo(EntityId.parse("service:g:orders"));
-    assertThat(link.predicate()).isEqualTo(CrossRepoLinks.CALLS_HTTP);
+    assertThat(link.predicate()).isEqualTo(Types.CALLS_HTTP);
     assertThat(link.object().value()).isEqualTo("service:g:tax");
     assertThat(link.origin())
         .isEqualTo(new Origin(Origin.Kind.LLM, "resolve", ResolvePrompt.VERSION));
@@ -409,8 +408,7 @@ class LinkResolverTest {
     return facts.stream()
         .filter(
             f ->
-                f.predicate().equals(SpringExtractor.ENDPOINT)
-                    && f.subject().toString().contains(controller))
+                f.predicate().equals(Types.ENDPOINT) && f.subject().toString().contains(controller))
         .findFirst()
         .orElseThrow()
         .id();
@@ -423,7 +421,7 @@ class LinkResolverTest {
     add(
         GatewayExtractor.NAME,
         "type:gw.Routes",
-        GatewayExtractor.ROUTE,
+        Types.GATEWAY_ROUTE,
         FactObject.string("quotes"),
         "{\"definedIn\":\"config\",\"uri\":\"http://quotes-svc:8080\","
             + "\"paths\":[\"/v2/quotes\"]}",
@@ -452,7 +450,7 @@ class LinkResolverTest {
         .contains("[K2] service:g:tax");
     Fact link = result.facts().getFirst();
     assertThat(link.subject()).isEqualTo(EntityId.parse("service:g:edge"));
-    assertThat(link.predicate()).isEqualTo(CrossRepoLinks.CALLS_HTTP);
+    assertThat(link.predicate()).isEqualTo(Types.CALLS_HTTP);
     assertThat(link.object().value()).isEqualTo("service:g:tax");
     ObjectNode attributes = link.attributes().deepCopy();
     attributes.remove("facts");
@@ -582,9 +580,9 @@ class LinkResolverTest {
     unit("m", "orders");
     type("m", "orders", "o.TaxClient");
     add(
-        HttpClientExtractor.NAME,
+        Types.HTTP_CLIENT,
         "method:o.TaxClient#quote()",
-        HttpClientExtractor.HTTP_CALL,
+        Types.HTTP_CALL,
         FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
         "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\","
             + "\"unresolved\":[\"TAX_SERVICE_URL\"]}",
@@ -904,8 +902,7 @@ class LinkResolverTest {
         // Shown once, in block 4, not again in the item.
         .containsOnlyOnce("config-value");
 
-    facts.removeIf(
-        f -> f.predicate().equals(io.lantern.extract.config.ConfigExtractor.CONFIG_VALUE));
+    facts.removeIf(f -> f.predicate().equals(Types.CONFIG_VALUE));
     config("clients.tax.url", "${TAX_URL}");
     resolve(fake);
 
@@ -916,7 +913,7 @@ class LinkResolverTest {
     add(
         io.lantern.extract.config.ConfigExtractor.NAME,
         "module:g:orders",
-        io.lantern.extract.config.ConfigExtractor.CONFIG_VALUE,
+        Types.CONFIG_VALUE,
         FactObject.string(value),
         "{\"key\":\"" + key + "\"}",
         "a:src/main/resources/application.yml#3");
@@ -959,9 +956,9 @@ class LinkResolverTest {
     for (int i = 1; i <= 5; i++) {
       type("a", "orders", "o.Client" + i);
       add(
-          HttpClientExtractor.NAME,
+          Types.HTTP_CLIENT,
           "method:o.Client" + i + "#call()",
-          HttpClientExtractor.HTTP_CALL,
+          Types.HTTP_CALL,
           FactObject.string("GET ${URL" + i + "}/v2/q" + i),
           "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/q"
               + i
@@ -1039,9 +1036,9 @@ class LinkResolverTest {
     unit("a", "orders");
     type("a", "orders", "o.TaxClient");
     add(
-        HttpClientExtractor.NAME,
+        Types.HTTP_CLIENT,
         "method:o.TaxClient#quote()",
-        HttpClientExtractor.HTTP_CALL,
+        Types.HTTP_CALL,
         FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
         "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\","
             + "\"unresolved\":[\"TAX_SERVICE_URL\"]}",
@@ -1050,7 +1047,7 @@ class LinkResolverTest {
 
     LinkResolver.Result result = resolve(fake);
 
-    assertThat(linked()).anyMatch(f -> f.predicate().equals(CrossRepoLinks.UNRESOLVED_LINK));
+    assertThat(linked()).anyMatch(f -> f.predicate().equals(Types.UNRESOLVED_LINK));
     assertThat(result.facts()).isEmpty();
     assertThat(fake.sent()).isEmpty();
   }
@@ -1062,7 +1059,7 @@ class LinkResolverTest {
     add(
         MessagingExtractor.NAME,
         "method:s.Publisher#unknown()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         FactObject.string("direct.x"),
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"exchange\",\"routingKey\":\"k\","
             + "\"unknown\":[\"routingKey\"]}",
@@ -1073,7 +1070,7 @@ class LinkResolverTest {
     add(
         MessagingExtractor.NAME,
         "method:w.Config#direct()",
-        MessagingExtractor.BINDING,
+        Types.MESSAGE_BINDING,
         FactObject.string("q.direct"),
         "{\"broker\":\"rabbitmq\",\"exchange\":\"direct.x\",\"exchangeType\":\"direct\","
             + "\"routingKey\":\"order.created\"}",
@@ -1081,7 +1078,7 @@ class LinkResolverTest {
     add(
         MessagingExtractor.NAME,
         "method:w.Listener#direct()",
-        MessagingExtractor.LISTENER,
+        Types.MESSAGE_LISTENER,
         FactObject.string("q.direct"),
         "{\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}",
         "w:src/main/java/w/Listener.java#8");
@@ -1106,7 +1103,7 @@ class LinkResolverTest {
         .singleElement()
         .satisfies(
             f -> {
-              assertThat(f.predicate()).isEqualTo(CrossRepoLinks.SENDS_MESSAGES_TO);
+              assertThat(f.predicate()).isEqualTo(Types.SENDS_MESSAGES_TO);
               assertThat(f.object().value()).isEqualTo("service:g:worker");
               assertThat(f.confidence()).isEqualTo(0.35);
               assertThat(f.attributes().get("protocol").asString()).isEqualTo("AMQP");
@@ -1128,13 +1125,13 @@ class LinkResolverTest {
     add(
         MessagingExtractor.NAME,
         "method:s.Publisher#send()",
-        MessagingExtractor.SEND,
+        Types.MESSAGE_SEND,
         FactObject.string("orders"),
         "{\"broker\":\"kafka\",\"destinationKind\":\"topic\"}",
         "s:src/main/java/s/Publisher.java#7");
     Fact relation =
         linked().stream()
-            .filter(f -> f.predicate().equals(MessagingExtractor.SENDS_TO))
+            .filter(f -> f.predicate().equals(Types.SENDS_TO))
             .findFirst()
             .orElseThrow();
 
@@ -1341,7 +1338,7 @@ class LinkResolverTest {
         facts.stream()
             .filter(
                 f ->
-                    f.predicate().equals(SpringExtractor.STEREOTYPE)
+                    f.predicate().equals(Types.STEREOTYPE)
                         && f.subject().toString().equals("type:t.TaxController"))
             .findFirst()
             .orElseThrow();
@@ -1403,7 +1400,7 @@ class LinkResolverTest {
     resolveWithFiles(lookingFurther());
     facts.removeIf(
         f ->
-            f.predicate().equals(SpringExtractor.STEREOTYPE)
+            f.predicate().equals(Types.STEREOTYPE)
                 && f.subject().toString().equals("type:t.TaxController"));
     FakeLlmProvider again = model(r -> List.of());
 

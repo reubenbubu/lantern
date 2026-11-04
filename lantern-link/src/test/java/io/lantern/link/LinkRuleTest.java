@@ -10,6 +10,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.link.attributes.CallsHttpAttributes;
 import java.util.List;
 import java.util.Set;
@@ -99,8 +100,8 @@ class LinkRuleTest {
     Rule resolver =
         new Rule(
             "resolve",
-            Set.of(CrossRepoLinks.UNRESOLVED_LINK),
-            Set.of(CrossRepoLinks.CALLS_HTTP, CrossRepoLinks.SENDS_MESSAGES_TO));
+            Set.of(Types.UNRESOLVED_LINK),
+            Set.of(Types.CALLS_HTTP, Types.SENDS_MESSAGES_TO));
 
     List<LinkRule> rules = new java.util.ArrayList<>(Rules.standard());
     rules.add(resolver);
@@ -127,15 +128,12 @@ class LinkRuleTest {
     ProtocolLinks messaging = ProtocolLinks.messaging();
 
     assertThat(messaging.reads())
-        .contains(
-            io.lantern.extract.messaging.MessagingExtractor.SENDS_TO,
-            io.lantern.extract.messaging.MessagingExtractor.LISTENS_ON,
-            io.lantern.extract.messaging.MessagingExtractor.BINDS)
+        .contains(Types.SENDS_TO, Types.LISTENS_ON, Types.BINDS)
         .doesNotContain(
-            io.lantern.extract.messaging.MessagingExtractor.SEND,
-            io.lantern.extract.messaging.MessagingExtractor.LISTENER,
-            io.lantern.extract.messaging.MessagingExtractor.BINDING,
-            io.lantern.extract.messaging.MessagingExtractor.DESTINATION);
+            Types.MESSAGE_SEND,
+            Types.MESSAGE_LISTENER,
+            Types.MESSAGE_BINDING,
+            Types.MESSAGE_DESTINATION);
     assertThat(RuleOrder.reads(messaging, new ValueResolution())).isTrue();
   }
 
@@ -159,9 +157,9 @@ class LinkRuleTest {
     ClaimQuery in =
         new ClaimQuery(
             rule,
-            Set.of(CrossRepoLinks.CALLS_HTTP),
+            Set.of(Types.CALLS_HTTP),
             Set.of(),
-            List.of(call(CrossRepoLinks.CALLS_HTTP, "{\"endpoint\":\"GET /a\",\"path\":\"/a\"}")),
+            List.of(call(Types.CALLS_HTTP, "{\"endpoint\":\"GET /a\",\"path\":\"/a\"}")),
             1);
 
     List<ClaimQuery.Claim<CallsHttpAttributes>> calls = in.all(CallsHttpAttributes.class);
@@ -194,12 +192,12 @@ class LinkRuleTest {
         new ClaimQuery(
             new RuleInfo("checks", "1", Origin.Kind.STATIC),
             Set.of(LinkRule.EXTRACTED),
-            Set.of(CrossRepoLinks.CALLS_HTTP),
+            Set.of(Types.CALLS_HTTP),
             List.of(),
             1);
 
     assertThat(in.all("config-value")).isEmpty();
-    assertThatThrownBy(() -> in.all(CrossRepoLinks.CALLS_HTTP))
+    assertThatThrownBy(() -> in.all(Types.CALLS_HTTP))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("does not declare");
   }
@@ -207,19 +205,17 @@ class LinkRuleTest {
   @Test
   void aSinkTakesOnlyTheRulesOriginAndWrites() {
     ClaimSink out =
-        new ClaimSink(
-            new RuleInfo("links", "1", Origin.Kind.STATIC), Set.of(CrossRepoLinks.CALLS_HTTP));
+        new ClaimSink(new RuleInfo("links", "1", Origin.Kind.STATIC), Set.of(Types.CALLS_HTTP));
 
-    out.add(call(CrossRepoLinks.CALLS_HTTP, null));
+    out.add(call(Types.CALLS_HTTP, null));
 
     assertThat(out.facts()).hasSize(1);
-    assertThatThrownBy(() -> out.add(call(CrossRepoLinks.PUBLISHES, null)))
+    assertThatThrownBy(() -> out.add(call(Types.PUBLISHES, null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("not one of the predicates it writes");
     ClaimSink other =
-        new ClaimSink(
-            new RuleInfo("other", "1", Origin.Kind.STATIC), Set.of(CrossRepoLinks.CALLS_HTTP));
-    assertThatThrownBy(() -> other.add(call(CrossRepoLinks.CALLS_HTTP, null)))
+        new ClaimSink(new RuleInfo("other", "1", Origin.Kind.STATIC), Set.of(Types.CALLS_HTTP));
+    assertThatThrownBy(() -> other.add(call(Types.CALLS_HTTP, null)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("of origin");
   }

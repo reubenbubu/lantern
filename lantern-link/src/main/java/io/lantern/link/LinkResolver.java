@@ -6,17 +6,13 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.GatewayRouteAttributes;
 import io.lantern.extract.attributes.HttpCallAttributes;
 import io.lantern.extract.attributes.MessageBindingAttributes;
 import io.lantern.extract.attributes.MessageListenerAttributes;
 import io.lantern.extract.attributes.MessageSendAttributes;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.gateway.GatewayExtractor;
-import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.messaging.MessagingExtractor;
-import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
@@ -110,8 +106,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
   private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}:\\s]+)");
 
   /** The predicates of the links it picks. */
-  static final Set<String> LINKS =
-      Set.of(CrossRepoLinks.CALLS_HTTP, CrossRepoLinks.SENDS_MESSAGES_TO);
+  static final Set<String> LINKS = Set.of(Types.CALLS_HTTP, Types.SENDS_MESSAGES_TO);
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.LLM, NAME, ResolvePrompt.VERSION);
 
@@ -268,15 +263,15 @@ public final class LinkResolver implements LinkRule.OverFacts {
     facts.forEach(f -> byKey.putIfAbsent(ResolvePrompt.key(f), f));
     // The repositories each module's code is in, for which side a cited file range is on.
     Map<EntityId, Set<String>> moduleRepos = new HashMap<>();
-    for (Fact contains : index.of(BuiltInTypes.CONTAINS)) {
-      if (contains.subject().type().equals(BuiltInTypes.MODULE)) {
+    for (Fact contains : index.of(Types.CONTAINS)) {
+      if (contains.subject().type().equals(Types.MODULE)) {
         moduleRepos
             .computeIfAbsent(contains.subject(), m -> new TreeSet<>())
             .add(contains.evidence().repo());
       }
     }
     List<Question> questions = new ArrayList<>();
-    for (Fact unresolved : index.of(CrossRepoLinks.UNRESOLVED_LINK)) {
+    for (Fact unresolved : index.of(Types.UNRESOLVED_LINK)) {
       String kind = unresolved(unresolved).kind();
       if (Claims.list(unresolved(unresolved).candidates()).isEmpty()
           || !("http".equals(kind) || "message".equals(kind) || "route".equals(kind))) {
@@ -534,7 +529,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     boolean isHttp = "http".equals(unresolved(unresolved).kind());
     Fact route =
         about.stream()
-            .filter(f -> f.predicate().equals(GatewayExtractor.ROUTE))
+            .filter(f -> f.predicate().equals(Types.GATEWAY_ROUTE))
             .findFirst()
             .orElse(null);
     String call = unresolved.object().value();
@@ -615,7 +610,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     for (String key : keys(unresolved, about)) {
       for (String view : views) {
         for (String candidate : List.of(key, relaxed(key))) {
-          Fact value = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, candidate);
+          Fact value = index.config(unit, view, Types.CONFIG_VALUE, candidate);
           if (value != null && !address.contains(value)) {
             address.add(value);
           }
@@ -686,9 +681,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
    * relation of value resolution the messaging matcher cites instead (#597).
    */
   static boolean isSend(Fact f) {
-    return f.predicate().equals(MessagingExtractor.SEND)
-        || (f.predicate().equals(MessagingExtractor.SENDS_TO)
-            && f.origin().name().equals(ValueResolution.NAME));
+    return f.predicate().equals(Types.MESSAGE_SEND)
+        || (f.predicate().equals(Types.SENDS_TO) && f.origin().name().equals(ValueResolution.NAME));
   }
 
   /** The broker of a send ({@link #isSend}), or null. */
@@ -696,7 +690,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     if (send == null) {
       return null;
     }
-    if (send.predicate().equals(MessagingExtractor.SENDS_TO)) {
+    if (send.predicate().equals(Types.SENDS_TO)) {
       return Claims.of(send, io.lantern.extract.attributes.SendsToAttributes.class).broker();
     }
     MessageSendAttributes sent = Claims.ofOrNull(send, MessageSendAttributes.class);
@@ -724,7 +718,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
       LinkIndex index, Unit unit, Fact send, String destination, String view) {
     String broker = brokerOf(send);
     List<Fact> listeners = new ArrayList<>();
-    for (Fact listener : index.of(MessagingExtractor.LISTENER)) {
+    for (Fact listener : index.of(Types.MESSAGE_LISTENER)) {
       if (index.unitsOf(listener.subject()).contains(unit)
           && index.active(listener.subject(), view)
           && (broker == null
@@ -734,7 +728,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
     }
     List<Fact> bindings = new ArrayList<>();
     List<Fact> bound = new ArrayList<>();
-    for (Fact binding : index.of(MessagingExtractor.BINDING)) {
+    for (Fact binding : index.of(Types.MESSAGE_BINDING)) {
       if (!destination.equals(Claims.of(binding, MessageBindingAttributes.class).exchange())) {
         continue;
       }
@@ -780,11 +774,11 @@ public final class LinkResolver implements LinkRule.OverFacts {
     Fact unresolved = question.unresolved();
     boolean isRoute = "route".equals(unresolved(unresolved).kind());
     boolean isHttp = isRoute || "http".equals(unresolved(unresolved).kind());
-    String predicate = isHttp ? CrossRepoLinks.CALLS_HTTP : CrossRepoLinks.SENDS_MESSAGES_TO;
+    String predicate = isHttp ? Types.CALLS_HTTP : Types.SENDS_MESSAGES_TO;
     Candidate candidate = question.candidate(picked.target());
     List<Fact> cited = picked.cited();
     Fact code = null;
-    String codePredicate = isHttp ? SpringExtractor.ENDPOINT : MessagingExtractor.LISTENER;
+    String codePredicate = isHttp ? Types.ENDPOINT : Types.MESSAGE_LISTENER;
     List<Fact> ends =
         candidate.facts().stream()
             .filter(f -> cited.contains(f) && f.predicate().equals(codePredicate))
@@ -805,8 +799,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
       Fact fact = byId.get(id);
       if (fact != null
           && (isSend(fact)
-              || fact.predicate().equals(HttpClientExtractor.HTTP_CALL)
-              || fact.predicate().equals(GatewayExtractor.ROUTE))) {
+              || fact.predicate().equals(Types.HTTP_CALL)
+              || fact.predicate().equals(Types.GATEWAY_ROUTE))) {
         origin = fact;
         break;
       }
@@ -853,7 +847,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
         String controller = Endpoints.of(code).controller();
         if (!protocol.equals("WebSocket")
             && controller != null
-            && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
+            && index.restControllers.contains(new EntityId(Types.TYPE, controller))) {
           protocol = "JSON/" + protocol;
         }
       }
@@ -881,7 +875,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
         attributes.put("endpoint", code.object().value());
         String controller = Endpoints.of(code).controller();
         if (controller != null
-            && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
+            && index.restControllers.contains(new EntityId(Types.TYPE, controller))) {
           protocol = "JSON/" + protocol;
         }
       }
@@ -894,7 +888,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
       attributes.put("protocol", protocol(broker));
       String kind = null;
       String routingKey = null;
-      if (origin != null && origin.predicate().equals(MessagingExtractor.SENDS_TO)) {
+      if (origin != null && origin.predicate().equals(Types.SENDS_TO)) {
         var sent = Claims.of(origin, io.lantern.extract.attributes.SendsToAttributes.class);
         kind = sent.destinationKind();
         routingKey = sent.routingKey();
@@ -916,7 +910,7 @@ public final class LinkResolver implements LinkRule.OverFacts {
           candidate.reached().stream()
               .filter(
                   f ->
-                      f.predicate().equals(MessagingExtractor.BINDING)
+                      f.predicate().equals(Types.MESSAGE_BINDING)
                           && (listener == null
                               || f.object().value().equals(listener.object().value())))
               .toList();

@@ -43,9 +43,6 @@ public record IdentityClientAttributes(
     String rootUrl,
     List<String> webOrigins) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "identity-client";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("bearerOnly", "enabled", "flows", "pkce", "product", "protocol", "public");
 

@@ -9,12 +9,11 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ConfigValues;
 import io.lantern.derive.Elements;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.core.types.Types;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -100,7 +99,7 @@ final class ExplorerSections {
     SortedSet<EntityId> code = new TreeSet<>(ArchitectureModel.BY_ID);
     for (EntityId module : Elements.codeModules(model, unit)) {
       code.addAll(model.typesWithin(module));
-      for (EntityId pkg : model.parts(module, BuiltInTypes.PACKAGE)) {
+      for (EntityId pkg : model.parts(module, Types.PACKAGE)) {
         code.addAll(model.typesWithin(pkg));
       }
     }

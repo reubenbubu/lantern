@@ -10,13 +10,11 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.http.HttpClientExtractor;
 import io.lantern.extract.java.JavaExtractor;
 import io.lantern.extract.maven.MavenExtractor;
 import io.lantern.extract.spring.SpringExtractor;
-import io.lantern.link.CrossRepoLinks;
 import io.lantern.link.DeployableUnits;
 import io.lantern.link.LinkResolver;
 import io.lantern.link.Linker;
@@ -104,28 +102,28 @@ class LinkerIT {
         fact(
             MavenExtractor.NAME,
             "library:g:lib",
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             entity("module:g:lib"),
             "lib:pom.xml",
             snapshot),
         fact(
             JavaExtractor.NAME,
             "module:g:lib",
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             entity("type:g.App"),
             "lib:src/main/java/g/App.java",
             snapshot),
         fact(
             SpringExtractor.NAME,
             "type:g.App",
-            SpringExtractor.MAIN_CLASS,
+            Types.MAIN_CLASS,
             FactObject.string(SpringExtractor.SPRING_BOOT),
             "lib:src/main/java/g/App.java",
             snapshot),
         fact(
             ConfigExtractor.NAME,
             "module:g:lib",
-            ConfigExtractor.CONFIG_VALUE,
+            Types.CONFIG_VALUE,
             FactObject.string(name),
             "{\"key\":\"spring.application.name\"}",
             "lib:src/main/resources/application.yml",
@@ -138,14 +136,14 @@ class LinkerIT {
         fact(
             MavenExtractor.NAME,
             "service:g:svc",
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             entity("module:g:svc"),
             "svc:pom.xml",
             snapshot),
         fact(
             MavenExtractor.NAME,
             "module:g:svc",
-            MavenExtractor.BUILD_DEPENDS_ON,
+            Types.BUILD_DEPENDS_ON,
             entity("module:g:lib"),
             "{\"scope\":\"compile\"}",
             "svc:pom.xml",
@@ -226,28 +224,22 @@ class LinkerIT {
         fact(
             MavenExtractor.NAME,
             "service:g:" + name,
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             entity(module),
             repo + "pom.xml",
             snapshot),
-        fact(
-            JavaExtractor.NAME,
-            module,
-            BuiltInTypes.CONTAINS,
-            entity(app),
-            repo + "App.java",
-            snapshot),
+        fact(JavaExtractor.NAME, module, Types.CONTAINS, entity(app), repo + "App.java", snapshot),
         fact(
             SpringExtractor.NAME,
             app,
-            SpringExtractor.MAIN_CLASS,
+            Types.MAIN_CLASS,
             FactObject.string(SpringExtractor.SPRING_BOOT),
             repo + "App.java",
             snapshot),
         fact(
             ConfigExtractor.NAME,
             module,
-            ConfigExtractor.CONFIG_VALUE,
+            Types.CONFIG_VALUE,
             FactObject.string(name),
             "{\"key\":\"spring.application.name\"}",
             repo + "application.yml",
@@ -255,7 +247,7 @@ class LinkerIT {
         fact(
             JavaExtractor.NAME,
             module,
-            BuiltInTypes.CONTAINS,
+            Types.CONTAINS,
             entity("type:" + type),
             repo + type + ".java",
             snapshot));
@@ -266,9 +258,9 @@ class LinkerIT {
     List<Fact> all = new ArrayList<>(service(snapshot, "orders", "o.TaxClient"));
     all.add(
         fact(
-            HttpClientExtractor.NAME,
+            Types.HTTP_CLIENT,
             "method:o.TaxClient#quote()",
-            HttpClientExtractor.HTTP_CALL,
+            Types.HTTP_CALL,
             FactObject.string("GET ${TAX_SERVICE_URL}/v2/quotes"),
             "{\"client\":\"rest-client\",\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\","
                 + "\"unresolved\":[\"TAX_SERVICE_URL\"]}",
@@ -279,7 +271,7 @@ class LinkerIT {
         fact(
             SpringExtractor.NAME,
             "method:t.TaxController#quotes()",
-            SpringExtractor.ENDPOINT,
+            Types.ENDPOINT,
             FactObject.string("GET /v2/quotes"),
             "{\"annotation\":\"GetMapping\",\"controller\":\"t.TaxController\",\"framework\":\"spring-mvc\","
                 + "\"httpMethod\":\"GET\",\"path\":\"/v2/quotes\"}",
@@ -321,7 +313,7 @@ class LinkerIT {
               f -> {
                 assertThat(f.origin().name()).isEqualTo(LinkResolver.NAME);
                 assertThat(f.subject() + " " + f.predicate() + " " + f.object().value())
-                    .isEqualTo("service:g:orders " + CrossRepoLinks.CALLS_HTTP + " service:g:tax");
+                    .isEqualTo("service:g:orders " + Types.CALLS_HTTP + " service:g:tax");
                 // The fake's confidence is low.
                 assertThat(f.confidence()).isEqualTo(0.2);
               });

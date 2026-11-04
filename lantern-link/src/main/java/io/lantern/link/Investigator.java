@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.harness.FileRead;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
@@ -84,29 +85,8 @@ public final class Investigator {
   /** The origin name of its facts. */
   public static final String NAME = "investigate";
 
-  /** The verdict on a lead. */
-  public static final String LEAD_VERDICT = "lead-verdict";
-
-  /** A risk it found. */
-  public static final String RISK = "investigated-risk";
-
-  /** A finding of a fixed check, as it worded it. */
-  public static final String FINDING_WORDING = "finding-wording";
-
-  /** A connection it found. */
-  public static final String CONNECTION = "INVESTIGATED_CONNECTION";
-
-  /** A unit, or the system, it did not look at. */
-  public static final String NOT_INVESTIGATED = "not-investigated";
-
   /** The subject of the system's facts. */
   public static final EntityId SYSTEM = new EntityId("system", "snapshot");
-
-  /** The lead facts derivation stores (lantern-derive's {@code LeadRule.LEAD_TRIGGER}). */
-  static final String LEAD_TRIGGER = "lead-trigger";
-
-  /** The finding facts the fixed checks store (lantern-derive's {@code Findings.RAISED}). */
-  static final String FINDING_RAISED = "finding-raised";
 
   /** The lead kind a finding's kind is about, for whether a risk restates it. */
   static final Map<String, String> FINDING_LEADS =
@@ -239,7 +219,7 @@ public final class Investigator {
    */
   private static boolean before(Fact fact) {
     return fact.origin().kind() != Origin.Kind.LLM
-        || fact.predicate().equals(LlmFacts.SUMMARY)
+        || fact.predicate().equals(Types.SUMMARY)
         || fact.origin().name().equals(LinkResolver.NAME);
   }
 
@@ -359,17 +339,18 @@ public final class Investigator {
             links.add(from + " -> " + to + " [" + fact.predicate() + "]");
           }
         }
-        if (fact.predicate().equals(FINDING_RAISED)) {
+        if (fact.predicate().equals(Types.FINDING_RAISED)) {
           findings.add(fact);
         }
-        if (fact.predicate().equals(LlmFacts.SUMMARY)) {
+        if (fact.predicate().equals(Types.SUMMARY)) {
           summaries.add(fact);
         }
       }
       findings.sort(java.util.Comparator.comparing(Fact::id));
       elements.addAll(units.keySet());
       for (Fact fact : facts) {
-        if (fact.predicate().equals(LEAD_TRIGGER) && fact.origin().kind() != Origin.Kind.LLM) {
+        if (fact.predicate().equals(Types.LEAD_TRIGGER)
+            && fact.origin().kind() != Origin.Kind.LLM) {
           List<Fact> cited = new ArrayList<>();
           for (String id : strings(fact, "facts")) {
             Fact one = byId.get(id);
@@ -398,8 +379,8 @@ public final class Investigator {
     static boolean link(Fact fact) {
       return fact.object().kind() == FactObject.Kind.ENTITY
           && fact.predicate().equals(fact.predicate().toUpperCase(Locale.ROOT))
-          && !fact.predicate().equals(CONNECTION)
-          && !fact.predicate().equals("CONTAINS");
+          && !fact.predicate().equals(Types.INVESTIGATED_CONNECTION)
+          && !fact.predicate().equals(Types.CONTAINS);
     }
 
     /** A unit's facts: about it, and the links from and to it. */
@@ -427,7 +408,7 @@ public final class Investigator {
           .filter(
               f ->
                   modules.contains(f.subject().toString())
-                      || (f.subject().type().equals("repo")
+                      || (f.subject().type().equals(Types.REPO)
                           && unitRepos.contains(f.evidence().repo())))
           .toList();
     }
@@ -487,7 +468,7 @@ public final class Investigator {
         facts.add(
             Fact.create(
                 EntityId.parse(subject),
-                NOT_INVESTIGATED,
+                Types.NOT_INVESTIGATED,
                 FactObject.string(NAME),
                 attributes,
                 ORIGIN,
@@ -629,7 +610,7 @@ public final class Investigator {
       Fact fact =
           Fact.create(
               lead.fact().subject(),
-              LEAD_VERDICT,
+              Types.LEAD_VERDICT,
               FactObject.string(verdict),
               attributes,
               ORIGIN,
@@ -683,7 +664,7 @@ public final class Investigator {
           continue;
         }
         List<Fact> shown = new ArrayList<>(model.unitFacts(unit));
-        model.index.of(CrossRepoLinks.UNRESOLVED_LINK).stream()
+        model.index.of(Types.UNRESOLVED_LINK).stream()
             .filter(f -> f.subject().toString().equals(unit))
             .forEach(shown::add);
         shown.addAll(model.summaries(unit));
@@ -878,7 +859,7 @@ public final class Investigator {
       Fact fact =
           Fact.create(
               restated.map(Fact::subject).orElse(EntityId.parse(units.getFirst())),
-              restated.isPresent() ? FINDING_WORDING : RISK,
+              restated.isPresent() ? Types.FINDING_WORDING : Types.INVESTIGATED_RISK,
               FactObject.string(key),
               attributes,
               ORIGIN,
@@ -1033,7 +1014,7 @@ public final class Investigator {
       facts.add(
           Fact.create(
               EntityId.parse(from),
-              CONNECTION,
+              Types.INVESTIGATED_CONNECTION,
               FactObject.entity(EntityId.parse(to)),
               attributes,
               ORIGIN,

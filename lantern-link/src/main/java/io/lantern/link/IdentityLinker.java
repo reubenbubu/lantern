@@ -6,13 +6,10 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.IdentityAdminClientAttributes;
 import io.lantern.extract.attributes.JwtSecretKeyAttributes;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.UrlCredentials;
-import io.lantern.extract.identity.IdentityExtractor;
-import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Kind;
 import io.lantern.link.Deployments.Container;
@@ -49,9 +46,6 @@ import tools.jackson.databind.node.ObjectNode;
  * or, when the value is masked or unset, the same config key. The secret's value is never recorded.
  */
 final class IdentityLinker {
-
-  /** Attribute: a unit signs or checks JWTs with a secret another unit has too. */
-  static final String SHARED_SECRET = "shared-secret";
 
   static final String VALIDATES_TOKENS = "validates-tokens";
   static final String SIGNS_IN_USERS = "signs-in-users";
@@ -116,7 +110,7 @@ final class IdentityLinker {
           out.add(
               Fact.create(
                   system,
-                  DataLinker.DISPLAY_NAME,
+                  Types.DISPLAY_NAME,
                   FactObject.string(first.product()),
                   FactJson.newObject(),
                   origin,
@@ -140,7 +134,7 @@ final class IdentityLinker {
     Map<String, List<String>> registrations = new TreeMap<>();
     List<String> tokenKeys = new ArrayList<>();
     String keycloak = null;
-    for (String key : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
+    for (String key : index.configKeys(unit, Types.CONFIG_VALUE)) {
       String relaxed = relaxed(key);
       String last = relaxed.substring(relaxed.lastIndexOf('.') + 1);
       if (relaxed.startsWith(relaxed(PROVIDER))) {
@@ -192,7 +186,7 @@ final class IdentityLinker {
       if (values.isEmpty()) {
         continue;
       }
-      EntityId system = new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host);
+      EntityId system = new EntityId(Types.EXTERNAL_SYSTEM, host);
       for (String purpose : purposes(g.getValue())) {
         add(
             unit,
@@ -230,15 +224,14 @@ final class IdentityLinker {
   }
 
   private void adminClients(Unit unit, String view) {
-    for (Fact client : index.of(IdentityExtractor.IDENTITY_ADMIN_CLIENT)) {
+    for (Fact client : index.of(Types.IDENTITY_ADMIN_CLIENT)) {
       if (!index.unitsOf(client.subject()).contains(unit)
           || !index.active(client.subject(), view)) {
         continue;
       }
       LinkText.Resolved resolved =
           LinkText.resolve(
-              client.object().value(),
-              key -> index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key));
+              client.object().value(), key -> index.config(unit, view, Types.CONFIG_VALUE, key));
       if (resolved.masked()) {
         continue;
       }
@@ -262,7 +255,7 @@ final class IdentityLinker {
   private List<Fact> values(Unit unit, String view, List<String> keys) {
     List<Fact> values = new ArrayList<>();
     for (String key : keys) {
-      Fact value = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
+      Fact value = index.config(unit, view, Types.CONFIG_VALUE, key);
       if (value != null && !Claims.masked(value)) {
         values.add(value);
       }
@@ -271,9 +264,9 @@ final class IdentityLinker {
   }
 
   private String setting(Unit unit, String view, String key) {
-    for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
+    for (String k : index.configKeys(unit, Types.CONFIG_VALUE)) {
       if (relaxed(k).equals(relaxed(key))) {
-        Fact value = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
+        Fact value = index.config(unit, view, Types.CONFIG_VALUE, k);
         if (value != null && !Claims.masked(value)) {
           return value.object().value().strip();
         }
@@ -399,8 +392,7 @@ final class IdentityLinker {
 
   /** The external system of an identity provider a deployment runs, named after its product. */
   private Reached provider(Container c, String matchedBy) {
-    EntityId system =
-        new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, Deployments.normalized(c.product()));
+    EntityId system = new EntityId(Types.EXTERNAL_SYSTEM, Deployments.normalized(c.product()));
     deployed.computeIfAbsent(system, s -> new TreeMap<>()).putIfAbsent(c.fact().id(), c);
     return new Reached(system, matchedBy, BY_CONTAINER, c.fact(), null, null);
   }
@@ -417,10 +409,9 @@ final class IdentityLinker {
     if (url.path() != null && !url.path().isEmpty()) {
       String prefix = index.servletPrefix(to, view);
       int best = -1;
-      for (Fact e : index.of(SpringExtractor.ENDPOINT)) {
+      for (Fact e : index.of(Types.ENDPOINT)) {
         String controller = Endpoints.of(e).controller();
-        EntityId code =
-            controller == null ? e.subject() : new EntityId(BuiltInTypes.TYPE, controller);
+        EntityId code = controller == null ? e.subject() : new EntityId(Types.TYPE, controller);
         String template = Endpoints.of(e).path();
         String method = Endpoints.of(e).httpMethod();
         if (template == null
@@ -485,7 +476,7 @@ final class IdentityLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.USES_IDENTITY_PROVIDER
+            Types.USES_IDENTITY_PROVIDER
                 + "|"
                 + unit.id()
                 + "|"
@@ -493,7 +484,7 @@ final class IdentityLinker {
                 + "|"
                 + use.purpose(),
             unit.id(),
-            CrossRepoLinks.USES_IDENTITY_PROVIDER,
+            Types.USES_IDENTITY_PROVIDER,
             FactObject.entity(reached.target()),
             attributes,
             evidence.evidence(),
@@ -510,7 +501,7 @@ final class IdentityLinker {
 
   private void secrets(String view) {
     Map<String, List<Secret>> byOrigin = new LinkedHashMap<>();
-    for (Fact fact : index.of(IdentityExtractor.JWT_SECRET_KEY)) {
+    for (Fact fact : index.of(Types.JWT_SECRET_KEY)) {
       if (!index.active(fact.subject(), view)) {
         continue;
       }
@@ -548,9 +539,9 @@ final class IdentityLinker {
         out.add(
             view,
             new Found(
-                SHARED_SECRET + "|" + s.unit().id() + "|" + s.fact().subject(),
+                Types.SHARED_SECRET + "|" + s.unit().id() + "|" + s.fact().subject(),
                 s.unit().id(),
-                SHARED_SECRET,
+                Types.SHARED_SECRET,
                 FactObject.string(
                     String.join(
                         ", ",
@@ -578,7 +569,7 @@ final class IdentityLinker {
     List<Fact> used = new ArrayList<>();
     boolean known = true;
     for (String key : keys) {
-      Fact value = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
+      Fact value = index.config(unit, view, Types.CONFIG_VALUE, key);
       if (value == null) {
         placeholders.add(environmental(key));
         continue;

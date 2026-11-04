@@ -3,12 +3,9 @@ package io.lantern.link;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.MessageListenerAttributes;
 import io.lantern.extract.attributes.MessageSendAttributes;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.messaging.MessagingExtractor;
-import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.ClaimChecks.Contradiction;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.attributes.ConsumesAttributes;
@@ -409,12 +406,11 @@ final class NamedClaimChecks {
     Set<String> found = new TreeSet<>();
     for (EntityId id : units) {
       Unit unit = links.units.get(id);
-      if (unit == null
-          || links.config(unit, null, ConfigExtractor.CONFIG_VALUE, SERVER_PORT) == null) {
+      if (unit == null || links.config(unit, null, Types.CONFIG_VALUE, SERVER_PORT) == null) {
         return;
       }
       for (String view : links.views()) {
-        Fact value = links.config(unit, view, ConfigExtractor.CONFIG_VALUE, SERVER_PORT);
+        Fact value = links.config(unit, view, Types.CONFIG_VALUE, SERVER_PORT);
         if (value == null
             || Claims.masked(value)
             || !value.object().value().strip().matches("\\d{1,5}")) {
@@ -501,7 +497,7 @@ final class NamedClaimChecks {
     contradicting.forEach(f -> found.add(f.object().value()));
     out.add(
         new Contradiction(
-            ClaimChecks.ENDPOINT,
+            Types.ENDPOINT,
             String.join(", ", missing),
             found,
             ClaimChecks.sorted(new ArrayList<>(contradicting))));
@@ -511,10 +507,9 @@ final class NamedClaimChecks {
   private List<Served> served() {
     List<Served> served = new ArrayList<>();
     Set<EntityId> serving = new HashSet<>();
-    for (Fact f : links.of(SpringExtractor.ENDPOINT)) {
+    for (Fact f : links.of(Types.ENDPOINT)) {
       String controller = Endpoints.of(f).controller();
-      EntityId code =
-          controller == null ? f.subject() : new EntityId(BuiltInTypes.TYPE, controller);
+      EntityId code = controller == null ? f.subject() : new EntityId(Types.TYPE, controller);
       for (Unit unit : links.unitsOf(code)) {
         if (!units.contains(unit.id())) {
           continue;
@@ -528,7 +523,7 @@ final class NamedClaimChecks {
         for (String view : links.views()) {
           String prefix = "";
           for (String key : List.of(CONTEXT_PATH, SERVLET_PATH)) {
-            Fact value = links.config(unit, view, ConfigExtractor.CONFIG_VALUE, key);
+            Fact value = links.config(unit, view, Types.CONFIG_VALUE, key);
             if (value != null && !Claims.masked(value)) {
               prefix = LinkText.join(prefix, value.object().value());
             }
@@ -644,10 +639,10 @@ final class NamedClaimChecks {
       }
     }
     if (!published.isEmpty()) {
-      destination(published, CrossRepoLinks.PUBLISHES, MessagingExtractor.SEND, out);
+      destination(published, Types.PUBLISHES, Types.MESSAGE_SEND, out);
     }
     if (!consumed.isEmpty()) {
-      destination(consumed, CrossRepoLinks.CONSUMES, MessagingExtractor.LISTENER, out);
+      destination(consumed, Types.CONSUMES, Types.MESSAGE_LISTENER, out);
     }
   }
 
@@ -658,7 +653,7 @@ final class NamedClaimChecks {
       return;
     }
     // A send or listener whose destination the linker could not know may be the named one.
-    for (Fact f : index.from(CrossRepoLinks.UNRESOLVED_LINK, units)) {
+    for (Fact f : index.from(Types.UNRESOLVED_LINK, units)) {
       if ("message".equals(Claims.of(f, UnresolvedLinkAttributes.class).kind())) {
         return;
       }
@@ -695,7 +690,7 @@ final class NamedClaimChecks {
     }
     // An exchange reaches the queues bound to it; a queue is reached from the exchanges bound to
     // it.
-    for (Fact f : index.of(CrossRepoLinks.ROUTES_TO)) {
+    for (Fact f : index.of(Types.ROUTES_TO)) {
       if (f.object().kind() != FactObject.Kind.ENTITY) {
         continue;
       }
@@ -723,7 +718,7 @@ final class NamedClaimChecks {
     destinations.forEach(d -> found.add(name(d)));
     out.add(
         new Contradiction(
-            ClaimChecks.DESTINATION, String.join(", ", missing), found, ClaimChecks.sorted(uses)));
+            Types.DESTINATION, String.join(", ", missing), found, ClaimChecks.sorted(uses)));
   }
 
   /** A topic's, queue's or exchange's name, lowercase: its key after the broker. */
@@ -778,7 +773,7 @@ final class NamedClaimChecks {
         }
       }
     }
-    List<Fact> http = index.from(CrossRepoLinks.CALLS_HTTP, units);
+    List<Fact> http = index.from(Types.CALLS_HTTP, units);
     Set<Fact> contradicting = new LinkedHashSet<>();
     List<String> stated = new ArrayList<>();
     for (EntityId named : never) {
@@ -792,7 +787,7 @@ final class NamedClaimChecks {
     called.addAll(calls);
     called.addAll(only);
     boolean unresolved =
-        index.from(CrossRepoLinks.UNRESOLVED_LINK, units).stream()
+        index.from(Types.UNRESOLVED_LINK, units).stream()
             .anyMatch(f -> "http".equals(Claims.of(f, UnresolvedLinkAttributes.class).kind()));
     Set<String> found = new TreeSet<>();
     if (!http.isEmpty() && !unresolved) {

@@ -10,6 +10,7 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.VocabularyRegistry;
@@ -78,9 +79,9 @@ class BuiltInTypesUpgradeIT {
       long before = registry.current().revision();
       Fact stored = dependsOn();
       assertThat(facts.save(stored)).isTrue();
-      assertThat(registry.current().c4Level(BuiltInTypes.LIBRARY)).contains(C4Level.CONTAINER);
-      assertThat(registry.current().c4Level(BuiltInTypes.MODULE)).contains(C4Level.COMPONENT);
-      assertThat(registry.current().c4Level(BuiltInTypes.PACKAGE)).contains(C4Level.COMPONENT);
+      assertThat(registry.current().c4Level(Types.LIBRARY)).contains(C4Level.CONTAINER);
+      assertThat(registry.current().c4Level(Types.MODULE)).contains(C4Level.COMPONENT);
+      assertThat(registry.current().c4Level(Types.PACKAGE)).contains(C4Level.COMPONENT);
 
       // Starting the app again: the built-ins change first, in one revision.
       FactStoreConfiguration.loadVocabulary(registry);
@@ -93,19 +94,18 @@ class BuiltInTypesUpgradeIT {
                   .query(String.class)
                   .single())
           .isEqualTo(BuiltInTypes.SOURCE);
-      assertThat(registry.current().c4Level(BuiltInTypes.SERVICE)).contains(C4Level.CONTAINER);
-      assertThat(registry.current().c4Level(BuiltInTypes.CONTAINER)).contains(C4Level.CONTAINER);
-      assertThat(registry.current().c4Level(BuiltInTypes.COMPONENT)).contains(C4Level.COMPONENT);
-      assertThat(registry.current().c4Level(BuiltInTypes.TYPE)).contains(C4Level.CODE);
-      assertThat(registry.current().c4Level(BuiltInTypes.LIBRARY)).isEmpty();
-      assertThat(registry.current().c4Level(BuiltInTypes.MODULE)).isEmpty();
-      assertThat(registry.current().c4Level(BuiltInTypes.PACKAGE)).isEmpty();
-      assertThat(registry.current().isA(BuiltInTypes.LIBRARY, BuiltInTypes.CONTAINER)).isFalse();
+      assertThat(registry.current().c4Level(Types.SERVICE)).contains(C4Level.CONTAINER);
+      assertThat(registry.current().c4Level(Types.CONTAINER)).contains(C4Level.CONTAINER);
+      assertThat(registry.current().c4Level(Types.COMPONENT)).contains(C4Level.COMPONENT);
+      assertThat(registry.current().c4Level(Types.TYPE)).contains(C4Level.CODE);
+      assertThat(registry.current().c4Level(Types.LIBRARY)).isEmpty();
+      assertThat(registry.current().c4Level(Types.MODULE)).isEmpty();
+      assertThat(registry.current().c4Level(Types.PACKAGE)).isEmpty();
+      assertThat(registry.current().isA(Types.LIBRARY, Types.CONTAINER)).isFalse();
 
       // The revision before the change still reads back with the old definitions.
-      assertThat(registry.at(before).c4Level(BuiltInTypes.LIBRARY)).contains(C4Level.CONTAINER);
-      assertThat(registry.at(oldBuiltInsRevision).isA(BuiltInTypes.MODULE, BuiltInTypes.COMPONENT))
-          .isTrue();
+      assertThat(registry.at(before).c4Level(Types.LIBRARY)).contains(C4Level.CONTAINER);
+      assertThat(registry.at(oldBuiltInsRevision).isA(Types.MODULE, Types.COMPONENT)).isTrue();
 
       // Stored facts are still there, and new facts are still accepted.
       assertThat(facts.findById(stored.id()).map(f -> f.stored(null, f.validity())))
@@ -126,7 +126,7 @@ class BuiltInTypesUpgradeIT {
   static Fact dependsOn(String subject) {
     return Fact.create(
         EntityId.parse(subject),
-        BuiltInTypes.DEPENDS_ON,
+        Types.DEPENDS_ON,
         FactObject.entity(EntityId.parse("library:greeting-lib")),
         FactJson.newObject(),
         new Origin(Origin.Kind.STATIC, "test", null),

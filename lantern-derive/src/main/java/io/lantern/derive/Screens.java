@@ -2,6 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,44 +20,39 @@ import tools.jackson.databind.JsonNode;
  */
 public final class Screens {
 
-  private static final String FRONTEND_APP = "frontend-app";
-  private static final String PERSON = "person";
-  private static final String PERSON_BASIS = "person-basis";
-  private static final String PERSON_EVIDENCE = "person-evidence";
   private static final String ROUTE = "route";
-  private static final String DEPLOYABLE_UNIT = "deployable-unit";
 
   /** The relationships whose profile-only links may replace a default link of their unit. */
   private static final List<String> REPLACEABLE =
       List.of(
-          "CALLS_HTTP",
-          "SENDS_MAIL",
-          "USES_IDENTITY_PROVIDER",
-          "PUBLISHES",
-          "CONSUMES",
-          "USES_DATABASE",
-          "ACCESSES_DATA_OF");
+          Types.CALLS_HTTP,
+          Types.SENDS_MAIL,
+          Types.USES_IDENTITY_PROVIDER,
+          Types.PUBLISHES,
+          Types.CONSUMES,
+          Types.USES_DATABASE,
+          Types.ACCESSES_DATA_OF);
 
   private Screens() {}
 
   /** Every frontend of the knowledge (ADR 0083). */
   public static SortedSet<EntityId> frontends(Knowledge knowledge) {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(FRONTEND_APP).forEach(f -> result.add(f.subject()));
+    knowledge.withPredicate(Types.FRONTEND_APP).forEach(f -> result.add(f.subject()));
     return result;
   }
 
   /** Every deployable unit of the knowledge. */
   public static SortedSet<EntityId> units(Knowledge knowledge) {
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
+    knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
     return units;
   }
 
   /** A frontend's {@code frontend-app} fact, if it has one. */
   public static Optional<Fact> frontendApp(Knowledge knowledge, EntityId frontend) {
     return knowledge.attributes(frontend).stream()
-        .filter(f -> f.predicate().equals(FRONTEND_APP))
+        .filter(f -> f.predicate().equals(Types.FRONTEND_APP))
         .findFirst();
   }
 
@@ -66,8 +62,8 @@ public final class Screens {
    */
   public static SortedMap<EntityId, Fact> people(Knowledge knowledge, Set<String> repos) {
     SortedMap<EntityId, Fact> result = new TreeMap<>(Knowledge.BY_ID);
-    for (Fact basis : knowledge.withPredicate(PERSON_BASIS)) {
-      if (!basis.subject().type().equals(PERSON)) {
+    for (Fact basis : knowledge.withPredicate(Types.PERSON_BASIS)) {
+      if (!basis.subject().type().equals(Types.PERSON)) {
         continue;
       }
       List<String> shownBy = strings(basis, "repos");
@@ -87,7 +83,7 @@ public final class Screens {
     List<String> named = strings(basis, "frontends");
     Map<EntityId, List<Fact>> screens = new TreeMap<>(Knowledge.BY_ID);
     for (Fact route : cited(knowledge, basis)) {
-      if (!route.predicate().equals(PERSON_EVIDENCE)
+      if (!route.predicate().equals(Types.PERSON_EVIDENCE)
           || !route.object().value().equals(ROUTE)
           || !named.contains(route.evidence().repo())) {
         continue;

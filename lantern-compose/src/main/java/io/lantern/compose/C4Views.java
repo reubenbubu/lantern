@@ -10,7 +10,7 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
@@ -19,7 +19,6 @@ import io.lantern.derive.Elements;
 import io.lantern.derive.Elements.Line;
 import io.lantern.derive.Groups;
 import io.lantern.derive.ScopeFlows;
-import io.lantern.core.types.Types;
 import java.math.BigDecimal;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -1384,7 +1383,7 @@ final class C4Views {
         EntityId fromEnd = shown.apply(component.main());
         EntityId toEnd = shown.apply(to);
         String relationship =
-            ComponentInteractions.ADVISES_KIND.equals(kind) ? Types.ADVISES : BuiltInTypes.CALLS;
+            ComponentInteractions.ADVISES_KIND.equals(kind) ? Types.ADVISES : Types.CALLS;
         String plain =
             switch (kind) {
               case ComponentInteractions.APPLIES -> "Applies";
@@ -1436,9 +1435,7 @@ final class C4Views {
     // Data access, to the databases the unit's datasources point to.
     for (Elements.Component component : components) {
       String access =
-          model
-              .attribute(Components.id(unit, component.main()), ComponentInteractions.DATA_ACCESS)
-              .orElse(null);
+          model.attribute(Components.id(unit, component.main()), Types.DATA_ACCESS).orElse(null);
       if (access == null || !focus.contains(component.main())) {
         continue;
       }

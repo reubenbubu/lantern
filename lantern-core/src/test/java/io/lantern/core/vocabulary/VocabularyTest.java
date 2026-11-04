@@ -11,6 +11,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.AttributeSchema.Property;
 import io.lantern.core.vocabulary.AttributeSchema.ValueType;
 import java.util.ArrayList;
@@ -45,7 +46,7 @@ class VocabularyTest {
         new VocabularyType(
             "batch-job",
             TypeKind.ENTITY,
-            BuiltInTypes.COMPONENT,
+            Types.COMPONENT,
             null,
             null,
             "clock",
@@ -85,17 +86,17 @@ class VocabularyTest {
 
     assertThat(vocabulary.lineage("batch-job"))
         .extracting(VocabularyType::name)
-        .containsExactly("batch-job", BuiltInTypes.COMPONENT);
-    assertThat(vocabulary.lineage(BuiltInTypes.CALLS))
+        .containsExactly("batch-job", Types.COMPONENT);
+    assertThat(vocabulary.lineage(Types.CALLS))
         .extracting(VocabularyType::name)
-        .containsExactly(BuiltInTypes.CALLS, BuiltInTypes.INTERACTS_WITH);
-    assertThat(vocabulary.lineage(BuiltInTypes.SYSTEM))
+        .containsExactly(Types.CALLS, Types.INTERACTS_WITH);
+    assertThat(vocabulary.lineage(Types.SYSTEM))
         .extracting(VocabularyType::name)
-        .containsExactly(BuiltInTypes.SYSTEM);
-    assertThat(vocabulary.isA("batch-job", BuiltInTypes.COMPONENT)).isTrue();
+        .containsExactly(Types.SYSTEM);
+    assertThat(vocabulary.isA("batch-job", Types.COMPONENT)).isTrue();
     assertThat(vocabulary.isA("batch-job", "batch-job")).isTrue();
-    assertThat(vocabulary.isA(BuiltInTypes.SERVICE, BuiltInTypes.COMPONENT)).isFalse();
-    assertThat(vocabulary.isA("unknown", BuiltInTypes.COMPONENT)).isFalse();
+    assertThat(vocabulary.isA(Types.SERVICE, Types.COMPONENT)).isFalse();
+    assertThat(vocabulary.isA("unknown", Types.COMPONENT)).isFalse();
     assertThatThrownBy(() -> vocabulary.lineage("unknown"))
         .isInstanceOf(IllegalArgumentException.class);
   }
@@ -107,10 +108,10 @@ class VocabularyTest {
     assertThat(vocabulary.c4Level("batch-job")).contains(C4Level.COMPONENT);
     assertThat(vocabulary.shape("batch-job")).contains("box");
     assertThat(vocabulary.icon("batch-job")).contains("clock");
-    assertThat(vocabulary.c4Level(BuiltInTypes.SERVICE)).contains(C4Level.CONTAINER);
-    assertThat(vocabulary.shape(BuiltInTypes.PACKAGE)).contains("folder");
-    assertThat(vocabulary.icon(BuiltInTypes.SERVICE)).isEmpty();
-    assertThat(vocabulary.c4Level(BuiltInTypes.CALLS)).isEmpty();
+    assertThat(vocabulary.c4Level(Types.SERVICE)).contains(C4Level.CONTAINER);
+    assertThat(vocabulary.shape(Types.PACKAGE)).contains("folder");
+    assertThat(vocabulary.icon(Types.SERVICE)).isEmpty();
+    assertThat(vocabulary.c4Level(Types.CALLS)).isEmpty();
   }
 
   @Test

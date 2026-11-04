@@ -3,6 +3,7 @@ package io.lantern.link;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.BindsAttributes;
 import io.lantern.extract.attributes.DeclaresAttributes;
 import io.lantern.extract.attributes.ListensOnAttributes;
@@ -11,7 +12,6 @@ import io.lantern.extract.attributes.MessageListenerAttributes;
 import io.lantern.extract.attributes.MessageSendAttributes;
 import io.lantern.extract.attributes.SendsToAttributes;
 import io.lantern.extract.attributes.StreamFunctionAttributes;
-import io.lantern.extract.messaging.MessagingExtractor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,9 +41,9 @@ final class MessageRelations {
   /** The relation each resolved message fact becomes. */
   static final Map<String, String> RELATION =
       Map.of(
-          MessagingExtractor.SEND, MessagingExtractor.SENDS_TO,
-          MessagingExtractor.LISTENER, MessagingExtractor.LISTENS_ON,
-          MessagingExtractor.BINDING, MessagingExtractor.BINDS);
+          Types.MESSAGE_SEND, Types.SENDS_TO,
+          Types.MESSAGE_LISTENER, Types.LISTENS_ON,
+          Types.MESSAGE_BINDING, Types.BINDS);
 
   /** The module whose config resolves a method's values, and its repository. */
   record Config(String module, String repo) {}
@@ -90,27 +90,27 @@ final class MessageRelations {
   /** The module whose config resolves a messaging fact written in code, or null. */
   private static Config configOf(Fact f) {
     if (f.object().kind() != FactObject.Kind.ENTITY
-        && !f.predicate().equals(MessagingExtractor.STREAM_FUNCTION)) {
+        && !f.predicate().equals(Types.STREAM_FUNCTION)) {
       return null;
     }
     return switch (f.predicate()) {
-      case MessagingExtractor.SENDS_TO -> {
+      case Types.SENDS_TO -> {
         SendsToAttributes a = Claims.of(f, SendsToAttributes.class);
         yield new Config(a.configModule(), a.configRepo());
       }
-      case MessagingExtractor.LISTENS_ON -> {
+      case Types.LISTENS_ON -> {
         ListensOnAttributes a = Claims.of(f, ListensOnAttributes.class);
         yield new Config(a.configModule(), a.configRepo());
       }
-      case MessagingExtractor.BINDS -> {
+      case Types.BINDS -> {
         BindsAttributes a = Claims.of(f, BindsAttributes.class);
         yield new Config(a.configModule(), a.configRepo());
       }
-      case MessagingExtractor.DECLARES -> {
+      case Types.DECLARES -> {
         DeclaresAttributes a = Claims.of(f, DeclaresAttributes.class);
         yield new Config(a.configModule(), a.configRepo());
       }
-      case MessagingExtractor.STREAM_FUNCTION -> {
+      case Types.STREAM_FUNCTION -> {
         StreamFunctionAttributes a = Claims.of(f, StreamFunctionAttributes.class);
         yield new Config(a.configModule(), a.configRepo());
       }
@@ -124,12 +124,12 @@ final class MessageRelations {
     String broker;
     String kind;
     switch (message.predicate()) {
-      case MessagingExtractor.SEND -> {
+      case Types.MESSAGE_SEND -> {
         MessageSendAttributes a = Claims.of(message, MessageSendAttributes.class);
         broker = a.broker();
         kind = a.destinationKind();
       }
-      case MessagingExtractor.LISTENER -> {
+      case Types.MESSAGE_LISTENER -> {
         MessageListenerAttributes a = Claims.of(message, MessageListenerAttributes.class);
         broker = a.broker();
         kind = a.destinationKind();
@@ -158,7 +158,7 @@ final class MessageRelations {
     return Fact.create(
         message.subject(),
         relation,
-        FactObject.entity(new EntityId(MessagingExtractor.DESTINATION_ENTITY, key)),
+        FactObject.entity(new EntityId(Types.DESTINATION, key)),
         attributes,
         message.origin(),
         message.evidence(),

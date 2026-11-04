@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.spring.SpringExtractor;
@@ -112,15 +113,15 @@ class SpringFactsIT {
     assertThat(extracted)
         .extracting(Fact::predicate)
         .containsExactlyInAnyOrder(
-            SpringExtractor.MAIN_CLASS,
-            SpringExtractor.STEREOTYPE,
-            SpringExtractor.STEREOTYPE,
-            SpringExtractor.STEREOTYPE,
-            SpringExtractor.PROFILE_GATE,
+            Types.MAIN_CLASS,
+            Types.STEREOTYPE,
+            Types.STEREOTYPE,
+            Types.STEREOTYPE,
+            Types.PROFILE_GATE,
             // The endpoint and the schedule as written; linking resolves them (#519).
-            SpringExtractor.HANDLED_BY,
-            SpringExtractor.SCHEDULED_WRITTEN,
-            SpringExtractor.BEAN);
+            Types.HANDLED_BY,
+            Types.SCHEDULED_WRITTEN,
+            Types.BEAN);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();

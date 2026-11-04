@@ -9,6 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.config.ConfigExtractor;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +67,7 @@ class EnvironmentValuesTest {
   private static Fact fact(String subject, String value, String attributes) {
     return Fact.create(
         EntityId.parse(subject),
-        subject.startsWith("module:") ? ConfigExtractor.CONFIG_VALUE : "deployment-container",
+        subject.startsWith("module:") ? Types.CONFIG_VALUE : "deployment-container",
         FactObject.string(value),
         (tools.jackson.databind.node.ObjectNode) FactJson.parse(attributes),
         new Origin(Origin.Kind.STATIC, "config", "1"),

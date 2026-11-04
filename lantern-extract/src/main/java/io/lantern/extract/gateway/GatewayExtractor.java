@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -56,10 +56,10 @@ import tools.jackson.databind.node.ObjectNode;
  * factories), which are entry points. See {@code docs/adr/0077-spring-cloud-gateway.md}.
  *
  * <p>It reads the code as the Java structure extractor read it ({@link JavaAnalysis}) and no
- * config. A route built in code is recorded as written ({@value #ROUTE_WRITTEN}), its URI followed
- * one hop from a {@code @Value} field or parameter, and linking resolves it per view; linking also
- * reads the routes, Zuul routes and discovery locator config defines from the config facts, through
- * {@link #routes} (ADR 0094, #558).
+ * config. A route built in code is recorded as written ({@value Types#GATEWAY_ROUTE_WRITTEN}), its
+ * URI followed one hop from a {@code @Value} field or parameter, and linking resolves it per view;
+ * linking also reads the routes, Zuul routes and discovery locator config defines from the config
+ * facts, through {@link #routes} (ADR 0094, #558).
  */
 public final class GatewayExtractor implements Extractor {
 
@@ -71,18 +71,6 @@ public final class GatewayExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "gateway-extractor";
-
-  /** Attribute: a gateway route; its value is the route's id. */
-  public static final String ROUTE = "gateway-route";
-
-  /** Attribute: a route built in code, as written; linking resolves it into its routes. */
-  public static final String ROUTE_WRITTEN = "gateway-route-written";
-
-  /** Attribute: the subject class is a filter requests pass through. */
-  public static final String FILTER = "gateway-filter";
-
-  /** The name of the attribute type of a discovery locator turned on in config. */
-  public static final String LOCATOR = "gateway-discovery-locator";
 
   /** The framework of a route read from Netflix Zuul's config. */
   public static final String ZUUL = "zuul";
@@ -199,12 +187,13 @@ public final class GatewayExtractor implements Extractor {
   }
 
   /**
-   * The routes linking gives (ADR 0094, #558): each route built in code ({@value #ROUTE_WRITTEN})
-   * resolved in each view of its module's config, and the routes, Zuul routes and discovery locator
-   * each module's config defines, as this extractor recorded them before it kept values as written:
-   * {@value #ROUTE} and {@value #LOCATOR} facts, the default view's and each differing profile's.
+   * The routes linking gives (ADR 0094, #558): each route built in code ({@value
+   * Types#GATEWAY_ROUTE_WRITTEN}) resolved in each view of its module's config, and the routes,
+   * Zuul routes and discovery locator each module's config defines, as this extractor recorded them
+   * before it kept values as written: {@value Types#GATEWAY_ROUTE} and {@value
+   * Types#GATEWAY_DISCOVERY_LOCATOR} facts, the default view's and each differing profile's.
    *
-   * @param written the snapshot's facts; only {@value #ROUTE_WRITTEN} facts are read
+   * @param written the snapshot's facts; only {@value Types#GATEWAY_ROUTE_WRITTEN} facts are read
    * @param resolver the resolver of a written route's module, by {@code configModule} and {@code
    *     configRepo}
    * @param configs the config of each module
@@ -221,7 +210,7 @@ public final class GatewayExtractor implements Extractor {
       long snapshot) {
     Run run = new Run(null, Validity.from(snapshot), secretKeys, origin);
     for (Fact f : written) {
-      if (f.predicate().equals(ROUTE_WRITTEN)) {
+      if (f.predicate().equals(Types.GATEWAY_ROUTE_WRITTEN)) {
         run.writtenRoute(
             f,
             resolver.apply(
@@ -430,7 +419,13 @@ public final class GatewayExtractor implements Extractor {
       }
       a.put("configModule", module.id().toString());
       a.put("configRepo", module.repo().repo().name());
-      put(caller, ROUTE_WRITTEN, id, a, evidence(module.repo(), where), module.confidence());
+      put(
+          caller,
+          Types.GATEWAY_ROUTE_WRITTEN,
+          id,
+          a,
+          evidence(module.repo(), where),
+          module.confidence());
     }
 
     /** The routes of a route built in code, resolved in each view of its module's config. */
@@ -764,7 +759,13 @@ public final class GatewayExtractor implements Extractor {
                 enabled == null ? new ArrayList<>(settings.values()) : List.of(enabled);
             Evidence evidence = configEvidence(config, keys);
             if (evidence != null) {
-              put(config.module(), LOCATOR, standard.get("value").asString(), off, evidence, 1.0);
+              put(
+                  config.module(),
+                  Types.GATEWAY_DISCOVERY_LOCATOR,
+                  standard.get("value").asString(),
+                  off,
+                  evidence,
+                  1.0);
             }
           }
           continue;
@@ -792,13 +793,25 @@ public final class GatewayExtractor implements Extractor {
         if (view == null) {
           standard = attributes.deepCopy();
           standard.put("value", value);
-          put(config.module(), LOCATOR, value, attributes, configEvidence(config, keys), 1.0);
+          put(
+              config.module(),
+              Types.GATEWAY_DISCOVERY_LOCATOR,
+              value,
+              attributes,
+              configEvidence(config, keys),
+              1.0);
         } else {
           ObjectNode compared = attributes.deepCopy();
           compared.put("value", value);
           if (!compared.equals(standard)) {
             attributes.put("profile", view);
-            put(config.module(), LOCATOR, value, attributes, configEvidence(config, keys), 1.0);
+            put(
+                config.module(),
+                Types.GATEWAY_DISCOVERY_LOCATOR,
+                value,
+                attributes,
+                configEvidence(config, keys),
+                1.0);
           }
         }
       }
@@ -964,8 +977,8 @@ public final class GatewayExtractor implements Extractor {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("implements", library);
         put(
-            new EntityId(BuiltInTypes.TYPE, type.binaryName()),
-            FILTER,
+            new EntityId(Types.TYPE, type.binaryName()),
+            Types.GATEWAY_FILTER,
             FILTER_TYPES.get(library),
             attributes,
             evidence(module.repo(), type.where()),
@@ -1062,7 +1075,7 @@ public final class GatewayExtractor implements Extractor {
       if (standard != null) {
         put(
             subject,
-            ROUTE,
+            Types.GATEWAY_ROUTE,
             standard.id(),
             standard.attributes(definedIn, null),
             evidence,
@@ -1073,7 +1086,7 @@ public final class GatewayExtractor implements Extractor {
             if (!view.isEmpty() && !route.equals(standard)) {
               put(
                   subject,
-                  ROUTE,
+                  Types.GATEWAY_ROUTE,
                   route.id(),
                   route.attributes(definedIn, view),
                   evidence,
@@ -1116,7 +1129,7 @@ public final class GatewayExtractor implements Extractor {
 
   private static EntityId fieldId(String owner, String name) {
     try {
-      return new EntityId(ModuleStructure.FIELD, owner + "#" + name);
+      return new EntityId(Types.FIELD, owner + "#" + name);
     } catch (IllegalArgumentException e) {
       return null;
     }

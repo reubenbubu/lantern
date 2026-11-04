@@ -2,6 +2,7 @@ package io.lantern.extract.spring;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.java.JavaAnalysis;
@@ -35,8 +36,8 @@ final class Resolved {
     List<Fact> written = new SpringExtractor().extract(code, snapshot);
     List<Fact> facts = new ArrayList<>();
     for (Fact f : written) {
-      if (!f.predicate().equals(SpringExtractor.HANDLED_BY)
-          && !f.predicate().equals(SpringExtractor.SCHEDULED_WRITTEN)) {
+      if (!f.predicate().equals(Types.HANDLED_BY)
+          && !f.predicate().equals(Types.SCHEDULED_WRITTEN)) {
         facts.add(f);
       }
     }

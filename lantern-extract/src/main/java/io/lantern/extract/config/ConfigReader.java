@@ -1,7 +1,7 @@
 package io.lantern.extract.config;
 
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.GitFiles;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ModuleConfig.Document;
@@ -221,8 +221,7 @@ final class ConfigReader {
       for (BuildModule m : repo.build().modules()) {
         if (modules.containsKey(m.path())) {
           try {
-            modules.put(
-                m.path(), new EntityId(BuiltInTypes.MODULE, m.groupId() + ":" + m.artifactId()));
+            modules.put(m.path(), new EntityId(Types.MODULE, m.groupId() + ":" + m.artifactId()));
           } catch (IllegalArgumentException e) {
             // Keep the ID from the POM as written.
           }

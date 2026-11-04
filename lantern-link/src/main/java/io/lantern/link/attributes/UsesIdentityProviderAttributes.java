@@ -61,9 +61,6 @@ public record UsesIdentityProviderAttributes(
     String url,
     String view) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "USES_IDENTITY_PROVIDER";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("key", "protocol", "view");
 

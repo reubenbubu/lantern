@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.JavaExtractor;
@@ -76,7 +77,7 @@ class JavaFactsIT {
 
     assertThat(extracted)
         .extracting(Fact::predicate)
-        .contains("CONTAINS", "CALLS", "IMPLEMENTS", JavaExtractor.KIND);
+        .contains("CONTAINS", "CALLS", "IMPLEMENTS", Types.KIND);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();

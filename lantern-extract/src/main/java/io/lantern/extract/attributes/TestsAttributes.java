@@ -19,9 +19,6 @@ public record TestsAttributes(
     Boolean architecture,
     Long tests) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "TESTS";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("architecture", "tests");
 

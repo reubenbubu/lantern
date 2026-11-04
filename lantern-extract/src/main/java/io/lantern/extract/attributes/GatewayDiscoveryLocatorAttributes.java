@@ -37,9 +37,6 @@ public record GatewayDiscoveryLocatorAttributes(
     String profile,
     String routeIdPrefix) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "gateway-discovery-locator";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("enabled", "filters", "includeExpression", "lowerCaseServiceId", "predicates", "routeIdPrefix");
 

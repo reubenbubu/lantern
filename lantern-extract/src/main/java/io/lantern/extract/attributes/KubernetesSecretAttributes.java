@@ -27,9 +27,6 @@ public record KubernetesSecretAttributes(
     List<String> stringData,
     String type) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "kubernetes-secret";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("data", "environment", "platform", "stringData", "type");
 

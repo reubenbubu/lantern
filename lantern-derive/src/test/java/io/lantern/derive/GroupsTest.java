@@ -6,7 +6,7 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,8 +58,8 @@ class GroupsTest {
     // An aspect of the unit's own code advising the invoice controller, and calling into it.
     EntityId aspect = EntityId.parse("type:io.acme.billing.security.AuditAspect");
     EntityId security = EntityId.parse("package:io.acme:billing:io.acme.billing.security");
-    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, security);
-    model.add(security, BuiltInTypes.CONTAINS, aspect);
+    model.add(BILLING_MODULE, Types.CONTAINS, security);
+    model.add(security, Types.CONTAINS, aspect);
     model.add(
         aspect,
         "ADVISES",
@@ -68,24 +68,21 @@ class GroupsTest {
     EntityId library = EntityId.parse("library:io.acme:commons");
     EntityId libraryModule = EntityId.parse("module:io.acme:commons");
     model.add(BILLING, "BUNDLES", library);
-    model.add(library, BuiltInTypes.CONTAINS, libraryModule);
+    model.add(library, Types.CONTAINS, libraryModule);
     EntityId messaging = EntityId.parse("package:io.acme:commons:io.acme.commons.messaging");
     EntityId sender = EntityId.parse("type:io.acme.commons.messaging.Sender");
-    model.add(libraryModule, BuiltInTypes.CONTAINS, messaging);
-    model.add(messaging, BuiltInTypes.CONTAINS, sender);
+    model.add(libraryModule, Types.CONTAINS, messaging);
+    model.add(messaging, Types.CONTAINS, sender);
     model.add(sender, "stereotype", FactObject.string("service"));
     EntityId send = EntityId.parse("method:io.acme.commons.messaging.Sender#send()");
-    model.add(sender, BuiltInTypes.CONTAINS, send);
+    model.add(sender, Types.CONTAINS, send);
     for (String from : List.of("invoice.InvoiceController", "payment.PaymentController")) {
-      model.add(
-          EntityId.parse("method:io.acme.billing." + from + "#handle()"), BuiltInTypes.CALLS, send);
+      model.add(EntityId.parse("method:io.acme.billing." + from + "#handle()"), Types.CALLS, send);
     }
     // An aspect in a feature's own package belongs to that feature, by rule 1.
     EntityId local = EntityId.parse("type:io.acme.billing.invoice.InvoiceAspect");
     model.add(
-        EntityId.parse("package:io.acme:billing:io.acme.billing.invoice"),
-        BuiltInTypes.CONTAINS,
-        local);
+        EntityId.parse("package:io.acme:billing:io.acme.billing.invoice"), Types.CONTAINS, local);
     model.add(
         local, "ADVISES", EntityId.parse("method:io.acme.billing.invoice.InvoiceEvents#handle()"));
     String aspectComponent = component("io.acme.billing.security.AuditAspect");
@@ -242,14 +239,14 @@ class GroupsTest {
     Knowledge knowledge = new Knowledge(Derivation.withModel(model.facts, 1));
 
     Fact joined =
-        knowledge.relations(EntityId.parse(area("path-orders")), Groups.GROUPS).stream()
+        knowledge.relations(EntityId.parse(area("path-orders")), Types.GROUPS).stream()
             .filter(f -> Knowledge.object(f).equals(listener))
             .findFirst()
             .orElseThrow();
     assertThat(joined.attributes().get("basis").asString()).isEqualTo(Groups.TABLES);
     Fact access =
         knowledge.attributes(listener).stream()
-            .filter(f -> f.predicate().equals(ComponentInteractions.DATA_ACCESS))
+            .filter(f -> f.predicate().equals(Types.DATA_ACCESS))
             .findFirst()
             .orElseThrow();
     assertThat(joined.attributes().get("facts").get(0).asString()).isEqualTo(access.id());
@@ -324,7 +321,7 @@ class GroupsTest {
 
   private void unit(EntityId unit, EntityId module, String repo) {
     model.add(unit, "deployable-unit", FactObject.string("spring-boot"));
-    model.add(unit, BuiltInTypes.CONTAINS, module);
+    model.add(unit, Types.CONTAINS, module);
   }
 
   /** A controller (an entry point) with an endpoint, or a listener when the endpoint is null. */
@@ -332,9 +329,9 @@ class GroupsTest {
     EntityId pkgId = EntityId.parse("package:io.acme:billing:" + pkg);
     EntityId type = EntityId.parse("type:" + pkg + "." + name);
     EntityId method = EntityId.parse("method:" + pkg + "." + name + "#handle()");
-    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, pkgId);
-    model.add(pkgId, BuiltInTypes.CONTAINS, type);
-    model.add(type, BuiltInTypes.CONTAINS, method);
+    model.add(BILLING_MODULE, Types.CONTAINS, pkgId);
+    model.add(pkgId, Types.CONTAINS, type);
+    model.add(type, Types.CONTAINS, method);
     model.add(type, "stereotype", FactObject.string("controller"));
     if (endpoint != null) {
       model.add(method, "endpoint", FactObject.string(endpoint));
@@ -348,8 +345,8 @@ class GroupsTest {
   private void shared(String pkg, String name) {
     EntityId pkgId = EntityId.parse("package:io.acme:billing:" + pkg);
     EntityId type = EntityId.parse("type:" + pkg + "." + name);
-    model.add(BILLING_MODULE, BuiltInTypes.CONTAINS, pkgId);
-    model.add(pkgId, BuiltInTypes.CONTAINS, type);
+    model.add(BILLING_MODULE, Types.CONTAINS, pkgId);
+    model.add(pkgId, Types.CONTAINS, type);
     model.add(type, "stereotype", FactObject.string("service"));
     for (String controller :
         List.of(
@@ -357,15 +354,14 @@ class GroupsTest {
             "io.acme.billing.payment.PaymentController#handle()")) {
       model.add(
           EntityId.parse("method:" + controller),
-          BuiltInTypes.CALLS,
+          Types.CALLS,
           EntityId.parse("method:" + pkg + "." + name + "#find()"));
     }
-    model.add(
-        type, BuiltInTypes.CONTAINS, EntityId.parse("method:" + pkg + "." + name + "#find()"));
+    model.add(type, Types.CONTAINS, EntityId.parse("method:" + pkg + "." + name + "#find()"));
   }
 
   private void link(EntityId from, String to) {
-    model.add(from, ComponentInteractions.COMPONENT_LINK, EntityId.parse(to));
+    model.add(from, Types.COMPONENT_LINK, EntityId.parse(to));
   }
 
   private void uses(EntityId unit, String database, String protocol) {

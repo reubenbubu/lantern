@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -89,24 +89,6 @@ public final class IdentityExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "identity-extractor";
-
-  /** Attribute: the method makes an HMAC key for JWTs from a secret in config. */
-  public static final String JWT_SECRET_KEY = "jwt-secret-key";
-
-  /** Attribute: the method builds an identity provider's admin client. */
-  public static final String IDENTITY_ADMIN_CLIENT = "identity-admin-client";
-
-  /** Attribute: the method builds a JWT decoder that checks tokens with a provider's keys. */
-  public static final String JWT_DECODER = "jwt-decoder";
-
-  /** Attribute: the method sets up how callers sign in or show a token. */
-  public static final String HTTP_SECURITY = "http-security";
-
-  /** Attribute: the method signs or checks JWTs with an RSA or EC key. */
-  public static final String JWT_KEY_PAIR = "jwt-key-pair";
-
-  /** Attribute: a client a Keycloak realm export in the repository registers. */
-  public static final String IDENTITY_CLIENT = "identity-client";
 
   private static final String RESOURCE = "/vocabulary/identity-types.json";
 
@@ -329,7 +311,7 @@ public final class IdentityExtractor implements Extractor {
         ArrayNode useArray = attributes.putArray("uses");
         uses.forEach(useArray::add);
       }
-      add(module, i, JWT_SECRET_KEY, keys.iterator().next(), attributes);
+      add(module, i, Types.JWT_SECRET_KEY, keys.iterator().next(), attributes);
     }
 
     private void adminClient(JavaAnalysis.Module module, Invocation i) {
@@ -353,7 +335,7 @@ public final class IdentityExtractor implements Extractor {
       ObjectNode attributes = FactJson.newObject();
       attributes.put("product", "Keycloak");
       attributes.put("url", text);
-      add(module, i, IDENTITY_ADMIN_CLIENT, text, attributes);
+      add(module, i, Types.IDENTITY_ADMIN_CLIENT, text, attributes);
     }
 
     private void decoder(JavaAnalysis.Module module, Invocation i) {
@@ -381,7 +363,7 @@ public final class IdentityExtractor implements Extractor {
             keys.forEach(keyArray::add);
           }
         }
-        add(module, i, JWT_DECODER, kind, attributes);
+        add(module, i, Types.JWT_DECODER, kind, attributes);
       }
     }
 
@@ -401,7 +383,7 @@ public final class IdentityExtractor implements Extractor {
           ObjectNode attributes = FactJson.newObject();
           attributes.put("via", dsl);
           attributes.put("call", call.method());
-          add(module, i, HTTP_SECURITY, feature, attributes);
+          add(module, i, Types.HTTP_SECURITY, feature, attributes);
         }
       }
     }
@@ -432,9 +414,9 @@ public final class IdentityExtractor implements Extractor {
         attributes.put("call", "@" + name);
         add(
             module,
-            new EntityId(BuiltInTypes.TYPE, type.binaryName()),
+            new EntityId(Types.TYPE, type.binaryName()),
             path.getFirst().where(),
-            HTTP_SECURITY,
+            Types.HTTP_SECURITY,
             legacy.getValue(),
             attributes);
       }
@@ -462,7 +444,7 @@ public final class IdentityExtractor implements Extractor {
           ArrayNode keyArray = attributes.putArray("keys");
           keys.forEach(keyArray::add);
         }
-        add(module, i, JWT_KEY_PAIR, kind, attributes);
+        add(module, i, Types.JWT_KEY_PAIR, kind, attributes);
       }
     }
 
@@ -565,7 +547,7 @@ public final class IdentityExtractor implements Extractor {
         Fact fact =
             Fact.create(
                 subject,
-                IDENTITY_CLIENT,
+                Types.IDENTITY_CLIENT,
                 FactObject.string(id),
                 attributes,
                 ORIGIN,

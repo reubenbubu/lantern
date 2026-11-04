@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.sql.SqlExtractor;
@@ -66,13 +67,13 @@ class SqlFactsIT {
         .extracting(Fact::predicate)
         .contains(
             "CONTAINS",
-            SqlExtractor.KIND,
-            SqlExtractor.DATA_TYPE,
-            SqlExtractor.NULLABLE,
-            SqlExtractor.POSITION,
-            SqlExtractor.PRIMARY_KEY,
-            SqlExtractor.UNIQUE_KEY,
-            SqlExtractor.REFERENCES);
+            Types.KIND,
+            Types.DATA_TYPE,
+            Types.NULLABLE,
+            Types.POSITION,
+            Types.PRIMARY_KEY,
+            Types.UNIQUE_KEY,
+            Types.REFERENCES);
     try {
       for (Fact fact : extracted) {
         assertThat(facts.save(fact)).isTrue();

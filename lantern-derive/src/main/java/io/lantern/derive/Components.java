@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
@@ -48,15 +48,6 @@ public final class Components implements LinkRule.OverFacts {
   /** Raised whenever the components it gives for the same facts change. */
   public static final String VERSION = "2";
 
-  public static final String PART_OF = "PART_OF";
-  public static final String ANCHORED_ON = "ANCHORED_ON";
-
-  /**
-   * A component's member class: a kind of {@code CONTAINS}, a predicate of its own so the rule does
-   * not write what the extractors write and the linker's rules read.
-   */
-  public static final String HAS_MEMBER = "HAS_MEMBER";
-
   /** The roles of a component. */
   public static final String ENTRY_POINT = "entry-point";
 
@@ -69,30 +60,6 @@ public final class Components implements LinkRule.OverFacts {
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
 
-  private static final String METHOD = "method";
-  private static final String STEREOTYPE = "stereotype";
-  private static final String MAIN_CLASS = "main-class";
-  private static final String ENDPOINT = "endpoint";
-  private static final String MESSAGE_LISTENER = "message-listener";
-  private static final String SCHEDULED = "scheduled";
-  private static final String BACKGROUND_JOB = "background-job";
-  private static final String GATEWAY_ROUTE = "gateway-route";
-  private static final String WEBSOCKET_ENDPOINT = "websocket-endpoint";
-  private static final String STOMP_MAPPING = "stomp-mapping";
-  private static final String GATEWAY_FILTER = "gateway-filter";
-  private static final String HTTP_CLIENT = "http-client";
-  private static final String HTTP_CALL = "http-call";
-  private static final String MESSAGE_SEND = "message-send";
-  private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
-  private static final String GENERATED = "generated";
-  private static final String READS_TABLE = "READS_TABLE";
-  private static final String WRITES_TABLE = "WRITES_TABLE";
-  private static final String CONFIGURATION_PROPERTIES = "configuration-properties";
-  private static final String INJECTS = "INJECTS";
-  private static final String ASPECT = "aspect";
-  private static final String ADVISES = "ADVISES";
-  private static final String BUNDLES = "BUNDLES";
-  private static final String DEPLOYABLE_UNIT = "deployable-unit";
   private static final Set<String> BEAN_STEREOTYPES =
       Set.of("controller", "service", "repository", "component");
 
@@ -111,7 +78,7 @@ public final class Components implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Set.of(PART_OF, ANCHORED_ON, HAS_MEMBER);
+    return Set.of(Types.PART_OF, Types.ANCHORED_ON, Types.HAS_MEMBER);
   }
 
   /** The vocabulary types of the components' facts besides the built-in ones. */
@@ -125,7 +92,7 @@ public final class Components implements LinkRule.OverFacts {
     Validity validity = Validity.from(snapshot);
     List<Fact> derived = new ArrayList<>();
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
+    knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
     for (EntityId unit : units) {
       for (Found component : new Finder(knowledge, unit).components()) {
         Evidence evidence = component.basis().getFirst().evidence();
@@ -137,11 +104,17 @@ public final class Components implements LinkRule.OverFacts {
         }
         ArrayNode cites = part.putArray("facts");
         component.basis().forEach(f -> cites.add(f.id()));
-        derived.add(fact(id, PART_OF, unit, part, evidence, validity));
+        derived.add(fact(id, Types.PART_OF, unit, part, evidence, validity));
         derived.add(
-            fact(id, ANCHORED_ON, component.anchor(), FactJson.newObject(), evidence, validity));
+            fact(
+                id,
+                Types.ANCHORED_ON,
+                component.anchor(),
+                FactJson.newObject(),
+                evidence,
+                validity));
         for (EntityId member : component.members()) {
-          derived.add(fact(id, HAS_MEMBER, member, FactJson.newObject(), evidence, validity));
+          derived.add(fact(id, Types.HAS_MEMBER, member, FactJson.newObject(), evidence, validity));
         }
       }
     }
@@ -150,7 +123,7 @@ public final class Components implements LinkRule.OverFacts {
 
   /** The component of a unit built around an anchor. */
   public static EntityId id(EntityId unit, EntityId anchor) {
-    return new EntityId(BuiltInTypes.COMPONENT, unit + "/" + anchor);
+    return new EntityId(Types.COMPONENT, unit + "/" + anchor);
   }
 
   private static Fact fact(
@@ -191,14 +164,14 @@ public final class Components implements LinkRule.OverFacts {
       SortedSet<EntityId> code = new TreeSet<>(Knowledge.BY_ID);
       for (EntityId module : codeModules(knowledge, unit)) {
         code.addAll(knowledge.typesWithin(module));
-        for (EntityId pkg : knowledge.parts(module, BuiltInTypes.PACKAGE)) {
+        for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
           code.addAll(knowledge.typesWithin(pkg));
         }
       }
       SortedSet<EntityId> entries = new TreeSet<>(Knowledge.BY_ID);
       SortedSet<EntityId> beans = new TreeSet<>(Knowledge.BY_ID);
       for (EntityId type : code) {
-        if (knowledge.attribute(type, MAIN_CLASS).isPresent()) {
+        if (knowledge.attribute(type, Types.MAIN_CLASS).isPresent()) {
           continue;
         }
         if (!entryKinds(type).isEmpty()) {
@@ -212,7 +185,7 @@ public final class Components implements LinkRule.OverFacts {
       // outside the unit's code (a shared library the linker did not match to the unit) counts
       // when it selects by annotation, which the unit's code must then use.
       Map<EntityId, Fact> aspects = new TreeMap<>(Knowledge.BY_ID);
-      for (Fact fact : knowledge.withPredicate(ADVISES)) {
+      for (Fact fact : knowledge.withPredicate(Types.ADVISES)) {
         EntityId aspect = fact.subject();
         if (!aspects.containsKey(aspect)
             && entries.contains(ownerType(knowledge, Knowledge.object(fact)))
@@ -248,7 +221,7 @@ public final class Components implements LinkRule.OverFacts {
       for (EntityId module : codeModules(knowledge, unit)) {
         List<Fact> routes =
             knowledge.attributes(module).stream()
-                .filter(f -> f.predicate().equals(GATEWAY_ROUTE))
+                .filter(f -> f.predicate().equals(Types.GATEWAY_ROUTE))
                 .toList();
         if (!routes.isEmpty()) {
           components.add(
@@ -432,7 +405,8 @@ public final class Components implements LinkRule.OverFacts {
     /** Whether an aspect's pointcuts select methods by an annotation. */
     private boolean selectsByAnnotation(EntityId aspect) {
       return knowledge.attributes(aspect).stream()
-          .anyMatch(f -> f.predicate().equals(ASPECT) && !strings(f, "annotations").isEmpty());
+          .anyMatch(
+              f -> f.predicate().equals(Types.ASPECT) && !strings(f, "annotations").isEmpty());
     }
 
     /** The roles that make a type an entry point, by name, with the facts that state them. */
@@ -451,7 +425,7 @@ public final class Components implements LinkRule.OverFacts {
       Set<String> kinds = new LinkedHashSet<>();
       List<Fact> basis = new ArrayList<>();
       for (Fact f : knowledge.attributes(type)) {
-        if (f.predicate().equals(GATEWAY_FILTER)) {
+        if (f.predicate().equals(Types.GATEWAY_FILTER)) {
           kinds.add(
               switch (f.object().value().toString()) {
                 case "global" -> "Global gateway filter";
@@ -463,7 +437,7 @@ public final class Components implements LinkRule.OverFacts {
         }
       }
       for (Fact f : knowledge.attributes(type)) {
-        if (f.predicate().equals(STEREOTYPE) && f.object().value().equals("controller")) {
+        if (f.predicate().equals(Types.STEREOTYPE) && f.object().value().equals("controller")) {
           kinds.add(
               attribute(f, "rest", "false").equals("true")
                   ? "Spring MVC REST controller"
@@ -471,21 +445,21 @@ public final class Components implements LinkRule.OverFacts {
           basis.add(f);
         }
       }
-      for (EntityId method : knowledge.parts(type, METHOD)) {
+      for (EntityId method : knowledge.parts(type, Types.METHOD)) {
         for (Fact fact : knowledge.attributes(method)) {
           boolean counts = true;
           switch (fact.predicate()) {
-            case ENDPOINT -> {
+            case Types.ENDPOINT -> {
               if (kinds.isEmpty()) {
                 kinds.add("HTTP endpoints");
               }
             }
-            case MESSAGE_LISTENER ->
+            case Types.MESSAGE_LISTENER ->
                 kinds.add(brokerName(attribute(fact, "broker", "message")) + " listener");
-            case SCHEDULED, BACKGROUND_JOB -> kinds.add(jobKind(fact));
-            case GATEWAY_ROUTE -> kinds.add("Gateway routes");
-            case STOMP_MAPPING -> kinds.add("STOMP message handler");
-            case WEBSOCKET_ENDPOINT ->
+            case Types.SCHEDULED, Types.BACKGROUND_JOB -> kinds.add(jobKind(fact));
+            case Types.GATEWAY_ROUTE -> kinds.add("Gateway routes");
+            case Types.STOMP_MAPPING -> kinds.add("STOMP message handler");
+            case Types.WEBSOCKET_ENDPOINT ->
                 kinds.add(
                     "stomp".equals(attribute(fact, "protocol", ""))
                         ? "STOMP WebSocket endpoint"
@@ -512,12 +486,12 @@ public final class Components implements LinkRule.OverFacts {
     private boolean isLeftOut(EntityId type) {
       for (Fact fact : knowledge.attributes(type)) {
         switch (fact.predicate()) {
-          case GENERATED -> {
+          case Types.GENERATED -> {
             if (fact.object().value().toString().startsWith("org.mapstruct.")) {
               return true;
             }
           }
-          case CONFIGURATION_PROPERTIES -> {
+          case Types.CONFIGURATION_PROPERTIES -> {
             return true;
           }
           default -> {}
@@ -530,13 +504,13 @@ public final class Components implements LinkRule.OverFacts {
     private List<Fact> beanBasis(EntityId type) {
       List<Fact> basis = new ArrayList<>();
       for (Fact fact : knowledge.attributes(type)) {
-        if ((fact.predicate().equals(STEREOTYPE)
+        if ((fact.predicate().equals(Types.STEREOTYPE)
                 && BEAN_STEREOTYPES.contains(fact.object().value()))
-            || fact.predicate().equals(HTTP_CLIENT)) {
+            || fact.predicate().equals(Types.HTTP_CLIENT)) {
           basis.add(fact);
         }
       }
-      basis.addAll(knowledge.relations(type, REPOSITORY_FOR));
+      basis.addAll(knowledge.relations(type, Types.REPOSITORY_FOR));
       return basis;
     }
 
@@ -544,18 +518,18 @@ public final class Components implements LinkRule.OverFacts {
     private String beanKind(EntityId type) {
       Optional<Fact> client =
           knowledge.attributes(type).stream()
-              .filter(f -> f.predicate().equals(HTTP_CLIENT))
+              .filter(f -> f.predicate().equals(Types.HTTP_CLIENT))
               .findFirst();
       if (client.isPresent()) {
         String kind = client.get().object().value().toString();
         return kind.equals("feign") ? "Feign client" : "HTTP client";
       }
-      for (Fact fact : knowledge.relations(type, REPOSITORY_FOR)) {
+      for (Fact fact : knowledge.relations(type, Types.REPOSITORY_FOR)) {
         String base = attribute(fact, "base", "");
         return base.contains(".jpa.") ? "Spring Data JPA repository" : "Spring Data repository";
       }
       return knowledge
-          .attribute(type, STEREOTYPE)
+          .attribute(type, Types.STEREOTYPE)
           .map(
               s ->
                   switch (s) {
@@ -572,13 +546,13 @@ public final class Components implements LinkRule.OverFacts {
      * entry point reaches shows its data access on that entry point's component.
      */
     private boolean reachesOutside(EntityId type) {
-      if (knowledge.attribute(type, HTTP_CLIENT).isPresent()) {
+      if (knowledge.attribute(type, Types.HTTP_CLIENT).isPresent()) {
         return true;
       }
       for (EntityId member : withMethods(type)) {
         for (Fact fact : knowledge.about(member)) {
           switch (fact.predicate()) {
-            case HTTP_CALL, MESSAGE_SEND -> {
+            case Types.HTTP_CALL, Types.MESSAGE_SEND -> {
               return true;
             }
             default -> {}
@@ -610,7 +584,7 @@ public final class Components implements LinkRule.OverFacts {
           int generic = param.indexOf('<');
           param = (generic < 0 ? param : param.substring(0, generic)).replace("...", "");
           if (!param.isEmpty() && !param.endsWith("]")) {
-            types.add(new EntityId(BuiltInTypes.TYPE, param));
+            types.add(new EntityId(Types.TYPE, param));
           }
           start = i + 1;
         }
@@ -620,12 +594,12 @@ public final class Components implements LinkRule.OverFacts {
 
     /** Whether a type is a repository or its code reads or writes tables. */
     private boolean accessesData(EntityId type) {
-      if (!knowledge.relations(type, REPOSITORY_FOR).isEmpty()) {
+      if (!knowledge.relations(type, Types.REPOSITORY_FOR).isEmpty()) {
         return true;
       }
       for (EntityId member : withMethods(type)) {
-        if (!knowledge.relations(member, READS_TABLE).isEmpty()
-            || !knowledge.relations(member, WRITES_TABLE).isEmpty()) {
+        if (!knowledge.relations(member, Types.READS_TABLE).isEmpty()
+            || !knowledge.relations(member, Types.WRITES_TABLE).isEmpty()) {
           return true;
         }
       }
@@ -634,7 +608,7 @@ public final class Components implements LinkRule.OverFacts {
 
     private List<EntityId> withMethods(EntityId type) {
       List<EntityId> members = new ArrayList<>(List.of(type));
-      members.addAll(knowledge.parts(type, METHOD));
+      members.addAll(knowledge.parts(type, Types.METHOD));
       return members;
     }
 
@@ -647,20 +621,20 @@ public final class Components implements LinkRule.OverFacts {
       for (EntityId type : code) {
         Set<EntityId> targets = new TreeSet<>(Knowledge.BY_ID);
         for (EntityId member : withMethods(type)) {
-          for (Fact fact : knowledge.relations(member, BuiltInTypes.CALLS)) {
+          for (Fact fact : knowledge.relations(member, Types.CALLS)) {
             targets.add(ownerType(knowledge, Knowledge.object(fact)));
           }
         }
-        knowledge.relations(type, INJECTS).forEach(f -> targets.add(Knowledge.object(f)));
+        knowledge.relations(type, Types.INJECTS).forEach(f -> targets.add(Knowledge.object(f)));
         // What its constructors take: Spring injects them, and a constructor's ID names its
         // parameter types even when its calls could not be resolved without a build (#271).
-        for (EntityId method : knowledge.parts(type, METHOD)) {
+        for (EntityId method : knowledge.parts(type, Types.METHOD)) {
           targets.addAll(constructorParameters(method));
         }
         targets.remove(type);
         targets.retainAll(code);
         uses.computeIfAbsent(type, t -> new TreeSet<>(Knowledge.BY_ID)).addAll(targets);
-        for (Fact fact : knowledge.relations(type, BuiltInTypes.IMPLEMENTS)) {
+        for (Fact fact : knowledge.relations(type, Types.IMPLEMENTS)) {
           EntityId contract = Knowledge.object(fact);
           if (code.contains(contract)) {
             uses.computeIfAbsent(contract, c -> new TreeSet<>(Knowledge.BY_ID)).add(type);
@@ -673,22 +647,22 @@ public final class Components implements LinkRule.OverFacts {
 
   /** The modules whose code runs in the unit: its own and those of the libraries it bundles. */
   public static SortedSet<EntityId> codeModules(Knowledge knowledge, EntityId unit) {
-    SortedSet<EntityId> modules = knowledge.parts(unit, BuiltInTypes.MODULE);
-    for (Fact fact : knowledge.relations(unit, BUNDLES)) {
-      modules.addAll(knowledge.parts(Knowledge.object(fact), BuiltInTypes.MODULE));
+    SortedSet<EntityId> modules = knowledge.parts(unit, Types.MODULE);
+    for (Fact fact : knowledge.relations(unit, Types.BUNDLES)) {
+      modules.addAll(knowledge.parts(Knowledge.object(fact), Types.MODULE));
     }
     return modules;
   }
 
   /** The type a method or field belongs to; any other entity itself. */
   public static EntityId ownerType(Knowledge knowledge, EntityId entity) {
-    if (entity.type().equals(METHOD) || entity.type().equals("field")) {
-      SortedSet<EntityId> owners = knowledge.wholes(entity, BuiltInTypes.TYPE);
+    if (entity.type().equals(Types.METHOD) || entity.type().equals(Types.FIELD)) {
+      SortedSet<EntityId> owners = knowledge.wholes(entity, Types.TYPE);
       if (!owners.isEmpty()) {
         return owners.first();
       }
       int hash = entity.key().indexOf('#');
-      return hash > 0 ? new EntityId(BuiltInTypes.TYPE, entity.key().substring(0, hash)) : entity;
+      return hash > 0 ? new EntityId(Types.TYPE, entity.key().substring(0, hash)) : entity;
     }
     return entity;
   }

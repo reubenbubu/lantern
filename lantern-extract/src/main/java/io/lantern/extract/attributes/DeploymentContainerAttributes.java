@@ -78,9 +78,6 @@ public record DeploymentContainerAttributes(
     String role,
     String version) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "deployment-container";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("databases", "environment", "kind", "platform", "role");
 

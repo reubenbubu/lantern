@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
@@ -379,7 +380,7 @@ class IdentityExtractorTest {
     // The signer and the verifier made in init are a fact each.
     assertThat(
             facts.stream()
-                .filter(f -> f.predicate().equals(IdentityExtractor.JWT_KEY_PAIR))
+                .filter(f -> f.predicate().equals(Types.JWT_KEY_PAIR))
                 .map(f -> f.attributes().get("use").stringValue())
                 .toList())
         .containsExactlyInAnyOrder("sign", "verify");
@@ -703,7 +704,7 @@ class IdentityExtractorTest {
             "method:com.example.EcSigner#init jwt-key-pair EC new ECDSAVerifier ");
     assertThat(
             facts.stream()
-                .filter(f -> f.predicate().equals(IdentityExtractor.JWT_KEY_PAIR))
+                .filter(f -> f.predicate().equals(Types.JWT_KEY_PAIR))
                 .map(
                     f -> f.attributes().get("use").stringValue() + " " + f.attributes().get("keys"))
                 .toList())

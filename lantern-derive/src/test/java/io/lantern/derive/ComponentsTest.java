@@ -9,7 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -38,17 +38,17 @@ class ComponentsTest {
     EntityId audit = Components.id(UNIT, AUDIT);
     assertThat(orders.toString())
         .isEqualTo("component:service:com.example:shop/type:com.example.OrdersController");
-    assertThat(objects(derived, orders, Components.HAS_MEMBER)).containsExactly(ORDERS, PRICING);
-    assertThat(objects(derived, admin, Components.HAS_MEMBER)).containsExactly(ADMIN);
-    assertThat(objects(derived, audit, Components.HAS_MEMBER)).containsExactly(AUDIT);
-    assertThat(objects(derived, orders, Components.ANCHORED_ON)).containsExactly(ORDERS);
+    assertThat(objects(derived, orders, Types.HAS_MEMBER)).containsExactly(ORDERS, PRICING);
+    assertThat(objects(derived, admin, Types.HAS_MEMBER)).containsExactly(ADMIN);
+    assertThat(objects(derived, audit, Types.HAS_MEMBER)).containsExactly(AUDIT);
+    assertThat(objects(derived, orders, Types.ANCHORED_ON)).containsExactly(ORDERS);
 
-    Fact part = only(derived, orders, Components.PART_OF);
+    Fact part = only(derived, orders, Types.PART_OF);
     assertThat(part.object().entityId()).isEqualTo(UNIT);
     assertThat(part.attributes().get("role").asString()).isEqualTo(Components.ENTRY_POINT);
     assertThat(part.attributes().get("technology").asString())
         .isEqualTo("Spring MVC REST controller");
-    assertThat(only(derived, audit, Components.PART_OF).attributes().get("role").asString())
+    assertThat(only(derived, audit, Types.PART_OF).attributes().get("role").asString())
         .isEqualTo(Components.SHARED);
     // Its lineage is the fact that makes the controller an entry point, one level deep.
     assertThat(part.lineage()).containsExactly(claim("stereotype:" + ORDERS));
@@ -61,7 +61,7 @@ class ComponentsTest {
     EntityId policy = EntityId.parse("type:com.example.AuditPolicy");
     EntityId log = EntityId.parse("type:com.example.AuditLog");
     for (EntityId bean : List.of(policy, log)) {
-      add(MODULE, BuiltInTypes.CONTAINS, bean);
+      add(MODULE, Types.CONTAINS, bean);
       add(bean, "stereotype", FactObject.string("component"));
     }
     add(AUDIT, "INJECTS", policy);
@@ -71,7 +71,7 @@ class ComponentsTest {
     EntityId formatter = EntityId.parse("type:com.example.AuditFormatter");
     EntityId clock = EntityId.parse("type:com.example.Clock");
     for (EntityId bean : List.of(formatter, clock)) {
-      add(MODULE, BuiltInTypes.CONTAINS, bean);
+      add(MODULE, Types.CONTAINS, bean);
       add(bean, "stereotype", FactObject.string("component"));
     }
     add(AUDIT, "INJECTS", formatter);
@@ -82,11 +82,11 @@ class ComponentsTest {
     List<Fact> derived = derived();
 
     EntityId audit = Components.id(UNIT, AUDIT);
-    assertThat(objects(derived, audit, Components.HAS_MEMBER)).containsExactly(AUDIT, log, policy);
+    assertThat(objects(derived, audit, Types.HAS_MEMBER)).containsExactly(AUDIT, log, policy);
     assertThat(components(derived)).doesNotContain(Components.id(UNIT, policy));
-    assertThat(objects(derived, Components.id(UNIT, formatter), Components.HAS_MEMBER))
+    assertThat(objects(derived, Components.id(UNIT, formatter), Types.HAS_MEMBER))
         .containsExactly(formatter);
-    assertThat(objects(derived, Components.id(UNIT, clock), Components.HAS_MEMBER))
+    assertThat(objects(derived, Components.id(UNIT, clock), Types.HAS_MEMBER))
         .containsExactly(clock);
   }
 
@@ -99,10 +99,7 @@ class ComponentsTest {
         EntityId.parse("method:com.example.OrdersController#cancel()"),
         "endpoint",
         FactObject.string("POST /orders/{id}/cancel"));
-    add(
-        ORDERS,
-        BuiltInTypes.CONTAINS,
-        EntityId.parse("method:com.example.OrdersController#cancel()"));
+    add(ORDERS, Types.CONTAINS, EntityId.parse("method:com.example.OrdersController#cancel()"));
 
     assertThat(components(derived())).isEqualTo(before);
   }
@@ -110,9 +107,9 @@ class ComponentsTest {
   @Test
   void aBeanAConstructorTakesBelongsToItsComponentWithoutResolvedCalls() {
     add(UNIT, "deployable-unit", FactObject.string("spring-boot"));
-    add(UNIT, BuiltInTypes.CONTAINS, MODULE);
+    add(UNIT, Types.CONTAINS, MODULE);
     for (EntityId type : List.of(ORDERS, PRICING)) {
-      add(MODULE, BuiltInTypes.CONTAINS, type);
+      add(MODULE, Types.CONTAINS, type);
     }
     ObjectNode rest = FactJson.newObject();
     rest.put("rest", true);
@@ -121,13 +118,13 @@ class ComponentsTest {
     // No calls were resolved (no build), but the constructor names what it takes.
     add(
         ORDERS,
-        BuiltInTypes.CONTAINS,
+        Types.CONTAINS,
         EntityId.parse(
             "method:com.example.OrdersController#<init>(com.example.Pricing,java.util.List,java.lang.String[])"));
 
     List<Fact> derived = derived();
 
-    assertThat(objects(derived, Components.id(UNIT, ORDERS), Components.HAS_MEMBER))
+    assertThat(objects(derived, Components.id(UNIT, ORDERS), Types.HAS_MEMBER))
         .containsExactly(ORDERS, PRICING);
     assertThat(components(derived)).containsExactly(Components.id(UNIT, ORDERS));
   }
@@ -140,7 +137,7 @@ class ComponentsTest {
     EntityId unused = EntityId.parse("type:com.example.ArchiveRepository");
     EntityId client = EntityId.parse("type:com.example.BillingClient");
     for (EntityId type : List.of(mapper, settings, unused, client)) {
-      add(MODULE, BuiltInTypes.CONTAINS, type);
+      add(MODULE, Types.CONTAINS, type);
     }
     add(mapper, "stereotype", FactObject.string("component"));
     add(mapper, "generated", FactObject.string("org.mapstruct.ap.MappingProcessor"));
@@ -169,7 +166,7 @@ class ComponentsTest {
   void aRepositoryNothingReachesStaysWhenNoOtherComponentReachesTheDatabase() {
     unitWithTwoControllers();
     EntityId users = EntityId.parse("type:com.example.UserRepository");
-    add(MODULE, BuiltInTypes.CONTAINS, users);
+    add(MODULE, Types.CONTAINS, users);
     // Spring Security calls the service that uses it, not an entry point.
     add(users, "REPOSITORY_FOR", EntityId.parse("type:com.example.User"));
 
@@ -178,9 +175,9 @@ class ComponentsTest {
 
   private void unitWithTwoControllers() {
     add(UNIT, "deployable-unit", FactObject.string("spring-boot"));
-    add(UNIT, BuiltInTypes.CONTAINS, MODULE);
+    add(UNIT, Types.CONTAINS, MODULE);
     for (EntityId type : List.of(ORDERS, ADMIN, PRICING, AUDIT)) {
-      add(MODULE, BuiltInTypes.CONTAINS, type);
+      add(MODULE, Types.CONTAINS, type);
     }
     ObjectNode rest = FactJson.newObject();
     rest.put("rest", true);
@@ -202,7 +199,7 @@ class ComponentsTest {
 
   private static List<EntityId> components(List<Fact> derived) {
     return derived.stream()
-        .filter(f -> f.predicate().equals(Components.PART_OF))
+        .filter(f -> f.predicate().equals(Types.PART_OF))
         .map(Fact::subject)
         .sorted(java.util.Comparator.comparing(EntityId::toString))
         .toList();

@@ -10,13 +10,12 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
 import io.lantern.derive.EndOfLife;
 import io.lantern.derive.TechnologyCurrency;
 import io.lantern.derive.TestEvidence;
-import io.lantern.core.types.Types;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -281,12 +280,12 @@ final class BriefSections {
   private Optional<ListBlock> runsIn(String section) {
     List<ListBlock.Item> items = new ArrayList<>();
     for (EntityId unit : units) {
-      if (model.parts(unit, BuiltInTypes.MODULE).stream().anyMatch(modules::contains)) {
+      if (model.parts(unit, Types.MODULE).stream().anyMatch(modules::contains)) {
         continue;
       }
       List<Fact> facts = new ArrayList<>();
       for (Fact fact : model.relations(unit, Types.BUNDLES)) {
-        if (model.parts(ArchitectureModel.object(fact), BuiltInTypes.MODULE).stream()
+        if (model.parts(ArchitectureModel.object(fact), Types.MODULE).stream()
             .anyMatch(modules::contains)) {
           facts.add(fact);
         }
@@ -312,7 +311,7 @@ final class BriefSections {
   /** The repositories a unit is built in: those of its own modules. */
   private SortedSet<String> repos(EntityId unit) {
     SortedSet<String> repos = new TreeSet<>();
-    for (EntityId module : model.parts(unit, BuiltInTypes.MODULE)) {
+    for (EntityId module : model.parts(unit, Types.MODULE)) {
       repos.addAll(model.repos(module));
     }
     if (repos.isEmpty()) {

@@ -79,9 +79,6 @@ public record BindsAttributes(
     List<String> unresolved,
     String written) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "BINDS";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("binding", "broker", "configModule", "configRepo", "configured", "exchange", "exchangeFollowed", "exchangeType", "name", "routingKey", "routingKeyFollowed");
 

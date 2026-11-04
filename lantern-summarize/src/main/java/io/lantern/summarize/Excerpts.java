@@ -2,6 +2,7 @@ package io.lantern.summarize;
 
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -42,7 +43,7 @@ final class Excerpts {
     List<Fact> declarations = new ArrayList<>();
     for (Fact fact : node.facts()) {
       if (fact.subject().equals(node.entity())
-          && fact.predicate().equals("kind")
+          && fact.predicate().equals(Types.KIND)
           && fact.evidence().path() != null) {
         declarations.add(fact);
       }

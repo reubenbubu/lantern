@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.harness.LlmFacts;
 import io.lantern.harness.RoleSpec;
@@ -108,12 +109,12 @@ final class TestTexts {
                   cited.stream().anyMatch(f -> wordings.documented().contains(f.id()));
               Fact fact =
                   element.equals(RepoSections.SYSTEM)
-                      ? system(LlmFacts.PURPOSE, text(marked), cited, evidenced)
+                      ? system(Types.PURPOSE, text(marked), cited, evidenced)
                       : LlmFacts.text(
                           ROLE,
                           "test/test",
                           element,
-                          LlmFacts.RESPONSIBILITY,
+                          Types.RESPONSIBILITY,
                           LlmFacts.C4,
                           text(marked),
                           cited,
@@ -127,7 +128,7 @@ final class TestTexts {
     if (wordings.keyFact() != null) {
       List<Fact> cited = cited(wordings.keyFact(), byId);
       if (!cited.isEmpty()) {
-        out.add(system(LlmFacts.KEY_FACT, text(wordings.keyFact()), cited, false));
+        out.add(system(Types.KEY_FACT, text(wordings.keyFact()), cited, false));
       }
     }
     wordings
@@ -150,7 +151,7 @@ final class TestTexts {
                       ROLE,
                       "test/test",
                       link.subject(),
-                      LlmFacts.INTENT,
+                      Types.INTENT,
                       link.claimId() != null ? link.claimId() : link.id(),
                       phrase.text(),
                       cited,
@@ -171,7 +172,7 @@ final class TestTexts {
                 out.add(
                     Fact.create(
                         EntityId.parse(flows.get(i)),
-                        LlmFacts.FLOW_SIGNIFICANCE,
+                        Types.FLOW_SIGNIFICANCE,
                         FactObject.string(scope),
                         attributes,
                         LlmFacts.origin(ROLE),
@@ -214,7 +215,7 @@ final class TestTexts {
     attributes.put("basis", "inferred");
     return Fact.create(
         flow,
-        LlmFacts.FLOW_NARRATIVE,
+        Types.FLOW_NARRATIVE,
         FactObject.string(LlmFacts.C4),
         attributes,
         LlmFacts.origin(ROLE),
@@ -348,7 +349,7 @@ final class TestTexts {
     Set<EntityId> unsupported = new HashSet<>();
     Set<EntityId> subjects = new java.util.LinkedHashSet<>();
     for (Fact fact : texts) {
-      if (fact.predicate().equals(LlmFacts.RESPONSIBILITY)) {
+      if (fact.predicate().equals(Types.RESPONSIBILITY)) {
         subjects.add(fact.subject());
       }
     }
@@ -374,7 +375,7 @@ final class TestTexts {
             });
     Map<String, Describer.Phrase> phrases = new HashMap<>();
     for (Fact fact : texts) {
-      if (fact.predicate().equals(LlmFacts.INTENT) && !fact.subject().type().equals("person")) {
+      if (fact.predicate().equals(Types.INTENT) && !fact.subject().type().equals("person")) {
         // The stored phrase, keyed as the model keys the phrases of the interactions.
         String phrase = fact.attributes().path("text").asString("");
         if (!phrase.isBlank()) {
@@ -386,7 +387,7 @@ final class TestTexts {
     Map<String, FlowJudgements.Flow> flows = new HashMap<>();
     Set<EntityId> narrated = new java.util.LinkedHashSet<>();
     for (Fact fact : texts) {
-      if (fact.predicate().equals(LlmFacts.FLOW_NARRATIVE)) {
+      if (fact.predicate().equals(Types.FLOW_NARRATIVE)) {
         narrated.add(fact.subject());
       }
     }
@@ -406,7 +407,7 @@ final class TestTexts {
     Map<String, List<String>> chosen = new HashMap<>();
     Set<String> scopes = new java.util.TreeSet<>();
     for (Fact fact : texts) {
-      if (fact.predicate().equals(LlmFacts.FLOW_SIGNIFICANCE)) {
+      if (fact.predicate().equals(Types.FLOW_SIGNIFICANCE)) {
         scopes.add(fact.object().value());
       }
     }

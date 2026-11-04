@@ -3,7 +3,7 @@ package io.lantern.app;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.FactJson;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyRegistry;
 import io.lantern.core.vocabulary.VocabularyType;
@@ -51,24 +51,23 @@ class KeyAttributesUpgradeIT {
         registry.apply(source.getKey(), types);
       }
       long before = registry.current().revision();
-      assertThat(registry.current().isA("PUBLISHES", BuiltInTypes.DEPENDS_ON)).isTrue();
-      assertThat(registry.owner(BuiltInTypes.REPO)).contains("redis-extractor");
+      assertThat(registry.current().isA("PUBLISHES", Types.DEPENDS_ON)).isTrue();
+      assertThat(registry.owner(Types.REPO)).contains("redis-extractor");
 
       // Starting the app again applies the changes, and nothing refuses them.
       FactStoreConfiguration.loadVocabulary(registry);
 
       Vocabulary now = registry.current();
       assertThat(now.revision()).isGreaterThan(before);
-      assertThat(now.isA("PUBLISHES", BuiltInTypes.INTERACTS_WITH)).isTrue();
-      assertThat(now.isA("PUBLISHES", BuiltInTypes.DEPENDS_ON)).isFalse();
-      assertThat(now.isA("person", BuiltInTypes.ACTOR)).isTrue();
-      assertThat(now.isA("message-broker", BuiltInTypes.CONTAINER)).isTrue();
+      assertThat(now.isA("PUBLISHES", Types.INTERACTS_WITH)).isTrue();
+      assertThat(now.isA("PUBLISHES", Types.DEPENDS_ON)).isFalse();
+      assertThat(now.isA("person", Types.ACTOR)).isTrue();
+      assertThat(now.isA("message-broker", Types.CONTAINER)).isTrue();
       assertThat(now.keyAttributes("endpoint")).containsExactly("httpMethod", "path");
-      assertThat(registry.at(before).isA("PUBLISHES", BuiltInTypes.DEPENDS_ON)).isTrue();
+      assertThat(registry.at(before).isA("PUBLISHES", Types.DEPENDS_ON)).isTrue();
       assertThat(registry.at(before).find("endpoint").orElseThrow().keyAttributes()).isEmpty();
       // The repository type keeps its definition, so its first owner keeps it (ADR 0002).
-      assertThat(now.find(BuiltInTypes.REPO))
-          .isEqualTo(registry.at(before).find(BuiltInTypes.REPO));
+      assertThat(now.find(Types.REPO)).isEqualTo(registry.at(before).find(Types.REPO));
 
       // A third start changes nothing.
       long after = now.revision();

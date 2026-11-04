@@ -17,6 +17,7 @@ import io.lantern.core.repo.SystemRegistry;
 import io.lantern.core.repo.SystemTitle;
 import io.lantern.core.snapshot.Snapshot;
 import io.lantern.core.snapshot.SnapshotStore;
+import io.lantern.core.types.Types;
 import io.lantern.derive.Derivation;
 import io.lantern.derive.Findings;
 import io.lantern.extract.ExtractionCache;
@@ -707,11 +708,10 @@ public final class AnalysisRun {
   static Set<EntityId> modelTypes(Collection<Fact> linkerFacts) {
     Set<EntityId> types = new java.util.HashSet<>();
     for (Fact fact : linkerFacts) {
-      if ((fact.predicate().equals(io.lantern.derive.Components.ANCHORED_ON)
-              || fact.predicate().equals(io.lantern.derive.Components.HAS_MEMBER))
+      if ((fact.predicate().equals(Types.ANCHORED_ON) || fact.predicate().equals(Types.HAS_MEMBER))
           && fact.object().kind() == io.lantern.core.fact.FactObject.Kind.ENTITY) {
         EntityId type = EntityId.parse(fact.object().value());
-        if (type.type().equals(io.lantern.core.vocabulary.BuiltInTypes.TYPE)) {
+        if (type.type().equals(Types.TYPE)) {
           types.add(type);
         }
       }

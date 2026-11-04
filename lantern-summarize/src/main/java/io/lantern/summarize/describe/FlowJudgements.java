@@ -5,6 +5,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.derive.FlowModel;
 import io.lantern.derive.Knowledge;
 import io.lantern.derive.ScopeFlows;
@@ -756,7 +757,7 @@ public final class FlowJudgements {
               facts.add(
                   fact(
                       candidate.flow(),
-                      LlmFacts.FLOW_SIGNIFICANCE,
+                      Types.FLOW_SIGNIFICANCE,
                       scope,
                       attributes,
                       cited,
@@ -816,7 +817,7 @@ public final class FlowJudgements {
             title == null ? null : title.text().replaceAll("[.\\s]+$", ""));
     return Optional.of(
         new Narrative(
-            wording, fact(flow, LlmFacts.FLOW_NARRATIVE, LlmFacts.C4, attributes, all, snapshot)));
+            wording, fact(flow, Types.FLOW_NARRATIVE, LlmFacts.C4, attributes, all, snapshot)));
   }
 
   /** A text with the citation markers documents read, {@code [fact:<fact ID>]}. */
@@ -872,7 +873,7 @@ public final class FlowJudgements {
       ObjectNode attributes,
       List<Fact> cited,
       long snapshot) {
-    RoleSpec role = predicate.equals(LlmFacts.FLOW_SIGNIFICANCE) ? SIGNIFICANCE : NARRATIVE;
+    RoleSpec role = predicate.equals(Types.FLOW_SIGNIFICANCE) ? SIGNIFICANCE : NARRATIVE;
     Fact fact =
         Fact.create(
             flow,

@@ -9,8 +9,8 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactRepository;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Git;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyRegistry;
-import io.lantern.extract.docs.DocsExtractor;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.Role;
 import io.lantern.sandbox.BuildResult;
@@ -745,7 +745,7 @@ class Project0EndToEndIT {
                 assertThat(fact.evidence().repo()).isEqualTo(name);
                 assertThat(fact.origin().kind()).isEqualTo(Origin.Kind.README);
                 assertThat(fact.subject().toString()).isEqualTo("readme:" + name + ":README.md");
-                assertThat(fact.predicate()).isEqualTo(DocsExtractor.CLAIM);
+                assertThat(fact.predicate()).isEqualTo(Types.CLAIM);
               });
     }
 

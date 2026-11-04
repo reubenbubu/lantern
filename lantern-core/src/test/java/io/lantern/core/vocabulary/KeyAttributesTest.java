@@ -10,6 +10,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.AttributeSchema.Property;
 import io.lantern.core.vocabulary.AttributeSchema.ValueType;
 import java.util.ArrayList;
@@ -93,7 +94,7 @@ class KeyAttributesTest {
 
     assertThat(vocabulary.keyAttributes("route")).containsExactly("kind", "path");
     assertThat(vocabulary.keyAttributes("entry")).containsExactly("kind");
-    assertThat(vocabulary.keyAttributes(BuiltInTypes.CALLS)).isEmpty();
+    assertThat(vocabulary.keyAttributes(Types.CALLS)).isEmpty();
     assertThatThrownBy(() -> vocabulary.keyAttributes("nothing"))
         .isInstanceOf(IllegalArgumentException.class);
   }

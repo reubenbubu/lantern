@@ -6,6 +6,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -75,15 +76,6 @@ public final class ConfigExtractor implements Extractor {
 
   /** The prefix of the keys that set up a Spring Cloud Config Server. */
   private static final String CONFIG_SERVER_KEYS = "spring.cloud.config.server.";
-
-  /** Attribute: a config value of the subject module. */
-  public static final String CONFIG_VALUE = "config-value";
-
-  /**
-   * Attribute: a CORS policy the keys of a module's config set; the type is the Spring extractor's,
-   * which also records the policies code sets (#520).
-   */
-  public static final String CORS_POLICY = "cors-policy";
 
   /**
    * Spring's CORS keys, as Spring Boot flattens them in any binding's spelling: a Spring Cloud
@@ -192,7 +184,8 @@ public final class ConfigExtractor implements Extractor {
   public static Set<String> jwtSecretKeys(List<Fact> identityFacts) {
     Set<String> keys = new java.util.TreeSet<>();
     for (Fact fact : identityFacts) {
-      if ((fact.predicate().equals("jwt-secret-key") || fact.predicate().equals("jwt-key-pair"))
+      if ((fact.predicate().equals(Types.JWT_SECRET_KEY)
+              || fact.predicate().equals(Types.JWT_KEY_PAIR))
           && fact.attributes().has("keys")) {
         fact.attributes().get("keys").forEach(k -> keys.add(k.stringValue()));
       }
@@ -458,7 +451,7 @@ public final class ConfigExtractor implements Extractor {
     Fact fact =
         Fact.create(
             config.module(),
-            CONFIG_VALUE,
+            Types.CONFIG_VALUE,
             FactObject.string(object),
             attributes,
             ORIGIN,
@@ -579,7 +572,7 @@ public final class ConfigExtractor implements Extractor {
     Fact fact =
         Fact.create(
             config.module(),
-            CORS_POLICY,
+            Types.CORS_POLICY,
             FactObject.string(String.join(", ", cors.origins())),
             attributes,
             ORIGIN,
@@ -655,7 +648,7 @@ public final class ConfigExtractor implements Extractor {
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(CORS_POLICY));
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(Types.CORS_POLICY));
 
   @Override
   public ExtractorInfo info() {

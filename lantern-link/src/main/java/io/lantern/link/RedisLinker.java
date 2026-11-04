@@ -6,8 +6,8 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.RedisUseAttributes;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.redis.RedisExtractor;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
@@ -62,7 +62,7 @@ final class RedisLinker {
   RedisLinker(LinkIndex index, FoundLinks out, Deployments deployments) {
     this.index = index;
     this.out = out;
-    for (Fact f : index.of(RedisExtractor.REDIS_USE)) {
+    for (Fact f : index.of(Types.REDIS_USE)) {
       for (Unit unit : index.unitsOf(f.subject())) {
         uses.computeIfAbsent(unit, u -> new ArrayList<>()).add(f);
       }
@@ -110,7 +110,7 @@ final class RedisLinker {
             out.add(
                 Fact.create(
                     database,
-                    DeployableUnits.TECHNOLOGY,
+                    Types.TECHNOLOGY,
                     FactObject.string(technology(source)),
                     FactJson.newObject(),
                     origin,
@@ -131,7 +131,7 @@ final class RedisLinker {
           out.add(
               Fact.create(
                   database,
-                  DataLinker.DISPLAY_NAME,
+                  Types.DISPLAY_NAME,
                   FactObject.string(several ? product + " (" + server + ")" : product),
                   FactJson.newObject(),
                   origin,
@@ -201,7 +201,7 @@ final class RedisLinker {
       }
     }
     EntityId database =
-        new EntityId(CrossRepoLinks.DATABASE, connection.server().replace(' ', '_') + "/redis");
+        new EntityId(Types.DATABASE, connection.server().replace(' ', '_') + "/redis");
     servers.putIfAbsent(database, connection.server());
 
     List<Deployments.Container> imagesUsed = images(unit);
@@ -250,9 +250,9 @@ final class RedisLinker {
     out.add(
         view,
         new Found(
-            CrossRepoLinks.USES_DATABASE + "|" + unit.id() + "|" + database,
+            Types.USES_DATABASE + "|" + unit.id() + "|" + database,
             unit.id(),
-            CrossRepoLinks.USES_DATABASE,
+            Types.USES_DATABASE,
             FactObject.entity(database),
             attributes,
             connection.evidence().evidence(),
@@ -480,11 +480,11 @@ final class RedisLinker {
     for (String prefix : PREFIXES) {
       String wanted = relaxed(prefix + suffix);
       Map<String, Fact> found = new LinkedHashMap<>();
-      for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
+      for (String k : index.configKeys(unit, Types.CONFIG_VALUE)) {
         if (!relaxed(k.replaceAll("\\[\\d+]$", "")).equals(wanted)) {
           continue;
         }
-        Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
+        Fact f = index.config(unit, view, Types.CONFIG_VALUE, k);
         if (f != null && !Claims.masked(f) && !f.object().value().isBlank()) {
           found.put(k, f);
         }

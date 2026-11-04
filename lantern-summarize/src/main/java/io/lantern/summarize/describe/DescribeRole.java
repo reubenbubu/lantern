@@ -571,7 +571,7 @@ public final class DescribeRole {
         role,
         model,
         worded.about(),
-        intent ? LlmFacts.INTENT : LlmFacts.RESPONSIBILITY,
+        intent ? Types.INTENT : Types.RESPONSIBILITY,
         object,
         worded.text(),
         worded.cited(),

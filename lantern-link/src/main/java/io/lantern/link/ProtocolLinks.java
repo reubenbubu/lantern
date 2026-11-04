@@ -3,6 +3,7 @@ package io.lantern.link;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -42,14 +43,14 @@ final class ProtocolLinks implements LinkRule {
         new java.util.HashSet<>(
             Rules.union(
                 Set.of(EXTRACTED), ValueResolution.WRITES, DeployableUnits.vocabularyPredicates()));
-    reads.remove(DeployableUnits.TECHNOLOGY);
+    reads.remove(Types.TECHNOLOGY);
     // The messaging matcher reads value resolution's relations, not its message facts (#597).
     reads.removeAll(
         Set.of(
-            io.lantern.extract.messaging.MessagingExtractor.SEND,
-            io.lantern.extract.messaging.MessagingExtractor.LISTENER,
-            io.lantern.extract.messaging.MessagingExtractor.BINDING,
-            io.lantern.extract.messaging.MessagingExtractor.DESTINATION));
+            Types.MESSAGE_SEND,
+            Types.MESSAGE_LISTENER,
+            Types.MESSAGE_BINDING,
+            Types.MESSAGE_DESTINATION));
     return Set.copyOf(reads);
   }
 
@@ -104,13 +105,13 @@ final class ProtocolLinks implements LinkRule {
         "http-links",
         "1",
         Set.of(
-            CrossRepoLinks.CALLS_HTTP,
-            CrossRepoLinks.ROUTED_ENDPOINT,
-            CrossRepoLinks.UNROUTED_ENDPOINT,
-            CrossRepoLinks.USES_INFRASTRUCTURE,
-            DataLinker.DISPLAY_NAME,
-            Deployments.DEPLOYED_IN,
-            DeployableUnits.TECHNOLOGY),
+            Types.CALLS_HTTP,
+            Types.ROUTED_ENDPOINT,
+            Types.UNROUTED_ENDPOINT,
+            Types.USES_INFRASTRUCTURE,
+            Types.DISPLAY_NAME,
+            Types.DEPLOYED_IN,
+            Types.TECHNOLOGY),
         (index, found, origin, validity) -> {
           // HTTP calls, routes and frontends read where their addresses lead from address
           // resolution's claims (#589, #594).
@@ -135,13 +136,13 @@ final class ProtocolLinks implements LinkRule {
         "messaging-links",
         "1",
         Set.of(
-            CrossRepoLinks.PUBLISHES,
-            CrossRepoLinks.CONSUMES,
-            CrossRepoLinks.ROUTES_TO,
-            CrossRepoLinks.SENDS_MESSAGES_TO,
-            CrossRepoLinks.USES_BROKER,
-            DataLinker.DISPLAY_NAME,
-            DeployableUnits.TECHNOLOGY),
+            Types.PUBLISHES,
+            Types.CONSUMES,
+            Types.ROUTES_TO,
+            Types.SENDS_MESSAGES_TO,
+            Types.USES_BROKER,
+            Types.DISPLAY_NAME,
+            Types.TECHNOLOGY),
         (index, found, origin, validity) -> messages(index, found));
   }
 
@@ -150,7 +151,7 @@ final class ProtocolLinks implements LinkRule {
     return new ProtocolLinks(
         "deployment-links",
         "1",
-        Set.of(Deployments.DEPLOYED_IN, DataLinker.DISPLAY_NAME, DeployableUnits.TECHNOLOGY),
+        Set.of(Types.DEPLOYED_IN, Types.DISPLAY_NAME, Types.TECHNOLOGY),
         (index, found, origin, validity) ->
             new Deployments(index).link(index, found, origin, validity));
   }
@@ -161,13 +162,13 @@ final class ProtocolLinks implements LinkRule {
         "data-links",
         "1",
         Set.of(
-            CrossRepoLinks.USES_DATABASE,
-            CrossRepoLinks.ACCESSES_DATA_OF,
-            CrossRepoLinks.USES_BROKER,
-            CrossRepoLinks.USES_INFRASTRUCTURE,
-            DataLinker.DISPLAY_NAME,
-            Deployments.DEPLOYED_IN,
-            DeployableUnits.TECHNOLOGY),
+            Types.USES_DATABASE,
+            Types.ACCESSES_DATA_OF,
+            Types.USES_BROKER,
+            Types.USES_INFRASTRUCTURE,
+            Types.DISPLAY_NAME,
+            Types.DEPLOYED_IN,
+            Types.TECHNOLOGY),
         // Datasources read where the deployments put them from address resolution's claims (#596).
         (index, found, origin, validity) ->
             new DataLinker(index, found, new AddressClaims(index)).link(origin, validity));
@@ -178,7 +179,7 @@ final class ProtocolLinks implements LinkRule {
     return new ProtocolLinks(
         "mail-links",
         "1",
-        Set.of(CrossRepoLinks.SENDS_MAIL, DataLinker.DISPLAY_NAME, DeployableUnits.TECHNOLOGY),
+        Set.of(Types.SENDS_MAIL, Types.DISPLAY_NAME, Types.TECHNOLOGY),
         // Mail hosts read where they lead from address resolution's claims (#595).
         (index, found, origin, validity) ->
             new MailLinker(index, found, new AddressClaims(index)).link());
@@ -190,11 +191,11 @@ final class ProtocolLinks implements LinkRule {
         "identity-links",
         "1",
         Set.of(
-            CrossRepoLinks.USES_IDENTITY_PROVIDER,
-            CrossRepoLinks.SHARED_SECRET,
-            DataLinker.DISPLAY_NAME,
-            Deployments.DEPLOYED_IN,
-            DeployableUnits.TECHNOLOGY),
+            Types.USES_IDENTITY_PROVIDER,
+            Types.SHARED_SECRET,
+            Types.DISPLAY_NAME,
+            Types.DEPLOYED_IN,
+            Types.TECHNOLOGY),
         // Identity providers read where their URLs lead from address resolution's claims (#595).
         (index, found, origin, validity) ->
             new IdentityLinker(index, found, new AddressClaims(index), new Deployments(index))
@@ -206,11 +207,7 @@ final class ProtocolLinks implements LinkRule {
     return new ProtocolLinks(
         "redis-links",
         "1",
-        Set.of(
-            CrossRepoLinks.USES_DATABASE,
-            DataLinker.DISPLAY_NAME,
-            Deployments.DEPLOYED_IN,
-            DeployableUnits.TECHNOLOGY),
+        Set.of(Types.USES_DATABASE, Types.DISPLAY_NAME, Types.DEPLOYED_IN, Types.TECHNOLOGY),
         (index, found, origin, validity) ->
             new RedisLinker(index, found, new Deployments(index)).link(origin, validity));
   }
@@ -227,7 +224,7 @@ final class ProtocolLinks implements LinkRule {
     return new ProtocolLinks(
         OPEN_LINKS,
         "1",
-        Set.of(CrossRepoLinks.UNRESOLVED_LINK),
+        Set.of(Types.UNRESOLVED_LINK),
         (index, found, origin, validity) -> {
           // As the HTTP and messaging rules match (#583).
           Http.link(index, found, new AddressClaims(index));
@@ -306,7 +303,7 @@ final class ProtocolLinks implements LinkRule {
     Validity validity = Validity.from(in.snapshot());
     FoundLinks found = new FoundLinks();
     matchers.link(index.in(view), found, origin, validity);
-    if (!leavesOpen && found.has(CrossRepoLinks.UNRESOLVED_LINK)) {
+    if (!leavesOpen && found.has(Types.UNRESOLVED_LINK)) {
       throw new IllegalStateException(
           "Rule " + origin.name() + " left a link open, which the open-links rule does not see");
     }
@@ -317,8 +314,8 @@ final class ProtocolLinks implements LinkRule {
         origin,
         validity,
         open
-            ? CrossRepoLinks.UNRESOLVED_LINK::equals
-            : predicate -> !predicate.equals(CrossRepoLinks.UNRESOLVED_LINK));
+            ? Types.UNRESOLVED_LINK::equals
+            : predicate -> !predicate.equals(Types.UNRESOLVED_LINK));
   }
 
   @Override

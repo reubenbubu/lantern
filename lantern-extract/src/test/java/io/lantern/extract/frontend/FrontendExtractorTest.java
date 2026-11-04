@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import java.io.IOException;
@@ -33,7 +34,7 @@ class FrontendExtractorTest {
     List<Fact> facts = new FrontendExtractor().extract(inputs, SNAPSHOT);
 
     Fixtures.checkEnvelope(
-        facts, List.of(repo), SNAPSHOT, FrontendExtractor.NAME, FrontendExtractor.VERSION);
+        facts, List.of(repo), SNAPSHOT, Types.FRONTEND, FrontendExtractor.VERSION);
     assertThat(new FrontendExtractor().extract(inputs, SNAPSHOT)).isEqualTo(facts);
     Fixtures.assertGolden("frontend/frontend.txt", facts);
     // Tests, comments and a map's get are not calls; a package without a framework is no app.

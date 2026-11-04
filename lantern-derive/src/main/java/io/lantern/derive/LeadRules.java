@@ -2,7 +2,7 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -61,7 +61,6 @@ public final class LeadRules {
     }
   }
 
-  private static final String ENDPOINT = "endpoint";
   private static final String HTTP_METHOD = "httpMethod";
 
   // --- identity-from-request -------------------------------------------------------------------
@@ -82,7 +81,7 @@ public final class LeadRules {
 
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
-      for (Fact read : knowledge.withPredicate("reads-request-value")) {
+      for (Fact read : knowledge.withPredicate(Types.READS_REQUEST_VALUE)) {
         String name = read.object().value().toString();
         String plain = name.toLowerCase(Locale.ROOT).replaceAll("[-_ ]", "");
         if (!IDENTITY.matcher(plain).matches()) {
@@ -126,7 +125,7 @@ public final class LeadRules {
       Map<EntityId, List<Fact>> sends = new TreeMap<>(Knowledge.BY_ID);
       for (String predicate : SENDS) {
         for (Fact send : knowledge.withPredicate(predicate)) {
-          if (send.subject().type().equals(METHOD) && !isOutbox(send.subject())) {
+          if (send.subject().type().equals(Types.METHOD) && !isOutbox(send.subject())) {
             sends.computeIfAbsent(send.subject(), m -> new ArrayList<>()).add(send);
           }
         }
@@ -139,13 +138,13 @@ public final class LeadRules {
       // method's own, which overrides it, as Spring reads them.
       Map<EntityId, Fact> declared = new TreeMap<>(Knowledge.BY_ID);
       List<Fact> onMethods = new ArrayList<>();
-      for (Fact fact : knowledge.withPredicate("transactional")) {
+      for (Fact fact : knowledge.withPredicate(Types.TRANSACTIONAL)) {
         if ("event-listener".equals(attribute(fact, "kind"))) {
           barriers.add(fact.subject());
-        } else if (fact.subject().type().equals(METHOD)) {
+        } else if (fact.subject().type().equals(Types.METHOD)) {
           onMethods.add(fact);
         } else {
-          knowledge.parts(fact.subject(), METHOD).forEach(m -> declared.put(m, fact));
+          knowledge.parts(fact.subject(), Types.METHOD).forEach(m -> declared.put(m, fact));
         }
       }
       onMethods.forEach(f -> declared.put(f.subject(), f));
@@ -230,7 +229,7 @@ public final class LeadRules {
      */
     private static Map<EntityId, Set<EntityId>> callGraph(Knowledge knowledge) {
       Map<EntityId, Set<EntityId>> implementers = new HashMap<>();
-      for (Fact fact : knowledge.withPredicate(BuiltInTypes.IMPLEMENTS)) {
+      for (Fact fact : knowledge.withPredicate(Types.IMPLEMENTS)) {
         if (Knowledge.isEntity(fact)) {
           implementers
               .computeIfAbsent(Knowledge.object(fact), t -> new HashSet<>())
@@ -238,8 +237,8 @@ public final class LeadRules {
         }
       }
       Map<EntityId, Set<EntityId>> calls = new HashMap<>();
-      for (Fact call : knowledge.withPredicate(BuiltInTypes.CALLS)) {
-        if (!Knowledge.isEntity(call) || !call.subject().type().equals(METHOD)) {
+      for (Fact call : knowledge.withPredicate(Types.CALLS)) {
+        if (!Knowledge.isEntity(call) || !call.subject().type().equals(Types.METHOD)) {
           continue;
         }
         EntityId callee = Knowledge.object(call);
@@ -248,9 +247,9 @@ public final class LeadRules {
         String key = callee.key();
         int hash = key.indexOf('#');
         if (hash > 0) {
-          EntityId owner = new EntityId(BuiltInTypes.TYPE, key.substring(0, hash));
+          EntityId owner = new EntityId(Types.TYPE, key.substring(0, hash));
           for (EntityId impl : implementers.getOrDefault(owner, Set.of())) {
-            targets.add(new EntityId(METHOD, impl.key() + key.substring(hash)));
+            targets.add(new EntityId(Types.METHOD, impl.key() + key.substring(hash)));
           }
         }
       }
@@ -276,7 +275,7 @@ public final class LeadRules {
       Set<EntityId> gateways = new HashSet<>();
       // A gateway: a unit with links its routes make, or endpoints its routes do or do not reach.
       Map<EntityId, List<Pattern>> routes = new HashMap<>();
-      for (Fact link : knowledge.withPredicate("CALLS_HTTP")) {
+      for (Fact link : knowledge.withPredicate(Types.CALLS_HTTP)) {
         if (attribute(link, "route") != null) {
           gateways.add(link.subject());
           for (String path : strings(link, "paths")) {
@@ -284,14 +283,14 @@ public final class LeadRules {
           }
         }
       }
-      knowledge.withPredicate("routed-endpoint").forEach(f -> gateways.add(f.subject()));
-      knowledge.withPredicate("unrouted-endpoint").forEach(f -> gateways.add(f.subject()));
+      knowledge.withPredicate(Types.ROUTED_ENDPOINT).forEach(f -> gateways.add(f.subject()));
+      knowledge.withPredicate(Types.UNROUTED_ENDPOINT).forEach(f -> gateways.add(f.subject()));
       Map<EntityId, Boolean> hasEndpoints = new HashMap<>();
       Map<String, Fact> unrouted = new HashMap<>();
-      for (Fact fact : knowledge.withPredicate("unrouted-endpoint")) {
+      for (Fact fact : knowledge.withPredicate(Types.UNROUTED_ENDPOINT)) {
         unrouted.putIfAbsent(fact.subject() + " " + plain(fact.object().value().toString()), fact);
       }
-      for (Fact link : knowledge.withPredicate("CALLS_HTTP")) {
+      for (Fact link : knowledge.withPredicate(Types.CALLS_HTTP)) {
         String path = attribute(link, "path");
         if (path == null
             || !Knowledge.isEntity(link)
@@ -306,7 +305,7 @@ public final class LeadRules {
         EntityId to = Knowledge.object(link);
         String method = attribute(link, HTTP_METHOD);
         String call = (method == null ? "" : method + " ") + path;
-        if (link.subject().type().equals("frontend") && gateways.contains(to)) {
+        if (link.subject().type().equals(Types.FRONTEND) && gateways.contains(to)) {
           // A frontend's call to a gateway: does a route lead on to an endpoint for it?
           Fact missed = unrouted.get(to + " " + plain(call));
           if (missed == null
@@ -363,7 +362,7 @@ public final class LeadRules {
 
     /** Whether any method of the unit's code is an endpoint. */
     private static boolean endpoints(Knowledge knowledge, Leads leads, EntityId unit) {
-      for (Fact endpoint : knowledge.withPredicate(ENDPOINT)) {
+      for (Fact endpoint : knowledge.withPredicate(Types.ENDPOINT)) {
         if (leads.unitsOf(endpoint.subject()).contains(unit)) {
           return true;
         }
@@ -404,7 +403,7 @@ public final class LeadRules {
     /** Whether the gateway's own code has an endpoint for the call. */
     private static boolean ownEndpoint(
         Knowledge knowledge, Leads leads, EntityId gateway, String call) {
-      for (Fact endpoint : knowledge.withPredicate(ENDPOINT)) {
+      for (Fact endpoint : knowledge.withPredicate(Types.ENDPOINT)) {
         if (plain(endpoint.object().value().toString()).equals(call)
             && leads.unitsOf(endpoint.subject()).contains(gateway)) {
           return true;
@@ -436,7 +435,7 @@ public final class LeadRules {
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
       Map<EntityId, List<Fact>> endpoints = new TreeMap<>(Knowledge.BY_ID);
-      for (Fact endpoint : knowledge.withPredicate(ENDPOINT)) {
+      for (Fact endpoint : knowledge.withPredicate(Types.ENDPOINT)) {
         endpoints.computeIfAbsent(endpoint.subject(), m -> new ArrayList<>()).add(endpoint);
       }
       Set<EntityId> checking = new HashSet<>();
@@ -445,8 +444,8 @@ public final class LeadRules {
         List<Fact> found = new ArrayList<>();
         for (EntityId on : List.of(method, Components.ownerType(knowledge, method))) {
           for (Fact fact : knowledge.attributes(on)) {
-            if (fact.predicate().equals("access-check")
-                || fact.predicate().equals("custom-access-check")) {
+            if (fact.predicate().equals(Types.ACCESS_CHECK)
+                || fact.predicate().equals(Types.CUSTOM_ACCESS_CHECK)) {
               found.add(fact);
             }
           }
@@ -527,10 +526,9 @@ public final class LeadRules {
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
       Map<String, Fact> skewOfType = new HashMap<>();
-      for (Fact skew : knowledge.withPredicate("version-skew")) {
+      for (Fact skew : knowledge.withPredicate(Types.VERSION_SKEW)) {
         // The library's module: a library entity and its module share their key.
-        for (EntityId type :
-            leads.typesOf(new EntityId(BuiltInTypes.MODULE, skew.subject().key()))) {
+        for (EntityId type : leads.typesOf(new EntityId(Types.MODULE, skew.subject().key()))) {
           skewOfType.put(type.key(), skew);
         }
       }
@@ -538,7 +536,7 @@ public final class LeadRules {
         return;
       }
       Map<String, List<Fact>> uses = new TreeMap<>();
-      for (Fact payload : knowledge.withPredicate("payload-type")) {
+      for (Fact payload : knowledge.withPredicate(Types.PAYLOAD_TYPE)) {
         List<String> types = new ArrayList<>(List.of(payload.object().value().toString()));
         types.addAll(strings(payload, "typeArguments"));
         for (String type : types) {
@@ -571,7 +569,7 @@ public final class LeadRules {
                         + " at versions "
                         + String.join(", ", versions))
                 .units(units)
-                .code(new EntityId(BuiltInTypes.TYPE, entry.getKey()))
+                .code(new EntityId(Types.TYPE, entry.getKey()))
                 .cite(skew);
         for (Fact payload : entry.getValue()) {
           lead.code(payload.subject()).cite(payload);
@@ -592,15 +590,15 @@ public final class LeadRules {
     // must be the same in every run (#682); Set.of iterates in an order that changes per JVM.
     private static final List<String> RUNTIME =
         List.of(
-            "CALLS_HTTP",
-            "USES_DATABASE",
-            "PUBLISHES",
-            "CONSUMES",
-            "SENDS_MESSAGES_TO",
-            "USES_BROKER",
-            "USES_INFRASTRUCTURE",
-            "USES_IDENTITY_PROVIDER",
-            "SENDS_MAIL");
+            Types.CALLS_HTTP,
+            Types.USES_DATABASE,
+            Types.PUBLISHES,
+            Types.CONSUMES,
+            Types.SENDS_MESSAGES_TO,
+            Types.USES_BROKER,
+            Types.USES_INFRASTRUCTURE,
+            Types.USES_IDENTITY_PROVIDER,
+            Types.SENDS_MAIL);
 
     SingleInstance() {
       super("single-instance", "1");
@@ -608,7 +606,7 @@ public final class LeadRules {
 
     @Override
     protected Set<String> alsoReads() {
-      return Set.of(DeploymentInstances.DEPLOYED_AS, DeploymentInstances.RUNS);
+      return Set.of(Types.DEPLOYED_AS, Types.RUNS);
     }
 
     @Override
@@ -616,7 +614,7 @@ public final class LeadRules {
       // What each instance runs, and whether every container it rests on runs once.
       Map<EntityId, List<Fact>> runs = new TreeMap<>(Knowledge.BY_ID);
       Map<EntityId, Boolean> once = new TreeMap<>(Knowledge.BY_ID);
-      for (Fact instance : knowledge.withPredicate(DeploymentInstances.DEPLOYED_AS)) {
+      for (Fact instance : knowledge.withPredicate(Types.DEPLOYED_AS)) {
         for (String id : strings(instance, "facts")) {
           Fact container = knowledge.fact(id);
           if (container == null) {
@@ -624,7 +622,7 @@ public final class LeadRules {
           }
           String replicas = attribute(container, "replicas");
           boolean single = replicas == null || replicas.equals("1");
-          for (Fact run : knowledge.relations(instance.subject(), DeploymentInstances.RUNS)) {
+          for (Fact run : knowledge.relations(instance.subject(), Types.RUNS)) {
             EntityId entity = Knowledge.object(run);
             once.merge(entity, single, Boolean::logicalAnd);
             runs.computeIfAbsent(entity, e -> new ArrayList<>()).add(run);
@@ -637,7 +635,7 @@ public final class LeadRules {
       for (String predicate : RUNTIME) {
         for (Fact link : knowledge.withPredicate(predicate)) {
           if (Knowledge.isEntity(link)
-              && (units.contains(link.subject()) || link.subject().type().equals("frontend"))
+              && (units.contains(link.subject()) || link.subject().type().equals(Types.FRONTEND))
               && !link.subject().equals(Knowledge.object(link))) {
             users
                 .computeIfAbsent(Knowledge.object(link), e -> new TreeMap<>(Knowledge.BY_ID))
@@ -668,7 +666,7 @@ public final class LeadRules {
       // A STOMP simple broker keeps its subscriptions in one instance's memory.
       Map<EntityId, List<Fact>> stomp = new TreeMap<>(Knowledge.BY_ID);
       Set<EntityId> relayed = new HashSet<>();
-      for (Fact prefix : knowledge.withPredicate("stomp-prefix")) {
+      for (Fact prefix : knowledge.withPredicate(Types.STOMP_PREFIX)) {
         for (EntityId unit : leads.unitsOf(prefix.subject())) {
           if ("simple-broker".equals(attribute(prefix, "kind"))) {
             stomp.computeIfAbsent(unit, u -> new ArrayList<>()).add(prefix);
@@ -709,7 +707,7 @@ public final class LeadRules {
 
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
-      for (Fact value : knowledge.withPredicate("config-value")) {
+      for (Fact value : knowledge.withPredicate(Types.CONFIG_VALUE)) {
         // Masked and written as a literal: a value masked only for a placeholder's secret, or
         // encrypted ({cipher}), keeps what was written in written.
         if ("true".equals(attribute(value, "masked")) && attribute(value, "written") == null) {
@@ -724,7 +722,7 @@ public final class LeadRules {
               .cite(value);
         }
       }
-      for (Fact shared : knowledge.withPredicate("shared-secret")) {
+      for (Fact shared : knowledge.withPredicate(Types.SHARED_SECRET)) {
         String value = shared.object().value().toString();
         leads
             .lead("shared/" + value, "Units sign or check tokens with one shared secret, " + value)
@@ -737,7 +735,7 @@ public final class LeadRules {
             .code(shared.subject())
             .cite(shared);
       }
-      for (Fact secret : knowledge.withPredicate("kubernetes-secret")) {
+      for (Fact secret : knowledge.withPredicate(Types.KUBERNETES_SECRET)) {
         List<String> keys = strings(secret, "stringData");
         if (keys.isEmpty()) {
           continue;
@@ -781,7 +779,7 @@ public final class LeadRules {
 
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
-      for (Fact url : knowledge.withPredicate("frontend-url")) {
+      for (Fact url : knowledge.withPredicate(Types.FRONTEND_URL)) {
         String value = url.object().value().toString();
         boolean built =
             !"environment".equals(attribute(url, "source"))
@@ -813,7 +811,7 @@ public final class LeadRules {
 
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
-      for (Fact policy : knowledge.withPredicate("cors-policy")) {
+      for (Fact policy : knowledge.withPredicate(Types.CORS_POLICY)) {
         List<String> origins = new ArrayList<>(strings(policy, "origins"));
         origins.add(policy.object().value().toString());
         boolean open =
@@ -864,7 +862,7 @@ public final class LeadRules {
 
     @Override
     protected void find(Knowledge knowledge, Leads leads) {
-      for (Fact value : knowledge.withPredicate("config-value")) {
+      for (Fact value : knowledge.withPredicate(Types.CONFIG_VALUE)) {
         String profile = attribute(value, "profile");
         if (!"spring.jpa.hibernate.ddl-auto".equals(attribute(value, "key"))
             || !GENERATES.contains(
@@ -891,7 +889,7 @@ public final class LeadRules {
     private static boolean migrated(Knowledge knowledge, EntityId module) {
       EntityId schema = new EntityId("schema", module.key());
       for (Fact kind : knowledge.attributes(schema)) {
-        if (kind.predicate().equals("kind")
+        if (kind.predicate().equals(Types.KIND)
             && Set.of("flyway", "liquibase").contains(kind.object().value().toString())) {
           return true;
         }

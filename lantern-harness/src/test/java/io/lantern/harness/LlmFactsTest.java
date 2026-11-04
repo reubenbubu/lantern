@@ -10,6 +10,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.llm.Role;
 import java.util.List;
@@ -56,7 +57,7 @@ class LlmFactsTest {
             ROLE,
             "fake/fake-model",
             EntityId.parse("service:com.example:app"),
-            LlmFacts.RESPONSIBILITY,
+            Types.RESPONSIBILITY,
             LlmFacts.C4,
             "Takes the shop's orders.",
             List.of(one, two, one),
@@ -89,7 +90,7 @@ class LlmFactsTest {
                     ROLE,
                     "fake/fake-model",
                     EntityId.parse("service:com.example:app"),
-                    LlmFacts.INTENT,
+                    Types.INTENT,
                     "x",
                     "Charges cards",
                     List.of(),
@@ -138,7 +139,7 @@ class LlmFactsTest {
             7);
 
     assertThat(summary.origin()).isEqualTo(new Origin(Origin.Kind.LLM, "summarize", "16"));
-    assertThat(summary.predicate()).isEqualTo(LlmFacts.SUMMARY);
+    assertThat(summary.predicate()).isEqualTo(Types.SUMMARY);
     assertThat(summary.object()).isEqualTo(FactObject.string("module"));
     assertThat(summary.attributes().get("sentences").get(1).get("text").asString())
         .isEqualTo("It stores them.");
@@ -156,7 +157,7 @@ class LlmFactsTest {
     assertThat(summary.lineage()).containsExactly("b".repeat(64), "a".repeat(64));
     // Its attributes are those its vocabulary type allows.
     LlmFacts.vocabulary().stream()
-        .filter(type -> type.name().equals(LlmFacts.SUMMARY))
+        .filter(type -> type.name().equals(Types.SUMMARY))
         .findFirst()
         .orElseThrow()
         .attributeSchema()

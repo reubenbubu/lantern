@@ -7,6 +7,7 @@ import io.lantern.core.fact.Origin;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.CodeConfig;
 import io.lantern.extract.config.ConfigExtractor;
@@ -40,8 +41,7 @@ class EndpointsIT {
   private static final List<String> SETS =
       List.of("project-0", "project-1", "project-2", "project-3", "project-4", "project-8");
 
-  private static final Set<String> SPRING_FACTS =
-      Set.of(SpringExtractor.ENDPOINT, SpringExtractor.SCHEDULED);
+  private static final Set<String> SPRING_FACTS = Set.of(Types.ENDPOINT, Types.SCHEDULED);
 
   @Test
   void linkingGivesTheEndpointsTheExtractorGaveOnTheDevelopmentSets() throws IOException {
@@ -66,12 +66,12 @@ class EndpointsIT {
       // Every endpoint has its entity, handled by the endpoint's method.
       Set<String> handled = new java.util.HashSet<>();
       for (Fact f : written) {
-        if (f.predicate().equals(SpringExtractor.HANDLED_BY)) {
+        if (f.predicate().equals(Types.HANDLED_BY)) {
           handled.add(f.subject() + " " + f.object().value());
         }
       }
       for (Fact f : linked) {
-        if (f.predicate().equals(SpringExtractor.ENDPOINT)) {
+        if (f.predicate().equals(Types.ENDPOINT)) {
           assertThat(handled)
               .as(set + " " + f)
               .anyMatch(h -> h.startsWith(f.subject() + " ") || h.endsWith(" " + f.subject()));

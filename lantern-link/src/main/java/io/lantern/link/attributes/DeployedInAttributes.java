@@ -25,9 +25,6 @@ public record DeployedInAttributes(
     String fact,
     String platform) {
 
-  /** The vocabulary type these are the attributes of. */
-  public static final String TYPE = "deployed-in";
-
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("container", "environment", "platform");
 

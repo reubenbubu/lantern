@@ -1,7 +1,6 @@
 package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
-import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.types.Types;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,7 +31,7 @@ public final class ElementNames {
   /** What an element is, with an article, such as {@code a deployable unit}. */
   public static String kind(EntityId element) {
     return switch (element.type()) {
-      case BuiltInTypes.SERVICE -> "a deployable unit";
+      case Types.SERVICE -> "a deployable unit";
       case Types.DATABASE -> "a database";
       case Types.TOPIC -> "a topic";
       case Types.QUEUE -> "a queue";
@@ -46,11 +45,11 @@ public final class ElementNames {
   public String name(EntityId id) {
     String key = id.key();
     return switch (id.type()) {
-      case BuiltInTypes.SERVICE -> {
+      case Types.SERVICE -> {
         Optional<String> name = Elements.applicationName(knowledge, id);
         yield name.orElse(key.substring(key.lastIndexOf(':') + 1));
       }
-      case BuiltInTypes.SYSTEM -> systemName;
+      case Types.SYSTEM -> systemName;
       case Types.DATABASE -> {
         Optional<String> display = knowledge.attribute(id, Types.DISPLAY_NAME);
         if (display.isPresent()) {
@@ -92,9 +91,9 @@ public final class ElementNames {
                       Elements.frontendApp(knowledge, id)
                           .map(f -> Elements.attribute(f, "name", key)))
               .orElse(key);
-      case BuiltInTypes.MODULE, BuiltInTypes.LIBRARY, BuiltInTypes.PACKAGE, Types.ARTIFACT ->
+      case Types.MODULE, Types.LIBRARY, Types.PACKAGE, Types.ARTIFACT ->
           key.substring(key.lastIndexOf(':') + 1);
-      case BuiltInTypes.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
+      case Types.TYPE -> key.substring(key.lastIndexOf('.') + 1).replace('$', '.');
       case Types.METHOD, Types.FIELD -> key.substring(key.indexOf('#') + 1);
       default -> key;
     };

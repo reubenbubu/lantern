@@ -4,11 +4,9 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.HttpCallAttributes;
-import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.http.HttpClientExtractor;
-import io.lantern.extract.spring.SpringExtractor;
 import io.lantern.link.Addresses.Answer;
 import io.lantern.link.Addresses.Target;
 import io.lantern.link.FoundLinks.Found;
@@ -93,15 +91,14 @@ final class HttpLinker {
     this.index = index;
     this.out = out;
     this.addresses = addresses;
-    for (Fact f : index.of(SpringExtractor.ENDPOINT)) {
+    for (Fact f : index.of(Types.ENDPOINT)) {
       String controller = Endpoints.of(f).controller();
-      EntityId code =
-          controller == null ? f.subject() : new EntityId(BuiltInTypes.TYPE, controller);
+      EntityId code = controller == null ? f.subject() : new EntityId(Types.TYPE, controller);
       for (Unit unit : index.unitsOf(code)) {
         endpoints.add(new Endpoint(f, unit));
       }
     }
-    for (Fact f : index.of(HttpClientExtractor.ENABLES)) {
+    for (Fact f : index.of(Types.ENABLES)) {
       if (f.object().kind() == FactObject.Kind.ENTITY) {
         enabledBy.computeIfAbsent(f.object().entityId(), c -> new ArrayList<>()).add(f);
       }
@@ -114,7 +111,7 @@ final class HttpLinker {
    */
   static void queries(LinkIndex index, AddressResolution.Questions questions) {
     HttpLinker http = new HttpLinker(index, null, null);
-    for (List<Fact> site : LinkIndex.codeSites(index.of(HttpClientExtractor.HTTP_CALL)).values()) {
+    for (List<Fact> site : LinkIndex.codeSites(index.of(Types.HTTP_CALL)).values()) {
       for (Unit caller : http.callers(site.getFirst())) {
         for (String view : index.views()) {
           Call call = http.call(site, caller, view);
@@ -132,7 +129,7 @@ final class HttpLinker {
 
   void link() {
     for (Map.Entry<String, List<Fact>> entry :
-        LinkIndex.codeSites(index.of(HttpClientExtractor.HTTP_CALL)).entrySet()) {
+        LinkIndex.codeSites(index.of(Types.HTTP_CALL)).entrySet()) {
       List<Fact> site = entry.getValue();
       Fact first = site.getFirst();
       for (Unit caller : callers(first)) {
@@ -207,7 +204,7 @@ final class HttpLinker {
   }
 
   private static boolean isCall(LinkRule.Merged m) {
-    return m.group() != null && m.fact().predicate().equals(CrossRepoLinks.CALLS_HTTP);
+    return m.group() != null && m.fact().predicate().equals(Types.CALLS_HTTP);
   }
 
   /**
@@ -223,7 +220,7 @@ final class HttpLinker {
     EntityId client =
         clientType == null
             ? LinkIndex.typeOf(call.subject())
-            : new EntityId(BuiltInTypes.TYPE, clientType);
+            : new EntityId(Types.TYPE, clientType);
     Set<Unit> enabling = new LinkedHashSet<>();
     for (Fact enables : enabledBy.getOrDefault(client, List.of())) {
       enabling.addAll(index.unitsOf(enables.subject()));
@@ -248,8 +245,7 @@ final class HttpLinker {
         && !caller.modules().isEmpty()
         && !index.modulesOf(fact.subject()).contains(caller.modules().getFirst())) {
       LinkText.Resolved resolved =
-          LinkText.resolve(
-              written, key -> index.config(caller, view, ConfigExtractor.CONFIG_VALUE, key));
+          LinkText.resolve(written, key -> index.config(caller, view, Types.CONFIG_VALUE, key));
       if (resolved.masked()) {
         return null;
       }
@@ -406,7 +402,7 @@ final class HttpLinker {
       confidence = Math.min(confidence, e.confidence() * target.factor());
       String controller = Endpoints.of(e).controller();
       if (controller != null
-          && index.restControllers.contains(new EntityId(BuiltInTypes.TYPE, controller))) {
+          && index.restControllers.contains(new EntityId(Types.TYPE, controller))) {
         protocol = "JSON/" + protocol;
       }
     } else {
@@ -415,7 +411,7 @@ final class HttpLinker {
     attributes.put("protocol", protocol);
     attributes.put("matchedBy", target.matchedBy());
     String identity =
-        CrossRepoLinks.CALLS_HTTP
+        Types.CALLS_HTTP
             + "|"
             + caller.id()
             + "|"
@@ -429,7 +425,7 @@ final class HttpLinker {
         new Found(
             identity,
             caller.id(),
-            CrossRepoLinks.CALLS_HTTP,
+            Types.CALLS_HTTP,
             FactObject.entity(target.unit().id()),
             attributes,
             fact.evidence(),
@@ -448,9 +444,9 @@ final class HttpLinker {
     emit(
         view,
         new Found(
-            CrossRepoLinks.CALLS_HTTP + "|" + caller.id() + "|" + system + "|" + fact.subject(),
+            Types.CALLS_HTTP + "|" + caller.id() + "|" + system + "|" + fact.subject(),
             caller.id(),
-            CrossRepoLinks.CALLS_HTTP,
+            Types.CALLS_HTTP,
             FactObject.entity(system),
             attributes,
             fact.evidence(),
@@ -480,9 +476,9 @@ final class HttpLinker {
     emit(
         view,
         new Found(
-            CrossRepoLinks.UNRESOLVED_LINK + "|" + caller.id() + "|" + fact.subject() + "|http",
+            Types.UNRESOLVED_LINK + "|" + caller.id() + "|" + fact.subject() + "|http",
             caller.id(),
-            CrossRepoLinks.UNRESOLVED_LINK,
+            Types.UNRESOLVED_LINK,
             FactObject.string(call.text()),
             attributes,
             fact.evidence(),

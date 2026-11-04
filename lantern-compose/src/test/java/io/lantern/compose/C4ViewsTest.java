@@ -24,14 +24,13 @@ import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
 import io.lantern.core.snapshot.Snapshot;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.AttributeSchema;
-import io.lantern.core.vocabulary.BuiltInTypes;
 import io.lantern.core.vocabulary.TypeKind;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.derive.Derivation;
 import io.lantern.derive.Vocabularies;
-import io.lantern.core.types.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -823,7 +822,7 @@ class C4ViewsTest {
         new VocabularyType(
             "search-index",
             TypeKind.ENTITY,
-            BuiltInTypes.CONTAINER,
+            Types.CONTAINER,
             null,
             null,
             null,
@@ -833,7 +832,7 @@ class C4ViewsTest {
         new VocabularyType(
             "QUERIES_INDEX",
             TypeKind.RELATIONSHIP,
-            BuiltInTypes.INTERACTS_WITH,
+            Types.INTERACTS_WITH,
             null,
             null,
             null,
@@ -1082,7 +1081,7 @@ class C4ViewsTest {
         new VocabularyType(
             relation,
             TypeKind.RELATIONSHIP,
-            BuiltInTypes.INTERACTS_WITH,
+            Types.INTERACTS_WITH,
             null,
             null,
             null,
@@ -1099,7 +1098,7 @@ class C4ViewsTest {
 
   @Test
   void aTypeUnderAContainerIsDrawnAtTheContainerLevelWithItsTechnology() {
-    Vocabulary vocabulary = subtypes("search-index", BuiltInTypes.CONTAINER, "QUERIES_INDEX");
+    Vocabulary vocabulary = subtypes("search-index", Types.CONTAINER, "QUERIES_INDEX");
     TestFacts more = TestFacts.runtime();
     more.relate(
             "shop",

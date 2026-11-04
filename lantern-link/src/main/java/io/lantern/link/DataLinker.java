@@ -6,12 +6,9 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.DataStoreAttributes;
 import io.lantern.extract.attributes.DatasourceAttributes;
-import io.lantern.extract.config.ConfigExtractor;
-import io.lantern.extract.persistence.PersistenceExtractor;
-import io.lantern.extract.sql.SqlExtractor;
 import io.lantern.link.FoundLinks.Found;
 import io.lantern.link.LinkIndex.Unit;
 import java.util.ArrayList;
@@ -35,9 +32,6 @@ import tools.jackson.databind.node.ObjectNode;
  * rather than business dependencies, service discovery, config servers and tracing.
  */
 final class DataLinker {
-
-  /** Attribute of a database entity: the name its views show; the entity key when absent. */
-  static final String DISPLAY_NAME = "display-name";
 
   /** A display name with the datasource it comes from. */
   private record Named(Fact datasource, String name) {}
@@ -113,16 +107,14 @@ final class DataLinker {
     this.index = index;
     this.out = out;
     this.addresses = addresses;
-    for (Fact f : index.of(BuiltInTypes.CONTAINS)) {
+    for (Fact f : index.of(Types.CONTAINS)) {
       if (f.object().kind() != FactObject.Kind.ENTITY) {
         continue;
       }
       EntityId object = f.object().entityId();
-      if (f.subject().type().equals(BuiltInTypes.MODULE)
-          && object.type().equals(SqlExtractor.SCHEMA)) {
+      if (f.subject().type().equals(Types.MODULE) && object.type().equals(Types.SCHEMA)) {
         schemas.computeIfAbsent(f.subject(), m -> new ArrayList<>()).add(object);
-      } else if (f.subject().type().equals(SqlExtractor.SCHEMA)
-          && object.type().equals(SqlExtractor.TABLE)) {
+      } else if (f.subject().type().equals(Types.SCHEMA) && object.type().equals(Types.TABLE)) {
         for (Unit unit : index.unitsOf(object)) {
           owned
               .computeIfAbsent(tableName(object), n -> new ArrayList<>())
@@ -149,7 +141,7 @@ final class DataLinker {
             out.add(
                 Fact.create(
                     database,
-                    DeployableUnits.TECHNOLOGY,
+                    Types.TECHNOLOGY,
                     FactObject.string(technology.technology()),
                     FactJson.newObject(),
                     origin,
@@ -165,7 +157,7 @@ final class DataLinker {
             out.add(
                 Fact.create(
                     database,
-                    DISPLAY_NAME,
+                    Types.DISPLAY_NAME,
                     FactObject.string(named.name()),
                     FactJson.newObject(),
                     origin,
@@ -184,8 +176,8 @@ final class DataLinker {
       Map<EntityId, Technology> technologies,
       Map<EntityId, Named> ownNames,
       Map<EntityId, Set<Deployments.Container>> servers) {
-    for (String key : index.configKeys(unit, PersistenceExtractor.DATASOURCE)) {
-      Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
+    for (String key : index.configKeys(unit, Types.DATASOURCE)) {
+      Fact f = index.config(unit, view, Types.DATASOURCE, key);
       if (f == null || Claims.masked(f)) {
         continue;
       }
@@ -279,9 +271,9 @@ final class DataLinker {
       out.add(
           view,
           new Found(
-              CrossRepoLinks.USES_DATABASE + "|" + unit.id() + "|" + database,
+              Types.USES_DATABASE + "|" + unit.id() + "|" + database,
               unit.id(),
-              CrossRepoLinks.USES_DATABASE,
+              Types.USES_DATABASE,
               FactObject.entity(database),
               attributes,
               f.evidence(),
@@ -360,7 +352,7 @@ final class DataLinker {
       return ownDatabase(unit, datasource, own);
     }
     if (server != null && name != null) {
-      return new EntityId(CrossRepoLinks.DATABASE, server.toLowerCase(Locale.ROOT) + "/" + name);
+      return new EntityId(Types.DATABASE, server.toLowerCase(Locale.ROOT) + "/" + name);
     }
     if (name != null) {
       return ownDatabase(unit, datasource, name);
@@ -374,7 +366,7 @@ final class DataLinker {
   private static EntityId ownDatabase(Unit unit, Fact datasource, String own) {
     String technology = Store.of(datasource).technology();
     return new EntityId(
-        CrossRepoLinks.DATABASE,
+        Types.DATABASE,
         unit.id().key()
             + "/"
             + (technology == null
@@ -395,8 +387,7 @@ final class DataLinker {
     Map<Key, Set<String>> facts = new LinkedHashMap<>();
     Map<Key, Fact> first = new LinkedHashMap<>();
     Map<Key, Double> confidence = new LinkedHashMap<>();
-    for (String predicate :
-        List.of(PersistenceExtractor.READS_TABLE, PersistenceExtractor.WRITES_TABLE)) {
+    for (String predicate : List.of(Types.READS_TABLE, Types.WRITES_TABLE)) {
       for (Fact f : index.of(predicate)) {
         if (f.object().kind() != FactObject.Kind.ENTITY || !index.active(f.subject(), view)) {
           continue;
@@ -419,7 +410,7 @@ final class DataLinker {
               continue;
             }
             Key key = new Key(from, owner.unit(), database);
-            (predicate.equals(PersistenceExtractor.READS_TABLE) ? reads : writes)
+            (predicate.equals(Types.READS_TABLE) ? reads : writes)
                 .computeIfAbsent(key, k -> new TreeSet<>())
                 .add(owner.table().toString());
             Set<String> ids = facts.computeIfAbsent(key, k -> new TreeSet<>());
@@ -449,7 +440,7 @@ final class DataLinker {
       out.add(
           view,
           new Found(
-              CrossRepoLinks.ACCESSES_DATA_OF
+              Types.ACCESSES_DATA_OF
                   + "|"
                   + key.from().id()
                   + "|"
@@ -457,7 +448,7 @@ final class DataLinker {
                   + "|"
                   + key.database(),
               key.from().id(),
-              CrossRepoLinks.ACCESSES_DATA_OF,
+              Types.ACCESSES_DATA_OF,
               FactObject.entity(key.to().id()),
               attributes,
               e.getValue().evidence(),
@@ -469,7 +460,7 @@ final class DataLinker {
   /** A unit's datasource for the first of the keys it sets in a view, unless masked; or null. */
   private Fact primary(Unit unit, String view, List<String> keys) {
     for (String key : keys) {
-      Fact f = index.config(unit, view, PersistenceExtractor.DATASOURCE, key);
+      Fact f = index.config(unit, view, Types.DATASOURCE, key);
       if (f != null) {
         return Claims.masked(f) ? null : f;
       }
@@ -515,7 +506,7 @@ final class DataLinker {
       }
       EntityId broker =
           new EntityId(
-              CrossRepoLinks.MESSAGE_BROKER,
+              Types.MESSAGE_BROKER,
               setting.technology().toLowerCase(Locale.ROOT).replace(' ', '-')
                   + ":"
                   + String.join(",", addresses));
@@ -529,9 +520,9 @@ final class DataLinker {
       out.add(
           view,
           new Found(
-              CrossRepoLinks.USES_BROKER + "|" + unit.id() + "|" + broker,
+              Types.USES_BROKER + "|" + unit.id() + "|" + broker,
               unit.id(),
-              CrossRepoLinks.USES_BROKER,
+              Types.USES_BROKER,
               FactObject.entity(broker),
               attributes,
               evidence.evidence(),
@@ -555,8 +546,7 @@ final class DataLinker {
           }
           text = text.substring(at + CONFIG_SERVER.length());
           if (text.isBlank()) {
-            Fact uri =
-                index.config(unit, view, ConfigExtractor.CONFIG_VALUE, "spring.cloud.config.uri");
+            Fact uri = index.config(unit, view, Types.CONFIG_VALUE, "spring.cloud.config.uri");
             // Spring Cloud Config's default server; a set uri is its own setting.
             if (uri != null) {
               continue;
@@ -584,7 +574,7 @@ final class DataLinker {
           continue;
         }
         if (target == null) {
-          target = new EntityId(CrossRepoLinks.INFRASTRUCTURE, address);
+          target = new EntityId(Types.INFRASTRUCTURE, address);
         }
         ObjectNode attributes = FactJson.newObject();
         attributes.put("role", setting.role());
@@ -598,15 +588,9 @@ final class DataLinker {
         out.add(
             view,
             new Found(
-                CrossRepoLinks.USES_INFRASTRUCTURE
-                    + "|"
-                    + unit.id()
-                    + "|"
-                    + target
-                    + "|"
-                    + setting.role(),
+                Types.USES_INFRASTRUCTURE + "|" + unit.id() + "|" + target + "|" + setting.role(),
                 unit.id(),
-                CrossRepoLinks.USES_INFRASTRUCTURE,
+                Types.USES_INFRASTRUCTURE,
                 FactObject.entity(target),
                 attributes,
                 value.evidence(),
@@ -631,12 +615,12 @@ final class DataLinker {
   static List<Fact> values(LinkIndex index, Unit unit, String view, String key) {
     List<Fact> values = new ArrayList<>();
     String wanted = relaxed(key);
-    for (String k : index.configKeys(unit, ConfigExtractor.CONFIG_VALUE)) {
+    for (String k : index.configKeys(unit, Types.CONFIG_VALUE)) {
       String plain = k.replaceAll("\\[\\d+]$", "");
       if (!relaxed(plain).equals(wanted)) {
         continue;
       }
-      Fact f = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, k);
+      Fact f = index.config(unit, view, Types.CONFIG_VALUE, k);
       if (f != null
           && !Claims.masked(f)
           && Claims.unresolved(f).isEmpty()
@@ -681,11 +665,11 @@ final class DataLinker {
 
     static Store of(Fact f) {
       return switch (f.predicate()) {
-        case PersistenceExtractor.DATASOURCE -> {
+        case Types.DATASOURCE -> {
           DatasourceAttributes a = Claims.of(f, DatasourceAttributes.class);
           yield new Store(a.server(), a.database(), a.technology());
         }
-        case PersistenceExtractor.DATA_STORE -> {
+        case Types.DATA_STORE -> {
           DataStoreAttributes a = Claims.of(f, DataStoreAttributes.class);
           yield new Store(a.server(), a.database(), a.technology());
         }

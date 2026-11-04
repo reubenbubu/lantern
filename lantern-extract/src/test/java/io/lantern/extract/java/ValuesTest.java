@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.repo.Repo;
+import io.lantern.core.types.Types;
 import io.lantern.extract.Fixtures;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.java.Values.Part;
@@ -124,6 +125,6 @@ class ValuesTest {
   }
 
   private static EntityId fieldId(String name) {
-    return new EntityId(ModuleStructure.FIELD, OWNER + "#" + name);
+    return new EntityId(Types.FIELD, OWNER + "#" + name);
   }
 }

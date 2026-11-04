@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -78,27 +78,6 @@ public final class PersistenceExtractor implements Extractor {
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "persistence-extractor";
 
-  /** Attribute: a datasource URL of the subject module, without credentials. */
-  public static final String DATASOURCE = "datasource";
-
-  /** Relationship: the subject entity type is stored in the object table. */
-  public static final String MAPS_TO = "MAPS_TO";
-
-  /**
-   * Attribute: the subject JPA entity is named so in code, its table named in linking by the
-   * module's configured naming strategy (#567).
-   */
-  public static final String JPA_TABLE = "jpa-table";
-
-  /** Relationship: the subject repository interface stores the object entity type. */
-  public static final String REPOSITORY_FOR = "REPOSITORY_FOR";
-
-  /** Relationship: the subject code reads the object table. */
-  public static final String READS_TABLE = "READS_TABLE";
-
-  /** Relationship: the subject code writes the object table. */
-  public static final String WRITES_TABLE = "WRITES_TABLE";
-
   /** Mapping frameworks, as the {@code framework} attribute of {@code MAPS_TO} holds them. */
   public static final String JPA = "jpa";
 
@@ -109,18 +88,6 @@ public final class PersistenceExtractor implements Extractor {
 
   /** The framework of an Elasticsearch document's index. */
   public static final String ELASTICSEARCH = "elasticsearch";
-
-  /** The name of the attribute type of a non-relational store a module's config connects to. */
-  public static final String DATA_STORE = "data-store";
-
-  /** Entity: a datasource or other data store a module's config connects it to (#560). */
-  public static final String DATASOURCE_ENTITY = "data-source";
-
-  /** Relationship: the subject module's config sets up the object datasource. */
-  public static final String HAS_DATASOURCE = "HAS_DATASOURCE";
-
-  /** Relationship: the subject datasource connects to the object address, as written. */
-  public static final String CONNECTS_TO = "CONNECTS_TO";
 
   private static final String RESOURCE = "/vocabulary/persistence-types.json";
 
@@ -392,7 +359,7 @@ public final class PersistenceExtractor implements Extractor {
           repository(m, type);
         }
         for (Member member : type.members()) {
-          if (member.id().type().equals(ModuleStructure.METHOD)) {
+          if (member.id().type().equals(Types.METHOD)) {
             nativeQuery(m, member);
           }
         }
@@ -431,7 +398,7 @@ public final class PersistenceExtractor implements Extractor {
         }
         attributes.put("configModule", m.id().toString());
         Location where = located(table != null && !inherited ? table : jpa, type.where());
-        attribute(m, subject, JPA_TABLE, name, attributes, where);
+        attribute(m, subject, Types.JPA_TABLE, name, attributes, where);
         return;
       }
       Annotation mongo = annotation(type.annotations(), MONGO_DOCUMENT);
@@ -473,7 +440,7 @@ public final class PersistenceExtractor implements Extractor {
         relationship(
             m,
             subject,
-            MAPS_TO,
+            Types.MAPS_TO,
             tableEntity(m, physical),
             attributes,
             located(relational, type.where()));
@@ -491,7 +458,7 @@ public final class PersistenceExtractor implements Extractor {
       }
       ObjectNode attributes = FactJson.newObject();
       attributes.put("framework", framework);
-      relationship(m, subject, MAPS_TO, tableEntity(m, name), attributes, where);
+      relationship(m, subject, Types.MAPS_TO, tableEntity(m, name), attributes, where);
     }
 
     /**
@@ -506,7 +473,7 @@ public final class PersistenceExtractor implements Extractor {
       while (seen.add(current.binaryName())) {
         TypeDecl parent = null;
         for (Supertype s : current.supertypes()) {
-          if (s.predicate().equals(BuiltInTypes.EXTENDS)) {
+          if (s.predicate().equals(Types.EXTENDS)) {
             parent = code.type(s.binaryName());
           }
         }
@@ -541,7 +508,7 @@ public final class PersistenceExtractor implements Extractor {
           relationship(
               m,
               subject,
-              REPOSITORY_FOR,
+              Types.REPOSITORY_FOR,
               typeId(domain),
               attributes,
               located(definition, type.where()));
@@ -552,7 +519,8 @@ public final class PersistenceExtractor implements Extractor {
       if (base != null && base.domain() != null) {
         ObjectNode attributes = FactJson.newObject();
         attributes.put("base", base.base());
-        relationship(m, subject, REPOSITORY_FOR, typeId(base.domain()), attributes, base.where());
+        relationship(
+            m, subject, Types.REPOSITORY_FOR, typeId(base.domain()), attributes, base.where());
       }
     }
 
@@ -628,7 +596,7 @@ public final class PersistenceExtractor implements Extractor {
           attributes.put("statement", "insert");
           attributes.put("api", key.substring(0, key.indexOf('#')));
           relationship(
-              m, call.caller(), WRITES_TABLE, tableEntity(m, name), attributes, call.where());
+              m, call.caller(), Types.WRITES_TABLE, tableEntity(m, name), attributes, call.where());
         }
         return;
       }
@@ -654,7 +622,7 @@ public final class PersistenceExtractor implements Extractor {
         relationship(
             m,
             subject,
-            a.write() ? WRITES_TABLE : READS_TABLE,
+            a.write() ? Types.WRITES_TABLE : Types.READS_TABLE,
             tableEntity(m, a.table()),
             attributes,
             where);
@@ -720,8 +688,8 @@ public final class PersistenceExtractor implements Extractor {
     }
 
     /**
-     * The {@code MAPS_TO} fact of a JPA entity named in code ({@value #JPA_TABLE}): its table named
-     * as Hibernate names it with the naming strategy the module's config sets, Spring Boot's
+     * The {@code MAPS_TO} fact of a JPA entity named in code ({@value Types#JPA_TABLE}): its table
+     * named as Hibernate names it with the naming strategy the module's config sets, Spring Boot's
      * default (snake case) unless another is set.
      */
     void jpaTable(Fact written, Map<EntityId, String> strategies) {
@@ -748,14 +716,14 @@ public final class PersistenceExtractor implements Extractor {
       EntityId table =
           folded == null
               ? null
-              : PersistenceExtractor.entity(SqlExtractor.TABLE, module.key() + ":" + folded);
+              : PersistenceExtractor.entity(Types.TABLE, module.key() + ":" + folded);
       if (table == null) {
         return;
       }
       add(
           Fact.create(
               written.subject(),
-              MAPS_TO,
+              Types.MAPS_TO,
               FactObject.entity(table),
               attributes,
               origin,
@@ -785,7 +753,7 @@ public final class PersistenceExtractor implements Extractor {
             continue;
           }
           for (Member member : type.members()) {
-            if (member.id().type().equals(ModuleStructure.METHOD)
+            if (member.id().type().equals(Types.METHOD)
                 && member.id().key().startsWith(type.binaryName() + "#" + st.id() + "(")) {
               subjects.add(member.id());
             }
@@ -813,7 +781,7 @@ public final class PersistenceExtractor implements Extractor {
             add(
                 Fact.create(
                     subject,
-                    a.write() ? WRITES_TABLE : READS_TABLE,
+                    a.write() ? Types.WRITES_TABLE : Types.READS_TABLE,
                     FactObject.entity(table),
                     attributes,
                     ORIGIN,
@@ -837,7 +805,7 @@ public final class PersistenceExtractor implements Extractor {
       Map<String, Datasource> defaults = new TreeMap<>();
       for (Datasource d : stores(config, null)) {
         defaults.put(d.key(), d);
-        datasourceFact(config, DATA_STORE, d, null);
+        datasourceFact(config, Types.DATA_STORE, d, null);
       }
       for (String profile : config.profiles()) {
         for (Datasource d : stores(config, profile)) {
@@ -845,7 +813,7 @@ public final class PersistenceExtractor implements Extractor {
           if (byDefault == null
               || !byDefault.value().equals(d.value())
               || !byDefault.attributes().equals(d.attributes())) {
-            datasourceFact(config, DATA_STORE, d, profile);
+            datasourceFact(config, Types.DATA_STORE, d, profile);
           }
         }
       }
@@ -1058,7 +1026,7 @@ public final class PersistenceExtractor implements Extractor {
     }
 
     private void datasource(ModuleValues config, Datasource d, String profile) {
-      datasourceFact(config, DATASOURCE, d, profile);
+      datasourceFact(config, Types.DATASOURCE, d, profile);
     }
 
     private void datasourceFact(
@@ -1145,15 +1113,15 @@ public final class PersistenceExtractor implements Extractor {
           }
           EntityId datasource =
               io.lantern.extract.EntityKeys.of(
-                  DATASOURCE_ENTITY, config.module().key() + ":" + d.key());
+                  Types.DATA_SOURCE, config.module().key() + ":" + d.key());
           Evidence evidence = evidence(config, d.where());
           ObjectNode has = FactJson.newObject();
           has.put("key", d.key());
-          if (seen.add(HAS_DATASOURCE + " " + datasource + " " + has))
+          if (seen.add(Types.HAS_DATASOURCE + " " + datasource + " " + has))
             add(
                 Fact.create(
                     config.module(),
-                    HAS_DATASOURCE,
+                    Types.HAS_DATASOURCE,
                     FactObject.entity(datasource),
                     has,
                     origin,
@@ -1175,11 +1143,11 @@ public final class PersistenceExtractor implements Extractor {
           if (!d.value().equals(ConfigExtractor.MASK)) {
             connects.put("url", d.value());
           }
-          if (seen.add(CONNECTS_TO + " " + datasource + " " + address + " " + connects))
+          if (seen.add(Types.CONNECTS_TO + " " + datasource + " " + address + " " + connects))
             add(
                 Fact.create(
                     datasource,
-                    CONNECTS_TO,
+                    Types.CONNECTS_TO,
                     FactObject.entity(address),
                     connects,
                     origin,
@@ -1351,11 +1319,11 @@ public final class PersistenceExtractor implements Extractor {
 
   /** {@code table:<groupId>:<artifactId>:<name>} of the module whose code names it, or null. */
   private static EntityId tableEntity(JavaAnalysis.Module m, String name) {
-    return entity(SqlExtractor.TABLE, m.id().key() + ":" + name);
+    return entity(Types.TABLE, m.id().key() + ":" + name);
   }
 
   private static EntityId typeId(String binaryName) {
-    return entity(BuiltInTypes.TYPE, binaryName);
+    return entity(Types.TYPE, binaryName);
   }
 
   private static EntityId entity(String type, String key) {
@@ -1368,10 +1336,10 @@ public final class PersistenceExtractor implements Extractor {
 
   /**
    * The datasources and data stores linking gives from each module's config (ADR 0094, #560): the
-   * {@value #DATASOURCE} and {@value #DATA_STORE} facts this extractor recorded before it stopped
-   * reading config, the default view's and each differing profile's; and for each, a {@value
-   * #DATASOURCE_ENTITY} entity its module {@value #HAS_DATASOURCE}, which {@value #CONNECTS_TO} the
-   * address of its URL as written.
+   * {@value Types#DATASOURCE} and {@value Types#DATA_STORE} facts this extractor recorded before it
+   * stopped reading config, the default view's and each differing profile's; and for each, a
+   * {@value #DATASOURCE_ENTITY} entity its module {@value Types#HAS_DATASOURCE}, which {@value
+   * Types#CONNECTS_TO} the address of its URL as written.
    *
    * @param configs the config of each module
    * @param secretKeys config keys known to hold a secret
@@ -1398,11 +1366,11 @@ public final class PersistenceExtractor implements Extractor {
   }
 
   /**
-   * The tables linking gives JPA entities (#567): each entity named in code ({@value #JPA_TABLE}),
-   * its table named by the physical naming strategy its module's config sets, as the {@value
-   * #MAPS_TO} fact this extractor recorded before it stopped reading config.
+   * The tables linking gives JPA entities (#567): each entity named in code ({@value
+   * Types#JPA_TABLE}), its table named by the physical naming strategy its module's config sets, as
+   * the {@value #MAPS_TO} fact this extractor recorded before it stopped reading config.
    *
-   * @param written the snapshot's facts; only {@value #JPA_TABLE} facts are read
+   * @param written the snapshot's facts; only {@value Types#JPA_TABLE} facts are read
    * @param configs the config of each module
    * @param origin the origin of the facts
    * @param snapshot the snapshot number the facts hold from
@@ -1413,7 +1381,7 @@ public final class PersistenceExtractor implements Extractor {
     run.origin = origin;
     configs.forEach(run::naming);
     for (Fact f : written) {
-      if (f.predicate().equals(JPA_TABLE)) {
+      if (f.predicate().equals(Types.JPA_TABLE)) {
         run.jpaTable(f, run.namingStrategies);
       }
     }

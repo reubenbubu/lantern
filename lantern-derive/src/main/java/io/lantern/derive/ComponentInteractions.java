@@ -7,7 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
@@ -40,9 +40,6 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
   /** Raised whenever the interactions it gives for the same facts change. */
   public static final String VERSION = "1";
 
-  public static final String COMPONENT_LINK = "COMPONENT_LINK";
-  public static final String DATA_ACCESS = "data-access";
-
   /** The kinds of component link. */
   public static final String APPLIES = "applies";
 
@@ -51,17 +48,9 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
   public static final String CODE_END = "code-end";
 
   private static final Origin ORIGIN = new Origin(Origin.Kind.STATIC, NAME, VERSION);
-  private static final String METHOD = "method";
-  private static final String GATEWAY_ROUTE = "gateway-route";
-  private static final String ADVISES = "ADVISES";
-  private static final String ASPECT = "aspect";
-  private static final String REPOSITORY_FOR = "REPOSITORY_FOR";
-  private static final String READS_TABLE = "READS_TABLE";
-  private static final String WRITES_TABLE = "WRITES_TABLE";
-  private static final String DEPLOYABLE_UNIT = "deployable-unit";
 
   private static final Set<String> READS =
-      Set.of(EXTRACTED, LINKED, Components.PART_OF, Components.ANCHORED_ON, Components.HAS_MEMBER);
+      Set.of(EXTRACTED, LINKED, Types.PART_OF, Types.ANCHORED_ON, Types.HAS_MEMBER);
 
   @Override
   public RuleInfo info() {
@@ -75,7 +64,7 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
 
   @Override
   public Set<String> writes() {
-    return Set.of(COMPONENT_LINK, DATA_ACCESS);
+    return Set.of(Types.COMPONENT_LINK, Types.DATA_ACCESS);
   }
 
   /** The vocabulary types of the interactions' facts besides the built-in ones. */
@@ -91,25 +80,25 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
     Map<String, Line> lines = new LinkedHashMap<>();
     List<Fact> derived = new ArrayList<>();
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
-    knowledge.withPredicate(DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
+    knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
     Map<EntityId, Map<EntityId, EntityId>> componentsOf = new TreeMap<>(Knowledge.BY_ID);
     for (EntityId unit : units) {
       // The unit's components and which holds each member type.
       Map<EntityId, SortedSet<EntityId>> members = new TreeMap<>(Knowledge.BY_ID);
       Map<EntityId, EntityId> mainOf = new TreeMap<>(Knowledge.BY_ID);
       Map<EntityId, EntityId> componentOf = new TreeMap<>(Knowledge.BY_ID);
-      for (Fact part : knowledge.withPredicate(Components.PART_OF)) {
+      for (Fact part : knowledge.withPredicate(Types.PART_OF)) {
         if (!Knowledge.isEntity(part) || !Knowledge.object(part).equals(unit)) {
           continue;
         }
         EntityId component = part.subject();
         SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
         knowledge
-            .relations(component, Components.HAS_MEMBER)
+            .relations(component, Types.HAS_MEMBER)
             .forEach(f -> types.add(Knowledge.object(f)));
         members.put(component, types);
         knowledge
-            .relations(component, Components.ANCHORED_ON)
+            .relations(component, Types.ANCHORED_ON)
             .forEach(f -> mainOf.put(component, Knowledge.object(f)));
         types.forEach(t -> componentOf.put(t, component));
       }
@@ -122,18 +111,18 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
         // Routes to the filters they apply.
         for (EntityId member : withMethods(knowledge, main)) {
           for (Fact route : knowledge.attributes(member)) {
-            if (!route.predicate().equals(GATEWAY_ROUTE)) {
+            if (!route.predicate().equals(Types.GATEWAY_ROUTE)) {
               continue;
             }
             for (String filter : strings(route, "filterTypes")) {
-              EntityId to = componentOf.get(new EntityId(BuiltInTypes.TYPE, filter));
+              EntityId to = componentOf.get(new EntityId(Types.TYPE, filter));
               if (to != null && !to.equals(component)) {
                 line(
                         lines,
                         component,
                         to,
                         APPLIES,
-                        BuiltInTypes.CALLS,
+                        Types.CALLS,
                         member,
                         filter + " " + route.object().value())
                     .add(route, route.object().value().toString());
@@ -144,20 +133,13 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
         // Calls into other components' code.
         for (EntityId type : entry.getValue()) {
           for (EntityId member : withMethods(knowledge, type)) {
-            for (Fact call : knowledge.relations(member, BuiltInTypes.CALLS)) {
+            for (Fact call : knowledge.relations(member, Types.CALLS)) {
               EntityId called = Knowledge.object(call);
               for (EntityId target :
                   implementers(knowledge, Components.ownerType(knowledge, called))) {
                 EntityId to = componentOf.get(target);
                 if (to != null && !to.equals(component)) {
-                  line(
-                          lines,
-                          component,
-                          to,
-                          CALLS,
-                          BuiltInTypes.CALLS,
-                          member,
-                          called + " " + target)
+                  line(lines, component, to, CALLS, Types.CALLS, member, called + " " + target)
                       .add(call, methodName(called));
                 }
               }
@@ -165,11 +147,11 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
           }
         }
         // An aspect to the components whose entry points it advises.
-        for (Fact advice : knowledge.relations(main, ADVISES)) {
+        for (Fact advice : knowledge.relations(main, Types.ADVISES)) {
           EntityId advised = Knowledge.object(advice);
           EntityId to = componentOf.get(Components.ownerType(knowledge, advised));
           if (to != null && !to.equals(component)) {
-            line(lines, component, to, ADVISES_KIND, ADVISES, main, advised.toString())
+            line(lines, component, to, ADVISES_KIND, Types.ADVISES, main, advised.toString())
                 .add(advice, advisedBy(knowledge, main));
           }
         }
@@ -273,7 +255,14 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
       facts.forEach(f -> cites.add(f.id()));
       Evidence evidence = facts.getFirst().evidence();
       return Fact.create(
-          from, COMPONENT_LINK, FactObject.entity(to), attributes, ORIGIN, evidence, 1.0, validity);
+          from,
+          Types.COMPONENT_LINK,
+          FactObject.entity(to),
+          attributes,
+          ORIGIN,
+          evidence,
+          1.0,
+          validity);
     }
   }
 
@@ -289,15 +278,15 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
     List<Fact> basis = new ArrayList<>();
     String access = null;
     for (EntityId type : types) {
-      List<Fact> repository = knowledge.relations(type, REPOSITORY_FOR);
+      List<Fact> repository = knowledge.relations(type, Types.REPOSITORY_FOR);
       if (!repository.isEmpty()) {
         access = "Reads and writes";
         basis = new ArrayList<>(repository);
         break;
       }
       for (EntityId member : withMethods(knowledge, type)) {
-        List<Fact> read = knowledge.relations(member, READS_TABLE);
-        List<Fact> written = knowledge.relations(member, WRITES_TABLE);
+        List<Fact> read = knowledge.relations(member, Types.READS_TABLE);
+        List<Fact> written = knowledge.relations(member, Types.WRITES_TABLE);
         reads |= !read.isEmpty();
         writes |= !written.isEmpty();
         basis.addAll(read);
@@ -316,7 +305,7 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
     return java.util.Optional.of(
         Fact.create(
             component,
-            DATA_ACCESS,
+            Types.DATA_ACCESS,
             FactObject.string(access),
             attributes,
             ORIGIN,
@@ -329,7 +318,7 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
   private static String advisedBy(Knowledge knowledge, EntityId aspect) {
     List<String> names = new ArrayList<>();
     for (Fact fact : knowledge.attributes(aspect)) {
-      if (fact.predicate().equals(ASPECT)) {
+      if (fact.predicate().equals(Types.ASPECT)) {
         for (String type : strings(fact, "annotations")) {
           names.add(
               "@" + type.substring(Math.max(type.lastIndexOf('.'), type.lastIndexOf('$')) + 1));
@@ -342,7 +331,7 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
   /** The type and the types implementing it, if it is an interface. */
   private static Set<EntityId> implementers(Knowledge knowledge, EntityId type) {
     Set<EntityId> result = new LinkedHashSet<>(List.of(type));
-    for (Fact fact : knowledge.withPredicate(BuiltInTypes.IMPLEMENTS)) {
+    for (Fact fact : knowledge.withPredicate(Types.IMPLEMENTS)) {
       if (Knowledge.isEntity(fact) && Knowledge.object(fact).equals(type)) {
         result.add(fact.subject());
       }
@@ -352,7 +341,7 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
 
   private static List<EntityId> withMethods(Knowledge knowledge, EntityId type) {
     List<EntityId> members = new ArrayList<>(List.of(type));
-    members.addAll(knowledge.parts(type, METHOD));
+    members.addAll(knowledge.parts(type, Types.METHOD));
     return members;
   }
 
@@ -370,7 +359,7 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
 
   /** The stored lines of a component, in the order the model holds them. */
   public static List<ComponentLine> lines(ArchitectureModel model, EntityId component) {
-    return model.relations(component, COMPONENT_LINK).stream()
+    return model.relations(component, Types.COMPONENT_LINK).stream()
         .map(
             f ->
                 new ComponentLine(

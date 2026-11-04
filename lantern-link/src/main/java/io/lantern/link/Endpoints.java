@@ -1,10 +1,9 @@
 package io.lantern.link;
 
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import io.lantern.extract.attributes.EndpointAttributes;
 import io.lantern.extract.attributes.WebsocketEndpointAttributes;
-import io.lantern.extract.spring.SpringExtractor;
-import io.lantern.extract.websocket.WebSocketExtractor;
 
 /**
  * What the matchers read of an endpoint a unit serves, an HTTP {@code endpoint} or a {@code
@@ -19,11 +18,11 @@ record Endpoints(String httpMethod, String path, String controller) {
   /** The endpoint a fact is; all null for a fact of another type. */
   static Endpoints of(Fact fact) {
     return switch (fact.predicate()) {
-      case SpringExtractor.ENDPOINT -> {
+      case Types.ENDPOINT -> {
         EndpointAttributes a = Claims.of(fact, EndpointAttributes.class);
         yield new Endpoints(a.httpMethod(), a.path(), a.controller());
       }
-      case WebSocketExtractor.ENDPOINT -> {
+      case Types.WEBSOCKET_ENDPOINT -> {
         WebsocketEndpointAttributes a = Claims.of(fact, WebsocketEndpointAttributes.class);
         yield new Endpoints(null, a.path(), null);
       }

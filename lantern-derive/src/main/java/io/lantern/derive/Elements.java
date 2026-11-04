@@ -2,10 +2,9 @@ package io.lantern.derive;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.C4Level;
 import io.lantern.core.vocabulary.Vocabulary;
-import io.lantern.core.types.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -107,8 +106,8 @@ public final class Elements {
   public static boolean isDestination(Vocabulary vocabulary, EntityId id) {
     String type = id.type();
     if (vocabulary.find(type).isEmpty()
-        || type.equals(BuiltInTypes.SYSTEM)
-        || vocabulary.isA(type, BuiltInTypes.ACTOR)
+        || type.equals(Types.SYSTEM)
+        || vocabulary.isA(type, Types.ACTOR)
         || vocabulary.isA(type, Types.MESSAGE_BROKER)
         || vocabulary.isA(type, Types.INFRASTRUCTURE)
         || runsCode(id)) {
@@ -187,7 +186,7 @@ public final class Elements {
 
   /** Whether an element is a container that runs code: a deployable unit or a frontend. */
   public static boolean runsCode(EntityId element) {
-    return element.type().equals(BuiltInTypes.SERVICE) || element.type().equals(Types.FRONTEND);
+    return element.type().equals(Types.SERVICE) || element.type().equals(Types.FRONTEND);
   }
 
   /** Every frontend of the model (ADR 0083). */
@@ -390,9 +389,9 @@ public final class Elements {
       }
       // A service, a data store or any other container states its technology.
       default ->
-          isType(entity.type(), BuiltInTypes.SERVICE)
+          isType(entity.type(), Types.SERVICE)
                   || isType(entity.type(), Types.DATABASE)
-                  || isType(entity.type(), BuiltInTypes.CONTAINER)
+                  || isType(entity.type(), Types.CONTAINER)
               ? technology.orElse(null)
               : null;
     };
@@ -667,7 +666,7 @@ public final class Elements {
       for (Fact fact : knowledge.about(unit)) {
         if (Knowledge.isEntity(fact)
             && !DRAWN_OTHERWISE.contains(fact.predicate())
-            && vocabulary.isA(fact.predicate(), BuiltInTypes.INTERACTS_WITH)
+            && vocabulary.isA(fact.predicate(), Types.INTERACTS_WITH)
             && isDestination(Knowledge.object(fact))) {
           result.add(
               link(
@@ -862,15 +861,15 @@ public final class Elements {
     List<Component> routes = new ArrayList<>();
     List<Component> entries = new ArrayList<>();
     List<Component> shared = new ArrayList<>();
-    for (Fact part : knowledge.withPredicate(Components.PART_OF)) {
-      if (!part.subject().type().equals(BuiltInTypes.COMPONENT)
+    for (Fact part : knowledge.withPredicate(Types.PART_OF)) {
+      if (!part.subject().type().equals(Types.COMPONENT)
           || !Knowledge.isEntity(part)
           || !Knowledge.object(part).equals(unit)) {
         continue;
       }
       EntityId component = part.subject();
       EntityId main =
-          knowledge.relations(component, Components.ANCHORED_ON).stream()
+          knowledge.relations(component, Types.ANCHORED_ON).stream()
               .map(Knowledge::object)
               .findFirst()
               .orElse(null);
@@ -878,9 +877,7 @@ public final class Elements {
         continue;
       }
       SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
-      knowledge
-          .relations(component, Components.HAS_MEMBER)
-          .forEach(f -> types.add(Knowledge.object(f)));
+      knowledge.relations(component, Types.HAS_MEMBER).forEach(f -> types.add(Knowledge.object(f)));
       String role = attribute(part, "role", "");
       Component found = new Component(main, types, attribute(part, "technology", null));
       switch (role) {
@@ -904,9 +901,7 @@ public final class Elements {
    * config defines.
    */
   public String componentName(Component component) {
-    return component.main.type().equals(BuiltInTypes.MODULE)
-        ? CONFIG_ROUTES
-        : names.name(component.main);
+    return component.main.type().equals(Types.MODULE) ? CONFIG_ROUTES : names.name(component.main);
   }
 
   /** The facts that make the component's main type what it is: its stereotype and entry points. */

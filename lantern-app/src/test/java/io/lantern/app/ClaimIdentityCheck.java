@@ -4,7 +4,7 @@ import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
-import io.lantern.core.vocabulary.BuiltInTypes;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,7 +56,7 @@ final class ClaimIdentityCheck {
     }
     for (List<Fact> sightings : byClaim.values()) {
       Fact first = sightings.getFirst();
-      if (vocabulary.isA(first.predicate(), BuiltInTypes.INTERACTS_WITH)) {
+      if (vocabulary.isA(first.predicate(), Types.INTERACTS_WITH)) {
         continue;
       }
       for (Fact other : sightings.subList(1, sightings.size())) {

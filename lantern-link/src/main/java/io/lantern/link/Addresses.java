@@ -2,7 +2,7 @@ package io.lantern.link;
 
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.extract.config.ConfigExtractor;
+import io.lantern.core.types.Types;
 import io.lantern.link.Deployments.Container;
 import io.lantern.link.LinkIndex.Unit;
 import io.lantern.link.LinkText.Url;
@@ -229,7 +229,7 @@ final class Addresses implements AddressAnswers {
         EnvironmentValues.filled(
             c,
             written != null ? written : text,
-            key -> index.config(unit, view, ConfigExtractor.CONFIG_VALUE, key));
+            key -> index.config(unit, view, Types.CONFIG_VALUE, key));
     return filled == null ? null : filled.value();
   }
 
@@ -285,7 +285,7 @@ final class Addresses implements AddressAnswers {
       return new Answer(
           Kind.EXTERNAL,
           List.of(),
-          new EntityId(CrossRepoLinks.EXTERNAL_SYSTEM, host),
+          new EntityId(Types.EXTERNAL_SYSTEM, host),
           text,
           url,
           in,
@@ -375,7 +375,7 @@ final class Addresses implements AddressAnswers {
       if (unit.equals(from)) {
         continue;
       }
-      Fact fact = index.config(unit, view, ConfigExtractor.CONFIG_VALUE, "server.port");
+      Fact fact = index.config(unit, view, Types.CONFIG_VALUE, "server.port");
       if (fact != null && Claims.masked(fact)) {
         continue;
       }

@@ -8,6 +8,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.harness.LlmFacts;
 import io.lantern.harness.checks.SupportJudge;
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ class ArchitectureModelTest {
 
   @Test
   void theTextsAreReadApartFromTheFactsTheyAreAbout() {
-    Fact sentence = text(UNIT, LlmFacts.RESPONSIBILITY, LlmFacts.C4, "Takes orders.", 0.6);
+    Fact sentence = text(UNIT, Types.RESPONSIBILITY, LlmFacts.C4, "Takes orders.", 0.6);
 
     ArchitectureModel read = new ArchitectureModel(with(sentence));
 
@@ -41,9 +42,9 @@ class ArchitectureModelTest {
   void theMostConfidentTextOfAThingIsReadAndAVerdictIsKept() {
     Fact judged =
         LlmFacts.withSupport(
-            text(UNIT, LlmFacts.RESPONSIBILITY, LlmFacts.C4, "Takes orders.", 0.6),
+            text(UNIT, Types.RESPONSIBILITY, LlmFacts.C4, "Takes orders.", 0.6),
             SupportJudge.Support.UNSUPPORTED);
-    Fact other = text(UNIT, LlmFacts.RESPONSIBILITY, LlmFacts.C4, "Sells things.", 0.6);
+    Fact other = text(UNIT, Types.RESPONSIBILITY, LlmFacts.C4, "Sells things.", 0.6);
 
     ArchitectureModel read = new ArchitectureModel(with(judged, other));
 
@@ -54,8 +55,8 @@ class ArchitectureModelTest {
 
   @Test
   void aComponentsSentenceAlsoDescribesTheTypeItIsAnchoredOn() {
-    model.add(COMPONENT, Components.ANCHORED_ON, TYPE);
-    Fact sentence = text(COMPONENT, LlmFacts.RESPONSIBILITY, LlmFacts.C4, "Lists orders.", 0.6);
+    model.add(COMPONENT, Types.ANCHORED_ON, TYPE);
+    Fact sentence = text(COMPONENT, Types.RESPONSIBILITY, LlmFacts.C4, "Lists orders.", 0.6);
 
     ArchitectureModel read = new ArchitectureModel(with(sentence));
 
@@ -66,7 +67,7 @@ class ArchitectureModelTest {
   @Test
   void anIntentIsFoundByTheClaimOfItsInteraction() {
     Fact call = model.add(UNIT, "CALLS_HTTP", EntityId.parse("service:g:pricing"));
-    Fact phrase = text(UNIT, LlmFacts.INTENT, call.claimId(), "Looks up prices", 0.6);
+    Fact phrase = text(UNIT, Types.INTENT, call.claimId(), "Looks up prices", 0.6);
 
     assertThat(new ArchitectureModel(with(phrase)).intent(call).orElseThrow().text())
         .isEqualTo("Looks up prices");
@@ -81,7 +82,7 @@ class ArchitectureModelTest {
     attributes.putObject("fieldCites").putArray("walkthrough").add(unit.id());
     attributes.put("basis", "inferred");
     attributes.put("content", "c1");
-    Fact narrative = llm(FLOW, LlmFacts.FLOW_NARRATIVE, LlmFacts.C4, attributes, 0.6);
+    Fact narrative = llm(FLOW, Types.FLOW_NARRATIVE, LlmFacts.C4, attributes, 0.6);
 
     ArchitectureModel read = new ArchitectureModel(with(narrative));
 
@@ -113,8 +114,8 @@ class ArchitectureModelTest {
     ArchitectureModel read =
         new ArchitectureModel(
             with(
-                text(orders, LlmFacts.INTENT, end, "Stores orders", 0.6),
-                text(billing, LlmFacts.INTENT, end, "Stores invoices", 0.6)));
+                text(orders, Types.INTENT, end, "Stores orders", 0.6),
+                text(billing, Types.INTENT, end, "Stores invoices", 0.6)));
 
     assertThat(read.groupIntent(orders, end).orElseThrow().text()).isEqualTo("Stores orders");
     assertThat(read.groupIntent(billing, end).orElseThrow().text()).isEqualTo("Stores invoices");
@@ -126,7 +127,7 @@ class ArchitectureModelTest {
     attributes.putArray("cites").add(unit.id());
     attributes.put("basis", "inferred");
     attributes.put("content", content);
-    return llm(FLOW, LlmFacts.FLOW_NARRATIVE, LlmFacts.C4, attributes, confidence);
+    return llm(FLOW, Types.FLOW_NARRATIVE, LlmFacts.C4, attributes, confidence);
   }
 
   @Test
@@ -169,7 +170,7 @@ class ArchitectureModelTest {
     }
     attributes.putArray("cites").add(unit.id());
     attributes.put("basis", "inferred");
-    return llm(flow, LlmFacts.FLOW_SIGNIFICANCE, scope, attributes, 0.6);
+    return llm(flow, Types.FLOW_SIGNIFICANCE, scope, attributes, 0.6);
   }
 
   private Fact llm(

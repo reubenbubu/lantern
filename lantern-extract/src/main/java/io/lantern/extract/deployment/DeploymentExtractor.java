@@ -7,6 +7,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.VocabularyType;
 import io.lantern.extract.CacheUnit;
 import io.lantern.extract.ClaimSink;
@@ -60,30 +61,6 @@ public final class DeploymentExtractor implements Extractor {
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "deployment-extractor";
-
-  /** Attribute: a container a deployment descriptor of the subject repository runs. */
-  public static final String DEPLOYMENT_CONTAINER = "deployment-container";
-
-  /**
-   * Attribute: a route an Ingress or Gateway API HTTPRoute of the subject repository sends into a
-   * Service; the value is its host (or {@code *}) and path.
-   */
-  public static final String DEPLOYMENT_ROUTE = "deployment-route";
-
-  /** Attribute: a Dockerfile of the subject repository; the value is its path. */
-  public static final String DOCKERFILE = "dockerfile";
-
-  /**
-   * Attribute: a Kubernetes Secret a deployment descriptor of the subject repository declares, with
-   * the keys it writes in plain text ({@code stringData}) and base64 ({@code data}) (#520).
-   */
-  public static final String KUBERNETES_SECRET = "kubernetes-secret";
-
-  /**
-   * Attribute: a CORS policy, here one an Ingress's annotations turn on; the type is the Spring
-   * extractor's, which also records the policies code and config set (#520).
-   */
-  public static final String CORS_POLICY = "cors-policy";
 
   /** The nginx Ingress controller's annotations' prefix. */
   private static final String NGINX = "nginx.ingress.kubernetes.io/";
@@ -412,7 +389,7 @@ public final class DeploymentExtractor implements Extractor {
         settings.command.addAll(stage.cmd);
       }
       settings(settings, attributes);
-      add(DOCKERFILE, path, attributes, file, fromLine);
+      add(Types.DOCKERFILE, path, attributes, file, fromLine);
     }
 
     /**
@@ -1464,7 +1441,7 @@ public final class DeploymentExtractor implements Extractor {
       attributes.put("platform", platform);
       attributes.put("environment", environment);
       add(
-          CORS_POLICY,
+          Types.CORS_POLICY,
           String.join(", ", origins),
           attributes,
           doc.file(),
@@ -1499,7 +1476,7 @@ public final class DeploymentExtractor implements Extractor {
         new TreeSet<>(encoded.keySet()).forEach(keys::add);
       }
       add(
-          KUBERNETES_SECRET,
+          Types.KUBERNETES_SECRET,
           name,
           attributes,
           doc.file(),
@@ -1673,7 +1650,7 @@ public final class DeploymentExtractor implements Extractor {
         attributes.put("rewrite", rewrite);
       }
       add(
-          DEPLOYMENT_ROUTE,
+          Types.DEPLOYMENT_ROUTE,
           (host == null ? "*" : host) + path,
           attributes,
           doc.file(),
@@ -1832,7 +1809,7 @@ public final class DeploymentExtractor implements Extractor {
       if (c.replicas != null) {
         attributes.put("replicas", c.replicas);
       }
-      add(DEPLOYMENT_CONTAINER, c.name, attributes, c.file, c.line);
+      add(Types.DEPLOYMENT_CONTAINER, c.name, attributes, c.file, c.line);
     }
 
     private static void array(
@@ -1961,7 +1938,7 @@ public final class DeploymentExtractor implements Extractor {
   }
 
   private static final ExtractorInfo INFO =
-      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(CORS_POLICY));
+      ExtractorInfo.of(NAME, VERSION, VOCABULARY_SOURCE, RESOURCE, Set.of(Types.CORS_POLICY));
 
   @Override
   public ExtractorInfo info() {

@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.repo.Git;
 import io.lantern.core.repo.Repo;
 import io.lantern.core.repo.RepoSettings;
+import io.lantern.core.types.Types;
 import io.lantern.extract.RepoBuild;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.deployment.DeploymentExtractor;
@@ -73,11 +74,10 @@ class Project1And4RedisIT {
     List<String> lines = new ArrayList<>();
     for (Fact f : facts) {
       boolean redisLink =
-          f.predicate().equals(CrossRepoLinks.USES_DATABASE)
+          f.predicate().equals(Types.USES_DATABASE)
               && f.attributes().path("protocol").asString("").equals("RESP");
       boolean store =
-          f.subject().type().equals(CrossRepoLinks.DATABASE)
-              && f.subject().key().endsWith("/redis");
+          f.subject().type().equals(Types.DATABASE) && f.subject().key().endsWith("/redis");
       if (redisLink || store) {
         var attributes = f.attributes().deepCopy();
         attributes.remove("facts");
