@@ -338,8 +338,10 @@ check them.
 The Secrets check now has values to look for. Where the masked text of a file leaves for a role, a
 source file Summarize or Describe is shown (`SourceFiles.shown`) or a file a tool shows Resolve or
 Investigate (`GraphTools.Graph.shown`), `MaskedValues` compares each line before and after masking
-and hands on what masking replaced or dropped: the whole value, and, for a span without spaces
-such as a URL's credentials, its user and password apart. The run keeps them in one set that the
+and hands on what masking replaced or dropped: the whole value, and, for a URL masked for its
+credentials, its password alone. Its scheme, user, host and database are not looked for: they are
+ordinary names (a first fake run on project-8 rejected every summary that named the billing
+service, since a masked URL held it). The run keeps them in one set that the
 harness reads live, so a value found in a file shown late still counts for every later answer.
 Values shorter than six characters are not looked for (`Harness.SHORTEST_SECRET`), and masked
 prose, such as an exception message under a secret's name, counts whole, never word by word, so

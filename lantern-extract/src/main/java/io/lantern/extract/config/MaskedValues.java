@@ -1,19 +1,23 @@
 package io.lantern.extract.config;
 
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
  * The values masking took out of a text before an LLM role is shown it (ADR 0054, ADR 0100,
  * amendment for #645): line by line, the part of the original line that the shown line replaced or
- * dropped, and the credentials in it a URL or option held. The LLM harness rejects an answer that
- * repeats one, so a secret the masking found cannot reach a document through a model that read it
- * elsewhere.
+ * dropped, and the password a URL in it held. The LLM harness rejects an answer that repeats one,
+ * so a secret the masking found cannot reach a document through a model that read it elsewhere.
  */
 public final class MaskedValues {
 
-  /** What separates the user, password and host of a URL's credentials, or a key and its value. */
-  private static final Pattern PARTS = Pattern.compile("[\"'`:@=;,&?/]+");
+  /**
+   * The password in a URL's credentials, {@code scheme://user:password@host}, or the {@code
+   * user:password@} masking removed from one. Only it is a secret: the scheme, user, host and
+   * database name are ordinary words an answer may well repeat.
+   */
+  private static final Pattern PASSWORD = Pattern.compile("(?:://|^)[^:/@\\s]*:([^@/\\s]+)@");
 
   private MaskedValues() {}
 
@@ -64,11 +68,10 @@ public final class MaskedValues {
       // Masked prose, such as a message under a secret's name: its words are no secrets.
       return;
     }
-    // A credential removed from a URL leaves its user and password; each may be repeated alone.
-    for (String part : PARTS.split(taken)) {
-      if (!part.isEmpty() && !part.equals(taken)) {
-        sink.accept(part);
-      }
+    // A URL masked for its credentials holds a password that may be repeated alone.
+    Matcher password = PASSWORD.matcher(taken);
+    while (password.find()) {
+      sink.accept(password.group(1));
     }
   }
 }

@@ -27,11 +27,16 @@ class MaskedValuesTest {
   }
 
   @Test
-  void aCredentialRemovedFromAUrlGivesItsUserAndPasswordToo() {
+  void aCredentialRemovedFromAUrlGivesItsPasswordButNotItsHostOrDatabase() {
     String original = "url = \"jdbc:postgresql://shop:s3cr3t-pass@db:5432/shop\"";
     String shown = SourceSecrets.scrub("String " + original + ";").replace("String ", "");
     assertThat(shown).doesNotContain("s3cr3t-pass");
-    assertThat(taken(original, shown.substring(0, shown.length() - 1))).contains("s3cr3t-pass");
+    List<String> values = taken(original, shown.substring(0, shown.length() - 1));
+    assertThat(values).contains("s3cr3t-pass");
+    assertThat(values).doesNotContain("shop", "db", "5432", "jdbc", "postgresql");
+    assertThat(
+            taken("u = \"postgres://billing:collections-pw@billing-db/billing\"", "u = \"******\""))
+        .containsExactly("postgres://billing:collections-pw@billing-db/billing", "collections-pw");
   }
 
   @Test
