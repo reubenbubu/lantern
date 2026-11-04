@@ -129,3 +129,27 @@ claim list stays in the judge's cached answer.
   other templates that have one, in the "Other findings" table with the merge suggestions of Name
   groups (ADR 0107, amendment for #765): every one in the system's documents, a repository's own
   in its documents.
+
+## Amendment for #751: the judge reads every role's texts, after the screen
+
+- The judge no longer runs inside Describe. Once every role has stored its texts and the injection
+  screen has run, the analyze run judges the texts of every writing role: Summarize (both levels),
+  Describe's units and elements, the flow narratives, Name groups, Purpose and Investigate
+  (`SupportChecks`, `lantern-summarize`). Each role's texts go in requests of their own.
+- What it always judges: every investigated risk, and every text that cites a file range, or a fact
+  whose evidence lies on one, that overlaps lines the screen flagged. Of the rest, a deterministic
+  10%.
+- The sample no longer reads the judge item's fingerprint, which hashes the provider and model;
+  it reads a hash of the text and what it cites, so every judge model checks the same texts and a
+  test drop on Haiku and on Sonnet compares like with like. A text the model rewords is a new text
+  and may fall in or out of the sample.
+- An item shows each fact it cites as before, and each cited file range with up to 40 of its lines
+  read at the snapshot's commit, secrets masked.
+- A verdict is stored on the text's observation as before (amendment for #530), on every kind of
+  text the judge reads; `llm-types.json` gives each such type a `support` property. A text already
+  judged is not judged again.
+- The run record carries `supportVerdicts`: for each role, how many of its texts were found
+  supported, partly supported and unsupported.
+- Not done here: refusing a judge on a writer's model. Haiku and Sonnet both write, so the rule
+  needs the owner's choice (asked on #751). Documents mark only responsibility sentences and the
+  purpose as unsupported, as before; the other kinds carry the verdict in the store only.

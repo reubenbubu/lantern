@@ -106,8 +106,9 @@ public final class SupportChecks {
    *
    * @param held every fact that holds in the snapshot
    * @param flagged the injection screen's findings that hold, each citing its flagged lines
+   * @param snapshot the snapshot the facts handed back are recorded for
    */
-  public Result judge(List<Fact> held, List<Fact> flagged) {
+  public Result judge(List<Fact> held, List<Fact> flagged, long snapshot) {
     Map<String, Fact> byId = new HashMap<>();
     held.forEach(f -> byId.putIfAbsent(f.id(), f));
     List<Place> flaggedPlaces = new ArrayList<>();
@@ -149,7 +150,11 @@ public final class SupportChecks {
       if (text.isBlank() || cited.isEmpty()) {
         continue;
       }
-      String key = fact.id();
+      // Named by its claim, which is the same whichever model wrote or judges it.
+      String key = fact.claimId() != null ? fact.claimId() : fact.id();
+      if (byKey.containsKey(key)) {
+        continue;
+      }
       byKey.put(key, fact);
       byRole
           .computeIfAbsent(fact.origin().name(), r -> new ArrayList<>())
@@ -164,15 +169,16 @@ public final class SupportChecks {
         byRole.isEmpty() ? Map.of() : new SupportJudge(harness).judge(byRole, always);
     Map<String, Fact> judgedFacts = new HashMap<>();
     verdicts.forEach(
-        (key, verdict) -> judgedFacts.put(key, LlmFacts.withSupport(byKey.get(key), verdict)));
+        (key, verdict) ->
+            judgedFacts.put(byKey.get(key).id(), LlmFacts.withSupport(byKey.get(key), verdict)));
     Map<Origin, List<Fact>> byOrigin = new LinkedHashMap<>();
     Set<Origin> changed = new LinkedHashSet<>();
-    judgedFacts.keySet().forEach(key -> changed.add(byKey.get(key).origin()));
+    verdicts.keySet().forEach(key -> changed.add(byKey.get(key).origin()));
     for (Fact fact : held) {
       if (changed.contains(fact.origin())) {
         byOrigin
             .computeIfAbsent(fact.origin(), o -> new ArrayList<>())
-            .add(judgedFacts.getOrDefault(fact.id(), fact));
+            .add(restated(judgedFacts.getOrDefault(fact.id(), fact), snapshot));
       }
     }
     Map<String, Counts> counts = new TreeMap<>();
@@ -191,6 +197,21 @@ public final class SupportChecks {
       }
     }
     return new Result(byOrigin, counts, verdicts.size());
+  }
+
+  /** The fact as it holds from the snapshot, as recording the snapshot's facts needs. */
+  static Fact restated(Fact fact, long snapshot) {
+    Fact now =
+        Fact.create(
+            fact.subject(),
+            fact.predicate(),
+            fact.object(),
+            fact.attributes(),
+            fact.origin(),
+            fact.evidence(),
+            fact.confidence(),
+            io.lantern.core.fact.Validity.from(snapshot));
+    return fact.lineage().isEmpty() ? now : now.withLineage(fact.lineage());
   }
 
   /** Whether a fact is a text a role whose texts are judged wrote. */

@@ -112,7 +112,7 @@ class SupportChecksTest {
             11);
 
     SupportChecks.Result result =
-        new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(finding));
+        new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(finding), 1);
 
     Set<String> judged = new TreeSet<>();
     result.byOrigin().values().stream()
@@ -178,10 +178,10 @@ class SupportChecksTest {
             11);
 
     int withoutFlag =
-        new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of()).judged();
+        new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(), 1).judged();
     int withFlag =
         new SupportChecks(harness, files, Map.of("shop", "c1"))
-            .judge(held, List.of(finding))
+            .judge(held, List.of(finding), 1)
             .judged();
 
     // Without the flag only the sample; with it, every one of them (#751).

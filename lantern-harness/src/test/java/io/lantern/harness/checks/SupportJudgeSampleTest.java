@@ -72,9 +72,8 @@ class SupportJudgeSampleTest {
               List.of("[F1] unit:" + i + " kind service")));
     }
     Set<String> expected = new TreeSet<>();
-    var session = harness.session(SupportJudge.ROLE);
     for (SupportJudge.Text text : texts) {
-      if (SupportJudge.sampled(session.sampleFingerprint(SupportJudge.item(text)))) {
+      if (SupportJudge.sampled(SupportJudge.sampleKey(SupportJudge.item(text)))) {
         expected.add(text.key());
       }
     }

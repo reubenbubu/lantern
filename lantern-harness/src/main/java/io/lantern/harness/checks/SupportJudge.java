@@ -107,6 +107,14 @@ public final class SupportJudge {
     return new Item(text.key(), "judge", inputs, rendering.toString());
   }
 
+  /**
+   * What the sample reads of a judge item: a hash of the text and the inputs it cites, the same
+   * whichever model judges, so every judge model checks the same texts (#751).
+   */
+  static String sampleKey(Item item) {
+    return Fingerprints.sha256("support-judge sample\n" + item.rendering());
+  }
+
   /** Whether the judge item's fingerprint, read as a number, is divisible by 10. */
   static boolean sampled(String fingerprint) {
     return new BigInteger(fingerprint, 16).mod(BigInteger.TEN).signum() == 0;
@@ -139,7 +147,7 @@ public final class SupportJudge {
           for (Text text : texts) {
             Item item = item(text);
             if (!text.cited().isEmpty()
-                && (always.contains(text.key()) || sampled(session.sampleFingerprint(item)))) {
+                && (always.contains(text.key()) || sampled(sampleKey(item)))) {
               items.computeIfAbsent(group, g -> new ArrayList<>()).add(item);
               all.add(item);
             }

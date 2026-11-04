@@ -561,7 +561,10 @@ public final class AnalysisRun {
       // section 11.7; ADR 0101, amendment for #751). A verdict marks a text, never drops it.
       io.lantern.summarize.SupportChecks.Result support =
           new io.lantern.summarize.SupportChecks(harness, allSources, snapshot.commits())
-              .judge(facts.findValidAt(snapshot.number(), snapshot.commits().keySet()), flagged);
+              .judge(
+                  facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+                  flagged,
+                  snapshot.number());
       recordLlmFacts(snapshot, support.byOrigin());
       LOG.info(
           "Support judge: {} texts judged; verdicts by role {}",
