@@ -273,6 +273,37 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
   }
   const drawn = (entity) => shown(entity) || (routedFrom.get(entity) ?? []).some(shown);
   const keys = (f) => [f.claim, f.id].filter(Boolean);
+  // Who holds an interaction: the unknowns page's rule (UnitInteractions.otherLines), which this
+  // must match, so the page's "Intent not known" and the scorer's "don't know" count the same
+  // (#741). Its subject if that is a unit or frontend; else its start, else its end, if one is;
+  // else the first unit or frontend, by ID, with a line touching either end. So the Unknown
+  // caller's line is its unit's, and an exchange's route to a queue a consumer's or publisher's.
+  // The units and frontends, as Elements.units and Elements.frontends name them.
+  const units = new Set(
+    facts.filter((f) => f.predicate === 'deployable-unit' || f.predicate === 'frontend-app').map((f) => f.subject),
+  );
+  const holds = (entity) => units.has(entity);
+  // The ends a fact's line is drawn between: a folded queue's end is drawn at the exchanges that
+  // route to it, as its consumers' lines are. Only facts the diagrams draw make lines.
+  const drawnEnds = (g) => {
+    if (!kinds.has(g.predicate) || g.object?.kind !== 'entity' || !drawn(g.subject)) return [];
+    if (!(g.predicate === 'ROUTES_TO' ? shown : drawn)(g.object.value)) return [];
+    const at = (e) => (shown(e) ? [e] : (routedFrom.get(e) ?? []).filter(shown));
+    return [...at(g.subject), ...at(g.object.value)];
+  };
+  const ownerOf = (f) => {
+    const to = f.object?.value;
+    if (holds(f.subject)) return f.subject;
+    if (holds(to)) return to;
+    const ends = new Set([f.subject, to]);
+    const near = [];
+    for (const g of facts) {
+      const line = drawnEnds(g);
+      if (!line.some((e) => ends.has(e))) continue;
+      for (const e of line) if (holds(e)) near.push(String(e));
+    }
+    return near.sort()[0] ?? f.subject;
+  };
   const unitOf = new Map();
   for (const f of facts) if (f.predicate === 'PART_OF') unitOf.set(f.subject, f.object?.value);
   const byOwnerAndKind = new Map();
@@ -290,7 +321,7 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
     for (const f of group) {
       if (isAlternative(f, group)) continue;
       links.push(f);
-      result.push({ id: `interaction:${f.id}`, fact: f, kind: f.predicate, owners: [f.subject], keys: keys(f) });
+      result.push({ id: `interaction:${f.id}`, fact: f, kind: f.predicate, owners: [ownerOf(f)], keys: keys(f) });
     }
   }
   for (const f of facts) {
@@ -368,9 +399,14 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
 
   // The model: each interaction scored right, wrong or "don't know".
   const record = (run?.harness ?? []).find((r) => r.role === 'describe-unit') ?? null;
-  const unasked = new Set(record?.unaskedSubjects ?? []);
-  const asked = new Set([...(record?.askedSubjects ?? []), ...(record?.cachedSubjects ?? [])]);
-  const units = new Set([...asked, ...unasked]);
+  // A large unit is asked in parts, u, u#2, u#3 (DescribeItems): each part counts as asking u
+  // (#741). Which part holds an interaction the record does not say, so an interaction left
+  // unworded counts as "don't know" only when every part of its owner was asked; when a part was
+  // not (a budget refused it, or its request failed), it may be that part's, and counts as not
+  // asked. A part dropped after two rejections was asked, so its interactions are "don't know".
+  const unitOfPart = (subject) => String(subject).replace(/#\d+$/, '');
+  const unasked = new Set((record?.unaskedSubjects ?? []).map(unitOfPart));
+  const asked = new Set([...(record?.askedSubjects ?? []), ...(record?.cachedSubjects ?? [])].map(unitOfPart));
   let model = null;
   if (linked && record) {
     const items = interactionsOf([...linked, ...llm], report, vocabulary).map(({ id, kind, owners, keys }) => {
@@ -382,7 +418,7 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
           ? isGenericLabel(text)
             ? 'wrong'
             : 'correct'
-          : owners.some((o) => asked.has(o))
+          : owners.some((o) => asked.has(o) && !unasked.has(o))
             ? 'abstained'
             : 'notAsked';
       return { id, kind, outcome, unknown: false, text };

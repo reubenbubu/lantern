@@ -788,13 +788,21 @@ public final class Summarizer {
         }
         case OMITTED -> {
           generated.incrementAndGet();
+          // The run record counts the summary left out (#741).
+          session.fieldLeftOut("summary", false);
           omitted.add(node.entity());
           LOG.info("The model found nothing to summarize in {}", node.entity());
           yield Optional.empty();
         }
-        case DROPPED ->
-            throw new SummaryRejectedException(
-                "The summary of " + node.entity() + " was " + lowerFirst(outcome.reason()));
+        case DROPPED -> {
+          // Counted when the model dropped it, not again when the cache repeats the drop, as a
+          // packet role counts its fields only from a fresh answer.
+          if (!outcome.repeatedDrop()) {
+            session.fieldLeftOut("summary", true);
+          }
+          throw new SummaryRejectedException(
+              "The summary of " + node.entity() + " was " + lowerFirst(outcome.reason()));
+        }
         case NOT_ASKED -> throw new NotAsked();
         case FAILED -> throw new LlmException(outcome.reason());
       };

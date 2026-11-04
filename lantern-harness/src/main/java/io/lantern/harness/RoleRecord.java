@@ -48,6 +48,7 @@ public final class RoleRecord implements LlmCallLog {
   private final List<String> asked = new ArrayList<>();
   private final List<String> unasked = new ArrayList<>();
   private final List<String> failedSubjects = new ArrayList<>();
+  private final List<String> droppedSubjects = new ArrayList<>();
   private final List<String> reused = new ArrayList<>();
   private final Map<String, AskedWhy> why = new HashMap<>();
   private final Map<String, String> unaskedWhy = new java.util.LinkedHashMap<>();
@@ -126,7 +127,24 @@ public final class RoleRecord implements LlmCallLog {
   synchronized void reused(String subject, Outcome outcome) {
     cached++;
     reused.add(subject);
+    if (outcome != null && outcome.kind() == Outcome.Kind.DROPPED) {
+      // A drop the cache repeats leaves the item as unanswered as it was (#741).
+      dropped(subject);
+    }
   }
+
+  /**
+   * An item dropped whole after two rejections (#741): it stays asked, since the model was asked
+   * and failed, and is noted apart, so the documents can list it as getting no answer.
+   */
+  private void dropped(String subject) {
+    if (!droppedSubjects.contains(subject)) {
+      droppedSubjects.add(subject);
+    }
+  }
+
+  /** Why an item dropped whole is listed with those not asked (#741). */
+  public static final String REJECTED_TWICE = "rejected twice";
 
   synchronized void outcome(String subject, Outcome outcome, boolean wasRepaired) {
     switch (outcome.kind()) {
@@ -154,8 +172,16 @@ public final class RoleRecord implements LlmCallLog {
         failedSubjects.add(subject);
       }
       default -> {
+        if (outcome.kind() == Outcome.Kind.DROPPED) {
+          dropped(subject);
+        } else {
+          // Answered after all: no longer dropped.
+          droppedSubjects.remove(subject);
+        }
         asked.add(subject);
-        // Answered after all: no longer unasked.
+        // Asked after all: no longer unasked.
+        unasked.remove(subject);
+        failedSubjects.remove(subject);
         unaskedWhy.remove(subject);
       }
     }
@@ -227,6 +253,27 @@ public final class RoleRecord implements LlmCallLog {
    */
   public synchronized List<String> failed() {
     return List.copyOf(failedSubjects);
+  }
+
+  /**
+   * The subjects of the items dropped whole after two rejections, this run or when a rerun repeats
+   * the drop from the cache (#741). A fresh drop is also {@link #asked()}, a repeated one {@link
+   * #reused()}; neither is {@link #unasked()}.
+   */
+  public synchronized List<String> dropped() {
+    return List.copyOf(droppedSubjects);
+  }
+
+  /**
+   * Why each item got no answer (#741): those {@link #unasked()}, with their reasons, and those
+   * {@link #dropped()}, "rejected twice". The documents list each as not asked.
+   */
+  public synchronized Map<String, String> withoutAnswer() {
+    Map<String, String> result = new java.util.LinkedHashMap<>(unaskedWhy);
+    for (String subject : droppedSubjects) {
+      result.putIfAbsent(subject, REJECTED_TWICE);
+    }
+    return result;
   }
 
   /** The subjects of the items the answer cache answered. */

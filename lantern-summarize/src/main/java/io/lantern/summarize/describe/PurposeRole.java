@@ -312,6 +312,12 @@ public final class PurposeRole {
       return true;
     }
 
+    /** The fields the item asks for, which the run record counts when left out (#741). */
+    @Override
+    public List<String> askedFields(Item item) {
+      return List.of(PURPOSE_FIELD, KEY_FACT);
+    }
+
     /** The accepted texts as written, citations as the item numbers them. */
     @Override
     public String store(Item item, ItemAnswer accepted) {

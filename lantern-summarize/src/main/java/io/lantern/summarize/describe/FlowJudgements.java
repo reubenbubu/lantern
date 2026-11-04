@@ -606,6 +606,18 @@ public final class FlowJudgements {
     }
 
     /**
+     * The fields the item asks for, which the run record counts when left out (#741): a narrative's
+     * four parts, or a reason for each flow judged.
+     */
+    @Override
+    public List<String> askedFields(Item item) {
+      if (narrative) {
+        return NARRATIVE_FIELDS;
+      }
+      return asked.flows().keySet().stream().map(ref -> "flows." + ref + ".reason").toList();
+    }
+
+    /**
      * The accepted entry: a significance answer with each flow and the order by its reference in
      * the item, which stands for the same flow whenever the item is shown the same; a narrative as
      * it was written. Citations are the item's own, as it is asked alone.

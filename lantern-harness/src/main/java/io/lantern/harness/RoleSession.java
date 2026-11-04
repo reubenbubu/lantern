@@ -1566,6 +1566,15 @@ public final class RoleSession {
     ended(subject);
   }
 
+  /**
+   * Counts a field of a single item the model left out ({@code omitted}) or that was dropped after
+   * two rejections, for a role that asks for one text an item outside a packet, such as Summarize's
+   * summary (#741); a packet role names its fields through {@link PacketRole#askedFields}.
+   */
+  public void fieldLeftOut(String field, boolean dropped) {
+    record.fields(field, dropped ? 0 : 1, 0, dropped ? 1 : 0);
+  }
+
   /** The role's run record. */
   public RoleRecord record() {
     return record;

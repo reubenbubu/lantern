@@ -121,4 +121,30 @@ The 1F and 1G review found gaps the reader could not see. Now:
   before its first dot, such as `interactions`), the fields the model left out of an item it
   answered, withdrew in a repair turn after they were rejected, or had dropped after they were
   rejected twice (`fields` in each role's entry). A role names the fields an item asks for
-  (`PacketRole.askedFields`); Describe does.
+  (`PacketRole.askedFields`); Describe does, and since the second part of #741 every role does
+  (below).
+
+### Second part of #741: every role's fields, and items dropped whole
+
+- **Every role's fields.** Each packet role names the fields an item asks for, so the run record
+  counts what the model left out of any role, not only Describe: a flow narrative's title,
+  walkthrough, preconditions and postconditions; a reason for each flow the significance role
+  judges (its only text: the order it gives is not a field); a group's name, responsibility and
+  the intent of each line leaving it, a merge never being asked for; the purpose and key fact;
+  Resolve's reason. Investigate names none: which texts a lead needs depends on its verdict, only
+  a confirmed one writing a risk, and a risk missing one is rejected, so its rejections count it
+  as withdrawn or dropped; exploring asks for none, since proposing nothing is right. Summarize
+  asks for one text an item outside a packet, and counts its summary left out or dropped itself
+  (`RoleSession.fieldLeftOut`), a drop the cache repeats not again.
+- **Items dropped whole are listed.** An item dropped after two rejections stores no text, yet it
+  was counted as asked and got no `not-asked` fact, so nothing told the reader a flow's narrative,
+  a group's name or the purpose was missing. It now gets a `not-asked` fact for the reason
+  "rejected twice", this run or when a rerun repeats the drop from the cache
+  (`RoleRecord.withoutAnswer`), and the unknowns page's "Not asked" note shows it with its role
+  and reason. In the run record it stays asked, since the model was asked and failed, and is
+  listed in `droppedSubjects` too: the scorecard counts it as answered with nothing ("don't
+  know", or abstained), never as not asked, so a drop neither leaves the judged items nor makes
+  the page's "Intent not known" and the scorecard's "don't know" differ.
+- **Provenance.** A `not-asked` fact comes from no request, so it carries no model, basis or
+  answer, and the provenance check exempts it by predicate (ADR 0124, amendment for #753).
+

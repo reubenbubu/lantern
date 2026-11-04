@@ -465,6 +465,17 @@ final class InvestigateRole implements PacketRole {
   }
 
   /**
+   * The fields the item asks for, which the run record counts when left out (#741): none known
+   * before the answer. Which texts a lead needs depends on its verdict, only a confirmed one
+   * writing a risk, and a risk missing one is rejected, so its rejections count it as withdrawn or
+   * dropped; exploring asks for none, since proposing nothing is right when the code shows nothing.
+   */
+  @Override
+  public List<String> askedFields(Item item) {
+    return List.of();
+  }
+
+  /**
    * An accepted entry as stored: in Mode A the entry; in Modes B and C its proposals as a list, in
    * the order submitted, each once, at most {@link #MAX_PROPOSALS}.
    */
