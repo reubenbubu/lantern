@@ -106,6 +106,7 @@ This ADR's word limits and margins now live in the role's response contract, `pr
   the range (the `Shown` check, shared with Investigate). A citation then always traces to
   evidence the model saw (`docs/quality-bar.md`).
 - **Own repositories.** A side counts a range only in that unit's own repository: its unit fact's,
-  else its own module's. A library it bundles is not its own. A range in a repository that is
+  else the first module the linker lists for it (today every unit has a unit fact, so that
+  fallback does not run). A library it bundles is not its own. A range in a repository that is
   neither the caller's own nor a candidate's own is rejected, with a reason that says it is on
   neither side of the link.

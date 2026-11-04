@@ -381,6 +381,20 @@ class InvestigatorTest {
   }
 
   @Test
+  void aVerdictCitingLinesOfTheLeadsExcerptIsKeptUnread() {
+    // The request's own excerpt (lines 3-9) counts as shown: no read_file is needed (#715).
+    headerLead();
+    FakeLlmProvider fake = submittingUnread(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.LEAD_VERDICT))
+        .singleElement()
+        .satisfies(v -> assertThat(v.object().value()).isEqualTo("confirmed"));
+    assertThat(result.confirmed()).isEqualTo(1);
+  }
+
+  @Test
   void aMiscitedVerdictIsSentBackAndACorrectedOneAccepted() {
     headerLead();
     FakeLlmProvider fake =
