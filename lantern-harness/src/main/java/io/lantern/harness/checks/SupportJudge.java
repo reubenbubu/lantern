@@ -26,21 +26,24 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The support judge (knowledge-build epic, section 11.7; ADR 0101): a model of another tier splits
- * an accepted text into atomic claims and says whether the inputs the text cites support each. It
- * checks a deterministic 10% sample, the texts whose judge item's fingerprint read as a number is
- * divisible by 10, plus any text it is told to check regardless. It is never a gate: a verdict only
- * marks a text, it never drops one.
+ * The support judge (knowledge-build epic, section 11.7; ADR 0101): a model on the high-volume tier
+ * splits an accepted text into atomic claims and says whether the inputs the text cites support
+ * each. It checks a deterministic 10% sample, the texts whose judge item's fingerprint read as a
+ * number is divisible by 10, plus any text it is told to check regardless. It is never a gate: a
+ * verdict only marks a text, it never drops one.
  */
 public final class SupportJudge {
 
-  /** The judge's role: the high-volume tier, another tier than the reasoning-tier Describe. */
+  /**
+   * The judge's role, on the high-volume tier unless it judges a writer's texts on its model
+   * (#751).
+   */
   public static final RoleSpec ROLE =
       RoleSpec.single(
               "support-judge",
               Role.JUDGE,
               Prompts.version(
-                  "2", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
+                  "3", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
               "model-checks",
               RunMode.BULK,
               300)
@@ -107,6 +110,14 @@ public final class SupportJudge {
     return new Item(text.key(), "judge", inputs, rendering.toString());
   }
 
+  /**
+   * What the sample reads of a judge item: a hash of the text and the inputs it cites, the same
+   * whichever model judges, so every judge model checks the same texts (#751).
+   */
+  static String sampleKey(Item item) {
+    return Fingerprints.sha256("support-judge sample\n" + item.rendering());
+  }
+
   /** Whether the judge item's fingerprint, read as a number, is divisible by 10. */
   static boolean sampled(String fingerprint) {
     return new BigInteger(fingerprint, 16).mod(BigInteger.TEN).signum() == 0;
@@ -119,24 +130,106 @@ public final class SupportJudge {
    *     none
    */
   public Map<String, Support> judge(List<Text> texts, Set<String> always) {
-    RoleSession session = harness.session(ROLE);
-    List<Item> items = new ArrayList<>();
-    for (Text text : texts) {
-      Item item = item(text);
-      if (!text.cited().isEmpty()
-          && (always.contains(text.key()) || sampled(session.sampleFingerprint(item)))) {
-        items.add(item);
-      }
-    }
+    return judge(Map.of("", texts), always);
+  }
+
+  /**
+   * Judges the sampled texts of each group and those whose key is in {@code always}, each group in
+   * requests of its own: at most 10 items of one role a request (knowledge-build epic, section
+   * 11.7).
+   *
+   * @param byGroup the texts by the role that wrote them; keys unique across groups
+   * @return the verdict of each text judged, by key
+   */
+  public Map<String, Support> judge(Map<String, List<Text>> byGroup, Set<String> always) {
+    return judge(byGroup, always, Map.of());
+  }
+
+  /**
+   * As {@link #judge(Map, Set)}, each group judged by the model of the role that wrote it: the
+   * owner's choice on #751, a model checking its own texts with a strict prompt, so neither model
+   * checks the other's (ADR 0101, amendment for #751).
+   *
+   * @param writers the model role of each group's writer; a group not named is judged by {@link
+   *     Role#JUDGE}'s model
+   */
+  public Map<String, Support> judge(
+      Map<String, List<Text>> byGroup, Set<String> always, Map<String, Role> writers) {
+    Map<String, List<Item>> items = new java.util.TreeMap<>();
+    // A text that reads the same and cites the same inputs as one already taken is judged once,
+    // its verdict given to each (#751).
+    Map<String, List<String>> same = new LinkedHashMap<>();
+    byGroup.forEach(
+        (group, texts) -> {
+          Map<String, String> firstByRendering = new LinkedHashMap<>();
+          for (Text text : texts) {
+            Item item = item(text);
+            if (!text.cited().isEmpty()
+                && (always.contains(text.key()) || sampled(sampleKey(item)))) {
+              String first = firstByRendering.putIfAbsent(item.rendering(), text.key());
+              if (first != null) {
+                same.computeIfAbsent(first, k -> new ArrayList<>()).add(text.key());
+                continue;
+              }
+              items.computeIfAbsent(group, g -> new ArrayList<>()).add(item);
+            }
+          }
+        });
     Map<String, Support> verdicts = new LinkedHashMap<>();
-    if (items.isEmpty()) {
-      return verdicts;
-    }
-    session.plan(items, io.lantern.llm.Tokens.estimate(CommonPrompt.SYSTEM + TASK));
-    Map<String, Outcome> outcomes = session.askPackets(items, PACKETS);
-    outcomes.forEach(
-        (key, outcome) -> support(outcome).ifPresent(support -> verdicts.put(key, support)));
+    // One session for each model that judges, planned with all the items it asks.
+    Map<Role, List<String>> groupsByModel = new java.util.EnumMap<>(Role.class);
+    items
+        .keySet()
+        .forEach(
+            group ->
+                groupsByModel
+                    .computeIfAbsent(
+                        writers.getOrDefault(group, Role.JUDGE), r -> new ArrayList<>())
+                    .add(group));
+    groupsByModel.forEach(
+        (model, groups) -> {
+          RoleSession session = harness.session(on(model));
+          session.plan(
+              groups.stream().flatMap(g -> items.get(g).stream()).toList(),
+              io.lantern.llm.Tokens.estimate(CommonPrompt.SYSTEM + TASK));
+          for (String group : groups) {
+            session
+                .askPackets(items.get(group), PACKETS)
+                .forEach(
+                    (key, outcome) ->
+                        support(outcome).ifPresent(support -> verdicts.put(key, support)));
+          }
+        });
+    same.forEach(
+        (first, others) -> {
+          Support verdict = verdicts.get(first);
+          if (verdict != null) {
+            others.forEach(key -> verdicts.put(key, verdict));
+          }
+        });
     return verdicts;
+  }
+
+  /**
+   * The judge's role on the given model role's model: named {@code support-judge-<model role>},
+   * since a run holds one session a role name, at the judge's packet size (#751).
+   */
+  static RoleSpec on(Role model) {
+    return model == ROLE.modelRole()
+        ? ROLE
+        : new RoleSpec(
+            ROLE.name() + "-" + model.name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'),
+            model,
+            ROLE.promptVersion(),
+            ROLE.budgetGroup(),
+            ROLE.packetSize(),
+            ROLE.runMode(),
+            ROLE.expectedOutputTokens(),
+            ROLE.expectedThinkingTokens(),
+            ROLE.expectedTurns(),
+            ROLE.expectedTurnTokens(),
+            ROLE.tools(),
+            ROLE.limits());
   }
 
   /** The support an answered item's claims add up to, if it was answered. */

@@ -100,6 +100,7 @@ class AnalysisConfiguration {
             absolute(workspace).resolve("documents"))
         .batchingAbove(llmProperties.batchingAbove())
         .judgingWording(judgeWording)
+        .supportJudgedBy(environment.getProperty("lantern.harness.support-judge.model", "writer"))
         .calibrating(calibrations(calibrate, calibrationTrial))
         .itemsPerRequest(itemsPerRequest(environment::getProperty));
   }

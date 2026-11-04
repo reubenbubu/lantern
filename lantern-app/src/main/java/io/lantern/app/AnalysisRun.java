@@ -134,6 +134,7 @@ public final class AnalysisRun {
   private volatile Map<String, Harness.Calibration> calibrations = Map.of();
   private volatile Map<String, Integer> itemsPerRequest = Map.of();
   private volatile boolean judgeWording;
+  private volatile boolean supportByWriter = true;
   private final RuleRuns ruleRuns;
   private final ViewDefinitionStore views;
   private final HtmlRenderer renderer;
@@ -208,6 +209,23 @@ public final class AnalysisRun {
    */
   AnalysisRun judgingWording(boolean judge) {
     this.judgeWording = judge;
+    return this;
+  }
+
+  /**
+   * Who checks a text's support ({@code lantern.harness.support-judge.model}): {@code writer}, the
+   * default, the model that wrote it; {@code judge}, the support judge's own model ({@code
+   * lantern.llm.roles.judge}) for every text (ADR 0101, amendment for #751).
+   */
+  AnalysisRun supportJudgedBy(String by) {
+    this.supportByWriter =
+        switch (by == null ? "" : by.strip()) {
+          case "", "writer" -> true;
+          case "judge" -> false;
+          default ->
+              throw new IllegalStateException(
+                  "lantern.harness.support-judge.model is writer or judge: " + by);
+        };
     return this;
   }
 
@@ -524,6 +542,7 @@ public final class AnalysisRun {
               .withMaskedValues(secrets::add);
       Describer.Result described =
           new Describer(harness, allSources)
+              .judgedLater()
               .describe(systemFacts, extracted, summarized.summaries());
       // What Describe wrote is stored as claims of origin llm before anything is composed
       // (knowledge-build epic, section 6, Derived and LLM facts).
@@ -554,7 +573,22 @@ public final class AnalysisRun {
       }
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
-      screen(harness, snapshot);
+      List<Fact> flagged = screen(harness, snapshot);
+      // Then the support judge checks what every role stored: each Investigate risk, each text
+      // resting on a range the screen flagged, and a 10% sample of the rest (knowledge-build epic,
+      // section 11.7; ADR 0101, amendment for #751). A verdict marks a text, never drops it.
+      io.lantern.summarize.SupportChecks.Result support =
+          new io.lantern.summarize.SupportChecks(harness, allSources, snapshot.commits())
+              .byWriter(supportByWriter)
+              .judge(
+                  facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+                  flagged,
+                  snapshot.number());
+      recordLlmFacts(snapshot, support.byOrigin());
+      LOG.info(
+          "Support judge: {} texts judged; verdicts by role {}",
+          support.judged(),
+          support.counts());
       // Every item a role did not ask about, or got no answer for, is stored, so the unknowns page
       // lists it (#741); the next run asks again and ends the fact.
       recordLlmFacts(snapshot, Map.of(NOT_ASKED_ORIGIN, notAsked(harness.records(), snapshot)));
@@ -616,16 +650,16 @@ public final class AnalysisRun {
           throw new java.io.UncheckedIOException(e);
         }
       }
-      Path runRecord =
-          RunRecord.write(
-              out,
-              RunRecord.of(
-                  system,
-                  snapshot.number(),
-                  llm.models(),
-                  callLog.spentByModelSince(started),
-                  callLog.conversationsSince(started),
-                  harness.records()));
+      tools.jackson.databind.node.ObjectNode record =
+          RunRecord.of(
+              system,
+              snapshot.number(),
+              llm.models(),
+              callLog.spentByModelSince(started),
+              callLog.conversationsSince(started),
+              harness.records());
+      RunRecord.withSupport(record, support.counts());
+      Path runRecord = RunRecord.write(out, record);
       LOG.info("Wrote {}", runRecord);
       LOG.info("Wrote {}", Rejections.write(out, harness.rejections()));
       // The values the Secrets check looked for, counted, never written (#645).
@@ -859,7 +893,7 @@ public final class AnalysisRun {
     }
     if (!result.complete()) {
       LOG.warn("Injection screen: not every chunk was answered; earlier findings are kept");
-      return List.copyOf(byFile.values());
+      return flaggedRanges(found, byFile.values());
     }
     transaction.executeWithoutResult(
         status ->
@@ -868,7 +902,17 @@ public final class AnalysisRun {
                 Findings.SCREEN_ORIGIN,
                 snapshot.commits().keySet(),
                 byFile.values()));
-    return List.copyOf(byFile.values());
+    return flaggedRanges(found, byFile.values());
+  }
+
+  /**
+   * Every range the screen flagged this run, not only the first of each file that is stored, and
+   * the findings that hold: what the support judge always checks texts against (#751).
+   */
+  private static List<Fact> flaggedRanges(List<Fact> found, Collection<Fact> holding) {
+    List<Fact> all = new ArrayList<>(found);
+    all.addAll(holding);
+    return List.copyOf(all);
   }
 
   /**

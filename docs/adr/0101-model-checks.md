@@ -17,8 +17,8 @@ go-ahead for milestone 1E.
 - **Two model roles.** `JUDGE` and `SCREEN` join the configurable roles, the judge on the high-volume
   tier, the screen on the bulk tier since 1F.
   - The judge runs on the high-volume tier, which Describe's element role and other writing
-    roles share (Describe's units are on the reasoning tier); nothing refuses a judge on a
-    writer's model yet (#751).
+    roles share (Describe's units are on the reasoning tier). Since #751 each role's texts are
+    judged on the writer's own model (amendment for #751).
   - Both are in the `model-checks` share of the run budget (ADR 0100, amendment for #42).
   - Both use the epic's prompts and schemas word for word, after the common system prompt of
     section 11.0 (`CommonPrompt`), which every request the harness lays out will share.
@@ -129,3 +129,56 @@ claim list stays in the judge's cached answer.
   other templates that have one, in the "Other findings" table with the merge suggestions of Name
   groups (ADR 0107, amendment for #765): every one in the system's documents, a repository's own
   in its documents.
+
+## Amendment for #751: the judge reads every role's texts, after the screen
+
+- The judge no longer runs inside Describe. Once every role has stored its texts and the injection
+  screen has run, the analyze run judges the texts of every writing role: Summarize (both levels),
+  Describe's units and elements, the flow narratives, Name groups, Purpose and Investigate
+  (`SupportChecks`, `lantern-summarize`). Each role's texts go in requests of their own.
+- What it always judges: every investigated risk, and every text that cites a file range, or a fact
+  whose evidence lies on one, that overlaps lines the screen flagged. Of the rest, a deterministic
+  10%.
+- The sample no longer reads the judge item's fingerprint, which hashes the provider and model;
+  it reads a hash of the text and what it cites, so every judge model checks the same texts and a
+  test drop on Haiku and on Sonnet compares like with like. A text the model rewords is a new text
+  and may fall in or out of the sample.
+- An item shows each fact it cites as before, and each cited file range with up to 40 of its lines
+  read at the snapshot's commit, secrets masked.
+- Texts that read the same and cite the same inputs, such as one intent phrase repeated for many
+  interactions, are judged once and the verdict is given to each.
+- A verdict is stored on the text's observation as before (amendment for #530), on every kind of
+  text the judge reads; `llm-types.json` gives each such type a `support` property. A text already
+  judged is not judged again.
+- The run record carries `supportVerdicts`: for each role, how many of its texts were found
+  supported, partly supported and unsupported.
+- **Who judges: the writer's own model** (the owner's decision on #751, 4 Nov 2026). The epic
+  asked for a judge other than the writer. Haiku and Sonnet both write, and the owner ruled out
+  either checking the other: each model checks its own texts, with a strict prompt. So each role's
+  texts are judged on the model of the role that wrote them (`SupportChecks.ROLES`): Haiku's
+  summaries, element descriptions, group names and flow narratives on Haiku, Sonnet's risks, unit
+  descriptions and purpose on Sonnet. It also makes a run cheaper: the many Haiku texts are no
+  longer judged on Sonnet. The setting `lantern.harness.support-judge.model` chooses: `writer`,
+  the default, as above; `judge`, every text on the support judge's own model,
+  `lantern.llm.roles.judge`, as before #751. Which model each writing role uses stays its own
+  setting (`lantern.llm.tiers.*`, `lantern.llm.roles.*`), and its texts' judge follows it. The
+  judge runs one session for each writing role's model role, named `support-judge-<model role>`
+  (a run holds one session a role name), each at the judge's packet size; its estimates and
+  calibrations are those of `support-judge`.
+- Only kinds whose type declares `support` are judged: responsibilities, intents, summaries, flow
+  narratives, purposes, key facts, investigated risks and finding wordings. A lead's verdict and a
+  group's display name are not.
+- The judge's facts are recorded once for each role name, every version of that role's facts
+  together, so recording one version never ends another's (summaries of a repository not
+  analyzed again keep an older version).
+- Every range the screen flagged this run counts, not only the first of each file that is stored
+  as a finding.
+- **A stricter prompt** (prompt version 3). The judge keeps every specific of the text in its
+  claims (names, numbers, technologies, what calls or stores what, causes, purposes, words of
+  scope); calls a claim supported only when a cited input states it or shows it with no other
+  reasonable reading; calls it partly supported when it adds a specific no input shows; judges
+  against the cited inputs only, never against what it knows of frameworks or systems like this
+  one; and, when unsure, does not call a claim supported. How well it holds is measured on real
+  runs in the 1H test drop.
+- Documents mark only responsibility sentences and the purpose as unsupported, as before; the
+  other kinds carry the verdict in the store only.

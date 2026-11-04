@@ -241,6 +241,23 @@ final class RunRecord {
   }
 
   /** Writes the record into the directory and returns the file. */
+  /**
+   * Adds the support judge's verdicts per role (knowledge-build epic, section 11.7; #751): for each
+   * role whose texts hold a verdict, how many are supported, partly supported and unsupported.
+   */
+  static ObjectNode withSupport(
+      ObjectNode record, java.util.Map<String, io.lantern.summarize.SupportChecks.Counts> counts) {
+    ObjectNode verdicts = record.putObject("supportVerdicts");
+    counts.forEach(
+        (role, c) ->
+            verdicts
+                .putObject(role)
+                .put("supported", c.supported())
+                .put("partly", c.partly())
+                .put("unsupported", c.unsupported()));
+    return record;
+  }
+
   static Path write(Path directory, ObjectNode record) {
     try {
       Files.createDirectories(directory);

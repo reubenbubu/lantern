@@ -313,6 +313,7 @@ public final class Describer {
   private final Harness harness;
   private final SourceFiles sources;
   private final Set<EntityId> alsoJudged;
+  private final boolean judges;
 
   /**
    * A describer whose prompts show no code.
@@ -329,13 +330,15 @@ public final class Describer {
    *     components
    */
   public Describer(Harness harness, SourceFiles sources) {
-    this(harness, sources, Set.of());
+    this(harness, sources, Set.of(), true);
   }
 
-  private Describer(Harness harness, SourceFiles sources, Set<EntityId> alsoJudged) {
+  private Describer(
+      Harness harness, SourceFiles sources, Set<EntityId> alsoJudged, boolean judges) {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.sources = Objects.requireNonNull(sources, "sources");
     this.alsoJudged = Set.copyOf(alsoJudged);
+    this.judges = judges;
   }
 
   /**
@@ -343,7 +346,15 @@ public final class Describer {
    * whether the sample takes them or not (ADR 0101).
    */
   public Describer alsoJudging(Set<EntityId> elements) {
-    return new Describer(harness, sources, elements);
+    return new Describer(harness, sources, elements, judges);
+  }
+
+  /**
+   * The same describer without its own support judge: the analyze run judges every role's texts
+   * once they are all stored, after the injection screen (SupportChecks; #751).
+   */
+  public Describer judgedLater() {
+    return new Describer(harness, sources, alsoJudged, false);
   }
 
   /**
@@ -563,10 +574,12 @@ public final class Describer {
     // The support judge checks a sample of the sentences; one it finds unsupported is marked, not
     // dropped (ADR 0101).
     Map<String, SupportJudge.Support> verdicts =
-        new SupportJudge(harness)
-            .judge(
-                List.copyOf(tally.judgeable.values()),
-                alsoJudged.stream().map(EntityId::toString).collect(Collectors.toSet()));
+        judges
+            ? new SupportJudge(harness)
+                .judge(
+                    List.copyOf(tally.judgeable.values()),
+                    alsoJudged.stream().map(EntityId::toString).collect(Collectors.toSet()))
+            : Map.of();
     Set<EntityId> unsupported = new TreeSet<>(java.util.Comparator.comparing(EntityId::toString));
     tally.judgeable.forEach(
         (element, text) -> {

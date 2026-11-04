@@ -449,8 +449,9 @@ class DescriberTest {
             "COMPOSE flow-narrative 1 items: F",
             "COMPOSE flow-narrative 1 items: F",
             "INFER_INTENT purpose 1 items: " + RepoSections.SYSTEM,
-            // The support judge's deterministic 10% sample takes the topic's sentence (ADR 0101).
-            "JUDGE support-judge 1 items: " + TOPIC);
+            // The support judge's deterministic 10% sample, by each text and what it cites, takes
+            // two of the app's sentences (ADR 0101, amendment for #751).
+            "JUDGE support-judge 2 items: " + CONTROLLER);
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
@@ -1076,9 +1077,10 @@ class DescriberTest {
         .extracting(s -> s.request().purpose())
         .contains("purpose 1 items: " + RepoSections.SYSTEM + " (repair)");
     assertThat(TestTexts.written(result).responsibilities()).doesNotContainKey(RepoSections.SYSTEM);
-    // Ten answers, the support judge's on its sample and the purpose's drop, which a rerun repeats
+    // Ten answers, the support judge's two on its sample and the purpose's drop, which a rerun
+    // repeats
     // without a call (#682).
-    assertThat(store.size()).isEqualTo(12);
+    assertThat(store.size()).isEqualTo(13);
     Callout first = (Callout) system(result).sections().getFirst().blocks().getFirst();
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
   }
@@ -1999,14 +2001,20 @@ class DescriberTest {
     Map<String, String> after = storedTexts("describe-unit", APP);
 
     // Only the unit whose description shows the code is asked again, though the model rewords
-    // every text, and the support judge checks the one text that changed. The flows, which show
+    // every text; the support judge looks again at most at the changed text, which its sample may
+    // take or not, as the fake's rewording varies with the order of calls. The flows, which show
     // the unit's other texts, see the same words and are not asked.
     assertThat(fake.sent().subList(0, sent))
         .extracting(s -> s.request().purpose())
         .anySatisfy(p -> assertThat(p).startsWith("flow-narrative"));
     assertThat(fake.sent().subList(sent, fake.sent().size()))
         .extracting(s -> s.request().purpose())
-        .containsExactly("describe-unit 1 items: " + APP, "support-judge 1 items: " + CONTROLLER);
+        .startsWith("describe-unit 1 items: " + APP)
+        .hasSizeLessThanOrEqualTo(2)
+        .allMatch(
+            p ->
+                p.equals("describe-unit 1 items: " + APP)
+                    || p.equals("support-judge 1 items: " + CONTROLLER));
     assertThat(after.keySet()).isEqualTo(before.keySet());
     after.forEach(
         (at, text) -> {

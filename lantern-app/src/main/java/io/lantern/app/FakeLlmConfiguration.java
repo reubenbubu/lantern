@@ -149,7 +149,8 @@ class FakeLlmConfiguration {
    * show what the checks cost and change no document.
    */
   static String modelCheck(LlmRequest request) {
-    if (request.role() == Role.JUDGE) {
+    // The support judge runs on its own role or, since #751, on the writer's: its task tells it.
+    if (request.role() == Role.JUDGE || request.system().contains("Task: check support.")) {
       return items(
           request, "{\"claims\": [{\"claim\": \"The text.\", \"verdict\": \"supported\"}]}");
     }
