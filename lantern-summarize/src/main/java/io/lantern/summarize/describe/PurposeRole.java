@@ -303,6 +303,15 @@ public final class PurposeRole {
       return new ItemAnswer(id, entry, texts, List.of());
     }
 
+    /**
+     * The purpose and the key fact keep their wording while what they cite is unchanged (#722, ADR
+     * 0126).
+     */
+    @Override
+    public boolean carries(CheckedText text) {
+      return true;
+    }
+
     /** The accepted texts as written, citations as the item numbers them. */
     @Override
     public String store(Item item, ItemAnswer accepted) {

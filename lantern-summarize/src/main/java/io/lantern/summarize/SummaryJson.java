@@ -16,6 +16,14 @@ final class SummaryJson {
   private SummaryJson() {}
 
   static String write(Summary summary) {
+    return write(summary, null);
+  }
+
+  /**
+   * A summary with its sentences, each with what it rests on, so the summary asked again keeps
+   * those whose evidence is unchanged (#722, ADR 0126); {@code sentences} is a JSON array, or null.
+   */
+  static String write(Summary summary, String sentences) {
     ObjectNode node = JSON.createObjectNode();
     node.put("key", summary.key());
     node.put("entity", summary.entity().toString());
@@ -30,6 +38,9 @@ final class SummaryJson {
     node.put("promptVersion", summary.promptVersion());
     node.put("provider", summary.provider());
     node.put("model", summary.model());
+    if (sentences != null) {
+      node.set("sentences", JSON.readTree(sentences));
+    }
     return JSON.writeValueAsString(node);
   }
 

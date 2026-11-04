@@ -82,6 +82,24 @@ public interface PacketRole {
     return false;
   }
 
+  /**
+   * Whether a text of an accepted answer keeps its earlier wording when everything it cited is
+   * still shown unchanged (#722, ADR 0126); by default none does. A role says yes for texts that
+   * stand on their own, and no for a text that only gives the reason for a verdict the model may
+   * change.
+   */
+  default boolean carries(io.lantern.harness.verify.CheckedText text) {
+    return false;
+  }
+
+  /**
+   * The stable name of what a text of the item's answer is about, so a text is kept only for the
+   * same thing whatever key the item gives it this time (#722); by default its subject name.
+   */
+  default String about(Item item, io.lantern.harness.verify.CheckedText text) {
+    return text.subjectName();
+  }
+
   /** An accepted entry as it is stored (JSON). */
   String store(Item item, ItemAnswer accepted);
 }

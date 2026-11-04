@@ -377,6 +377,15 @@ public final class DescribeRole {
       return new ItemAnswer(id, entry, texts, List.of());
     }
 
+    /**
+     * Every responsibility and intent keeps its wording while what it cites is unchanged (#722, ADR
+     * 0126).
+     */
+    @Override
+    public boolean carries(CheckedText text) {
+      return true;
+    }
+
     @Override
     public String store(Item item, ItemAnswer accepted) {
       Map<String, String> back = toLocal.getOrDefault(item.subject(), Map.of());
