@@ -110,7 +110,9 @@ const readability = new Function(
     `${template.match(/^function lineCrossings[\s\S]*?^\}/m)[0]}\n` +
     `${template.match(/^function readabilityOf[\s\S]*?^\}/m)[0]}\n` +
     `${template.match(/^const isReadable = .*$/m)[0]}\n` +
-    'return {READABLE, lineCrossings, readabilityOf, isReadable};',
+    `${template.match(/^function readabilityWhy[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function readabilityGaps[\s\S]*?^\}/m)[0]}\n` +
+    'return {READABLE, lineCrossings, readabilityOf, isReadable, readabilityGaps};',
 )();
 
 test('lines that only touch or run side by side do not cross; lines through each other do', () => {
@@ -143,4 +145,23 @@ test('a view with many crossing lines is not readable; a sparse one that fits is
   // The same lines on a view too large for the page at a readable scale: not readable.
   const huge = readabilityOf([[[0, 0], [100, 0]]], [0, 0, READABLE.canvas[0] / READABLE.scale + 1, 400]);
   assert.deepEqual([huge.fits, isReadable(huge)], [false, false]);
+});
+
+test("a page's quality report lists each of its views that is not readable after layout", () => {
+  const { READABLE, readabilityGaps } = readability;
+  const page = {
+    id: 'containers',
+    title: 'Containers',
+    sections: [
+      { type: 'diagram', id: 'dense', caption: 'Requests [all]', readability: { crossings: READABLE.maxCrossings + 1, fits: true, width: 900, height: 600 } },
+      { type: 'diagram', id: 'sparse', readability: { crossings: 0, fits: true, width: 900, height: 600 } },
+      { type: 'diagram', id: 'huge', readability: { crossings: 0, fits: false, width: 4000, height: 900 } },
+      { type: 'text', id: 'prose', readability: { crossings: 99, fits: false } },
+    ],
+  };
+  assert.deepEqual(readabilityGaps(page), [
+    `**Readable after layout** ([Requests \\[all\\]](#/containers/dense)): its lines cross ${READABLE.maxCrossings + 1} times (at most ${READABLE.maxCrossings}).`,
+    '**Readable after layout** ([Containers](#/containers/huge)): it is 4000 × 900 px, too large to read without zooming.',
+  ]);
+  assert.deepEqual(readabilityGaps({ id: 'p', title: 'P', sections: [page.sections[1]] }), []);
 });

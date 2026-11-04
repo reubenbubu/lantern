@@ -118,7 +118,8 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Every element has a responsibility sentence**: 8 elements have no responsibility sentence; the decisions and unknowns page names them." ]
+      "items" : [ "**Every element has a responsibility sentence**: 8 elements have no responsibility sentence; the decisions and unknowns page names them." ],
+      "quality" : true
     } ]
   }, {
     "id" : "containers",
@@ -186,7 +187,8 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Every line is labelled with an intent phrase** ([Containers of base and shop](#/containers/containers-diagram)): Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\")." ]
+      "items" : [ "**Every line is labelled with an intent phrase** ([Containers of base and shop](#/containers/containers-diagram)): Labelled only with a generic verb or not at all: shop-app to orders (\"Sends messages\")." ],
+      "quality" : true
     } ]
   }, {
     "id" : "components-service-com-example-app",
@@ -265,7 +267,8 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ]
+      "items" : [ "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ],
+      "quality" : true
     } ]
   }, {
     "id" : "sequences-shop-app-controller-list",
@@ -426,7 +429,8 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**README claims agree with the code** ([Claim the code contradicts](#/decisions/decisions-contradicted-claim)): `README.md`, line 3, in shop: “The app keeps its orders in MySQL.” is contradicted by 1 fact of the code." ]
+      "items" : [ "**README claims agree with the code** ([Claim the code contradicts](#/decisions/decisions-contradicted-claim)): `README.md`, line 3, in shop: “The app keeps its orders in MySQL.” is contradicted by 1 fact of the code." ],
+      "quality" : true
     } ]
   }, {
     "id" : "glossary",

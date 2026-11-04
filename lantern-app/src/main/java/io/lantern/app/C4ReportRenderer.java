@@ -865,9 +865,11 @@ public final class C4ReportRenderer {
     private ObjectNode qualityReport(String id, QualityReport report) {
       String title = report.title() == null ? "Quality report" : report.title();
       if (report.failures().isEmpty()) {
+        // Marked so the page adds the gaps it measures after layout (#366).
         return section("callout", id, title)
             .put("body", "Every check Lantern makes on this document passed.")
-            .put("tone", "success");
+            .put("tone", "success")
+            .put("quality", true);
       }
       List<String> items = new ArrayList<>();
       for (QualityReport.Failure failure : report.failures()) {
@@ -883,7 +885,7 @@ public final class C4ReportRenderer {
         }
         items.add(item.toString());
       }
-      return list(id, title, items);
+      return list(id, title, items).put("quality", true);
     }
 
     /** What a cross-reference target is called: an entity's name, a section's or block's title. */

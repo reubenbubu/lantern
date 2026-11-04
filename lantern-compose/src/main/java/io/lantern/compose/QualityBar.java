@@ -82,12 +82,18 @@ final class QualityBar {
   static final String TITLE = "A title naming its type and scope";
   static final String LEGEND = "A legend for every shape, color, line style and arrowhead used";
   static final String ONE_LEVEL = "One abstraction level";
+
+  /**
+   * The size before layout, a warning until #764 sets its soft targets; whether a diagram is
+   * readable is measured after layout, in the page (#366, docs/design.md, Readable diagrams).
+   */
   static final String ELEMENTS =
-      "Readable: at most "
+      "Size: at most "
           + C4Views.MAX_ELEMENTS
           + " elements and "
           + C4Views.MAX_LINES_PER_ELEMENT
           + " lines per element";
+
   static final String PARTICIPANTS = "At most " + C4Views.MAX_PARTICIPANTS + " participants";
   static final String TECHNOLOGY = "Containers and components have a technology";
   static final String RESPONSIBILITY = "Every element has a responsibility sentence";

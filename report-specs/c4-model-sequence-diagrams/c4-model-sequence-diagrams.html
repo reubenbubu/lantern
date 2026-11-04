@@ -5382,8 +5382,8 @@ const READABLE = {
   canvas: [1632, 1024],
   // the smallest scale at which a line label (11.5px) stays at least 9px tall
   scale: 0.8,
-  // the most line crossings, set from the development sets' views
-  maxCrossings: 10,
+  // the most line crossings before a view warns (docs/design.md, Readable diagrams)
+  maxCrossings: 5,
 };
 const MEASURED_LEVELS = new Set(['containers', 'components']);
 
@@ -5414,14 +5414,32 @@ function measureDiagram(spec, geoms){
   if (!MEASURED_LEVELS.has(spec._level) || !spec._section) return;
   spec._section.readability = readabilityOf(geoms.map(g => g.pts), spec.vb);
 }
-/** What a diagram that is not readable says under it, or nothing. */
-function readabilityNote(spec){
-  const r = spec._section && spec._section.readability;
-  if (!r || isReadable(r)) return '';
+/** Why a measured diagram is not readable, or null when it is. */
+function readabilityWhy(r){
+  if (!r || isReadable(r)) return null;
   const why = [];
   if (!r.fits) why.push(`it is ${r.width} × ${r.height} px, too large to read without zooming`);
   if (r.crossings > READABLE.maxCrossings) why.push(`its lines cross ${r.crossings} times (at most ${READABLE.maxCrossings})`);
-  return `<div class="callout tone-warning readability">${ICON.info}<div><p><b>Hard to read:</b> ${esc(why.join('; '))}.</p></div></div>`;
+  return why.join('; ');
+}
+/** What a diagram that is not readable says under it, or nothing. */
+function readabilityNote(spec){
+  const why = readabilityWhy(spec._section && spec._section.readability);
+  return why ? `<div class="callout tone-warning readability">${ICON.info}<div><p><b>Hard to read:</b> ${esc(why)}.</p></div></div>` : '';
+}
+/** The quality report's Readable gaps of a page: each diagram on it drawn before the report that is not readable. */
+function readabilityGaps(p){
+  return (p.sections || []).filter(s => s.type === 'diagram').map(s => {
+    const why = readabilityWhy(s.readability);
+    const name = String(s.caption || s.title || p.title).replace(/[\\[\]*`]/g, c => '\\' + c);
+    return why ? `**Readable after layout** ([${name}](#/${p.id}/${s.id})): ${why}.` : null;
+  }).filter(Boolean);
+}
+/** A page's quality report (marked \`quality\`), with the page's after-layout gaps added to it. */
+function qualitySection(s, p){
+  const gaps = readabilityGaps(p);
+  if (s.type === 'callout' && !gaps.length) return SECTION_BASE.callout(s);
+  return SECTION_BASE.list({...s, items: [...(s.type === 'list' ? s.items || [] : []), ...gaps]});
 }
 /** Lays out every container and component diagram and returns each one's readability, by key. */
 function measureAll(){
@@ -5867,10 +5885,14 @@ function columnSpec(c){
   return col;
 }
 
-const SECTION = {
-  text: s => `<div class="prose">${md(s.body)}</div>`,
+const SECTION_BASE = {
   callout: s => `<div class="callout tone-${esc(s.tone || 'info')}">${ICON.info}<div>${md(s.body)}</div></div>`,
   list: s => `<ul class="clean ticks">${(s.items||[]).map(i => `<li>${mdInline(i)}</li>`).join('')}</ul>`,
+};
+const SECTION = {
+  text: s => `<div class="prose">${md(s.body)}</div>`,
+  callout: (s, p) => s.quality ? qualitySection(s, p) : SECTION_BASE.callout(s),
+  list: (s, p) => s.quality ? qualitySection(s, p) : SECTION_BASE.list(s),
   stats: s => {
     const n = s.columns || Math.min(4, (s.items||[]).length || 1);
     return `<div class="grid stats-${esc(s.variant || 'default')}" style="grid-template-columns:repeat(${n},minmax(0,1fr))">${(s.items||[]).map(i =>

@@ -57,7 +57,8 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**A \"start here\" list of the entry points and files to read first** ([Start here](#/containers/start-here-none)): It lists nothing.", "**The main flows as sequence diagrams**: The document has no sequence diagram." ]
+      "items" : [ "**A \"start here\" list of the entry points and files to read first** ([Start here](#/containers/start-here-none)): It lists nothing.", "**The main flows as sequence diagrams**: The document has no sequence diagram." ],
+      "quality" : true
     } ]
   }, {
     "id" : "decisions",
