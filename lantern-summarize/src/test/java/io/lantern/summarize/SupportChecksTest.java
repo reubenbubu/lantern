@@ -164,6 +164,48 @@ class SupportChecksTest {
   }
 
   @Test
+  void aSecretOnACitedLineIsMaskedBeforeTheJudgeSeesItAndReachesTheSecretsCheck() {
+    List<String> masked = new ArrayList<>();
+    String config = "spring:\n  datasource:\n    password: hunter2-very-secret\n    url: x\n";
+    SourceFiles withSecret =
+        new SourceFiles() {
+          @Override
+          public Optional<byte[]> read(String repo, String commit, String path) {
+            return path.equals("config/application.yml")
+                ? Optional.of(config.getBytes(StandardCharsets.UTF_8))
+                : Optional.empty();
+          }
+
+          @Override
+          public Set<String> secretKeys() {
+            return Set.of("spring.datasource.password");
+          }
+
+          @Override
+          public java.util.function.Consumer<String> maskedValues() {
+            return masked::add;
+          }
+        };
+    Fact risk = risk("The database password is in plain text", "shop:config/application.yml:3-4");
+
+    new SupportChecks(harness, withSecret, Map.of("shop", "c1")).judge(List.of(risk), List.of(), 1);
+
+    // The judge was shown the cited lines, numbered as the file holds them, the secret masked.
+    assertThat(fake.sent())
+        .anyMatch(
+            s ->
+                s.request()
+                    .messages()
+                    .getFirst()
+                    .text()
+                    .contains(
+                        "[shop:config/application.yml:3-4]\n3:     password: ******\n4:     url: x"));
+    assertThat(fake.sent()).noneMatch(s -> s.request().toString().contains("hunter2-very-secret"));
+    // The value masking took out reached the harness's Secrets check.
+    assertThat(masked).contains("hunter2-very-secret");
+  }
+
+  @Test
   void theTextsOnAFlaggedRangeAreJudgedOnlyBecauseOfTheFlag() {
     List<Fact> held = new ArrayList<>(List.of(flaggedCode));
     for (int i = 0; i < 20; i++) {

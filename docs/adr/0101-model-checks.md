@@ -144,7 +144,7 @@ claim list stays in the judge's cached answer.
   test drop on Haiku and on Sonnet compares like with like. A text the model rewords is a new text
   and may fall in or out of the sample.
 - An item shows each fact it cites as before, and each cited file range with up to 40 of its lines
-  read at the snapshot's commit, secrets masked.
+  read at the snapshot's commit, secrets masked as every role is shown a file (amendment below).
 - Texts that read the same and cite the same inputs, such as one intent phrase repeated for many
   interactions, are judged once and the verdict is given to each.
 - A verdict is stored on the text's observation as before (amendment for #530), on every kind of
@@ -182,3 +182,21 @@ claim list stays in the judge's cached answer.
   runs in the 1H test drop.
 - Documents mark only responsibility sentences and the purpose as unsupported, as before; the
   other kinds carry the verdict in the store only.
+
+## Amendment for #751: the judge's cited lines are masked as every role's are
+
+Until this amendment the judge read a cited range's file straight from git, so a secret on a cited
+line, such as the plaintext secret an investigated risk cites, reached its prompt unmasked, and
+its value never reached the harness's Secrets check.
+
+- A cited range's lines are now read through `SourceFiles.shownAt`, which masks the file with
+  `FileSecrets` (`lantern-extract`), the masking the investigator's tools use (ADR 0054, ADR 0081):
+  Java and other code by `SourceSecrets`, config, environment and XML files line by line under
+  their secret keys and the run's known secret keys, private keys wherever they are; a key,
+  keystore or binary file is never shown. Masking keeps every line break, so a cited line keeps its
+  number.
+- Each value the masking took out goes to the run's masked values, which the harness's Secrets
+  check reads (ADR 0100, amendment for #645), as it does for every other role.
+- `Project0EndToEndIT` plants a plaintext secret in a copy of project-0's config, has the fake
+  investigator confirm it as a risk citing its line, and checks that no request of the whole run,
+  of any role, holds the secret; a new path into a prompt that forgets to mask fails it.

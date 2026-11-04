@@ -9,7 +9,6 @@ import io.lantern.harness.LlmFacts;
 import io.lantern.harness.checks.SupportJudge;
 import io.lantern.harness.render.FactLines;
 import io.lantern.llm.Role;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -31,7 +30,8 @@ import tools.jackson.databind.JsonNode;
  * run: every Investigate risk is judged, every text that cites a range the screen flagged is
  * judged, and of the rest a deterministic 10% by fingerprint. Each role's texts go in requests of
  * their own. A verdict is stored on the text's observation ({@link LlmFacts#withSupport}); it never
- * drops a text.
+ * drops a text. A cited range's lines are shown masked as every role is shown a file ({@link
+ * SourceFiles#shownAt}), and what the masking took out reaches the harness's Secrets check.
  */
 public final class SupportChecks {
 
@@ -106,7 +106,8 @@ public final class SupportChecks {
 
   /**
    * @param harness the run's harness
-   * @param files where cited ranges are read from, secrets masked
+   * @param files where cited ranges are read from; their lines are shown masked ({@link
+   *     SourceFiles#shownAt}), and what masking took out goes to the files' masked values
    * @param commits the snapshot's commit of each repository
    */
   public SupportChecks(Harness harness, SourceFiles files, Map<String, String> commits) {
@@ -340,14 +341,18 @@ public final class SupportChecks {
     return places;
   }
 
-  /** A cited range as the judge sees it: its reference, then its lines as the file holds them. */
+  /**
+   * A cited range as the judge sees it: its reference, then its lines as every role is shown them,
+   * secrets masked ({@link SourceFiles#shownAt}), so no secret reaches the judge's prompt and what
+   * the masking took out reaches the harness's Secrets check (ADR 0101, amendment for #751).
+   */
   private String rendered(String cite, Place place) {
     StringBuilder text = new StringBuilder("[").append(cite).append(']');
-    Optional<byte[]> content =
+    Optional<String> content =
         Optional.ofNullable(commits.get(place.repo()))
-            .flatMap(commit -> files.read(place.repo(), commit, place.path()));
+            .flatMap(commit -> files.shownAt(place.repo(), commit, place.path()));
     if (content.isPresent()) {
-      String[] lines = new String(content.get(), StandardCharsets.UTF_8).split("\n", -1);
+      String[] lines = content.get().split("\n", -1);
       int last = Math.min(lines.length, Math.min(place.to(), place.from() + MAX_RANGE_LINES - 1));
       for (int i = Math.max(1, place.from()); i <= last; i++) {
         text.append('\n').append(i).append(": ").append(lines[i - 1]);
