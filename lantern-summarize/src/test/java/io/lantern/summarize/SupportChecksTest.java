@@ -206,6 +206,43 @@ class SupportChecksTest {
   }
 
   @Test
+  void aKnownSecretKeyNamedOtherwiseThanItsPropertyIsMaskedForTheJudgeToo() {
+    // app.jwt-key is no secret by its name alone: the extractors know it as one, under the
+    // normalized key the investigator's tools mask by (#751).
+    List<String> masked = new ArrayList<>();
+    String config = "server.port=8080\napp.jwt-key=jwt-literal-0123456789\n";
+    SourceFiles withSecret =
+        new SourceFiles() {
+          @Override
+          public Optional<byte[]> read(String repo, String commit, String path) {
+            return path.equals("config/application.properties")
+                ? Optional.of(config.getBytes(StandardCharsets.UTF_8))
+                : Optional.empty();
+          }
+
+          @Override
+          public Set<String> secretKeys() {
+            return Set.of("app.jwt-key");
+          }
+
+          @Override
+          public java.util.function.Consumer<String> maskedValues() {
+            return masked::add;
+          }
+        };
+    Fact risk =
+        risk("The token key is written in plain text", "shop:config/application.properties:2-2");
+
+    new SupportChecks(harness, withSecret, Map.of("shop", "c1")).judge(List.of(risk), List.of(), 1);
+
+    assertThat(fake.sent())
+        .noneMatch(s -> s.request().toString().contains("jwt-literal-0123456789"));
+    assertThat(fake.sent())
+        .anyMatch(s -> s.request().messages().getFirst().text().contains("2: app.jwt-key=******"));
+    assertThat(masked).contains("jwt-literal-0123456789");
+  }
+
+  @Test
   void theTextsOnAFlaggedRangeAreJudgedOnlyBecauseOfTheFlag() {
     List<Fact> held = new ArrayList<>(List.of(flaggedCode));
     for (int i = 0; i < 20; i++) {

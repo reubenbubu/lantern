@@ -193,10 +193,19 @@ its value never reached the harness's Secrets check.
   `FileSecrets` (`lantern-extract`), the masking the investigator's tools use (ADR 0054, ADR 0081):
   Java and other code by `SourceSecrets`, config, environment and XML files line by line under
   their secret keys and the run's known secret keys, private keys wherever they are; a key,
-  keystore or binary file is never shown. Masking keeps every line break, so a cited line keeps its
-  number.
+  keystore or binary file is never shown. The known keys are matched normalized however a caller
+  passes them (`FileSecrets.masked`), so a key such as `app.jwt-key` that is secret only because
+  the extractors know it is masked for the judge as for the investigator's tools. Masking keeps
+  every line break, so a cited line keeps its number, but for one case: a secret option alone on
+  its line inside a comment takes the line break with it (#844).
 - Each value the masking took out goes to the run's masked values, which the harness's Secrets
   check reads (ADR 0100, amendment for #645), as it does for every other role.
 - `Project0EndToEndIT` plants a plaintext secret in a copy of project-0's config, has the fake
   investigator confirm it as a risk citing its line, and checks that no request of the whole run,
-  of any role, holds the secret; a new path into a prompt that forgets to mask fails it.
+  of any role, holds the secret, nor any other value masking took out in that run
+  (`AnalysisRun.Result.secrets`, the set the Secrets check reads); a new path into a prompt that
+  forgets to mask fails it.
+- Known gaps, older than this amendment and shared with the investigator's tools: the line-break
+  case above (#844); a config file with Windows line endings is not masked (#845); a quoted value
+  or a Dockerfile `ENV` line reaches the Secrets check with its quotes or key, so the bare value
+  repeated in an answer passes it (#846).
