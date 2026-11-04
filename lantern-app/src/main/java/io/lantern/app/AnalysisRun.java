@@ -721,7 +721,7 @@ public final class AnalysisRun {
       }
       // The injection screen's items are parts of files, named as such, not entities.
       boolean files = role.role().equals("injection-screen");
-      new java.util.TreeMap<>(role.unaskedReasons())
+      new java.util.TreeMap<>(role.withoutAnswer())
           .forEach(
               (subject, reason) -> {
                 tools.jackson.databind.node.ObjectNode attributes =

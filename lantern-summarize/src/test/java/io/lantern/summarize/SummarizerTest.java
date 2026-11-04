@@ -2381,6 +2381,47 @@ class SummarizerTest {
   }
 
   @Test
+  void theRunRecordCountsASummaryLeftOutOrDroppedOnceAndNotWhenTheCacheRepeatsIt() {
+    fake.answering(
+        Answers.epic(
+            request ->
+                request.purpose().contains("type:com.example.shop.Order$Line")
+                    // Uncited, so rejected twice and dropped.
+                    ? "Line is a line of an order."
+                    : request.purpose().contains("type:com.example.shop.Order")
+                        ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
+                        : citingAll(request)));
+
+    Harness first = harness(client("model-a", fake));
+    new Summarizer(first).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    // The run record counts each summary the model left out or had dropped (#741).
+    assertThat(summaryCounts(first))
+        .isEqualTo(new io.lantern.harness.RoleRecord.FieldCounts(1, 0, 1));
+
+    Harness again = harness(client("model-a", fake));
+    new Summarizer(again).summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    // The cache answers both: nothing new was left out.
+    assertThat(summaryCounts(again))
+        .isEqualTo(new io.lantern.harness.RoleRecord.FieldCounts(0, 0, 0));
+  }
+
+  /** The summaries left out, withdrawn and dropped over every role of a run. */
+  private static io.lantern.harness.RoleRecord.FieldCounts summaryCounts(Harness harness) {
+    int omitted = 0;
+    int withdrawn = 0;
+    int dropped = 0;
+    for (io.lantern.harness.RoleRecord record : harness.records()) {
+      io.lantern.harness.RoleRecord.FieldCounts c = record.fields().get("summary");
+      if (c != null) {
+        omitted += c.omitted();
+        withdrawn += c.withdrawn();
+        dropped += c.dropped();
+      }
+    }
+    return new io.lantern.harness.RoleRecord.FieldCounts(omitted, withdrawn, dropped);
+  }
+
+  @Test
   void anAnswerWithOmittedFalseKeepsItsSentencesAndBracketedCitesAreRead() {
     fake.answering(
         "{\"items\": {\"I1\": {\"omitted\": false, \"sentences\": [{\"text\": \"Line holds the"

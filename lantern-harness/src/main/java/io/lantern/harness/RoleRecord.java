@@ -134,14 +134,10 @@ public final class RoleRecord implements LlmCallLog {
   }
 
   /**
-   * An item dropped whole after two rejections: no text of it is stored, so it is listed with the
-   * items not asked, "rejected twice", and counted apart from them (#741).
+   * An item dropped whole after two rejections (#741): it stays asked, since the model was asked
+   * and failed, and is noted apart, so the documents can list it as getting no answer.
    */
   private void dropped(String subject) {
-    if (!unasked.contains(subject)) {
-      unasked.add(subject);
-    }
-    unaskedWhy.put(subject, REJECTED_TWICE);
     if (!droppedSubjects.contains(subject)) {
       droppedSubjects.add(subject);
     }
@@ -175,8 +171,10 @@ public final class RoleRecord implements LlmCallLog {
             "the request failed" + (outcome.reason() == null ? "" : ": " + outcome.reason()));
         failedSubjects.add(subject);
       }
-      case DROPPED -> dropped(subject);
       default -> {
+        if (outcome.kind() == Outcome.Kind.DROPPED) {
+          dropped(subject);
+        }
         asked.add(subject);
         // Answered after all: no longer unasked.
         unaskedWhy.remove(subject);
@@ -253,11 +251,24 @@ public final class RoleRecord implements LlmCallLog {
   }
 
   /**
-   * The subjects of the items dropped whole after two rejections, this run or when last asked, a
-   * part of {@link #unasked()}, so the scorecard can tell them from those refused (#741).
+   * The subjects of the items dropped whole after two rejections, this run or when a rerun repeats
+   * the drop from the cache (#741). A fresh drop is also {@link #asked()}, a repeated one {@link
+   * #reused()}; neither is {@link #unasked()}.
    */
   public synchronized List<String> dropped() {
     return List.copyOf(droppedSubjects);
+  }
+
+  /**
+   * Why each item got no answer (#741): those {@link #unasked()}, with their reasons, and those
+   * {@link #dropped()}, "rejected twice". The documents list each as not asked.
+   */
+  public synchronized Map<String, String> withoutAnswer() {
+    Map<String, String> result = new java.util.LinkedHashMap<>(unaskedWhy);
+    for (String subject : droppedSubjects) {
+      result.putIfAbsent(subject, REJECTED_TWICE);
+    }
+    return result;
   }
 
   /** The subjects of the items the answer cache answered. */

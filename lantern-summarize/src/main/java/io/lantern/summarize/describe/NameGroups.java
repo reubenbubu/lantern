@@ -790,10 +790,6 @@ public final class NameGroups {
     }
 
     /**
-     * The accepted entry with its citations as the item numbers them and a merge's group by its
-     * key, so the stored answer does not depend on which items shared its request.
-     */
-    /**
      * The fields the item asks for, which the run record counts when left out (#741): the group's
      * name and responsibility and the intent of each line leaving it; a merge is never asked for.
      */
@@ -804,6 +800,10 @@ public final class NameGroups {
       return fields;
     }
 
+    /**
+     * The accepted entry with its citations as the item numbers them and a merge's group by its
+     * key, so the stored answer does not depend on which items shared its request.
+     */
     @Override
     public String store(Item item, ItemAnswer accepted) {
       Named n = named(item);

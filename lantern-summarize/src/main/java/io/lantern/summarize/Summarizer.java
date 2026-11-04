@@ -795,7 +795,11 @@ public final class Summarizer {
           yield Optional.empty();
         }
         case DROPPED -> {
-          session.fieldLeftOut("summary", true);
+          // Counted when the model dropped it, not again when the cache repeats the drop, as a
+          // packet role counts its fields only from a fresh answer.
+          if (!outcome.repeatedDrop()) {
+            session.fieldLeftOut("summary", true);
+          }
           throw new SummaryRejectedException(
               "The summary of " + node.entity() + " was " + lowerFirst(outcome.reason()));
         }

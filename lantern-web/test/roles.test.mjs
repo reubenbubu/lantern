@@ -519,6 +519,28 @@ test("Describe's model: a line the unknowns page gives a unit is that unit's, wh
   assert.equal(kinds.ROUTES_TO.unknown, 1);
 });
 
+test("Describe's model: a folded queue's consumer is drawn at the exchange, so it can hold the exchange's route (#741)", () => {
+  // queue-audit is not drawn: its consumer a is drawn from the exchange, as the page draws it.
+  const report = {
+    elements: Object.fromEntries(
+      ['service-a', 'service-z', 'exchange-events', 'queue-orders'].map((id) => [id, { kind: 'container', name: id }]),
+    ),
+    pages: [],
+  };
+  const facts = [
+    { id: 'u-a', predicate: 'deployable-unit', subject: 'service:a', object: { kind: 'string', value: 'a' } },
+    { id: 'u-z', predicate: 'deployable-unit', subject: 'service:z', object: { kind: 'string', value: 'z' } },
+    link('rt', 'ROUTES_TO', 'exchange:events', 'queue:orders'),
+    link('ra', 'ROUTES_TO', 'exchange:events', 'queue:audit'),
+    link('zc', 'CONSUMES', 'service:z', 'queue:orders'),
+    link('ac', 'CONSUMES', 'service:a', 'queue:audit'),
+  ];
+  const byId = Object.fromEntries(interactionsOf(facts, report).map((i) => [i.id, i]));
+  // a's line touches the exchange and a comes first by ID, as UnitInteractions.otherLines finds.
+  assert.deepEqual(byId['interaction:f-rt'].owners, ['service:a']);
+  assert.equal(byId['interaction:f-ra'], undefined);
+});
+
 test("Describe's model: a unit asked in parts is asked, and an interaction a refused part may hold is not asked (#741)", () => {
   const report = { elements: { 'service-a': { kind: 'container', name: 'a' }, 'service-b': { kind: 'container', name: 'b' } }, pages: [] };
   const facts = [link('ab', 'CALLS_HTTP', 'service:a', 'service:b')];

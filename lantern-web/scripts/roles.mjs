@@ -278,8 +278,19 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
   // (#741). Its subject if that is a unit or frontend; else its start, else its end, if one is;
   // else the first unit or frontend, by ID, with a line touching either end. So the Unknown
   // caller's line is its unit's, and an exchange's route to a queue a consumer's or publisher's.
-  const units = new Set(facts.filter((f) => f.predicate === 'deployable-unit').map((f) => f.subject));
-  const holds = (entity) => units.has(entity) || String(entity).startsWith('frontend:');
+  // The units and frontends, as Elements.units and Elements.frontends name them.
+  const units = new Set(
+    facts.filter((f) => f.predicate === 'deployable-unit' || f.predicate === 'frontend-app').map((f) => f.subject),
+  );
+  const holds = (entity) => units.has(entity);
+  // The ends a fact's line is drawn between: a folded queue's end is drawn at the exchanges that
+  // route to it, as its consumers' lines are. Only facts the diagrams draw make lines.
+  const drawnEnds = (g) => {
+    if (!kinds.has(g.predicate) || g.object?.kind !== 'entity' || !drawn(g.subject)) return [];
+    if (!(g.predicate === 'ROUTES_TO' ? shown : drawn)(g.object.value)) return [];
+    const at = (e) => (shown(e) ? [e] : (routedFrom.get(e) ?? []).filter(shown));
+    return [...at(g.subject), ...at(g.object.value)];
+  };
   const ownerOf = (f) => {
     const to = f.object?.value;
     if (holds(f.subject)) return f.subject;
@@ -287,9 +298,9 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
     const ends = new Set([f.subject, to]);
     const near = [];
     for (const g of facts) {
-      if (!kinds.has(g.predicate) || g.object?.kind !== 'entity') continue;
-      if (!ends.has(g.subject) && !ends.has(g.object.value)) continue;
-      for (const e of [g.subject, g.object.value]) if (holds(e)) near.push(String(e));
+      const line = drawnEnds(g);
+      if (!line.some((e) => ends.has(e))) continue;
+      for (const e of line) if (holds(e)) near.push(String(e));
     }
     return near.sort()[0] ?? f.subject;
   };
