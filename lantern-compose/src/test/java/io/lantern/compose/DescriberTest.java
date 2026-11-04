@@ -2332,6 +2332,65 @@ class DescriberTest {
   }
 
   @Test
+  void aRewordedUnitAsksAgainOnlyTheItemsThatShowIt() {
+    InMemoryAnswerStore stored = new InMemoryAnswerStore();
+    FakeLlmProvider one = new FakeLlmProvider().answering(DescriberTest::answer);
+    new Describer(new Harness(client(one), stored, RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+    // The shop-app unit is asked again, as when a file it read changed, and worded anew (#769).
+    io.lantern.harness.AnswerStore hidingApp =
+        new io.lantern.harness.AnswerStore() {
+          @Override
+          public java.util.Optional<io.lantern.harness.StoredAnswer> find(String fingerprint) {
+            return stored
+                .find(fingerprint)
+                .filter(
+                    a ->
+                        !(a.role().equals(DescribeRole.UNITS.name())
+                            && a.subject().equals("service:com.example:app")));
+          }
+
+          @Override
+          public java.util.Optional<io.lantern.harness.StoredAnswer> latest(
+              String role, String subject) {
+            return stored.latest(role, subject);
+          }
+
+          @Override
+          public void save(io.lantern.harness.StoredAnswer answer) {
+            stored.save(answer);
+          }
+        };
+    // Asked again in the same words, it asks nothing that shows it.
+    FakeLlmProvider same = new FakeLlmProvider().answering(DescriberTest::answer);
+    new Describer(new Harness(client(same), hidingApp, RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+    assertThat(same.sent().stream().map(s -> s.request().purpose()))
+        .containsExactly("describe-unit 1 items: service:com.example:app");
+
+    FakeLlmProvider two =
+        new FakeLlmProvider()
+            .answering(
+                r ->
+                    answer(r)
+                        .replace(
+                            "Takes and lists the shop's orders for its web customers.",
+                            "Takes, lists and ships the orders of the shop's web customers."));
+
+    new Describer(new Harness(client(two), hidingApp, RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+
+    // Worded anew, it asks again what shows it: the elements it uses, its flows and the purpose;
+    // not the worker unit, which does not show it.
+    assertThat(two.sent().stream().map(s -> s.request().purpose()))
+        .contains(
+            "describe-unit 1 items: service:com.example:app",
+            "describe-element 1 items: database:db:5432/shop",
+            "purpose 1 items: system:snapshot")
+        .doesNotContain("describe-unit 1 items: service:com.example:worker");
+  }
+
+  @Test
   void theSameFactsMakeTheSameRequestsEveryTimeForEveryRoleTheDescriberAsks() {
     FakeLlmProvider one = new FakeLlmProvider().answering(DescriberTest::answer);
     FakeLlmProvider two = new FakeLlmProvider().answering(DescriberTest::answer);
