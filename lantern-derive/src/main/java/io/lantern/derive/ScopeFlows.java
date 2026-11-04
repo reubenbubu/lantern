@@ -298,7 +298,8 @@ public final class ScopeFlows {
             List.of(),
             "In a web browser.",
             start.personFacts,
-            null);
+            // The person's basis: their intent for this frontend words the step (#740).
+            elements.people().get(start.person));
       }
       steps(flow.steps());
     }

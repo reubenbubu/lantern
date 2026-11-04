@@ -10,6 +10,7 @@ import io.lantern.core.document.Table;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
+import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.FlowModel;
 import io.lantern.derive.ScopeFlows;
@@ -109,7 +110,12 @@ final class SequenceFlows {
     return switch (step) {
       case ScopeFlows.Message message -> {
         Assembler.Phrased phrase =
-            message.phrased() == null ? null : assembler.phrase(message.phrased());
+            message.phrased() == null
+                ? null
+                : message.from().type().equals(Types.PERSON)
+                    // A person's step is worded by their intent for the frontend (#740, ADR 0103).
+                    ? assembler.personPhrase(message.phrased(), message.to())
+                    : assembler.phrase(message.phrased());
         List<Fact> facts = new ArrayList<>(message.facts());
         if (phrase != null) {
           facts.addAll(phrase.facts());

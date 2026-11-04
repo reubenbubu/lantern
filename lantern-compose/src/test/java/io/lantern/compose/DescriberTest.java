@@ -1655,7 +1655,9 @@ class DescriberTest {
             .orElseThrow();
     assertThat(charge.label()).isEqualTo("Charges cards through");
     assertThat(charge.profiles()).containsExactly("prod");
+  }
 
+  @Test
   void aFlowsDataStepShowsTheUnitsStoreIntentWithWhatItReadsAsItsCode() {
     TestFacts runtime = TestFacts.runtime();
     Fact store = runtime.find(APP.toString(), "USES_DATABASE");

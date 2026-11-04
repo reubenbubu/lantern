@@ -258,3 +258,26 @@ The flow significance role is shown one candidate for each stored shape, which t
 
 A flow page's title no longer names its trigger in brackets; the trigger, where the flow runs and
 its handler are in its Overview table (ADR 0122).
+
+## Amendment (#740): each step is worded by its own link's intent
+
+A step's label is the intent phrase stored for its own link, with the technology second; the
+fallback label ("Calls X", "Delivers to X", "Uses the screens") stays only where that link has no
+stored intent. Which link words each step:
+
+- a frontend's call: the call itself;
+- a gateway forwarding a frontend's request: that request, not the route, since every request
+  through one route would otherwise show the route's one intent;
+- a delivery from a topic or queue: the receiving unit's `CONSUMES` link to it, or to the queue it
+  comes through, else the delivery's own fact;
+- a data step: the unit's `USES_DATABASE` link to the store, with what it reads and writes, or the
+  repository method it calls, moved to the code column (`store · Repository.method`);
+- a person's step: the intent Describe stored for the person's use of that frontend (ADR 0103,
+  amendment for #739);
+- a scheduled job and a STOMP push: their own fact, which no role words yet, so they keep their
+  fallback.
+
+On fake runs the generic labels fell from 6, 20, 10, 54 and 11 to 2, 0, 4, 16 and 2 on project-1
+to project-4 and project-8. What remains is steps whose link has no stored intent: people with
+none stored, STOMP pushes, a scheduled job, and a route through the discovery locator.
+
