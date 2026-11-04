@@ -2273,9 +2273,36 @@ class DescriberTest {
             .filter(r -> r.purpose().equals("flow-significance 1 items: system (repair)"))
             .findFirst()
             .orElseThrow();
+    // The unanswered flow needs the model; the order is repaired without it (#744).
     assertThat(repair.messages().getLast().text())
         .contains("Answers no flow for W2; answer every flow, significant or not.")
-        .contains("The order must hold exactly the flows marked significant; it holds W2, W1.");
+        .doesNotContain("The order must hold");
+    assertThat(sequences(system(result)).sections())
+        .extracting(Section::title)
+        .containsExactly("Shop lists its orders");
+  }
+
+  @Test
+  void anOrderMissingASignificantFlowOrHoldingAnotherIsRepairedWithoutARepairTurn() {
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  if (!request.purpose().startsWith("flow-significance 1 items: system")) {
+                    return request.system().contains("Task: choose the flows worth drawing.")
+                        ? "{\"items\": {\"I1\": {\"omitted\": true}}}"
+                        : answer(request);
+                  }
+                  // W2 is significant but left out of the order, which holds W1, not significant.
+                  return choosing(request.messages().getFirst().text(), "schedule")
+                      .replace("\"order\": [\"W2\"]", "\"order\": [\"W1\"]");
+                });
+
+    Describer.Result result = describe(fake);
+
+    assertThat(fake.sent())
+        .extracting(s -> s.request().purpose())
+        .noneMatch(p -> p.startsWith("flow-significance") && p.endsWith("(repair)"));
     assertThat(sequences(system(result)).sections())
         .extracting(Section::title)
         .containsExactly("Shop lists its orders");

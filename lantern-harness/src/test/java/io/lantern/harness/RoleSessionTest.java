@@ -172,7 +172,7 @@ class RoleSessionTest {
 
   @Test
   void aRejectedAnswerGoesBackOnceWithEveryReasonThenIsDropped() {
-    FakeLlmProvider rejecting = new FakeLlmProvider().answering("Still wrong.");
+    FakeLlmProvider rejecting = new FakeLlmProvider().answering("{\"note\": \"Still wrong.\"}");
     Harness harness = harness(client(rejecting), store);
     RoleSession session = harness.session(role());
     Item item = item("a");

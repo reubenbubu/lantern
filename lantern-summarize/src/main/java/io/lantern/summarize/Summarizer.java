@@ -1305,11 +1305,20 @@ public final class Summarizer {
 
     /** The item's entry of an answer envelope, or {@code null} if the answer has none. */
     private static JsonNode entry(String text) {
+      // The first complete object; text after it is logged and left out (#744).
+      io.lantern.harness.JsonFaults.First first = io.lantern.harness.JsonFaults.first(text);
       JsonNode root;
-      try {
-        root = JSON.readTree(stripFence(text));
-      } catch (RuntimeException e) {
-        return null;
+      if (first != null) {
+        root = first.object();
+        if (!first.rest().isEmpty()) {
+          LOG.info("Left out the text after the answer's JSON object: {}", logged(first.rest()));
+        }
+      } else {
+        try {
+          root = JSON.readTree(stripFence(text));
+        } catch (RuntimeException e) {
+          return null;
+        }
       }
       if (root == null || !root.isObject()) {
         return null;

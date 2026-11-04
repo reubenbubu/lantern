@@ -60,6 +60,9 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class FlowJudgements {
 
+  private static final org.slf4j.Logger LOG =
+      org.slf4j.LoggerFactory.getLogger(FlowJudgements.class);
+
   /** The version of the significance prompt. */
   static final String SIGNIFICANCE_VERSION = "7";
 
@@ -501,6 +504,9 @@ public final class FlowJudgements {
 
     @Override
     public ItemAnswer read(String id, Item item, JsonNode entry) {
+      if (!narrative) {
+        entry = withOrderRepaired(entry);
+      }
       List<CheckedText> texts = new ArrayList<>();
       if (entry != null && entry.isObject() && !entry.has("omitted")) {
         if (narrative) {
@@ -603,6 +609,49 @@ public final class FlowJudgements {
         }
       }
       return stored.toString();
+    }
+
+    /**
+     * The entry with its order holding exactly the flows it marks significant (#744, ADR 0108): an
+     * entry not marked significant is removed, and a significant flow the order leaves out is added
+     * after the others, in the order the flows were listed (by rank). A mechanical fix needs no
+     * repair turn.
+     */
+    private JsonNode withOrderRepaired(JsonNode entry) {
+      if (!(entry instanceof ObjectNode object) || !entry.path("flows").isObject()) {
+        return entry;
+      }
+      List<String> significant = new ArrayList<>();
+      for (String ref : asked.flows().keySet()) {
+        if (entry.path("flows").path(ref).path("significant").asBoolean(false)) {
+          significant.add(ref);
+        }
+      }
+      List<String> written = new ArrayList<>();
+      entry.path("order").forEach(ref -> written.add(cleanRef(ref.asString(""))));
+      List<String> order = new ArrayList<>();
+      for (String ref : written) {
+        if (significant.contains(ref) && !order.contains(ref)) {
+          order.add(ref);
+        }
+      }
+      for (String ref : significant) {
+        if (!order.contains(ref)) {
+          order.add(ref);
+        }
+      }
+      if (order.equals(written) && entry.path("order").isArray()) {
+        return entry;
+      }
+      LOG.info(
+          "Repaired the significance order of {} from {} to {}",
+          asked.item().subject(),
+          written,
+          order);
+      ObjectNode repaired = object.deepCopy();
+      ArrayNode array = repaired.putArray("order");
+      order.forEach(array::add);
+      return repaired;
     }
 
     /**

@@ -107,3 +107,12 @@ This ADR's word limits and margins now live in the role's response contract, `pr
 
 A flow page's title is its scenario alone; its Overview table's Trigger names the request,
 message or schedule, where it runs and its handler (ADR 0122).
+
+## Amendment (#744): the order is repaired, not sent back
+
+An order that left out a significant flow or held one not marked significant failed the whole
+answer; after one repair the scope fell back to rank (4 of 7 scopes on project-4 and 4 of 10 on
+project-8 in the 1F cold run). The order is now made to hold exactly the flows marked
+significant before the checks: an entry not marked significant is removed, and a significant flow
+it leaves out is added after the others, in the order the flows were listed, which is by rank. The
+fix is logged; no repair turn is spent on it. A flow left unanswered still goes back to the model.

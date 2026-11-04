@@ -353,3 +353,18 @@ value replaced by `******`; the LLM cache keeps the model's answers as returned,
 answer. The set grows as files are shown, so an answer accepted before a value was first shown is
 not checked again for it, and which answers are sent back can vary with the order roles run in.
 
+
+## Amendment (#744): text after the answer's object, and drops of unreadable answers
+
+In the 1F cold run, an answer whose JSON object was followed by more text (a note, or a closing
+brace too many) failed whole, and after one repair its items were dropped, and the drops were
+stored, so every rerun repeated them.
+
+- **The first complete object is read.** The harness (`Envelope.parse`) and Summarize read the
+  first complete JSON object the answer opens with (`JsonFaults.first`), fences allowed. Text after
+  it is logged and left out, with no repair turn. An object that never closes, or an answer that
+  does not open with one, still goes back once with its fault named (#685).
+- **A drop of an unreadable answer is not stored.** When the second answer holds no readable JSON
+  object, the item is dropped for this run but not stored, as an answer cut off at its limit is
+  not: the next run asks again. A drop for what the checks rejected in a readable answer is stored
+  as before (#682).

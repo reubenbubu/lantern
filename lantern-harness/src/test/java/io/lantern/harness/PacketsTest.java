@@ -433,8 +433,29 @@ class PacketsTest {
   }
 
   @Test
-  void aPacketAnsweredWithMalformedJsonIsSentBackNamingTheFaultAndItsRepairIsKept() {
-    // The first reply closes its object twice; the repair is well formed (#769).
+  void aPacketAnsweredWithTextAfterItsObjectKeepsTheObjectWithoutARepair() {
+    // The reply closes its object twice and adds a note: the object is read, the rest left out
+    // (#744).
+    FakeLlmProvider fake =
+        answering(
+            request -> {
+              List<String> entries = new ArrayList<>();
+              for (String id : ids(request)) {
+                entries.add(
+                    "\"" + id.substring(0, id.indexOf('=')) + "\": " + good("Keeps the records"));
+              }
+              return "{\"items\": {" + String.join(", ", entries) + "}}} I hope this helps.";
+            });
+
+    Map<String, Outcome> outcomes = ask(fake, List.of(item("orders"), item("payments")));
+
+    assertThat(outcomes.get("orders").kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(outcomes.get("payments").kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(fake.sent()).hasSize(1);
+  }
+
+  @Test
+  void aPacketAnsweredWithAnUnclosedObjectIsSentBackOnceNamingTheFault() {
     FakeLlmProvider fake =
         answering(
             request -> {
@@ -444,17 +465,31 @@ class PacketsTest {
                     "\"" + id.substring(0, id.indexOf('=')) + "\": " + good("Keeps the records"));
               }
               String answer = "{\"items\": {" + String.join(", ", entries) + "}}";
-              return request.messages().size() == 1 ? answer + "}" : answer;
+              return request.messages().size() == 1
+                  ? answer.substring(0, answer.length() - 1)
+                  : answer;
             });
 
     Map<String, Outcome> outcomes = ask(fake, List.of(item("orders"), item("payments")));
 
     assertThat(outcomes.get("orders").kind()).isEqualTo(Outcome.Kind.ANSWERED);
-    assertThat(outcomes.get("payments").kind()).isEqualTo(Outcome.Kind.ANSWERED);
     assertThat(fake.sent()).hasSize(2);
     assertThat(fake.sent().get(1).request().messages().getLast().text())
         .contains("The answer is not one JSON object with an entry per item")
-        .contains("a complete object is followed by more text");
+        .contains("the object is not closed");
+  }
+
+  @Test
+  void aDropForAnUnreadableAnswerIsNotStoredSoTheNextRunAsksAgain() {
+    FakeLlmProvider fake = answering(request -> "{\"items\": {");
+
+    assertThat(ask(fake, List.of(item("orders"))).get("orders").kind())
+        .isEqualTo(Outcome.Kind.DROPPED);
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(ask(fake, List.of(item("orders"))).get("orders").kind())
+        .isEqualTo(Outcome.Kind.DROPPED);
+    // Asked again: the unreadable answer's drop was not kept (#744).
+    assertThat(fake.sent()).hasSize(4);
   }
 
   @Test

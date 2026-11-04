@@ -15,6 +15,8 @@ final class Envelope {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
+  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(Envelope.class);
+
   private Envelope() {}
 
   /** The entries of the answer by item ID, or empty if it is not one envelope. */
@@ -32,8 +34,25 @@ final class Envelope {
     return Optional.of(entries);
   }
 
-  /** The one JSON object of the text, fences around it allowed, or null. */
+  /**
+   * The first complete JSON object of the text, fences around it allowed, or null; text after it is
+   * logged and left out (#744).
+   */
   static JsonNode parse(String text) {
+    JsonFaults.First first = JsonFaults.first(text);
+    if (first != null) {
+      if (!first.rest().isEmpty()) {
+        LOG.info(
+            "Left out the text after the answer's JSON object: {}",
+            first.rest().length() > 200 ? first.rest().substring(0, 200) + "…" : first.rest());
+      }
+      return first.object();
+    }
+    return strict(text);
+  }
+
+  /** The text as one JSON value, fences allowed, or null. */
+  private static JsonNode strict(String text) {
     String trimmed = text.strip();
     if (trimmed.startsWith("```")) {
       int start = trimmed.indexOf('\n');
