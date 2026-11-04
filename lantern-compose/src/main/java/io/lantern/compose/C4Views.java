@@ -332,17 +332,26 @@ final class C4Views {
 
     /**
      * Adds a link drawn between the given ends, which a view lifted it to: a group, or the element
-     * itself. A line leaving a group takes the intent Name groups stored for it (ADR 0107).
+     * itself. A line of a group takes the intent Name groups stored for it (ADR 0107), keyed by the
+     * line's other end: the group stores a line from its own side, as its members' facts run, so a
+     * line drawn into the group (a queue to the units that consume it) is looked up from its other
+     * end too.
      */
     void add(EntityId from, EntityId to, Line link) {
       EdgeBuilder edge = get(from, link.relationship(), to);
       edge.add(link, assembler.phrase(link.facts().getFirst()));
       if (from.type().equals(Types.GROUP) && edge.intent == null) {
-        Assembler.Phrased intent = assembler.groupIntent(from, to + " " + link.relationship());
-        if (intent != null) {
-          edge.intent = intent.text();
-          edge.facts.addAll(intent.facts());
-        }
+        intent(edge, assembler.groupIntent(from, to + " " + link.relationship()));
+      }
+      if (to.type().equals(Types.GROUP) && edge.intent == null) {
+        intent(edge, assembler.groupIntent(to, from + " " + link.relationship()));
+      }
+    }
+
+    private static void intent(EdgeBuilder edge, Assembler.Phrased intent) {
+      if (intent != null) {
+        edge.intent = intent.text();
+        edge.facts.addAll(intent.facts());
       }
     }
 

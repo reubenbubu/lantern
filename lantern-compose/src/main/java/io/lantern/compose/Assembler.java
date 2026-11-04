@@ -159,11 +159,15 @@ final class Assembler {
     return modules.isEmpty() ? id : modules.first();
   }
 
+  /** What follows the name of a group no role named. */
+  static final String NOT_NAMED = " (not named)";
+
   /** The name a reader sees for an entity ({@link ElementNames#name}). */
   String name(EntityId id) {
     if (id.type().equals(Types.GROUP)) {
-      // The name Name groups gave it (ADR 0107).
-      return model.displayName(id).orElse(names.name(id));
+      // The name Name groups gave it (ADR 0107), else its key's last part, marked as not named
+      // (knowledge-build epic, section 11.8).
+      return model.displayName(id).orElseGet(() -> names.name(id) + NOT_NAMED);
     }
     return names.name(id);
   }

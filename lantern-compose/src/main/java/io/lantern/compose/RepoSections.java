@@ -208,7 +208,10 @@ final class RepoSections {
           blocks.addAll(
               new RepoRisks(model, assembler, repo, containers)
                   .callouts(id, brief().currencyRisks(id), investigated().callouts(id)));
-      case FINDINGS -> blocks.addAll(investigated().table(id));
+      case FINDINGS -> {
+        blocks.addAll(investigated().table(id));
+        blocks.addAll(new StoredFindings(model, assembler, repo, units).table(id));
+      }
       case BLAST_RADIUS -> blocks.addAll(brief().blastRadius(id));
       case TECHNOLOGY_CURRENCY -> blocks.addAll(brief().technologyCurrency(id));
       case QUALITY_EVIDENCE -> blocks.addAll(brief().qualityEvidence(id));
