@@ -344,12 +344,19 @@ public final class DescribeItems {
           && unitsAndFrontends().contains(Knowledge.object(link))
           && asked.add(link)) {
         EntityId other = Knowledge.object(link);
+        String through = Elements.attribute(link, "destination", null);
         result.add(
             new Interaction(
                 unit,
-                (link.predicate().equals(Types.SENDS_MESSAGES_TO)
-                        ? "sends messages, through a queue or topic, to"
-                        : "interacts with")
+                (!link.predicate().equals(Types.SENDS_MESSAGES_TO)
+                        ? "interacts with"
+                        : through == null
+                            ? "sends messages, through a queue or topic, to"
+                            : "sends messages, through "
+                                + FactLines.oneLine(assembler.name(EntityId.parse(through)))
+                                + " ("
+                                + WordingPrompt.kind(EntityId.parse(through))
+                                + "), to")
                     + ' '
                     + FactLines.oneLine(assembler.name(other))
                     + " ("

@@ -339,6 +339,37 @@ class DescriberTest {
     assertThat(record(budget, "flow-narrative").settled()).isEqualTo(2);
   }
 
+  @Test
+  void asksAboutEveryInteractionAViewCanDrawNotOnlyItsFixedLinks() {
+    // A connection Investigate found, drawn as a line of the container diagram (#738).
+    tools.jackson.databind.node.ObjectNode attributes = FactJson.newObject();
+    attributes.put("interaction", "http");
+    attributes.put("description", "Stores order exports");
+    Fact found =
+        Fact.create(
+            APP,
+            io.lantern.core.types.Types.INVESTIGATED_CONNECTION,
+            FactObject.entity(EntityId.parse("external-system:s3")),
+            attributes,
+            new Origin(Origin.Kind.LLM, "investigate", "1"),
+            Evidence.of("shop", "pom.xml", null, null),
+            0.45,
+            Validity.from(1));
+    List<Fact> all = new ArrayList<>(facts.list());
+    all.add(found);
+    Fact sends = facts.find(APP.toString(), "SENDS_MESSAGES_TO");
+
+    assertThat(Describer.interactionsAsked(all)).contains(found.id(), sends.id());
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    new Describer(harness(client(fake))).describe(all);
+    assertThat(fake.sent())
+        .extracting(s -> s.request().messages().getFirst().text())
+        .filteredOn(p -> p.contains("The deployable unit shop-app"))
+        .singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+        .contains("] connects, as the LLM found, to s3 (an external system)\n")
+        .contains("] sends messages, through orders (a topic), to worker (a deployable unit)\n");
+  }
+
   private Describer.Result describe(FakeLlmProvider fake) {
     return new Describer(harness(client(fake))).describe(facts.list());
   }
@@ -439,7 +470,10 @@ class DescriberTest {
         .contains("\nInteractions:\n[R1] calls pay.example.com (an external system)\n")
         .contains("\n[R2] sends messages to orders (a topic)\n")
         .contains("\n[R3] connects to shop on db (a database)\n")
-        .contains("\n[R4] Controller calls JpaOrders (a component)\n")
+        // Messages that reach another unit, which the flows draw (#738).
+        .contains(
+            "\n[R4] sends messages, through orders (a topic), to worker (a deployable unit)\n")
+        .contains("\n[R5] Controller calls JpaOrders (a component)\n")
         // No fact IDs: they change with every commit.
         .doesNotContain(facts.find(APP.toString(), "CALLS_HTTP").id());
   }
