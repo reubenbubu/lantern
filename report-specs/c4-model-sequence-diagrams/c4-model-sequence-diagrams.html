@@ -5410,9 +5410,10 @@ function readabilityOf(lines, vb){
 }
 const isReadable = r => r.fits && r.crossings <= READABLE.maxCrossings;
 /** Measures a container or component diagram as drawn and writes the result into its section. */
-function measureDiagram(spec, geoms){
-  if (!MEASURED_LEVELS.has(spec._level) || !spec._section) return;
-  spec._section.readability = readabilityOf(geoms.map(g => g.pts), spec.vb);
+function measureDiagram(raw, spec, geoms){
+  // the section is the drawn diagram's own: a cached layout may come from another page's twin
+  if (!MEASURED_LEVELS.has(raw._level) || !raw._section) return;
+  raw._section.readability = readabilityOf(geoms.map(g => g.pts), spec.vb);
 }
 /** Why a measured diagram is not readable, or null when it is. */
 function readabilityWhy(r){
@@ -5435,9 +5436,15 @@ function readabilityGaps(p){
     return why ? `**Readable after layout** ([${name}](#/${p.id}/${s.id})): ${why}.` : null;
   }).filter(Boolean);
 }
-/** A page's quality report (marked \`quality\`), with the page's after-layout gaps added to it. */
+/**
+ * A page's quality report (marked \`quality\`), with the page's after-layout gaps added to it. The
+ * report that says every check passed speaks for the whole document, so it first measures every
+ * view and lists the gaps of all pages.
+ */
 function qualitySection(s, p){
-  const gaps = readabilityGaps(p);
+  let gaps;
+  if (s.type === 'callout'){ measureAll(); gaps = PAGES.flatMap(readabilityGaps); }
+  else gaps = readabilityGaps(p);
   if (s.type === 'callout' && !gaps.length) return SECTION_BASE.callout(s);
   return SECTION_BASE.list({...s, items: [...(s.type === 'list' ? s.items || [] : []), ...gaps]});
 }
@@ -5570,7 +5577,7 @@ function c4SVG(raw, view, key=''){
   }
   const geoms = spec.edges.map((e, i) => { const k = pk(e); seen[k] = (seen[k]||0) + 1; return edgeGeom(e, routes[i], map[e.f], map[e.t], seen[k]-1, cnt[k], lanes[i]); });
   placeLabels(geoms, spec.nodes);
-  measureDiagram(spec, geoms);
+  measureDiagram(raw, spec, geoms);
   s += geoms.map(g => edgeSVG(g, uid)).join('') + geoms.map(edgeLabelSVG).join('');
   s += spec.nodes.map(n => nodeSVG(n, view, uid, ruled.has(n.id))).join('');
   s += ruleOverlaySVG(spec, map, uid, key && DIAGRAMS[key] ? DIAGRAMS[key] : raw);
@@ -5937,7 +5944,14 @@ function renderPage(p){
   const meta = e ? [e.tech && `<span class="pill">${esc(e.tech)}</span>`, e.props.owner && `<span class="pill">Owner · ${esc(e.props.owner)}</span>`,
     CATALOGUE[p.element] && `<a class="pill" href="#/${CATALOGUE[p.element].page}/el-${p.element}">↑ ${esc(CATALOGUE[p.element].title)}</a>`].filter(Boolean).join('') : '';
   return `<header class="page-head"><div class="eyebrow"><span class="lvl">${L.badge}</span> ${esc(L.label)}</div><h1>${esc(p.title)}</h1>${p.summary ? `<div class="lead">${md(p.summary)}</div>` : ''}${meta ? `<div class="page-meta">${meta}</div>` : ''}</header>`
-    + (p.sections || []).map(s => renderSection(s, p)).join('');
+    + (p.sections || []).map(s => renderSection(s, p)).join('')
+    + afterLayoutReport(p);
+}
+/** A quality report for a page that has none but draws a view that is not readable (#366). */
+function afterLayoutReport(p){
+  if ((p.sections || []).some(s => s.quality)) return '';
+  const gaps = readabilityGaps(p);
+  return gaps.length ? renderSection({type: 'list', id: 'quality-after-layout', title: 'Quality report', items: gaps}, p) : '';
 }
 
 function levelArt(level){

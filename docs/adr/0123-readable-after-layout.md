@@ -25,10 +25,14 @@ to a coarser level (`docs/design.md`, Readable diagrams, "Layout has the final w
      views with 1 to 5 crossings and those with 7 or more;
    - fit: a scale of at least 0.8 on a 1632 × 1024 canvas, the maximized diagram on a
      1920 × 1080 screen, so an 11.5 px line label stays at least 9 px.
-3. **Reported on the page.** A view that fails says "Hard to read" and why under it, and its
-   page's quality report lists it under "Readable after layout", linking to it. The report
-   section the composer writes is marked `quality: true` so the template knows which section to
-   add to. A page whose report said every check passes shows the gaps as a list instead.
+3. **Reported on the page.** A view that fails says "Hard to read" and why under it, and a
+   quality report lists it under "Readable after layout", linking to it:
+   - the page's own quality report, which the composer marks `quality: true` so the template
+     knows which section to add to;
+   - a quality report the template adds at the end of a page that has none;
+   - the report that says every check passed, which speaks for the whole document: before
+     showing it, the template measures every container and component view, and lists the gaps
+     of every page instead when there are any.
 4. **A warning, not a split.** This issue measures and reports. Moving a view to a coarser level
    when it does not fit is #764's (decision 1 of #737).
 5. **The scorer stays pre-layout.** `score.mjs` still scores `diagram-size` from counts. Laying
@@ -42,4 +46,7 @@ to a coarser level (`docs/design.md`, Readable diagrams, "Layout has the final w
   them fails on fit, and 9 also on crossings.
 - `QualityBar`'s element count is now worded as a size warning ("Size: at most N elements and M
   lines per element"), as it is until #764 lands.
-- #764 can read `readability` to decide when a view moves.
+- `readability` exists only in the browser's copy of the document; the composer never sees it.
+  For #764 to use it as its gate, the measure has to run where the composer can read it: the
+  template exposes it as `window.lanternReadability()`, which a headless browser can call, as
+  the measurements in `docs/design.md` were taken. How #764 gets it is #764's decision.
