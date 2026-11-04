@@ -657,7 +657,7 @@ class SequenceFlowsTest {
             .findFirst()
             .orElseThrow();
     assertThat(text(trigger.rows().getFirst().cells().getFirst()))
-        .isEqualTo("POST /orders from ui (Api.place)");
+        .isEqualTo("POST /orders from ui to front (Api.place)");
   }
 
   @Test
@@ -677,7 +677,7 @@ class SequenceFlowsTest {
             + "\", \"reachesEndpoint\": \"GET /status\", \"throughRoute\": \"ship\"}",
         5);
 
-    Section status = flow(system(facts), "GET /api/ship/status from ui");
+    Section status = flow(system(facts), "GET /api/ship/status from ui to ship");
     SequenceDiagram diagram = diagram(status);
 
     assertThat(diagram.participants())
@@ -743,7 +743,7 @@ class SequenceFlowsTest {
             + "\", \"reachesEndpoint\": \"/ws\", \"throughRoute\": \"socket\"}",
         7);
 
-    Section socket = flow(system(facts), "/socket/ws from ui");
+    Section socket = flow(system(facts), "/socket/ws from ui to ship");
 
     assertThat(steps(diagram(socket).steps()))
         .startsWith(
@@ -777,7 +777,7 @@ class SequenceFlowsTest {
 
     Section first = flows(system(facts)).sections().getFirst();
 
-    assertThat(trigger(first)).isEqualTo("GET /api/ship/login from ui");
+    assertThat(trigger(first)).isEqualTo("GET /api/ship/login from ui to ship");
     assertThat(steps(diagram(first).steps()))
         .contains(
             "frontend:front/ui > service:x:edge: Navigates the browser to Status.get"
@@ -1479,7 +1479,7 @@ class SequenceFlowsTest {
 
     Section status =
         flows(system(facts)).sections().stream()
-            .filter(f -> trigger(f).equals("GET /api/ship/status to edge"))
+            .filter(f -> trigger(f).equals("GET /api/ship/status to edge, routed to ship"))
             .findFirst()
             .orElseThrow();
     SequenceDiagram diagram = diagram(status);
@@ -1500,7 +1500,7 @@ class SequenceFlowsTest {
             .findFirst()
             .orElseThrow();
     assertThat(text(trigger.rows().getFirst().cells().getFirst()))
-        .isEqualTo("GET /api/ship/status to edge (Status.get)");
+        .isEqualTo("GET /api/ship/status to edge, routed to ship (Status.get)");
     // A flow whose endpoint no gateway routes to is unchanged: it starts at its endpoint.
     Section order = flows(system(facts)).sections().getFirst();
     assertThat(order.title()).isEqualTo("Place");
@@ -1514,7 +1514,7 @@ class SequenceFlowsTest {
 
     Section status =
         flows(system(facts)).sections().stream()
-            .filter(f -> trigger(f).equals("GET /SHIP/status to edge"))
+            .filter(f -> trigger(f).equals("GET /SHIP/status to edge, routed to ship"))
             .findFirst()
             .orElseThrow();
 

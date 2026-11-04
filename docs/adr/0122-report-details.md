@@ -32,13 +32,19 @@ The 1F and 1G review (3 Nov 2026) found four small defects in the C4 report, eac
   written when their fact's stored `basis` is `evidenced`, and opened with "Inferred:" or
   "Purpose inferred from the code:" when it is `inferred`. Citations no longer decide. The roles
   set `evidenced` when a sentence cites a README claim or, for an element's sentence, code with
-  Javadoc (ADR 0059, ADR 0065, ADR 0069), so the result is the same wherever the stored facts
-  agree with the snapshot.
+  Javadoc (ADR 0059, ADR 0065, ADR 0069). That is not quite what the composer derived: it also
+  followed a sentence's citations of a unit's answer to the claims behind it, while Describe
+  stores an element's sentence as inferred even when the unit sentence it cites rests on a README.
+  Such a sentence now shows "Inferred:", which is the truer mark, since it is derived from another
+  sentence. A sentence stored without a `basis` reads as inferred.
 - **Flow titles are the scenario.** A flow page is titled by its scenario alone: the LLM's title
   (ADR 0108), else its entry point's name. Its Overview table's Trigger names the request,
   message or schedule, where it runs and its handler: "POST /orders on front (Api.place)",
-  "The schedule cron 0 0 2 * * * in ship (Nightly.run)". Two flows of a scope with the same
-  scenario are told apart by their unit's name, then their handler's, in brackets.
+  "The schedule cron 0 0 2 * * * in ship (Nightly.run)"; a request a frontend sends or a gateway
+  routes names both ends: "POST /api/auth/sign-in from crm-frontend to auth-service
+  (AuthController.signIn)", "GET /api/ship/status to edge, routed to ship (Status.get)". The
+  first flow of a scope with a scenario keeps the bare title; a later one with the same scenario
+  gets its unit's name, then its handler's, then a number, in brackets.
 
 ## Consequences
 

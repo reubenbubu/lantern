@@ -853,7 +853,7 @@ class DescriberTest {
     Document document = system(describe(new FakeLlmProvider().answering(DescriberTest::answer)));
 
     Section flow = flowSection(document, LIST_FLOW);
-    // The model's title names the scenario, before the trigger (ADR 0047, amendment for #272).
+    // The model's title is the page's title; the trigger is in its Overview table (ADR 0122).
     assertThat(flow.title()).isEqualTo("Shop lists its orders");
     Paragraph prose = (Paragraph) flow.blocks().getFirst();
     String endpoint = facts.find(LIST.toString(), "endpoint").id();

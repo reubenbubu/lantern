@@ -1133,7 +1133,14 @@ public final class ScopeFlows {
       String gateway = nameOf(trace.gateway.gateway());
       return new Heading(
           request + " on " + gateway,
-          request + " to " + gateway + " (" + methodName(entry.method) + ")",
+          request
+              + " to "
+              + gateway
+              + ", routed to "
+              + nameOf(entry.unit)
+              + " ("
+              + methodName(entry.method)
+              + ")",
           gateway + " receives " + request + " and routes it to " + nameOf(entry.unit));
     }
     if (start == null) {
@@ -1163,7 +1170,14 @@ public final class ScopeFlows {
     }
     return new Heading(
         heading.title(),
-        request + " from " + nameOf(start.frontend) + " (" + methodName(entry.method) + ")",
+        request
+            + " from "
+            + nameOf(start.frontend)
+            + " to "
+            + nameOf(entry.unit)
+            + " ("
+            + methodName(entry.method)
+            + ")",
         starts.toString());
   }
 

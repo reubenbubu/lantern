@@ -261,7 +261,11 @@ final class SequenceFlows {
       title = scenario + " (" + nameOf(entry.unit()) + ")";
       if (!titles.add(title)) {
         title = scenario + " (" + nameOf(entry.unit()) + ", " + handler + ")";
-        titles.add(title);
+        // One handler can start two flows of a unit (two paths, or a gateway route to it too).
+        String base = title;
+        for (int n = 2; !titles.add(title); n++) {
+          title = base + " " + n;
+        }
       }
     }
     Assembler.Text walkthrough =

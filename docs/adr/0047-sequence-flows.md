@@ -253,3 +253,8 @@ before the gateway; the gateway's own filters are still not traced into the flow
 ## Amendment (#701): of the flows the LLM keeps, one of each shape is drawn.
 
 The flow significance role is shown one candidate for each stored shape, which tells flows apart by the messages they follow (#615). Two it keeps may still draw the same picture with other labels, as project-4's PUT and DELETE of a member's role: started the same way, the same lifelines in the same order. Of the kept flows, in the role's order, only the first of each such shape is drawn, so no two drawn flows share a shape (`docs/design.md`, Sequence diagrams). The stored shape stays as it is. `SequenceFlowsTest` covers two kept flows of one shape. On the #529 reports this would have dropped 12 repeats: 1 on project-1, 6 on project-2, 5 on project-4.
+
+## Amendment (#767): the title is the scenario alone
+
+A flow page's title no longer names its trigger in brackets; the trigger, where the flow runs and
+its handler are in its Overview table (ADR 0122).
