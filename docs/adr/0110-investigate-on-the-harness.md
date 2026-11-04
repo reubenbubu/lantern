@@ -160,3 +160,11 @@ Size 1 trial a cost $0.32. 77 reference risks and decoys were scored.
 ## Amendment (#760): limits in the role's contract
 
 This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.
+
+## Amendment (#715): a cited range is one the model was shown
+
+The `Shown` check of Resolve (ADR 0105, amendment for #715) applies to Investigate too, to each
+lead's entry and each proposal: a cited range holds only if the conversation's tools showed every
+line of it, or an excerpt of its request gave them. A proposal citing other lines is sent back and
+dropped as a whole, as for any rejected part. A range in another unit's repository holds once the
+conversation read it; Investigate has no sides.
