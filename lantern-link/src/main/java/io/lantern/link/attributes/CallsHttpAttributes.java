@@ -70,9 +70,10 @@ import tools.jackson.databind.node.ObjectNode;
  *     serves it: the linked unit itself, or the unit the gateway route in throughRoute sends it to.
  * @param reason Descriptive. What settles the LLM resolver's pick, in 6 to 35 words of its own.
  *     Present only on links of origin llm.
- * @param request Key. For a frontend's call, the request it makes: its method and path as written,
- *     such as POST /api/tasks, or its URL when it has no path. It keeps each request a claim of its
- *     own, with its own intent (#810).
+ * @param request Key. For a frontend's call, and for a unit's call that matches no endpoint of its
+ *     target, the request it makes: its method and path as written, such as POST /api/tasks, or its
+ *     URL when it has no path. It keeps each request a claim of its own, with its own intent (#810,
+ *     #811).
  * @param resolves Descriptive. The claim ID of the unresolved-link the LLM resolver picked this
  *     link for. Present only on links of origin llm.
  * @param route Descriptive. The id of the gateway route the link is, for a link from a Spring Cloud

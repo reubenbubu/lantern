@@ -278,7 +278,7 @@ from as well as its own facts. Which link words each step:
 - a frontend's call and the gateway route that forwards it: since #810, the intent of the
   frontend's link for that request, which is a claim of its own (ADR 0090, amendment for #810).
   The route step reads the same intent, since it forwards that request; the route's own link
-  covers every request through it. A gateway call that matches no endpoint still shares the
-  routes' link (#811).
+  covers every request through it. A unit's call that matches no endpoint is a claim of its
+  own too, so it reads its own intent, not a route's (ADR 0090, amendment for #811).
 
 The fake runs' counts are in #740's PR.

@@ -407,6 +407,9 @@ final class HttpLinker {
       }
     } else {
       confidence *= WITHOUT_ENDPOINT;
+      // With no endpoint, the request keeps the call a claim of its own, apart from the
+      // gateway's routes to the same unit and from its other unmatched calls (#811).
+      attributes.put("request", request(call, attributes));
     }
     attributes.put("protocol", protocol);
     attributes.put("matchedBy", target.matchedBy());
@@ -484,6 +487,15 @@ final class HttpLinker {
             fact.evidence(),
             CrossRepoLinks.round(fact.confidence()),
             facts));
+  }
+
+  /** A call's method and path, or its URL when it has no path. */
+  private static String request(Call call, ObjectNode attributes) {
+    String where =
+        attributes.hasNonNull("path")
+            ? attributes.get("path").asString()
+            : attributes.path("url").asString(call.text());
+    return call.httpMethod() == null ? where : call.httpMethod() + " " + where;
   }
 
   /** The attributes every HTTP link has: the call's client, method, path and URL, and its code. */
