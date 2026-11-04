@@ -240,6 +240,13 @@ class OpenAiBatchParityIT {
                 tools.jackson.databind.node.ObjectNode node =
                     (tools.jackson.databind.node.ObjectNode) JSON.readTree(answer);
                 node.remove(List.of("provider", "key", "citedSummaries", "inputSummaries"));
+                // Resolve packs a unit's items four to a conversation in the order of their
+                // fingerprints, which hash the provider, so a unit with more than four open links
+                // (project-0's fulfilment, #734) is packed differently on each; the fake cites the
+                // first address fact its packet shows, which then differs. Its picks must not.
+                if (rs.getString("role").equals("resolve")) {
+                  node.remove("cites");
+                }
                 answer = node.toString();
               }
               answers.put(rs.getString("role") + " " + rs.getString("subject"), answer);

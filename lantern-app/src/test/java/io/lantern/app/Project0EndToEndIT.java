@@ -271,11 +271,13 @@ class Project0EndToEndIT {
             "single-instance/service:com.acme.shop:fulfilment");
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
-    // The links project-0 leaves open with candidates: HTTP-6, HTTP-7 and MSG-5, all fulfilment's,
-    // so one conversation of two turns: the submit and the turn that ends it (ADR 0105).
+    // The links project-0 leaves open with candidates: nine (HTTP-6 to HTTP-9, MSG-5 to MSG-9,
+    // #734), seven of them fulfilment's, so four conversations (fulfilment's two of four and three,
+    // storefront's and payments' one each) of two turns: the submit and the turn that ends it (ADR
+    // 0105).
     long resolves = fake.sent().stream().filter(s -> s.request().role() == Role.RESOLVE).count();
-    assertThat(resolves).isEqualTo(2);
-    assertThat(first.linksAsked()).isEqualTo(3);
+    assertThat(resolves).isEqualTo(8);
+    assertThat(first.linksAsked()).isEqualTo(9);
     EndToEndIT.assertEveryCallCountedUnderItsRole(first, calls);
     assertEveryPlannedItemCountedOnce(first);
     List<String> files = new ArrayList<>();
@@ -1083,7 +1085,8 @@ class Project0EndToEndIT {
     Map<String, Long> kinds = new TreeMap<>();
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
     // Four units; the catalog and shop databases (the local profile's localhost one is a note);
-    // the shop.orders and shop.returns exchanges (their queues folded into their lines), two JMS
+    // the shop.orders, shop.returns, shop.parcels, shop.cancellations and shop.disputes exchanges
+    // (their queues folded into their lines; the last three from #734's open links), two JMS
     // queues and a Kafka topic; PayGate, by its default sandbox host (HTTP-4), and the mail host
     // compose gives payments (DEP-4); and the components
     // by role. catalog's ProductRepository is reached only from ProductController (through Spring
@@ -1092,13 +1095,13 @@ class Project0EndToEndIT {
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
-                    "component", 17L,
+                    "component", 29L,
                     "container", 4L,
                     "database", 2L,
                     "external", 2L,
                     // The Unknown caller (#766).
                     "person", 1L,
-                    "queue", 5L,
+                    "queue", 8L,
                     "system", 1L)));
     List<String> pages = new ArrayList<>();
     data.get("pages").forEach(page -> pages.add(page.get("id").asString()));

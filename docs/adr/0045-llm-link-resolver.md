@@ -116,3 +116,14 @@ as in tests), and the pick no longer carries `link`: its own claim ID is its sta
 candidates and reason are key attributes, so when they change it is a new claim, and `latest` no
 longer finds the answer given to the old one; the fallback to the last answer for a link whose
 prompt changed then does not apply.
+
+## Amendment (#734): project-0 has open links of every outcome
+
+The scorecard's Resolve row needs open links whose right answer is each of Resolve's outcomes. project-0 had only three, all with one candidate to pick (HTTP-6, HTTP-7, MSG-5). Its pin now adds six more:
+
+- **Both candidates receive the send** (MSG-6, MSG-7, MSG-8). Each is a RabbitMQ send with a routing key known only at run time, and every key it can make matches both bound queues' patterns. They come from three senders: fulfilment, storefront and payments.
+- **The code does not show the target** (MSG-9, HTTP-8, HTTP-9). One is a routing key handed in by a caller nothing in the set has. Two are URLs from environment variables that are set nowhere and name neither service, on a path both services serve.
+
+Resolve now asks about nine links in project-0, in four conversations: fulfilment's seven links are packed four to a conversation, and storefront and payments have one each. `Project0LinksIT` checks that each link is asked about once with its candidates. Its fake model answers the six new links "unknown". project-0's answer key, with the right answer for all nine, follows separately under the blind-check rule (CLAUDE.md).
+
+One more effect: Resolve packs a unit's links in the order of their fingerprints, and fingerprints hash the provider. So with more than four links for one unit, the conversations differ between providers. `OpenAiBatchParityIT` therefore compares Resolve's picks and leaves out its citations: the fake cites the first address fact its conversation shows, and that fact depends on the packing.
