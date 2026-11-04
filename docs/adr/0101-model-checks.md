@@ -9,16 +9,16 @@ text names, but not that it supports what the text claims. No filter reliably st
 repository that is addressed to an AI. The knowledge-build epic (`docs/epics/001-knowledge-build.md`,
 sections 10 and 11.7) adds two model checks that only add signals, never gate: a support judge and
 an injection screen. This records how #526 builds them on the harness, and where it stops short of
-the epic until the roles of milestone 1F exist. The agent decided these under the owner's standing
+the epic, as it stood before the roles of milestone 1F existed. The agent decided these under the owner's standing
 go-ahead for milestone 1E.
 
 ## Decisions
 
-- **Two model roles.** `JUDGE` and `SCREEN` join the configurable roles, both on the high-volume
-  tier by default.
-  - The judge runs on the high-volume tier. Describe writes on the reasoning tier, but other
-    writing roles may share the judge's model, and nothing refuses that yet (#751).
-  - The screen runs on the bulk tier, which 1F added.
+- **Two model roles.** `JUDGE` and `SCREEN` join the configurable roles, the judge on the high-volume
+  tier, the screen on the bulk tier since 1F.
+  - The judge runs on the high-volume tier, which Describe's element role and other writing
+    roles share (Describe's units are on the reasoning tier); nothing refuses a judge on a
+    writer's model yet (#751).
   - Both are in the `model-checks` share of the run budget (ADR 0100, amendment for #42).
   - Both use the epic's prompts and schemas word for word, after the common system prompt of
     section 11.0 (`CommonPrompt`), which every request the harness lays out will share.

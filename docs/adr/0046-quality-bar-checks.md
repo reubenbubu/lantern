@@ -29,7 +29,8 @@ sequence flows, the Brief's blast radius); those fail, so the report shows what 
   - *One abstraction level*: a context diagram shows systems, external systems and people; a
     container diagram also deployable units, databases, topics, queues and exchanges; a component
     diagram also types (components). Boundaries are not counted.
-  - *At most 15 elements*, since #369 *Readable* (boundaries not counted; a sequence's participants).
+  - *At most 15 elements* (boundaries not counted; a sequence's participants). Since #369 the
+    check is *Readable*, and 15 holds only for a sequence's participants (ADR 0117).
   - *Technology*: every container and component box, except external systems and people.
   - *Lines*: labelled, and not with a generic verb alone ("uses", "depends on", "calls", "connects
     to", "sends messages", "reads and writes" and the like); linked to facts; when all its facts

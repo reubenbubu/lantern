@@ -27,7 +27,7 @@ public enum Role {
   FLOW_SIGNIFICANCE(Tier.REASONING),
   COMPOSE(Tier.HIGH_VOLUME),
   TRANSLATE(Tier.HIGH_VOLUME),
-  /** The support judge (ADR 0101): of another tier than the reasoning-tier texts it checks. */
+  /** The support judge (ADR 0101), on the high-volume tier. */
   JUDGE(Tier.HIGH_VOLUME),
   /** The injection screen (ADR 0101): the bulk tier. */
   SCREEN(Tier.BULK),

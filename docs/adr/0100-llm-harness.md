@@ -65,7 +65,8 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   once, then recorded as not asked. The epic says "stored as not-asked"; it is kept in the run
   record but not cached in `llm_answers`, since a cached marker would stop every later run from
   asking it, and documents state it as unknown as they do any item without an answer. The first packet goes alone, so it writes the shared prefix,
-  the rest in parallel. Each role's packet size is its calibrated one (ADR 0112).
+  the rest in parallel. Each role's packet size is a constant in its code, set from calibration where it has been
+  calibrated (ADR 0112).
 - **Prompt layout.** A `PromptLayout` puts blocks 1 and 2 in the system prompt, with a cache break
   after block 2, and blocks 3 to 5 in the user turn, with breaks after block 3 and after block 4 when
   packets share it. Breaks are abstract `CacheBreak` hints, at most 4 a request; the Anthropic
