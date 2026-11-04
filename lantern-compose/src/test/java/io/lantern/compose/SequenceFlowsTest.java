@@ -1597,6 +1597,78 @@ class SequenceFlowsTest {
         .isEqualTo("note []: Starts when front receives POST /orders (Api.place).");
   }
 
+  /** Describe's intent for a link, as it stores it (ADR 0103). */
+  private void intentOf(Fact link, String text) {
+    facts.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            link.subject(),
+            Types.INTENT,
+            link.claimId() != null ? link.claimId() : link.id(),
+            text,
+            List.of(link),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+  }
+
+  /** The gateway's route to ship, and the request it forwards to ship's status endpoint. */
+  private Fact shipRoute() {
+    return facts.stream()
+        .filter(
+            f ->
+                f.predicate().equals("CALLS_HTTP")
+                    && f.subject().toString().equals(EDGE)
+                    && "ship".equals(f.attributes().path("route").asString(null)))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private Fact routedStatusRequest() {
+    return facts.stream()
+        .filter(f -> f.predicate().equals("routed-endpoint"))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void aStepAGatewayRoutesReadsTheForwardedRequestsOwnIntentBeforeTheRoutes() {
+    routedStatus(false);
+    // The route covers every request through it; the request is this flow's own (#740).
+    intentOf(shipRoute(), "Forwards shipping requests");
+    intentOf(routedStatusRequest(), "Asks for the parcel's status");
+
+    SequenceDiagram diagram =
+        diagram(flow(system(facts), "GET /api/ship/status to edge, routed to ship"));
+
+    assertThat(steps(diagram.steps()))
+        .anyMatch(
+            s -> s.startsWith("service:x:edge > service:x:ship: Asks for the parcel's status"))
+        .noneMatch(s -> s.contains("Forwards shipping requests"));
+    // It still cites the route it goes through, beside the request whose intent it reads.
+    SequenceDiagram.Message routed =
+        diagram.steps().stream()
+            .filter(SequenceDiagram.Message.class::isInstance)
+            .map(SequenceDiagram.Message.class::cast)
+            .filter(m -> "Asks for the parcel's status".equals(m.label()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(routed.facts()).contains(shipRoute().id(), routedStatusRequest().id());
+  }
+
+  @Test
+  void aStepAGatewayRoutesReadsTheRoutesIntentWhenItsRequestHasNone() {
+    routedStatus(false);
+    intentOf(shipRoute(), "Forwards shipping requests");
+
+    SequenceDiagram diagram =
+        diagram(flow(system(facts), "GET /api/ship/status to edge, routed to ship"));
+
+    assertThat(steps(diagram.steps()))
+        .anyMatch(s -> s.startsWith("service:x:edge > service:x:ship: Forwards shipping requests"));
+  }
+
   @Test
   void aFlowTheDiscoveryLocatorForwardsToStartsAtTheGateway() {
     routedStatus(true);

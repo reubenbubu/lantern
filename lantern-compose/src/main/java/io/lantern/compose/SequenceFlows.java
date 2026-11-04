@@ -109,18 +109,24 @@ final class SequenceFlows {
   private SequenceDiagram.Step draw(ScopeFlows.Step step) {
     return switch (step) {
       case ScopeFlows.Message message -> {
+        Fact phrasedBy = message.phrased();
         Assembler.Phrased phrase =
-            message.phrased() == null
+            phrasedBy == null
                 ? null
                 : message.from().type().equals(Types.PERSON)
                     // A person's step is worded by their intent for the frontend (#740, ADR 0103).
-                    ? assembler.personPhrase(message.phrased(), message.to())
-                    : assembler.phrase(message.phrased());
+                    ? assembler.personPhrase(phrasedBy, message.to())
+                    : assembler.phrase(phrasedBy);
+        if (phrase == null && message.phrasedElse() != null) {
+          // Its own link has no intent: the one it goes through, such as a gateway route (#740).
+          phrasedBy = message.phrasedElse();
+          phrase = assembler.phrase(phrasedBy);
+        }
         List<Fact> facts = new ArrayList<>(message.facts());
         if (phrase != null) {
           // The link it is worded from, so the label cites what its words rest on (#740).
-          if (!facts.contains(message.phrased())) {
-            facts.add(message.phrased());
+          if (!facts.contains(phrasedBy)) {
+            facts.add(phrasedBy);
           }
           facts.addAll(phrase.facts());
         }

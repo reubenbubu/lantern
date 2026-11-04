@@ -328,6 +328,9 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
  * - drawn: of the lines the report draws, other than a person's (whose labels are fixed), those
  *   labelled with the intent Describe wrote for a link running between the line's two ends, or
  *   elements inside them; and of the rest, those whose label is generic.
+ * - steps: of the sequence diagrams' message steps, other than a person's, on every diagram that
+ *   draws them, those with a worded link between their ends (intended), those reading one of its
+ *   intents (own), and those reading something else though it has one (fallbackWithIntent, #740).
  *
  * Only Describe's intents count, not those Name groups writes for lines leaving a group. Its
  * wording's judge score is added by the scorecard (wording.mjs, judgedRows).
@@ -457,6 +460,35 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
   const drawnGeneric = [...lines.values()].filter((l) => !l.own && l.generic).length;
   const genericWithIntent = [...lines.values()].filter((l) => !l.own && l.generic && l.intended).length;
   for (const [key, l] of lines) scores[`line:${key}`] = l.own ? 1 : 0;
+
+  // The sequence diagrams' steps (#740): each message step, on each diagram that draws it, matched
+  // by its ends and its label as a line is. Intended when a worded link runs between its ends, own
+  // when it reads one of those links' intents, and a fallback despite an intent when it is intended
+  // but reads something else. A step from or to a person is left out (#739).
+  const steps = { messages: 0, intended: 0, own: 0, fallbackWithIntent: 0 };
+  for (const page of report.pages) {
+    for (const section of page.sections) {
+      if (section.type !== 'sequence') continue;
+      // A step is keyed by its diagram, its two ends and how many steps between them came before,
+      // so a note added or dropped on a rerun shifts no key.
+      const seen = new Map();
+      for (const step of section.steps ?? []) {
+        if (step.from === undefined || step.to === undefined || step.message === undefined) continue;
+        if (report.elements[step.from]?.kind === 'person' || report.elements[step.to]?.kind === 'person') continue;
+        const ends = `${step.from}->${step.to}`;
+        const n = seen.get(ends) ?? 0;
+        seen.set(ends, n + 1);
+        steps.messages++;
+        const r = { from: step.from, to: step.to, label: step.message };
+        if (!intended(r)) continue;
+        steps.intended++;
+        const own = ownLink(r);
+        if (own) steps.own++;
+        else steps.fallbackWithIntent++;
+        scores[`step:${section.id}/${ends}#${n}`] = own ? 1 : 0;
+      }
+    }
+  }
   return {
     measured: true,
     elements: elements.length,
@@ -473,6 +505,7 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
       other: lines.size - drawnOwn - drawnGeneric,
       coverage: ratio(drawnOwn, lines.size),
     },
+    steps,
     undescribed: elements.filter(([id]) => !withText.some(([w]) => w === id)).map(([, e]) => e.name),
     scores,
   };

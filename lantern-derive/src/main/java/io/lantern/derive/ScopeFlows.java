@@ -191,6 +191,8 @@ public final class ScopeFlows {
    *     the phrase's cited facts then added to its own; null when it has none
    * @param phrasedCode its code when the phrase labels it, such as a data step's repository method
    *     and protocol (#740); null to keep {@code code}
+   * @param phrasedElse the link whose intent labels it when {@code phrased} has none, such as the
+   *     gateway route a request goes through (#740); null for none
    */
   public record Message(
       EntityId from,
@@ -202,8 +204,25 @@ public final class ScopeFlows {
       String info,
       List<Fact> facts,
       Fact phrased,
-      String phrasedCode)
-      implements Step {}
+      String phrasedCode,
+      Fact phrasedElse)
+      implements Step {
+
+    /** A message worded by one link's intent, or by its plain label. */
+    public Message(
+        EntityId from,
+        EntityId to,
+        String plain,
+        String code,
+        boolean async,
+        List<String> profiles,
+        String info,
+        List<Fact> facts,
+        Fact phrased,
+        String phrasedCode) {
+      this(from, to, plain, code, async, profiles, info, facts, phrased, phrasedCode, null);
+    }
+  }
 
   /** A note over participants, none for the whole flow. */
   public record Note(List<EntityId> over, String text, List<String> profiles, List<Fact> facts)
@@ -381,6 +400,20 @@ public final class ScopeFlows {
         String info,
         List<Fact> facts,
         Fact phrased) {
+      message(from, to, plain, code, async, profiles, info, facts, phrased, null);
+    }
+
+    private void message(
+        EntityId from,
+        EntityId to,
+        String plain,
+        String code,
+        boolean async,
+        List<String> profiles,
+        String info,
+        List<Fact> facts,
+        Fact phrased,
+        Fact phrasedElse) {
       outline.add(line(line(from, to, async, plain, code, info), profiles, facts));
       if (from != null) {
         participants.add(from);
@@ -390,7 +423,17 @@ public final class ScopeFlows {
       }
       steps.add(
           new Message(
-              from, to, plain, code, async, profiles, info, List.copyOf(facts), phrased, null));
+              from,
+              to,
+              plain,
+              code,
+              async,
+              profiles,
+              info,
+              List.copyOf(facts),
+              phrased,
+              null,
+              phrasedElse));
     }
 
     private void note(List<EntityId> over, String text, List<String> profiles, List<Fact> facts) {
@@ -689,7 +732,10 @@ public final class ScopeFlows {
           false,
           step.profiles(),
           info.toString(),
-          step.facts(),
+          withRoute(step.facts(), gateway.route()),
+          // The route forwards this request: the step reads the request's own intent, and the
+          // route's one intent only when the request has none (#740, as #810 for a frontend's).
+          gateway.routed(),
           gateway.route());
     }
 
@@ -860,7 +906,8 @@ public final class ScopeFlows {
                 last.info(),
                 last.facts(),
                 last.phrased(),
-                code == null ? label(parts) : label(parts) + " · " + code));
+                code == null ? label(parts) : label(parts) + " · " + code,
+                last.phrasedElse()));
       }
     }
 
