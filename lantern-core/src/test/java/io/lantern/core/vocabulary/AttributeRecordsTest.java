@@ -82,7 +82,7 @@ class AttributeRecordsTest {
         .contains("public record HttpCallAttributes(")
         .contains(
             "    String classValue,\n    String path,\n    Long port,\n    List<String> tags)")
-        .doesNotContain("String TYPE")
+        .contains("public static final String TYPE = \"http-call\";")
         .contains("KEY_ATTRIBUTES = List.of(\"path\");")
         .contains("AttributeValues.strings(attributes, \"tags\")")
         .contains("AttributeValues.put(attributes, \"class\", classValue);")

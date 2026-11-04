@@ -40,6 +40,9 @@ public record PublishesAttributes(
     String source,
     String view) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "PUBLISHES";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("protocol", "routingKey", "view");
 

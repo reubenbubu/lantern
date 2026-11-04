@@ -28,6 +28,9 @@ public record MapsToAttributes(
     String inheritedFrom,
     String namingStrategy) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "MAPS_TO";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("framework", "inheritedFrom", "namingStrategy");
 

@@ -40,6 +40,9 @@ public record BackgroundJobAttributes(
     List<String> unresolved,
     String written) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "background-job";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("framework", "job", "kind", "request", "scheduledBy");
 

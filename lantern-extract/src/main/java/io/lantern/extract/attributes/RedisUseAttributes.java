@@ -46,6 +46,9 @@ public record RedisUseAttributes(
     String structure,
     String ttl) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "redis-use";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("api", "cache", "channel", "configKey", "hash", "key", "namespace", "operation", "source", "structure", "ttl");
 

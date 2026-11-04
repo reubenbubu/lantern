@@ -24,6 +24,9 @@ public record HttpClientBeanAttributes(
     Boolean loadBalanced,
     String type) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "http-client-bean";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("baseUrl", "loadBalanced", "type");
 

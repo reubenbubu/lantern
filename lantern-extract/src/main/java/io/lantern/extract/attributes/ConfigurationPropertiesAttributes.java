@@ -17,6 +17,9 @@ import tools.jackson.databind.node.ObjectNode;
 public record ConfigurationPropertiesAttributes(
     String annotation) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "configuration-properties";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("annotation");
 

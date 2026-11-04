@@ -65,6 +65,9 @@ public record SendsMessagesToAttributes(
     String target,
     String view) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "SENDS_MESSAGES_TO";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("bindingKey", "destination", "protocol", "routingKey", "view");
 

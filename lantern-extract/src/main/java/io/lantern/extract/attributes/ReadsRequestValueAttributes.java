@@ -33,6 +33,9 @@ public record ReadsRequestValueAttributes(
     String source,
     String via) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "reads-request-value";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("annotation", "call", "parameter", "requestType", "source", "via");
 

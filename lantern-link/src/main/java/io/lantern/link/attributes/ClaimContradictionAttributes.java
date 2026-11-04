@@ -41,6 +41,9 @@ public record ClaimContradictionAttributes(
     String stated,
     List<String> units) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "claim-contradiction";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("found", "stated", "units");
 

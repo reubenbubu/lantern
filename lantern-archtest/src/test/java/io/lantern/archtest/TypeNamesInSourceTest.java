@@ -114,13 +114,16 @@ class TypeNamesInSourceTest {
     return found;
   }
 
-  /** The main sources of the modules that read facts, but the typed layer itself. */
+  /**
+   * The main sources of the modules that read facts, but the typed layer: Types and the records.
+   */
   private static List<Path> sources() throws IOException {
     List<Path> files = new ArrayList<>();
     for (String module : MODULES) {
       try (Stream<Path> walk = Files.walk(Path.of("..", module, "src/main/java"))) {
         walk.filter(p -> p.toString().endsWith(".java"))
             .filter(p -> !p.endsWith(Path.of("io/lantern/core/types/Types.java")))
+            .filter(p -> !p.getParent().getFileName().toString().equals("attributes"))
             .forEach(files::add);
       }
     }

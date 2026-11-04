@@ -34,6 +34,9 @@ public record StompPrefixAttributes(
     String userRegistryBroadcast,
     String virtualHost) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "stomp-prefix";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("kind", "relayHost", "relayPort", "userDestinationBroadcast", "userRegistryBroadcast", "virtualHost");
 

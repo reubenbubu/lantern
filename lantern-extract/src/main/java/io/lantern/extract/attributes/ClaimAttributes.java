@@ -16,6 +16,9 @@ import tools.jackson.databind.node.ObjectNode;
 public record ClaimAttributes(
     String section) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "claim";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("section");
 

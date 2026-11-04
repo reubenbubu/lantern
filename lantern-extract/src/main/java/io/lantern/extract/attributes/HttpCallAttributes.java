@@ -63,6 +63,9 @@ public record HttpCallAttributes(
     String url,
     String written) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "http-call";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("annotation", "baseUrl", "client", "clientType", "httpMethod", "loadBalanced", "path", "service", "url");
 

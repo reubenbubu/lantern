@@ -33,6 +33,9 @@ public record GatewayRouteWrittenAttributes(
     List<String> predicates,
     String uri) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "gateway-route-written";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("configModule", "configRepo", "filterTypes", "filters", "methods", "order", "paths", "predicates", "uri");
 

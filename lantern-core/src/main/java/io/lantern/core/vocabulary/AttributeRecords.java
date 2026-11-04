@@ -249,6 +249,8 @@ public final class AttributeRecords {
           "    " + javaType(attribute.getValue()) + " " + componentName(attribute.getKey()));
     }
     out.append(String.join(",\n", components)).append(") {\n\n");
+    out.append("  /** The vocabulary type these are the attributes of. */\n");
+    out.append("  public static final String TYPE = \"").append(type.name()).append("\";\n\n");
     out.append("  /** The key attributes: those that are part of what the fact claims. */\n");
     out.append("  public static final List<String> KEY_ATTRIBUTES = List.of(");
     out.append(String.join(", ", keys.stream().map(k -> "\"" + k + "\"").toList()));

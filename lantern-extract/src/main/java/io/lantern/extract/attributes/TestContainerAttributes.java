@@ -30,6 +30,9 @@ public record TestContainerAttributes(
     String technology,
     List<String> topics) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "test-container";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("class", "embedded", "image", "role", "serviceConnection", "technology", "topics");
 

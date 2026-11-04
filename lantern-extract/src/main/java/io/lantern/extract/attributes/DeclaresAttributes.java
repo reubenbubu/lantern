@@ -53,6 +53,9 @@ public record DeclaresAttributes(
     List<String> followed,
     String name) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "DECLARES";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("broker", "configModule", "configRepo", "configured", "deadLetterExchange", "deadLetterExchangeFollowed", "deadLetterRoutingKey", "deadLetterRoutingKeyFollowed", "destinationKind", "durable", "exchangeType", "name");
 

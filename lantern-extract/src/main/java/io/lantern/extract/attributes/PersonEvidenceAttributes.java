@@ -57,6 +57,9 @@ public record PersonEvidenceAttributes(
     String summary,
     String type) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "person-evidence";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("action", "annotation", "anyReceiver", "field", "framework", "guard", "name", "path", "scope", "serviceAccountOnly", "source", "type");
 

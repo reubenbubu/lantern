@@ -24,6 +24,9 @@ public record MethodSecurityAttributes(
     Boolean prePostEnabled,
     Boolean securedEnabled) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "method-security";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("annotation", "jsr250Enabled", "prePostEnabled", "securedEnabled");
 

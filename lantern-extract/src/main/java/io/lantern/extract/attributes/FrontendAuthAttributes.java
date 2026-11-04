@@ -32,6 +32,9 @@ public record FrontendAuthAttributes(
     String type,
     Boolean withCredentials) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "frontend-auth";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("bearer", "headers", "name", "redirect", "routes", "storage", "type", "withCredentials");
 

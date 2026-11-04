@@ -392,7 +392,8 @@ final class ArchitectureRules {
                   Object value = value(field);
                   if (value instanceof String text
                       && TYPE_NAMES.get().contains(text)
-                      && !NOT_TYPE_NAMES.contains(name)) {
+                      && !NOT_TYPE_NAMES.contains(name)
+                      && !isGeneratedRecordType(field)) {
                     events.add(
                         SimpleConditionEvent.violated(
                             field,
@@ -419,6 +420,18 @@ final class ArchitectureRules {
           return names;
         }
       };
+
+  /**
+   * The {@code TYPE} of a generated attribute record (ADR 0090): part of the typed layer, generated
+   * from the vocabulary and checked against it as {@code Types} is.
+   */
+  private static boolean isGeneratedRecordType(JavaField field) {
+    JavaClass owner = field.getOwner();
+    return field.getName().equals("TYPE")
+        && owner.isRecord()
+        && owner.getPackageName().endsWith(".attributes")
+        && owner.getSimpleName().endsWith("Attributes");
+  }
 
   private static Object value(JavaField field) {
     try {

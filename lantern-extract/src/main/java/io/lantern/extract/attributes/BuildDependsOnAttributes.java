@@ -26,6 +26,9 @@ public record BuildDependsOnAttributes(
     String scope,
     String version) {
 
+  /** The vocabulary type these are the attributes of. */
+  public static final String TYPE = "BUILD_DEPENDS_ON";
+
   /** The key attributes: those that are part of what the fact claims. */
   public static final List<String> KEY_ATTRIBUTES = List.of("artifactType", "classifier", "coordinates", "optional", "scope", "version");
 
