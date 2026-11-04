@@ -1578,6 +1578,9 @@ class LinkResolverTest {
             v7.dropped(),
             v7.filesRead(),
             v7.inputs()));
+    assertThat(store.latest(LinkResolver.ROLE.name(), subject).orElseThrow().answer())
+        .as("the seeded answer cites the unshown range")
+        .contains("TaxController.java:1-2");
     FakeLlmProvider again = lookingFurther();
 
     LinkResolver.Result result = resolveWithFiles(again);
