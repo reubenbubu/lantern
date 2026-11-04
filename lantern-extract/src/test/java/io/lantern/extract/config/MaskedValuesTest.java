@@ -46,6 +46,15 @@ class MaskedValuesTest {
   }
 
   @Test
+  void aPasswordIsFoundInASpanThatHoldsMoreThanTheUrl() {
+    assertThat(
+            taken(
+                "a(\"secret value\", \"jdbc:x://app:pw-123456@db/app\");",
+                "a(\"******\", \"******\");"))
+        .contains("pw-123456");
+  }
+
+  @Test
   void anUnchangedTextGivesNothing() {
     assertThat(taken("a\nb", "a\nb")).isEmpty();
   }

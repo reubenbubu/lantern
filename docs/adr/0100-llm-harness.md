@@ -346,5 +346,10 @@ harness reads live, so a value found in a file shown late still counts for every
 Values shorter than six characters are not looked for (`Harness.SHORTEST_SECRET`), and masked
 prose, such as an exception message under a secret's name, counts whole, never word by word, so
 words like "password" stay usable. An answer holding one is sent back once with the reason and
-dropped if it holds it again. The values are never written: the run's log gives their count only.
+dropped if it holds it again. A value counts as a whole word, not inside a longer one, so a masked
+`Postgres` does not reject an answer naming PostgreSQL. The values are never written: the run's log
+gives their count only, and a rejected answer is logged and kept in the rejections file with each
+value replaced by `******`; the LLM cache keeps the model's answers as returned, like every other
+answer. The set grows as files are shown, so an answer accepted before a value was first shown is
+not checked again for it, and which answers are sent back can vary with the order roles run in.
 

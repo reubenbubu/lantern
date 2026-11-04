@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The harness of one run (knowledge-build epic, section 10; ADR 0100): every LLM role works through
@@ -197,7 +198,14 @@ public final class Harness {
 
   /** Notes an answer the checks rejected, or an item dropped (#682). */
   synchronized void rejected(RejectedAnswer rejection) {
-    rejections.add(rejection);
+    // A rejected answer may hold a masked value; what is kept of it never does (#645).
+    rejections.add(
+        new RejectedAnswer(
+            rejection.role(),
+            rejection.subject(),
+            rejection.attempt(),
+            redacted(rejection.answer()),
+            rejection.reasons()));
   }
 
   /** Every answer rejected and every item dropped in this run, in the order they happened. */
@@ -249,7 +257,7 @@ public final class Harness {
 
   /** The values masking marked as secret so far, but those too short to look for. */
   Set<String> secrets() {
-    Set<String> kept = new java.util.TreeSet<>();
+    Set<String> kept = new TreeSet<>();
     for (String secret : List.copyOf(secrets)) {
       if (secret.length() >= SHORTEST_SECRET) {
         kept.add(secret);
@@ -261,10 +269,45 @@ public final class Harness {
   /** A secret value the text holds, or null if it holds none. */
   String secretIn(String text) {
     for (String secret : secrets()) {
-      if (text.contains(secret)) {
+      if (holds(text, secret)) {
         return secret;
       }
     }
     return null;
+  }
+
+  /** What is written of a text, in the rejections file or the log: its secret values masked. */
+  String redacted(String text) {
+    if (text == null) {
+      return null;
+    }
+    String result = text;
+    for (String secret : secrets()) {
+      result = result.replace(secret, MASK);
+    }
+    return result;
+  }
+
+  /** What a secret value is replaced by where a text holding one is written. */
+  static final String MASK = "******";
+
+  /**
+   * Whether the text holds the secret as a whole word: not inside a longer run of letters and
+   * digits, so a masked {@code postgres} does not reject an answer naming PostgreSQL (#645).
+   */
+  public static boolean holds(String text, String secret) {
+    if (secret.isEmpty()) {
+      return false;
+    }
+    for (int at = text.indexOf(secret); at >= 0; at = text.indexOf(secret, at + 1)) {
+      int end = at + secret.length();
+      boolean before = at == 0 || !Character.isLetterOrDigit(text.charAt(at - 1));
+      boolean after = end == text.length() || !Character.isLetterOrDigit(text.charAt(end));
+      if ((before || !Character.isLetterOrDigit(secret.charAt(0)))
+          && (after || !Character.isLetterOrDigit(secret.charAt(secret.length() - 1)))) {
+        return true;
+      }
+    }
+    return false;
   }
 }

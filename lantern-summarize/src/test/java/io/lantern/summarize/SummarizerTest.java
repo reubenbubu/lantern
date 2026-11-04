@@ -2136,14 +2136,15 @@ class SummarizerTest {
                                 "guarded by the password " + secret + ",")));
     SummaryNode order = orderWithSource(blob(source));
 
-    Summarizer.Result result =
-        new Summarizer(
-                new Harness(
-                    client("model-a", echoing), store, RunBudget.NONE, BlobLookup.NONE, secrets),
-                files)
-            .summarize(List.of(order));
+    Harness harness =
+        new Harness(client("model-a", echoing), store, RunBudget.NONE, BlobLookup.NONE, secrets);
+    Summarizer.Result result = new Summarizer(harness, files).summarize(List.of(order));
 
     assertThat(secrets).contains(secret);
+    // What is kept of the rejected answers never holds the value.
+    assertThat(harness.rejections()).isNotEmpty();
+    assertThat(harness.rejections())
+        .allSatisfy(r -> assertThat(String.valueOf(r.answer())).doesNotContain(secret));
     assertThat(echoing.sent().getFirst().request().messages().getFirst().text())
         .doesNotContain(secret);
     // Asked, sent back once with the reason, then dropped.

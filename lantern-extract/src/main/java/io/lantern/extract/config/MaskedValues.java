@@ -64,11 +64,8 @@ public final class MaskedValues {
       return;
     }
     sink.accept(taken);
-    if (taken.chars().anyMatch(Character::isWhitespace)) {
-      // Masked prose, such as a message under a secret's name: its words are no secrets.
-      return;
-    }
-    // A URL masked for its credentials holds a password that may be repeated alone.
+    // A URL masked for its credentials holds a password that may be repeated alone, even when the
+    // span also holds other text the line masked.
     Matcher password = PASSWORD.matcher(taken);
     while (password.find()) {
       sink.accept(password.group(1));

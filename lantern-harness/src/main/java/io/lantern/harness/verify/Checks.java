@@ -595,7 +595,7 @@ public final class Checks {
       List<Rejection> found = new ArrayList<>();
       for (CheckedText text : answer.texts()) {
         for (String secret : inputs.secrets()) {
-          if (!secret.isEmpty() && text.text().contains(secret)) {
+          if (io.lantern.harness.Harness.holds(text.text(), secret)) {
             found.add(
                 reject(
                     answer, text.field(), this, "Holds a value marked as secret; leave it out."));
