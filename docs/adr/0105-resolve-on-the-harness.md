@@ -1,7 +1,7 @@
 # 0105: Resolve on the harness
 
 Status: accepted (#666); amends ADRs 0045 (prompt, answer, checks, storage, conversation) and 0081
-(tool references, `find_in_code`); amended for #529 (four links a conversation, unmeasured)
+(tool references, `find_in_code`); amended for #529 (four links a conversation, unmeasured) and #734 (unjudged links counted apart)
 
 ## Context
 
@@ -133,4 +133,3 @@ unchanged; the row says "N not asked; N failed; N never an item". An older `run.
 
 The cases in project-0 with an answer for each outcome (picks one, abstains, unknown) and the row
 from a real run are the rest of #734.
-

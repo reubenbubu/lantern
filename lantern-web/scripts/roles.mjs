@@ -47,16 +47,18 @@ export function reportId(entity) {
 
 const ratio = (a, b) => (b === 0 ? null : a / b);
 
-/**
- * The three-outcome score of a role's items (#662): each item correct, wrong or abstained, or not
- * asked (for budget, a model without what it needs, or a failure), which is counted apart.
- *
- * @param items `{ id, outcome, unknown }`, outcome one of correct, wrong, abstained, notAsked;
- *     unknown when the reference's right answer is "unknown"
- * @param p the penalty of a wrong answer
- */
 /** The outcomes of an item no answer was had for: not asked, its request failed, or never an item. */
 const UNJUDGED = new Set(['notAsked', 'failed', 'notAnItem']);
+
+/**
+ * The three-outcome score of a role's items (#662): each item correct, wrong or abstained, or left
+ * unjudged and counted apart: not asked (budget, a model without what it needs), failed, or never
+ * an item (#734).
+ *
+ * @param items `{ id, outcome, unknown }`, outcome one of correct, wrong, abstained, notAsked,
+ *     failed, notAnItem; unknown when the reference's right answer is "unknown"
+ * @param p the penalty of a wrong answer
+ */
 
 export function threeOutcomes(items, p) {
   const judged = items.filter((i) => !UNJUDGED.has(i.outcome));
