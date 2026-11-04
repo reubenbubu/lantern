@@ -723,7 +723,7 @@ public final class ScopeFlows {
     /**
      * A message pushed to STOMP subscribers: an asynchronous message to the subscribed browsers, a
      * participant of their own since no fact of the code names the clients; the WebSocket endpoints
-     * of the unit say where they connect (ADR 0080; ADR 0047, amendment for #745).
+     * of the unit say where they connect (ADR 0080, amendment for #745).
      */
     private void stompPush(FlowModel.Step step, Fact push) {
       EntityId unit = step.over().getFirst();

@@ -41,12 +41,13 @@ extractors) lists extractors; this adds one.
   - `stomp-interceptor`: the type given to `ChannelRegistration.interceptors` in
     `configureClientInboundChannel` or `configureClientOutboundChannel`, with `channel` and, when
     its class is in the analyzed sources, the `ChannelInterceptor` methods it declares.
-- **Composition.** Sequence flows (ADR 0047) draw a `stomp-send` as a note over the unit (since #745, a message to the subscribed browsers; see its amendment), after the
-  steps of the method that pushes ("notification-service pushes to the STOMP subscribers of
-  /topic/notifications, connected over /ws-notifications"), citing the send and the unit's STOMP
-  endpoints. A push counts as leaving the unit, so an entry point that reaches nothing else but
-  pushes still makes a flow. The subscribers are browsers that no fact of the code names (a frontend extractor,
-  #267, may), so there is no participant to draw a message to. `stomp-mapping` also starts flows.
+- **Composition.** Sequence flows (ADR 0047) draw a `stomp-send` as an asynchronous message from
+  the unit to a "Subscribed browsers" participant, after the steps of the method that pushes
+  ("Pushes to the user's subscribers of /topic/notifications [STOMP over WebSocket]", connected
+  over /ws-notifications), citing the send and the unit's STOMP endpoints. Until #745 it was a
+  note over the unit. A push counts as leaving the unit, so an entry point that reaches nothing
+  else but pushes still makes a flow. The subscribers are browsers that no fact of the code names
+  (a frontend extractor, #267, may), so the participant stands for them. `stomp-mapping` also starts flows.
   A flow that starts at a `stomp-mapping` is titled "STOMP message to /chat/say on chat" (or
   "STOMP subscription to ..." for `@SubscribeMapping`). In the component view, a class with a
   `stomp-mapping` ("STOMP message handler") or that registers a `websocket-endpoint` ("STOMP
@@ -137,4 +138,7 @@ it pushes to ("Pushes to the subscribers of /topic/status", or "to the user's su
 `convertAndSendToUser`), with `STOMP over WebSocket` as its protocol and the WebSocket endpoints the
 browsers connect over as its detail. A flow that only pushes then has two participants and is drawn
 as a sequence diagram, not a list (`docs/quality-bar.md`, Rubric, Dynamic / sequence). The
-participant stands for clients that no fact of the code names, as the note did.
+participant stands for clients that no fact of the code names, as the note did. It is an actor,
+drawn with a person's shape like every actor: browsers are driven by people, and the kind keeps
+it outside the system's boxes. It has no description, as an external participant of a sequence
+needs none.

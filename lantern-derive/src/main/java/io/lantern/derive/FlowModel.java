@@ -58,7 +58,10 @@ public final class FlowModel {
   /** A note: more implementations than are drawn may run a call. */
   public static final String TOO_MANY = "too-many-alternatives";
 
-  /** A note: a message pushed to STOMP subscribers. */
+  /**
+   * A message pushed to STOMP subscribers, stored like a note over the unit; the composer draws it
+   * as a message to the subscribed browsers (ADR 0080, amendment for #745).
+   */
   public static final String STOMP_PUSH = "stomp-push";
 
   /** A note: a call Lantern could not link, where the trace stops following it. */
