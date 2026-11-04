@@ -295,6 +295,68 @@ class EndToEndIT {
         .contains("run.json");
   }
 
+  /**
+   * The harness's gate (knowledge-build epic, section 13; ADR 0100) on a fixture of its own, so it
+   * runs where project-0 is not set up (#769): a one-file change asks again only items that rest on
+   * that file, or show an earlier answer that changed, and a rerun of the changed commit asks none.
+   * The fixture summarizes its modules and itself; the change is to its README, which only the
+   * repository's summary shows.
+   */
+  @Test
+  void aOneFileChangeAsksAgainOnlyTheItemsRestingOnThatFile() throws IOException {
+    Path repo = fixtureRepo("multi-module", "gate-shop");
+    TestGitRepo git = TestGitRepo.init(repo);
+    git.commit("README.md", "# Gate shop\n\nThe shop prices its products.\n");
+    run.run("gate", null, Map.of("gate-shop", repo));
+    int sent = fake.sent().size();
+    run.run("gate", null, Map.of("gate-shop", repo));
+    assertThat(fake.sent()).as("calls of an unchanged rerun").hasSize(sent);
+
+    // The README's claims are shown to the repository's summary only.
+    String path = "README.md";
+    git.commit(path, "# Gate shop\n\nThe shop charges one price for every product.\n");
+    AnalysisRun.Result changed = run.run("gate", null, Map.of("gate-shop", repo));
+
+    JsonNode record = JsonMapper.builder().build().readTree(Files.readString(changed.runRecord()));
+    List<String> asked = new ArrayList<>();
+    record
+        .get("harness")
+        .forEach(
+            role -> {
+              role.get("askedSubjects")
+                  .forEach(
+                      subject -> asked.add(role.get("role").asString() + " " + subject.asString()));
+              role.get("askedWhy")
+                  .forEach(
+                      why -> {
+                        String item =
+                            role.get("role").asString() + " " + why.get("subject").asString();
+                        assertThat(
+                                why.has("new")
+                                    || why.has("unheld")
+                                    || why.has("other")
+                                    || why.has("prompt")
+                                    || why.has("model"))
+                            .as(item + " asked for " + why)
+                            .isFalse();
+                        List<String> files = new ArrayList<>();
+                        why.path("files").forEach(f -> files.add(f.asString()));
+                        // The changed file, or only an earlier answer it shows that changed.
+                        assertThat(!files.isEmpty() || why.path("answers").asInt() > 0)
+                            .as(item + " asked for " + why)
+                            .isTrue();
+                        assertThat(files).as(item).isSubsetOf("gate-shop:" + path);
+                      });
+            });
+    assertThat(asked)
+        .contains("summarize repo:gate-shop")
+        .noneMatch(item -> item.startsWith("summarize module:"));
+
+    int afterChange = fake.sent().size();
+    run.run("gate", null, Map.of("gate-shop", repo));
+    assertThat(fake.sent()).as("calls of a rerun of the changed commit").hasSize(afterChange);
+  }
+
   @Test
   void analyzingAnotherRepositoryKeepsTheFactsOfTheFirst() throws IOException {
     // Two repositories, the service depending on the library.

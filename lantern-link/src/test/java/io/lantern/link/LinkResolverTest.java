@@ -407,6 +407,76 @@ class LinkResolverTest {
   }
 
   @Test
+  void theSameFactsMakeTheSameRequestsEveryTime() {
+    taxCall();
+    List<Fact> facts = linked();
+    List<Fact> reversed = new ArrayList<>(facts);
+    java.util.Collections.reverse(reversed);
+    FakeLlmProvider one = submittingOnce(PICK_TAX);
+    FakeLlmProvider two = submittingOnce(PICK_TAX);
+    java.util.function.Function<LlmProvider, Harness> fresh =
+        provider ->
+            new Harness(
+                client(provider, BudgetGuard.unlimited("test")),
+                new InMemoryAnswerStore(),
+                RunBudget.NONE,
+                (repo, path) ->
+                    FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
+                Set.of());
+
+    new LinkResolver(fresh.apply(one)).resolve(facts, 1);
+    new LinkResolver(fresh.apply(two)).resolve(reversed, 1);
+
+    // Byte for byte, whatever order the facts come in (#769).
+    java.util.function.Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .map(r -> r.purpose() + "\n" + r.system() + "\n" + r.messages())
+                .sorted()
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one)).isNotEmpty();
+  }
+
+  @Test
+  void aLowPickIsTheOpenLinksConfidenceTimesTheLowFactor() {
+    taxCall();
+    // The open link held at 0.8: the pick's confidence is that times the model's own (#769).
+    List<Fact> all = new ArrayList<>();
+    for (Fact f : linked()) {
+      all.add(
+          f.predicate().equals(Types.UNRESOLVED_LINK)
+              ? new Fact(
+                  f.id(),
+                  f.claimId(),
+                  f.subject(),
+                  f.predicate(),
+                  f.object(),
+                  f.attributes(),
+                  f.lineage(),
+                  f.origin(),
+                  f.evidence(),
+                  0.8,
+                  f.validity())
+              : f);
+    }
+    FakeLlmProvider fake =
+        submittingOnce(
+            r -> pickTax(r).replace("\"confidence\": \"high\"", "\"confidence\": \"low\""));
+
+    LinkResolver.Result result =
+        new LinkResolver(harness(client(fake, BudgetGuard.unlimited("test")))).resolve(all, 1);
+
+    assertThat(result.facts())
+        .singleElement()
+        .satisfies(
+            link -> {
+              assertThat(link.object().value()).isEqualTo("service:g:tax");
+              assertThat(link.confidence()).isEqualTo(CrossRepoLinks.round(0.8 * 0.2));
+            });
+  }
+
+  @Test
   void aPickBecomesAnObservationOfTheLinkClaimOfOriginLlmResolveWithItsReason() {
     taxCall();
     LinkResolver.Result result = resolve(submittingOnce(PICK_TAX));

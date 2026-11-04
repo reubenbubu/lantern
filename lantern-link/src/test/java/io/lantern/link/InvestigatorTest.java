@@ -18,6 +18,7 @@ import io.lantern.harness.RunBudget;
 import io.lantern.llm.BudgetGuard;
 import io.lantern.llm.FakeLlmProvider;
 import io.lantern.llm.InMemoryLlmCallLog;
+import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmClient;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -46,10 +47,12 @@ class InvestigatorTest {
   private static final String STORAGE = "src/main/java/f/StorageClient.java";
   private static final String GATEWAY_CONFIG = "src/main/resources/application.properties";
 
+  /** The test's files; a test that edits one puts it back. */
   private static final Map<String, String> TEXTS =
-      Map.of(
-          "fs:" + CONTROLLER,
-          """
+      new java.util.concurrent.ConcurrentHashMap<>(
+          Map.of(
+              "fs:" + CONTROLLER,
+              """
           package f;
 
           @RestController
@@ -60,18 +63,18 @@ class InvestigatorTest {
             }
           }
           """,
-          "gw:" + GATEWAY_CONFIG,
-          """
+              "gw:" + GATEWAY_CONFIG,
+              """
           spring.cloud.gateway.routes[0].uri=lb://files
           spring.cloud.gateway.routes[0].predicates[0]=Path=/files/**
           """,
-          "fs:" + STORAGE,
-          """
+              "fs:" + STORAGE,
+              """
           package f;
           class StorageClient {
             String bucket = restClient.post().uri("https://s3.example.com/bucket");
           }
-          """);
+          """));
 
   private static final GraphTools.RepoFiles FILES =
       new GraphTools.RepoFiles() {
@@ -317,6 +320,14 @@ class InvestigatorTest {
     return result.facts().stream().filter(f -> f.predicate().equals(predicate)).toList();
   }
 
+  private double riskConfidence(String confidence) {
+    headerLead();
+    String answer =
+        CONFIRMED.replace("\"confidence\": \"high\"", "\"confidence\": \"" + confidence + "\"");
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? answer : null);
+    return of(investigate(fake), Types.INVESTIGATED_RISK).getFirst().confidence();
+  }
+
   // ---------------------------------------------------------------------------------------------
   // Cases
 
@@ -343,6 +354,111 @@ class InvestigatorTest {
         .contains("- " + FILES_UNIT);
     assertThat(request.tools().stream().map(t -> t.name()).toList())
         .containsExactlyInAnyOrder("facts_about", "read_file", "find_in_code", "submit");
+  }
+
+  @Test
+  void anExhaustedBudgetStopsInvestigateWithoutFailingAndALaterRunAsks() {
+    headerLead();
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+    LlmClient spent =
+        new LlmClient(
+            ModelSettings.single(new FakeLlmProvider(fake.name()).model("m")),
+            List.of(fake),
+            new BudgetGuard("run", 100L, null),
+            log,
+            Clock.systemUTC());
+
+    Investigator.Result stopped = investigate(spent);
+
+    // Nothing is sent or stored; the lead is unclear, not asked, and the run goes on (#769).
+    assertThat(fake.sent()).isEmpty();
+    assertThat(of(stopped, Types.INVESTIGATED_RISK)).isEmpty();
+    assertThat(of(stopped, Types.LEAD_VERDICT))
+        .singleElement()
+        .satisfies(
+            v -> {
+              assertThat(v.object().value()).isEqualTo("unclear");
+              assertThat(Claims.json(v).path("reason").asString())
+                  .startsWith("not asked: Budget 'run'");
+            });
+    assertThat(store.size()).isZero();
+    assertThat(log.calls())
+        .isNotEmpty()
+        .allSatisfy(c -> assertThat(c.outcome()).isEqualTo(LlmCall.Outcome.REFUSED));
+
+    // With budget left, a later run asks and confirms the lead.
+    assertThat(of(investigate(fake), Types.INVESTIGATED_RISK)).hasSize(1);
+  }
+
+  @Test
+  void theSameFactsMakeTheSameRequestsEveryTime() {
+    headerLead();
+    List<Fact> reversed = new ArrayList<>(facts);
+    java.util.Collections.reverse(reversed);
+    FakeLlmProvider one = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+    FakeLlmProvider two = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+    for (var run : List.of(Map.entry(one, List.copyOf(facts)), Map.entry(two, reversed))) {
+      new Investigator(
+              new Harness(
+                  client(run.getKey()),
+                  new InMemoryAnswerStore(),
+                  RunBudget.NONE,
+                  (repo, path) ->
+                      FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
+                  Set.of()),
+              FILES,
+              Map.of(
+                  "identity-from-request", "Whether anything verifies it.",
+                  "plaintext-secret", "Whether the secret is kept in the code."))
+          .investigate(run.getValue(), 1);
+    }
+
+    // Byte for byte, whatever order the facts come in (#769).
+    Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .map(r -> r.purpose() + "\n" + r.system() + "\n" + r.messages())
+                .sorted()
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one)).isNotEmpty();
+  }
+
+  @Test
+  void aRiskOfMediumConfidenceHoldsItsFactor() {
+    assertThat(riskConfidence("medium")).isEqualTo(0.45);
+  }
+
+  @Test
+  void aRiskOfLowConfidenceHoldsItsFactor() {
+    assertThat(riskConfidence("low")).isEqualTo(0.3);
+  }
+
+  @Test
+  void aRiskKeyIsItsNamesSortedAndAConnectionKeyItsEndsAndInteraction() {
+    tools.jackson.databind.JsonNode oneOrder =
+        FactJson.parse(
+            "{\"kind\": \"risk\", \"title\": \"A\", \"names\": [\"upload\", \" X-User-Id\"]}");
+    tools.jackson.databind.JsonNode otherOrder =
+        FactJson.parse(
+            "{\"kind\": \"risk\", \"title\": \"B\", \"names\": [\"X-User-Id\", \"upload\"]}");
+    tools.jackson.databind.JsonNode connection =
+        FactJson.parse(
+            "{\"kind\": \"connection\", \"from\": \"service:g:files\", \"to\": \"external-system:s3\","
+                + " \"interaction\": \"http\", \"names\": [\"upload\"]}");
+    tools.jackson.databind.JsonNode otherInteraction =
+        FactJson.parse(
+            "{\"kind\": \"connection\", \"from\": \"service:g:files\", \"to\": \"external-system:s3\","
+                + " \"interaction\": \"messaging\", \"names\": [\"upload\"]}");
+
+    // Two risks naming the same things are one, whatever their order or title (#769).
+    assertThat(Investigator.proposalKey(oneOrder))
+        .isEqualTo(Investigator.proposalKey(otherOrder))
+        .isEqualTo("risk X-User-Id,upload");
+    // A connection is keyed by its ends and interaction, not its names.
+    assertThat(Investigator.proposalKey(connection))
+        .isEqualTo("connection service:g:files external-system:s3 http")
+        .isNotEqualTo(Investigator.proposalKey(otherInteraction));
   }
 
   @Test
@@ -1056,6 +1172,34 @@ class InvestigatorTest {
         .filteredOn(r -> r.toJson().path("role").asString().equals("investigate-leads"))
         .singleElement()
         .satisfies(r -> assertThat(r.toJson().path("packetSize").asInt()).isEqualTo(2));
+  }
+
+  @Test
+  void aCachedAnswerIsAskedAgainOnceAFileItCitesChanges() {
+    headerLead();
+    // It also cites the storage client, a file it read with a tool, not shown in its prompt.
+    String citingStorage =
+        CONFIRMED.replace(
+            "\"cites\": [\"fs:src/main/java/f/FileController.java:5-7\"]",
+            "\"cites\": [\"fs:src/main/java/f/FileController.java:5-7\", \"fs:"
+                + STORAGE
+                + ":3-3\"]");
+    investigate(submitting(r -> leads(r) && turn(r) == 1 ? citingStorage : null));
+    FakeLlmProvider unchanged = submitting(r -> null);
+    investigate(unchanged);
+    assertThat(unchanged.sent()).isEmpty();
+
+    String key = "fs:" + STORAGE;
+    String before = TEXTS.get(key);
+    try {
+      TEXTS.put(key, before + "// edited\n");
+      FakeLlmProvider again = submitting(r -> null);
+      investigate(again);
+      // Its cached answer is checked against the file as it is now (#769).
+      assertThat(again.sent()).anyMatch(c -> leads(c.request()));
+    } finally {
+      TEXTS.put(key, before);
+    }
   }
 
   @Test

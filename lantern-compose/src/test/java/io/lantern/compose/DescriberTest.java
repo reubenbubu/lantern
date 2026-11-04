@@ -2332,6 +2332,108 @@ class DescriberTest {
   }
 
   @Test
+  void aRewordedUnitAsksAgainOnlyTheItemsThatShowIt() {
+    InMemoryAnswerStore stored = new InMemoryAnswerStore();
+    FakeLlmProvider one = new FakeLlmProvider().answering(DescriberTest::answer);
+    new Describer(new Harness(client(one), stored, RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+    // The shop-app unit is asked again, as when a file it read changed, and worded anew (#769).
+    io.lantern.harness.AnswerStore hidingApp =
+        new io.lantern.harness.AnswerStore() {
+          @Override
+          public java.util.Optional<io.lantern.harness.StoredAnswer> find(String fingerprint) {
+            return stored
+                .find(fingerprint)
+                .filter(
+                    a ->
+                        !(a.role().equals(DescribeRole.UNITS.name())
+                            && a.subject().equals("service:com.example:app")));
+          }
+
+          @Override
+          public java.util.Optional<io.lantern.harness.StoredAnswer> latest(
+              String role, String subject) {
+            return stored.latest(role, subject);
+          }
+
+          @Override
+          public void save(io.lantern.harness.StoredAnswer answer) {
+            stored.save(answer);
+          }
+        };
+    // Asked again and answered in the same words: only the unit itself is asked.
+    FakeLlmProvider same = new FakeLlmProvider().answering(DescriberTest::answer);
+    new Describer(new Harness(client(same), hidingApp, RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+    assertThat(same.sent().stream().map(s -> s.request().purpose()))
+        .containsExactly("describe-unit 1 items: service:com.example:app");
+
+    FakeLlmProvider two =
+        new FakeLlmProvider()
+            .answering(
+                r ->
+                    answer(r)
+                        .replace(
+                            "Takes and lists the shop's orders for its web customers.",
+                            "Takes, lists and ships the orders of the shop's web customers."));
+
+    new Describer(new Harness(client(two), hidingApp, RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+
+    // Worded anew, it asks again what shows it: the elements it uses, its flows and the purpose;
+    // not the worker unit, which does not show it.
+    assertThat(
+            two.sent().stream()
+                .map(s -> s.request().purpose().replaceAll(": [0-9a-f]{64}$", ": <flow>")))
+        .containsExactlyInAnyOrder(
+            "describe-unit 1 items: service:com.example:app",
+            "describe-element 1 items: database:db:5432/shop",
+            "describe-element 1 items: external-system:pay.example.com",
+            "describe-element 1 items: topic:kafka:orders",
+            "flow-significance 1 items: base",
+            "flow-significance 1 items: shop",
+            "flow-significance 1 items: system",
+            "flow-narrative 1 items: <flow>",
+            "flow-narrative 1 items: <flow>",
+            "purpose 1 items: system:snapshot");
+  }
+
+  @Test
+  void theSameFactsMakeTheSameRequestsEveryTimeForEveryRoleTheDescriberAsks() {
+    FakeLlmProvider one = new FakeLlmProvider().answering(DescriberTest::answer);
+    FakeLlmProvider two = new FakeLlmProvider().answering(DescriberTest::answer);
+    List<Fact> shuffled = new ArrayList<>(facts.list());
+    java.util.Collections.reverse(shuffled);
+
+    new Describer(
+            new Harness(
+                client(one), new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+    new Describer(
+            new Harness(
+                client(two), new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(shuffled);
+
+    // Purpose, the flow roles and the group naming as well as Describe (#769).
+    Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .map(r -> r.purpose() + "\n" + r.system() + "\n" + r.messages())
+                .sorted()
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one));
+    assertThat(one.sent().stream().map(s -> s.request().purpose().split(" ")[0]).distinct())
+        .containsExactlyInAnyOrder(
+            "describe-element",
+            "describe-unit",
+            "flow-narrative",
+            "flow-significance",
+            "purpose",
+            "support-judge");
+  }
+
+  @Test
   void aUnitsTextsAreStoredAsResponsibilityAndIntentFacts() {
     Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
 

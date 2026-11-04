@@ -494,6 +494,41 @@ class SummarizerTest {
   }
 
   @Test
+  void theSameFactsMakeTheSameRequestsEveryTime() {
+    FakeLlmProvider one = new FakeLlmProvider().answering(Answers.epic(SummarizerTest::citingAll));
+    FakeLlmProvider two = new FakeLlmProvider().answering(Answers.epic(SummarizerTest::citingAll));
+    List<io.lantern.core.fact.Fact> reversed = new ArrayList<>(TestFacts.shop().list());
+    java.util.Collections.reverse(reversed);
+
+    new Summarizer(
+            new Harness(
+                client("model-a", one),
+                new InMemoryAnswerStore(),
+                RunBudget.NONE,
+                BlobLookup.NONE,
+                Set.of()))
+        .summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    new Summarizer(
+            new Harness(
+                client("model-a", two),
+                new InMemoryAnswerStore(),
+                RunBudget.NONE,
+                BlobLookup.NONE,
+                Set.of()))
+        .summarize(SummaryTree.fromFacts(reversed));
+
+    // Byte for byte, whatever order the facts come in (#769).
+    Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .map(r -> r.purpose() + "\n" + r.system() + "\n" + r.messages())
+                .sorted()
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one)).hasSize(7);
+  }
+
+  @Test
   void eachLevelIsSummarizedAfterTheLevelBelowAndFromIt() {
     Summarizer.Result result =
         summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
