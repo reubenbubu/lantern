@@ -320,6 +320,14 @@ class InvestigatorTest {
     return result.facts().stream().filter(f -> f.predicate().equals(predicate)).toList();
   }
 
+  private double riskConfidence(String confidence) {
+    headerLead();
+    String answer =
+        CONFIRMED.replace("\"confidence\": \"high\"", "\"confidence\": \"" + confidence + "\"");
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? answer : null);
+    return of(investigate(fake), Types.INVESTIGATED_RISK).getFirst().confidence();
+  }
+
   // ---------------------------------------------------------------------------------------------
   // Cases
 
@@ -380,14 +388,6 @@ class InvestigatorTest {
 
     // With budget left, a later run asks and confirms the lead.
     assertThat(of(investigate(fake), Types.INVESTIGATED_RISK)).hasSize(1);
-  }
-
-  private double riskConfidence(String confidence) {
-    headerLead();
-    String answer =
-        CONFIRMED.replace("\"confidence\": \"high\"", "\"confidence\": \"" + confidence + "\"");
-    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? answer : null);
-    return of(investigate(fake), Types.INVESTIGATED_RISK).getFirst().confidence();
   }
 
   @Test

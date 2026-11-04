@@ -2361,7 +2361,7 @@ class DescriberTest {
             stored.save(answer);
           }
         };
-    // Asked again in the same words, it asks nothing that shows it.
+    // Asked again and answered in the same words: only the unit itself is asked.
     FakeLlmProvider same = new FakeLlmProvider().answering(DescriberTest::answer);
     new Describer(new Harness(client(same), hidingApp, RunBudget.NONE, BlobLookup.NONE, Set.of()))
         .describe(facts.list());
@@ -2382,12 +2382,20 @@ class DescriberTest {
 
     // Worded anew, it asks again what shows it: the elements it uses, its flows and the purpose;
     // not the worker unit, which does not show it.
-    assertThat(two.sent().stream().map(s -> s.request().purpose()))
-        .contains(
+    assertThat(
+            two.sent().stream()
+                .map(s -> s.request().purpose().replaceAll(": [0-9a-f]{64}$", ": <flow>")))
+        .containsExactlyInAnyOrder(
             "describe-unit 1 items: service:com.example:app",
             "describe-element 1 items: database:db:5432/shop",
-            "purpose 1 items: system:snapshot")
-        .doesNotContain("describe-unit 1 items: service:com.example:worker");
+            "describe-element 1 items: external-system:pay.example.com",
+            "describe-element 1 items: topic:kafka:orders",
+            "flow-significance 1 items: base",
+            "flow-significance 1 items: shop",
+            "flow-significance 1 items: system",
+            "flow-narrative 1 items: <flow>",
+            "flow-narrative 1 items: <flow>",
+            "purpose 1 items: system:snapshot");
   }
 
   @Test
@@ -2415,6 +2423,14 @@ class DescriberTest {
                 .sorted()
                 .toList();
     assertThat(requests.apply(two)).isEqualTo(requests.apply(one));
+    assertThat(one.sent().stream().map(s -> s.request().purpose().split(" ")[0]).distinct())
+        .containsExactlyInAnyOrder(
+            "describe-element",
+            "describe-unit",
+            "flow-narrative",
+            "flow-significance",
+            "purpose",
+            "support-judge");
   }
 
   @Test
