@@ -768,10 +768,6 @@ public final class NameGroups {
     }
 
     /**
-     * The accepted entry with its citations as the item numbers them and a merge's group by its
-     * key, so the stored answer does not depend on which items shared its request.
-     */
-    /**
      * A group's name keeps its wording while what it cites is unchanged; a merge's reason does not,
      * since it explains a decision the model may change (#722, ADR 0126).
      */
@@ -780,6 +776,23 @@ public final class NameGroups {
       return !text.field().startsWith(MERGE + ".");
     }
 
+    /**
+     * A line's intent is about the line, by its stable key, not by the key the item numbers it
+     * with, so an intent never passes to another line when lines are added (#722).
+     */
+    @Override
+    public String about(Item item, CheckedText text) {
+      if (text.field().startsWith(LINES + ".")) {
+        Shown line = named(item).lines().get(text.field().substring(LINES.length() + 1));
+        return line == null ? text.field() : "line " + line.key();
+      }
+      return text.subjectName();
+    }
+
+    /**
+     * The accepted entry with its citations as the item numbers them and a merge's group by its
+     * key, so the stored answer does not depend on which items shared its request.
+     */
     @Override
     public String store(Item item, ItemAnswer accepted) {
       Named n = named(item);

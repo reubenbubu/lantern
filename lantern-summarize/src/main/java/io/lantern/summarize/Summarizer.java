@@ -1172,14 +1172,48 @@ public final class Summarizer {
         kept.add(text + " [" + String.join(", ", asWritten) + "]");
         keptTexts.add(checked);
       }
+      // The sentences the checks left out of this answer, before earlier ones are kept.
+      int checkedOut = total - beyond - keptTexts.size();
       List<CheckedText> carried =
-          CarryForward.sentences(keptTexts, earlier, checks.references(), "sentences");
+          CarryForward.sentences(keptTexts, earlier, checks.references(), "sentences", most);
       if (carried != keptTexts) {
-        kept.clear();
-        carried.forEach(t -> kept.add(t.text() + " [" + String.join(", ", t.cites()) + "]"));
-        keptTexts = new ArrayList<>(carried);
-        firstKept = true;
-        firstCites = new HashSet<>(carried.getFirst().cites());
+        // An earlier sentence passes the checks again, as what it now is in the summary, against
+        // what the item shows now; one that fails is left out.
+        List<CheckedText> passing = new ArrayList<>();
+        for (CheckedText t : carried) {
+          boolean thisTime =
+              keptTexts.stream()
+                  .anyMatch(k -> k.text().equals(t.text()) && k.cites().equals(t.cites()));
+          CheckedText placed =
+              new CheckedText(
+                  t.field(),
+                  passing.isEmpty() ? CheckedText.Kind.LEAD : CheckedText.Kind.PROSE,
+                  t.text(),
+                  t.cites(),
+                  t.words(),
+                  t.subjectName(),
+                  t.names());
+          if (thisTime
+              || SENTENCE_CHECKS
+                  .check(new ItemAnswer(Prompt.ITEM, entry, List.of(placed), List.of()), checks)
+                  .isEmpty()) {
+            passing.add(t);
+          }
+        }
+        if (!passing.isEmpty()) {
+          // The summary may lead only with the earlier first sentence or the model's own first;
+          // any other goes through the lead rules below, as a first sentence left out does.
+          CarryForward.Earlier earlierLead = earlier.get("sentences.1");
+          String lead = passing.getFirst().text();
+          boolean leads =
+              (earlierLead != null && lead.equals(earlierLead.text()))
+                  || (firstKept && lead.equals(keptTexts.getFirst().text()));
+          kept.clear();
+          passing.forEach(t -> kept.add(t.text() + " [" + String.join(", ", t.cites()) + "]"));
+          keptTexts = new ArrayList<>(passing);
+          firstKept = leads;
+          firstCites = leads ? new HashSet<>(passing.getFirst().cites()) : Set.of();
+        }
       }
       if (kept.isEmpty()) {
         throw new Rejected(Pipeline.repairTurn(dropped));
@@ -1199,6 +1233,7 @@ public final class Summarizer {
         // A retried answer that lost its first sentence leads with one written to follow it, which
         // was checked as such: it may lead only if it may be shown alone (#275).
         while (!kept.isEmpty() && Checks.Generic.weakOpening(kept.getFirst())) {
+          checkedOut++;
           dropped.add(
               new Rejection(
                   Prompt.ITEM,
@@ -1234,7 +1269,7 @@ public final class Summarizer {
           text,
           checked,
           evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED,
-          Confidence.of(evidenced, kept.size(), Math.max(0, total - beyond - kept.size())),
+          Confidence.of(evidenced, kept.size(), checkedOut),
           CarryForward.record(numbered(keptTexts), checks.references()));
     }
 

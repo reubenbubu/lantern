@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -109,6 +110,21 @@ public final class CarryForward {
       Map<String, Earlier> earlier,
       Map<String, String> references,
       Predicate<CheckedText> carries) {
+    return merge(texts, earlier, references, carries, CheckedText::subjectName);
+  }
+
+  /**
+   * As {@link #merge(List, Map, Map, Predicate)}, with what each text is about named by the role: a
+   * text is kept only for the same thing, such as the same line, whatever key the item gives it.
+   *
+   * @param about the stable name of what a text is about
+   */
+  public static List<CheckedText> merge(
+      List<CheckedText> texts,
+      Map<String, Earlier> earlier,
+      Map<String, String> references,
+      Predicate<CheckedText> carries,
+      Function<CheckedText, String> about) {
     if (earlier.isEmpty()) {
       return texts;
     }
@@ -117,7 +133,8 @@ public final class CarryForward {
     List<CheckedText> merged = new ArrayList<>(texts.size());
     for (CheckedText text : texts) {
       Earlier before = earlier.get(text.field());
-      List<String> cites = before == null ? null : cites(before, text, refByLine, lines);
+      List<String> cites =
+          before == null ? null : cites(before, about.apply(text), refByLine, lines);
       merged.add(
           cites == null || !carries.test(text)
               ? text
@@ -143,13 +160,16 @@ public final class CarryForward {
    * @param earlier the earlier texts by field ({@link #earlier}); those of the prefix are used
    * @param references the item's references with their lines
    * @param prefix the field prefix of a sentence, such as {@code sentences}
+   * @param most the most sentences kept: past it, earlier sentences are left out from the last,
+   *     before any written this time
    * @return the sentences to keep; those written this time when none earlier may be kept
    */
   public static List<CheckedText> sentences(
       List<CheckedText> texts,
       Map<String, Earlier> earlier,
       Map<String, String> references,
-      String prefix) {
+      String prefix,
+      int most) {
     if (texts.isEmpty() || earlier.isEmpty()) {
       return texts;
     }
@@ -168,7 +188,7 @@ public final class CarryForward {
     List<CheckedText> merged = new ArrayList<>();
     java.util.Set<String> covered = new java.util.HashSet<>();
     for (Map.Entry<Integer, Earlier> entry : before) {
-      List<String> cites = cites(entry.getValue(), model, refByLine, lines);
+      List<String> cites = cites(entry.getValue(), model.subjectName(), refByLine, lines);
       if (cites != null) {
         merged.add(
             new CheckedText(
@@ -185,6 +205,7 @@ public final class CarryForward {
     if (merged.isEmpty()) {
       return texts;
     }
+    List<CheckedText> kept = new ArrayList<>(merged);
     java.util.Set<String> said = new java.util.HashSet<>();
     merged.forEach(t -> said.add(t.text()));
     for (CheckedText text : texts) {
@@ -201,6 +222,12 @@ public final class CarryForward {
         int at = n == null ? merged.size() : Math.min(Math.max(n - 1, 0), merged.size());
         merged.add(at, text);
       }
+    }
+    for (int i = kept.size() - 1; i >= 0 && merged.size() > most; i--) {
+      merged.remove(kept.get(i));
+    }
+    while (merged.size() > most) {
+      merged.removeLast();
     }
     List<CheckedText> numbered = new ArrayList<>(merged.size());
     for (int i = 0; i < merged.size(); i++) {
@@ -252,8 +279,8 @@ public final class CarryForward {
    * reference that still shows the same line keeps its name; otherwise the first that shows it.
    */
   private static List<String> cites(
-      Earlier before, CheckedText text, Map<String, String> refByLine, Map<String, String> lines) {
-    if (before.basis().isEmpty() || !before.about().equals(about(text))) {
+      Earlier before, String about, Map<String, String> refByLine, Map<String, String> lines) {
+    if (before.basis().isEmpty() || !before.about().equals(Fingerprints.sha256(about))) {
       return null;
     }
     List<String> cites = new ArrayList<>();
@@ -316,6 +343,15 @@ public final class CarryForward {
    */
   public static String mark(
       String stored, List<CheckedText> texts, Map<String, String> references) {
+    return mark(stored, texts, references, CheckedText::subjectName);
+  }
+
+  /** As {@link #mark(String, List, Map)}, with what each text is about named by the role. */
+  public static String mark(
+      String stored,
+      List<CheckedText> texts,
+      Map<String, String> references,
+      Function<CheckedText, String> about) {
     if (stored == null || texts.isEmpty()) {
       return stored;
     }
@@ -327,12 +363,16 @@ public final class CarryForward {
     }
     List<CheckedText> left = new ArrayList<>(texts);
     boolean[] marked = {false};
-    mark(root, left, references, marked);
+    mark(root, left, references, about, marked);
     return marked[0] ? JSON.writeValueAsString(root) : stored;
   }
 
   private static void mark(
-      JsonNode node, List<CheckedText> left, Map<String, String> references, boolean[] marked) {
+      JsonNode node,
+      List<CheckedText> left,
+      Map<String, String> references,
+      Function<CheckedText, String> about,
+      boolean[] marked) {
     if (node == null) {
       return;
     }
@@ -348,7 +388,7 @@ public final class CarryForward {
             if (basis != null) {
               ObjectNode carry = object.putObject(KEY);
               carry.put("field", candidate.field());
-              carry.put("about", about(candidate));
+              carry.put("about", Fingerprints.sha256(about.apply(candidate)));
               ArrayNode lines = carry.putArray("basis");
               basis.forEach(lines::add);
               marked[0] = true;
@@ -359,11 +399,11 @@ public final class CarryForward {
       }
       for (var entry : new ArrayList<>(object.properties())) {
         if (!entry.getKey().equals(KEY)) {
-          mark(entry.getValue(), left, references, marked);
+          mark(entry.getValue(), left, references, about, marked);
         }
       }
     } else if (node.isArray()) {
-      node.forEach(child -> mark(child, left, references, marked));
+      node.forEach(child -> mark(child, left, references, about, marked));
     }
   }
 
@@ -381,9 +421,5 @@ public final class CarryForward {
       basis.add(Fingerprints.sha256(line));
     }
     return basis;
-  }
-
-  private static String about(CheckedText text) {
-    return Fingerprints.sha256(text.subjectName());
   }
 }

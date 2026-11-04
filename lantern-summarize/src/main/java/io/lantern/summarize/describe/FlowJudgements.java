@@ -548,11 +548,6 @@ public final class FlowJudgements {
     }
 
     /**
-     * The accepted entry: a significance answer with each flow and the order by its reference in
-     * the item, which stands for the same flow whenever the item is shown the same; a narrative as
-     * it was written. Citations are the item's own, as it is asked alone.
-     */
-    /**
      * A narrative keeps its wording while what it cites is unchanged; a significance reason does
      * not, since it explains a verdict the model may change (#722, ADR 0126).
      */
@@ -561,6 +556,11 @@ public final class FlowJudgements {
       return narrative;
     }
 
+    /**
+     * The accepted entry: a significance answer with each flow and the order by its reference in
+     * the item, which stands for the same flow whenever the item is shown the same; a narrative as
+     * it was written. Citations are the item's own, as it is asked alone.
+     */
     @Override
     public String store(Item item, ItemAnswer accepted) {
       if (narrative) {

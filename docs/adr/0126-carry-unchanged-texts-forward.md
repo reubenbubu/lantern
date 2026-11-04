@@ -24,8 +24,12 @@ level of one text.
    version and model, cited only references the item still shows with the same line, keeps that
    earlier text. Its citations are renamed to the references that show those lines now: the same
    name where it still shows the same line, else the first that does. Only texts resting on what
-   changed are worded anew. A text is kept only under the same field and the same subject name (a
-   component key now naming another component is not the same text).
+   changed are worded anew. A text is kept only under the same field and about the same thing: a
+   role names what each text is about (`PacketRole.about`), by default its subject name, so a key
+   that now names another component or line is not the same text. Name groups names a line's
+   intent by the line's stable key, not by its position.
+   - A kept text passes the role's code checks again against what the item shows now; one that
+     fails takes the text written this time.
 2. **What a text rests on is stored with it.** Each stored text records a `carry` object beside
    its `text` and `cites`: its field, a hash of what it is about, and a hash of each cited line.
    Readers of the answer read `text` and `cites` and ignore it; it is no part of any fingerprint,
@@ -35,18 +39,23 @@ level of one text.
    - Describe: every responsibility and intent.
    - Flow narratives: every text. Flow significance: none, since a reason explains a verdict the
      model may change.
-   - Name groups: a group's name, not a merge's reason, for the same reason.
+   - Name groups: a group's name, its responsibility and each line's intent; not a merge's reason,
+     for the same reason.
    - Purpose: the purpose and the key fact.
    - Summarize keeps sentences of one summary in its own form: each earlier sentence whose cited
      lines are all still shown is kept, in its earlier order; a new sentence is added, at its own
      position, only if it cites a line no kept sentence cites and does not repeat a kept one word
-     for word. Its sentences are stored with the summary (`sentences`). A summary made from parts
-     merged, for inputs that do not fit one prompt, keeps nothing.
+     for word. The summary keeps at most the sentences its prompt asks for, leaving out earlier
+     ones first. A kept sentence passes the sentence checks again. It may lead only with the
+     earlier first sentence or the model's own first one; otherwise the lead rules (#275) apply as
+     to a first sentence left out. Confidence counts only what the checks left out. Its sentences
+     are stored with the summary (`sentences`). A summary made from parts merged, for inputs that
+     do not fit one prompt, keeps nothing.
    - Resolve, Investigate and the model checks keep nothing: they give verdicts and findings, not
      texts shown to other items.
 4. **Fingerprints stay exact.** An item that shows a kept text sees the same words and keeps its
-   fingerprint; nothing fuzzy enters a cache key. A summary or answer kept whole is byte for byte
-   the earlier one, so what shows it is not asked.
+   fingerprint; nothing fuzzy enters a cache key. A summary or answer kept whole shows the same
+   text as the earlier one, so what shows it is not asked.
 
 ## Consequences
 

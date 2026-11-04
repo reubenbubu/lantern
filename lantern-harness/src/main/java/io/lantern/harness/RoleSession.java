@@ -1,6 +1,7 @@
 package io.lantern.harness;
 
 import io.lantern.harness.verify.CheckInputs;
+import io.lantern.harness.verify.CheckedText;
 import io.lantern.harness.verify.ItemAnswer;
 import io.lantern.harness.verify.Pipeline;
 import io.lantern.harness.verify.Rejection;
@@ -1177,16 +1178,25 @@ public final class RoleSession {
       return role.store(item, answer);
     }
     Map<String, CarryForward.Earlier> earlier = earlier(item.subject()).orElse(Map.of());
-    ItemAnswer kept =
-        new ItemAnswer(
-            answer.item(),
-            answer.raw(),
-            CarryForward.merge(answer.texts(), earlier, inputs.references(), role::carries),
-            answer.claims());
+    java.util.function.Function<CheckedText, String> about = t -> role.about(item, t);
+    List<CheckedText> merged =
+        CarryForward.merge(answer.texts(), earlier, inputs.references(), role::carries, about);
+    // A kept text passes the checks again, against what the item shows now; one that fails takes
+    // the text written this time.
+    java.util.Set<String> failed = new java.util.HashSet<>();
+    role.pipeline()
+        .check(new ItemAnswer(answer.item(), answer.raw(), merged, answer.claims()), inputs)
+        .forEach(r -> failed.add(r.field()));
+    List<CheckedText> texts = new ArrayList<>(merged.size());
+    for (int i = 0; i < merged.size(); i++) {
+      texts.add(failed.contains(merged.get(i).field()) ? answer.texts().get(i) : merged.get(i));
+    }
+    ItemAnswer kept = new ItemAnswer(answer.item(), answer.raw(), texts, answer.claims());
     return CarryForward.mark(
         role.store(item, kept),
         kept.texts().stream().filter(role::carries).toList(),
-        inputs.references());
+        inputs.references(),
+        about);
   }
 
   /**

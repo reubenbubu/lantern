@@ -150,7 +150,8 @@ class CarryForwardTest {
                 sentence(3, "Announces new orders.", "F2")),
             earlier,
             now,
-            "sentences");
+            "sentences",
+            4);
 
     assertThat(merged)
         .extracting(CheckedText::field, CheckedText::text)
@@ -172,10 +173,56 @@ class CarryForwardTest {
             List.of(sentence(1, "Something else entirely.", "F1", "F2")),
             earlier,
             BEFORE,
-            "sentences");
+            "sentences",
+            4);
 
     assertThat(merged)
         .extracting(CheckedText::text)
         .containsExactly("Serves the shop's web pages.", "Pays.");
+  }
+
+  @Test
+  void aTextKeyedByPositionIsKeptOnlyForTheSameThingTheRoleNames() {
+    // R1 was the line to orders; a new line now sorts first, so R1 is the line to payments.
+    Map<String, String> keys = Map.of("R1", "line orders");
+    List<CheckedText> first = List.of(text("lines.R1", "Announces new orders", "", "F2"));
+    Map<String, CarryForward.Earlier> earlier =
+        CarryForward.earlier(
+            CarryForward.mark(stored(first), first, BEFORE, t -> keys.get(t.field().substring(6))));
+    Map<String, String> moved = Map.of("R1", "line payments", "R2", "line orders");
+    List<CheckedText> now =
+        List.of(
+            text("lines.R1", "Charges the cards", "", "F1"),
+            text("lines.R2", "Publishes each new order", "", "F2"));
+
+    List<CheckedText> merged =
+        CarryForward.merge(now, earlier, BEFORE, t -> true, t -> moved.get(t.field().substring(6)));
+
+    // The intent of the line to orders does not pass to the line to payments.
+    assertThat(merged)
+        .extracting(CheckedText::text)
+        .containsExactly("Charges the cards", "Publishes each new order");
+  }
+
+  @Test
+  void aMergedSummaryKeepsNoMoreSentencesThanItMayHaveLeavingOutEarlierOnesFirst() {
+    List<CheckedText> first =
+        List.of(sentence(1, "Serves the shop's web pages.", "F1"), sentence(2, "Pays.", "F2"));
+    Map<String, CarryForward.Earlier> earlier =
+        CarryForward.earlier("{\"sentences\": " + CarryForward.record(first, BEFORE) + "}");
+    Map<String, String> now = new java.util.HashMap<>(BEFORE);
+    now.put("F3", "shop USES_DATABASE db");
+
+    List<CheckedText> merged =
+        CarryForward.sentences(
+            List.of(sentence(1, "Keeps the orders in a database.", "F3")),
+            earlier,
+            now,
+            "sentences",
+            2);
+
+    assertThat(merged)
+        .extracting(CheckedText::text)
+        .containsExactly("Keeps the orders in a database.", "Serves the shop's web pages.");
   }
 }

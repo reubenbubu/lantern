@@ -92,6 +92,14 @@ public interface PacketRole {
     return false;
   }
 
+  /**
+   * The stable name of what a text of the item's answer is about, so a text is kept only for the
+   * same thing whatever key the item gives it this time (#722); by default its subject name.
+   */
+  default String about(Item item, io.lantern.harness.verify.CheckedText text) {
+    return text.subjectName();
+  }
+
   /** An accepted entry as it is stored (JSON). */
   String store(Item item, ItemAnswer accepted);
 }
