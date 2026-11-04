@@ -18,12 +18,24 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * The facts of one snapshot, indexed for deriving the architecture model and composing. Every list
- * and set it returns is sorted (facts by ID, entities by ID), so what is built from it does not
- * depend on the order facts came in.
+ * and set it returns is sorted (facts in {@link #STABLE} order, entities by ID), so what is built
+ * from it does not depend on the order facts came in.
  */
 public final class Knowledge {
 
   public static final Comparator<EntityId> BY_ID = Comparator.comparing(EntityId::toString);
+
+  /**
+   * Facts by their claim, then by where their evidence is (repository, path, first line), then by
+   * ID. A fact's ID changes when a fact it cites gets a new ID, even if what it states and where it
+   * was read did not (#779); ordered by ID, the fact a rule picks first among several stating one
+   * claim could then come from another file after an unrelated change, and the items showing it be
+   * asked again.
+   */
+  public static final Comparator<Fact> STABLE =
+      Comparator.comparing((Fact f) -> f.claimId() == null ? f.id() : f.claimId())
+          .thenComparing(Knowledge::place)
+          .thenComparing(Fact::id);
 
   private final Map<String, Fact> byId = new HashMap<>();
   private final Map<EntityId, List<Fact>> bySubject = new HashMap<>();
@@ -36,7 +48,7 @@ public final class Knowledge {
 
   public Knowledge(Collection<Fact> facts) {
     List<Fact> sorted = new ArrayList<>(facts);
-    sorted.sort(Comparator.comparing(Fact::id));
+    sorted.sort(STABLE);
     for (Fact fact : sorted) {
       if (byId.putIfAbsent(fact.id(), fact) != null) {
         continue;
@@ -110,12 +122,27 @@ public final class Knowledge {
     return bySubject.getOrDefault(subject, List.of());
   }
 
-  /** The facts of the origin kind, by ID. */
+  /** The facts of the origin kind, in {@link #STABLE} order. */
   public List<Fact> withOrigin(Origin.Kind kind) {
-    return byId.values().stream()
-        .filter(f -> f.origin().kind() == kind)
-        .sorted(Comparator.comparing(Fact::id))
-        .toList();
+    return byId.values().stream().filter(f -> f.origin().kind() == kind).sorted(STABLE).toList();
+  }
+
+  /** Where a fact was read: each location's repository, path and first line. */
+  private static String place(Fact fact) {
+    if (fact.evidence() == null) {
+      return "";
+    }
+    StringBuilder place = new StringBuilder();
+    for (io.lantern.core.fact.Evidence.Location location : fact.evidence().locations()) {
+      place
+          .append(location.repo())
+          .append('\u0000')
+          .append(location.path())
+          .append('\u0000')
+          .append(String.format("%010d", location.lines() == null ? 0 : location.lines().start()))
+          .append('\u0001');
+    }
+    return place.toString();
   }
 
   /** The facts with the predicate. */
@@ -135,7 +162,7 @@ public final class Knowledge {
     return about(subject).stream().filter(f -> !isEntity(f)).toList();
   }
 
-  /** The value of the first attribute fact with the predicate, by fact ID. */
+  /** The value of the first attribute fact with the predicate, in {@link #STABLE} order. */
   public Optional<String> attribute(EntityId subject, String predicate) {
     return attributes(subject).stream()
         .filter(f -> f.predicate().equals(predicate))

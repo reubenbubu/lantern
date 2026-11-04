@@ -160,8 +160,10 @@ public final class ComponentInteractions implements LinkRule.OverFacts {
       componentsOf.put(unit, componentOf);
     }
     // The code end of each link between containers that is in a component of the unit at that
-    // end: the source for the unit the link is from, the target for the unit it goes to.
-    for (Fact link : facts) {
+    // end: the source for the unit the link is from, the target for the unit it goes to. In the
+    // knowledge's order, not the order given, so the link a line shows first, and the file its
+    // evidence comes from, stays the same while the links do (#779).
+    for (Fact link : facts.stream().sorted(Knowledge.STABLE).toList()) {
       // Only links to another thing: an open link, whose object is the text it could not
       // resolve, has no other end.
       if (!Knowledge.isEntity(link)

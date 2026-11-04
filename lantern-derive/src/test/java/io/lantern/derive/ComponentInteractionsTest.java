@@ -68,6 +68,42 @@ class ComponentInteractionsTest {
   }
 
   @Test
+  void aLinkSeenInTwoFilesShowsTheSameFileWhenItsFactsGetNewIds() {
+    // Whichever of the two sightings has the lower ID, and in whichever order they come, the
+    // line's evidence is the same file, so the items showing it are not asked again (#779).
+    List<String> order = LeadRulesTest.flippingCites();
+    Fact before = codeEnd(order.get(0), false);
+    Fact after = codeEnd(order.get(1), true);
+
+    assertThat(after.evidence()).isEqualTo(before.evidence());
+    assertThat(after.evidence().path()).isEqualTo("A.java");
+    assertThat(after.lineage()).isEqualTo(before.lineage());
+  }
+
+  private static Fact codeEnd(String cites, boolean reversed) {
+    ComponentInteractionsTest test = new ComponentInteractionsTest();
+    test.unit();
+    ObjectNode at = FactJson.newObject();
+    at.put("source", PLACE.toString());
+    test.model.sighting(UNIT, "CALLS_HTTP", BILLING, at, "B.java", 3, cites);
+    test.model.sighting(UNIT, "CALLS_HTTP", BILLING, at, "A.java", 9, cites);
+    if (reversed) {
+      java.util.Collections.reverse(test.model.facts);
+    }
+    List<Fact> ends =
+        TestModel.about(
+                test.model.derived(ComponentInteractions.NAME),
+                Components.id(UNIT, ORDERS),
+                Types.COMPONENT_LINK)
+            .stream()
+            .filter(
+                f -> f.attributes().get("kind").asString().equals(ComponentInteractions.CODE_END))
+            .toList();
+    assertThat(ends).hasSize(1);
+    return ends.getFirst();
+  }
+
+  @Test
   void anOpenLinkHasNoCodeEnd() {
     unit();
     ObjectNode at = FactJson.newObject();
