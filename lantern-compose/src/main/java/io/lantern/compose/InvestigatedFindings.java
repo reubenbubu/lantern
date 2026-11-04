@@ -70,7 +70,10 @@ final class InvestigatedFindings {
       content.addAll(evidence(risk));
       callouts.add(
           new Callout(
-              assembler.id(section, "investigated", risk.fact().object().value()),
+              assembler.id(
+                  section,
+                  "investigated",
+                  risk.fact().subject() + " " + risk.fact().object().value()),
               Callout.Variant.RISK,
               severity(risk),
               risk.title(),

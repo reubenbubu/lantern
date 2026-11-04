@@ -757,10 +757,100 @@ class InvestigatorTest {
             "Files trust the caller's user header", "Files trust the caller's organization header");
     assertThat(texts(risk.attributes().path("cites")))
         .containsExactlyInAnyOrder("fs:" + CONTROLLER + ":5-7", "fs:" + CONTROLLER + ":7-7");
-    assertThat(texts(risk.attributes().path("leads")))
-        .containsExactlyInAnyOrder(header.subject().toString(), org.subject().toString());
     assertThat(risk.evidence().locations()).hasSize(2);
+    // Every lead it gathers is in its lineage; the highest impact and confidence of them.
     assertThat(risk.lineage()).containsExactlyInAnyOrder(claimOf(header), claimOf(org));
+    assertThat(risk.attributes().path("impact").asString()).isEqualTo("high");
+    assertValidAttributes(result);
+  }
+
+  @Test
+  void aJoinedRiskTakesTheHighestImpactOfItsLeads() {
+    headerLead();
+    orgLead();
+    // The header lead, asked first, is low; the organization lead high.
+    String low =
+        CONFIRMED.replace(
+            "\"impact\": \"high\", \"confidence\": \"high\"",
+            "\"impact\": \"low\", \"confidence\": \"low\"");
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                !leads(r) || turn(r) != 1
+                    ? null
+                    : r.messages().getFirst().text().contains("header:X-Org-Id")
+                        ? CONFIRMED_ORG
+                        : low);
+
+    Fact risk = of(investigate(fake), Types.INVESTIGATED_RISK).stream().collect(onlyOne());
+
+    assertThat(risk.attributes().path("impact").asString()).isEqualTo("high");
+    assertThat(risk.attributes().path("confidence").asString()).isEqualTo("high");
+    assertThat(risk.confidence()).isEqualTo(0.6);
+  }
+
+  @Test
+  void aLeadThatRestatesNoFindingNeverJoinsAFixedChecksFindingAskedBeforeIt() {
+    // Two plaintext-secret leads in files: one rests on a fixed check's finding, one does not.
+    headerLead("plaintext-secret");
+    ObjectNode raised = FactJson.newObject();
+    raised.put("about", FILES_UNIT);
+    add(
+        "findings",
+        "finding:shared-jwt-secret/here",
+        Types.FINDING_RAISED,
+        FactObject.string("shared-jwt-secret"),
+        raised.toString(),
+        "fs",
+        CONTROLLER,
+        12);
+    Fact read =
+        add(
+            "spring",
+            "method:f.StorageClient#bucket()",
+            "reads-request-value",
+            FactObject.string("bucket"),
+            "{\"source\":\"header\"}",
+            "fs",
+            STORAGE,
+            3);
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("trigger", "A secret in the storage client");
+    attributes.putArray("units").add(FILES_UNIT);
+    attributes.putArray("code").add("method:f.StorageClient#bucket()");
+    attributes.put("content", "sha256:ghi");
+    attributes.putArray("facts").add(read.id());
+    add(
+        "lead-plaintext-secret",
+        "lead:plaintext-secret/" + FILES_UNIT + "/storage",
+        Types.LEAD_TRIGGER,
+        FactObject.string("plaintext-secret"),
+        attributes.toString(),
+        "fs",
+        STORAGE,
+        3);
+    String storage =
+        CONFIRMED
+            .replace("fs:src/main/java/f/FileController.java:5-7", "fs:" + STORAGE + ":3-3")
+            .replace("[\"X-User-Id\", \"upload\"]", "[\"bucket\"]");
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                !leads(r) || turn(r) != 1
+                    ? null
+                    : r.messages().getFirst().text().contains("/storage") ? storage : CONFIRMED);
+
+    Investigator.Result result = investigate(fake);
+
+    // The finding is worded by the lead resting on it, and the other lead is a risk of its own.
+    assertThat(of(result, Types.FINDING_WORDING)).hasSize(1);
+    assertThat(of(result, Types.INVESTIGATED_RISK))
+        .singleElement()
+        .satisfies(
+            r ->
+                assertThat(texts(r.attributes().path("cites")))
+                    .containsExactly("fs:" + STORAGE + ":3-3"));
+    assertValidAttributes(result);
   }
 
   @Test
@@ -779,6 +869,24 @@ class InvestigatorTest {
     assertThat(of(result, Types.INVESTIGATED_RISK))
         .singleElement()
         .satisfies(r -> assertThat(r.attributes().path("mode").asString()).isEqualTo("leads"));
+  }
+
+  @Test
+  void aRiskFoundExploringThatAlsoCitesLinesOfItsOwnIsARiskOfItsOwn() {
+    headerLead();
+    String partly =
+        uploadRisk("fs:" + CONTROLLER + ":6-6", "fs:" + STORAGE + ":3-3")
+            .replace("[\"MultipartFile\"]", "[\"MultipartFile\", \"bucket\"]");
+    Investigator.Result result =
+        investigate(
+            submitting(
+                r ->
+                    turn(r) != 1
+                        ? null
+                        : leads(r) ? CONFIRMED : unit(r, FILES_UNIT) ? partly : null));
+
+    // Only a risk citing nothing but the stored risk's lines restates it (#747).
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(2);
   }
 
   @Test
@@ -1005,5 +1113,25 @@ class InvestigatorTest {
 
     assertThat(result.facts()).isNotEmpty();
     assertThat(result.facts()).allMatch(f -> types.contains(f.predicate()));
+    assertValidAttributes(result);
+  }
+
+  /**
+   * Every fact's attributes hold to its type's schema, as the store checks them when it saves the
+   * run's facts (#747: an undeclared attribute fails the run there).
+   */
+  private static void assertValidAttributes(Investigator.Result result) {
+    Map<String, io.lantern.core.vocabulary.VocabularyType> types = new java.util.HashMap<>();
+    LlmFacts.vocabulary().forEach(t -> types.put(t.name(), t));
+    for (Fact fact : result.facts()) {
+      List<io.lantern.core.vocabulary.AttributeSchema> chain = new ArrayList<>();
+      for (var type = types.get(fact.predicate()); type != null; type = types.get(type.parent())) {
+        chain.addFirst(type.attributeSchema());
+        if (type.parent() == null) {
+          break;
+        }
+      }
+      io.lantern.core.vocabulary.AttributeSchema.merge(chain).validate(fact.attributes());
+    }
   }
 }

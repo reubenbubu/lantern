@@ -849,7 +849,6 @@ public final class Investigator {
       units.forEach(list::add);
       if (lead != null) {
         attributes.put("lead", lead.id());
-        attributes.putArray("leads").add(lead.id());
       }
       copyList(entry, "names", attributes);
       copyList(entry, "cites", attributes);
@@ -857,7 +856,9 @@ public final class Investigator {
       attributes.put("model", modelName);
       Optional<Fact> restated = restated(entry, lead, units);
       String group = units.getFirst() + " " + key;
-      if (lead != null && (restated.isEmpty() || worded.contains(restated.get().id()))) {
+      // Only a risk of its own gathers the leads of its kind: a lead restating no finding joins it,
+      // and never a fixed check's finding it does not restate.
+      if (lead != null && restated.isEmpty()) {
         Integer held = byKind.get(group);
         if (held != null) {
           facts.set(held, joined(facts.get(held), entry, lead, units));
@@ -899,7 +900,7 @@ public final class Investigator {
               evidence(entry, null),
               confidence(entry),
               validity);
-      if (lead != null) {
+      if (lead != null && restated.isEmpty()) {
         byKind.putIfAbsent(group, facts.size());
       }
       facts.add(lineage.isEmpty() ? fact : fact.withLineage(lineage));
@@ -978,8 +979,9 @@ public final class Investigator {
     private final Map<String, Integer> byKind = new LinkedHashMap<>();
 
     /**
-     * A risk with another confirmed lead of its kind joined: its wording kept, the lead's names,
-     * citations, units and evidence added, and the lead added to its lineage.
+     * A risk with another confirmed lead of its kind joined: the first lead's wording kept, the
+     * highest impact and confidence of the two, the lead's names, citations, units and evidence
+     * added, and the lead added to its lineage, which so lists every lead the risk gathers.
      */
     private Fact joined(Fact risk, JsonNode entry, Lead lead, List<String> units) {
       ObjectNode attributes = Claims.json(risk);
@@ -999,11 +1001,14 @@ public final class Investigator {
       allUnits.addAll(units);
       ArrayNode unitList = attributes.putArray("units");
       allUnits.forEach(unitList::add);
-      Set<String> leads = new LinkedHashSet<>();
-      Claims.json(risk).path("leads").forEach(v -> leads.add(v.asString()));
-      leads.add(lead.id());
-      ArrayNode leadList = attributes.putArray("leads");
-      leads.forEach(leadList::add);
+      for (String name : List.of("impact", "confidence")) {
+        String held = Claims.json(risk).path(name).asString("");
+        String other = entry.path(name).asString("").strip();
+        if (RANK.getOrDefault(other.toLowerCase(Locale.ROOT), 0)
+            > RANK.getOrDefault(held.toLowerCase(Locale.ROOT), 0)) {
+          attributes.put(name, other);
+        }
+      }
       List<Evidence.Location> locations = new ArrayList<>(risk.evidence().locations());
       for (Evidence.Location location : evidence(entry, risk.evidence()).locations()) {
         if (!locations.contains(location)) {
@@ -1019,14 +1024,18 @@ public final class Investigator {
               attributes,
               ORIGIN,
               new Evidence(locations),
-              risk.confidence(),
+              Math.max(risk.confidence(), confidence(entry)),
               validity)
           .withLineage(lineage);
     }
 
+    /** How a stated impact or confidence ranks: high above medium above low. */
+    private static final Map<String, Integer> RANK = Map.of("high", 3, "medium", 2, "low", 1);
+
     /**
-     * A risk already stored about the unit, its own or a finding it worded, whose cited lines one
-     * of the entry's ranges overlaps.
+     * A risk already stored about the unit, its own or a finding it worded, whose cited lines every
+     * one of the entry's ranges overlaps: the same places, so the same problem said again. A risk
+     * that also cites lines of its own is a risk of its own.
      */
     private Optional<Fact> overlapped(JsonNode entry, String unit) {
       for (Fact fact : facts) {
@@ -1039,7 +1048,7 @@ public final class Investigator {
               }
               default -> false;
             };
-        if (about && citesItsEvidence(entry, fact)) {
+        if (about && citesOnlyItsEvidence(entry, fact)) {
           return Optional.of(fact);
         }
       }
@@ -1075,6 +1084,22 @@ public final class Investigator {
         }
       }
       return false;
+    }
+
+    /** Whether every one of a risk's cited ranges, and at least one, overlaps a fact's evidence. */
+    private static boolean citesOnlyItsEvidence(JsonNode entry, Fact fact) {
+      List<String> cites = InvestigateRole.cites(entry);
+      if (cites.isEmpty()) {
+        return false;
+      }
+      for (String cite : cites) {
+        ObjectNode one = FactJson.newObject();
+        one.putArray("cites").add(cite);
+        if (!citesItsEvidence(one, fact)) {
+          return false;
+        }
+      }
+      return true;
     }
 
     /** Whether one of a risk's cited ranges overlaps a finding's evidence. */

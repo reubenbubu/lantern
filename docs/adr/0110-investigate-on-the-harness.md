@@ -183,19 +183,28 @@ conversation read it; Investigate has no sides.
 
 ## Amendment (#747): one risk per kind per unit
 
-- **Key.** A confirmed lead's `investigated-risk`, or the `finding-wording` it gives, is keyed on
-  the lead's kind instead of its claim ID. The confirmed leads of one kind in one unit (its first
-  unit) are one risk: the first lead's wording, in the order the leads are asked (by unit, then
-  lead), and every lead's `names`, `cites`, evidence and lead (`leads`, with `lead` the first),
-  each lead's claim in its lineage. A lead that restates a finding not yet worded still words
-  that finding, so two findings of a kind stay two rows, as the fixed checks found them.
-- **Explored risks.** A Mode B or C risk that restates no finding but cites a range overlapping
-  the evidence of a risk or worded finding already stored about its first unit is not stored: it
-  is the same problem said again. It is logged, and still counts among the unit's answers, so
-  the system conversation is not asked to find it again.
+- **Key.** A confirmed lead's `investigated-risk` is keyed on the lead's kind instead of its claim
+  ID. The confirmed leads of one kind whose risk is about one unit (the first unit the answer
+  names, else the lead's first) are one risk. It keeps the wording of the first lead, in the order
+  the leads are answered (by lead ID). It takes the highest impact and confidence among the
+  leads, and gathers every lead's `names`, `cites` and evidence. Each lead's claim goes into its
+  lineage, which so lists every lead the risk gathers; `lead` keeps the first. No attribute is
+  added to the vocabulary.
+- **Fixed checks' findings.** Only a risk of its own gathers leads. A lead that restates a fixed
+  check's finding words that finding, as before. A second lead restating the same finding adds
+  nothing, and a lead that restates no finding never joins a finding's wording, whichever is
+  answered first. Two findings of a kind stay two rows, as the fixed checks found them. A
+  `finding-wording` keeps its finding as its subject; its value is now the lead's kind.
+- **Explored risks.** A Mode B or C risk restates a risk or worded finding already stored about
+  its first unit when every range it cites overlaps that one's evidence: the same places, so the
+  same problem said again. It is not stored. It is logged, and still counts among the unit's
+  answers, so the system conversation is not asked to find it again. A risk citing any lines of
+  its own is a risk of its own.
+- **The documents.** A risk's element in the Executive Brief is named by its unit and value
+  together, since the value is now the lead's kind and two units can share it.
 - **Not changed.** Leads, verdicts and what each conversation is shown stay as they are, so
   replays of earlier recordings still match. Showing exploration every lead that touches its unit
   is the second half of #747, measured on a real run.
-- **Why.** On project-4 the before-commit leads fired per sending method gave 13 rows of one
+- **Why.** On project-4 the before-commit leads, fired per sending method, gave 13 rows of one
   problem; the reader needs it once, with every place it occurs (`docs/quality-bar.md`, Words say
   what the diagram cannot).
