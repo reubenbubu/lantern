@@ -873,7 +873,7 @@ public final class RoleSession {
       accepted.forEach(
           (id, answer) -> {
             Item item = packet.get(ids.indexOf(id));
-            String json = answer.omitted() ? null : role.store(item, answer);
+            String json = stored(item, role, answer, inputs.get(ids.indexOf(id)));
             save(item, json, List.of());
             String fingerprint = fingerprint(item);
             settle(
@@ -1038,7 +1038,8 @@ public final class RoleSession {
       String fingerprint = fingerprint(item);
       ItemAnswer answer = accepted.get(id);
       if (answer != null) {
-        String json = answer.omitted() ? null : role.store(item, answer);
+        String json =
+            stored(item, role, answer, role.inputs(packet, ids, i).withSecrets(harness.secrets()));
         save(item, json, read);
         settle(
             outcomes,
@@ -1161,6 +1162,44 @@ public final class RoleSession {
       reasons.add(field + rejection.reason());
     }
     return reasons;
+  }
+
+  /**
+   * An accepted entry as it is stored, or null when omitted: each text the role lets keep its
+   * wording, and whose earlier version on this prompt and model cited only lines the item still
+   * shows, keeps that earlier text (#722, ADR 0126).
+   */
+  private String stored(Item item, PacketRole role, ItemAnswer answer, CheckInputs inputs) {
+    if (answer.omitted()) {
+      return null;
+    }
+    if (answer.texts().stream().noneMatch(role::carries)) {
+      return role.store(item, answer);
+    }
+    Map<String, CarryForward.Earlier> earlier = earlier(item.subject()).orElse(Map.of());
+    ItemAnswer kept =
+        new ItemAnswer(
+            answer.item(),
+            answer.raw(),
+            CarryForward.merge(answer.texts(), earlier, inputs.references(), role::carries),
+            answer.claims());
+    return CarryForward.mark(
+        role.store(item, kept),
+        kept.texts().stream().filter(role::carries).toList(),
+        inputs.references());
+  }
+
+  /**
+   * The texts of the answer stored last for the subject on this prompt and model, by field, that
+   * recorded what they rest on (#722): what a re-asked answer keeps where its evidence is
+   * unchanged.
+   */
+  public Optional<Map<String, CarryForward.Earlier>> earlier(String subject) {
+    return harness
+        .answers()
+        .previous(spec.name(), subject, cacheVersion(), model.provider(), model.model())
+        .filter(a -> a.answer() != null)
+        .map(a -> CarryForward.earlier(a.answer()));
   }
 
   /** Stores an accepted answer under the item's fingerprint. */

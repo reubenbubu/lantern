@@ -790,6 +790,85 @@ class SummarizerTest {
         .containsExactlyInAnyOrderElementsOf(later.facts().stream().map(Fact::id).toList());
   }
 
+  /**
+   * A model that rewords every answer (#722): one sentence per reference it is shown, up to four,
+   * each carrying the number of the call, so no two answers say anything the same way.
+   */
+  private static Function<LlmRequest, String> rewording() {
+    java.util.concurrent.atomic.AtomicInteger calls =
+        new java.util.concurrent.atomic.AtomicInteger();
+    return request -> {
+      int call = calls.incrementAndGet();
+      String prompt = request.messages().getFirst().text();
+      List<String> sentences = new ArrayList<>();
+      Matcher ref = REF.matcher(prompt);
+      while (ref.find() && sentences.size() < 4) {
+        String cited = ref.group(1) != null ? ref.group(1) : ref.group(2);
+        sentences.add(
+            "Rests on what %s shows, as worded in answer number %d of this model. [%s]"
+                .formatted(cited, call, cited));
+      }
+      return Answers.epic(String.join(" ", sentences));
+    };
+  }
+
+  /** The sentences of a summary, without their citations. */
+  private static List<String> sentences(Summary summary) {
+    return java.util.Arrays.stream(summary.text().split("\\s*\\[[^\\]]*\\]\\s*"))
+        .filter(t -> !t.isBlank())
+        .toList();
+  }
+
+  @Test
+  void aRewordingModelKeepsEverySentenceWhoseEvidenceDidNotChange() {
+    fake.answering(rewording());
+    Summarizer.Result first =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+    int calls = fake.sent().size();
+    // PriceService gains a method.
+    List<Fact> changed =
+        TestFacts.shop()
+            .relate(
+                "shop",
+                "type:com.example.shop.PriceService",
+                "CONTAINS",
+                "method:com.example.shop.PriceService#discount()")
+            .list();
+
+    Summarizer.Result second = summarizer().summarize(SummaryTree.fromFacts(changed));
+
+    // Asked: the changed type, and each unit that shows a summary with a sentence that changed.
+    // The module's sentences cite none of what changed, so it keeps them all, and the units
+    // above it, which show only its summary, are not asked: the rewording stops there.
+    assertThat(fake.sent().subList(calls, fake.sent().size()))
+        .extracting(s -> unit(s.request()))
+        .containsExactly(
+            "type:com.example.shop.PriceService",
+            "package:com.example:shop-core:com.example.shop",
+            "module:com.example:shop-core");
+    EntityId module = EntityId.parse("module:com.example:shop-core");
+    assertThat(second.summaries().get(module).text())
+        .isEqualTo(first.summaries().get(module).text());
+    EntityId price = EntityId.parse("type:com.example.shop.PriceService");
+    EntityId pkg = EntityId.parse("package:com.example:shop-core:com.example.shop");
+    // The type keeps its sentences about the facts it had, and adds one about the new method.
+    List<String> was = sentences(first.summaries().get(price));
+    List<String> now = sentences(second.summaries().get(price));
+    assertThat(now).containsAll(was).hasSize(was.size() + 1);
+    // The package rewords only its sentence about PriceService's summary; the rest stay as they
+    // were, word for word.
+    List<String> pkgWas = sentences(first.summaries().get(pkg));
+    List<String> pkgNow = sentences(second.summaries().get(pkg));
+    assertThat(pkgNow).hasSameSizeAs(pkgWas);
+    List<String> kept = new ArrayList<>(pkgNow);
+    kept.retainAll(pkgWas);
+    assertThat(kept).hasSize(pkgWas.size() - 1);
+    // An unchanged rerun asks nothing.
+    int after = fake.sent().size();
+    summarizer().summarize(SummaryTree.fromFacts(changed));
+    assertThat(fake.sent()).hasSize(after);
+  }
+
   @Test
   void aChangedChildWhoseSummaryIsUnchangedLeavesItsParentAlone() {
     // The model writes the same text for PriceService whatever its facts.

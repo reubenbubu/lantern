@@ -304,6 +304,15 @@ public final class PurposeRole {
     }
 
     /** The accepted texts as written, citations as the item numbers them. */
+    /**
+     * The purpose and the key fact keep their wording while what they cite is unchanged (#722, ADR
+     * 0126).
+     */
+    @Override
+    public boolean carries(CheckedText text) {
+      return true;
+    }
+
     @Override
     public String store(Item item, ItemAnswer accepted) {
       ObjectNode stored = JSON.createObjectNode();

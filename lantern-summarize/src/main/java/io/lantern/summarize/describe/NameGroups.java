@@ -771,6 +771,15 @@ public final class NameGroups {
      * The accepted entry with its citations as the item numbers them and a merge's group by its
      * key, so the stored answer does not depend on which items shared its request.
      */
+    /**
+     * A group's name keeps its wording while what it cites is unchanged; a merge's reason does not,
+     * since it explains a decision the model may change (#722, ADR 0126).
+     */
+    @Override
+    public boolean carries(CheckedText text) {
+      return !text.field().startsWith(MERGE + ".");
+    }
+
     @Override
     public String store(Item item, ItemAnswer accepted) {
       Named n = named(item);

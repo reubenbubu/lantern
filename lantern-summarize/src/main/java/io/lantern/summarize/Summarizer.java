@@ -6,6 +6,7 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.types.Types;
 import io.lantern.harness.Calls;
+import io.lantern.harness.CarryForward;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Fingerprints;
 import io.lantern.harness.Harness;
@@ -543,6 +544,8 @@ public final class Summarizer {
     private final RoleSession types;
     private final RoleSession others;
     private final Set<EntityId> notAsked = ConcurrentHashMap.newKeySet();
+    // Each new summary's sentences and what they rest on, by item fingerprint, until stored.
+    private final Map<String, String> carried = new ConcurrentHashMap<>();
     private final Set<EntityId> omitted = ConcurrentHashMap.newKeySet();
     private final AtomicInteger generated = new AtomicInteger();
     private final AtomicInteger reused = new AtomicInteger();
@@ -765,7 +768,10 @@ public final class Summarizer {
               item,
               calls ->
                   generate(calls, key, node, excerpts, children)
-                      .map(summary -> io.lantern.harness.Answer.of(SummaryJson.write(summary)))
+                      .map(
+                          summary ->
+                              io.lantern.harness.Answer.of(
+                                  SummaryJson.write(summary, carried.remove(key))))
                       .orElseGet(io.lantern.harness.Answer::omitted));
       return switch (outcome.kind()) {
         case CACHED -> {
@@ -842,7 +848,17 @@ public final class Summarizer {
       List<List<Prompt.Item>> parts =
           Tokens.estimate(whole) <= budget ? List.of() : inputs.parts(budget);
       if (parts.size() < 2) {
-        answer = answer(calls, purpose, node, whole, inputs, null, sentences);
+        // A summary asked again keeps each sentence whose cited inputs are unchanged (#722).
+        answer =
+            answer(
+                calls,
+                purpose,
+                node,
+                whole,
+                inputs,
+                null,
+                sentences,
+                session(node).earlier(node.entity().toString()).orElse(Map.of()));
       } else {
         List<String> texts = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
@@ -876,6 +892,9 @@ public final class Summarizer {
       }
       if (answer.omitted()) {
         return Optional.empty();
+      }
+      if (parts.size() < 2 && answer.sentences() != null) {
+        carried.put(key, answer.sentences());
       }
       Citations.Checked checked = answer.checked();
       ModelConfig model = session(node).model();
@@ -973,6 +992,25 @@ public final class Summarizer {
         Set<String> allowed,
         int sentences)
         throws ItemDropped {
+      return answer(calls, purpose, node, prompt, inputs, allowed, sentences, Map.of());
+    }
+
+    /**
+     * As {@link #answer(Calls, String, SummaryNode, String, Inputs, Set, int)}, keeping each of the
+     * earlier sentences whose cited inputs are all still shown (#722, ADR 0126).
+     *
+     * @param earlier the sentences of the summary stored last for the unit, by field
+     */
+    private Answer answer(
+        Calls calls,
+        String purpose,
+        SummaryNode node,
+        String prompt,
+        Inputs inputs,
+        Set<String> allowed,
+        int sentences,
+        Map<String, CarryForward.Earlier> earlier)
+        throws ItemDropped {
       stopIfFailed();
       LlmRequest request =
           Prompt.request(
@@ -985,7 +1023,7 @@ public final class Summarizer {
             stopIfFailed();
             boolean first = !retry[0];
             retry[0] = true;
-            return answer(purpose, response, inputs, allowed, sentences, first);
+            return answer(purpose, response, inputs, allowed, sentences, first, earlier);
           },
           Repair.withMessage(rejected -> rejected.reasons().getFirst()));
     }
@@ -1014,7 +1052,8 @@ public final class Summarizer {
         Inputs inputs,
         Set<String> allowed,
         int most,
-        boolean first)
+        boolean first,
+        Map<String, CarryForward.Earlier> earlier)
         throws Rejected {
       if (response.cutOff()) {
         throw rejected("", "It was cut off at the length limit; write shorter sentences.");
@@ -1084,6 +1123,8 @@ public final class Summarizer {
         return Answer.OMITTED;
       }
       List<String> kept = new ArrayList<>();
+      // The kept sentences as the checks saw them, beside the texts in kept.
+      List<CheckedText> keptTexts = new ArrayList<>();
       boolean firstKept = false;
       Set<String> firstCites = Set.of();
       JsonNode sentences = entry.get("sentences");
@@ -1129,6 +1170,16 @@ public final class Summarizer {
           firstCites = new HashSet<>(cites);
         }
         kept.add(text + " [" + String.join(", ", asWritten) + "]");
+        keptTexts.add(checked);
+      }
+      List<CheckedText> carried =
+          CarryForward.sentences(keptTexts, earlier, checks.references(), "sentences");
+      if (carried != keptTexts) {
+        kept.clear();
+        carried.forEach(t -> kept.add(t.text() + " [" + String.join(", ", t.cites()) + "]"));
+        keptTexts = new ArrayList<>(carried);
+        firstKept = true;
+        firstCites = new HashSet<>(carried.getFirst().cites());
       }
       if (kept.isEmpty()) {
         throw new Rejected(Pipeline.repairTurn(dropped));
@@ -1154,7 +1205,7 @@ public final class Summarizer {
                   "sentences",
                   "Generic",
                   "\""
-                      + kept.removeFirst()
+                      + removeFirst(kept, keptTexts)
                       + "\" would lead the summary, but opens with a pronoun or its kind."));
         }
         if (kept.isEmpty()) {
@@ -1183,7 +1234,32 @@ public final class Summarizer {
           text,
           checked,
           evidenced ? Summary.Purpose.EVIDENCED : Summary.Purpose.INFERRED,
-          Confidence.of(evidenced, kept.size(), total - beyond - kept.size()));
+          Confidence.of(evidenced, kept.size(), Math.max(0, total - beyond - kept.size())),
+          CarryForward.record(numbered(keptTexts), checks.references()));
+    }
+
+    /** The first kept sentence, taken from both lists. */
+    private static String removeFirst(List<String> kept, List<CheckedText> keptTexts) {
+      keptTexts.removeFirst();
+      return kept.removeFirst();
+    }
+
+    /** The sentences numbered as stored: {@code sentences.1}, ... */
+    private static List<CheckedText> numbered(List<CheckedText> texts) {
+      List<CheckedText> numbered = new ArrayList<>();
+      for (int i = 0; i < texts.size(); i++) {
+        CheckedText t = texts.get(i);
+        numbered.add(
+            new CheckedText(
+                "sentences." + (i + 1),
+                t.kind(),
+                t.text(),
+                t.cites(),
+                t.words(),
+                t.subjectName(),
+                t.names()));
+      }
+      return numbered;
     }
 
     /** A rejection of the whole answer, as the repair turn sends it. */
@@ -1244,9 +1320,13 @@ public final class Summarizer {
    *     kept ({@link Confidence})
    */
   private record Answer(
-      String text, Citations.Checked checked, Summary.Purpose purpose, double confidence) {
+      String text,
+      Citations.Checked checked,
+      Summary.Purpose purpose,
+      double confidence,
+      String sentences) {
 
-    static final Answer OMITTED = new Answer(null, null, Summary.Purpose.INFERRED, 0);
+    static final Answer OMITTED = new Answer(null, null, Summary.Purpose.INFERRED, 0, null);
 
     boolean omitted() {
       return text == null;

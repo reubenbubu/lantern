@@ -1889,6 +1889,101 @@ class DescriberTest {
     assertThat(shown).endsWith(" = 1;");
   }
 
+  /**
+   * The answer with every text it words reworded for this call (#722): its last word takes a
+   * different ending each call, so no two answers word a text the same way.
+   */
+  private static String reworded(String answer, int call) {
+    tools.jackson.databind.json.JsonMapper json =
+        tools.jackson.databind.json.JsonMapper.builder().build();
+    tools.jackson.databind.JsonNode root;
+    try {
+      root = json.readTree(answer);
+    } catch (RuntimeException e) {
+      return answer;
+    }
+    String ending = "-" + (char) ('a' + call % 26) + (char) ('a' + call / 26 % 26);
+    reword(root, ending);
+    return root.toString();
+  }
+
+  private static void reword(tools.jackson.databind.JsonNode node, String ending) {
+    if (node instanceof tools.jackson.databind.node.ObjectNode object) {
+      if (object.path("text").isString()) {
+        String text = object.get("text").asString();
+        String end = text.endsWith(".") ? "." : "";
+        String body = text.substring(0, text.length() - end.length());
+        object.put("text", body + ending + end);
+      }
+      object.properties().forEach(e -> reword(e.getValue(), ending));
+    } else if (node != null && node.isArray()) {
+      node.forEach(child -> reword(child, ending));
+    }
+  }
+
+  /** The texts of the answer stored last for a role's subject, by where they are in it. */
+  private Map<String, String> storedTexts(String role, EntityId subject) {
+    Map<String, String> texts = new java.util.TreeMap<>();
+    collect(
+        tools.jackson.databind.json.JsonMapper.builder()
+            .build()
+            .readTree(store.latest(role, subject.toString()).orElseThrow().answer()),
+        "",
+        texts);
+    return texts;
+  }
+
+  private static void collect(
+      tools.jackson.databind.JsonNode node, String at, Map<String, String> texts) {
+    if (node.isObject()) {
+      if (node.path("text").isString()) {
+        texts.put(at, node.get("text").asString());
+      }
+      node.properties().forEach(e -> collect(e.getValue(), at + "/" + e.getKey(), texts));
+    }
+  }
+
+  @Test
+  void aRewordingModelAskedAgainKeepsEveryTextWhoseEvidenceDidNotChange() {
+    java.util.concurrent.atomic.AtomicInteger calls =
+        new java.util.concurrent.atomic.AtomicInteger();
+    FakeLlmProvider fake =
+        new FakeLlmProvider().answering(r -> reworded(answer(r), calls.incrementAndGet()));
+    List<Fact> first = new ArrayList<>(facts.list());
+    first.add(kind(CONTROLLER, CONTROLLER_PATH, CONTROLLER_CODE, TestFacts.COMMIT));
+    Map<String, String> files = new HashMap<>(Map.of(CONTROLLER_PATH, CONTROLLER_CODE));
+    new Describer(harness(client(fake)), files(files)).describe(first);
+    Map<String, String> before = storedTexts("describe-unit", APP);
+    int sent = fake.sent().size();
+
+    // The controller's code changes: only its component's sentence cites it.
+    String changed = CONTROLLER_CODE.replace("list()", "orders()");
+    List<Fact> edited = new ArrayList<>(facts.list());
+    edited.add(kind(CONTROLLER, CONTROLLER_PATH, changed, "c".repeat(40)));
+    files.put(CONTROLLER_PATH, changed);
+    new Describer(harness(client(fake)), files(files)).describe(edited);
+    Map<String, String> after = storedTexts("describe-unit", APP);
+
+    // Only the unit whose description shows the code is asked again, though the model rewords
+    // every text, and the support judge checks the one text that changed. The flows, which show
+    // the unit's other texts, see the same words and are not asked.
+    assertThat(fake.sent().subList(0, sent))
+        .extracting(s -> s.request().purpose())
+        .anySatisfy(p -> assertThat(p).startsWith("flow-narrative"));
+    assertThat(fake.sent().subList(sent, fake.sent().size()))
+        .extracting(s -> s.request().purpose())
+        .containsExactly("describe-unit 1 items: " + APP, "support-judge 1 items: " + CONTROLLER);
+    assertThat(after.keySet()).isEqualTo(before.keySet());
+    after.forEach(
+        (at, text) -> {
+          if (at.startsWith("/components/")) {
+            assertThat(text).as(at + " cites the changed code").isNotEqualTo(before.get(at));
+          } else {
+            assertThat(text).as(at + " cites only what did not change").isEqualTo(before.get(at));
+          }
+        });
+  }
+
   @Test
   void theSameCodeAtANewCommitMakesNoCallAndChangedCodeAsksAgain() {
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
