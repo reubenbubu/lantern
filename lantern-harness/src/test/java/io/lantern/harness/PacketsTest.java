@@ -433,6 +433,31 @@ class PacketsTest {
   }
 
   @Test
+  void aPacketAnsweredWithMalformedJsonIsSentBackNamingTheFaultAndItsRepairIsKept() {
+    // The first reply closes its object twice; the repair is well formed (#769).
+    FakeLlmProvider fake =
+        answering(
+            request -> {
+              List<String> entries = new ArrayList<>();
+              for (String id : ids(request)) {
+                entries.add(
+                    "\"" + id.substring(0, id.indexOf('=')) + "\": " + good("Keeps the records"));
+              }
+              String answer = "{\"items\": {" + String.join(", ", entries) + "}}";
+              return request.messages().size() == 1 ? answer + "}" : answer;
+            });
+
+    Map<String, Outcome> outcomes = ask(fake, List.of(item("orders"), item("payments")));
+
+    assertThat(outcomes.get("orders").kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(outcomes.get("payments").kind()).isEqualTo(Outcome.Kind.ANSWERED);
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(fake.sent().get(1).request().messages().getLast().text())
+        .contains("The answer is not one JSON object with an entry per item")
+        .contains("a complete object is followed by more text");
+  }
+
+  @Test
   void anOmittedItemIsACorrectAnswerAndIsCached() {
     FakeLlmProvider fake = answering(request -> "{\"items\": {\"I1\": {\"omitted\": true}}}");
 
