@@ -1101,6 +1101,57 @@ class DescriberTest {
   }
 
   @Test
+  void whetherASentenceIsInferredIsTheBasisItsRoleStoredNotItsCitations() {
+    // The role stored "inferred" for a sentence citing a README claim, and "evidenced" for one
+    // citing only code: the document shows what was stored (#767).
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    Fact claim =
+        withClaim.stream().filter(f -> f.predicate().equals("claim")).findFirst().orElseThrow();
+    List<Fact> all = new ArrayList<>(withClaim);
+    all.add(
+        io.lantern.harness.LlmFacts.text(
+            DescribeRole.UNITS,
+            "test/test",
+            APP,
+            io.lantern.core.types.Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            "Takes the shop's orders.",
+            List.of(claim),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+    all.add(
+        io.lantern.harness.LlmFacts.text(
+            DescribeRole.UNITS,
+            "test/test",
+            WORKER,
+            io.lantern.core.types.Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            "Processes new orders.",
+            List.of(facts.find(WORKER.toString(), "deployable-unit")),
+            io.lantern.harness.LlmFacts.Basis.EVIDENCED,
+            1));
+
+    Document document =
+        new Composer("1")
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                io.lantern.derive.Derivation.withModel(all, 1));
+
+    Function<EntityId, String> description =
+        id ->
+            text(document.entities().stream()
+                    .filter(e -> e.id().equals(id))
+                    .findFirst()
+                    .orElseThrow()
+                    .description())
+                .strip();
+    assertThat(description.apply(APP))
+        .isEqualTo(Assembler.INFERRED_SENTENCE + " Takes the shop's orders.");
+    assertThat(description.apply(WORKER)).isEqualTo("Processes new orders.");
+  }
+
+  @Test
   void aPurposeCitingAReadmeClaimAndUnitFactsIsShownAsWritten() {
     List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
     Fact claim =

@@ -102,3 +102,8 @@ A scope's significance answer had 120 tokens of output a flow, plus 500. On the 
 ## Amendment (#760): limits in the role's contract
 
 This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.
+
+## Amendment (#767): a flow page is titled by its scenario
+
+A flow page's title is its scenario alone; its Overview table's Trigger names the request,
+message or schedule, where it runs and its handler (ADR 0122).

@@ -137,3 +137,8 @@ People are no longer a step of `cross-repo-links` but a link rule of their own (
 not attribute JSON, and writes `person-basis` and `display-name`, whose types the cross-repo links'
 vocabulary still defines. The people are the same on project-0 to project-4; `cross-repo-links`
 goes to version 18.
+
+## Amendment (#767): Describe's sentence first
+
+A person is described by Describe's sentence when there is one, still marked inferred; the
+linker's note describes a person only when Describe wrote none (ADR 0122).
