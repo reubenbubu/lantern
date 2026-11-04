@@ -180,6 +180,8 @@ public final class ScopeFlows {
    * @param facts the facts it rests on
    * @param phrased the link whose intent phrase (ADR 0050) labels it instead, where there is one,
    *     the phrase's cited facts then added to its own; null when it has none
+   * @param phrasedCode its code when the phrase labels it, such as a data step's repository method
+   *     and protocol (#740); null to keep {@code code}
    */
   public record Message(
       EntityId from,
@@ -190,7 +192,8 @@ public final class ScopeFlows {
       List<String> profiles,
       String info,
       List<Fact> facts,
-      Fact phrased)
+      Fact phrased,
+      String phrasedCode)
       implements Step {}
 
   /** A note over participants, none for the whole flow. */
@@ -376,7 +379,8 @@ public final class ScopeFlows {
         participants.add(to);
       }
       steps.add(
-          new Message(from, to, plain, code, async, profiles, info, List.copyOf(facts), phrased));
+          new Message(
+              from, to, plain, code, async, profiles, info, List.copyOf(facts), phrased, null));
     }
 
     private void note(List<EntityId> over, String text, List<String> profiles, List<Fact> facts) {
@@ -493,7 +497,8 @@ public final class ScopeFlows {
               profiles,
               deliveryInfo(first),
               facts,
-              null);
+              // The delivery's own link words it (#740).
+              first);
         }
         case FlowModel.SCHEDULE ->
             message(
@@ -591,7 +596,8 @@ public final class ScopeFlows {
           List.of(),
           info.isEmpty() ? null : String.join(" ", info),
           step.facts(),
-          null);
+          // The frontend's call words its own request (#740).
+          link);
     }
 
     /** The gateway the frontend called routing the call on to the entry point's unit. */
@@ -617,7 +623,9 @@ public final class ScopeFlows {
           step.profiles(),
           routeInfo.toString(),
           step.facts(),
-          route);
+          // The request's own intent, not the route's, which every request through it shares
+          // (#740).
+          start.link);
     }
 
     /** A gateway routing the request it receives to the unit, with the request as it serves it. */
@@ -778,6 +786,17 @@ public final class ScopeFlows {
         }
       }
       String code = step.detail().isEmpty() ? null : step.detail().getFirst();
+      // The unit's intent for its store words the step; the repository method stays its code
+      // (#740).
+      Fact store =
+          knowledge.relations(unit, Types.USES_DATABASE).stream()
+              .filter(
+                  f ->
+                      Knowledge.isEntity(f)
+                          && Knowledge.object(f).equals(step.to())
+                          && !elements.alternativeLinks().containsKey(f))
+              .findFirst()
+              .orElse(null);
       message(
           unit,
           step.to(),
@@ -787,7 +806,24 @@ public final class ScopeFlows {
           step.profiles(),
           info.isEmpty() ? null : String.join(" ", info),
           step.facts(),
-          null);
+          store);
+      if (store != null) {
+        // With the store's intent as its label, what it reads and writes, or the repository
+        // method it calls, goes to the code column (#740).
+        Message last = (Message) steps.removeLast();
+        steps.add(
+            new Message(
+                last.from(),
+                last.to(),
+                last.plain(),
+                last.code(),
+                last.async(),
+                last.profiles(),
+                last.info(),
+                last.facts(),
+                last.phrased(),
+                code == null ? label(parts) : label(parts) + " · " + code));
+      }
     }
 
     /** Which of the tables a unit reads or writes are another unit's, or null for none. */

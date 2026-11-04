@@ -1655,6 +1655,36 @@ class DescriberTest {
             .orElseThrow();
     assertThat(charge.label()).isEqualTo("Charges cards through");
     assertThat(charge.profiles()).containsExactly("prod");
+
+  void aFlowsDataStepShowsTheUnitsStoreIntentWithWhatItReadsAsItsCode() {
+    TestFacts runtime = TestFacts.runtime();
+    Fact store = runtime.find(APP.toString(), "USES_DATABASE");
+    Function<Map<String, Describer.Phrase>, List<String>> messages =
+        phrases ->
+            all(new Composer("1")
+                    .compose(
+                        ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                        SNAPSHOT,
+                        TestTexts.with(runtime.list(), new TestTexts.Written(Map.of(), phrases)))
+                    .sections())
+                .flatMap(s -> s.blocks().stream())
+                .filter(SequenceDiagram.class::isInstance)
+                .map(SequenceDiagram.class::cast)
+                .flatMap(d -> d.steps().stream())
+                .filter(SequenceDiagram.Message.class::isInstance)
+                .map(SequenceDiagram.Message.class::cast)
+                .filter(m -> m.to().toString().equals("database:db:5432/shop"))
+                .map(m -> m.label() + " [" + m.code() + "]")
+                .toList();
+
+    assertThat(messages.apply(Map.of())).isNotEmpty().allMatch(m -> m.startsWith("Reads "));
+    // With the unit's intent for the store, the step leads with it; what it reads is its code
+    // (#740).
+    assertThat(
+            messages.apply(
+                Map.of(store.id(), new Describer.Phrase("Keeps its orders in", List.of()))))
+        .isNotEmpty()
+        .allMatch(m -> m.startsWith("Keeps its orders in [Reads "));
   }
 
   @Test

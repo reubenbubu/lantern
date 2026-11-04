@@ -118,7 +118,9 @@ final class SequenceFlows {
             message.from(),
             message.to(),
             phrase != null ? phrase.text() : message.plain(),
-            message.code(),
+            phrase != null && message.phrasedCode() != null
+                ? message.phrasedCode()
+                : message.code(),
             message.async() ? SequenceDiagram.MessageKind.ASYNC : null,
             false,
             null,
