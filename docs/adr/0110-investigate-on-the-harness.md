@@ -208,3 +208,26 @@ conversation read it; Investigate has no sides.
 - **Why.** On project-4 the before-commit leads, fired per sending method, gave 13 rows of one
   problem; the reader needs it once, with every place it occurs (`docs/quality-bar.md`, Words say
   what the diagram cannot).
+
+## Amendment (#749): what the LLM found is marked once, and infrastructure is no connection
+
+The 1F and 1G review found the mark of what Investigate found wrong in three ways (project-1, 1H
+baseline): the system box carried it, because its only facts are the purpose the LLM worded; a box
+only Investigate found (loki, zipkin) lost it once Describe worded it, since such a box cites no
+facts in the document and its only mark was its description's "Found by the LLM:"; and lines
+showed both the badge and that prefix.
+
+- **Found, not worded.** The C4 report marks an element, line or table row as found by the LLM when
+  its facts, leaving out what an LLM role only worded (a summary, responsibility, intent, flow
+  narrative or significance, purpose, key fact, display name, or a fixed check's wording), are all
+  LLM findings. The system's purpose marks nothing.
+- **A found element cites what found it.** An element that only Investigate's connections show
+  (every fact about it from the LLM, and no static or derived fact relating anything to it) cites
+  those connections, so it is marked wherever it appears, Describe's sentence or not.
+- **Marked once.** Where the badge shows, the text does not open with "Found by the LLM:" too; the
+  document model keeps the prefix for templates without a badge.
+- **Infrastructure is no connection.** Tracing, logging, metrics, a service registry and a config
+  server are infrastructure, not what a unit does for the system (`docs/quality-bar.md`, Static
+  extraction). The explore prompt says so (version 7), and the check rejects a proposed connection
+  whose target, description or technology names a word of the contract's `infrastructure` list
+  (`prompts/investigate.contract.json`), with the reason, so the model can correct it.
