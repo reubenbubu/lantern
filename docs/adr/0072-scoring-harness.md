@@ -319,3 +319,15 @@ asks for them, and the one-file change is checked against the items it may re-as
 Until #722 keeps a sentence's wording while its evidence is unchanged, a real model rewords
 re-asked answers, and the items showing them are expected through a reworded answer. The gate
 counts them as expected, as the epic does, and the row shows how many there were.
+
+## Amendment (#741): model coverage credits the intents the page shows
+
+Describe's model coverage (#742) now counts the same interactions the unknowns page lists under
+"Intent not known", so that on a run its "don't know" count can be compared with the number of
+those entries:
+
+- A component's data access takes its unit's intent for the store (#739): the store link's
+  intent counts for it.
+- A person's use is counted once per frontend the person uses, and counts as worded when the
+  intent stored for that frontend (`<basis>/<frontend>`) exists. Before, the person's basis was
+  counted once and could never be found worded, since its intents are stored per frontend.

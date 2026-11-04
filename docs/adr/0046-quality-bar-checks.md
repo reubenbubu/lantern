@@ -87,3 +87,37 @@ ADR 0052, quality evidence in ADR 0062).
 - Each of these fails once for the document, naming no block, since it holds for the scope whichever diagram draws the element; the C4 report puts such failures on its first page (above). The responsibility failure counts the elements and points to the unknowns page, which names them, so they are named once.
 - **The unknowns page.** The decisions and unknowns section lists, after the decision records, what the model holds as open, each once and from the same queries: links left open ("Not linked", moved from the container views), leads Investigate left unclear or was not asked about ("Not decided", a note citing nothing, so it reads the same whichever model was asked; a lead about no unit, such as a shared store or a Kubernetes Secret, named by what it points at, in the system's scope or that of the repository it was found in; a lead not asked says so without the error the run recorded), the units it did not look at ("Not investigated", moved from the findings table) and elements without a responsibility ("Responsibility not known", a note citing nothing). The unknown caller is not in the model yet (#365).
 
+
+## Amendment (#741): the unknowns page lists every gap
+
+The 1F and 1G review found gaps the reader could not see. Now:
+
+- **Intent not known.** A note citing nothing lists every interaction of the scope's units that has
+  no stored intent (`Unknowns.interactionsWithoutIntent()`), each from where it starts to where it
+  ends, with its line's detail, such as an endpoint, so that two calls between the same ends read
+  apart. The interactions are those each unit holds (`UnitInteractions` in `lantern-derive`, the
+  list Describe asks about, ADR 0103, amendment for #741), plus each component's use of a store,
+  which takes its unit's intent for the store (#739). A person's use of a frontend counts as known
+  when the intent stored for that frontend exists.
+- **Not asked.** Every item any role did not ask the model about, or got no answer for, is stored
+  as a `not-asked` fact. Its object is the role, its `reason` is in words that read the same from
+  run to run ("a budget refused it", "the request failed", "missing from the answer twice"), and
+  its origin is its own, so the next run, which asks again, ends it. Some roles are left out:
+  Investigate keeps its own `not-investigated`; a link Resolve was not asked about is already
+  under "Not linked"; and the judges' samples write nothing the documents show. The injection
+  screen's items are parts of files and are named as such. A note citing nothing lists them by role, what each is about and why; items
+  of one role, about the same thing, not asked for the same reason, read as one line with their
+  count. The system's scope lists all of them; a repository's, those about its units.
+- **Refuted leads.** The quality report lists every lead the investigator refuted, as "A lead the
+  LLM investigator refuted": what it is about, the finding that refutes it and the file ranges it
+  cites, citing the verdict. Knowledge-build epic section 11.2 puts them in the quality report, so
+  a reader can check a refutation. They are listed there as README claims the code contradicts
+  are, so a document whose only entries are refuted leads no longer reads "No check failed".
+- On a run where a budget refused some units' items, the page lists their interactions under
+  "Intent not known" too. Model coverage counts those as "not asked", not "don't know", so the two
+  counts are equal only when nothing was refused.
+- **The run record** counts, for each role and each kind of field (the part of a field's name
+  before its first dot, such as `interactions`), the fields the model left out of an item it
+  answered, withdrew in a repair turn after they were rejected, or had dropped after they were
+  rejected twice (`fields` in each role's entry). A role names the fields an item asks for
+  (`PacketRole.askedFields`); Describe does.

@@ -120,6 +120,7 @@ public final class Composer {
     }
     List<QualityReport.Failure> claimFailures = new ArrayList<>(composition.modelFailures());
     claimFailures.addAll(composition.claimFailures());
+    claimFailures.addAll(composition.refutedLeads());
     DocumentSource source =
         new DocumentSource(
             snapshot.number(),

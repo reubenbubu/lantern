@@ -50,6 +50,15 @@ public final class RoleRecord implements LlmCallLog {
   private final List<String> failedSubjects = new ArrayList<>();
   private final List<String> reused = new ArrayList<>();
   private final Map<String, AskedWhy> why = new HashMap<>();
+  private final Map<String, String> unaskedWhy = new java.util.LinkedHashMap<>();
+  private final Map<String, int[]> fields = new java.util.TreeMap<>();
+
+  /**
+   * How many fields of one kind, such as {@code interactions}, the model left out of an item it
+   * answered (or omitted whole), withdrew in a repair turn after they were rejected, or had dropped
+   * after they were rejected twice (#741).
+   */
+  public record FieldCounts(int omitted, int withdrawn, int dropped) {}
 
   RoleRecord(String role, String provider, String model) {
     this.role = role;
@@ -133,12 +142,22 @@ public final class RoleRecord implements LlmCallLog {
     }
     switch (outcome.kind()) {
       case CACHED -> reused.add(subject);
-      case NOT_ASKED -> unasked.add(subject);
+      case NOT_ASKED -> {
+        unasked.add(subject);
+        unaskedWhy.put(subject, outcome.reason() == null ? "not asked" : outcome.reason());
+      }
       case FAILED -> {
         unasked.add(subject);
+        unaskedWhy.put(
+            subject,
+            "the request failed" + (outcome.reason() == null ? "" : ": " + outcome.reason()));
         failedSubjects.add(subject);
       }
-      default -> asked.add(subject);
+      default -> {
+        asked.add(subject);
+        // Answered after all: no longer unasked.
+        unaskedWhy.remove(subject);
+      }
     }
   }
 
@@ -242,6 +261,29 @@ public final class RoleRecord implements LlmCallLog {
     this.packetSize = packetSize;
   }
 
+  /** Why each item not asked, a failed one included, was not, by its subject (#741). */
+  public synchronized Map<String, String> unaskedReasons() {
+    return Map.copyOf(unaskedWhy);
+  }
+
+  /** Counts fields of one kind left out, withdrawn or dropped (#741). */
+  synchronized void fields(String kind, int omitted, int withdrawn, int dropped) {
+    if (omitted + withdrawn + dropped == 0) {
+      return;
+    }
+    int[] counts = fields.computeIfAbsent(kind, k -> new int[3]);
+    counts[0] += omitted;
+    counts[1] += withdrawn;
+    counts[2] += dropped;
+  }
+
+  /** The fields left out, withdrawn or dropped, by kind (#741). */
+  public synchronized Map<String, FieldCounts> fields() {
+    Map<String, FieldCounts> result = new java.util.TreeMap<>();
+    fields.forEach((k, c) -> result.put(k, new FieldCounts(c[0], c[1], c[2])));
+    return result;
+  }
+
   /** The record as the run record writes it. */
   public synchronized ObjectNode toJson() {
     ObjectNode node = JSON.createObjectNode();
@@ -259,6 +301,16 @@ public final class RoleRecord implements LlmCallLog {
     items.put("dropped", dropped);
     items.put("notAsked", notAsked);
     items.put("failed", failed);
+    if (!fields.isEmpty()) {
+      ObjectNode byKind = node.putObject("fields");
+      fields.forEach(
+          (k, c) -> {
+            ObjectNode counts = byKind.putObject(k);
+            counts.put("omitted", c[0]);
+            counts.put("withdrawn", c[1]);
+            counts.put("dropped", c[2]);
+          });
+    }
     if (warmUp != null) {
       node.put("warmUp", warmUp);
     }

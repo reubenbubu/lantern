@@ -418,6 +418,9 @@ public final class Types {
   /** The entity type {@code module}. */
   public static final String MODULE = "module";
 
+  /** The attribute type {@code not-asked}. */
+  public static final String NOT_ASKED = "not-asked";
+
   /** The attribute type {@code not-investigated}. */
   public static final String NOT_INVESTIGATED = "not-investigated";
 

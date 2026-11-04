@@ -1687,6 +1687,43 @@
       "facts" : [ ]
     }, {
       "kind" : "callout",
+      "id" : "decisions.intent-not-known",
+      "variant" : "note",
+      "title" : "Intent not known",
+      "content" : [ {
+        "kind" : "text",
+        "text" : "Lantern holds no intent for these interactions, so what they are for is not known:"
+      }, {
+        "kind" : "text",
+        "text" : " shop-app to pay.example.com (POST /charges)."
+      }, {
+        "kind" : "text",
+        "text" : " shop-app to orders."
+      }, {
+        "kind" : "text",
+        "text" : " shop-app to shop on db."
+      }, {
+        "kind" : "text",
+        "text" : " shop-app to worker."
+      }, {
+        "kind" : "text",
+        "text" : " Controller in shop-app to JpaOrders in shop-app."
+      }, {
+        "kind" : "text",
+        "text" : " Jobs in shop-app to JpaOrders in shop-app."
+      }, {
+        "kind" : "text",
+        "text" : " JpaOrders in shop-app to shop on db."
+      }, {
+        "kind" : "text",
+        "text" : " worker to shop-app (GET /orders)."
+      }, {
+        "kind" : "text",
+        "text" : " worker to orders."
+      } ],
+      "facts" : [ ]
+    }, {
+      "kind" : "callout",
       "id" : "decisions.contradicted-claim",
       "variant" : "warning",
       "title" : "Claim the code contradicts",

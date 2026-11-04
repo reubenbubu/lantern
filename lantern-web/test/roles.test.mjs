@@ -465,14 +465,21 @@ test("the interactions counted include components' data access, found connection
   assert.equal(byId['interaction:f-da:database:orders'].kind, 'data-access');
   assert.deepEqual(byId['interaction:f-da:database:orders'].owners, ['service:a']);
   assert.equal(byId['interaction:f-zip'].kind, 'INVESTIGATED_CONNECTION');
-  assert.equal(byId['interaction:f-pb'].kind, 'USES (person)');
-  assert.deepEqual(byId['interaction:f-pb'].owners, ['frontend:shop']);
+  assert.equal(byId['interaction:f-pb:frontend:shop'].kind, 'USES (person)');
+  assert.deepEqual(byId['interaction:f-pb:frontend:shop'].owners, ['frontend:shop']);
   // Scored: the data access has no intent though a was asked; zipkin's b was asked too.
   const row = describeRow(report, facts, [], run);
   const kinds = Object.fromEntries(row.model.byKind.map((k) => [k.kind, k]));
   assert.equal(kinds['data-access'].unknown, 1);
   assert.equal(kinds.INVESTIGATED_CONNECTION.unknown, 1);
   assert.equal(kinds['USES (person)'].notAsked, 1);
+  // The unit's intent for the store counts for its component's access, and a person's intent is
+  // the one stored for that frontend (#741).
+  const intent = (object) => ({ predicate: 'intent', origin: { name: 'describe-unit' }, object: { kind: 'string', value: object }, attributes: { text: 'Keeps the orders' } });
+  const worded = describeRow(report, facts, [intent('c-db'), intent('c-pb/frontend:shop')], run);
+  const after = Object.fromEntries(worded.model.byKind.map((k) => [k.kind, k]));
+  assert.equal(after['data-access'].own, 1);
+  assert.equal(after['USES (person)'].own, 1);
 });
 
 test('Describe on the page: a line counts when labelled with the intent of its own link', () => {

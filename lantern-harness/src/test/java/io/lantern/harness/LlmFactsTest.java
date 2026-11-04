@@ -117,7 +117,8 @@ class LlmFactsTest {
             "investigated-risk",
             "finding-wording",
             "INVESTIGATED_CONNECTION",
-            "not-investigated");
+            "not-investigated",
+            "not-asked");
   }
 
   @Test

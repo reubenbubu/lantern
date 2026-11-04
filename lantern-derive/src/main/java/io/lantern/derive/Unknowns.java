@@ -48,6 +48,23 @@ public final class Unknowns {
         .toList();
   }
 
+  /**
+   * A lead Investigate refuted (#741): what it is about, the finding that refutes it and the file
+   * ranges it cites.
+   */
+  public record Refuted(
+      String kind, List<EntityId> about, String finding, List<String> cites, Fact verdict) {}
+
+  /**
+   * An item a role did not ask about, or got no answer for (#741).
+   *
+   * @param role the role
+   * @param subject what the item is about
+   * @param item the item's subject as the role names it, when it is not an entity
+   * @param reason why
+   */
+  public record NotAsked(String role, EntityId subject, String item, String reason, Fact fact) {}
+
   /** A line of the Unknown caller: the unit, the line's fact and the entry points it cites. */
   public record Caller(EntityId unit, Fact line, List<Fact> entries) {}
 
@@ -130,9 +147,63 @@ public final class Unknowns {
    * reason, then the lead, never by a verdict's ID, which names the model asked.
    */
   public List<Lead> unclearLeads() {
+    return leads(UNCLEAR).stream()
+        .map(
+            l ->
+                new Lead(
+                    l.kind(),
+                    l.about(),
+                    Elements.attribute(l.verdict(), "reason", null),
+                    l.verdict()))
+        .toList();
+  }
+
+  /**
+   * The leads Investigate refuted, of the scope as {@link #unclearLeads()} says, each with the
+   * finding that refutes it and what it cites (#741), in the same order.
+   */
+  public List<Refuted> refutedLeads() {
+    return leads("refuted").stream()
+        .map(
+            l ->
+                new Refuted(
+                    l.kind(),
+                    l.about(),
+                    Elements.attribute(l.verdict(), "finding", null),
+                    Elements.strings(l.verdict(), "cites"),
+                    l.verdict()))
+        .toList();
+  }
+
+  /**
+   * Every item a role did not ask about, or got no answer for (#741): in the system's scope all of
+   * them, else those about the scope's units. By role, then subject.
+   */
+  public List<NotAsked> notAsked() {
+    List<NotAsked> result = new ArrayList<>();
+    for (Fact fact : knowledge.withPredicate(Types.NOT_ASKED)) {
+      if (system || units.contains(fact.subject())) {
+        result.add(
+            new NotAsked(
+                fact.object().value(),
+                fact.subject(),
+                Elements.attribute(fact, "item", null),
+                Elements.attribute(fact, "reason", null),
+                fact));
+      }
+    }
+    result.sort(
+        Comparator.comparing(NotAsked::role)
+            .thenComparing(n -> n.subject().toString())
+            .thenComparing(n -> Objects.toString(n.item(), "")));
+    return result;
+  }
+
+  /** The leads Investigate gave a verdict of this value, of the scope, sorted. */
+  private List<Lead> leads(String value) {
     List<Lead> result = new ArrayList<>();
     for (Fact verdict : knowledge.withPredicate(Types.LEAD_VERDICT)) {
-      if (!verdict.object().value().equals(UNCLEAR)) {
+      if (!verdict.object().value().equals(value)) {
         continue;
       }
       EntityId lead = verdict.subject();
@@ -197,6 +268,40 @@ public final class Unknowns {
       }
     }
     result.sort(Comparator.comparing(c -> c.unit().toString()));
+    return result;
+  }
+
+  /**
+   * Every interaction the scope's units hold that has no stored intent (#741): each one Describe
+   * asks about ({@link UnitInteractions#of}) without an intent of its own, a person's use of a
+   * frontend without the intent stored for that frontend, and a component's use of a store whose
+   * unit holds no intent for the store. They come by unit, then in the order each unit holds them.
+   */
+  public List<UnitInteractions.Held> interactionsWithoutIntent() {
+    UnitInteractions held =
+        new UnitInteractions(
+            knowledge,
+            elements,
+            facts -> facts.stream().sorted(Comparator.comparing(Fact::id)).toList());
+    List<UnitInteractions.Held> result = new ArrayList<>();
+    for (EntityId unit : units) {
+      if (!held.units().contains(unit)) {
+        continue;
+      }
+      List<UnitInteractions.Held> all = new ArrayList<>(held.of(unit));
+      all.addAll(held.dataAccess(unit));
+      for (UnitInteractions.Held interaction : all) {
+        boolean known =
+            switch (interaction.kind()) {
+              case PERSON -> model.personIntent(interaction.fact(), unit).isPresent();
+              case DATA_ACCESS -> model.intent(interaction.through()).isPresent();
+              default -> model.intent(interaction.fact()).isPresent();
+            };
+        if (!known) {
+          result.add(interaction);
+        }
+      }
+    }
     return result;
   }
 

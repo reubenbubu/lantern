@@ -555,6 +555,9 @@ public final class AnalysisRun {
       // The injection screen reads every file the run's prompts showed, each blob once; what it
       // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
       screen(harness, snapshot);
+      // Every item a role did not ask about, or got no answer for, is stored, so the unknowns page
+      // lists it (#741); the next run asks again and ends the fact.
+      recordLlmFacts(snapshot, Map.of(NOT_ASKED_ORIGIN, notAsked(harness.records(), snapshot)));
       // Knowledge is complete before composition (knowledge-build epic, section 12): the documents
       // are composed from what the store holds now, the roles' texts included, and from nothing
       // the run kept in memory.
@@ -661,6 +664,74 @@ public final class AnalysisRun {
           documents,
           runRecord);
     }
+  }
+
+  /** The origin of the facts that say a role did not ask about an item (#741). */
+  static final Origin NOT_ASKED_ORIGIN = new Origin(Origin.Kind.LLM, Types.NOT_ASKED, "1");
+
+  /**
+   * A {@code not-asked} fact for every item a role did not ask about or got no answer for (#741),
+   * with why in words that read the same from run to run.
+   */
+  static List<Fact> notAsked(List<io.lantern.harness.RoleRecord> roles, Snapshot snapshot) {
+    List<Fact> result = new ArrayList<>();
+    String repo = new java.util.TreeSet<>(snapshot.commits().keySet()).first();
+    for (io.lantern.harness.RoleRecord role : roles) {
+      // Investigate stores what it did not look at itself (not-investigated, ADR 0110); a link
+      // Resolve was not asked about is listed as not linked; a judge's sample writes nothing the
+      // documents show.
+      if (role.role().startsWith("investigate")
+          || role.role().equals("resolve")
+          || role.role().contains("judge")) {
+        continue;
+      }
+      // The injection screen's items are parts of files, named as such, not entities.
+      boolean files = role.role().equals("injection-screen");
+      new java.util.TreeMap<>(role.unaskedReasons())
+          .forEach(
+              (subject, reason) -> {
+                tools.jackson.databind.node.ObjectNode attributes =
+                    io.lantern.core.fact.FactJson.newObject();
+                attributes.put("reason", stableReason(reason));
+                EntityId entity;
+                try {
+                  if (files) {
+                    throw new IllegalArgumentException("a part of a file");
+                  }
+                  entity = EntityId.parse(subject);
+                } catch (IllegalArgumentException e) {
+                  entity = io.lantern.derive.ArchitectureModel.SYSTEM;
+                  attributes.put("item", subject);
+                }
+                result.add(
+                    Fact.create(
+                        entity,
+                        Types.NOT_ASKED,
+                        io.lantern.core.fact.FactObject.string(role.role()),
+                        attributes,
+                        NOT_ASKED_ORIGIN,
+                        io.lantern.core.fact.Evidence.of(repo, ".", null, null),
+                        io.lantern.harness.LlmFacts.CONFIDENCE,
+                        io.lantern.core.fact.Validity.from(snapshot.number())));
+              });
+    }
+    return result;
+  }
+
+  /** Why an item was not asked, without the amounts and errors that change from run to run. */
+  static String stableReason(String reason) {
+    String lower = reason.toLowerCase(java.util.Locale.ROOT);
+    if (lower.startsWith("the request failed")) {
+      return "the request failed";
+    }
+    if (lower.contains("budget") || lower.contains("share")) {
+      return "a budget refused it";
+    }
+    if (lower.contains("missing from the answer")) {
+      return "missing from the answer twice";
+    }
+    int colon = reason.indexOf(':');
+    return colon > 0 ? reason.substring(0, colon) : reason;
   }
 
   /**

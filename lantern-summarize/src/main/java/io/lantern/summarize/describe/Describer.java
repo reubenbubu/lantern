@@ -78,15 +78,7 @@ public final class Describer {
   static final int MAX_CLAIMS = 8;
 
   /** The links a unit's relationships are drawn from, as the container diagram draws them. */
-  static final List<String> LINKS =
-      List.of(
-          Types.CALLS_HTTP,
-          Types.SENDS_MAIL,
-          Types.USES_IDENTITY_PROVIDER,
-          Types.PUBLISHES,
-          Types.CONSUMES,
-          Types.USES_DATABASE,
-          Types.ACCESSES_DATA_OF);
+  static final List<String> LINKS = io.lantern.derive.UnitInteractions.LINKS;
 
   private static final Set<String> ENTRY_POINTS =
       Set.of(
