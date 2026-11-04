@@ -492,6 +492,46 @@ test("the interactions counted include components' data access, found connection
   assert.equal(after['USES (person)'].own, 1);
 });
 
+test("Describe's model: a line the unknowns page gives a unit is that unit's, whatever its subject (#741)", () => {
+  const report = {
+    elements: Object.fromEntries(
+      ['service-a', 'service-b', 'actor-unknown-caller', 'exchange-events', 'queue-orders'].map((id) => [id, { kind: 'container', name: id }]),
+    ),
+    pages: [],
+  };
+  const facts = [
+    { id: 'u-a', predicate: 'deployable-unit', subject: 'service:a', object: { kind: 'string', value: 'a' } },
+    { id: 'u-b', predicate: 'deployable-unit', subject: 'service:b', object: { kind: 'string', value: 'b' } },
+    // The Unknown caller's line: held by the unit it calls, a.
+    link('uc', 'CALLS_UNREACHED', 'actor:unknown-caller', 'service:a'),
+    // An exchange's route to a queue: held by the first unit with a line touching either end, b.
+    link('pub', 'PUBLISHES', 'service:b', 'exchange:events'),
+    link('rt', 'ROUTES_TO', 'exchange:events', 'queue:orders'),
+  ];
+  const asked = { harness: [{ role: 'describe-unit', askedSubjects: ['service:a', 'service:b'], cachedSubjects: [], unaskedSubjects: [] }] };
+  const items = interactionsOf(facts, report);
+  const byId = Object.fromEntries(items.map((i) => [i.id, i]));
+  assert.deepEqual(byId['interaction:f-uc'].owners, ['service:a']);
+  assert.deepEqual(byId['interaction:f-rt'].owners, ['service:b']);
+  // Left unworded, both are "don't know", as the page lists them under "Intent not known".
+  const kinds = Object.fromEntries(describeRow(report, facts, [], asked).model.byKind.map((k) => [k.kind, k]));
+  assert.equal(kinds.CALLS_UNREACHED.unknown, 1);
+  assert.equal(kinds.ROUTES_TO.unknown, 1);
+});
+
+test("Describe's model: a unit asked in parts is asked, and an interaction a refused part may hold is not asked (#741)", () => {
+  const report = { elements: { 'service-a': { kind: 'container', name: 'a' }, 'service-b': { kind: 'container', name: 'b' } }, pages: [] };
+  const facts = [link('ab', 'CALLS_HTTP', 'service:a', 'service:b')];
+  const record = (asked, unasked) => ({ harness: [{ role: 'describe-unit', askedSubjects: asked, cachedSubjects: [], unaskedSubjects: unasked }] });
+  const outcome = (run) => describeRow(report, facts, [], run).model;
+  // Only its second part asked: a was asked.
+  assert.equal(outcome(record(['service:a#2'], [])).unknown, 1);
+  // Part 1 asked, part 2 refused: the unworded call may be part 2's, so it is not asked.
+  const split = outcome(record(['service:a'], ['service:a#2']));
+  assert.equal(split.unknown, 0);
+  assert.equal(split.notAsked, 1);
+});
+
 test('Describe on the page: a line counts when labelled with the intent of its own link', () => {
   const report = {
     elements: {

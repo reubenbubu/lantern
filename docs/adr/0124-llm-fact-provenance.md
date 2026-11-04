@@ -29,7 +29,8 @@ short of it:
      confirm keeps the answer of the first lead it is stored for.
    - Resolve's links and the injection screen's findings record theirs too, and Name groups' merge
      suggestions (findings of `finding-raised`) carry `model`, `answer` and `basis`.
-   - Facts with no stored answer carry none: Investigate's `not-investigated` facts; the verdict
+   - Facts with no stored answer carry none: Investigate's `not-investigated` facts; the run's
+     `not-asked` facts, which say a role did not ask about an item or dropped it (#741, #753); the verdict
      `unclear` of a lead that was not asked (its role's budget was spent, or the call failed),
      whose `reason` begins "not asked: "; and that of a lead whose answer was dropped without
      being stored (cut off at its length limit, or its conversation capped before a repair), which

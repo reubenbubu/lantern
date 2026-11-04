@@ -197,7 +197,9 @@ public final class UnitInteractions {
    * unit or frontend that holds it (#738): what Investigate found, a unit's other interactions, the
    * unknown caller's lines and routes between exchanges and queues. A line is held by the unit its
    * link starts from, else by the unit or frontend at either end; a route between two destinations
-   * by the first unit, in ID order, with a line to either of its ends.
+   * by the first unit, in ID order, with a line to either of its ends. The scorer gives each
+   * interaction its owner by the same rule (`interactionsOf`, lantern-web/scripts/roles.mjs), so
+   * this page's "Intent not known" and its "don't know" count the same: the two must match (#741).
    */
   private Map<EntityId, List<Elements.Line>> otherLines() {
     if (otherLines != null) {

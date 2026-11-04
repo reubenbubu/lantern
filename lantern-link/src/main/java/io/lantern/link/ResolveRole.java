@@ -277,6 +277,15 @@ final class ResolveRole implements PacketRole {
    * An accepted entry as stored: the unit it picks (or {@code unknown}), its confidence and reason,
    * and what it cites, a fact by its claim ID (else its fact ID) and a file range as written.
    */
+  /**
+   * The fields the item asks for, which the run record counts when left out (#741): the reason a
+   * pick, or "unknown", gives.
+   */
+  @Override
+  public List<String> askedFields(Item item) {
+    return List.of("reason");
+  }
+
   @Override
   public synchronized String store(Item item, ItemAnswer accepted) {
     Question question = question(item);

@@ -230,6 +230,31 @@ class PacketsTest {
   }
 
   @Test
+  void anItemDroppedWholeIsListedAsNotAskedRejectedTwiceAndCountedApart() {
+    FakeLlmProvider fake =
+        answering(
+            request ->
+                request.messages().size() > 1
+                    ? "{\"items\": {\"I1\": {\"responsibility\": {\"text\": \"Still bad\", \"cites\": [\"F9\"]}}}}"
+                    : "{\"items\": {\"I1\": {\"responsibility\": {\"text\": \"Bad\", \"cites\": [\"F9\"]}}}}");
+    RoleSession session = harness(client(fake), store).session(ROLE);
+
+    Map<String, Outcome> outcomes = session.askPackets(List.of(item("orders")), SENTENCES);
+
+    assertThat(outcomes.get("orders").kind()).isEqualTo(Outcome.Kind.DROPPED);
+    // No text of it is stored, so the unknowns page lists it with the items not asked (#741).
+    assertThat(session.record().unasked()).containsExactly("orders");
+    assertThat(session.record().unaskedReasons()).containsEntry("orders", "rejected twice");
+    assertThat(session.record().dropped()).containsExactly("orders");
+    assertThat(session.record().asked()).doesNotContain("orders");
+    // A rerun repeats the drop from the cache, and lists it the same way.
+    RoleSession again = harness(client(fake), store).session(ROLE);
+    again.askPackets(List.of(item("orders")), SENTENCES);
+    assertThat(again.record().unaskedReasons()).containsEntry("orders", "rejected twice");
+    assertThat(again.record().dropped()).containsExactly("orders");
+  }
+
+  @Test
   void aPacketWithOneBadItemKeepsTheOthers() {
     FakeLlmProvider fake =
         answering(

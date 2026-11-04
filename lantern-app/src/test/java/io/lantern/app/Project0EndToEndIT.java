@@ -250,6 +250,11 @@ class Project0EndToEndIT {
         .isEmpty();
     // Every fact an LLM role wrote says where it came from (#753, ADR 0124).
     assertThat(llmProvenanceProblems(facts.findValidAt(first.snapshot().number()))).isEmpty();
+    // Every role counts the fields it asked for and was not given (#741): the fake words no
+    // purpose and no key fact, and narrates each flow by its title alone.
+    JsonNode roles = JSON.readTree(Files.readString(first.runRecord())).get("harness");
+    assertThat(omitted(roles, "purpose", "keyFact")).isPositive();
+    assertThat(omitted(roles, "flow-narrative", "walkthrough")).isPositive();
     // Investigate leads (#524): none where project-0's cases say there is nothing to suspect.
     // Its schemas are migrated (DB-3, DB-4), its secrets are placeholders the environment fills
     // (VAL-5), it has no frontend and no CORS policy, every call matches an endpoint, and nothing
@@ -494,6 +499,17 @@ class Project0EndToEndIT {
                         .anyMatch(m -> m.text().contains(PLANTED_KEY + "=******")));
   }
 
+  /** How many of a role's fields of one kind the run record counts as left out (#741). */
+  private static int omitted(JsonNode roles, String role, String kind) {
+    int count = 0;
+    for (JsonNode entry : roles) {
+      if (entry.path("role").asString("").equals(role)) {
+        count += entry.path("fields").path(kind).path("omitted").asInt(0);
+      }
+    }
+    return count;
+  }
+
   /**
    * What is missing from where the LLM facts say they came from (#753, ADR 0124): the role and its
    * prompt version, the model, the stored answer (a fingerprint the answer cache holds, of that
@@ -511,6 +527,8 @@ class Project0EndToEndIT {
     for (Fact fact : held) {
       if (fact.origin().kind() != Origin.Kind.LLM
           || fact.predicate().equals(Types.NOT_INVESTIGATED)
+          // No request was made for an item a role did not ask or dropped whole (#741, ADR 0124).
+          || fact.predicate().equals(Types.NOT_ASKED)
           || fact.attributes().path("reason").asString("").startsWith("not asked: ")) {
         continue;
       }

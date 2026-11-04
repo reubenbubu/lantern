@@ -154,6 +154,7 @@ final class RunRecord {
       record.asked().stream().sorted().forEach(entry.putArray("askedSubjects")::add);
       record.unasked().stream().sorted().forEach(entry.putArray("unaskedSubjects")::add);
       record.failed().stream().sorted().forEach(entry.putArray("failedSubjects")::add);
+      record.dropped().stream().sorted().forEach(entry.putArray("droppedSubjects")::add);
       record.reused().stream().sorted().forEach(entry.putArray("cachedSubjects")::add);
       // Why each item was asked rather than answered from the cache (#755).
       ArrayNode why = entry.putArray("askedWhy");

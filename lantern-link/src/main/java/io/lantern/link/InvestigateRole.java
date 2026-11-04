@@ -468,6 +468,16 @@ final class InvestigateRole implements PacketRole {
    * An accepted entry as stored: in Mode A the entry; in Modes B and C its proposals as a list, in
    * the order submitted, each once, at most {@link #MAX_PROPOSALS}.
    */
+  /**
+   * The fields the item asks for, which the run record counts when left out (#741): a lead's
+   * finding, which every verdict gives; exploring asks for none, since proposing nothing is right
+   * when the code shows nothing.
+   */
+  @Override
+  public List<String> askedFields(Item item) {
+    return mode == Mode.LEADS ? List.of("finding") : List.of();
+  }
+
   @Override
   public String store(Item item, ItemAnswer accepted) {
     JsonNode entry = accepted.raw();

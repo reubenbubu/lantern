@@ -121,4 +121,25 @@ The 1F and 1G review found gaps the reader could not see. Now:
   before its first dot, such as `interactions`), the fields the model left out of an item it
   answered, withdrew in a repair turn after they were rejected, or had dropped after they were
   rejected twice (`fields` in each role's entry). A role names the fields an item asks for
-  (`PacketRole.askedFields`); Describe does.
+  (`PacketRole.askedFields`); Describe does, and since the second part of #741 every role does
+  (below).
+
+### Second part of #741: every role's fields, and items dropped whole
+
+- **Every role's fields.** Each packet role names the fields an item asks for, so the run record
+  counts what the model left out of any role, not only Describe: a flow narrative's title,
+  walkthrough, preconditions and postconditions; a reason for each flow the significance role
+  judges (its only text: the order it gives is not a field); a group's name, responsibility and
+  the intent of each line leaving it, a merge never being asked for; the purpose and key fact;
+  a lead's finding, which every verdict gives (exploring asks for none, since proposing nothing
+  is right); Resolve's reason. Summarize asks one text an item outside a packet, and counts its
+  summary left out or dropped itself (`RoleSession.fieldLeftOut`).
+- **Items dropped whole are listed.** An item dropped after two rejections stores no text, yet it
+  was counted as asked and got no `not-asked` fact, so nothing told the reader a flow's narrative,
+  a group's name or the purpose was missing. Its subject is now listed with those not asked, for
+  the reason "rejected twice", this run or when a rerun repeats the drop from the cache, and the
+  run record lists it apart as `droppedSubjects`, so the scorecard can tell a drop from a
+  refusal. The unknowns page's "Not asked" note shows it with its role and reason.
+- **Provenance.** A `not-asked` fact comes from no request, so it carries no model, basis or
+  answer, and the provenance check exempts it by predicate (ADR 0124, amendment for #753).
+

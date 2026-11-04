@@ -334,6 +334,20 @@ those entries:
   intent stored for that frontend (`<basis>/<frontend>`) exists. Before, the person's basis was
   counted once and could never be found worded, since its intents are stored per frontend.
 
+Second part of #741, so the two counts agree on a run:
+
+- **One owner rule.** The scorer gave every link its fact's subject as owner, but the Unknown
+  caller's line has `actor:unknown-caller` as subject and an exchange's route to a queue the
+  exchange, neither of them a unit Describe asks about: left unworded, such a line counted as
+  "not asked" while the page listed it under "Intent not known". The scorer now takes the page's
+  rule (`UnitInteractions.otherLines`, each place saying the two must match): the subject if it is
+  a unit or frontend; else the line's start, else its end, if one is; else the first unit or
+  frontend, by ID, with a line touching either end.
+- **Part subjects.** A large unit is asked in parts, `u`, `u#2`, `u#3` (Describe's items); each
+  part counts as asking `u`. Which part holds an interaction the record does not say, so an
+  interaction left unworded is "don't know" only when every part of its owner was asked; when a
+  part was not (refused or dropped), it may be that part's, and counts as not asked.
+
 ## Amendment (#748): Investigate's precision over every risk it draws
 
 The 1F and 1G review found Investigate's "precision over judged" counted the reference entries a

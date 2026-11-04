@@ -48,6 +48,7 @@ public final class RoleRecord implements LlmCallLog {
   private final List<String> asked = new ArrayList<>();
   private final List<String> unasked = new ArrayList<>();
   private final List<String> failedSubjects = new ArrayList<>();
+  private final List<String> droppedSubjects = new ArrayList<>();
   private final List<String> reused = new ArrayList<>();
   private final Map<String, AskedWhy> why = new HashMap<>();
   private final Map<String, String> unaskedWhy = new java.util.LinkedHashMap<>();
@@ -126,7 +127,28 @@ public final class RoleRecord implements LlmCallLog {
   synchronized void reused(String subject, Outcome outcome) {
     cached++;
     reused.add(subject);
+    if (outcome != null && outcome.kind() == Outcome.Kind.DROPPED) {
+      // A drop the cache repeats leaves the item as unanswered as it was (#741).
+      dropped(subject);
+    }
   }
+
+  /**
+   * An item dropped whole after two rejections: no text of it is stored, so it is listed with the
+   * items not asked, "rejected twice", and counted apart from them (#741).
+   */
+  private void dropped(String subject) {
+    if (!unasked.contains(subject)) {
+      unasked.add(subject);
+    }
+    unaskedWhy.put(subject, REJECTED_TWICE);
+    if (!droppedSubjects.contains(subject)) {
+      droppedSubjects.add(subject);
+    }
+  }
+
+  /** Why an item dropped whole is listed with those not asked (#741). */
+  public static final String REJECTED_TWICE = "rejected twice";
 
   synchronized void outcome(String subject, Outcome outcome, boolean wasRepaired) {
     switch (outcome.kind()) {
@@ -153,6 +175,7 @@ public final class RoleRecord implements LlmCallLog {
             "the request failed" + (outcome.reason() == null ? "" : ": " + outcome.reason()));
         failedSubjects.add(subject);
       }
+      case DROPPED -> dropped(subject);
       default -> {
         asked.add(subject);
         // Answered after all: no longer unasked.
@@ -227,6 +250,14 @@ public final class RoleRecord implements LlmCallLog {
    */
   public synchronized List<String> failed() {
     return List.copyOf(failedSubjects);
+  }
+
+  /**
+   * The subjects of the items dropped whole after two rejections, this run or when last asked, a
+   * part of {@link #unasked()}, so the scorecard can tell them from those refused (#741).
+   */
+  public synchronized List<String> dropped() {
+    return List.copyOf(droppedSubjects);
   }
 
   /** The subjects of the items the answer cache answered. */
