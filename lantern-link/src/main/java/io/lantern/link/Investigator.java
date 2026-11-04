@@ -446,6 +446,14 @@ public final class Investigator {
     private final String systemMap;
     private final List<Fact> facts = new ArrayList<>();
     private final Map<String, List<String>> answers = new TreeMap<>();
+
+    /**
+     * The answers of leads that name a unit other than first, by that unit: shown to its
+     * exploration only, so the system conversation still sees each lead once, under its first unit
+     * (#747).
+     */
+    private final Map<String, List<String>> touched = new TreeMap<>();
+
     private final Set<String> notInvestigated = new TreeSet<>();
     private final Set<String> keys = new LinkedHashSet<>();
     private int asked;
@@ -579,7 +587,7 @@ public final class Investigator {
             line += ": " + entry.path("title").asString("");
             risk(entry, lead, InvestigateRole.Mode.LEADS, null, fp);
           }
-          answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(line);
+          answered(lead, line);
         }
         case OMITTED -> unclear(lead, "not answered", fp);
         case DROPPED -> unclear(lead, "its answer was rejected twice", fp);
@@ -596,7 +604,19 @@ public final class Investigator {
 
     private void unclear(Lead lead, String reason, String fp) {
       facts.add(verdictFact(lead, "unclear", FactJson.newObject(), reason, fp));
-      answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(lead.id() + " unclear");
+      answered(lead, lead.id() + " unclear");
+    }
+
+    /**
+     * Notes a lead's answer for the exploration of every unit it touches, not only the unit its
+     * conversation is about, so exploring a unit sees every lead checked on it (#747).
+     */
+    private void answered(Lead lead, String line) {
+      answers.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(line);
+      new LinkedHashSet<>(lead.units())
+          .stream()
+              .filter(unit -> !unit.equals(lead.unit()))
+              .forEach(unit -> touched.computeIfAbsent(unit, u -> new ArrayList<>()).add(line));
     }
 
     private Fact verdictFact(Lead lead, String verdict, JsonNode entry, String reason, String fp) {
@@ -675,7 +695,8 @@ public final class Investigator {
             .filter(f -> f.subject().toString().equals(unit))
             .forEach(shown::add);
         shown.addAll(model.summaries(unit));
-        List<String> checked = answers.getOrDefault(unit, List.of());
+        List<String> checked = new ArrayList<>(answers.getOrDefault(unit, List.of()));
+        checked.addAll(touched.getOrDefault(unit, List.of()));
         List<FingerprintInput> inputs = new ArrayList<>();
         shown.forEach(f -> inputs.add(FingerprintInput.of(f)));
         inputs.add(FingerprintInput.answer(Fingerprints.sha256(String.join("\n", checked))));
