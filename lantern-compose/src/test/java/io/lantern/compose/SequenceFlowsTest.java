@@ -1646,6 +1646,15 @@ class SequenceFlowsTest {
         .anyMatch(
             s -> s.startsWith("service:x:edge > service:x:ship: Asks for the parcel's status"))
         .noneMatch(s -> s.contains("Forwards shipping requests"));
+    // It still cites the route it goes through, beside the request whose intent it reads.
+    SequenceDiagram.Message routed =
+        diagram.steps().stream()
+            .filter(SequenceDiagram.Message.class::isInstance)
+            .map(SequenceDiagram.Message.class::cast)
+            .filter(m -> "Asks for the parcel's status".equals(m.label()))
+            .findFirst()
+            .orElseThrow();
+    assertThat(routed.facts()).contains(shipRoute().id(), routedStatusRequest().id());
   }
 
   @Test

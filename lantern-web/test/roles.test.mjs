@@ -577,9 +577,9 @@ test('Describe on the sequence diagrams: a step reading a fallback though its li
   };
   const row = describeRow(report, linked, [intentFor('c-ab', 'Looks up prices')], run);
   assert.deepEqual(row.steps, { messages: 3, intended: 2, own: 1, fallbackWithIntent: 1 });
-  assert.equal(row.scores['step:flow-1/1'], 0);
-  assert.equal(row.scores['step:flow-1/2'], 1);
-  assert.equal(row.scores['step:flow-1/3'], undefined);
+  assert.equal(row.scores['step:flow-1/service-a->service-b#0'], 0);
+  assert.equal(row.scores['step:flow-1/service-a->service-b#1'], 1);
+  assert.equal(row.scores['step:flow-1/service-c->service-b#0'], undefined);
 });
 
 test('Describe on the sequence diagrams: a step drawn on two diagrams counts twice (#740)', () => {

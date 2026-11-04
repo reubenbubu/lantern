@@ -390,6 +390,9 @@ The row now also measures `steps`:
 - a step from or to a person is left out until people's lines are measured (#739).
 
 The scorecard's Describe cell shows "steps N drawn, N intended, N own, N fallback", so `compare`
-shows both runs' figures, and `paired` lists them per set. Each intended step is an item of the row
-(`step:<diagram>/<index>`), right when own, in the paired comparison.
+shows both runs' figures, and `paired` lists them per set. Each intended step is an item of the row,
+right when own, in the paired comparison. It is keyed by its diagram, its two ends and how many
+steps between them came before (`step:<diagram>/<from>-><to>#<n>`), so a note added or dropped on
+a rerun shifts no key. The steps join the lines in Describe's one paired difference. A run scored
+before #740 has no step items, so a pair of an older and a newer run compares the lines alone.
 

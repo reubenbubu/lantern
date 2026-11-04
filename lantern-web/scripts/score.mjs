@@ -915,12 +915,13 @@ const unjudged = (r) =>
     .map((part) => `; ${part}`)
     .join('');
 
-/** Each row per role as one line of text: what it measured, or why it could not. */
 /** The Describe cell's sequence steps (#740), or nothing for a scorecard written before them. */
 function stepsCell(steps) {
   if (!steps) return '';
   return `; steps ${steps.messages} drawn, ${steps.intended} intended, ${steps.own} own, ${steps.fallbackWithIntent} fallback`;
 }
+
+/** Each row per role as one line of text: what it measured, or why it could not. */
 
 export function roleCells(roles) {
   if (!roles) return {};

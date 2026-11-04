@@ -469,18 +469,24 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
   for (const page of report.pages) {
     for (const section of page.sections) {
       if (section.type !== 'sequence') continue;
-      (section.steps ?? []).forEach((step, i) => {
-        if (step.from === undefined || step.to === undefined || step.message === undefined) return;
-        if (report.elements[step.from]?.kind === 'person' || report.elements[step.to]?.kind === 'person') return;
+      // A step is keyed by its diagram, its two ends and how many steps between them came before,
+      // so a note added or dropped on a rerun shifts no key.
+      const seen = new Map();
+      for (const step of section.steps ?? []) {
+        if (step.from === undefined || step.to === undefined || step.message === undefined) continue;
+        if (report.elements[step.from]?.kind === 'person' || report.elements[step.to]?.kind === 'person') continue;
+        const ends = `${step.from}->${step.to}`;
+        const n = seen.get(ends) ?? 0;
+        seen.set(ends, n + 1);
         steps.messages++;
         const r = { from: step.from, to: step.to, label: step.message };
-        if (!intended(r)) return;
+        if (!intended(r)) continue;
         steps.intended++;
         const own = ownLink(r);
         if (own) steps.own++;
         else steps.fallbackWithIntent++;
-        scores[`step:${section.id}/${i}`] = own ? 1 : 0;
-      });
+        scores[`step:${section.id}/${ends}#${n}`] = own ? 1 : 0;
+      }
     }
   }
   return {
