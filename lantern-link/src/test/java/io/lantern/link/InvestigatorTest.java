@@ -44,6 +44,7 @@ class InvestigatorTest {
   private static final String GATEWAY_UNIT = "service:g:gateway";
   private static final String CONTROLLER = "src/main/java/f/FileController.java";
   private static final String STORAGE = "src/main/java/f/StorageClient.java";
+  private static final String GATEWAY_CONFIG = "src/main/resources/application.properties";
 
   private static final Map<String, String> TEXTS =
       Map.of(
@@ -58,6 +59,11 @@ class InvestigatorTest {
               return storage.save(userId, file);
             }
           }
+          """,
+          "gw:" + GATEWAY_CONFIG,
+          """
+          spring.cloud.gateway.routes[0].uri=lb://files
+          spring.cloud.gateway.routes[0].predicates[0]=Path=/files/**
           """,
           "fs:" + STORAGE,
           """
@@ -191,8 +197,27 @@ class InvestigatorTest {
         "s" + turn(request), "submit", FactJson.parse("{\"items\": [" + items + "]}"));
   }
 
-  /** A model that submits, turn by turn, what the function gives, and ends on null. */
+  /**
+   * A model that submits, turn by turn, what the function gives, and ends on null; in the same
+   * turn, before it submits, it reads each range it cites, as a model must (#715).
+   */
   private static FakeLlmProvider submitting(Function<LlmRequest, String> items) {
+    return new FakeLlmProvider()
+        .callingTools(
+            r -> {
+              String answer = items.apply(r);
+              if (answer == null) {
+                return List.of();
+              }
+              List<LlmToolCall> calls = new ArrayList<>(reads(answer));
+              calls.add(submit(r, answer));
+              return calls;
+            })
+        .answering("Done.");
+  }
+
+  /** A model that submits what the function gives without reading what it cites. */
+  private static FakeLlmProvider submittingUnread(Function<LlmRequest, String> items) {
     return new FakeLlmProvider()
         .callingTools(
             r -> {
@@ -200,6 +225,34 @@ class InvestigatorTest {
               return answer == null ? List.of() : List.of(submit(r, answer));
             })
         .answering("Done.");
+  }
+
+  /** The file ranges an answer cites, as quoted strings: {@code "repo:path:from-to"}. */
+  private static final java.util.regex.Pattern CITED_RANGE =
+      java.util.regex.Pattern.compile("\"([^\":\\s]+):([^\":\\s]+):(\\d+)(?:-(\\d+))?\"");
+
+  /** A read_file call for each range the answer cites, so the conversation was shown them. */
+  private static List<LlmToolCall> reads(String answer) {
+    List<LlmToolCall> reads = new ArrayList<>();
+    java.util.regex.Matcher range = CITED_RANGE.matcher(answer);
+    while (range.find()) {
+      String to = range.group(4) == null ? range.group(3) : range.group(4);
+      reads.add(
+          new LlmToolCall(
+              "r" + reads.size(),
+              "read_file",
+              FactJson.parse(
+                  "{\"repo\":\""
+                      + range.group(1)
+                      + "\",\"path\":\""
+                      + range.group(2)
+                      + "\",\"from\":"
+                      + range.group(3)
+                      + ",\"to\":"
+                      + to
+                      + "}")));
+    }
+    return reads;
   }
 
   private static final String CONFIRMED =
@@ -328,6 +381,20 @@ class InvestigatorTest {
   }
 
   @Test
+  void aVerdictCitingLinesOfTheLeadsExcerptIsKeptUnread() {
+    // The request's own excerpt (lines 3-9) counts as shown: no read_file is needed (#715).
+    headerLead();
+    FakeLlmProvider fake = submittingUnread(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.LEAD_VERDICT))
+        .singleElement()
+        .satisfies(v -> assertThat(v.object().value()).isEqualTo("confirmed"));
+    assertThat(result.confirmed()).isEqualTo(1);
+  }
+
+  @Test
   void aMiscitedVerdictIsSentBackAndACorrectedOneAccepted() {
     headerLead();
     FakeLlmProvider fake =
@@ -342,7 +409,7 @@ class InvestigatorTest {
             .filter(r -> leads(r) && turn(r) == 2)
             .findFirst()
             .orElseThrow();
-    assertThat(second.messages().getLast().toolResults().getFirst().content())
+    assertThat(second.messages().getLast().toolResults().getLast().content())
         .contains("rejected")
         .contains("X-User-Id");
     assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
@@ -434,8 +501,106 @@ class InvestigatorTest {
             .filter(r -> unit(r, FILES_UNIT) && turn(r) == 2)
             .findFirst()
             .orElseThrow();
-    assertThat(second.messages().getLast().toolResults().getFirst().content()).contains("cites");
+    assertThat(second.messages().getLast().toolResults().getLast().content()).contains("cites");
     assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+  }
+
+  /** A risk of the files unit citing the given ranges. */
+  private static String uploadRisk(String... cites) {
+    return """
+        {"kind": "risk", "title": "Uploads have no size limit",
+         "finding": "upload accepts any MultipartFile of any size and keeps it whole in memory before writing it to the disk.", "consequence": "A caller can fill the disk or the memory of the service with one large upload and stop it serving others.",
+         "impact": "medium", "confidence": "low", "names": ["MultipartFile"],
+         "cites": [%s]}"""
+        .formatted(
+            String.join(", ", java.util.Arrays.stream(cites).map(c -> "\"" + c + "\"").toList()));
+  }
+
+  @Test
+  void aRiskCitingLinesItReadIsKept() {
+    headerLead();
+    String risk = uploadRisk("fs:" + CONTROLLER + ":6-6");
+
+    Investigator.Result result =
+        investigate(submitting(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? risk : null));
+
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
+  }
+
+  @Test
+  void aRiskCitingLinesNoToolShowedIsSentBack() {
+    // A cited range must be one the tools showed or an excerpt of the request gave (#715).
+    headerLead();
+    String risk = uploadRisk("fs:" + CONTROLLER + ":6-6");
+    FakeLlmProvider fake = submittingUnread(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? risk : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(secondTurn(fake))
+        .contains("Cites fs:" + CONTROLLER + ":6-6, lines this conversation was not shown");
+    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+  }
+
+  @Test
+  void aRangeInAThirdRepositoryCountsOnlyIfTheConversationReadIt() {
+    // The gateway's repository is neither the files unit's nor shown in its request: a range
+    // there holds only once read_file showed it (#715).
+    headerLead();
+    String risk =
+        uploadRisk("fs:" + CONTROLLER + ":6-6", "gw:" + GATEWAY_CONFIG + ":1-2")
+            .replace(
+                "\"names\": [\"MultipartFile\"]", "\"names\": [\"MultipartFile\", \"lb://files\"]");
+    FakeLlmProvider readingOnlyItsOwn =
+        new FakeLlmProvider()
+            .callingTools(
+                r ->
+                    unit(r, FILES_UNIT) && turn(r) == 1
+                        ? List.of(
+                            new LlmToolCall(
+                                "r1",
+                                "read_file",
+                                FactJson.parse(
+                                    "{\"repo\":\"fs\",\"path\":\""
+                                        + CONTROLLER
+                                        + "\",\"from\":6,\"to\":6}")),
+                            submit(r, risk))
+                        : List.of())
+            .answering("Done.");
+
+    Investigator.Result unread = investigate(readingOnlyItsOwn);
+
+    assertThat(secondTurn(readingOnlyItsOwn))
+        .contains("Cites gw:" + GATEWAY_CONFIG + ":1-2, lines this conversation was not shown")
+        .doesNotContain("Cites fs:");
+    assertThat(of(unread, Types.INVESTIGATED_RISK)).isEmpty();
+  }
+
+  @Test
+  void aRangeInAThirdRepositoryTheConversationReadIsKept() {
+    headerLead();
+    String risk =
+        uploadRisk("fs:" + CONTROLLER + ":6-6", "gw:" + GATEWAY_CONFIG + ":1-2")
+            .replace(
+                "\"names\": [\"MultipartFile\"]", "\"names\": [\"MultipartFile\", \"lb://files\"]");
+
+    Investigator.Result result =
+        investigate(submitting(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? risk : null));
+
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
+  }
+
+  /** What the files unit's conversation was told after its first submission. */
+  private static String secondTurn(FakeLlmProvider fake) {
+    return fake.sent().stream()
+        .map(c -> c.request())
+        .filter(r -> unit(r, FILES_UNIT) && turn(r) == 2)
+        .findFirst()
+        .orElseThrow()
+        .messages()
+        .getLast()
+        .toolResults()
+        .getLast()
+        .content();
   }
 
   @Test
@@ -472,7 +637,7 @@ class InvestigatorTest {
                 r -> r.messages().getFirst().text().contains("The whole system") && turn(r) == 2)
             .findFirst()
             .orElseThrow();
-    assertThat(system.messages().getLast().toolResults().getFirst().content())
+    assertThat(system.messages().getLast().toolResults().getLast().content())
         .contains("names the units it concerns");
   }
 
@@ -554,7 +719,7 @@ class InvestigatorTest {
             .filter(r -> unit(r, FILES_UNIT) && turn(r) == 2)
             .findFirst()
             .orElseThrow();
-    assertThat(second.messages().getLast().toolResults().getFirst().content())
+    assertThat(second.messages().getLast().toolResults().getLast().content())
         .contains("accepted in part")
         .contains("proposals.P2")
         .contains("not a deployable unit");

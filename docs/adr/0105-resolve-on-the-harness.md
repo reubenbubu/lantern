@@ -97,3 +97,16 @@ No development set has an open link in its answer key, so the calibration runs a
 ## Amendment (#760): limits in the role's contract
 
 This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there. Where they differ from the numbers above, the contract's hold.
+
+## Amendment (#715): a cited range is one the model was shown, on one side
+
+- **Shown.** Each conversation's tools record the lines they showed: the lines `read_file`
+  returned and each line `find_in_code` found, and the code excerpts of the request. A cited file
+  range holds only if every line of it was shown; else the answer is rejected with a reason naming
+  the range (the `Shown` check, shared with Investigate). A citation then always traces to
+  evidence the model saw (`docs/quality-bar.md`).
+- **Own repositories.** A side counts a range only in that unit's own repository: its unit fact's,
+  else the first module the linker lists for it (today every unit has a unit fact, so that
+  fallback does not run). A library it bundles is not its own. A range in a repository that is
+  neither the caller's own nor a candidate's own is rejected, with a reason that says it is on
+  neither side of the link.

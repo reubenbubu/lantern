@@ -269,13 +269,54 @@ class LinkResolverTest {
     return new FakeLlmProvider().callingTools(calls).answering("Done.");
   }
 
-  /** A model that submits, turn by turn, the items the function gives, and ends on null. */
+  /**
+   * A model that submits, turn by turn, the items the function gives, and ends on null; in the same
+   * turn, before it submits, it reads each range it cites, as a model must (#715).
+   */
   private static FakeLlmProvider submitting(Function<LlmRequest, String> items) {
     return model(
         r -> {
           String answer = items.apply(r);
-          return answer == null ? List.of() : List.of(submit(r, answer));
+          if (answer == null) {
+            return List.of();
+          }
+          List<LlmToolCall> calls = new ArrayList<>(reads(answer));
+          calls.add(submit(r, answer));
+          return calls;
         });
+  }
+
+  /** A model that submits once, on its first turn, without reading what it cites. */
+  private static FakeLlmProvider submittingOnceUnread(Function<LlmRequest, String> items) {
+    return model(r -> turn(r) == 1 ? List.of(submit(r, items.apply(r))) : List.of());
+  }
+
+  /** The file ranges an answer cites, as quoted strings: {@code "repo:path:from-to"}. */
+  private static final java.util.regex.Pattern CITED_RANGE =
+      java.util.regex.Pattern.compile("\"([^\":\\s]+):([^\":\\s]+):(\\d+)(?:-(\\d+))?\"");
+
+  /** A read_file call for each range the answer cites, so the conversation was shown them. */
+  private static List<LlmToolCall> reads(String answer) {
+    List<LlmToolCall> reads = new ArrayList<>();
+    java.util.regex.Matcher range = CITED_RANGE.matcher(answer);
+    while (range.find()) {
+      String to = range.group(4) == null ? range.group(3) : range.group(4);
+      reads.add(
+          new LlmToolCall(
+              "r" + reads.size(),
+              "read_file",
+              FactJson.parse(
+                  "{\"repo\":\""
+                      + range.group(1)
+                      + "\",\"path\":\""
+                      + range.group(2)
+                      + "\",\"from\":"
+                      + range.group(3)
+                      + ",\"to\":"
+                      + to
+                      + "}")));
+    }
+    return reads;
   }
 
   /** A model that submits once, on its first turn. */
@@ -304,7 +345,7 @@ class LinkResolverTest {
 
   /** The submit verdicts the model got back in the request's last turn. */
   private static String verdicts(LlmRequest request) {
-    return request.messages().getLast().toolResults().getFirst().content();
+    return request.messages().getLast().toolResults().getLast().content();
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -624,41 +665,105 @@ class LinkResolverTest {
   }
 
   @Test
-  void aRangeInARepositoryOfNeitherSideCountsForNeither() {
-    // A shared library's file can be evidence, but it is on neither the caller's side nor the
-    // candidate's (#703).
+  void aRangeInALibraryTheCallerBundlesIsOnNeitherSideAndIsRejected() {
+    // A library the caller bundles is not its own: a range there is evidence of neither side, and
+    // the answer is rejected with a reason that says so (#703, #715).
     taxCall();
-    unit("c", "shared");
+    add(
+        MavenExtractor.NAME,
+        "library:g:shared",
+        Types.CONTAINS,
+        FactObject.entity(EntityId.parse("module:g:shared")),
+        null,
+        "c:pom.xml");
+    add(
+        DeployableUnits.NAME,
+        "service:g:orders",
+        Types.BUNDLES,
+        FactObject.entity(EntityId.parse("library:g:shared")),
+        null,
+        "a:pom.xml");
     FILE_TEXTS.put("c:src/main/java/c/Hosts.java", "class Hosts {\n  String TAX = \"tax\";\n}\n");
-    FakeLlmProvider third =
-        submittingOnce(
-            r ->
-                "{\"I1\": "
-                    + entry(
-                        candidate(r, "service:g:tax"),
-                        "high",
-                        "The shared hosts name tax as the service called here.",
-                        ref(r, "http-call"),
-                        "c:src/main/java/c/Hosts.java:1-2")
-                    + "}");
-    assertThat(resolveWithFiles(third).facts()).isEmpty();
-    assertThat(verdicts(third.sent().get(1).request())).contains("Cites nothing on the side of K");
+    try {
+      FakeLlmProvider third =
+          submittingOnce(
+              r ->
+                  "{\"I1\": "
+                      + entry(
+                          candidate(r, "service:g:tax"),
+                          "high",
+                          "Tax serves GET /v2/quotes, the path the caller requests.",
+                          ref(r, "http-call"),
+                          "c:src/main/java/c/Hosts.java:1-2",
+                          ref(r, "t.TaxController#quotes() endpoint"))
+                      + "}");
+      assertThat(resolveWithFiles(third).facts()).isEmpty();
+      assertThat(verdicts(third.sent().get(1).request()))
+          .contains(
+              "Cites c:src/main/java/c/Hosts.java:1-2, in c, a repository on neither side of"
+                  + " the link");
+    } finally {
+      FILE_TEXTS.remove("c:src/main/java/c/Hosts.java");
+    }
+  }
+
+  @Test
+  void aRangeTheConversationReadIsAcceptedAndOneNoToolShowedIsRejected() {
+    // A cited range must be one the tools showed (#715).
+    taxCall();
+    Function<LlmRequest, String> citingLines =
+        r ->
+            "{\"I1\": "
+                + entry(
+                    candidate(r, "service:g:tax"),
+                    "high",
+                    "Only tax serves GET /v2/quotes among the candidates shown.",
+                    ref(r, "http-call"),
+                    ref(r, "t.TaxController#quotes() endpoint"),
+                    "t:src/main/java/t/TaxController.java:3-6")
+                + "}";
+    FakeLlmProvider unread = submittingOnceUnread(citingLines);
+    assertThat(resolveWithFiles(unread).facts()).isEmpty();
+    assertThat(verdicts(unread.sent().get(1).request()))
+        .contains(
+            "Cites t:src/main/java/t/TaxController.java:3-6, lines this conversation was not"
+                + " shown");
 
     model = "m2";
-    FakeLlmProvider read =
-        submittingOnce(
+    assertThat(resolveWithFiles(submittingOnce(citingLines)).facts()).hasSize(1);
+  }
+
+  @Test
+  void aRangeReadOnlyInPartIsRejected() {
+    taxCall();
+    FakeLlmProvider part =
+        model(
             r ->
-                "{\"I1\": "
-                    + entry(
-                        candidate(r, "service:g:tax"),
-                        "high",
-                        "Tax serves GET /v2/quotes, the path the caller requests.",
-                        ref(r, "http-call"),
-                        "c:src/main/java/c/Hosts.java:1-2",
-                        ref(r, "t.TaxController#quotes() endpoint"))
-                    + "}");
-    assertThat(resolveWithFiles(read).facts()).hasSize(1);
-    FILE_TEXTS.remove("c:src/main/java/c/Hosts.java");
+                switch (turn(r)) {
+                  case 1 ->
+                      List.of(
+                          new LlmToolCall(
+                              "r1",
+                              "read_file",
+                              FactJson.parse(
+                                  "{\"repo\":\"t\",\"path\":\"src/main/java/t/TaxController.java\","
+                                      + "\"from\":3,\"to\":4}")),
+                          submit(
+                              r,
+                              "{\"I1\": "
+                                  + entry(
+                                      candidate(r, "service:g:tax"),
+                                      "high",
+                                      "Only tax serves GET /v2/quotes among the candidates shown.",
+                                      ref(r, "http-call"),
+                                      ref(r, "t.TaxController#quotes() endpoint"),
+                                      "t:src/main/java/t/TaxController.java:3-6")
+                                  + "}"));
+                  default -> List.of();
+                });
+
+    assertThat(resolveWithFiles(part).facts()).isEmpty();
+    assertThat(verdicts(part.sent().get(1).request())).contains("lines this conversation was not");
   }
 
   @Test
