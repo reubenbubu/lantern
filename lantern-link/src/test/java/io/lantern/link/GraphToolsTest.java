@@ -94,6 +94,27 @@ class GraphToolsTest {
   }
 
   @Test
+  void theLinesReadFileShowedAndTheExcerptsOfTheRequestCountAsShown() {
+    // A cited range holds only if the conversation was shown every line of it (#715).
+    GraphTools tools = tools();
+    String file = "src/main/resources/application.yml";
+
+    tools.run(
+        call("read_file", "{\"repo\": \"a\", \"path\": \"" + file + "\", \"from\": 2, \"to\": 4}"));
+    tools.supplied(
+        "Code it points at:\n<code repo=\"a\" path=\"src/main/java/o/TaxClient.java\""
+            + " lines=\"10-12\">\n10  class TaxClient {\n</code>");
+
+    assertThat(tools.showed("a", file, 2, 4)).isTrue();
+    assertThat(tools.showed("a", file, 3, 3)).isTrue();
+    assertThat(tools.showed("a", file, 1, 2)).isFalse();
+    assertThat(tools.showed("a", file, 4, 5)).isFalse();
+    assertThat(tools.showed("b", file, 2, 4)).isFalse();
+    assertThat(tools.showed("a", "src/main/java/o/TaxClient.java", 10, 12)).isTrue();
+    assertThat(tools.showed("a", "src/main/java/o/TaxClient.java", 12, 13)).isFalse();
+  }
+
+  @Test
   void searchFindsFactsByTextAndKeepsTheirReferences() {
     GraphTools tools = tools();
 

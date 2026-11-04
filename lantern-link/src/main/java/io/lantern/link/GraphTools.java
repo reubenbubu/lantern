@@ -189,6 +189,8 @@ public final class GraphTools implements ToolBox {
   private final Map<String, io.lantern.harness.Harness.Shown> texts = new LinkedHashMap<>();
   private final Map<String, String> refs = new HashMap<>();
   private final Map<String, List<String>> masked = new HashMap<>();
+  // The lines of each file the conversation was shown, by a tool or an excerpt of the request.
+  private final Map<String, java.util.BitSet> linesShown = new HashMap<>();
   private final int factsBefore;
 
   private GraphTools(Graph graph, int factsBefore) {
@@ -211,6 +213,52 @@ public final class GraphTools implements ToolBox {
   /** The files {@code read_file} has shown so far, as shown (secrets masked), for the screen. */
   public synchronized List<io.lantern.harness.Harness.Shown> textsShown() {
     return List.copyOf(texts.values());
+  }
+
+  /** An excerpt of a request: {@code <code repo="..." path="..." lines="30-58">}. */
+  private static final Pattern EXCERPT =
+      Pattern.compile("<code repo=\"([^\"]+)\" path=\"([^\"]+)\" lines=\"(\\d+)-(\\d+)\">");
+
+  /** Records lines of a file as shown to the conversation. */
+  private synchronized void markShown(String repo, String path, int from, int to) {
+    linesShown
+        .computeIfAbsent(repo + '\u0000' + path, k -> new java.util.BitSet())
+        .set(from, to + 1);
+  }
+
+  /**
+   * Records the code excerpts a request gives the conversation ({@code <code repo path lines>}) as
+   * shown, as the tools' reads are (#715).
+   */
+  public void supplied(String request) {
+    Matcher excerpt = EXCERPT.matcher(request);
+    while (excerpt.find()) {
+      markShown(
+          unescape(excerpt.group(1)),
+          unescape(excerpt.group(2)),
+          Integer.parseInt(excerpt.group(3)),
+          Integer.parseInt(excerpt.group(4)));
+    }
+  }
+
+  private static String unescape(String attribute) {
+    return attribute
+        .replace("&quot;", "\"")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&");
+  }
+
+  /**
+   * Whether the conversation was shown every line of a range of a file: by {@code read_file}, as a
+   * line {@code find_in_code} found, or in an excerpt of its request (#715).
+   */
+  public synchronized boolean showed(String repo, String path, int from, int to) {
+    java.util.BitSet lines = linesShown.get(repo + '\u0000' + path);
+    if (lines == null || from < 1 || to < from) {
+      return false;
+    }
+    return lines.nextClearBit(from) > to;
   }
 
   /** The facts the tools have shown so far, by reference, in the order shown. */
@@ -549,6 +597,7 @@ public final class GraphTools implements ToolBox {
         break;
       }
       out.append(line);
+      markShown(repo, path, i, i);
     }
     return LlmToolResult.of(call, out.toString());
   }
@@ -608,6 +657,7 @@ public final class GraphTools implements ToolBox {
           break;
         }
         out.append(shown);
+        markShown(repo, hit.path(), hit.line(), hit.line());
         found++;
       }
       if (more) {

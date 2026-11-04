@@ -118,6 +118,9 @@ final class ResolveRole implements PacketRole {
     int factsShown = block4.size() + perItem.stream().mapToInt(Map::size).sum();
     tools = graph.tools(factsShown);
     used.add(tools);
+    // A range of an excerpt the request gives counts as shown, as one a tool read does (#715).
+    tools.supplied(systemMap);
+    resolved.texts().forEach(tools::supplied);
     List<String> texts = new ArrayList<>();
     for (int i = 1; i < resolved.texts().size(); i++) {
       texts.add(resolved.texts().get(i).stripTrailing());
@@ -217,6 +220,7 @@ final class ResolveRole implements PacketRole {
   @Override
   public Pipeline pipeline() {
     List<Check> checks = new ArrayList<>(Checks.STANDARD);
+    checks.add(new ShownRanges(this::tools, entry -> Map.of("cites", cites(entry))));
     checks.add(new Sides(this));
     return new Pipeline(checks);
   }
@@ -251,6 +255,11 @@ final class ResolveRole implements PacketRole {
               Set.of()));
     }
     return new ItemAnswer(id, entry, texts, List.of());
+  }
+
+  /** The tools of the conversation being laid out or checked. */
+  private synchronized GraphTools tools() {
+    return tools;
   }
 
   /** An entry's cites, as the checks read them. */
@@ -402,6 +411,30 @@ final class ResolveRole implements PacketRole {
         }
       }
       List<String> cites = cites(answer.raw());
+      // A range in a repository of neither side, a library both bundle say, is evidence of neither
+      // (#715).
+      for (String cite : cites) {
+        Matcher range = RANGE.matcher(cite);
+        if (range.matches()
+            && !question.callerRepos().contains(range.group(1))
+            && question.candidates().stream().noneMatch(c -> c.repos().contains(range.group(1)))) {
+          found.add(
+              new Rejection(
+                  answer.item(),
+                  "cites",
+                  name(),
+                  "Cites "
+                      + cite
+                      + ", in "
+                      + range.group(1)
+                      + ", a repository on neither side of the link: neither the calling unit's"
+                      + " own nor a candidate's own. Cite the caller's and the candidate's own"
+                      + " facts or files."));
+        }
+      }
+      if (!found.isEmpty()) {
+        return found;
+      }
       List<String> callerSide =
           cites.stream().filter(cite -> role.caller(question, index, cite)).toList();
       if (callerSide.isEmpty()) {

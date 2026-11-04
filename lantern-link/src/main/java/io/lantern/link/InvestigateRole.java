@@ -214,6 +214,10 @@ final class InvestigateRole implements PacketRole {
     for (int i = 0; i < packet.size() && i < ids.size(); i++) {
       idsBySubject.put(packet.get(i).subject(), ids.get(i));
     }
+    // A range of an excerpt the request gives counts as shown, as one a tool read does (#715).
+    tools.supplied(systemMap);
+    tools.supplied(context);
+    packet.forEach(item -> tools.supplied(item.rendering()));
     return new PromptLayout(
         CommonPrompt.SYSTEM,
         InvestigatePrompt.role(mode == Mode.LEADS),
@@ -335,6 +339,7 @@ final class InvestigateRole implements PacketRole {
   public Pipeline pipeline() {
     List<Check> checks = new ArrayList<>(Checks.STANDARD);
     checks.add(new Proposals(this));
+    checks.add(new ShownRanges(() -> tools, this::citesByField));
     if (mode == Mode.LEADS) {
       return new Pipeline(checks);
     }
@@ -423,6 +428,21 @@ final class InvestigateRole implements PacketRole {
         }
       }
     }
+  }
+
+  /** An answer's cites by the field a rejection names: the entry's, or each proposal's. */
+  private Map<String, List<String>> citesByField(JsonNode entry) {
+    Map<String, List<String>> byField = new java.util.LinkedHashMap<>();
+    if (mode == Mode.LEADS) {
+      byField.put("cites", cites(entry));
+    } else {
+      for (var proposal : entry.path(InvestigatePrompt.PROPOSALS).properties()) {
+        byField.put(
+            at(InvestigatePrompt.PROPOSALS + "." + proposal.getKey(), "cites"),
+            cites(proposal.getValue()));
+      }
+    }
+    return byField;
   }
 
   /** An entry's cites as written, brackets and spaces around them removed. */

@@ -566,7 +566,11 @@ public final class LinkResolver implements LinkRule.OverFacts {
         unresolved, unresolved.subject(), repos(moduleRepos, caller), about, address, candidates);
   }
 
-  /** The repositories a unit's code is in: its own fact's, then its modules'. */
+  /**
+   * The repositories of a unit's own code, for which side a cited file range is on: its fact's,
+   * else its own module's. A library it bundles is not its own (#715): a range there is evidence of
+   * neither side.
+   */
   private static Set<String> repos(Map<EntityId, Set<String>> moduleRepos, Unit unit) {
     Set<String> repos = new TreeSet<>();
     if (unit == null) {
@@ -574,9 +578,8 @@ public final class LinkResolver implements LinkRule.OverFacts {
     }
     if (unit.fact() != null) {
       repos.add(unit.fact().evidence().repo());
-    }
-    for (EntityId module : unit.modules()) {
-      repos.addAll(moduleRepos.getOrDefault(module, Set.of()));
+    } else if (!unit.modules().isEmpty()) {
+      repos.addAll(moduleRepos.getOrDefault(unit.modules().getFirst(), Set.of()));
     }
     return repos;
   }
