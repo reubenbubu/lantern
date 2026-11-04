@@ -145,6 +145,8 @@ claim list stays in the judge's cached answer.
   and may fall in or out of the sample.
 - An item shows each fact it cites as before, and each cited file range with up to 40 of its lines
   read at the snapshot's commit, secrets masked.
+- Texts that read the same and cite the same inputs, such as one intent phrase repeated for many
+  interactions, are judged once and the verdict is given to each.
 - A verdict is stored on the text's observation as before (amendment for #530), on every kind of
   text the judge reads; `llm-types.json` gives each such type a `support` property. A text already
   judged is not judged again.

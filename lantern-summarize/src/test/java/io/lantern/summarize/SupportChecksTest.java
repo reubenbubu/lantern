@@ -229,6 +229,39 @@ class SupportChecksTest {
     assertThat(fake.sent()).isNotEmpty().allMatch(s -> s.request().role() == Role.JUDGE);
   }
 
+  @Test
+  void textsThatReadTheSameAndCiteTheSameAreJudgedOnceEach() {
+    List<Fact> held = new ArrayList<>(List.of(flaggedCode));
+    Fact one = text("describe-unit", "describe-unit text on flagged code", flaggedCode);
+    Fact two =
+        Fact.create(
+            EntityId.parse("service:shop:other"),
+            one.predicate(),
+            one.object(),
+            one.attributes(),
+            one.origin(),
+            one.evidence(),
+            one.confidence(),
+            Validity.from(1));
+    held.add(one);
+    held.add(two);
+    Fact finding =
+        fact(
+            "finding:injection-suspected/shop:src/Evil.java",
+            "finding",
+            "x",
+            "src/Evil.java",
+            11,
+            11);
+
+    SupportChecks.Result result =
+        new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(finding), 1);
+
+    // One item asked, the verdict on both (#751).
+    assertThat(requests.stream().mapToInt(List::size).sum()).isEqualTo(1);
+    assertThat(result.judged()).isEqualTo(2);
+  }
+
   private static Fact fact(
       String subject, String predicate, String object, String path, int from, int to) {
     return Fact.create(

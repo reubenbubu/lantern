@@ -156,12 +156,21 @@ public final class SupportJudge {
   public Map<String, Support> judge(
       Map<String, List<Text>> byGroup, Set<String> always, Map<String, Role> writers) {
     Map<String, List<Item>> items = new java.util.TreeMap<>();
+    // A text that reads the same and cites the same inputs as one already taken is judged once,
+    // its verdict given to each (#751).
+    Map<String, List<String>> same = new LinkedHashMap<>();
     byGroup.forEach(
         (group, texts) -> {
+          Map<String, String> firstByRendering = new LinkedHashMap<>();
           for (Text text : texts) {
             Item item = item(text);
             if (!text.cited().isEmpty()
                 && (always.contains(text.key()) || sampled(sampleKey(item)))) {
+              String first = firstByRendering.putIfAbsent(item.rendering(), text.key());
+              if (first != null) {
+                same.computeIfAbsent(first, k -> new ArrayList<>()).add(text.key());
+                continue;
+              }
               items.computeIfAbsent(group, g -> new ArrayList<>()).add(item);
             }
           }
@@ -189,6 +198,13 @@ public final class SupportJudge {
                 .forEach(
                     (key, outcome) ->
                         support(outcome).ifPresent(support -> verdicts.put(key, support)));
+          }
+        });
+    same.forEach(
+        (first, others) -> {
+          Support verdict = verdicts.get(first);
+          if (verdict != null) {
+            others.forEach(key -> verdicts.put(key, verdict));
           }
         });
     return verdicts;
