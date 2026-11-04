@@ -12,7 +12,12 @@ import {
   changeGate,
   harnessRow,
   interactionsOf,
+  connectionsRow,
+  findingKey,
+  fixedCheckRow,
   investigateRow,
+  investigateSpread,
+  unusedVerdicts,
   matchFlows,
   pairedDifference,
   reportId,
@@ -288,7 +293,7 @@ test('Resolve: a failed link is counted apart from not asked, a cached one witho
   assert.equal(resolveRow(key, [], [], older).notAsked, 1);
 });
 
-test('Investigate: a wording of a fixed check\'s finding is of the key\'s category for its kind', () => {
+test('Investigate: a wording of a fixed check\'s finding is of the key\'s category for its kind, in its own row', () => {
   const key = {
     risks: [{ id: 'r1', reference: 'One signing key', subjects: ['gateway'], category: 'plaintext-secret' }],
     decoys: [],
@@ -300,9 +305,14 @@ test('Investigate: a wording of a fixed check\'s finding is of the key\'s catego
       attributes: { units: ['service:gw'], title: 'Every unit signs with one key' },
     },
   ];
-  const row = investigateRow(key, llm, (e) => (e === 'service:gw' ? 'gateway' : null), () => 0, 0.5);
+  const row = fixedCheckRow(key, llm, (e) => (e === 'service:gw' ? 'gateway' : null), () => 0, 0.5);
   assert.equal(row.matched, 1);
   assert.deepEqual(row.scores, { r1: 1 });
+  // Investigate's own row leaves it out: the finding is the check's (#748).
+  const own = investigateRow(key, llm, (e) => (e === 'service:gw' ? 'gateway' : null), () => 0, 0.5);
+  assert.equal(own.found, 0);
+  assert.equal(own.matched, 0);
+  assert.deepEqual(own.scores, { r1: 0 });
   // No decoys: TPR − FPR cannot be told.
   assert.equal(row.tprMinusFpr, null);
 });
@@ -690,4 +700,82 @@ test('flow selection, rank fallback: without the system judge the chosen flows a
   assert.equal(none.right, 1);
   assert.equal(flowSelectionRow([], [], [], [], spell).measured, false);
   assert.equal(flowSelectionRow(selectionRef, [], null, selectionLinked, spell).measured, false);
+});
+
+test('Investigate: precision is over every drawn risk, a judgement deciding first (#748)', () => {
+  const key = {
+    risks: [{ id: 'r1', reference: 'Gateway trusts a header', subjects: ['gateway'], category: 'identity-from-request' }],
+    decoys: [{ id: 'd1', looksLike: 'A secret in config', subjects: ['auth'], category: 'plaintext-secret' }],
+  };
+  const risk = (unit, lead, title) => ({
+    predicate: 'investigated-risk',
+    subject: unit,
+    attributes: { units: [unit], lead, title, finding: title },
+  });
+  const subjects = { 'service:gw': 'gateway', 'service:auth': 'auth', 'service:files': 'files' };
+  const llm = [
+    risk('service:gw', 'lead:identity-from-request/service:gw/a', 'Gateway trusts X'),
+    risk('service:gw', 'lead:identity-from-request/service:gw/b', 'Gateway trusts Y'),
+    risk('service:auth', 'lead:plaintext-secret/service:auth/x', 'A password in config'),
+    risk('service:files', 'lead:open-cors/service:files', 'Any origin allowed'),
+    risk('service:files', undefined, 'Uploads are never scanned'),
+  ];
+  const before = investigateRow(key, llm, (e) => subjects[e] ?? null, () => 0, 0.5);
+  // Two drawn risks hit r1, so both count: 2 right, 1 wrong, 2 unjudged.
+  assert.equal(before.right, 2);
+  assert.equal(before.wrong, 1);
+  assert.equal(before.precision, 2 / 3);
+  assert.deepEqual(before.unjudged, ['Any origin allowed', 'Uploads are never scanned']);
+
+  // A broken scorer counting reference entries hit, as before #748, would read 1/2 here.
+  assert.notEqual(before.precision, 1 / 2);
+
+  const judgements = {
+    findings: [
+      { key: 'lead:open-cors/service:files', verdict: 'wrong' },
+      { key: findingKey(llm[4]), verdict: 'right' },
+      // A judgement overrides the key's match.
+      { key: 'lead:identity-from-request/service:gw/b', verdict: 'wrong' },
+    ],
+  };
+  assert.equal(findingKey(llm[4]), 'service:files | Uploads are never scanned');
+  const after = investigateRow(key, llm, (e) => subjects[e] ?? null, () => 0, 0.5, judgements);
+  assert.equal(after.right, 2);
+  assert.equal(after.wrong, 3);
+  assert.equal(after.byJudgement, 3);
+  assert.deepEqual(after.unjudged, []);
+  assert.equal(after.precision, 2 / 5);
+  assert.equal(after.matched, 1);
+});
+
+test('Investigate connections: scored by their two ends, either way round, a judgement first (#748)', () => {
+  const link = (from, to) => ({ predicate: 'INVESTIGATED_CONNECTION', subject: from, object: { kind: 'entity', value: to } });
+  const subjects = { 'service:a': 'a', 'service:b': 'b', 'service:c': 'c', 'external-system:z': 'z' };
+  const llm = [link('service:b', 'service:a'), link('service:a', 'service:c'), link('service:a', 'external-system:q'), link('service:c', 'external-system:z')];
+  const row = connectionsRow(llm, ['a -> b', 'c -> z'], (e) => subjects[e] ?? null, {
+    connections: [{ key: 'service:a -> service:c', verdict: 'wrong' }],
+  });
+  assert.equal(row.found, 4);
+  assert.equal(row.right, 2);
+  assert.equal(row.wrong, 1);
+  assert.equal(row.matched, 2);
+  assert.equal(row.precision, 2 / 3);
+  assert.deepEqual(row.unjudged, ['service:a -> external-system:q']);
+  // The reference's pairs, whichever way round: a -> b and b -> a are one.
+  assert.equal(connectionsRow([], ['a -> b', 'b -> a', 'c -> z'], () => null).reference, 2);
+  // A broken scorer matching one direction only would leave b -> a unjudged.
+  assert.ok(!row.unjudged.includes('service:b -> service:a'));
+  // A verdict whose key names nothing the run found is listed (#748).
+  assert.deepEqual(
+    unusedVerdicts({ connections: [{ key: 'service:a -> service:c', verdict: 'wrong' }, { key: 'service:x -> service:y', verdict: 'right' }] }, llm),
+    ['service:x -> service:y'],
+  );
+});
+
+test('Investigate spread: two runs of one set, apart in points (#748)', () => {
+  const card = (recall, precision) => ({ scores: { roles: { investigate: { measured: true, recall, precision } } } });
+  const sp = investigateSpread(card(0.5, 0.8), card(0.75, 0.6));
+  assert.equal(sp.recallSpread, 25);
+  assert.equal(sp.precisionSpread, 20);
+  assert.equal(investigateSpread(card(0.5, 0.8), { scores: { roles: {} } }).measured, false);
 });

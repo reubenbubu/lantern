@@ -3,7 +3,7 @@
 // report spec (report-specs/c4-model-sequence-diagrams). Free: no LLM, only names and structure.
 //
 //   node scripts/score.mjs <report .html or .json> <set folder> [--run <run.json>] [--out <prefix>]
-//       [--answer-key <file>] [--warm <run.json>] [--change <run.json>] [--labels <folder>]
+//       [--answer-key <file>] [--judgements <file>] [--warm <run.json>] [--change <run.json>] [--labels <folder>]
 //     writes <prefix>.scorecard.json and <prefix>.scorecard.md; the prefix defaults to the report's
 //     path without .html or .json. It also scores each LLM role (roles.mjs) from the run's facts beside run.json (linked.jsonl.gz,
 //     llm.jsonl.gz) against the set's answer key (default <set folder>/answer-key.json), and the wording
@@ -34,14 +34,19 @@ import {
   flowSelectionRow,
   flowsRow,
   harnessRow,
+  connectionsRow,
+  fixedCheckRow,
   investigateRow,
+  investigateSpread,
   isGenericLabel,
+  unusedVerdicts,
   itemPairs,
   nameGroupsRow,
   notMeasured,
   pairedDifference,
   readAnswerKey,
   readFacts,
+  readJudgements,
   reportId,
   resolveRow,
 } from './roles.mjs';
@@ -815,6 +820,8 @@ function contractRows(inputs) {
 /** The rows per LLM role (roles.mjs; ADR 0072, amendment for #667). */
 function roleRows(report, reference, matched, repFlows, inputs, spell = normalizeTrigger) {
   const { answerKey = null, linked = null, llm = null, run = null, warm = null, change = null } = inputs;
+  const judgements = inputs.judgements ?? null;
+  const overlap = (a, b) => subjectOverlap(subjectWords(a), subjectWords(b));
   // The wording judge's rows (wording.mjs; ADR 0111): "not validated" until the owner's labels are.
   const judged = judgedRows(inputs.wording ?? null, inputs.labels ?? {});
   const withJudge = (row, judge) => (row.measured === false ? row : { ...row, judge });
@@ -838,13 +845,17 @@ function roleRows(report, reference, matched, repFlows, inputs, spell = normaliz
       linked,
       spell,
     ),
-    investigate: investigateRow(
-      answerKey,
+    investigate: investigateRow(answerKey, llm, subjectOf, overlap, SUBJECT_THRESHOLD, judgements),
+    // Apart from Investigate's own risks (#748): the fixed checks' findings it only worded, and the
+    // connections it found, by their two ends.
+    fixedChecks: fixedCheckRow(answerKey, llm, subjectOf, overlap, SUBJECT_THRESHOLD, judgements),
+    connections: connectionsRow(
       llm,
+      connectionsOf(reference).map((l) => l.key),
       subjectOf,
-      (a, b) => subjectOverlap(subjectWords(a), subjectWords(b)),
-      SUBJECT_THRESHOLD,
+      judgements,
     ),
+    unusedVerdicts: unusedVerdicts(judgements, llm),
     nameGroups: withJudge(nameGroupsRow(run), judged.nameGroups),
     purpose: judged.purpose,
     harness: harnessRow(run, warm, change, inputs.changeFile ?? null),
@@ -932,7 +943,19 @@ export function roleCells(roles) {
   const i = roles.investigate;
   cell.Investigate = !i.measured
     ? why(i)
-    : `${i.matched}/${i.reference} recall (${percent(i.recall)}), precision ${percent(i.precision)} over judged, decoys flagged ${i.decoysFlagged}/${i.decoys}, TPR − FPR ${percent(i.tprMinusFpr)}; ${i.unjudged.length} unjudged of ${i.found} found`;
+    : `${i.matched}/${i.reference} recall (${percent(i.recall)}), ${i.right}/${i.right + i.wrong} drawn risks right (precision ${percent(i.precision)}), ${i.unjudged.length} of ${i.found} drawn unjudged; decoys flagged ${i.decoysFlagged}/${i.decoys}, TPR − FPR ${percent(i.tprMinusFpr)}`;
+  const fc = roles.fixedChecks;
+  if (fc) {
+    cell['Fixed checks worded'] = !fc.measured
+      ? why(fc)
+      : `${fc.right}/${fc.right + fc.wrong} right (precision ${percent(fc.precision)}), ${fc.unjudged.length} of ${fc.found} unjudged; ${fc.matched}/${fc.reference} reference risks`;
+  }
+  const cn = roles.connections;
+  if (cn) {
+    cell['Investigate connections'] = !cn.measured
+      ? why(cn)
+      : `${cn.right}/${cn.right + cn.wrong} right (precision ${percent(cn.precision)}), ${cn.unjudged.length} of ${cn.found} unjudged; ${cn.matched}/${cn.reference} reference connections found`;
+  }
   const n = roles.nameGroups;
   cell['Name groups'] = !n.measured ? why(n) : `${n.named}/${n.groups} named (${percent(n.coverage)}); judge ${judgedCell(n.judge)}`;
   cell.Purpose = `key fact judge ${judgedCell(roles.purpose)}`;
@@ -1005,7 +1028,20 @@ export function scorecardMarkdown(card) {
     if (card.answerKey) lines.push('', `Answer key: \`${card.answerKey}\` (prepared from the code and the references; see its header).`);
     const inv = s.roles.investigate;
     if (inv.measured && inv.unjudged.length > 0) {
-      lines.push('', `Unjudged risks (${inv.unjudged.length}, matching no reference risk or decoy): ${inv.unjudged.join('; ')}.`);
+      lines.push('', `Unjudged risks (${inv.unjudged.length}, matching no reference risk or decoy, with no verdict in the judgement file): ${inv.unjudged.join('; ')}.`);
+    }
+    const fixed = s.roles.fixedChecks;
+    if (fixed?.measured && fixed.unjudged.length > 0) {
+      lines.push('', `Unjudged fixed-check wordings (${fixed.unjudged.length}): ${fixed.unjudged.join('; ')}.`);
+    }
+    const found = s.roles.connections;
+    if (found?.measured && found.unjudged.length > 0) {
+      lines.push('', `Unjudged connections (${found.unjudged.length}, by their two ends): ${found.unjudged.join('; ')}.`);
+    }
+    if (card.judgements) lines.push('', `Judgement file: \`${card.judgements}\`.`);
+    const unused = s.roles.unusedVerdicts ?? [];
+    if (unused.length > 0) {
+      lines.push('', `Verdicts naming nothing this run drew (${unused.length}; a typo, or another run's): ${unused.join('; ')}.`);
     }
     if (s.roles.resolve.wrongItems?.length > 0) {
       lines.push('', `Resolve's wrong picks: ${s.roles.resolve.wrongItems.join('; ')}.`);
@@ -1079,7 +1115,8 @@ export function readRun(path) {
 /**
  * Scores the report file against the set's reference and returns the scorecard.
  *
- * @param options `answerKey` (default `<set>/answer-key.json`), `warm` and `change` (run records
+ * @param options `answerKey` (default `<set>/answer-key.json`), `judgements` (default
+ *     `<set>/judgements.json`, #748), `warm` and `change` (run records
  *     of a warm rerun and of a one-file change), `changeFile` (the file changed, `repo:path`), `labels` (the owner's wording labels, default
  *     testsets/wording-labels); the run's facts (linked.jsonl.gz, llm.jsonl.gz) and the wording
  *     judge's verdicts (wording.jsonl.gz) are read beside run.json, or beside the report without one
@@ -1090,8 +1127,10 @@ export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
   const reference = JSON.parse(readFileSync(referencePath, 'utf8'));
   const beside = dirname(runPath ?? reportPath);
   const keyPath = options.answerKey ?? `${setDir}/answer-key.json`;
+  const judgementsPath = options.judgements ?? `${setDir}/judgements.json`;
   const inputs = {
     answerKey: readAnswerKey(keyPath),
+    judgements: readJudgements(judgementsPath),
     linked: readFacts(join(beside, 'linked.jsonl.gz')),
     llm: readFacts(join(beside, 'llm.jsonl.gz')),
     run: runPath ? readRun(runPath) : null,
@@ -1104,6 +1143,7 @@ export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
   };
   return {
     answerKey: inputs.answerKey ? keyPath : null,
+    judgements: inputs.judgements ? judgementsPath : null,
     // A synthetic set's expected answers sit in <checkout>/expected: the set is the checkout.
     set: basename(resolve(setDir)) === 'expected' ? basename(resolve(setDir, '..')) : basename(resolve(setDir)),
     report: reportPath,
@@ -1144,6 +1184,12 @@ export function compareMarkdown(a, b, labelA = 'A', labelB = 'B') {
   const cellsB = roleCells(b.scores.roles);
   for (const role of new Set([...Object.keys(cellsA), ...Object.keys(cellsB)])) {
     lines.push(`| ${role} (role) | ${cellsA[role] ?? '-'} | ${cellsB[role] ?? '-'} |`);
+  }
+  const spread = investigateSpread(a, b);
+  if (spread.measured) {
+    lines.push(
+      `| Investigate spread | recall ${percent(spread.recall[0])}, precision ${percent(spread.precision[0])} | recall ${percent(spread.recall[1])}, precision ${percent(spread.precision[1])}; apart by ${spread.recallSpread ?? '-'} and ${spread.precisionSpread ?? '-'} points |`,
+    );
   }
   const paired = pairedRows([[a, b]]);
   if (paired.length > 0) {
@@ -1190,6 +1236,18 @@ export function pairedMarkdown(dirA, dirB, labelA = 'A', labelB = 'B') {
   const sets = [...a.keys()].filter((set) => b.has(set)).sort();
   const lines = [`# Paired comparison: ${labelB} − ${labelA}`, '', `Sets: ${sets.join(', ') || 'none in common'}.`, ''];
   lines.push(...pairedLines(pairedRows(sets.map((set) => [a.get(set), b.get(set)]))));
+  // Two runs of one model: how far apart Investigate's recall and precision are, per set (#748).
+  lines.push('', '## Investigate per set', '', `| Set | Recall ${labelA} | Recall ${labelB} | Precision ${labelA} | Precision ${labelB} | Spread (points) |`, '| --- | --- | --- | --- | --- | --- |');
+  for (const set of sets) {
+    const sp = investigateSpread(a.get(set), b.get(set));
+    if (!sp.measured) {
+      lines.push(`| ${set} | - | - | - | - | ${sp.why} |`);
+      continue;
+    }
+    lines.push(
+      `| ${set} | ${percent(sp.recall[0])} | ${percent(sp.recall[1])} | ${percent(sp.precision[0])} | ${percent(sp.precision[1])} | recall ${sp.recallSpread ?? '-'}, precision ${sp.precisionSpread ?? '-'} |`,
+    );
+  }
   return `${lines.join('\n')}\n`;
 }
 
@@ -1259,6 +1317,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     } else {
       const run = option(args, '--run');
       const answerKey = option(args, '--answer-key');
+      const judgements = option(args, '--judgements');
       const warm = option(args, '--warm');
       const change = option(args, '--change');
       const changeFile = option(args, '--change-file');
@@ -1266,11 +1325,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       const [reportPath, setDir] = args;
       if (!reportPath || !setDir) {
         throw new Error(
-          'usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--answer-key <file>] [--warm <run.json>] [--change <run.json> --change-file <repo>:<path>] [--labels <folder>] [--out <prefix>]',
+          'usage: score.mjs <report .html|.json> <set folder> [--run <run.json>] [--answer-key <file>] [--judgements <file>] [--warm <run.json>] [--change <run.json> --change-file <repo>:<path>] [--labels <folder>] [--out <prefix>]',
         );
       }
       const card = scoreFiles(reportPath, setDir, run, {
         answerKey: answerKey ?? undefined,
+        judgements: judgements ?? undefined,
         warm,
         change,
         changeFile: changeFile ?? undefined,

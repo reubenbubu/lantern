@@ -331,3 +331,45 @@ those entries:
 - A person's use is counted once per frontend the person uses, and counts as worded when the
   intent stored for that frontend (`<basis>/<frontend>`) exists. Before, the person's basis was
   counted once and could never be found worded, since its intents are stored per frontend.
+
+## Amendment (#748): Investigate's precision over every risk it draws
+
+The 1F and 1G review found Investigate's "precision over judged" counted the reference entries a
+run hit, not the risks it drew: three drawn risks that all matched one entry counted once, and
+most drawn risks (23 of 32 on project-1, 55 of 76 on project-8) matched nothing and were left out.
+The fixed checks' findings that Investigate only worded were counted as its own, and the
+connections it found were not scored at all.
+
+- **A judgement file per set.** `testsets/<set>/judgements.json` holds the verdicts the answer key
+  does not settle: `findings` and `connections`, each entry a `key`, a `verdict` (`right` or
+  `wrong`), an optional `reference` (the ID of the reference risk a right finding is, so it counts
+  for recall) and a `note`. A finding is named by its lead (`lead:<kind>/…`), which stays the same
+  from run to run however the model words it, or, without one, by `<subject> | <title>`; a
+  connection by `<subject> -> <object>`. `score-testsets.sh` passes the file when it exists, and
+  `score.mjs` takes `--judgements`. The file is filled from the real runs' unjudged lists: each
+  verdict by the owner, or by a judge validated against the owner's verdicts, never by the model
+  that drew the finding. A verdict decides first, then the answer key's match.
+- **Precision over every drawn risk.** Each drawn `investigated-risk` is right (a verdict, or a
+  match to a reference risk), wrong (a verdict, or a match to a decoy) or unjudged; precision is
+  right over right plus wrong, each drawn risk counted as often as it is drawn, and the row says how
+  many are unjudged. Recall stays over the reference risks. A right verdict counts for recall only
+  through its `reference`, or when the key also matches the finding to a reference risk; the
+  scorecard lists verdicts whose key names nothing the run drew, so a typo shows.
+- **The fixed checks apart.** A `finding-wording`, Investigate's words on a fixed check's finding,
+  is scored the same way in its own row, "Fixed checks worded", and no longer counts in
+  Investigate's. Its hits leave Investigate's item scores too, so a paired comparison with a
+  scorecard from before #748 shows a drop on the sets where fixed checks were hit (project-4,
+  project-8); re-score the earlier run with this scorer before comparing.
+- **Connections by their two ends.** Each `INVESTIGATED_CONNECTION` is right when its two ends
+  match two reference elements the reference connects, in either direction (the model reads which
+  way a connection goes), or a verdict says so; otherwise unjudged unless a verdict says wrong.
+  The row is "Investigate connections"; it counts reference connections per pair of elements,
+  whichever way they are drawn.
+- **The spread of two runs.** `score.mjs compare` adds a row with each run's recall and precision
+  and how many points apart they are; `score.mjs paired` adds a table of them per set.
+
+Re-scoring the 1H baseline's complete run with these rules moved Investigate's precision on
+project-1 from 75% to 83%, and on project-4 its recall from 65% to 47% (three of its eleven hits
+were fixed checks' wordings, now in their own row). Only the wordings moved to their own row
+leave the unjudged counts (project-4 28 to 27, project-8 47 to 46) until the judgement files are
+filled.

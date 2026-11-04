@@ -520,6 +520,10 @@ for set in "${sets[@]}"; do
   if [[ -f "$REPO/testsets/$set/answer-key.json" ]]; then
     run_args+=(--answer-key "$REPO/testsets/$set/answer-key.json")
   fi
+  # The verdicts on drawn findings and connections the key does not settle (#748).
+  if [[ -f "$REPO/testsets/$set/judgements.json" ]]; then
+    run_args+=(--judgements "$REPO/testsets/$set/judgements.json")
+  fi
   # The gates' runs, made by --gates now or before under the same label (#755).
   [[ -f "$scores/$set/warm.run.json" ]] && run_args+=(--warm "$scores/$set/warm.run.json")
   if [[ -f "$scores/$set/change.run.json" ]]; then
