@@ -380,6 +380,51 @@ class InvestigatorTest {
     assertThat(of(investigate(fake), Types.INVESTIGATED_RISK)).hasSize(1);
   }
 
+  private double riskConfidence(String confidence) {
+    headerLead();
+    String answer =
+        CONFIRMED.replace("\"confidence\": \"high\"", "\"confidence\": \"" + confidence + "\"");
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? answer : null);
+    return of(investigate(fake), Types.INVESTIGATED_RISK).getFirst().confidence();
+  }
+
+  @Test
+  void aRiskOfMediumConfidenceHoldsItsFactor() {
+    assertThat(riskConfidence("medium")).isEqualTo(0.45);
+  }
+
+  @Test
+  void aRiskOfLowConfidenceHoldsItsFactor() {
+    assertThat(riskConfidence("low")).isEqualTo(0.3);
+  }
+
+  @Test
+  void aRiskKeyIsItsNamesSortedAndAConnectionKeyItsEndsAndInteraction() {
+    tools.jackson.databind.JsonNode oneOrder =
+        FactJson.parse(
+            "{\"kind\": \"risk\", \"title\": \"A\", \"names\": [\"upload\", \" X-User-Id\"]}");
+    tools.jackson.databind.JsonNode otherOrder =
+        FactJson.parse(
+            "{\"kind\": \"risk\", \"title\": \"B\", \"names\": [\"X-User-Id\", \"upload\"]}");
+    tools.jackson.databind.JsonNode connection =
+        FactJson.parse(
+            "{\"kind\": \"connection\", \"from\": \"service:g:files\", \"to\": \"external-system:s3\","
+                + " \"interaction\": \"http\", \"names\": [\"upload\"]}");
+    tools.jackson.databind.JsonNode otherInteraction =
+        FactJson.parse(
+            "{\"kind\": \"connection\", \"from\": \"service:g:files\", \"to\": \"external-system:s3\","
+                + " \"interaction\": \"messaging\", \"names\": [\"upload\"]}");
+
+    // Two risks naming the same things are one, whatever their order or title (#769).
+    assertThat(Investigator.proposalKey(oneOrder))
+        .isEqualTo(Investigator.proposalKey(otherOrder))
+        .isEqualTo("risk X-User-Id,upload");
+    // A connection is keyed by its ends and interaction, not its names.
+    assertThat(Investigator.proposalKey(connection))
+        .isEqualTo("connection service:g:files external-system:s3 http")
+        .isNotEqualTo(Investigator.proposalKey(otherInteraction));
+  }
+
   @Test
   void aConfirmedLeadIsAVerdictAndARiskCitedToTheVerifiedLines() {
     Fact lead = headerLead();
