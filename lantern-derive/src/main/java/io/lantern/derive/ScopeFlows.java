@@ -650,9 +650,19 @@ public final class ScopeFlows {
           false,
           step.profiles(),
           routeInfo.toString(),
-          step.facts(),
+          withRoute(step.facts(), route),
           // The route forwards this request: the step reads the request's own intent (#810).
           start.link);
+    }
+
+    /** A step's facts with the route it goes through, which it still cites (#810). */
+    private static List<Fact> withRoute(List<Fact> facts, Fact route) {
+      if (route == null || facts.contains(route)) {
+        return facts;
+      }
+      List<Fact> all = new ArrayList<>(facts);
+      all.add(route);
+      return all;
     }
 
     /** A gateway routing the request it receives to the unit, with the request as it serves it. */

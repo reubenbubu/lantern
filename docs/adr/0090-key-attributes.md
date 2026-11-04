@@ -107,6 +107,6 @@ so Describe stores an intent for each request rather than one for all of a front
 target. `CALLS_HTTP` gains the key attribute `request`. The frontend linker sets it to the
 request's method and path as written (`POST /api/tasks`), or its URL when it has no path, and
 without a method when the code gives none. Other `CALLS_HTTP` links do not set it, so their
-identity is unchanged. The same request from another line of the code is the same claim. The cost
+identity is unchanged. The same request from another line of the code is the same claim. So is the same path with another query string or host, since the request is read from the path. The cost
 is more links to word: about one per distinct request, which Describe already asks about as lines
 a flow can draw.
