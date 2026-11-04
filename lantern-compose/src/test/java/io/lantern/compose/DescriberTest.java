@@ -2332,6 +2332,33 @@ class DescriberTest {
   }
 
   @Test
+  void theSameFactsMakeTheSameRequestsEveryTimeForEveryRoleTheDescriberAsks() {
+    FakeLlmProvider one = new FakeLlmProvider().answering(DescriberTest::answer);
+    FakeLlmProvider two = new FakeLlmProvider().answering(DescriberTest::answer);
+    List<Fact> shuffled = new ArrayList<>(facts.list());
+    java.util.Collections.reverse(shuffled);
+
+    new Describer(
+            new Harness(
+                client(one), new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(facts.list());
+    new Describer(
+            new Harness(
+                client(two), new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of()))
+        .describe(shuffled);
+
+    // Purpose, the flow roles and the group naming as well as Describe (#769).
+    Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .map(r -> r.purpose() + "\n" + r.system() + "\n" + r.messages())
+                .sorted()
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one));
+  }
+
+  @Test
   void aUnitsTextsAreStoredAsResponsibilityAndIntentFacts() {
     Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
 
