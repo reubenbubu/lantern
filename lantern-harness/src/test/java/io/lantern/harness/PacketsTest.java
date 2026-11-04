@@ -358,6 +358,67 @@ class PacketsTest {
                     + " \"b\": {\"text\": \"Fixed\", \"cites\": [\"F2\"]}}"));
   }
 
+  /** {@link #TWO_TEXTS}, whose items ask for {@code a}, {@code b} and {@code c.1}. */
+  static final PacketRole THREE_ASKED =
+      new PacketRole() {
+        @Override
+        public PromptLayout layout(List<Item> packet, List<String> ids) {
+          return TWO_TEXTS.layout(packet, ids);
+        }
+
+        @Override
+        public int maxOutputTokens(int items) {
+          return TWO_TEXTS.maxOutputTokens(items);
+        }
+
+        @Override
+        public CheckInputs inputs(List<Item> packet, List<String> ids) {
+          return TWO_TEXTS.inputs(packet, ids);
+        }
+
+        @Override
+        public ItemAnswer read(String id, Item item, JsonNode entry) {
+          return TWO_TEXTS.read(id, item, entry);
+        }
+
+        @Override
+        public String store(Item item, ItemAnswer accepted) {
+          return TWO_TEXTS.store(item, accepted);
+        }
+
+        @Override
+        public List<String> askedFields(Item item) {
+          return List.of("a", "b", "c.1");
+        }
+      };
+
+  @Test
+  void theRunRecordCountsFieldsLeftOutWithdrawnAndDroppedByKind() {
+    // orders: b rejected and withdrawn in the repair, c never written. stock: b rejected twice.
+    FakeLlmProvider fake =
+        answering(
+            request ->
+                request.messages().size() > 1
+                    ? "{\"items\": {\"I2\": {\"b\": {\"text\": \"Bad\", \"cites\": [\"F8\"]}}}}"
+                    : "{\"items\": {"
+                        + "\"I1\": {\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]},"
+                        + " \"b\": {\"text\": \"Bad\", \"cites\": [\"F9\"]}},"
+                        + "\"I2\": {\"a\": {\"text\": \"Kept\", \"cites\": [\"F1\"]},"
+                        + " \"b\": {\"text\": \"Bad\", \"cites\": [\"F9\"]}}}}");
+    RoleSession session = harness(client(fake), store).session(ROLE);
+
+    Map<String, Outcome> outcomes =
+        session.askPackets(List.of(item("orders"), item("stock")), THREE_ASKED);
+
+    assertThat(outcomes.values()).extracting(Outcome::kind).containsOnly(Outcome.Kind.ANSWERED);
+    assertThat(session.record().fields())
+        .containsExactly(
+            Map.entry("b", new RoleRecord.FieldCounts(0, 1, 1)),
+            Map.entry("c", new RoleRecord.FieldCounts(2, 0, 0)));
+    assertThat(session.record().toJson().path("fields").path("b").path("withdrawn").asInt())
+        .isEqualTo(1);
+  }
+
   @Test
   void aTextRejectedAgainIsLeftOutAndTheAcceptedOneKept() {
     FakeLlmProvider fake =

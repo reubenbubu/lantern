@@ -152,6 +152,59 @@ class UnknownsTest {
   }
 
   /** A lead about shop-app that Investigate did not answer. */
+  @Test
+  void aRefutedLeadIsInTheQualityReportWithItsFindingAndCitations() {
+    unclearLead("missing-auth/list", "missing-auth");
+    Fact verdict = facts.removeLast();
+    ObjectNode refuted = FactJson.newObject();
+    refuted.put("finding", "The list endpoint sits behind the gateway's sign-in filter");
+    refuted.putArray("cites").add("shop:src/main/java/com/example/web/Controller.java:3-5");
+    facts.add(
+        Fact.create(
+            verdict.subject(),
+            Types.LEAD_VERDICT,
+            FactObject.string("refuted"),
+            refuted,
+            INVESTIGATE,
+            verdict.evidence(),
+            0.6,
+            Validity.from(1)));
+
+    Document document = compose();
+
+    assertThat(failed(document, "A lead the LLM investigator refuted"))
+        .containsExactly(
+            "shop-app: missing auth. The list endpoint sits behind the gateway's sign-in filter."
+                + " Cites shop:src/main/java/com/example/web/Controller.java:3-5.");
+    assertThat(document.sections().stream().flatMap(s -> s.blocks().stream()))
+        .noneMatch(b -> b.id().equals("decisions.unclear-leads"));
+  }
+
+  @Test
+  void anItemARoleDidNotAskIsOnTheUnknownsPageWithTheRoleAndWhy() {
+    for (String role : List.of("describe-unit", "describe-unit", "summarize")) {
+      ObjectNode attributes = FactJson.newObject();
+      attributes.put("reason", "a budget refused it");
+      facts.add(
+          Fact.create(
+              role.equals("summarize") ? EntityId.parse("repo:shop") : EntityId.parse(APP),
+              Types.NOT_ASKED,
+              FactObject.string(role),
+              attributes,
+              new Origin(Origin.Kind.LLM, Types.NOT_ASKED, "1"),
+              Evidence.of("shop", ".", null, null),
+              0.6,
+              Validity.from(1)));
+    }
+
+    assertThat(callout(compose(), "decisions.unasked"))
+        .isEqualTo(
+            "These items were not asked of the LLM, or got no answer, so what it would have"
+                + " written of them is not known; the next run asks again:"
+                + " describe-unit: shop-app (a budget refused it)."
+                + " summarize: shop (a budget refused it).");
+  }
+
   private void unclearLead(String key, String kind) {
     unclearLead(key, kind, List.of(APP), List.of(), "not answered");
   }

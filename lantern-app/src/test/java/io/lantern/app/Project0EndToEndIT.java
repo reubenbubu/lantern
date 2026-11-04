@@ -362,6 +362,7 @@ class Project0EndToEndIT {
         .isEqualTo(
             drawableInteractions(
                 held, vocabulary.current(), C4ReportRenderer.toJson(written).data()));
+    checkIntentNotKnown(held, second, written);
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));
   }
@@ -898,6 +899,88 @@ class Project0EndToEndIT {
     assertThat(again.newFacts()).isZero();
     assertThat(again.facts()).isEqualTo(shop.facts());
     assertThat(fake.sent()).as("LLM requests when analyzing project-0 again").hasSize(calls);
+  }
+
+  /**
+   * The unknowns page lists exactly the interactions without an intent (#741): with an intent
+   * stored for every interaction of project-0 but two of the units' links, its "Intent not known"
+   * callout names those two and nothing else.
+   */
+  private static void checkIntentNotKnown(
+      List<Fact> held, AnalysisRun.Result run, Document written) {
+    List<Fact> facts = io.lantern.summarize.describe.Describer.withoutTexts(held);
+    io.lantern.derive.Knowledge knowledge = new io.lantern.derive.Knowledge(facts);
+    io.lantern.derive.ElementNames names =
+        new io.lantern.derive.ElementNames(knowledge, "The system");
+    io.lantern.derive.Elements elements =
+        new io.lantern.derive.Elements(
+            knowledge,
+            new io.lantern.derive.ArchitectureModel(facts).vocabulary(),
+            names,
+            Set.of());
+    io.lantern.derive.UnitInteractions interactions =
+        new io.lantern.derive.UnitInteractions(knowledge, elements, l -> l);
+    io.lantern.harness.RoleSpec role =
+        io.lantern.harness.RoleSpec.single(
+            "describe-unit",
+            Role.INFER_INTENT,
+            "1",
+            "describe-unit",
+            io.lantern.harness.RunMode.BULK,
+            300);
+    List<io.lantern.derive.UnitInteractions.Held> left = new ArrayList<>();
+    List<Fact> withIntents = new ArrayList<>(facts);
+    for (io.lantern.core.fact.EntityId unit : interactions.units()) {
+      for (io.lantern.derive.UnitInteractions.Held interaction : interactions.of(unit)) {
+        Fact fact = interaction.fact();
+        if (left.size() < 2
+            && interaction.kind() == io.lantern.derive.UnitInteractions.Kind.LINK
+            && !fact.predicate().equals(Types.USES_DATABASE)) {
+          left.add(interaction);
+          continue;
+        }
+        String key = fact.claimId() != null ? fact.claimId() : fact.id();
+        if (interaction.kind() == io.lantern.derive.UnitInteractions.Kind.PERSON) {
+          key += "/" + unit;
+        }
+        withIntents.add(
+            io.lantern.harness.LlmFacts.text(
+                role,
+                "fake/fake",
+                "a".repeat(64),
+                fact.subject(),
+                Types.INTENT,
+                key,
+                "Serves the shop's orders",
+                List.of(fact),
+                io.lantern.harness.LlmFacts.Basis.INFERRED,
+                run.snapshot().number()));
+      }
+    }
+    assertThat(left).hasSize(2);
+    Document composed =
+        new io.lantern.compose.Composer(written.source().toolVersion())
+            .compose(
+                io.lantern.compose.ViewDefinition.c4System(
+                    written.id(), written.title(), written.template()),
+                run.snapshot(),
+                withIntents,
+                written.title());
+    List<String> listed =
+        composed.sections().stream()
+            .flatMap(s -> s.blocks().stream())
+            .filter(
+                b ->
+                    b instanceof io.lantern.core.document.Callout c
+                        && c.id().endsWith("intent-not-known"))
+            .flatMap(b -> ((io.lantern.core.document.Callout) b).content().stream().skip(1))
+            .map(i -> ((io.lantern.core.document.TextRun) i).text().strip())
+            .toList();
+    assertThat(listed).hasSize(2).doesNotHaveDuplicates();
+    for (int i = 0; i < 2; i++) {
+      assertThat(listed.get(i))
+          .startsWith(names.name(left.get(i).from()) + " to " + names.name(left.get(i).to()));
+    }
   }
 
   /**

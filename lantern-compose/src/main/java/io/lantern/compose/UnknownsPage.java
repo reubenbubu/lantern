@@ -245,13 +245,23 @@ final class UnknownsPage {
                 + ", so what "
                 + (interactions.size() == 1 ? "it is" : "they are")
                 + " for is not known:"));
+    // Each with what its line shows besides its ends, such as an endpoint, so two interactions
+    // between the same ends read apart.
+    Map<Fact, String> details = new java.util.HashMap<>();
+    for (Elements.Line line : elements.lines()) {
+      if (line.detail() != null && !line.detail().isBlank()) {
+        line.facts().forEach(f -> details.putIfAbsent(f, line.detail()));
+      }
+    }
     for (UnitInteractions.Held interaction : interactions) {
+      String detail = details.get(interaction.fact());
       content.add(
           TextRun.of(
               " "
                   + end(interaction.unit(), interaction.from())
                   + " to "
                   + end(interaction.unit(), interaction.to())
+                  + (detail == null ? "" : " (" + detail + ")")
                   + "."));
     }
     // A note: what the model does not hold cites no fact (Quality bar, ADR 0046).

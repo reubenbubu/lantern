@@ -262,8 +262,10 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
   for (const f of facts) {
     if (f.predicate !== 'data-access') continue;
     const unit = unitOf.get(f.subject);
+    // A component's access takes its unit's intent for the store (#739), so the store link's keys
+    // count for it too (#741).
     for (const db of links.filter((l) => l.predicate === 'USES_DATABASE' && l.subject === unit)) {
-      result.push({ id: `interaction:${f.id}:${db.object.value}`, fact: f, kind: 'data-access', owners: [unit], keys: keys(f) });
+      result.push({ id: `interaction:${f.id}:${db.object.value}`, fact: f, kind: 'data-access', owners: [unit], keys: [...keys(f), ...keys(db)] });
     }
   }
   // A person-basis names its frontends as their own names: matched to the frontends drawn, by the
@@ -279,7 +281,17 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
     const owners = list(f.attributes?.frontends)
       .map((n) => byName.get(String(n).toLowerCase()))
       .filter(Boolean);
-    result.push({ id: `interaction:${f.id}`, fact: f, kind: 'USES (person)', owners, keys: keys(f) });
+    // One interaction per frontend the person uses, whose intent is stored under the basis and the
+    // frontend (ADR 0103, #739; #741).
+    for (const frontend of new Set(owners)) {
+      result.push({
+        id: `interaction:${f.id}:${frontend}`,
+        fact: f,
+        kind: 'USES (person)',
+        owners: [frontend],
+        keys: keys(f).map((k) => `${k}/${frontend}`),
+      });
+    }
   }
   return result;
 }

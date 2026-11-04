@@ -423,7 +423,7 @@
     }, {
       "type" : "callout",
       "id" : "decisions-intent-not-known",
-      "body" : "**Intent not known**\nLantern holds no intent for these interactions, so what they are for is not known: shop-app to pay.example.com. shop-app to orders. shop-app to shop on db. shop-app to worker. Controller in shop-app to JpaOrders in shop-app. Jobs in shop-app to JpaOrders in shop-app. JpaOrders in shop-app to shop on db. worker to shop-app. worker to orders.",
+      "body" : "**Intent not known**\nLantern holds no intent for these interactions, so what they are for is not known: shop-app to pay.example.com (POST /charges). shop-app to orders. shop-app to shop on db. shop-app to worker. Controller in shop-app to JpaOrders in shop-app. Jobs in shop-app to JpaOrders in shop-app. JpaOrders in shop-app to shop on db. worker to shop-app (GET /orders). worker to orders.",
       "tone" : "info"
     }, {
       "type" : "callout",

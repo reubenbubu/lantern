@@ -171,3 +171,10 @@ A component's use of a store stays out: it takes the unit's intent for that stor
 project-0 test (`Project0EndToEndIT`) checks that the interactions Describe asks about
 (`Describer.interactionsAsked`) are exactly those a view of the system report can draw, counted
 the way the scorecard counts them.
+
+## Amendment (#741): one list of the interactions a unit holds
+
+Which interactions each unit holds, as the amendment for #738 says, is now a model query in
+`lantern-derive` (`UnitInteractions`). Describe asks about it, and the unknowns page lists from it
+those without a stored intent (ADR 0046, amendment for #741), so the two cannot drift apart.
+Describe's prompts are unchanged by the move. `Describer.LINKS` is `UnitInteractions.LINKS`.

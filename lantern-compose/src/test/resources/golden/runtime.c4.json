@@ -1695,7 +1695,7 @@
         "text" : "Lantern holds no intent for these interactions, so what they are for is not known:"
       }, {
         "kind" : "text",
-        "text" : " shop-app to pay.example.com."
+        "text" : " shop-app to pay.example.com (POST /charges)."
       }, {
         "kind" : "text",
         "text" : " shop-app to orders."
@@ -1716,7 +1716,7 @@
         "text" : " JpaOrders in shop-app to shop on db."
       }, {
         "kind" : "text",
-        "text" : " worker to shop-app."
+        "text" : " worker to shop-app (GET /orders)."
       }, {
         "kind" : "text",
         "text" : " worker to orders."
