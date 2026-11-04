@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 
 /**
@@ -41,8 +43,7 @@ final class ResolvePrompt {
    */
   static final int CHECKED_SINCE = 8;
 
-  private static final java.util.regex.Pattern LEADING_NUMBER =
-      java.util.regex.Pattern.compile("^(\\d+)");
+  private static final Pattern LEADING_NUMBER = Pattern.compile("^(\\d+)");
 
   /**
    * Whether an answer stored under a prompt version passed today's checks: its leading number, a
@@ -52,7 +53,7 @@ final class ResolvePrompt {
     if (promptVersion == null) {
       return false;
     }
-    java.util.regex.Matcher number = LEADING_NUMBER.matcher(promptVersion);
+    Matcher number = LEADING_NUMBER.matcher(promptVersion);
     return number.find() && Integer.parseInt(number.group(1)) >= CHECKED_SINCE;
   }
 
