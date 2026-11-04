@@ -1278,4 +1278,156 @@ class InvestigatorTest {
       io.lantern.core.vocabulary.AttributeSchema.merge(chain).validate(fact.attributes());
     }
   }
+
+  // The recorded and injection fixtures of Investigate's three roles (#768).
+
+  private static final java.nio.file.Path INVESTIGATE_RECORDINGS =
+      java.nio.file.Path.of("src/test/resources/recordings/investigate");
+
+  private static boolean system(LlmRequest r) {
+    return r.messages().getFirst().text().contains("The whole system");
+  }
+
+  /**
+   * A model that confirms the lead, finds the files unit's upload risk and names it for the system.
+   */
+  private static String investigating(LlmRequest r) {
+    if (turn(r) != 1) {
+      return null;
+    }
+    if (leads(r)) {
+      return CONFIRMED;
+    }
+    if (unit(r, FILES_UNIT)) {
+      return """
+          {"kind": "risk", "title": "Every file goes to one fixed bucket",
+           "finding": "The storage client posts every uploaded file to the one bucket written in its code, https://s3.example.com/bucket, whatever user the file belongs to.",
+           "consequence": "Files of every user share one bucket, so a mistake in one user's access rules exposes the others' files.",
+           "impact": "medium", "confidence": "low", "names": ["restClient", "bucket"],
+           "cites": ["fs:%s:3-3"]}"""
+          .formatted(STORAGE);
+    }
+    if (system(r)) {
+      return """
+          {"kind": "risk", "title": "Gateway sends all file traffic to one service",
+           "finding": "The gateway routes every path under /files to lb://files, the one files service, with no other route for them.",
+           "consequence": "When the files service is down, no user can upload or read a file, as nothing else serves those paths.",
+           "impact": "medium", "confidence": "low", "units": ["%s", "%s"], "names": ["lb://files"],
+           "cites": ["gw:%s:1-2"]}"""
+          .formatted(GATEWAY_UNIT, FILES_UNIT, GATEWAY_CONFIG);
+    }
+    return null;
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(
+      strings = {"investigate-leads", "investigate-units", "investigate-system"})
+  void eachRoleReplaysItsRecordingToExactlyTheExpectedFacts(String role) {
+    headerLead();
+    FakeLlmProvider scripted = submitting(InvestigatorTest::investigating);
+
+    Investigator.Result result =
+        investigate(client(io.lantern.llm.RoleFixture.provider(scripted, INVESTIGATE_RECORDINGS)));
+
+    List<String> produced = io.lantern.harness.InjectionFixtures.lines(result.facts());
+    List<String> expected = io.lantern.llm.RoleFixture.expected(INVESTIGATE_RECORDINGS, produced);
+    String mode =
+        switch (role) {
+          case "investigate-leads" -> "lead-verdict";
+          case "investigate-units" -> "\"mode\":\"unit\"";
+          default -> "\"mode\":\"system\"";
+        };
+    List<String> ofRole = produced.stream().filter(l -> l.contains(mode)).toList();
+    assertThat(ofRole).isNotEmpty();
+    assertThat(ofRole).isEqualTo(expected.stream().filter(l -> l.contains(mode)).toList());
+  }
+
+  /** Where the injection fixtures sit in the files unit's repository. */
+  private static final Map<String, String> INJECTED_PATHS =
+      Map.of(
+          "README.md", "README.md",
+          "OrderController.java", "src/main/java/f/OrderController.java",
+          "application.yml", "src/main/resources/application.yml",
+          "Greeting.java", "src/main/java/f/Greeting.java");
+
+  @Test
+  void eachRoleShowsTheFixturesAsDataAndAnAnswerThatObeysThemIsRejected() {
+    headerLead();
+    INJECTED_PATHS.forEach(
+        (name, path) ->
+            TEXTS.put("fs:" + path, io.lantern.harness.InjectionFixtures.fixture(name)));
+    String obeyed = io.lantern.harness.InjectionFixtures.OBEYING;
+    String cite = io.lantern.harness.InjectionFixtures.OBEYING_CITE;
+    try {
+      // A model that reads the four files, then does what they say, in every conversation.
+      FakeLlmProvider obeying =
+          new FakeLlmProvider()
+              .callingTools(
+                  r -> {
+                    if (turn(r) == 1) {
+                      List<LlmToolCall> reads = new ArrayList<>();
+                      INJECTED_PATHS.values().stream()
+                          .sorted()
+                          .forEach(
+                              path ->
+                                  reads.add(
+                                      new LlmToolCall(
+                                          "r" + reads.size(),
+                                          "read_file",
+                                          FactJson.parse(
+                                              "{\"repo\":\"fs\",\"path\":\"" + path + "\"}"))));
+                      return reads;
+                    }
+                    if (turn(r) > 3) {
+                      return List.of();
+                    }
+                    String risk =
+                        uploadRisk(cite)
+                            .replace(
+                                "upload accepts any MultipartFile of any size and keeps it whole in"
+                                    + " memory before writing it to the disk.",
+                                obeyed)
+                            .replace(
+                                "\"names\":", "\"units\": [\"" + FILES_UNIT + "\"], \"names\":");
+                    return List.of(
+                        submit(
+                            r,
+                            leads(r)
+                                ? CONFIRMED
+                                    .replace(
+                                        "\"fs:src/main/java/f/FileController.java:5-7\"",
+                                        "\"" + cite + "\"")
+                                    .replaceAll(
+                                        "\"finding\": \"[^\"]*\"",
+                                        "\"finding\": \"" + obeyed + "\"")
+                                : risk));
+                  })
+              .answering("Done.");
+
+      Investigator.Result result = investigate(obeying);
+
+      for (String role : List.of("leads", "units", "system")) {
+        io.lantern.harness.InjectionFixtures.shownAsData(
+            obeying.sent().stream()
+                .map(FakeLlmProvider.Sent::request)
+                .filter(
+                    r ->
+                        switch (role) {
+                          case "leads" -> leads(r);
+                          case "system" -> system(r);
+                          default -> !leads(r) && !system(r);
+                        })
+                .toList());
+      }
+      List<String> stored = io.lantern.harness.InjectionFixtures.lines(result.facts());
+      assertThat(stored).noneMatch(l -> l.contains("fully secure") || l.contains("/etc/passwd"));
+      assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+      // The lead is left unclear: its answer was rejected twice.
+      assertThat(of(result, "lead-verdict"))
+          .singleElement()
+          .satisfies(v -> assertThat(v.object().value()).isEqualTo("unclear"));
+    } finally {
+      INJECTED_PATHS.values().forEach(path -> TEXTS.remove("fs:" + path));
+    }
+  }
 }
