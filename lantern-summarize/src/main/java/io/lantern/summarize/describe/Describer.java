@@ -656,7 +656,8 @@ public final class Describer {
               described
                   .interactions()
                   .get(text.field().substring(DescribeRole.INTERACTIONS.length() + 1));
-          // A person's lines keep their labels: one fact stands for all of a person's uses.
+          // A person's intent is not a link's phrase: one fact stands for all of a person's uses,
+          // so the composer reads it per frontend from the stored facts (ADR 0103, #739).
           if (!text.about().type().equals(Types.PERSON)) {
             phrases.put(
                 interaction.id(),

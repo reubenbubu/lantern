@@ -206,8 +206,6 @@ final class C4Views {
      */
     final SortedMap<String, Integer> phrases = new TreeMap<>();
 
-    boolean unphrased;
-
     /** The intent Name groups stored for a line leaving a group, which labels it; or null. */
     String intent;
 
@@ -227,13 +225,11 @@ final class C4Views {
     }
 
     /**
-     * Adds the intent phrase of a link of the edge, with the facts it cites, or marks the edge as
-     * having a link without one, which keeps its static label.
+     * Adds the intent phrase of a link of the edge, with the facts it cites; a link without one
+     * adds nothing, and the edge keeps its static label only when none of its links has one.
      */
     void phrased(Assembler.Phrased phrase) {
-      if (phrase == null) {
-        unphrased = true;
-      } else {
+      if (phrase != null) {
         phrases.merge(phrase.text(), 1, Integer::sum);
         facts.addAll(phrase.facts());
       }
@@ -415,16 +411,8 @@ final class C4Views {
           null);
       edge.facts.addAll(cited);
       // The person's intent for each frontend they use (ADR 0103, amendment for #739).
-      boolean phrased = false;
       for (EntityId frontend : elements.screens(person.getValue()).keySet()) {
-        Assembler.Phrased phrase = assembler.personPhrase(person.getValue(), frontend);
-        if (phrase != null) {
-          edge.phrased(phrase);
-          phrased = true;
-        }
-      }
-      if (!phrased) {
-        edge.phrased(null);
+        edge.phrased(assembler.personPhrase(person.getValue(), frontend));
       }
     }
     // The Unknown caller, where entry points of the scope's units nothing reaches (#766).

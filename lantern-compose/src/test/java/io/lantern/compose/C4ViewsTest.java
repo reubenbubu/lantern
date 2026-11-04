@@ -306,8 +306,8 @@ class C4ViewsTest {
         .isEqualTo(Assembler.INFERRED_SENTENCE + " The code has invitations.");
   }
 
-  @Test
-  void aFrontendIsAContainerWithItsTechnologyItsCallsAndThePeopleWithScreensInIt() {
+  /** The shop's Angular frontend calling the app, and a user who signs up on its screens. */
+  private static TestFacts withFrontendAndUser() {
     TestFacts withFrontend = TestFacts.runtime();
     withFrontend.attribute(
         "shop",
@@ -345,6 +345,54 @@ class C4ViewsTest {
             + route.id()
             + "\"],\"repos\":[\"shop\"],\"frontends\":[\"shop\"]}");
     withFrontend.attribute("shop", "person:user", "display-name", "User");
+    return withFrontend;
+  }
+
+  @Test
+  void aPersonsLinesShowTheIntentDescribeStoredForTheirUseOfAFrontend() {
+    TestFacts withFrontend = withFrontendAndUser();
+    Fact basis = withFrontend.find("person:user", "person-basis");
+    // Describe stores a person's intent under its basis and the frontend (ADR 0103, #739).
+    withFrontend.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            EntityId.parse("person:user"),
+            Types.INTENT,
+            basis.id() + "/frontend:shop/web",
+            "Signs up and signs in through",
+            List.of(basis),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    Document document = system(withFrontend.list());
+
+    assertThat(edges(block(section(document, "containers"), Diagram.class)))
+        .contains("person:user -> frontend:shop/web: Signs up and signs in through [Web browser]")
+        .noneMatch(e -> e.startsWith("person:user -> frontend:shop/web: Uses"));
+    assertThat(edges(block(section(document, "context"), Diagram.class)))
+        .contains("person:user -> system:snapshot: Signs up and signs in through")
+        .noneMatch(e -> e.startsWith("person:user -> system:snapshot: Uses"));
+    // Stored for another frontend, it labels nothing here.
+    TestFacts elsewhere = withFrontendAndUser();
+    elsewhere.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            EntityId.parse("person:user"),
+            Types.INTENT,
+            basis.id() + "/frontend:shop/admin",
+            "Signs up and signs in through",
+            List.of(basis),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+    assertThat(edges(block(section(system(elsewhere.list()), "containers"), Diagram.class)))
+        .contains("person:user -> frontend:shop/web: Uses the screens /registration [Web browser]");
+  }
+
+  @Test
+  void aFrontendIsAContainerWithItsTechnologyItsCallsAndThePeopleWithScreensInIt() {
+    TestFacts withFrontend = withFrontendAndUser();
 
     Document document = system(withFrontend.list());
     Diagram diagram = block(section(document, "containers"), Diagram.class);
