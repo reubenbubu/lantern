@@ -779,11 +779,6 @@ final class Assembler {
   }
 
   /**
-   * The description of a person: the sentence the linker wrote from the code's own words, opened
-   * with {@value #INFERRED_SENTENCE} since a person is always inferred (ADR 0074), citing the facts
-   * it rests on.
-   */
-  /**
    * What the Unknown caller is (ADR 0074, amendment for #365; #766): marked unknown, citing the
    * lines that make it.
    */
@@ -802,6 +797,11 @@ final class Assembler {
   /** What opens the Unknown caller's description. */
   static final String UNKNOWN_SENTENCE = "Unknown:";
 
+  /**
+   * The description of a person: the sentence the linker wrote from the code's own words, opened
+   * with {@value #INFERRED_SENTENCE} since a person is always inferred (ADR 0074), citing the facts
+   * it rests on.
+   */
   private Text person(EntityId id) {
     Fact basis = personBasis(id);
     List<Fact> cited = new ArrayList<>(List.of(basis));

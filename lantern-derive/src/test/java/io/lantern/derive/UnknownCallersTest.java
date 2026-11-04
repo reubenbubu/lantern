@@ -72,6 +72,19 @@ class UnknownCallersTest {
   }
 
   @Test
+  void aCallThatReachesAUnitWithoutNamingItsEndpointLeavesNoneOfItsEndpointsUnreached() {
+    system();
+    call(SHOP, PLACE, BILLING, CHARGE);
+    // A call to shop matched to the unit but to none of its endpoints.
+    ObjectNode at = FactJson.newObject();
+    at.put("source", CHARGE.toString());
+    model.add(BILLING, Types.CALLS_HTTP, FactObject.entity(SHOP), at);
+
+    assertThat(lines()).isEmpty();
+    assertThat(violations()).isEmpty();
+  }
+
+  @Test
   void anEndpointAGatewayRoutesToIsReachedThroughItAndTheGatewayNothingCallsGetsTheLine() {
     system();
     call(SHOP, PLACE, BILLING, CHARGE);
@@ -138,6 +151,22 @@ class UnknownCallersTest {
     broken.add(wrong);
 
     assertThat(UnknownCallers.violations(new Knowledge(facts))).isEmpty();
+    // A line citing another unit's endpoint is wrong too.
+    ObjectNode elsewhere = FactJson.newObject();
+    elsewhere.putArray("facts").add(charge.id());
+    List<Fact> misplaced = new java.util.ArrayList<>(facts);
+    misplaced.add(
+        Fact.create(
+            UnknownCallers.CALLER,
+            Types.CALLS_UNREACHED,
+            FactObject.entity(SHOP),
+            elsewhere,
+            charge.origin(),
+            charge.evidence(),
+            1.0,
+            charge.validity()));
+    assertThat(UnknownCallers.violations(new Knowledge(misplaced)))
+        .anyMatch(v -> v.contains("is not in the code of " + SHOP));
     assertThat(UnknownCallers.violations(new Knowledge(broken)))
         .singleElement()
         .asString()

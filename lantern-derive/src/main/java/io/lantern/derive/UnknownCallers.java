@@ -61,6 +61,7 @@ public final class UnknownCallers implements LinkRule.OverFacts {
           Types.CONSUMES,
           Types.ROUTES_TO,
           Types.ROUTED_ENDPOINT,
+          Types.INVESTIGATED_CONNECTION,
           Types.PERSON_BASIS);
 
   @Override
@@ -118,16 +119,34 @@ public final class UnknownCallers implements LinkRule.OverFacts {
     Set<String> reached = new HashSet<>();
     Set<EntityId> called = new HashSet<>();
     Set<EntityId> published = new HashSet<>();
+    // Units a link reaches without naming the entry point: what it calls is not known, so none of
+    // the unit's entry points of that kind is one nothing reaches (#766, review).
+    Set<EntityId> calledWhole = new HashSet<>();
+    Set<EntityId> messagedWhole = new HashSet<>();
     for (Fact fact : knowledge.withPredicate(Types.CALLS_HTTP)) {
       called.add(Knowledge.object(fact));
       reach(reached, Knowledge.object(fact), attribute(fact, "target"));
       reach(reached, parse(attribute(fact, "reachesUnit")), attribute(fact, "reaches"));
+      if (attribute(fact, "target") == null && attribute(fact, "reaches") == null) {
+        calledWhole.add(Knowledge.object(fact));
+      }
     }
     for (String predicate : List.of(Types.SENDS_MESSAGES_TO, Types.USES_IDENTITY_PROVIDER)) {
       for (Fact fact : knowledge.withPredicate(predicate)) {
         if (Knowledge.isEntity(fact)) {
           reach(reached, Knowledge.object(fact), attribute(fact, "target"));
+          if (attribute(fact, "target") == null) {
+            (predicate.equals(Types.SENDS_MESSAGES_TO) ? messagedWhole : calledWhole)
+                .add(Knowledge.object(fact));
+          }
         }
+      }
+    }
+    // A connection Investigate found into a unit reaches it (ADR 0110).
+    for (Fact fact : knowledge.withPredicate(Types.INVESTIGATED_CONNECTION)) {
+      if (Knowledge.isEntity(fact)) {
+        calledWhole.add(Knowledge.object(fact));
+        messagedWhole.add(Knowledge.object(fact));
       }
     }
     for (Fact fact : knowledge.withPredicate(Types.ROUTED_ENDPOINT)) {
@@ -138,10 +157,16 @@ public final class UnknownCallers implements LinkRule.OverFacts {
         published.add(Knowledge.object(fact));
       }
     }
-    // A queue an exchange that is published to routes to is published to as well.
-    for (Fact fact : knowledge.withPredicate(Types.ROUTES_TO)) {
-      if (Knowledge.isEntity(fact) && published.contains(fact.subject())) {
-        published.add(Knowledge.object(fact));
+    // A queue an exchange that is published to routes to is published to as well, through any
+    // chain of exchanges.
+    for (boolean grew = true; grew; ) {
+      grew = false;
+      for (Fact fact : knowledge.withPredicate(Types.ROUTES_TO)) {
+        if (Knowledge.isEntity(fact)
+            && published.contains(fact.subject())
+            && published.add(Knowledge.object(fact))) {
+          grew = true;
+        }
       }
     }
     Set<String> used = used(knowledge);
@@ -157,8 +182,10 @@ public final class UnknownCallers implements LinkRule.OverFacts {
         for (Fact fact : knowledge.attributes(method)) {
           boolean callable =
               switch (fact.predicate()) {
-                case Types.ENDPOINT, Types.WEBSOCKET_ENDPOINT -> true;
-                case Types.MESSAGE_LISTENER -> unpublished(knowledge, unit, method, published);
+                case Types.ENDPOINT, Types.WEBSOCKET_ENDPOINT -> !calledWhole.contains(unit);
+                case Types.MESSAGE_LISTENER ->
+                    !messagedWhole.contains(unit)
+                        && unpublished(knowledge, unit, method, published);
                 default -> false;
               };
           if (callable) {
@@ -253,6 +280,9 @@ public final class UnknownCallers implements LinkRule.OverFacts {
   /** Why the entry point is not one nothing reaches, or null when nothing does. */
   private static String reachedBy(Knowledge knowledge, List<Fact> all, EntityId unit, Fact entry) {
     if (entry.predicate().equals(Types.ROUTED_ENDPOINT)) {
+      if (!entry.subject().equals(unit)) {
+        return "is a route of another unit, " + entry.subject();
+      }
       for (Fact call : knowledge.withPredicate(Types.CALLS_HTTP)) {
         if (Knowledge.object(call).equals(unit)) {
           return "is a route of a gateway " + call.subject() + " calls";
@@ -265,8 +295,27 @@ public final class UnknownCallers implements LinkRule.OverFacts {
       return "is no entry point meant to be called (" + entry.predicate() + ")";
     }
     String method = entry.subject().toString();
+    if (!unitMethods(knowledge, unit).contains(entry.subject())) {
+      return "is not in the code of " + unit;
+    }
+    boolean listener = entry.predicate().equals(Types.MESSAGE_LISTENER);
     for (Fact fact : all) {
       boolean toUnit = Knowledge.isEntity(fact) && Knowledge.object(fact).equals(unit);
+      // A link into the unit that names no entry point, or one Investigate found, may reach any.
+      if (toUnit
+          && attribute(fact, "target") == null
+          && attribute(fact, "reaches") == null
+          && (fact.predicate().equals(Types.INVESTIGATED_CONNECTION)
+              || (listener
+                  ? fact.predicate().equals(Types.SENDS_MESSAGES_TO)
+                  : fact.predicate().equals(Types.CALLS_HTTP)
+                      || fact.predicate().equals(Types.USES_IDENTITY_PROVIDER)))) {
+        return "the unit is reached by "
+            + fact.subject()
+            + " "
+            + fact.predicate()
+            + ", which names no entry point";
+      }
       if ((toUnit && method.equals(attribute(fact, "target")))
           || (unit.toString().equals(attribute(fact, "reachesUnit"))
               && method.equals(attribute(fact, "reaches")))
@@ -281,7 +330,9 @@ public final class UnknownCallers implements LinkRule.OverFacts {
         Fact cited = knowledge.fact(id);
         if (cited != null
             && (cited.subject().toString().equals(method)
-                || cited.subject().toString().equals(declaringType(entry.subject())))) {
+                || cited.subject().toString().equals(declaringType(entry.subject()))
+                || (cited.subject().type().equals(Types.METHOD)
+                    && declaringType(cited.subject()).equals(declaringType(entry.subject()))))) {
           return "is used by " + basis.subject();
         }
       }

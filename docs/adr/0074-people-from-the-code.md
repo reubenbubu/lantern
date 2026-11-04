@@ -169,8 +169,14 @@ does not write the linker's types (as `GROUPS` under `CONTAINS`).
   - the unknowns page, which lists each unit's entry points.
 
   It is described as "Unknown: …", citing its lines.
-- **Checked apart:** a quality check re-derives, by a separate path, that every line cites only
-  entry points nothing reaches (`UnknownCallers.violations`). The scorecard lists the lines apart
+- **Reached without a name:** a link into the unit that names no entry point (an HTTP call
+  matched to the unit but no endpoint, a gateway's WebSocket route to several endpoints, a message
+  sent with no listener named) or a connection Investigate found into it leaves none of the unit's
+  entry points of that kind unreached: what it calls is not known.
+- **Checked again:** a quality check walks the facts by a second code path to confirm every line
+  cites only entry points of its own unit that nothing reaches (`UnknownCallers.violations`). It
+  uses the same notion of reaching, so it catches slips in the rule, not a kind of reaching both
+  leave out. The scorecard lists the lines apart
   and leaves them out of the element and connection scores, since it marks what the code cannot
   tell.
 
