@@ -69,6 +69,9 @@ public final class Findings implements LinkRule.OverFacts {
    */
   public static final String INJECTION_SUSPECTED = "injection-suspected";
 
+  /** A merge of two groups the Name groups role suggested and Lantern never applies (ADR 0107). */
+  public static final String GROUP_MERGE = "group-merge";
+
   /** The origin of the injection screen's findings (ADR 0101). */
   public static final Origin SCREEN_ORIGIN = new Origin(Origin.Kind.LLM, "injection-screen", "1");
 
@@ -485,6 +488,41 @@ public final class Findings implements LinkRule.OverFacts {
         .filter(f -> repo.equals(attribute(f, "repo")))
         .sorted(Comparator.comparing(f -> f.subject().toString()))
         .map(f -> new Injection(f, attribute(f, "lines"), attribute(f, "quote")))
+        .toList();
+  }
+
+  /** Every injection finding the model holds, by the subject it is about. */
+  public static List<Injection> injections(ArchitectureModel model) {
+    return of(model, INJECTION_SUSPECTED).stream()
+        .sorted(Comparator.comparing(f -> f.subject().toString()))
+        .map(f -> new Injection(f, attribute(f, "lines"), attribute(f, "quote")))
+        .toList();
+  }
+
+  /**
+   * Two groups the Name groups role suggested are one area (ADR 0107), which Lantern does not
+   * merge.
+   *
+   * @param fact the finding
+   * @param first the group of the pair whose key sorts first
+   * @param second the other group
+   * @param reason why the two look like one area, in the model's words
+   */
+  public record GroupMerge(Fact fact, EntityId first, EntityId second, String reason) {}
+
+  /** The merge suggestions the model holds, by the first group, then the second. */
+  public static List<GroupMerge> groupMerges(ArchitectureModel model) {
+    return of(model, GROUP_MERGE).stream()
+        .map(
+            f ->
+                new GroupMerge(
+                    f,
+                    EntityId.parse(attribute(f, "about")),
+                    EntityId.parse(attribute(f, "target")),
+                    attribute(f, "reason")))
+        .sorted(
+            Comparator.comparing(GroupMerge::first, ArchitectureModel.BY_ID)
+                .thenComparing(GroupMerge::second, ArchitectureModel.BY_ID))
         .toList();
   }
 

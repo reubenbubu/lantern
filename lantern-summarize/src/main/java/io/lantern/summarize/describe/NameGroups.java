@@ -103,7 +103,7 @@ public final class NameGroups {
   static final String SCHEMA = DescribeRole.prompt("name-groups.schema.json");
 
   /** The kind of finding a merge suggestion is. */
-  public static final String GROUP_MERGE = "group-merge";
+  public static final String GROUP_MERGE = Findings.GROUP_MERGE;
 
   /** The role. */
   public static final RoleSpec ROLE =
