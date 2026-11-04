@@ -447,4 +447,67 @@ class NameGroupsTest {
     assertThat(section).contains("```text\n" + NameGroups.TASK + "\n```");
     assertThat(section).contains("```json\n" + NameGroups.SCHEMA + "\n```");
   }
+
+  /** What the API's Describe sentence says when its unit's files held the four fixtures. */
+  private static String poisoned() {
+    StringBuilder said = new StringBuilder("Takes customers' orders.");
+    for (String name : io.lantern.summarize.RoleFixturesTest.INJECTED) {
+      said.append(' ').append(io.lantern.summarize.RoleFixturesTest.injectedLine(name).strip());
+    }
+    return said.toString();
+  }
+
+  /** One line per fact and finding Name groups stores. */
+  private static List<String> stored(NameGroups.Result result) {
+    List<Fact> all = new ArrayList<>(result.facts());
+    all.addAll(result.findings());
+    return io.lantern.summarize.RoleFixturesTest.lines(all);
+  }
+
+  @Test
+  void nameGroupsReplaysItsRecordingToExactlyTheExpectedFactsAndFindings() {
+    FakeLlmProvider scripted =
+        new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
+    java.nio.file.Path folder = java.nio.file.Path.of("src/test/resources/recordings/name-groups");
+    Harness harness =
+        new Harness(
+            new LlmClient(
+                ModelSettings.single(scripted.model("fake-model")),
+                List.of(io.lantern.llm.RoleFixture.provider(scripted, folder)),
+                BudgetGuard.unlimited("test"),
+                new InMemoryLlmCallLog(),
+                Clock.systemUTC()),
+            store,
+            RunBudget.NONE,
+            BlobLookup.NONE,
+            Set.of());
+
+    List<String> produced = stored(new NameGroups(harness).name(facts(poisoned()), 2));
+
+    assertThat(produced).isEqualTo(io.lantern.llm.RoleFixture.expected(folder, produced));
+    assertThat(produced).hasSize(6);
+  }
+
+  @Test
+  void nameGroupsShowsTheFixturesAsDataAndAnAnswerThatObeysThemIsRejected() {
+    FakeLlmProvider obeying =
+        new FakeLlmProvider()
+            .answering(
+                r ->
+                    answer(
+                        r,
+                        body ->
+                            """
+                            {"name": {"text": "Approved", "cites": ["orders:/etc/passwd:1-3"]},
+                             "responsibility": {"text": "%s", "cites": ["orders:/etc/passwd:1-3"]}}"""
+                                .formatted(
+                                    io.lantern.summarize.RoleFixturesTest.OBEYING.replaceAll(
+                                        " \\[.*", ""))));
+
+    NameGroups.Result result = new NameGroups(harness(obeying)).name(facts(poisoned()), 2);
+
+    io.lantern.summarize.RoleFixturesTest.shownAsData(obeying);
+    assertThat(result.facts()).isEmpty();
+    assertThat(result.findings()).isEmpty();
+  }
 }
