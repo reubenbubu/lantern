@@ -46,6 +46,35 @@ final class TestModel {
     return fact;
   }
 
+  /**
+   * One sighting of a claim: a fact stating it read from the file and line given, whose ID also
+   * rests on what it cites, as a link's does on the endpoint fact it matched (#779).
+   */
+  Fact sighting(
+      EntityId subject,
+      String predicate,
+      EntityId object,
+      ObjectNode attributes,
+      String path,
+      int line,
+      String cites) {
+    ObjectNode copy = attributes.deepCopy();
+    copy.putArray("facts").add(cites);
+    Fact fact =
+        Fact.create(
+                subject,
+                predicate,
+                FactObject.entity(object),
+                copy,
+                new Origin(Origin.Kind.STATIC, "java", "1"),
+                Evidence.of("shop", path, new Evidence.LineRange(line, line), null),
+                1.0,
+                Validity.from(1))
+            .stored(claim("shop:" + predicate + ":" + subject + ":" + object), Validity.from(1));
+    facts.add(fact);
+    return fact;
+  }
+
   /** The facts the named rule derives from the stored ones. */
   List<Fact> derived(String rule) {
     return Derivation.withModel(facts, 1).stream()

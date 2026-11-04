@@ -368,3 +368,22 @@ stored, so every rerun repeated them.
   object, the item is dropped for this run but not stored, as an answer cut off at its limit is
   not: the next run asks again. A drop for what the checks rejected in a readable answer is stored
   as before (#682).
+
+## Amendment (#779): a claim seen in several files is shown from the same one
+
+On project-3, a one-line comment in one file re-asked three items resting on other files. A link
+read in two files is one claim with two sightings, and each sighting's fact ID rests on the
+endpoint fact it matched. The comment gave that endpoint a new ID, so both sightings got new IDs,
+and the one with the lower ID was now the other file's. The derive rules read facts ordered by ID
+and cite the first of a claim's sightings, so a component line showed the claim from the other
+file, and a lead cited it, which changed the lead's content and so its claim ID. Each item showing
+them counted as changed.
+
+- **Facts are ordered by claim and place.** The knowledge the derive rules read
+  (`Knowledge.STABLE`) orders facts by claim ID, then by the repository, path and first line of
+  their evidence, and only then by fact ID; the component lines (`ComponentInteractions`) read the
+  links in that order too. Which sighting a rule cites now changes only when the sightings do.
+- **What an item shows is unchanged otherwise.** A claim input still names the file it is shown
+  from, so a change to that file still re-asks the item.
+- The scorecard's one-file change gate on project-3 now re-asks only the three items resting on the
+  changed file.

@@ -212,6 +212,66 @@ class LeadRulesTest {
   }
 
   @Test
+  void aLeadOnALinkSeenInTwoFilesIsTheSameWhenItsFactsGetNewIds() {
+    // A link read in two files cites the endpoint it matched; a change elsewhere gives that
+    // endpoint a new ID, and both sightings with it. Whichever sighting's ID is lower, the lead
+    // cites the same file and keeps its content, so its claim and its item stay as they were
+    // (#779).
+    List<String> order = flippingCites();
+    Fact before = singleInstanceLead(order.get(0));
+    Fact after = singleInstanceLead(order.get(1));
+
+    assertThat(after.attributes().get("content")).isEqualTo(before.attributes().get("content"));
+    assertThat(after.evidence()).isEqualTo(before.evidence());
+  }
+
+  /**
+   * Two values a sighting may cite, the first giving the sighting in {@code A.java} the lower ID
+   * and the second the one in {@code B.java}.
+   */
+  static List<String> flippingCites() {
+    String lower = null;
+    String higher = null;
+    for (int i = 0; lower == null || higher == null; i++) {
+      TestModel probe = new TestModel();
+      EntityId to = EntityId.parse("datastore:postgres:shop");
+      Fact a =
+          probe.sighting(UNIT, "USES_DATABASE", to, FactJson.newObject(), "A.java", 9, "e" + i);
+      Fact b =
+          probe.sighting(UNIT, "USES_DATABASE", to, FactJson.newObject(), "B.java", 3, "e" + i);
+      if (a.id().compareTo(b.id()) < 0) {
+        lower = lower == null ? "e" + i : lower;
+      } else {
+        higher = higher == null ? "e" + i : higher;
+      }
+    }
+    return List.of(lower, higher);
+  }
+
+  private static Fact singleInstanceLead(String cites) {
+    LeadRulesTest test = new LeadRulesTest();
+    test.shop();
+    test.billing();
+    EntityId database = EntityId.parse("datastore:postgres:shop");
+    Fact container =
+        test.model.add(
+            EntityId.parse("repo:infra"),
+            "deployment-container",
+            FactObject.string("postgres"),
+            FactJson.newObject(),
+            "infra");
+    ObjectNode in = FactJson.newObject();
+    in.put("fact", container.id());
+    test.model.add(database, "deployed-in", FactObject.string("postgres"), in);
+    test.model.sighting(UNIT, "USES_DATABASE", database, FactJson.newObject(), "B.java", 3, cites);
+    test.model.sighting(UNIT, "USES_DATABASE", database, FactJson.newObject(), "A.java", 9, cites);
+    test.model.add(OTHER, "USES_DATABASE", database);
+    List<Fact> found = test.leads("single-instance");
+    assertThat(found).hasSize(1);
+    return found.getFirst();
+  }
+
+  @Test
   void secretsWrittenInPlainText() {
     shop();
     ObjectNode masked = FactJson.newObject();
