@@ -225,5 +225,31 @@ class InvestigatedFindingsTest {
             .findFirst()
             .orElseThrow();
     assertThat(text(s3.description())).startsWith(InvestigatedFindings.FOUND_BY_LLM);
+    // It cites the connection that found it, so a renderer can mark it as the LLM's (#749).
+    assertThat(s3.facts()).contains(found.id());
+  }
+
+  @Test
+  void anElementItFoundStillCitesItsConnectionsOnceDescribeWordsIt() {
+    Fact found = connection();
+    facts.add(
+        Fact.create(
+            EntityId.parse("external-system:s3"),
+            Types.RESPONSIBILITY,
+            FactObject.string("c4"),
+            FactJson.newObject().put("text", "Keeps the exported orders."),
+            new Origin(Origin.Kind.LLM, "describe-element", "1"),
+            Evidence.of("shop", CONTROLLER, new Evidence.LineRange(3, 5), null),
+            1.0,
+            Validity.from(1)));
+
+    Document explorer = compose(ViewDefinition.perRepo("shop", "shop", TEMPLATE));
+
+    DocumentEntity s3 =
+        explorer.entities().stream()
+            .filter(e -> e.id().toString().equals("external-system:s3"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(s3.facts()).contains(found.id());
   }
 }
