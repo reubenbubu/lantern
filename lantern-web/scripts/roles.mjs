@@ -688,34 +688,57 @@ function categoryOf(fact) {
   return kind ? kind[1] : null;
 }
 
+/** A set's judgement file (testsets/<set>/judgements.json, #748), or null when it has none. */
+export function readJudgements(path) {
+  return path && existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : null;
+}
+
 /**
- * Investigate (#662): each risk it stored matches a reference risk of the answer key, or a decoy,
- * by subject element and category; one that matches several is the one whose words it shares
- * most. A risk with no category (one found exploring, without a lead) matches by subject and the
- * words of its title and finding against the entry's. A risk
- * that matches neither is unjudged: listed and counted, not wrong. TPR − FPR over the reference
- * risks and the decoys; precision over the judged risks only.
- *
- * @param subjectOf maps a Lantern entity ID to the reference element ID it matched, or null
- * @param overlap the subject-word overlap of two texts, 0 to 1
- * @param threshold the overlap at which two texts are about the same thing
+ * The key a judgement file names a drawn finding by (#748): its lead, which stays the same from run
+ * to run however the finding is worded, or for a finding without one (found exploring, or a fixed
+ * check's wording) its subject and title.
  */
-export function investigateRow(key, llm, subjectOf, overlap, threshold) {
-  if (!key) return notMeasured('the set has no answer key');
-  if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+export function findingKey(fact) {
+  const lead = fact.attributes?.lead;
+  if (lead) return String(lead);
+  return `${fact.subject} | ${fact.attributes?.title ?? ''}`;
+}
+
+/** The key a judgement file names a found connection by (#748): its two ends. */
+export function connectionKey(fact) {
+  return `${fact.subject} -> ${fact.object?.value ?? ''}`;
+}
+
+/** The verdicts of a judgement file's list, by key: true for right, false for wrong. */
+function verdicts(list) {
+  const byKey = new Map();
+  for (const j of list ?? []) {
+    if (j.verdict === 'right' || j.verdict === 'wrong') byKey.set(j.key, j.verdict === 'right');
+  }
+  return byKey;
+}
+
+/**
+ * Risks drawn by one kind of fact (#662, #748), each right, wrong or unjudged. A verdict in the
+ * set's judgement file decides first; without one, a finding matching a reference risk of the
+ * answer key (by subject element and category, the words deciding among several) is right, one
+ * matching a decoy wrong, and one matching neither unjudged: listed and counted. A risk with no
+ * category (one found exploring, without a lead) matches by subject and the words of its title and
+ * finding against the entry's. Precision is over every drawn finding that is judged, each counted
+ * once per finding, so a reference risk drawn three times counts three times; recall is over the
+ * reference risks, a judged-right finding counting for the risk its judgement names.
+ */
+function risksRow(key, facts, subjectOf, overlap, threshold, judged) {
   const risks = key.risks ?? [];
   const decoys = key.decoys ?? [];
-  if (risks.length === 0) return notMeasured('the answer key holds no risks');
-  const found = llm
-    .filter((f) => f.predicate === 'investigated-risk' || f.predicate === 'finding-wording')
-    .map((f) => {
-      const units = [...(f.attributes?.units ?? []), f.predicate === 'investigated-risk' ? f.subject : null]
-        .filter(Boolean)
-        .map(subjectOf)
-        .filter(Boolean);
-      const text = `${f.attributes?.title ?? ''}. ${f.attributes?.finding ?? ''}`;
-      return { fact: f, subjects: new Set(units), category: categoryOf(f), text, title: f.attributes?.title ?? f.subject };
-    });
+  const found = facts.map((f) => {
+    const units = [...(f.attributes?.units ?? []), f.predicate === 'investigated-risk' ? f.subject : null]
+      .filter(Boolean)
+      .map(subjectOf)
+      .filter(Boolean);
+    const text = `${f.attributes?.title ?? ''}. ${f.attributes?.finding ?? ''}`;
+    return { fact: f, key: findingKey(f), subjects: new Set(units), category: categoryOf(f), text, title: f.attributes?.title ?? f.subject };
+  });
   const words = (entry) =>
     `${entry.reference ?? ''} ${entry.looksLike ?? ''} ${entry.how ?? ''} ${(entry.names ?? []).join(' ')}`;
   const matches = (entry, risk) => {
@@ -735,19 +758,37 @@ export function investigateRow(key, llm, subjectOf, overlap, threshold) {
       .map((c) => ({ ...c, score: overlap(words(c.e), risk.text) }))
       .sort((a, b) => b.score - a.score || (a.kind === 'risk' ? -1 : 1) - (b.kind === 'risk' ? -1 : 1))[0];
   };
+  const verdictOf = verdicts(judged?.findings);
+  const namedRisk = new Map((judged?.findings ?? []).filter((j) => j.reference).map((j) => [j.key, j.reference]));
   const hit = new Set();
   const decoyHit = new Set();
   const unjudged = [];
+  let right = 0;
+  let wrong = 0;
+  let byJudgement = 0;
   for (const risk of found) {
     const match = best(risk);
-    if (match === null) {
-      unjudged.push(risk.title);
+    if (verdictOf.has(risk.key)) {
+      byJudgement++;
+      if (verdictOf.get(risk.key)) {
+        right++;
+        const i = risks.findIndex((e) => e.id === namedRisk.get(risk.key));
+        if (i >= 0) hit.add(i);
+        else if (match?.kind === 'risk') hit.add(match.i);
+      } else {
+        wrong++;
+        if (match?.kind === 'decoy') decoyHit.add(match.i);
+      }
       continue;
     }
-    if (match.kind === 'risk') {
+    if (match === null) {
+      unjudged.push(risk.title);
+    } else if (match.kind === 'risk') {
       hit.add(match.i);
+      right++;
     } else {
       decoyHit.add(match.i);
+      wrong++;
     }
   }
   const scores = {};
@@ -767,13 +808,112 @@ export function investigateRow(key, llm, subjectOf, overlap, threshold) {
     decoys: decoys.length,
     matched: hit.size,
     decoysFlagged: decoyHit.size,
+    right,
+    wrong,
+    byJudgement,
     recall: tpr,
-    // Over the judged entries, each once: repeats of one risk do not count twice.
-    precision: ratio(hit.size, hit.size + decoyHit.size),
+    // Over every drawn finding that is judged, each counted as often as it is drawn (#748).
+    precision: ratio(right, right + wrong),
     tprMinusFpr: tpr === null || fpr === null ? null : tpr - fpr,
     unjudged,
     missing: risks.filter((_, i) => !hit.has(i)).map((e) => e.reference),
     scores,
+  };
+}
+
+/**
+ * Investigate (#662, #748): the risks it drew itself (`investigated-risk`), each right, wrong or
+ * unjudged (risksRow). TPR − FPR over the reference risks and the decoys. A fixed check's finding
+ * that Investigate only worded is counted in its own row (fixedCheckRow), not here.
+ *
+ * @param subjectOf maps a Lantern entity ID to the reference element ID it matched, or null
+ * @param overlap the subject-word overlap of two texts, 0 to 1
+ * @param threshold the overlap at which two texts are about the same thing
+ * @param judged the set's judgement file, or null
+ */
+export function investigateRow(key, llm, subjectOf, overlap, threshold, judged = null) {
+  if (!key) return notMeasured('the set has no answer key');
+  if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+  if ((key.risks ?? []).length === 0) return notMeasured('the answer key holds no risks');
+  return risksRow(key, llm.filter((f) => f.predicate === 'investigated-risk'), subjectOf, overlap, threshold, judged);
+}
+
+/**
+ * The fixed checks' findings Investigate worded (`finding-wording`, #748), scored as its own risks
+ * are (risksRow), in a row of their own: the finding is the check's, only its words Investigate's.
+ */
+export function fixedCheckRow(key, llm, subjectOf, overlap, threshold, judged = null) {
+  if (!key) return notMeasured('the set has no answer key');
+  if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+  if ((key.risks ?? []).length === 0) return notMeasured('the answer key holds no risks');
+  return risksRow(key, llm.filter((f) => f.predicate === 'finding-wording'), subjectOf, overlap, threshold, judged);
+}
+
+/**
+ * Investigate's found connections (`INVESTIGATED_CONNECTION`, #748), scored by their two ends: a
+ * verdict in the set's judgement file decides first; without one, a connection whose ends are two
+ * reference elements that the reference connects, in either direction (the model reads which way a
+ * connection goes), is right, and any other is unjudged: listed and counted.
+ *
+ * @param refConnections the reference's container connections, `<from> -> <to>` of its element IDs
+ * @param subjectOf maps a Lantern entity ID to the reference element ID it matched, or null
+ * @param judged the set's judgement file, or null
+ */
+export function connectionsRow(llm, refConnections, subjectOf, judged = null) {
+  if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+  const reference = new Set(refConnections);
+  const verdictOf = verdicts(judged?.connections);
+  const found = llm.filter((f) => f.predicate === 'INVESTIGATED_CONNECTION' && f.object?.kind === 'entity');
+  const matched = new Set();
+  const unjudged = [];
+  let right = 0;
+  let wrong = 0;
+  for (const f of found) {
+    const key = connectionKey(f);
+    const from = subjectOf(f.subject);
+    const to = subjectOf(f.object.value);
+    const line = [`${from} -> ${to}`, `${to} -> ${from}`].find((l) => reference.has(l));
+    if (verdictOf.has(key)) {
+      if (verdictOf.get(key)) {
+        right++;
+        if (line) matched.add(line);
+      } else {
+        wrong++;
+      }
+    } else if (from && to && line) {
+      right++;
+      matched.add(line);
+    } else {
+      unjudged.push(key);
+    }
+  }
+  return {
+    measured: true,
+    found: found.length,
+    reference: reference.size,
+    matched: matched.size,
+    right,
+    wrong,
+    precision: ratio(right, right + wrong),
+    unjudged,
+  };
+}
+
+/**
+ * The spread of Investigate between two runs of one set (#748): each run's recall and precision
+ * and how far apart they are, in points.
+ */
+export function investigateSpread(a, b) {
+  const ia = a?.scores?.roles?.investigate;
+  const ib = b?.scores?.roles?.investigate;
+  if (!ia?.measured || !ib?.measured) return notMeasured('a run has no Investigate row');
+  const points = (x, y) => (x === null || y === null ? null : Math.round(Math.abs(x - y) * 1000) / 10);
+  return {
+    measured: true,
+    recall: [ia.recall, ib.recall],
+    precision: [ia.precision, ib.precision],
+    recallSpread: points(ia.recall, ib.recall),
+    precisionSpread: points(ia.precision, ib.precision),
   };
 }
 
