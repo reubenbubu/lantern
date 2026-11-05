@@ -168,7 +168,10 @@ exchange gets its own lifeline rather than one broker lifeline. A note such as "
 asynchronously" follows an async handoff, because neither Mermaid nor PlantUML can show time gaps
 ([Mermaid](https://mermaid.js.org/syntax/sequenceDiagram.html)). `alt` or `opt` fragments are used
 only for architecturally meaningful branches, such as failure plus compensation. Each diagram has a
-title naming the scenario and its trigger, and two to four sentences of prose.
+title naming who starts the scenario and what they achieve, in 3 to 8 plain words a reader of the
+report would use ("Customer places an order", not "POST /orders flow"): no class, method or endpoint
+names, and no "flow" or "process" (owner's decision of 5 Nov 2026, #770). Two to four sentences of
+prose follow it.
 
 ## Words say what the diagram cannot, and nothing false
 
@@ -255,7 +258,7 @@ LLM found is marked as such.
 | Component | Scope is one container. Components are anchored on entry points, with the code only they reach; code several entry points share is its own component. Each carries a technology (e.g. "Spring MVC controller") and a job. Domain, DTO, mapper, configuration and util classes are left out. Edges leaving the container carry a protocol. Packages never decide a component on their own. Drawn only when it adds value: more than one component, and not a repeat of the container diagram. |
 | Code | Not drawn in the C4 report for now. |
 | Landscape | All analysed systems and their people, with no internals. Edges are aggregated from container-level facts. |
-| Dynamic / sequence | Names one scenario and its trigger. Participants are all from one C4 level and reuse the static diagrams' names. Only boundary-crossing messages appear. Labels put intent first and protocol second. Sync and async arrows are distinct, with a lifeline per queue or exchange. Returns appear only when meaningful. At most one level of fragments. Two to four sentences of prose. The set holds every architecturally meaningful flow and no others, however many that is, and no two of the same shape. |
+| Dynamic / sequence | Its title names who starts the scenario and what they achieve, in 3 to 8 plain words, with no class, method or endpoint names (Sequence diagrams). Participants are all from one C4 level and reuse the static diagrams' names. Only boundary-crossing messages appear. Labels put intent first and protocol second. Sync and async arrows are distinct, with a lifeline per queue or exchange. Returns appear only when meaningful. At most one level of fragments. Two to four sentences of prose. The set holds every architecturally meaningful flow and no others, however many that is, and no two of the same shape. |
 | Deployment | Drawn only from real descriptors (Dockerfile, compose, Helm, manifests), one environment per diagram. Otherwise omitted with a note. |
 
 | Document | Passes only if |
