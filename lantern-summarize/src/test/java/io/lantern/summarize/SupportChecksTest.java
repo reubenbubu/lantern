@@ -88,6 +88,38 @@ class SupportChecksTest {
   private final Fact flaggedCode = fact("type:shop.Evil", "kind", "class", "src/Evil.java", 10, 12);
 
   @Test
+  void theSameHeldFactsInReverseOrderMakeTheSameRequests() {
+    List<Fact> held = new ArrayList<>(List.of(code, flaggedCode));
+    for (String role : List.of("describe-element", "summarize", "describe-unit")) {
+      for (int i = 0; i < 40; i++) {
+        held.add(text(role, role + " text " + i + " does it", i % 2 == 0 ? code : flaggedCode));
+      }
+    }
+    held.add(risk("Orders trust a wrong header", "shop:src/B.java:3-4"));
+    List<Fact> reversed = new ArrayList<>(held);
+    java.util.Collections.reverse(reversed);
+    SupportChecksTest other = new SupportChecksTest();
+
+    new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(), 1);
+    new SupportChecks(other.harness, other.files, Map.of("shop", "c1"))
+        .judge(reversed, List.of(), 1);
+
+    // Byte for byte, whatever order the held facts come in (#769).
+    java.util.function.Function<FakeLlmProvider, List<String>> sent =
+        f ->
+            f.sent().stream()
+                .map(
+                    x ->
+                        x.request().purpose()
+                            + "\n"
+                            + x.request().system()
+                            + "\n"
+                            + x.request().messages())
+                .toList();
+    assertThat(sent.apply(other.fake)).isEqualTo(sent.apply(fake)).isNotEmpty();
+  }
+
+  @Test
   void everyRiskAndEveryTextOnAFlaggedRangeIsJudgedAndOfTheRestOnlyTheSample() {
     List<Fact> held = new ArrayList<>(List.of(code, flaggedCode));
     List<Fact> texts = new ArrayList<>();

@@ -122,6 +122,33 @@ class RoleFixturesTest {
   }
 
   @Test
+  void theScreenMakesTheSameRequestsWhateverTheOrderOfItsChunks() {
+    FakeLlmProvider one = new FakeLlmProvider().answering(RoleFixturesTest::screening);
+    FakeLlmProvider two = new FakeLlmProvider().answering(RoleFixturesTest::screening);
+    List<InjectionScreen.Chunk> chunks = InjectionScreen.chunks(injected());
+    List<InjectionScreen.Chunk> reversed = new ArrayList<>(chunks);
+    java.util.Collections.reverse(reversed);
+
+    new InjectionScreen(harness(client(one), new InMemoryAnswerStore())).screen(chunks);
+    new InjectionScreen(harness(client(two), new InMemoryAnswerStore())).screen(reversed);
+
+    // Byte for byte, whatever order the files' chunks come in (#769).
+    java.util.function.Function<FakeLlmProvider, List<String>> sent =
+        f ->
+            f.sent().stream()
+                .map(
+                    x ->
+                        x.request().purpose()
+                            + "\n"
+                            + x.request().system()
+                            + "\n"
+                            + x.request().messages())
+                .toList();
+    assertThat(chunks).hasSizeGreaterThan(1);
+    assertThat(sent.apply(two)).isEqualTo(sent.apply(one)).isNotEmpty();
+  }
+
+  @Test
   void theScreenShowsTheFixturesAsDataAndAQuoteThatObeysThemFindsNothing() {
     // A model that obeys: it writes what the fixtures ask for instead of quoting them.
     FakeLlmProvider obeying =
