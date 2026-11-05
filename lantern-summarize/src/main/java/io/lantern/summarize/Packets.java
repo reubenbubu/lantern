@@ -44,6 +44,9 @@ final class Packets implements Packing {
   /** A reference as an answer cites it. */
   private static final Pattern CITED = Pattern.compile("([FES])(\\d+)");
 
+  private static final Pattern RANGE =
+      Pattern.compile("([FES])(\\d+)\\s*[-\u2013\u2014]\\s*([FES]?)(\\d+)");
+
   /** An item's table in a packed answer, which an answer that is not one document is cut at. */
   private static final Pattern ANSWERED = Pattern.compile("(?m)^[ \\t]*\\[(I\\d+)\\][ \\t]*$");
 
@@ -159,19 +162,43 @@ final class Packets implements Packing {
 
   /**
    * A reference of the packet as the item's own request numbers it; one that is not the item's is
-   * kept as written and marked, so the checks reject it as one the item does not show.
+   * kept as written and marked, so the checks reject it as one the item does not show. Brackets
+   * around a reference are dropped, a range such as {@code F17-F18} is renumbered at both ends, and
+   * a cite that names a reference in a form not read here is marked too, never left in the packet's
+   * numbering, where it would name another item's fact.
    */
-  private static String local(
+  static String local(
       String cite, Map<Character, Integer> offsets, Map<Character, Integer> counts) {
-    Matcher m = CITED.matcher(cite.strip());
-    if (!m.matches()) {
-      return cite;
+    String bare = cite.replaceAll("[\\[\\]]", "").strip();
+    Matcher range = RANGE.matcher(bare);
+    if (range.matches()) {
+      char letter = range.group(1).charAt(0);
+      String to = range.group(3).isEmpty() ? range.group(1) : range.group(3);
+      if (to.charAt(0) == letter) {
+        String from = own(letter, range.group(2), offsets, counts);
+        String last = own(letter, range.group(4), offsets, counts);
+        if (from != null && last != null) {
+          return from + "-" + last;
+        }
+      }
+      return bare + " (another item's)";
     }
-    char letter = m.group(1).charAt(0);
-    int local = Integer.parseInt(m.group(2)) - offsets.getOrDefault(letter, 0);
+    Matcher m = CITED.matcher(bare);
+    if (m.matches()) {
+      String own = own(m.group(1).charAt(0), m.group(2), offsets, counts);
+      return own != null ? own : bare + " (another item's)";
+    }
+    // No reference in it at all: the checks reject it as written.
+    return CITED.matcher(bare).find() ? bare + " (another item's)" : cite;
+  }
+
+  /** The item's own number of a reference of the packet, or null when it is another item's. */
+  private static String own(
+      char letter, String number, Map<Character, Integer> offsets, Map<Character, Integer> counts) {
+    int local = Integer.parseInt(number) - offsets.getOrDefault(letter, 0);
     return local >= 1 && local <= counts.getOrDefault(letter, 0)
         ? letter + Integer.toString(local)
-        : cite.strip() + " (another item's)";
+        : null;
   }
 
   /**

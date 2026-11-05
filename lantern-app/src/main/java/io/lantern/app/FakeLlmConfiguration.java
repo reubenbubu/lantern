@@ -151,14 +151,26 @@ class FakeLlmConfiguration {
     if (child.find()) {
       sentences.add(sentence(id, fromParts, child.group(1)));
     }
+    // The first fact by number, else the first code excerpt or other reference: lean facts are
+    // listed by file and subject (#873), so the first in the text need not be the first fact.
     Matcher ref = SUMMARY_REF.matcher(prompt);
+    String first = null;
     while (ref.find()) {
       String found =
           ref.group(1) != null ? ref.group(1) : ref.group(2) != null ? ref.group(2) : ref.group(3);
-      if (!found.startsWith("S")) {
-        sentences.add(sentence(id, fromFacts, found));
-        break;
+      if (found.startsWith("S")) {
+        continue;
       }
+      if (first == null
+          || (found.startsWith("F")
+              && (!first.startsWith("F")
+                  || Integer.parseInt(found.substring(1))
+                      < Integer.parseInt(first.substring(1))))) {
+        first = found;
+      }
+    }
+    if (first != null) {
+      sentences.add(sentence(id, fromFacts, first));
     }
     // In TOML, as the role asks since #872.
     if (sentences.isEmpty()) {

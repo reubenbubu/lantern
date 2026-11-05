@@ -107,4 +107,9 @@ This ADR's word limits and margins now live in the role's response contract, `pr
   counting input only: the system prompt and, for a retry, the rejected answer and the retry message;
   thinking is not sent back. A source file larger than a part may show is cut into consecutive line
   ranges, each its own code table under the same reference and lines, so a very large class is
-  summarized in parts, each under the ceiling, and merged.
+  summarized in parts, each under the ceiling, and merged. A single line is never cut, so one line
+  longer than a part may show (generated or minified code) can still exceed the ceiling; that case
+  is left until a test set shows it.
+- A cite written in brackets (`[F17]`) or as a range (`F17-F18`) is renumbered as a plain one, both
+  ends of a range; a range that reaches another item's references, or a cite in a form not read,
+  is marked as another item's.

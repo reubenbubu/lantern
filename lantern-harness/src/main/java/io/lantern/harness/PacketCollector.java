@@ -178,7 +178,19 @@ final class PacketCollector {
     return (long) Math.ceil(tokens * tokenScale);
   }
 
+  /**
+   * Sends a packet; whatever goes wrong, every item it held is answered, by null where nothing else
+   * answered it, so no caller waits for ever.
+   */
   private void send(List<Pending> packet) {
+    try {
+      sendPacked(packet);
+    } finally {
+      packet.forEach(p -> p.result().complete(null));
+    }
+  }
+
+  private void sendPacked(List<Pending> packet) {
     if (packet.size() == 1) {
       packet.getFirst().result().complete(null);
       return;

@@ -96,6 +96,20 @@ class PacketsTest {
   }
 
   @Test
+  void bracketedAndRangeCitesAreRenumberedOrMarked() {
+    java.util.Map<Character, Integer> offsets = java.util.Map.of('F', 10);
+    java.util.Map<Character, Integer> counts = java.util.Map.of('F', 5);
+
+    assertThat(Packets.local("[F12]", offsets, counts)).isEqualTo("F2");
+    assertThat(Packets.local("F11-F13", offsets, counts)).isEqualTo("F1-F3");
+    assertThat(Packets.local("F11-13", offsets, counts)).isEqualTo("F1-F3");
+    // A range reaching into another item's facts, or one not read here, is marked.
+    assertThat(Packets.local("F14-F16", offsets, counts)).isEqualTo("F14-F16 (another item's)");
+    assertThat(Packets.local("F12, F13", offsets, counts)).isEqualTo("F12, F13 (another item's)");
+    assertThat(Packets.local("the class", offsets, counts)).isEqualTo("the class");
+  }
+
+  @Test
   void anItemLeftOutOrUnreadableIsAskedAlone() {
     String broken =
         """

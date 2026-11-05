@@ -443,7 +443,9 @@ join their first requests into packed requests (`PacketCollector`), once the har
   the call. An item the answer leaves out, or whose part cannot be read, or the last item of an
   answer cut off at its limit, is asked again alone; every item of a packet whose call fails is
   too. A repair turn is never packed: it goes alone with only its own item's conversation, so a
-  failed item never resends the others.
+  failed item never resends the others. A packed answer is read as each role's packing reads it
+  (Summarize's, TOML); a role that answers in JSON is not packed. Whatever fails while a packet is
+  sent, its items are answered by asking alone, never left waiting.
 - The harness's `promptCeiling()` gives roles the same ceiling, so a unit too large for it is
   split in parts under it rather than sent past the provider's price tier.
 - A role that batches does not pack.
