@@ -2705,7 +2705,8 @@ class DescriberTest {
                 client(two), new InMemoryAnswerStore(), RunBudget.NONE, BlobLookup.NONE, Set.of()))
         .describe(shuffled);
 
-    // Purpose, the flow roles and the group naming as well as Describe (#769).
+    // Purpose, the flow roles and the support judge as well as Describe (#769); Name groups has its
+    // own test (NameGroupsTest).
     Function<FakeLlmProvider, List<String>> requests =
         fake ->
             fake.sent().stream()

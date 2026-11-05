@@ -294,10 +294,15 @@ class InvestigatorTest {
   private io.lantern.harness.Harness.Calibration harnessCalibration;
 
   private Investigator.Result investigate(LlmClient client) {
+    return investigate(client, store);
+  }
+
+  private Investigator.Result investigate(
+      LlmClient client, io.lantern.harness.AnswerStore answers) {
     harness =
         new Harness(
             client,
-            store,
+            answers,
             RunBudget.NONE,
             (repo, path) -> FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
             Set.of());
@@ -1397,6 +1402,57 @@ class InvestigatorTest {
     } finally {
       TEXTS.put(key, before);
     }
+  }
+
+  @Test
+  void aRiskWordedAnewAsksTheSystemAgainAndNothingElse() {
+    headerLead();
+    investigate(submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null));
+    // The lead is asked again, as when a file it read changed, and its risk worded anew.
+    io.lantern.harness.AnswerStore hidingLead =
+        new io.lantern.harness.AnswerStore() {
+          @Override
+          public java.util.Optional<io.lantern.harness.StoredAnswer> find(String fingerprint) {
+            return store.find(fingerprint).filter(a -> !a.role().equals(Investigator.LEADS.name()));
+          }
+
+          @Override
+          public java.util.Optional<io.lantern.harness.StoredAnswer> latest(
+              String role, String subject) {
+            return store.latest(role, subject);
+          }
+
+          @Override
+          public void save(io.lantern.harness.StoredAnswer answer) {
+            store.save(answer);
+          }
+        };
+    String reworded =
+        CONFIRMED.replace(
+            "Files trust the caller's user header", "Files trust the user header the caller sends");
+    FakeLlmProvider again = submitting(r -> leads(r) && turn(r) == 1 ? reworded : null);
+
+    investigate(client(again), hidingLead);
+
+    // Exactly what shows the risk is asked again: the lead's own conversation, the exploration of
+    // the files unit, which is shown every lead checked on it (#747), and the system, shown the
+    // units' risks; not the gateway, which shows no lead (#769).
+    assertThat(
+            again.sent().stream()
+                .map(c -> c.request())
+                .filter(r -> turn(r) == 1)
+                .map(
+                    r ->
+                        leads(r)
+                            ? "leads"
+                            : unit(r, FILES_UNIT)
+                                ? FILES_UNIT
+                                : unit(r, GATEWAY_UNIT)
+                                    ? GATEWAY_UNIT
+                                    : r.messages().getFirst().text().contains("The whole system")
+                                        ? "system"
+                                        : "other"))
+        .containsExactly("leads", FILES_UNIT, "system");
   }
 
   @Test

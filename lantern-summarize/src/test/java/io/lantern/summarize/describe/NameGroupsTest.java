@@ -412,6 +412,47 @@ class NameGroupsTest {
   }
 
   @Test
+  void aRewordedResponsibilityAsksAgainOnlyTheGroupThatShowsIt() {
+    FakeLlmProvider first = new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
+    new NameGroups(harness(first)).name(facts(), 2);
+
+    // Describe words the orders API's responsibility anew; billing's members are untouched.
+    FakeLlmProvider again = new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
+    new NameGroups(harness(again)).name(facts("Takes and tracks customers' orders."), 3);
+
+    // Exactly the orders group is asked again, alone (#769).
+    assertThat(again.sent())
+        .extracting(s -> s.request().purpose())
+        .containsExactly("name-groups 1 items: " + ORDERS);
+  }
+
+  @Test
+  void theSameFactsInReverseOrderMakeTheSameRequests() {
+    FakeLlmProvider one = new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
+    FakeLlmProvider two = new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
+    List<Fact> reversed = new ArrayList<>(facts());
+    java.util.Collections.reverse(reversed);
+
+    new NameGroups(harnessOf(one)).name(facts(), 2);
+    // A fresh answer store, so the second run asks too.
+    new NameGroups(new NameGroupsTest().harnessOf(two)).name(reversed, 2);
+
+    // Byte for byte, whatever order the facts come in (#769).
+    Function<FakeLlmProvider, List<String>> requests =
+        fake ->
+            fake.sent().stream()
+                .map(
+                    s ->
+                        s.request().purpose()
+                            + "\n"
+                            + s.request().system()
+                            + "\n"
+                            + s.request().messages())
+                .toList();
+    assertThat(requests.apply(two)).isEqualTo(requests.apply(one)).isNotEmpty();
+  }
+
+  @Test
   void anExhaustedBudgetLeavesTheGroupsUnnamedWithoutFailingAndALaterRunAsks() {
     FakeLlmProvider fake = new FakeLlmProvider().answering(r -> answer(r, NameGroupsTest::good));
 

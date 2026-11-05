@@ -299,8 +299,9 @@ class EndToEndIT {
    * The harness's gate (knowledge-build epic, section 13; ADR 0100) on a fixture of its own, so it
    * runs where project-0 is not set up (#769): a one-file change asks again only items that rest on
    * that file, or show an earlier answer that changed, and a rerun of the changed commit asks none.
-   * The fixture summarizes its modules and itself; the change is to its README, which only the
-   * repository's summary shows.
+   * The fixture summarizes its modules and itself. A change to its README asks again exactly the
+   * repository's summary and the system's purpose, which show its claims; a change to a Javadoc
+   * line no item shows asks nothing.
    */
   @Test
   void aOneFileChangeAsksAgainOnlyTheItemsRestingOnThatFile() throws IOException {
@@ -312,12 +313,45 @@ class EndToEndIT {
     run.run("gate", null, Map.of("gate-shop", repo));
     assertThat(fake.sent()).as("calls of an unchanged rerun").hasSize(sent);
 
-    // The README's claims are shown to the repository's summary only.
-    String path = "README.md";
-    git.commit(path, "# Gate shop\n\nThe shop charges one price for every product.\n");
+    // The README's claims are shown to the repository's summary only: exactly what is asked again
+    // (knowledge-build epic, section 13).
+    String readme = "README.md";
+    git.commit(readme, "# Gate shop\n\nThe shop charges one price for every product.\n");
     AnalysisRun.Result changed = run.run("gate", null, Map.of("gate-shop", repo));
+    assertThat(askedAgain(changed, readme)).containsExactlyInAnyOrder(README_ASKS);
 
-    JsonNode record = JsonMapper.builder().build().readTree(Files.readString(changed.runRecord()));
+    int afterChange = fake.sent().size();
+    run.run("gate", null, Map.of("gate-shop", repo));
+    assertThat(fake.sent()).as("calls of a rerun of the changed commit").hasSize(afterChange);
+
+    // One line of a Java file that no item shows and no fact rests on (the fixture summarizes no
+    // type; its modules' summaries show facts, not source): nothing is asked again.
+    String java = "core/src/main/java/com/example/shop/core/FixedPriceService.java";
+    String text = Files.readString(repo.resolve(java));
+    git.commit(
+        java,
+        text.replace(
+            "/** Charges the same price for every product. */",
+            "/** Charges one fixed price for every product. */"));
+    AnalysisRun.Result javaChanged = run.run("gate", null, Map.of("gate-shop", repo));
+    assertThat(askedAgain(javaChanged, java)).isEmpty();
+  }
+
+  /**
+   * What a README change asks again, as role and subject: the repository's summary and the system's
+   * purpose, the two items shown its claims.
+   */
+  private static final String[] README_ASKS = {
+    "summarize repo:gate-shop", "purpose system:snapshot"
+  };
+
+  /**
+   * The items a run asked again, as role and subject, each for the changed file or an earlier
+   * answer that changed, and for nothing else (no new item, prompt or model).
+   */
+  private static List<String> askedAgain(AnalysisRun.Result result, String path)
+      throws IOException {
+    JsonNode record = JsonMapper.builder().build().readTree(Files.readString(result.runRecord()));
     List<String> asked = new ArrayList<>();
     record
         .get("harness")
@@ -348,13 +382,7 @@ class EndToEndIT {
                         assertThat(files).as(item).isSubsetOf("gate-shop:" + path);
                       });
             });
-    assertThat(asked)
-        .contains("summarize repo:gate-shop")
-        .noneMatch(item -> item.startsWith("summarize module:"));
-
-    int afterChange = fake.sent().size();
-    run.run("gate", null, Map.of("gate-shop", repo));
-    assertThat(fake.sent()).as("calls of a rerun of the changed commit").hasSize(afterChange);
+    return asked;
   }
 
   @Test
