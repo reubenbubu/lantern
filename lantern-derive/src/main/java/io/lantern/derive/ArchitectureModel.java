@@ -400,6 +400,15 @@ public final class ArchitectureModel {
   }
 
   /**
+   * The intent Describe stored for a container line that merges links whose intents differ (ADR
+   * 0103, amendment for #810), or empty.
+   */
+  public Optional<Text> lineIntent(EntityId from, EntityId to, String relationship) {
+    return Optional.ofNullable(intents.get(MergedLines.key(from, to, relationship)))
+        .map(ArchitectureModel::text);
+  }
+
+  /**
    * The intent phrase of a person's use of a frontend (ADR 0103): stored under the person's basis
    * and the frontend, since one basis stands for every frontend the person uses.
    */

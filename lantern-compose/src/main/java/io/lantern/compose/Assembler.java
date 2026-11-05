@@ -447,6 +447,14 @@ final class Assembler {
     return phrased(model.intent(link).orElse(null));
   }
 
+  /**
+   * The intent Describe stored for a container line that merges links whose intents differ, or
+   * {@code null} (ADR 0103, amendment for #810).
+   */
+  Phrased linePhrase(EntityId from, EntityId to, String relationship) {
+    return phrased(model.lineIntent(from, to, relationship).orElse(null));
+  }
+
   /** The intent Describe stored for a person's use of a frontend, or {@code null} (#739). */
   Phrased personPhrase(Fact basis, EntityId frontend) {
     return phrased(model.personIntent(basis, frontend).orElse(null));

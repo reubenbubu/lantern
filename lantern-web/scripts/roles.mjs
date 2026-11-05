@@ -486,8 +486,20 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
       }
     }
   }
+  // A container line that merges links whose intents differ is worded as a whole (ADR 0103,
+  // amendment for #810), its intent stored under `<from>|<to>|<relationship>`: such a line has an
+  // intent of its own only when it reads that intent, not one of its links'.
+  const lineIntents = [];
+  for (const f of llm) {
+    const key = String(f.object?.value ?? '');
+    if (f.predicate !== 'intent' || f.origin?.name !== 'describe-element' || !key.includes('|')) continue;
+    const [from, to] = key.split('|');
+    lineIntents.push({ from: drawnIds(from), to: drawnIds(to), text: label(f.attributes?.text) });
+  }
   const ownLink = (r) => {
     const text = label(r.label);
+    const whole = lineIntents.filter((l) => l.from.includes(r.from) && l.to.includes(r.to));
+    if (whole.length > 0) return whole.some((l) => l.text === text);
     return worded.some((w) =>
       !w.texts.has(text)
         ? false

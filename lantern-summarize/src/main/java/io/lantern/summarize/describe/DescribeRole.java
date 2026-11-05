@@ -54,7 +54,7 @@ public final class DescribeRole {
   static final String UNIT_VERSION = "8";
 
   /** The prompt version of the element role. */
-  static final String ELEMENT_VERSION = "8";
+  static final String ELEMENT_VERSION = "9";
 
   /** The most words of a unit's or component's responsibility sentence (its contract). */
   static final io.lantern.harness.Contract.Range SENTENCE_WORDS =
@@ -63,6 +63,13 @@ public final class DescribeRole {
   /** The most words of an element's responsibility sentence (its contract). */
   static final io.lantern.harness.Contract.Range ELEMENT_SENTENCE_WORDS =
       io.lantern.harness.Contract.of("describe-elements").acceptedWords("responsibility");
+
+  /**
+   * The most words of a merged line's intent phrase (its contract), in the answer field named as
+   * the predicate it is stored under, {@link Types#INTENT} (ADR 0103, amendment for #810).
+   */
+  static final io.lantern.harness.Contract.Range LINE_WORDS =
+      io.lantern.harness.Contract.of("describe-elements").acceptedWords(Types.INTENT);
 
   /** The most words of an intent phrase (its contract). */
   static final io.lantern.harness.Contract.Range PHRASE_WORDS =
@@ -158,17 +165,21 @@ public final class DescribeRole {
 
   private DescribeRole() {}
 
-  /** Whether an item is about a unit or an element. */
+  /**
+   * Whether an item is about a unit, an element, or a container line that merges links whose
+   * intents differ (ADR 0103, amendment for #810).
+   */
   enum Kind {
     UNIT,
-    ELEMENT
+    ELEMENT,
+    LINE
   }
 
   /**
    * What an item's references stand for, beside its harness item.
    *
-   * @param kind whether it is a unit item or an element item
-   * @param element the unit or element it is about
+   * @param kind whether it is a unit item, an element item or a line item
+   * @param element the unit or element it is about; for a line, the unit or frontend it leaves
    * @param name the element's name, which its responsibility must not restate
    * @param asksUnit whether it asks for the unit's own sentence: a unit split into several items
    *     asks it in the first only
@@ -236,6 +247,10 @@ public final class DescribeRole {
         return List.of();
       }
       List<String> result = new ArrayList<>();
+      if (described.kind() == Kind.LINE) {
+        result.add(Types.INTENT);
+        return result;
+      }
       if (described.kind() != Kind.UNIT) {
         result.add(RESPONSIBILITY_FIELD);
         return result;
@@ -298,10 +313,12 @@ public final class DescribeRole {
       for (Item item : packet) {
         Described described = described(item);
         tokens +=
-            described.kind() == Kind.ELEMENT
-                ? ELEMENT_OUTPUT_TOKENS
-                : SENTENCE_OUTPUT_TOKENS * (1 + described.components().size())
-                    + PHRASE_OUTPUT_TOKENS * described.interactions().size();
+            described.kind() == Kind.LINE
+                ? PHRASE_OUTPUT_TOKENS
+                : described.kind() == Kind.ELEMENT
+                    ? ELEMENT_OUTPUT_TOKENS
+                    : SENTENCE_OUTPUT_TOKENS * (1 + described.components().size())
+                        + PHRASE_OUTPUT_TOKENS * described.interactions().size();
       }
       return Math.max(MIN_OUTPUT_TOKENS, tokens);
     }
@@ -323,7 +340,7 @@ public final class DescribeRole {
       return new CheckInputs(
           schema,
           references,
-          kind == Kind.ELEMENT ? ELEMENT_CITABLE : UNIT_CITABLE,
+          kind == Kind.UNIT ? UNIT_CITABLE : ELEMENT_CITABLE,
           false,
           (repo, path) -> Optional.empty(),
           Map.of(),
@@ -335,7 +352,18 @@ public final class DescribeRole {
       Described described = described(item);
       List<CheckedText> texts = new ArrayList<>();
       if (entry != null && entry.isObject() && !entry.has("omitted")) {
-        if (described.kind() == Kind.ELEMENT) {
+        if (described.kind() == Kind.LINE) {
+          text(entry.get(Types.INTENT))
+              .ifPresent(
+                  t ->
+                      texts.add(
+                          checked(
+                              Types.INTENT,
+                              CheckedText.Kind.INTENT,
+                              t,
+                              LINE_WORDS,
+                              described.name())));
+        } else if (described.kind() == Kind.ELEMENT) {
           text(entry.get(RESPONSIBILITY_FIELD))
               .ifPresent(
                   t ->
@@ -484,6 +512,12 @@ public final class DescribeRole {
   static List<Worded> worded(Described described, String stored, SummaryFacts summaries) {
     JsonNode answer = JSON.readTree(stored);
     List<Worded> result = new ArrayList<>();
+    if (described.kind() == Kind.LINE) {
+      text(answer.get(Types.INTENT))
+          .flatMap(t -> worded(described, described.element(), Types.INTENT, t, summaries))
+          .ifPresent(result::add);
+      return result;
+    }
     if (described.kind() == Kind.ELEMENT) {
       text(answer.get(RESPONSIBILITY_FIELD))
           .flatMap(t -> worded(described, described.element(), RESPONSIBILITY_FIELD, t, summaries))
@@ -547,7 +581,8 @@ public final class DescribeRole {
     }
     String worded = text.text().strip();
     // An intent phrase labels a line, so it ends without a full stop.
-    if (field.startsWith(INTERACTIONS + ".") && worded.endsWith(".")) {
+    if ((field.startsWith(INTERACTIONS + ".") || described.kind() == Kind.LINE)
+        && worded.endsWith(".")) {
       worded = worded.substring(0, worded.length() - 1).strip();
     }
     return Optional.of(
@@ -579,7 +614,10 @@ public final class DescribeRole {
     SummaryFacts NONE = summary -> List.of();
   }
 
-  /** The fact of a worded text: a responsibility or an intent. */
+  /**
+   * The fact of a worded text: a responsibility or an intent; a merged line's intent is stored
+   * under the line's key, its item's subject (ADR 0103, amendment for #810).
+   */
   static Fact fact(
       Described described,
       Worded worded,
@@ -587,9 +625,11 @@ public final class DescribeRole {
       String model,
       String answer,
       long snapshot) {
-    boolean intent = worded.field().startsWith(INTERACTIONS + ".");
+    boolean intent = worded.field().startsWith(INTERACTIONS + ".") || described.kind() == Kind.LINE;
     String object;
-    if (intent) {
+    if (described.kind() == Kind.LINE) {
+      object = described.item().subject();
+    } else if (intent) {
       Fact interaction =
           described.interactions().get(worded.field().substring(INTERACTIONS.length() + 1));
       object = interaction.claimId() != null ? interaction.claimId() : interaction.id();

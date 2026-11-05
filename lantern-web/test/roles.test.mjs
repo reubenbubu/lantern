@@ -723,6 +723,25 @@ test('Describe on the page: a line counts when labelled with the intent of its o
   assert.equal(row.scores['line:service-b->service-a'], 0);
 });
 
+test("Describe on the page: a line worded as a whole counts only when it reads the line's intent, not one link's (#810)", () => {
+  const report = (label) => ({
+    elements: {
+      'service-a': { kind: 'container', name: 'a' },
+      'service-b': { kind: 'container', name: 'b' },
+    },
+    pages: [{ sections: [{ type: 'diagram', relationships: [{ from: 'service-a', to: 'service-b', label }] }] }],
+  });
+  const more = [link('ab3', 'CALLS_HTTP', 'service:a', 'service:b'), link('ab4', 'CALLS_HTTP', 'service:a', 'service:b')];
+  const requests = [intentFor('c-ab', 'Looks up prices'), intentFor('c-ab3', 'Reserves stock for orders'), intentFor('c-ab4', 'Cancels a reservation')];
+  const line = intentFor('service:a|service:b|CALLS_HTTP', 'Prices and reserves stock for orders', 'describe-element');
+  const own = (label, llm) => describeRow(report(label), [...linked, ...more], llm, run).scores['line:service-a->service-b'];
+  // Without a stored line intent, one link's intent counts, as before.
+  assert.equal(own('Looks up prices', requests), 1);
+  // With one, a link's intent no longer stands for the whole line; the line's own intent does.
+  assert.equal(own('Looks up prices', [...requests, line]), 0);
+  assert.equal(own('Prices and reserves stock for orders', [...requests, line]), 1);
+});
+
 test('Describe on the page: a generic label on a line whose link has a stored intent is counted apart (#739)', () => {
   const report = {
     elements: {

@@ -210,3 +210,26 @@ what the scorer's `interactionsOf` counts over the run's `linked.jsonl.gz` and `
 leaving out a component's use of a store. They run the scorer through Node. A person's use of a
 frontend and a push are each named by their fact and their frontend or unit, as the scorer names
 them. This replaced a Java copy of the scorer, which had drifted from #741's person rule.
+
+## Amendment (#810): a merged line is worded as a whole
+
+Each request a frontend makes is its own claim with its own intent (#810, #811), and the container
+view merges a frontend's or unit's links to one target into one line. Its label was the phrase most
+of its links say, the first alphabetically on a tie, so with every request worded differently one
+request's intent stood for all of them. The owner decided on 4 Nov 2026:
+
+- A container line that merges three or more distinct claims (`MergedLines`, lantern-derive) whose
+  stored intents differ, no phrase said by more than half of them, is a Describe item of its own.
+  It shows the line's two ends and what each request it carries does, as earlier answers `[A..]`,
+  and asks for an intent phrase of 4 to 8 words for the line as a whole (`describe-elements`
+  contract, field `intent`). It is asked with the elements, after the units, since it reads their
+  answers; it goes through the same checks, cache (keyed by the requests' intents), budget, support
+  judge sample and unknowns as any item.
+- Its intent is stored as an `intent` fact of the unit or frontend, with the object
+  `<from>|<to>|<relationship>`.
+- `EdgeBuilder.label` (C4Views) reads a majority phrase first; without one, the stored line
+  intent; without that, the most-common rule as before. Flow steps keep each request's own intent.
+- The scorer (`ownLink`, roles.mjs) counts a line that has a stored line intent as having its own
+  intent only when it reads that intent, not one of its links'.
+- Component views draw a component's share of the line and keep the most-common rule.
+
