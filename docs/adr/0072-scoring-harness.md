@@ -457,9 +457,12 @@ depth, so a fully cascading run passed. Now (decision of 4 Nov 2026 on #722):
 
 - **What the run records.** `askedWhy` also lists `changedAnswers`: for each changed answer the
   item shows, the item it comes from, as "`<role> <subject>`" or a role alone for any of its items
-  (`AskedWhy.changedAnswers`, from `FingerprintInput.from`); "?" names a source not recorded.
+  (`AskedWhy.changedAnswers`, from `FingerprintInput.from`), alternatives as "`a|b`"; "?" names a
+  source not recorded. An item that only lost a shown answer lists none.
 - **The gate.** An item re-asked only through shown answers is expected when each changed
   answer's item was re-asked in this run and is itself expected, settled level by level. A cascade
   from an answer this run did not re-ask for the file is unexpected, listed with the answers whose
-  items were not re-asked, and so is a changed answer whose source is not recorded. A judge's item
-  on a reworded text stays expected as before.
+  items were not re-asked, and so is a changed answer whose source is not recorded. An item that
+  only lost a shown answer, whose source is no longer named, is expected once something was
+  re-asked for the file. A judge's item on a reworded text stays expected as before, unless another
+  file changed too.

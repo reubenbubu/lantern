@@ -131,8 +131,9 @@ public final class CarryForward {
     Map<String, String> refByLine = refByLine(references);
     Map<String, String> lines = hashes(references);
     // Earlier texts by what they are about, so one keeps its wording when a new part sorts before
-    // it and its key moves, such as from C3 to C4 (#722); of several about the same, the one of
-    // the same field first, then in order, each taken once.
+    // it and its key moves, such as from C3 to C4 (#722); of several about the same, the one that
+    // rested on the lines this text cites first, then the one of the same field, then in order,
+    // each taken once.
     Map<String, List<String>> byAbout = new LinkedHashMap<>();
     earlier.forEach(
         (field, text) -> byAbout.computeIfAbsent(text.about(), a -> new ArrayList<>()).add(field));
@@ -141,10 +142,15 @@ public final class CarryForward {
     for (CheckedText text : texts) {
       String name = about.apply(text);
       List<String> fields = byAbout.getOrDefault(Fingerprints.sha256(name), List.of());
+      List<String> citedLines = text.cites().stream().map(c -> lines.getOrDefault(c, "")).toList();
       String field =
-          fields.contains(text.field()) && !taken.contains(text.field())
-              ? text.field()
-              : fields.stream().filter(f -> !taken.contains(f)).findFirst().orElse(null);
+          fields.stream()
+              .filter(f -> !taken.contains(f) && earlier.get(f).basis().equals(citedLines))
+              .findFirst()
+              .orElse(
+                  fields.contains(text.field()) && !taken.contains(text.field())
+                      ? text.field()
+                      : fields.stream().filter(f -> !taken.contains(f)).findFirst().orElse(null));
       Earlier before = field == null ? null : earlier.get(field);
       List<String> cites = before == null ? null : cites(before, name, refByLine, lines);
       if (cites != null && carries.test(text)) {

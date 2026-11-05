@@ -279,9 +279,15 @@ test("the one-file change gate: an item re-asked through a shown answer is expec
     'summarize module:m: a shown answer changed whose item was not re-asked for the file (summarize package:p)',
   ]);
   // A changed answer whose source is not recorded is not taken on trust.
-  assert.deepEqual(gate([type, pkg(undefined)]).unexpected, ['summarize package:p: a shown answer changed whose source is not recorded']);
+  assert.deepEqual(gate([type, pkg(['?'])]).unexpected, ['summarize package:p: a shown answer changed whose source is not recorded']);
   // A ref naming a role alone is met by any item of that role re-asked for the file.
   assert.equal(gate([type, pkg(['summarize-type'])]).gate, true);
+  // Alternatives: met by either.
+  assert.equal(gate([type, pkg(['describe-unit type:A|summarize-type type:A'])]).gate, true);
+  // A shown answer only removed: expected once something was re-asked for the file.
+  const lost = { role: 'summarize', askedSubjects: ['package:q'], askedWhy: [{ subject: 'package:q', answers: 1 }] };
+  assert.equal(gate([type, lost]).gate, true);
+  assert.deepEqual(gate([lost]).unexpected, ['summarize package:q: a shown answer was removed though nothing was re-asked for the file']);
 });
 
 // Every committed answer key is well formed: who prepared it and its status, each repository's

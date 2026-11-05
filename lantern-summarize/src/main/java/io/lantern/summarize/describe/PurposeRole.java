@@ -149,7 +149,10 @@ public final class PurposeRole {
     if (!flows.isEmpty()) {
       text.append("Its main flows:\n");
       flows.forEach(title -> text.append("- ").append(FactLines.oneLine(title)).append('\n'));
-      inputs.add(FingerprintInput.answer(Fingerprints.sha256(String.join("\n", flows))));
+      inputs.add(
+          FingerprintInput.answer(
+              Fingerprints.sha256(String.join("\n", flows)),
+              List.of(FlowJudgements.NARRATIVE.name())));
     }
     if (!claims.isEmpty()) {
       text.append("What the READMEs of its repositories claim:\n");
@@ -207,7 +210,18 @@ public final class PurposeRole {
           .append("] ")
           .append(sentence)
           .append('\n');
-      inputs.add(FingerprintInput.answer(Fingerprints.sha256(sentence)));
+      // From the Describe item of what it is about, a unit's or an element's (#722).
+      inputs.add(
+          FingerprintInput.answer(
+              Fingerprints.sha256(sentence),
+              List.of(
+                  DescribeRole.UNITS.name()
+                      + " "
+                      + one.about()
+                      + "|"
+                      + DescribeRole.ELEMENTS.name()
+                      + " "
+                      + one.about())));
       // One shown before is written by its reference alone.
       for (Fact fact : shownFacts) {
         boolean shown = refs.shown('F', key(fact));

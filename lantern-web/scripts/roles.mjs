@@ -1161,13 +1161,18 @@ export function changeGate(change, file) {
       const byAnswer = !!w?.answers && !(w.files ?? []).includes(file);
       // Re-asked only because shown answers changed: expected once each of their items is (#722).
       let refs = byAnswer && reason === null ? (w.changedAnswers ?? null) : [];
-      if (refs === null || refs.includes('?')) {
+      // No answer shown now is new: one it showed is gone, such as a removed part's sentence.
+      const removed = refs === null;
+      if (removed) refs = [];
+      else if (refs.includes('?')) {
         reason = 'a shown answer changed whose source is not recorded';
         refs = [];
       }
-      const entry = { item, role: role.role, subject: again ?? subject, expected: reason === null && refs.length === 0, reason, byAnswer, refs };
-      // A judge's item shows the text it judges as an answer: reworded, it is judged like a new text.
-      if (judging(role.role) && (w?.new || w?.other || w?.answers) && !w?.prompt && !w?.model) judged.push(entry);
+      const entry = { item, role: role.role, subject: again ?? subject, expected: reason === null && refs.length === 0 && !removed, reason, byAnswer, refs, removed };
+      // A judge's item shows the text it judges as an answer: reworded, it is judged like a new text,
+      // unless another file changed too.
+      const otherFile = (w?.files ?? []).some((f) => f !== file);
+      if (judging(role.role) && (w?.new || w?.other || w?.answers) && !w?.prompt && !w?.model && !otherFile) judged.push(entry);
       else items.push(entry);
     }
   }
@@ -1175,12 +1180,14 @@ export function changeGate(change, file) {
   // "<role> <subject>" or a role alone for any of its items, was re-asked in this run and is itself
   // expected (the decision of 4 Nov on #722): a cascade from an answer this run did not re-ask for
   // the file is not. Settled level by level, until nothing more is.
-  const met = (ref) => {
-    const space = ref.indexOf(' ');
-    return items.some((i) =>
-      i.expected && (space < 0 ? i.role === ref : i.role === ref.slice(0, space) && i.subject === ref.slice(space + 1)),
-    );
-  };
+  // A ref may list alternatives, "a|b", when the answer may come from either.
+  const met = (ref) =>
+    ref.split('|').some((one) => {
+      const space = one.indexOf(' ');
+      return items.some((i) =>
+        i.expected && (space < 0 ? i.role === one : i.role === one.slice(0, space) && i.subject === one.slice(space + 1)),
+      );
+    });
   for (let changed = true; changed; ) {
     changed = false;
     for (const i of items) {
@@ -1190,8 +1197,14 @@ export function changeGate(change, file) {
       }
     }
   }
+  // An item that only lost a shown answer is expected once something was re-asked for the file,
+  // whose source a removed answer no longer names.
+  const anyExpected = items.some((i) => i.expected);
   for (const i of items) {
-    if (!i.expected && i.reason === null) {
+    if (!i.expected && i.reason === null && i.removed) {
+      if (anyExpected) i.expected = true;
+      else i.reason = 'a shown answer was removed though nothing was re-asked for the file';
+    } else if (!i.expected && i.reason === null) {
       i.reason = `a shown answer changed whose item was not re-asked for the file (${i.refs.filter((r) => !met(r)).join(', ')})`;
     }
   }

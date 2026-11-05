@@ -371,7 +371,9 @@ public final class NameGroups {
         String sentence = FactLines.oneLine(said.attributes().path("text").asString());
         text.append(": [").append(refs.add('A', key(said), said, sentence)).append("] ");
         text.append(sentence);
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256(sentence)));
+        // From the Describe role that wrote it (#722).
+        inputs.add(
+            FingerprintInput.answer(Fingerprints.sha256(sentence), List.of(said.origin().name())));
         inputs.add(DescribeRole.input(said));
       }
       text.append('\n');
@@ -414,7 +416,9 @@ public final class NameGroups {
                 .append(": ")
                 .append(phrase)
                 .append('\n');
-            inputs.add(FingerprintInput.answer(Fingerprints.sha256(phrase)));
+            inputs.add(
+                FingerprintInput.answer(
+                    Fingerprints.sha256(phrase), List.of(intent.origin().name())));
           } else {
             text.append("  ").append(what).append(" (no intent worded)\n");
           }
@@ -437,7 +441,8 @@ public final class NameGroups {
         String ref = "G" + (others.size() + 1);
         others.put(ref, other.id());
         text.append('[').append(Refs.token(ref)).append("] ").append(other.id()).append('\n');
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256(other.id().toString())));
+        // A group's ID is derived, not an answer (#722).
+        inputs.add(FingerprintInput.text(other.id().toString()));
       }
       text.append("</groups>\n");
     }

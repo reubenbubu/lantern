@@ -89,6 +89,28 @@ class CarryForwardTest {
   }
 
   @Test
+  void ofTwoTextsAboutOneThingEachKeepsTheOneThatRestedOnItsLines() {
+    // Two intents about lines that read alike, R2 and R3, both moved one key on (#722).
+    Map<String, String> lines =
+        Map.of("F1", "a CALLS_HTTP b", "F2", "a CALLS_HTTP c", "F3", "a READS x");
+    List<CheckedText> first =
+        List.of(
+            text("interactions.R2", "Looks up prices", "a calls b", "F1"),
+            text("interactions.R3", "Books the seats", "a calls b", "F2"));
+    Map<String, CarryForward.Earlier> earlier =
+        CarryForward.earlier(CarryForward.mark(stored(first), first, lines));
+    List<CheckedText> now =
+        List.of(
+            text("interactions.R1", "Reads x", "a reads x", "F3"),
+            text("interactions.R3", "Fetches prices", "a calls b", "F1"),
+            text("interactions.R4", "Reserves seats", "a calls b", "F2"));
+
+    assertThat(CarryForward.merge(now, earlier, lines, t -> true))
+        .extracting(CheckedText::text)
+        .containsExactly("Reads x", "Looks up prices", "Books the seats");
+  }
+
+  @Test
   void twoTextsOfOneWordingAreMarkedEachByItsOwnField() {
     // Two intents worded alike, about different lines: each records its own field and basis.
     Map<String, String> lines = Map.of("F1", "a CALLS_HTTP b", "F2", "a CALLS_HTTP c");
