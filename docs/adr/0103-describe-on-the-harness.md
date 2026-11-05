@@ -238,3 +238,26 @@ request's intent stood for all of them. The owner decided on 4 Nov 2026:
   its own intent only when it reads that intent; a link of another relationship between the same
   ends keeps its own. Flow steps are scored by their request's intent as before.
 
+
+## Amendment (#873): a lean form of fact lines
+
+A prompt that shows many facts of a few files may write them in a lean form
+(`render.LeanFacts`), which Summarize uses; the other roles keep the fact line above. Each fact
+still has its own line and its reference, and the checks still read its full line, so every
+reference is citable and a short name counts as shown wherever its full name is.
+
+- The facts of one file come under one `@ repo:path` heading, and the facts about one subject come
+  under it, indented. A part the subject contains in that file is listed on its `CONTAINS` fact's
+  line, which says only that (`[F18] CONTAINS method findById(Long,Long)`), with the part's own
+  facts indented under it. A first try without the word `CONTAINS` had the model cite a method's
+  line for what the facts under it say, and the Names check sent the answer back.
+- A class is written by its simple name, and the item's `names` list gives each one's full name
+  once. A class of `java.` or `javax.` keeps no package and has no entry. Two classes that share a
+  simple name both keep their full names. Strings are left as they are.
+- `type:`, `method:` and `field:` are left out where the line or the indentation says what
+  something is.
+
+On the Summarize test (10 project-4 classes, Haiku 5.5 through OpenRouter, two runs each), input
+tokens fell from 28,097 to 10,767 per run (−62%), and the cost from about $0.0099 to $0.0073. The
+model wrote 34 sentences in each run against 35 to 36, all of them kept but one, and no answer was
+sent back.

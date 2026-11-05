@@ -88,8 +88,8 @@ class LeanFactsTest {
             """
             @ Auth-Service:src/main/java/com/crm/auth/service/AuthorizationService.java
             AuthorizationService
-              [F3] field log
-              [F4] method authorize(AuthorizationRequest)
+              [F3] CONTAINS field log
+              [F4] CONTAINS method authorize(AuthorizationRequest)
                 [F1] CALLS JwtPayload#getId()
                 [F2] CALLS String#trim()
               [F5] kind "class"
@@ -121,7 +121,8 @@ class LeanFactsTest {
     assertThat(text)
         .contains(
             "@ Auth-Service:x\npackage:a\n  [F8] CONTAINS package:b\n    [F9] CONTAINS package:a\n")
-        .contains("package:b\n  [F10] type AuthorizationService\n    [F3] field log\n");
+        .contains(
+            "package:b\n  [F10] CONTAINS type AuthorizationService\n    [F3] CONTAINS field log\n");
     Matcher refs = Pattern.compile("\\[(F\\d+)]").matcher(text);
     List<String> seen = new ArrayList<>();
     while (refs.find()) {

@@ -24,7 +24,7 @@ class PromptTest {
   private static final String VERSION = "20";
 
   private static final String FINGERPRINT =
-      "e3b810852ae477824cbf3f44f2d557503a4d7ec1f6448cbcbf007c1e5988cd11";
+      "39179c37089c70ad221e41035f5cc415913aa2a0cea675847889e89676284de7";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -147,7 +147,7 @@ class PromptTest {
             facts = '''
             @ shop:pom.xml
             PriceService
-              [F1] method price()
+              [F1] CONTAINS method price()
               [F2] kind "interface"
             '''
             names = '''

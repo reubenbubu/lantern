@@ -25,8 +25,9 @@ import java.util.regex.Pattern;
  *   <li>The facts of one file are listed under one {@code @ repo:path} heading.
  *   <li>The facts about one subject are listed under it, indented, without repeating it.
  *   <li>What a subject contains is listed under it, on the line of the {@code CONTAINS} fact, with
- *       its own facts indented under that: {@code [F8] method authorize(AuthorizationRequest)} for
- *       a member of a type, {@code [F2] CONTAINS module:g:orders} for any other part.
+ *       its own facts indented under that: {@code [F8] CONTAINS method
+ *       authorize(AuthorizationRequest)} for a member of a type, {@code [F2] CONTAINS
+ *       module:g:orders} for any other part.
  *   <li>A class is written by its simple name, and a {@code names} list gives each one's full name
  *       once ({@link Names}); classes of {@code java.} and {@code javax.} packages are written by
  *       their simple names alone. Two classes of one simple name keep their full names.
@@ -211,9 +212,13 @@ public final class LeanFacts {
         head = names.shorten(withoutKind(subject));
       } else {
         String kind = kind(subject);
-        // A member reads by its kind, "method price()"; any other part by the fact's predicate.
+        // The line states the containment alone, so the facts under it are not taken as said by it
+        // (#873): "CONTAINS method price()".
         head =
-            (kind == null ? Types.CONTAINS : kind) + " " + names.shorten(member(parent, subject));
+            Types.CONTAINS
+                + " "
+                + (kind == null ? "" : kind + " ")
+                + names.shorten(member(parent, subject));
       }
       line(depth, label, head);
       for (Labeled labeled : bySubject.getOrDefault(subject, List.of())) {
