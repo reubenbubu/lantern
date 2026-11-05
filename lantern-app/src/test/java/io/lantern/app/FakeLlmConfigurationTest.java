@@ -18,18 +18,34 @@ class FakeLlmConfigurationTest {
   @Test
   void citesWhatItIsGivenAndWordsNothing() {
     assertThat(fake.name()).isEqualTo(FakeLlmProvider.NAME);
-    assertThat(summarize("Unit: package a.b\n<summaries>\n[S1] part\n</summaries>\n[F1] fact"))
+    // It answers in TOML, as Summarize asks since #872, reading the item's TOML.
+    assertThat(
+            summarize(
+                "[item.I1]\nunit = \"package a.b\"\nsummaries = \'\'\'\n[S1] part\n\'\'\'\n"
+                    + "facts = \'\'\'\n[F1] fact\n\'\'\'"))
         .isEqualTo(
-            "{\"items\": {\"I1\": {\"sentences\": [{\"text\": \"{{placeholder: summary of package"
-                + " a.b from its parts}}.\", \"cites\": [\"S1\"]}, {\"text\": \"{{placeholder:"
-                + " description of package a.b from its facts}}.\", \"cites\": [\"F1\"]}]}}}");
+            "[I1]\n[[I1.sentences]]\ntext = \"{{placeholder: summary of package a.b from its"
+                + " parts}}.\"\ncites = [\"S1\"]\n[[I1.sentences]]\ntext = \"{{placeholder:"
+                + " description of package a.b from its facts}}.\"\ncites = [\"F1\"]\n");
     // A type's source code is cited when it has no fact before it; a merge cites what its parts do.
-    assertThat(summarize("Unit: type Order in package a.b\n<code ref=\"E1\" repo=\"r\">"))
-        .contains("\"cites\": [\"E1\"]");
-    assertThat(summarize("Unit: type Order\n<summaries>\nPart 1: It is. [F3, E1]\n</summaries>"))
-        .contains("\"cites\": [\"F3\"]");
-    assertThat(summarize("Unit: type Order\n"))
-        .isEqualTo("{\"items\": {\"I1\": {\"omitted\": true}}}");
+    assertThat(
+            summarize(
+                "[item.I1]\nunit = \"type Order in package a.b\"\n[[item.I1.code]]\nref ="
+                    + " \"E1\"\nrepo = \"r\""))
+        .contains("cites = [\"E1\"]");
+    assertThat(
+            summarize(
+                "[item.I1]\nunit = \"type Order\"\nparts = \'\'\'\nPart 1: It is. [F3, E1]\n\'\'\'"))
+        .contains("cites = [\"F3\"]");
+    assertThat(summarize("[item.I1]\nunit = \"type Order\"\n")).isEqualTo("[I1]\nomitted = true\n");
+    // Each answer is one TOML document the role reads.
+    assertThat(
+            io.lantern.harness.Toml.read(summarize("[item.I1]\nunit = \"type Order\"\n"))
+                .root()
+                .path("I1")
+                .path("omitted")
+                .asBoolean())
+        .isTrue();
     assertThat(answer(Role.INFER_INTENT, "[F1]")).isEqualTo("{}");
     assertThat(answer(Role.COMPOSE, "[F1]")).isEqualTo("{}");
     // It judges no flow significant, so documents draw their highest ranked, and titles each flow

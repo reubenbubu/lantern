@@ -8,8 +8,13 @@ import io.lantern.harness.Prompts;
  */
 public final class CommonPrompt {
 
-  /** The common system prompt. */
-  public static final String SYSTEM = Prompts.text("common.system.txt");
+  /** The common system prompt, for a role that answers in JSON. */
+  public static final String SYSTEM = system(io.lantern.harness.AnswerFormat.JSON);
+
+  /** The common system prompt for a role that answers in the given format (#872). */
+  public static String system(io.lantern.harness.AnswerFormat format) {
+    return format.fill(Prompts.text("common.system.txt"));
+  }
 
   private CommonPrompt() {}
 

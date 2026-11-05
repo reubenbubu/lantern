@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
 class SummarizerTest {
 
   private static final Pattern REF =
-      Pattern.compile("^\\[([FES]\\d+)\\]|<code ref=\"(E\\d+)\"", Pattern.MULTILINE);
+      Pattern.compile("^\\[([FES]\\d+)\\]|^ref = \"(E\\d+)\"", Pattern.MULTILINE);
   private static final Pattern UNIT = Pattern.compile("^summarize \\S+ (\\S+:\\S+)");
 
   private final FakeLlmProvider fake =
@@ -1436,7 +1436,9 @@ class SummarizerTest {
             e ->
                 assertThat(e.getFormattedMessage())
                     .doesNotContain(answer)
-                    .contains(sent.substring(0, 1000) + "... (" + sent.length() + " characters)"));
+                    .contains(
+                        (sent.substring(0, 1000) + "... (" + sent.length() + " characters)")
+                            .replace("\n", "\\n")));
   }
 
   @Test
@@ -1448,9 +1450,7 @@ class SummarizerTest {
     List<LlmMessage> retry = retried().messages();
     assertThat(retry).hasSize(1);
     assertThat(retry.getFirst().text())
-        .contains(
-            "Your answer is not one JSON object with an entry for I1 under \"items\": the answer"
-                + " is empty.");
+        .contains("Your answer is not one TOML document with a table I1: the answer is empty.");
   }
 
   @Test
@@ -1621,8 +1621,8 @@ class SummarizerTest {
     String prompt = fake.sent().getFirst().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
-            "\nIts source code:\n<code ref=\"E1\" repo=\"r\" path=\"src/main/java/p/Order.java\""
-                + " lines=\"1-")
+            "\n[[item.I1.code]]\nref = \"E1\"\nrepo = \"r\"\npath = \"src/main/java/p/Order.java\""
+                + "\nlines = \"1-")
         .contains("\n 1  " + ExcerptsTest.ORDER.lines().findFirst().orElseThrow() + "\n");
     // The fake cites [F1, F2, E1]; the file is cited as the fact it comes from.
     Fact kind = order.facts().stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
@@ -1670,7 +1670,7 @@ class SummarizerTest {
     String prompt = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
-            "\nIts facts:\n<facts>\n[F1] readme:shop:README.md claim \"Shop sells books to"
+            "\nfacts = \'\'\'\n[F1] readme:shop:README.md claim \"Shop sells books to"
                 + " readers.\" (shop:README.md)\n");
     // A summary that cites nothing people wrote is inferred.
     assertThat(result.summaries().get(EntityId.parse("module:com.example:shop")))
@@ -1971,7 +1971,10 @@ class SummarizerTest {
             .toList();
     assertThat(prompts.stream().filter(p -> p.contains("This is part "))).hasSizeGreaterThan(1);
     assertThat(prompts)
-        .anyMatch(p -> p.contains("\nOf the units it contains, entry points:\n<facts>\n[F201] "));
+        .anyMatch(
+            p ->
+                p.contains(
+                    "\nabout = \"Of the units it contains, entry points\"\nfacts = \'\'\'\n[F201] "));
     for (String prompt : prompts) {
       assertThat(Tokens.estimate(Prompt.SYSTEM + prompt)).isLessThanOrEqualTo(4_000);
     }
@@ -2006,8 +2009,8 @@ class SummarizerTest {
     // Each part shows its own facts under the references of the whole unit.
     assertThat(fake.sent().get(1).request().messages().getFirst().text())
         .startsWith(
-            "<items>\n<item id=\"I1\">\nUnit: type Big in package p\nWhat is known about this"
-                + " unit is too long for one request")
+            "<items>\n[item.I1]\nunit = \"type Big in package p\"\nask = \"What is known about"
+                + " this unit is too long for one request")
         .doesNotContain("[F1] ");
     // The merge keeps the citations of the first and the last part.
     assertThat(summary.citedFacts())
@@ -2147,9 +2150,7 @@ class SummarizerTest {
             .map(s -> s.request().messages().getFirst().text())
             .toList();
     assertThat(partPrompts.size()).isGreaterThan(1);
-    assertThat(partPrompts.getLast())
-        .contains("Summaries of the units it contains:\n<summaries>\n[S")
-        .doesNotContain("[S1] ");
+    assertThat(partPrompts.getLast()).contains("\nsummaries = \'\'\'\n[S").doesNotContain("[S1] ");
     assertThat(summary.citedFacts()).contains(summary.inputFacts().getFirst());
     assertThat(summary.citedSummaries()).contains(summary.inputSummaries().getLast());
   }
@@ -2179,7 +2180,7 @@ class SummarizerTest {
     assertThat(prompts.size()).isGreaterThan(2);
     assertThat(prompts)
         .filteredOn(
-            p -> p.contains("\n<code ref=\"E1\" repo=\"r\" path=\"src/main/java/p/Order.java\""))
+            p -> p.contains("\nref = \"E1\"\nrepo = \"r\"\npath = \"src/main/java/p/Order.java\""))
         .hasSize(1);
     assertThat(prompts.getLast()).contains("Part 1: ").contains("E1");
     Fact kind = facts.stream().filter(f -> f.predicate().equals("kind")).findFirst().get();

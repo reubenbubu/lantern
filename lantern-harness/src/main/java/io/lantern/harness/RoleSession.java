@@ -956,8 +956,10 @@ public final class RoleSession {
                         : "rejected twice: " + String.join(" ", reasons(again.get(id))),
                     List.of(),
                     // Not stored when the repair was cut off, since a larger limit may let it
-                    // through, or held no readable JSON object, which a new call may (#744).
-                    !second.cutOff() && JsonFaults.first(second.text()) != null),
+                    // through, or held no readable JSON object or TOML document, which a new call
+                    // may
+                    // (#744, #872).
+                    !second.cutOff() && Toml.readable(second.text())),
                 false);
           } else {
             repairedIds.put(id, true);

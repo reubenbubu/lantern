@@ -8,8 +8,6 @@ import io.lantern.harness.checks.CommonPrompt;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
@@ -23,10 +21,10 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "18";
+  private static final String VERSION = "19";
 
   private static final String FINGERPRINT =
-      "e04e97b76418b823e6266b837c3a3a09c573a6b816ca0b72d3930c8f3edb8b6f";
+      "88d704349d6dc43158d12026eb6f3e7f8d7c93389100bc16f39e420c9606917c";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -99,31 +97,40 @@ class PromptTest {
    * section 11.3), after the common system prompt of section 11.0.
    */
   @Test
-  void theSummarizePromptIsTheEpics() throws Exception {
-    String epic = Files.readString(Path.of("../docs/epics/001-knowledge-build.md"));
-
-    assertThat(epic).contains(Prompt.TASK).contains(Prompt.SCHEMA).contains(Prompt.CLOSING);
+  void theSummarizePromptAsksForTomlInEveryRuleThatNamesTheFormat() {
+    // The closed knowledge-build epic keeps the JSON prompt as its record; since #872 the model is
+    // shown the TOML format and an example instead of the JSON schema, which the checks still use.
     assertThat(Prompt.TASK).startsWith("Task: summarise code units.");
     assertThat(Prompt.SYSTEM)
         .isEqualTo(
-            CommonPrompt.SYSTEM
+            CommonPrompt.system(io.lantern.harness.AnswerFormat.TOML)
                 + "\n\n"
                 + Prompt.TASK
-                + "\n\nAnswer schema:\n"
-                + Prompt.SCHEMA.stripTrailing()
-                + "\n"
+                + "\n\n"
                 + Prompt.CLOSING);
+    assertThat(Prompt.SYSTEM)
+        .contains("Answer with exactly one TOML document in the format of your task")
+        .contains("answer a table with omitted = true")
+        .doesNotContain("JSON")
+        .doesNotContain("${");
+    // The example in the closing is an answer the role reads.
+    String example =
+        Prompt.CLOSING.substring(
+            Prompt.CLOSING.indexOf("[I1]"), Prompt.CLOSING.indexOf("\nWrite every text"));
+    assertThat(io.lantern.harness.Toml.read(example).root().path("I1").path("sentences"))
+        .hasSize(2);
   }
 
   @Test
   void aRequestSendsBothBlocksAsTheSystemPromptAndTheUnitAsItsOneItem() {
-    LlmRequest request = Prompt.request(Role.SUMMARIZE_TYPES, "summarize type x", "Unit: x\n", 400);
+    LlmRequest request =
+        Prompt.request(Role.SUMMARIZE_TYPES, "summarize type x", "[item.I1]\nunit = \"x\"\n", 400);
 
     assertThat(request.role()).isEqualTo(Role.SUMMARIZE_TYPES);
     assertThat(request.system()).isEqualTo(Prompt.SYSTEM);
     assertThat(request.maxOutputTokens()).isEqualTo(400);
     assertThat(request.messages().getFirst().text())
-        .isEqualTo("<items>\n<item id=\"I1\">\nUnit: x\n</item>\n</items>");
+        .isEqualTo("<items>\n[item.I1]\nunit = \"x\"\n</items>");
   }
 
   @Test
@@ -134,13 +141,13 @@ class PromptTest {
     assertThat(Prompt.user(priceService, List.of(), List.of()))
         .isEqualTo(
             """
-            Unit: type PriceService in package com.example.shop
-            Write 2 to 4 sentences of 10 to 30 words each.
-            Its facts:
-            <facts>
+            [item.I1]
+            unit = "type PriceService in package com.example.shop"
+            ask = "Write 2 to 4 sentences of 10 to 30 words each."
+            facts = '''
             [F1] %s
             [F2] %s
-            </facts>
+            '''
             """
                 .formatted(
                     Prompt.fact(priceService.facts().get(0)),
@@ -156,10 +163,15 @@ class PromptTest {
     String user = Prompt.user(order, excerpts(), List.of(line));
 
     assertThat(user)
-        .contains("Its source code:\n<code ref=\"E1\" repo=\"")
+        .contains("[[item.I1.code]]\nref = \"E1\"\nrepo = \"")
         .contains(" 1  ")
-        .contains("Summaries of the units it contains:\n<summaries>\n[S1] type ")
-        .contains(": A line. Second line.\n</summaries>\n");
+        .contains("summaries = \'\'\'\n[S1] type ")
+        .contains(": A line. Second line.\n\'\'\'\n");
+    // The code is the item's: a table after its keys, read back as written.
+    tools.jackson.databind.JsonNode item =
+        io.lantern.harness.Toml.read(user).root().path("item").path("I1");
+    assertThat(item.path("code").get(0).path("ref").asString()).isEqualTo("E1");
+    assertThat(item.path("summaries").asString()).startsWith("[S1] type ");
   }
 
   @Test
@@ -178,27 +190,29 @@ class PromptTest {
                 new Prompt.Part(2, 2)))
         .isEqualTo(
             """
-            Unit: type PriceService in package com.example.shop
-            What is known about this unit is too long for one request, so it comes in 2 parts. \
-            This is part 2. Write 1 to 3 sentences of 10 to 30 words each on what this part \
-            shows about it; the summaries of the parts are merged later.
-            Its facts:
-            <facts>
+            [item.I1]
+            unit = "type PriceService in package com.example.shop"
+            ask = "What is known about this unit is too long for one request, so it comes in 2 \
+            parts. This is part 2. Write 1 to 3 sentences of 10 to 30 words each on what this part \
+            shows about it; the summaries of the parts are merged later."
+            facts = '''
             [F2] %s
-            </facts>
+            '''
             """
                 .formatted(Prompt.fact(priceService.facts().get(1))));
     assertThat(Prompt.merge(priceService, List.of("It is an interface. [F1]", "It prices. [F2]\n")))
         .isEqualTo(
             """
-            Unit: type PriceService in package com.example.shop
-            What is known about this unit was too long for one request, so it was summarised in \
-            parts. Merge the summaries of the parts below into one summary of 2 to 4 sentences of \
-            10 to 30 words each. Cite the references the parts cite for what you take from them.
-            <summaries>
+            [item.I1]
+            unit = "type PriceService in package com.example.shop"
+            ask = "What is known about this unit was too long for one request, so it was \
+            summarised in parts. Merge the summaries of the parts into one summary of 2 to 4 \
+            sentences of 10 to 30 words each. Cite the references the parts cite for what you take \
+            from them."
+            parts = '''
             Part 1: It is an interface. [F1]
             Part 2: It prices. [F2]
-            </summaries>
+            '''
             """);
   }
 
@@ -226,9 +240,9 @@ class PromptTest {
 
     assertThat(Prompt.user(core, List.of(), List.of(pkg)))
         .startsWith(
-            "Unit: Maven module shop-core\nWrite 1 to 3 sentences of 10 to 30 words each. It"
-                + " contains only one unit [S1]: say what it adds to that unit, such as its"
-                + " dependencies, and do not restate that unit's summary.\n");
+            "[item.I1]\nunit = \"Maven module shop-core\"\nask = \"Write 1 to 3 sentences of 10"
+                + " to 30 words each. It contains only one unit [S1]: say what it adds to that unit,"
+                + " such as its dependencies, and do not restate that unit's summary.\"\n");
     assertThat(Summarizer.maxSentences(core, 1)).isEqualTo(3);
     assertThat(Summarizer.maxSentences(core, 2)).isEqualTo(6);
     // A type with one member type is asked as any type.
@@ -254,7 +268,12 @@ class PromptTest {
 
     String user = Prompt.user(service, List.of(), List.of());
 
-    assertThat(user).contains("Of the units it contains, entry points (15 of 17):\n<facts>\n");
+    assertThat(user)
+        .contains(
+            "[[item.I1.contained]]\nabout = \"Of the units it contains, entry points (15 of"
+                + " 17)\"\nfacts = \'\'\'\n");
+    assertThat(io.lantern.harness.Toml.read(user).root().path("item").path("I1").path("contained"))
+        .isNotEmpty();
   }
 
   private static SummaryNode order(SummaryNode repo) {

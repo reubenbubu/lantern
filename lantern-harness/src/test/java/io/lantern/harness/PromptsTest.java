@@ -80,9 +80,13 @@ class PromptsTest {
 
   @Test
   void theTextsMovedOutOfTheCodeAreUnchanged() {
+    // The common prompt names the answer's format in two places (#872); filled for JSON, it is the
+    // text every JSON role has always been sent.
     MOVED.forEach(
         (name, sha) ->
-            assertThat(Fingerprints.sha256(Prompts.builtIn(name))).as(name).isEqualTo(sha));
+            assertThat(Fingerprints.sha256(AnswerFormat.JSON.fill(Prompts.builtIn(name))))
+                .as(name)
+                .isEqualTo(sha));
   }
 
   @Test

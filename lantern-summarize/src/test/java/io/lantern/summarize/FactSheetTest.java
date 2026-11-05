@@ -138,22 +138,25 @@ class FactSheetTest {
     assertThat(prompt)
         .contains(
             """
-            </facts>
-            Of the units it contains, entry points:
-            <facts>
+            '''
+            [[item.I1.contained]]
+            about = "Of the units it contains, entry points"
+            facts = '''
             [F%d] method:com.example.orders.OrderController#get0() endpoint "GET /orders/0" \
             (orders:pom.xml)
-            </facts>
-            Of the units it contains, links:
-            <facts>
+            '''
+            [[item.I1.contained]]
+            about = "Of the units it contains, links"
+            facts = '''
             [F%d] method:com.example.orders.PaymentClient#pay() http-call \
             "POST http://payments/api/payments" (orders:pom.xml)
-            </facts>
-            Of the units it contains, data stores:
-            <facts>
+            '''
+            [[item.I1.contained]]
+            about = "Of the units it contains, data stores"
+            facts = '''
             [F%d] type:com.example.orders.OrderRepository READS_TABLE \
             table:com.example:orders:orders (orders:pom.xml)
-            </facts>
+            '''
             """
                 .formatted(facts + 1, facts + 2, facts + 3));
     assertThat(Summarizer.promptFacts(module))

@@ -15,8 +15,8 @@ import tools.jackson.databind.node.ObjectNode;
  * written in a shorter form in tests: sentences that each end with the references they cite, such
  * as {@code "Sells books. [F1] It is built on [S1]."}. A sentence that cites nothing is sent with
  * no citations, which the checks leave out. A line such as {@code Purpose: evidenced} before the
- * text, which the model no longer writes, is left out. An answer that is already JSON is sent as
- * written.
+ * text, which the model no longer writes, is left out. The answer is written in TOML, as the role
+ * asks since #872; an answer that is already JSON is sent as written.
  */
 final class Answers {
 
@@ -71,9 +71,17 @@ final class Answers {
     for (String rest : split(text.substring(end))) {
       sentence(sentences, rest, List.of());
     }
-    ObjectNode root = JSON.createObjectNode();
-    root.putObject("items").putObject(Prompt.ITEM).set("sentences", sentences);
-    return root.toString();
+    StringBuilder toml = new StringBuilder("[").append(Prompt.ITEM).append("]\n");
+    for (tools.jackson.databind.JsonNode sentence : sentences) {
+      toml.append("[[").append(Prompt.ITEM).append(".sentences]]\n");
+      toml.append("text = ")
+          .append(io.lantern.harness.Toml.basic(sentence.path("text").asString()));
+      toml.append("\ncites = [");
+      List<String> cites = new ArrayList<>();
+      sentence.path("cites").forEach(c -> cites.add(io.lantern.harness.Toml.basic(c.asString())));
+      toml.append(String.join(", ", cites)).append("]\n");
+    }
+    return toml.toString();
   }
 
   private static List<String> split(String text) {

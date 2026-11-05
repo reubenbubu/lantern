@@ -33,10 +33,18 @@ public final class Pipeline {
    * rejected part to be corrected or withdrawn.
    */
   public static String repairTurn(List<Rejection> rejections) {
+    return repairTurn(rejections, io.lantern.harness.AnswerFormat.JSON);
+  }
+
+  /** As {@link #repairTurn(List)}, for a role that answers in the given format (#872). */
+  public static String repairTurn(
+      List<Rejection> rejections, io.lantern.harness.AnswerFormat format) {
     StringBuilder text =
         new StringBuilder(
             "Some parts of your answer were rejected. For each one below, answer again with a"
-                + " corrected version, or withdraw it: answer {\"omitted\": true} for a whole item,"
+                + " corrected version, or withdraw it: answer "
+                + format.omitted()
+                + " for a whole item,"
                 + " or leave a rejected field out of the item. Parts not listed were accepted; do"
                 + " not repeat them.\n<rejections>\n");
     for (Rejection rejection : rejections) {
@@ -47,8 +55,9 @@ public final class Pipeline {
       text.append('>').append(rejection.reason()).append("</rejection>\n");
     }
     text.append(
-        "</rejections>\nAnswer with one JSON object in the same schema, holding only the items you"
-            + " are correcting or withdrawing.");
+        "</rejections>\nAnswer with "
+            + format.again()
+            + ", holding only the items you are correcting or withdrawing.");
     return text.toString();
   }
 }

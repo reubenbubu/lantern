@@ -1071,15 +1071,28 @@ public final class Summarizer {
       if (response.cutOff()) {
         throw rejected("", "It was cut off at the length limit; write shorter sentences.");
       }
-      JsonNode entry = entry(response.text());
-      if (entry == null) {
-        String fault = io.lantern.harness.JsonFaults.of(response.text(), Prompt.ITEM);
+      JsonNode entry;
+      try {
+        entry = entry(response.text());
+      } catch (io.lantern.harness.Toml.Fault fault) {
         throw rejected(
             "",
-            "Your answer is not one JSON object with an entry for "
+            "Your answer is not one TOML document with a table "
                 + Prompt.ITEM
-                + " under \"items\""
-                + (fault == null ? "." : ": " + fault + "."));
+                + ": "
+                + fault.getMessage()
+                + ".");
+      }
+      if (entry == null) {
+        throw rejected(
+            "",
+            "Your answer is not one TOML document with a table "
+                + Prompt.ITEM
+                + "; write it as ["
+                + Prompt.ITEM
+                + "] followed by its [["
+                + Prompt.ITEM
+                + ".sentences]] tables.");
       }
       CheckInputs checks = inputs.checks(allowed);
       // A sentence outside the schema, such as one that cites nothing, or past the count the item
@@ -1130,7 +1143,7 @@ public final class Summarizer {
         if (!noneLeft) {
           all.addAll(schema);
         }
-        throw new Rejected(Pipeline.repairTurn(all));
+        throw new Rejected(Pipeline.repairTurn(all, Prompt.FORMAT));
       }
       if (new ItemAnswer(Prompt.ITEM, entry, List.of(), List.of()).omitted()) {
         return Answer.OMITTED;
@@ -1229,7 +1242,7 @@ public final class Summarizer {
         }
       }
       if (kept.isEmpty()) {
-        throw new Rejected(Pipeline.repairTurn(dropped));
+        throw new Rejected(Pipeline.repairTurn(dropped, Prompt.FORMAT));
       }
       if (first && !firstKept) {
         List<Rejection> lead = new ArrayList<>(dropped);
@@ -1240,7 +1253,7 @@ public final class Summarizer {
                 "Form",
                 "The first sentence was left out, so the others would stand without it; write the"
                     + " whole summary again, opening with what the unit is for."));
-        throw new Rejected(Pipeline.repairTurn(lead));
+        throw new Rejected(Pipeline.repairTurn(lead, Prompt.FORMAT));
       }
       if (!firstKept) {
         // A retried answer that lost its first sentence leads with one written to follow it, which
@@ -1257,7 +1270,7 @@ public final class Summarizer {
                       + "\" would lead the summary, but opens with a pronoun or its kind."));
         }
         if (kept.isEmpty()) {
-          throw new Rejected(Pipeline.repairTurn(dropped));
+          throw new Rejected(Pipeline.repairTurn(dropped, Prompt.FORMAT));
         }
       }
       if (!dropped.isEmpty()) {
@@ -1316,30 +1329,38 @@ public final class Summarizer {
     /** A rejection of the whole answer, as the repair turn sends it. */
     private static Rejected rejected(String field, String reason) {
       return new Rejected(
-          Pipeline.repairTurn(List.of(new Rejection(Prompt.ITEM, field, "Schema", reason))));
+          Pipeline.repairTurn(
+              List.of(new Rejection(Prompt.ITEM, field, "Schema", reason)), Prompt.FORMAT));
     }
 
-    /** The item's entry of an answer envelope, or {@code null} if the answer has none. */
+    /**
+     * The item's entry of an answer, or {@code null} if the answer has none: a TOML document whose
+     * table is the item's (#872), or, from a model that answers in JSON all the same, the JSON
+     * envelope's entry.
+     *
+     * @throws io.lantern.harness.Toml.Fault if the answer is neither, saying why
+     */
     private static JsonNode entry(String text) {
-      // The first complete object; text after it is logged and left out (#744).
-      io.lantern.harness.JsonFaults.First first = io.lantern.harness.JsonFaults.first(text);
-      JsonNode root;
-      if (first != null) {
-        root = first.object();
-        if (!first.rest().isEmpty()) {
-          LOG.info("Left out the text after the answer's JSON object: {}", logged(first.rest()));
-        }
-      } else {
-        try {
-          root = JSON.readTree(stripFence(text));
-        } catch (RuntimeException e) {
-          return null;
+      String body = stripFence(text);
+      if (body.startsWith("{")) {
+        // The first complete object; text after it is logged and left out (#744).
+        io.lantern.harness.JsonFaults.First first = io.lantern.harness.JsonFaults.first(text);
+        if (first != null) {
+          if (!first.rest().isEmpty()) {
+            LOG.info("Left out the text after the answer's JSON object: {}", logged(first.rest()));
+          }
+          JsonNode entry = first.object().path("items").get(Prompt.ITEM);
+          return entry == null || entry.isNull() ? null : entry;
         }
       }
-      if (root == null || !root.isObject()) {
-        return null;
+      io.lantern.harness.Toml.Read read = io.lantern.harness.Toml.read(text);
+      if (!read.before().isEmpty()) {
+        LOG.info("Left out the text before the answer's TOML: {}", logged(read.before()));
       }
-      JsonNode entry = root.path("items").get(Prompt.ITEM);
+      if (!read.after().isEmpty()) {
+        LOG.info("Left out the text after the answer's TOML: {}", logged(read.after()));
+      }
+      JsonNode entry = read.root().get(Prompt.ITEM);
       return entry == null || entry.isNull() ? null : entry;
     }
 

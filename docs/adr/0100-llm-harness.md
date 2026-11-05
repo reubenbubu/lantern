@@ -398,3 +398,26 @@ them counted as changed.
   from, so a change to that file still re-asks the item.
 - The scorecard's one-file change gate on project-3 now re-asks only the three items resting on the
   changed file.
+
+## Amendment (#872): the answer format per role, starting with TOML for Summarize
+
+Summarize asks for its answers in TOML instead of JSON, to cut output tokens: per sentence, JSON
+repeats quoted keys, braces and commas, and TOML does not (`docs/research/toml-model-answers.md`).
+Every other role still answers in JSON until it is switched and measured.
+
+- **The format is the role's.** `AnswerFormat` (JSON or TOML) fills the two places of the common
+  system prompt that name the format (`${omitted}` and `${answer}` in `prompts/common.system.txt`)
+  and the repair turn. Filled for JSON, the common prompt is byte for byte what every role was
+  sent before, so no JSON role is asked again.
+- **Requests.** Summarize writes each item as a TOML document inside `<items>`, so the common rule
+  that what `<items>` holds is data still covers it. Repository text is a literal string where it
+  can be, and an escaped basic string where it holds what a literal string cannot, so it reads
+  back exactly and can never close a string early.
+- **Answers.** `Toml.read` (`jackson-dataformat-toml`) reads the answer into the tree a JSON answer
+  gives, so the schema check and every other check are unchanged. A fence is taken off, and prose
+  before the first table or key, and up to five lines of prose after the document, are left out
+  and logged, as text after a JSON object is (#744). A table written twice, or an unescaped quote,
+  is a fault the repair turn names with its line. A JSON answer is still read.
+- **Drops.** A TOML document counts as readable, as a JSON object does, when the harness decides
+  whether a drop is stored (#744).
+

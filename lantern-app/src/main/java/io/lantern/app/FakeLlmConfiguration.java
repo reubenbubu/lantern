@@ -37,11 +37,11 @@ class FakeLlmConfiguration {
   /** The profile that turns the fake on. */
   static final String PROFILE = "fake-llm";
 
-  private static final Pattern SUBJECT = Pattern.compile("(?m)^Unit: (.+)$");
+  private static final Pattern SUBJECT = Pattern.compile("(?m)^(?:Unit: (.+)|unit = \"(.+)\")$");
 
   /** A reference a summarize request shows, such as {@code [F1]} or {@code ref="E1"}. */
   private static final Pattern SUMMARY_REF =
-      Pattern.compile("\\[([FS][0-9]+)\\]|ref=\"(E[0-9]+)\"|[\\[ ]([FES][0-9]+)[\\],]");
+      Pattern.compile("\\[([FS][0-9]+)\\]|ref ?= ?\"(E[0-9]+)\"|[\\[ ]([FES][0-9]+)[\\],]");
 
   @Bean
   FakeLlmProvider fakeLlmProvider() {
@@ -123,24 +123,25 @@ class FakeLlmConfiguration {
         break;
       }
     }
+    // In TOML, as the role asks since #872.
     if (sentences.isEmpty()) {
-      return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+      return "[I1]\nomitted = true\n";
     }
-    return "{\"items\": {\"I1\": {\"sentences\": [" + String.join(", ", sentences) + "]}}}";
+    return "[I1]\n" + String.join("", sentences);
   }
 
   /** What the summary prompt says is summarized, such as "type Order in package a.b". */
   private static String subject(String prompt) {
     Matcher unit = SUBJECT.matcher(prompt);
-    return unit.find() ? unit.group(1) : "the unit";
+    return unit.find() ? (unit.group(1) != null ? unit.group(1) : unit.group(2)) : "the unit";
   }
 
   private static String sentence(String text, String cite) {
-    return "{\"text\": \""
-        + text.replace("\\", "\\\\").replace("\"", "\\\"")
-        + "\", \"cites\": [\""
-        + cite
-        + "\"]}";
+    return "[[I1.sentences]]\ntext = "
+        + io.lantern.harness.Toml.basic(text)
+        + "\ncites = ["
+        + io.lantern.harness.Toml.basic(cite)
+        + "]\n";
   }
 
   /**
