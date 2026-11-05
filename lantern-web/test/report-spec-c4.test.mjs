@@ -266,6 +266,10 @@ test("the template judges a view by the report's own limits, and none without th
   assert.equal(strict.readabilityOf(grid, view).crossings, 8);
   assert.match(strict.readabilityWhy(strict.readabilityOf(grid, view)), /too large.*cross 8 times \(at most 5\)/);
   assert.equal(loose.readabilityWhy(loose.readabilityOf(grid, view)), null);
+  // Fit is by width alone (owner's decision of 4 Nov 2026 on #764): a narrow view taller than the
+  // page fits and scrolls.
+  const tall = strict.readabilityOf([], [0, 0, 1500, 3000]);
+  assert.equal(tall.fits, true);
   // A report without limits: no view is judged, so its quality report lists no gap.
   const none = loadReadability(undefined);
   assert.equal(none.READABLE, null);

@@ -5448,8 +5448,8 @@ function lineCrossings(lines){
 }
 /** The readability of a drawn diagram: its crossings, whether it fits the page, and its size. */
 function readabilityOf(lines, vb){
-  const [cw, ch] = READABLE.canvas;
-  const scale = Math.min(cw / vb[2], ch / vb[3]);
+  // fit is by width alone: a view taller than the canvas scrolls (owner's decision of 4 Nov 2026, #764)
+  const scale = READABLE.canvas[0] / vb[2];
   return {crossings: lineCrossings(lines), fits: scale >= READABLE.scale, width: Math.round(vb[2]), height: Math.round(vb[3])};
 }
 const isReadable = r => r.fits && r.crossings <= READABLE.maxCrossings;

@@ -59,7 +59,8 @@ the renderer writes from the setting `lantern.diagrams` (ADR 0117, amendment for
 template judges fit and crossings by them, and the scorer its size check, so a report is judged by
 the limits it was made with, and changing the setting changes both verdicts. A report without
 `readable`, such as one written before this change, has no view judged after layout and no size
-check in its scorecard. The canvas, 1632 × 1024 px, stays in the template: it is the page, not a
+check in its scorecard. Fit is judged by width alone, as the owner decided on 4 Nov 2026 (#764),
+replacing decision 1's whole-canvas fit: a view taller than the canvas scrolls and still fits. The canvas, 1632 × 1024 px, stays in the template: it is the page, not a
 limit.
 
 Laying out a view takes longer than this ADR assumed: the measurement for #836 found about 5 s at

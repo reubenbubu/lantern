@@ -64,9 +64,9 @@ views.
 
 | | Container views | Component views |
 | --- | --- | --- |
-| Elements, 10th / median / 90th percentile / most | 9 / 18 / 19 / 39 | 5 / 8 / 22 / 35 |
-| Lines per element, 10th / median / 90th | 1.0 / 1.49 / 1.53 | 0.67 / 1.06 / 1.89 |
-| Element kinds | containers 43%, databases 22%, queues 21%, external systems 8%, people 6% | components 67%, containers 13%, queues 10%, databases 7% |
+| Elements, each view / median | 9, 11, 18, 19, 39 / 18 | 3 to 35 / 8 (90% of views at most 22) |
+| Lines per element, each view / median | 1.0, 1.45, 1.49, 1.53, 1.83 / 1.49 | 0.67 to 2.89 / 1.06 (90% at most 1.89) |
+| Element kinds | containers 43%, databases 22%, queues 21%, external systems 8%, people 6% | components 69% (nearly all inside the frame), containers 13%, queues 10%, databases 7% |
 | Name length, median (characters) | containers 13, databases 9, queues 21 | components 23 |
 
 Each synthetic view draws its elements' kinds and places (inside or outside the frame) as often as

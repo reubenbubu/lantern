@@ -491,7 +491,7 @@ Until the owner approves the measured value and #764 merges by it, the setting's
 **Readable after layout** (#366, ADR 0123). The C4 report's template measures each container and component view as it draws it, writes the result into the view's section as `readability`, and lists each view that fails as a "Readable after layout" item, with why, in its page's quality report (one the template adds when the page has none). The report that says every check passed first measures every view of the document, and lists their gaps instead when there are any. The view itself says "Hard to read" under it. The measure exists only in the browser; the template exposes it as `window.lanternReadability()` for a headless browser. The thresholds are the report's own, its document's `readable`, written from the setting `lantern.diagrams` (#836); a report without them judges no view:
 
 - **Crossings:** the number of points where two drawn lines cross, touching or running alongside not counted; a view warns above the setting's crossings, 5 by default, the bar's value.
-- **Fit:** the view fits when it can be shown whole on the maximized diagram canvas of a 1920 × 1080 screen (1632 × 1024 px beside the sidebar and below the bar) at the setting's scale or more, 0.8 by default, at which an 11.5 px line label stays at least 9 px tall.
+- **Fit:** the view fits when, scaled to the width of the maximized diagram canvas of a 1920 × 1080 screen (1632 px beside the sidebar), it is at the setting's scale or more, 0.8 by default, at which an 11.5 px line label stays at least 9 px tall. Height does not count: a taller view scrolls and still fits (owner's decision of 4 Nov 2026 on #764).
 
 Measured on the five sets' fake-run reports (the template's layout in Chrome, 4 Nov 2026):
 
