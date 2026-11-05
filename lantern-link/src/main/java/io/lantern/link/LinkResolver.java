@@ -903,6 +903,13 @@ public final class LinkResolver implements LinkRule.OverFacts {
           "https".equals(LinkText.parse(urlOf(unresolved.object().value())).scheme())
               ? "HTTPS"
               : "HTTP";
+      if (code == null) {
+        // With no endpoint, the call's method and path keep the pick a claim of its own, apart
+        // from a gateway's routes to the same unit, as static matching writes it (#811).
+        attributes.put(
+            "request",
+            HttpLinker.request(httpMethod, attributes, urlOf(unresolved.object().value())));
+      }
       if (code != null) {
         attributes.put("endpoint", code.object().value());
         String controller = Endpoints.of(code).controller();
