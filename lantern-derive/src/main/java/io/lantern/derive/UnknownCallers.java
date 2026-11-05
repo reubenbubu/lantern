@@ -123,12 +123,26 @@ public final class UnknownCallers implements LinkRule.OverFacts {
     // the unit's entry points of that kind is one nothing reaches (#766, review).
     Set<EntityId> calledWhole = new HashSet<>();
     Set<EntityId> messagedWhole = new HashSet<>();
+    Set<String> followed = followed(knowledge);
+    // Units a followed gateway route reaches: of their endpoints, only those the linker recorded
+    // as unrouted may be ones nothing reaches.
+    Set<EntityId> routedTo = new HashSet<>();
+    Set<String> unrouted = new HashSet<>();
+    for (Fact fact : knowledge.withPredicate(Types.UNROUTED_ENDPOINT)) {
+      reach(unrouted, parse(attribute(fact, "target")), attribute(fact, "endpoint"));
+    }
     for (Fact fact : knowledge.withPredicate(Types.CALLS_HTTP)) {
       called.add(Knowledge.object(fact));
       reach(reached, Knowledge.object(fact), attribute(fact, "target"));
       reach(reached, parse(attribute(fact, "reachesUnit")), attribute(fact, "reaches"));
-      if (attribute(fact, "target") == null && attribute(fact, "reaches") == null) {
+      // A gateway's route reaches only the endpoints a routed-endpoint names, when the linker
+      // followed its routes to the unit and recorded the rest as unrouted (#766, review of 4 Nov).
+      if (attribute(fact, "target") == null
+          && attribute(fact, "reaches") == null
+          && !followedRoute(fact, followed)) {
         calledWhole.add(Knowledge.object(fact));
+      } else if (followedRoute(fact, followed)) {
+        routedTo.add(Knowledge.object(fact));
       }
     }
     for (String predicate : List.of(Types.SENDS_MESSAGES_TO, Types.USES_IDENTITY_PROVIDER)) {
@@ -182,7 +196,9 @@ public final class UnknownCallers implements LinkRule.OverFacts {
         for (Fact fact : knowledge.attributes(method)) {
           boolean callable =
               switch (fact.predicate()) {
-                case Types.ENDPOINT, Types.WEBSOCKET_ENDPOINT -> !calledWhole.contains(unit);
+                case Types.ENDPOINT, Types.WEBSOCKET_ENDPOINT ->
+                    !calledWhole.contains(unit)
+                        && (!routedTo.contains(unit) || unrouted.contains(unit + " " + method));
                 case Types.MESSAGE_LISTENER ->
                     !messagedWhole.contains(unit)
                         && unpublished(knowledge, unit, method, published);
@@ -208,6 +224,29 @@ public final class UnknownCallers implements LinkRule.OverFacts {
       }
     }
     return result;
+  }
+
+  /**
+   * The gateways and units the linker followed every route between, as {@code "<gateway> <unit>"}:
+   * it records an {@code unrouted-endpoint} for each endpoint of the unit the routes do not reach
+   * only then (RouteLinker).
+   */
+  private static Set<String> followed(Knowledge knowledge) {
+    Set<String> result = new HashSet<>();
+    for (Fact fact : knowledge.withPredicate(Types.UNROUTED_ENDPOINT)) {
+      String target = attribute(fact, "target");
+      if (target != null) {
+        result.add(fact.subject() + " " + target);
+      }
+    }
+    return result;
+  }
+
+  /** Whether the link is a gateway's route to a unit whose routes the linker followed. */
+  private static boolean followedRoute(Fact link, Set<String> followed) {
+    return attribute(link, "route") != null
+        && Knowledge.isEntity(link)
+        && followed.contains(link.subject() + " " + Knowledge.object(link));
   }
 
   /**
@@ -299,10 +338,25 @@ public final class UnknownCallers implements LinkRule.OverFacts {
       return "is not in the code of " + unit;
     }
     boolean listener = entry.predicate().equals(Types.MESSAGE_LISTENER);
+    Set<String> followed = followed(knowledge);
+    Set<String> unrouted = new HashSet<>();
+    for (Fact fact : knowledge.withPredicate(Types.UNROUTED_ENDPOINT)) {
+      reach(unrouted, parse(attribute(fact, "target")), attribute(fact, "endpoint"));
+    }
+    EntityId behind = null;
     for (Fact fact : all) {
       boolean toUnit = Knowledge.isEntity(fact) && Knowledge.object(fact).equals(unit);
-      // A link into the unit that names no entry point, or one Investigate found, may reach any.
       if (toUnit
+          && !listener
+          && fact.predicate().equals(Types.CALLS_HTTP)
+          && followedRoute(fact, followed)
+          && !unrouted.contains(unit + " " + method)) {
+        behind = fact.subject();
+      }
+      // A link into the unit that names no entry point, or one Investigate found, may reach any;
+      // a gateway's followed routes reach only what a routed-endpoint names.
+      if (toUnit
+          && !(fact.predicate().equals(Types.CALLS_HTTP) && followedRoute(fact, followed))
           && attribute(fact, "target") == null
           && attribute(fact, "reaches") == null
           && (fact.predicate().equals(Types.INVESTIGATED_CONNECTION)
@@ -324,6 +378,9 @@ public final class UnknownCallers implements LinkRule.OverFacts {
               && method.equals(attribute(fact, "endpoint")))) {
         return "is reached by " + fact.subject() + " " + fact.predicate();
       }
+    }
+    if (behind != null) {
+      return "is behind the routes of " + behind + ", which the linker did not record as unrouted";
     }
     for (Fact basis : knowledge.withPredicate(Types.PERSON_BASIS)) {
       for (String id : Screens.strings(basis, "cites")) {

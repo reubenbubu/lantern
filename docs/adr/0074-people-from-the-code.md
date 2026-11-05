@@ -159,6 +159,15 @@ does not write the linker's types (as `GROUPS` under `CONTAINS`).
 - **Reached:** a link whose object is the unit names the method as its `target` (a unit's HTTP
   call, a message sent to the unit, an identity-provider URL); a frontend's call `reaches` it in that
   unit; or a gateway's `routed-endpoint` names it.
+- **Through a gateway** (review of 4 Nov 2026): a gateway's route into a unit names no endpoint.
+  When the linker followed every route of that gateway to the unit, it records each endpoint of
+  the unit the routes do not reach as an `unrouted-endpoint`; such an endpoint is reached only if
+  something else reaches it, and the routes reach only the endpoints a `routed-endpoint` names. A
+  route the linker did not follow (one whose rewrite it cannot read), which leaves no
+  `unrouted-endpoint` for that gateway and unit, still counts as reaching every endpoint of its
+  unit. The check below applies the same rule.
+- **STOMP mappings** are not entry points of their own: a client reaches them through the
+  WebSocket endpoint it connects to.
 - **Used by a person:** a `person-basis` cites a fact about the method or its class.
 - **Gateways:** a gateway's routes are its entry points. A gateway that nothing calls gets the line,
   citing its routes. One call to the gateway, such as from a frontend, counts for all its routes.
