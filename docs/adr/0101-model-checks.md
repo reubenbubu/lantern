@@ -227,23 +227,29 @@ always judged and the fallbacks of the purpose, key fact and group names.
   now declares `support`), and every text of an answer asked again (`SupportChecks.ALWAYS`).
 - **Asked again once.** A text found `unsupported` (not `partly`) names the stored answer it came
   from (`answer`, #753). `Harness.retry` marks that answer with the claims the judge found
-  unsupported, and the analyze run runs its roles a second time, from Summarize to Name groups,
-  then the screen and the judge, each item reused from the cache but those marked:
+  unsupported, all its rejected texts' together (a purpose's and its key fact's are one answer;
+  "a claim of it" when the judge named none), and the analyze run runs its roles again, from
+  Summarize to Name groups, then the screen and the judge, each item reused from the cache but
+  those marked. A text first rejected in that pass, such as a group's name worded anew from a
+  retried member sentence, gets its own one retry in a third pass; a retried answer is never
+  marked again, and there is no fourth pass (`AnalysisRun.toRetry`, `RETRY_PASSES`). In each pass:
   - a marked item's fingerprint also hashes the reason, so its new answer is cached apart from
     the rejected one, and a later run at the same inputs replays both from the cache with no call;
   - its request ends its first turn with a note, `prompts/support-retry.txt`, giving the reason
     (`RoleSession.noted`, for packets, conversations and single requests alike);
   - its earlier texts are not carried forward (ADR 0126), since the evidence they rest on is
     unchanged and keeping them would keep the rejected wording;
-  - the new answer goes through the role's checks; texts that show it, such as a group that shows a
-    member's sentence, are asked again as on any change;
+  - the new answer goes through the role's checks; items that show it, such as a group that shows a
+    member's sentence, or a unit's investigation that reads a retried summary, are asked again as
+    on any change, and cost what they ask;
   - the second pass counts in the run record only the items it asks, not those it reuses, which
     the first pass counted.
 - **Then the plain wording.** A text that holds with an `unsupported` verdict after the second pass,
   or whose item gave no new text, is left out of the architecture model (`ArchitectureModel`
   keeps it aside as rejected), so every document shows what it shows without it:
   - a line: its static label;
-  - a box: its name, kind and technology, without a responsibility sentence;
+  - a box: its name, kind and technology, without a responsibility sentence, and without the
+    module summary that stands in for a sentence a role never wrote;
   - a summary, narrative, group description, risk or key fact: left out;
   - a purpose: the first README claim, in the order of the repositories, that reads as a
     description (a sentence of at least six words), quoted as written: "Its README says: “…”",
@@ -251,16 +257,21 @@ always judged and the fallbacks of the purpose, key fact and group names.
     the model's deployable units, frontends and databases (`ArchitectureModel.firstReadmeDescription`, `Assembler.plainPurpose`);
   - a group's name: its key's last part, the name the code gives it (a database's name, a route
     prefix, a repository or a Maven group segment), with no "(not named)" after it.
-  The rejected text stays in the store, with its verdict, for the record.
+  The rejected text stays in the store, with its verdict, for the record. A text that already
+  held an `unsupported` verdict from an earlier run (a repository carried forward, or a run before
+  this amendment) is not judged again, so it is left to the plain wording without a retry until
+  its role writes it anew.
 - **No mark.** "Not supported by its sources" is gone from the composer; no document shows a
   support mark.
 - **Counted.** `supportVerdicts` in the run record gives, per role, the verdicts after the second
   pass, the texts asked again (`retried`) and those shown in plain wording (`fellBack`); the
-  scorecard's run lines show them ("Support judge: ...").
+  scorecard's run lines show them ("Support judge: ..."). The run's log line and result count the
+  first pass's summaries and Describe items; the run record holds every pass's calls.
 - **Tests**, each shown failing first: `PacketsTest` (an item marked for retry is asked again
   alone, told the reason, under its own fingerprint, its earlier texts not carried), `SupportChecksTest`
   (the always-judged kinds; a retried answer's texts judged whatever the sample, with the reason),
-  `ArchitectureModelTest` and the composer's tests (each fallback; no mark), and
+  `ArchitectureModelTest` and the composer's tests (each fallback; no mark), `SupportRetriesTest`
+  (which answers each pass asks again; what counts as a fallback), and
   `EndToEndIT.aPurposeTheJudgeRejectsIsAskedAgainOnceAndThenLeftToThePlainWording`: a fake judge
   rejects the purpose once, and the retry's text is shown; twice, and the README's paragraph is
   shown and `run.json` counts one fallback.

@@ -630,7 +630,7 @@ Every answer, batched or agentic, goes through the same checks before anything i
 - **Revalidation on reuse.** A cached answer is reused only while its cited file ranges still hold the same blob, which extends ADR 0084's rule to every role.
 - **Sampled semantic check.** The checks above are mechanical: they prove a cited input exists and mentions what the text names, but not that it supports the claim.
   - A sample of accepted texts (10% per role per run, and every Investigate risk, purpose, key fact and group name) is checked by the model of the role that wrote it (the owner's decision on #751). It splits the text into atomic claims and asks whether the cited inputs support each one.
-  - The verdict is stored on the observation as `support` (`supported`, `partly`, `unsupported`) and lowers its confidence. It is never a gate: published agreement of such judges with people is a kappa of about 0.5 to 0.7.
+  - The verdict is stored on the observation as `support` (`supported`, `partly`, `unsupported`) and lowers its confidence. It deletes nothing from the store, since published agreement of such judges with people is a kappa of about 0.5 to 0.7; a text it rejects is asked again once and, rejected again, left out of the documents (11.7, Shown).
 - **Citations come with the answer.** Every role cites as it writes; no role is asked to add citations afterwards. Citing after writing gave the worst citation recall in the research (section 4).
 
 ### Run modes and cost controls
@@ -1212,7 +1212,7 @@ Two small model checks run after the roles. Neither deletes knowledge: the scree
 The prompt and its schema are `prompts/support-judge.task.txt` and `prompts/support-judge.schema.json` (`docs/adr/0113-prompts-folder.md`), at the version `SupportJudge.ROLE` names. Only the cited inputs count, never what the model knows; a claim that adds a specific is only partly supported, and an unsure claim is never supported.
 
 - **Stored.** On the checked observation: `support` is `supported` when all claims are supported, `unsupported` when any claim is unsupported, else `partly`; the claim list is kept beside it. Confidence is multiplied by 1, 0.8 or 0.5.
-- **Shown.** Never as a mark: the documents stay clean (the owner's decision of 4 Nov 2026 on #751). A text found `unsupported` is asked again once: its role's item is asked again in a second pass, told the claims the judge found unsupported (`prompts/support-retry.txt`), and the new answer goes through the role's checks and is judged again. If it is rejected again, or fails its checks, the documents show Lantern's plain wording in its place:
+- **Shown.** Never as a mark: the documents stay clean (the owner's decision of 4 Nov 2026 on #751). A text found `unsupported` is asked again once: its role's item is asked again in a further pass (at most three passes, so a text first rejected in the second also gets its one retry), told the claims the judge found unsupported (`prompts/support-retry.txt`), and the new answer goes through the role's checks and is judged again. If it is rejected again, or fails its checks, the documents show Lantern's plain wording in its place:
   - a line: its static label;
   - a box: its name, kind and technology, without a responsibility sentence;
   - a summary, narrative, group description, risk or key fact: left out;

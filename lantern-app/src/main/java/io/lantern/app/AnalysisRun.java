@@ -505,13 +505,16 @@ public final class AnalysisRun {
               .withSecretKeys(secretKeys)
               .withMaskedValues(secrets::add);
       // The roles write their texts, the screen reads what they were shown, and the support judge
-      // checks what they wrote. A text it rejects is asked again once, told why, in a second pass
-      // that reuses every other answer from the cache; what is rejected again is left to the plain
-      // wording (ADR 0101, the owner's decision of 4 Nov 2026 on #751).
+      // checks what they wrote. A text it rejects is asked again once, told why, in a further pass
+      // that reuses every other answer from the cache; a text first rejected in that pass, such as
+      // a group name worded anew from a retried sentence, gets its one retry in the next; what is
+      // rejected again is left to the plain wording (ADR 0101, the owner's decision of 4 Nov 2026
+      // on #751).
       io.lantern.summarize.SupportChecks.Result support;
       Summarizer.Result summarizedFirst = null;
       Describer.Result describedFirst = null;
-      List<io.lantern.summarize.SupportChecks.Rejected> rejectedFirst = List.of();
+      List<io.lantern.summarize.SupportChecks.Rejected> retriedTexts = new ArrayList<>();
+      Set<String> marked = new java.util.HashSet<>();
       for (int pass = 1; ; pass++) {
         Summarizer.Result summarized = new Summarizer(harness, sources).summarize(units);
         summarizedFirst = summarizedFirst == null ? summarized : summarizedFirst;
@@ -623,19 +626,22 @@ public final class AnalysisRun {
             "Support judge: {} texts judged; verdicts by role {}",
             support.judged(),
             support.counts());
-        if (pass == 2 || !retry(harness, support.rejected())) {
+        Map<String, String> fresh = toRetry(pass, support.retries(), marked, harness.retried());
+        if (fresh.isEmpty()) {
           break;
         }
-        rejectedFirst = support.rejected();
-        LOG.info(
-            "Support judge: {} texts rejected; their answers are asked again once",
-            rejectedFirst.size());
+        fresh.forEach(harness::retry);
+        marked.addAll(fresh.keySet());
+        support.rejected().stream()
+            .filter(r -> fresh.containsKey(io.lantern.summarize.SupportChecks.answer(r.text())))
+            .forEach(retriedTexts::add);
+        LOG.info("Support judge: {} answers rejected; each is asked again once", fresh.size());
         harness.retryPass(true);
       }
       harness.retryPass(false);
       List<Fact> judgedFacts = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
-      Map<String, Integer> retried = retried(rejectedFirst);
-      Map<String, Integer> fellBack = fellBack(judgedFacts, rejectedFirst);
+      Map<String, Integer> retried = retried(retriedTexts);
+      Map<String, Integer> fellBack = fellBack(judgedFacts, retriedTexts);
       if (!fellBack.isEmpty()) {
         LOG.info("Support judge: texts left to the plain wording, by role {}", fellBack);
       }
@@ -757,22 +763,29 @@ public final class AnalysisRun {
   }
 
   /**
-   * Marks the answer of each text the support judge rejected to be asked again once, told why
-   * (#751).
-   *
-   * @return whether any was marked; a text that names no stored answer cannot be asked again
+   * The most times the roles run in one analysis: once, then once more for the texts the judge
+   * rejected, then once more for texts first rejected in that pass (#751).
    */
-  static boolean retry(
-      Harness harness, List<io.lantern.summarize.SupportChecks.Rejected> rejected) {
-    boolean any = false;
-    for (io.lantern.summarize.SupportChecks.Rejected r : rejected) {
-      String answer = r.text().attributes().path(io.lantern.harness.LlmFacts.ANSWER).asString("");
-      if (!answer.isEmpty()) {
-        harness.retry(answer, r.reason());
-        any = true;
-      }
+  static final int RETRY_PASSES = 3;
+
+  /**
+   * The answers to ask again after a pass (#751): those rejected for the first time, not marked in
+   * an earlier pass and not themselves the answer of an item asked again, each with why; none after
+   * the last pass.
+   *
+   * @param retries why each rejected answer would be asked again, by its fingerprint
+   * @param marked the answers marked in earlier passes
+   * @param retriedAnswers the fingerprints the marked items were asked again under
+   */
+  static Map<String, String> toRetry(
+      int pass, Map<String, String> retries, Set<String> marked, Set<String> retriedAnswers) {
+    Map<String, String> fresh = new java.util.TreeMap<>(retries);
+    if (pass >= RETRY_PASSES) {
+      return Map.of();
     }
-    return any;
+    fresh.keySet().removeAll(marked);
+    fresh.keySet().removeAll(retriedAnswers);
+    return fresh;
   }
 
   /** How many texts of each role the support judge rejected and had asked again (#751). */
@@ -788,7 +801,7 @@ public final class AnalysisRun {
    * rejected first whose role gave no new text for its subject when asked again.
    *
    * @param held every fact that holds once the judge is done
-   * @param rejectedFirst the texts the first judgement rejected, all asked again
+   * @param rejectedFirst the texts the judge rejected and had asked again, in any pass
    */
   static Map<String, Integer> fellBack(
       List<Fact> held, List<io.lantern.summarize.SupportChecks.Rejected> rejectedFirst) {

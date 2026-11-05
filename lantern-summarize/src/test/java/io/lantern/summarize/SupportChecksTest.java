@@ -460,6 +460,50 @@ class SupportChecksTest {
   }
 
   @Test
+  void theRejectedTextsOfOneAnswerAreAskedAgainOnceWithAllTheirReasons() {
+    Fact purpose = withAnswer(text("purpose", Types.PURPOSE, "Sells shoes.", code), "p1");
+    Fact keyFact = withAnswer(text("purpose", Types.KEY_FACT, "Ships daily.", code), "p1");
+    Fact other = withAnswer(text("summarize", "Keeps carts.", code), "s1");
+    Fact unanswered = text("summarize", "Names no answer.", code);
+
+    SupportChecks.Result result =
+        new SupportChecks.Result(
+            Map.of(),
+            Map.of(),
+            4,
+            List.of(
+                new SupportChecks.Rejected(purpose, "\"It sells shoes\""),
+                new SupportChecks.Rejected(keyFact, "\"It ships daily\""),
+                new SupportChecks.Rejected(other, ""),
+                new SupportChecks.Rejected(unanswered, "\"It names\"")));
+
+    // One retry for the purpose's answer, told both; a blank reason still says something (#751).
+    assertThat(result.retries())
+        .containsExactly(
+            Map.entry("p1", "\"It sells shoes\"; \"It ships daily\""),
+            Map.entry("s1", SupportChecks.A_CLAIM));
+    assertThat(
+            SupportChecks.reason(
+                new io.lantern.harness.checks.SupportJudge.Verdict(
+                    io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED, List.of(" "))))
+        .isEqualTo(SupportChecks.A_CLAIM);
+  }
+
+  private static Fact withAnswer(Fact text, String answer) {
+    ObjectNode attributes = text.attributes().deepCopy();
+    attributes.put(LlmFacts.ANSWER, answer);
+    return Fact.create(
+        text.subject(),
+        text.predicate(),
+        text.object(),
+        attributes,
+        text.origin(),
+        text.evidence(),
+        text.confidence(),
+        text.validity());
+  }
+
+  @Test
   void aLeadVerdictIsNotJudged() {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("title", "Orders trust a wrong header");

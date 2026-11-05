@@ -628,8 +628,7 @@ class DescriberTest {
     // mark (the owner's decision of 4 Nov 2026 on #751).
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(text(app.description()))
-        .doesNotContain("Takes and lists the shop's orders for its web customers.");
+    assertThat(app.description()).isEmpty();
     assertThat(app.name()).isEqualTo("shop-app");
     assertThat(String.valueOf(document)).doesNotContain("Not supported by its sources");
     DocumentEntity database =

@@ -656,7 +656,11 @@ final class Assembler {
                               ? purpose().content()
                               : responsibility != null
                                   ? responsibility(entity.id(), responsibility).content()
-                                  : summarizedDescription(entity.id()).content();
+                                  // A box whose sentence the support judge rejected, though
+                                  // asked again, shows its name, kind and technology only (#751).
+                                  : model.rejected(entity.id(), Types.RESPONSIBILITY)
+                                      ? List.<Inline>of()
+                                      : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(

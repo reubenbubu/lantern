@@ -82,7 +82,40 @@ public final class SupportChecks {
       Map<Origin, List<Fact>> byOrigin,
       Map<String, Counts> counts,
       int judged,
-      List<Rejected> rejected) {}
+      List<Rejected> rejected) {
+
+    /**
+     * Why each rejected answer is asked again, by the fingerprint of the stored answer its texts
+     * came from: the reasons of all its rejected texts, such as a purpose's and its key fact's, in
+     * the order judged (#751). A text that names no stored answer cannot be asked again.
+     */
+    public Map<String, String> retries() {
+      Map<String, List<String>> reasons = new java.util.TreeMap<>();
+      for (Rejected r : rejected) {
+        String answer = answer(r.text());
+        if (!answer.isEmpty()) {
+          reasons.computeIfAbsent(answer, a -> new ArrayList<>()).add(r.reason());
+        }
+      }
+      Map<String, String> retries = new java.util.TreeMap<>();
+      reasons.forEach(
+          (answer, list) -> {
+            String joined =
+                String.join(
+                    "; ", new LinkedHashSet<>(list.stream().filter(x -> !x.isBlank()).toList()));
+            retries.put(answer, joined.isBlank() ? A_CLAIM : joined);
+          });
+      return retries;
+    }
+  }
+
+  /** What a reason says when the judge named no claim. */
+  static final String A_CLAIM = "a claim of it";
+
+  /** The fingerprint of the stored answer a text came from, or empty if it names none. */
+  public static String answer(Fact text) {
+    return text.attributes().path(LlmFacts.ANSWER).asString("");
+  }
 
   /**
    * A text the judge found unsupported.
@@ -280,12 +313,12 @@ public final class SupportChecks {
    * What tells a text's role why its answer is asked again: the claims none of its inputs shows.
    */
   static String reason(SupportJudge.Verdict verdict) {
-    return verdict.unsupported().isEmpty()
-        ? "a claim of it"
-        : verdict.unsupported().stream()
+    String joined =
+        verdict.unsupported().stream()
             .filter(c -> !c.isBlank())
             .map(c -> "\"" + c + "\"")
             .collect(java.util.stream.Collectors.joining("; "));
+    return joined.isEmpty() ? A_CLAIM : joined;
   }
 
   /** The fact as it holds from the snapshot, as recording the snapshot's facts needs. */
