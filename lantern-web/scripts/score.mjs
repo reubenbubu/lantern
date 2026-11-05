@@ -845,7 +845,7 @@ export function llmMarks(data, infrastructure) {
         lines++;
         const line = `${elements[r.from]?.name ?? r.from} -> ${elements[r.to]?.name ?? r.to}`;
         if (FOUND_PREFIX.test(r.label ?? '')) prefixed.push(`line ${line}`);
-        const word = named(`${r.to} ${elements[r.to]?.name ?? ''}`);
+        const word = named(`${r.to} ${elements[r.to]?.name ?? ''} ${r.label ?? ''}`);
         if (word) infrastructureLines.push(`${line} (${word})`);
       }
       if (section.type === 'table') {

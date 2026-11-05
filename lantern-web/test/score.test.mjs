@@ -549,6 +549,7 @@ test('LLM marks: the system box, prefixes where the badge shows, and found lines
               { from: 'orders', to: 'zipkin', label: 'Exports spans', llm: true },
               { from: 'orders', to: 'carrier', label: '*Found by the LLM:* Sends parcel tracing updates', llm: true },
               { from: 'orders', to: 'carrier', label: 'Found by the LLM: Books pickups' },
+              { from: 'orders', to: 'carrier', label: 'Exports spans to zipkin', llm: true },
             ],
           },
         ],
@@ -565,11 +566,11 @@ test('LLM marks: the system box, prefixes where the badge shows, and found lines
   const marks = llmMarks(data, ['distributed tracing', 'zipkin', 'loki']);
   assert.deepEqual(marks.systemMarked, ['Shop']);
   assert.equal(marks.elements, 3);
-  assert.equal(marks.lines, 2);
+  assert.equal(marks.lines, 3);
   assert.deepEqual(marks.prefixed, [
     'element zipkin',
     'line orders -> Parcel carrier',
     'risks table row 1',
   ]);
-  assert.deepEqual(marks.infrastructureLines, ['orders -> zipkin (zipkin)']);
+  assert.deepEqual(marks.infrastructureLines, ['orders -> zipkin (zipkin)', 'orders -> Parcel carrier (zipkin)']);
 });

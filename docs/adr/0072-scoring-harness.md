@@ -492,7 +492,7 @@ and not by eye (`llmMarks` in `lantern-web/scripts/score.mjs`):
   role did not ask is bookkeeping (ADR 0110, amendment for #749);
 - the badged elements, lines and table rows whose text still opens with "Found by the LLM:", which
   should be none;
-- the badged lines to a target the Investigate contract's `infrastructure` list names, matched as
-  whole words as the check does, which should be none.
+- the badged lines whose target or label names a word of the Investigate contract's
+  `infrastructure` list, matched as whole words as the check does, which should be none.
 
 Connection precision, which the issue also judges, is the existing container-connection row.

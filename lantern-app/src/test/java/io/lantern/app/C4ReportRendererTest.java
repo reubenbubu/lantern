@@ -426,6 +426,33 @@ class C4ReportRendererTest {
     JsonNode data = C4ReportRenderer.toJson(document).data();
 
     assertThat(data.get("elements").get("system-snapshot").has("llm")).isFalse();
+
+    // With a finding of Investigate's among them, the same facts mark the box.
+    var risk = fact(system, "investigated-risk", io.lantern.core.fact.FactObject.string("k"), llm);
+    Document found =
+        new Document(
+            "shop.c4",
+            "shop",
+            null,
+            AnalysisRun.C4_REPORT,
+            new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
+            List.of(
+                new DocumentEntity(
+                    system,
+                    "Shop",
+                    null,
+                    List.of(TextRun.of("Sells books.")),
+                    List.of(purpose.id(), notAsked.id(), risk.id()))),
+            List.of(purpose, notAsked, risk),
+            List.of(section("context", null, List.of(diagram), List.of())));
+    assertThat(
+            C4ReportRenderer.toJson(found)
+                .data()
+                .get("elements")
+                .get("system-snapshot")
+                .get("llm")
+                .asBoolean())
+        .isTrue();
   }
 
   @Test

@@ -274,8 +274,9 @@ showed both the badge and that prefix.
   whose target, description or technology names a word of the contract's `infrastructure` list
   (`prompts/investigate.contract.json`), with the reason, so the model can correct it. The list
   names "distributed tracing", not the bare word "tracing", so a business connection such as one
-  that sends parcel tracing updates to a carrier passes. Only the check reads the list, and it now
-  rejects less, so the prompt's version stays 7; the list's pin in `prompts.sha256` is updated.
+  that sends parcel tracing updates to a carrier passes. The check now lets through what it dropped
+  before, so Investigate's prompt version rises to 8 and stored drops are asked again (ADR 0100, A
+  drop lasts as long as an answer); the list's pin in `prompts.sha256` is updated.
 - **Scored.** The scorecard's "LLM marks" section lists the focus system boxes that carry the badge,
   the badged elements, lines and risk rows that still open with "Found by the LLM:", and the badged
   lines to infrastructure the contract names; each should list none (ADR 0072, amendment for #749).
