@@ -573,6 +573,50 @@ class DescriberTest {
   }
 
   @Test
+  void aResponsibilityTheJudgeRejectedIsAskedAgainAloneToldWhyAndItsNewSentenceIsShown() {
+    String first = "Takes and lists the shop's orders for its web customers.";
+    String again = "Takes the orders of the shop's web customers and lists them.";
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request ->
+                    request.messages().getFirst().text().contains("<retry")
+                        ? answer(request).replace(first, again)
+                        : answer(request));
+    Harness harness = harness(client(fake));
+    Describer.Result described = new Describer(harness).describe(facts.list());
+    Fact sentence =
+        described.facts(1).values().stream()
+            .flatMap(List::stream)
+            .filter(f -> f.subject().equals(APP) && f.predicate().equals("responsibility"))
+            .findFirst()
+            .orElseThrow();
+    int sent = fake.sent().size();
+
+    // The support judge rejected it (#751): its answer is asked again once, told why.
+    harness.retry(
+        sentence.attributes().path(io.lantern.harness.LlmFacts.ANSWER).asString(),
+        "\"It serves web customers\"");
+    Describer.Result retried = new Describer(harness).describe(facts.list());
+
+    List<LlmRequest> asked =
+        fake.sent().subList(sent, fake.sent().size()).stream()
+            .map(FakeLlmProvider.Sent::request)
+            .filter(r -> r.messages().getFirst().text().contains("<retry"))
+            .toList();
+    assertThat(asked).hasSize(1);
+    assertThat(asked.getFirst().messages().getFirst().text())
+        .contains("\"It serves web customers\"")
+        .contains("shop-app");
+    DocumentEntity app =
+        system(retried).entities().stream()
+            .filter(e -> e.id().equals(APP))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(app.description())).contains(again).doesNotContain(first);
+  }
+
+  @Test
   void aSentenceTheSupportJudgeRejectedLeavesTheBoxWithoutOneAndNothingIsMarked() {
     TestTexts.Written wordings =
         TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)))
