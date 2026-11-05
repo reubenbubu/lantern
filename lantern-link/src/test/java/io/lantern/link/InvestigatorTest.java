@@ -951,6 +951,41 @@ class InvestigatorTest {
   }
 
   @Test
+  void aRiskFoundExploringThatCitesTheLinesOfARiskWhoseLeadNamesItsUnitIsNotASecondRisk() {
+    // The lead names the gateway and files, but its answer names the gateway alone.
+    Fact lead = headerLead();
+    ObjectNode attributes = (ObjectNode) lead.attributes().deepCopy();
+    attributes.putArray("units").add(GATEWAY_UNIT).add(FILES_UNIT);
+    add(
+        "lead-identity-from-request",
+        "lead:identity-from-request/" + GATEWAY_UNIT + "/header:X-User-Id",
+        Types.LEAD_TRIGGER,
+        FactObject.string("identity-from-request"),
+        attributes.toString(),
+        "fs",
+        CONTROLLER,
+        6);
+    String confirmed =
+        CONFIRMED.replace(
+            "\"units\": [\"service:g:files\"]", "\"units\": [\"" + GATEWAY_UNIT + "\"]");
+    String overlapping = uploadRisk("fs:" + CONTROLLER + ":6-6");
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                turn(r) != 1
+                    ? null
+                    : leads(r)
+                        ? r.messages().getFirst().text().contains(GATEWAY_UNIT + "/header")
+                            ? confirmed
+                            : null
+                        : unit(r, FILES_UNIT) ? overlapping : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
+  }
+
+  @Test
   void aJoinedRiskTakesTheHighestImpactOfItsLeads() {
     headerLead();
     orgLead();

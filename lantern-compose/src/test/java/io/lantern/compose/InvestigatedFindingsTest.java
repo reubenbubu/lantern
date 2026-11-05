@@ -206,10 +206,12 @@ class InvestigatedFindingsTest {
           .containsExactly(
               "High "
                   + InvestigatedFindings.FOUND_BY_LLM
-                  + " Refunds mail before the commit. Refunds mail before the commit in the code.",
+                  + " Refunds mail before the commit. Refunds mail before the commit in the code."
+                  + " Units: shop-app.",
               "Medium "
                   + InvestigatedFindings.FOUND_BY_LLM
-                  + " Orders publish before commit. Orders publish before commit in the code.");
+                  + " Orders publish before commit. Orders publish before commit in the code."
+                  + " Units: shop-app.");
       assertThat(text(parent.children().getFirst().cells().get(4)))
           .isEqualTo("shop:" + CONTROLLER + ":30-9");
       Table.Row plain = table.rows().get(1);

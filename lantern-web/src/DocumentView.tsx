@@ -435,7 +435,7 @@ function ParentRow({ row, id }: { row: TableRow; id: string }) {
                 className="row-toggle"
                 aria-expanded={open}
                 aria-controls={ids.join(' ')}
-                aria-label={open ? 'Hide the rows under this one' : `Show the ${children.length} rows under this one`}
+                aria-label={`The ${children.length} rows under this one`}
                 onClick={() => setOpen(!open)}
               >
                 {open ? '▾' : '▸'}

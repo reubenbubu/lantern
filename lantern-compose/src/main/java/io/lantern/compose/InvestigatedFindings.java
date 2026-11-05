@@ -160,6 +160,14 @@ final class InvestigatedFindings {
     finding.add(TextRun.of(" "));
     finding.add(new TextRun(risk.title() + ".", TextRun.Style.STRONG));
     finding.add(TextRun.of(" " + risk.finding()));
+    if (!risk.units().isEmpty()) {
+      // Which units each risk is about, since a parent folds the risks of several (#747).
+      finding.add(
+          TextRun.of(
+              " Units: "
+                  + String.join(", ", risk.units().stream().map(assembler::name).toList())
+                  + "."));
+    }
     return new Table.Row(
         null,
         List.of(
@@ -179,7 +187,7 @@ final class InvestigatedFindings {
   private List<List<InvestigatedRisks.Risk>> groups() {
     Map<String, List<InvestigatedRisks.Risk>> groups = new LinkedHashMap<>();
     for (InvestigatedRisks.Risk risk : risks) {
-      String kind = leadKind(risk);
+      String kind = risk.leadKind();
       groups
           .computeIfAbsent(
               kind.isEmpty() ? risk.fact().id() : "kind " + kind, k -> new ArrayList<>())
@@ -188,13 +196,9 @@ final class InvestigatedFindings {
     return List.copyOf(groups.values());
   }
 
-  private static String leadKind(InvestigatedRisks.Risk risk) {
-    return risk.leadKind();
-  }
-
   /** A group's kind and count, such as "Send before commit: 13 risks". */
   private static String count(List<InvestigatedRisks.Risk> group) {
-    return capitalized(leadKind(group.getFirst()).replace('-', ' '))
+    return capitalized(group.getFirst().leadKind().replace('-', ' '))
         + ": "
         + group.size()
         + " risks";
@@ -219,7 +223,7 @@ final class InvestigatedFindings {
         TextRun.of(" The most serious: " + first.title() + ". " + first.finding() + " Evidence: "));
     content.addAll(evidence(first));
     return new Callout(
-        assembler.id(section, "investigated", "kind " + leadKind(first)),
+        assembler.id(section, "investigated", "kind " + first.leadKind()),
         Callout.Variant.RISK,
         severity(first),
         count(group),

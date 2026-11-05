@@ -56,6 +56,7 @@ const tableRenderer = new Function(
 
 test('a parent row shows a toggle and its folded rows hidden beneath it; a plain row has none (#747)', () => {
   const html = tableRenderer({
+    id: 'risks',
     columns: ['Impact', 'Finding'],
     rows: [['High', 'One risk'], ['Medium', 'Two risks of a kind']],
     llmRows: [0, 1],
@@ -64,10 +65,10 @@ test('a parent row shows a toggle and its folded rows hidden beneath it; a plain
   assert.match(html, /<tr><td>\[LLM\] High<\/td><td>One risk<\/td><\/tr>/);
   assert.match(
     html,
-    /<tr class="row-parent"><td><button type="button" class="row-toggle" aria-expanded="false" data-rows="1"[^>]*>▸<\/button>\[LLM\] Medium<\/td>/,
+    /<tr class="row-parent"><td><button type="button" class="row-toggle" aria-expanded="false" aria-controls="risks-r1-0 risks-r1-1" data-parent-row="1"[^>]*>▸<\/button>\[LLM\] Medium<\/td>/,
   );
-  assert.match(html, /<tr class="row-child" data-parent="1" hidden><td>\[LLM\] Medium<\/td><td>First<\/td><\/tr>/);
-  assert.match(html, /<tr class="row-child" data-parent="1" hidden><td>\[LLM\] Low<\/td><td>Second<\/td><\/tr>/);
+  assert.match(html, /<tr class="row-child" id="risks-r1-0" data-parent="1" hidden><td>\[LLM\] Medium<\/td><td>First<\/td><\/tr>/);
+  assert.match(html, /<tr class="row-child" id="risks-r1-1" data-parent="1" hidden><td>\[LLM\] Low<\/td><td>Second<\/td><\/tr>/);
   assert.equal(html.match(/row-toggle/g).length, 1);
 });
 

@@ -3561,7 +3561,7 @@
             ],
             [
               "Medium",
-              "**Sent before the transaction commits: 2 risks.** Found by the LLM.",
+              "**Sent before the transaction commits: 2 risks.**",
               "",
               ""
             ]

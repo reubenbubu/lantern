@@ -234,6 +234,7 @@ ul.ticks li::before{content:'';position:absolute;left:3px;top:.62em;width:7px;he
 .row-toggle[aria-expanded="true"]{transform:rotate(90deg)}
 .row-child td{background:var(--s2)}
 .row-child td:first-child{padding-left:1.6rem}
+@media print{.row-child[hidden]{display:table-row}.row-toggle{display:none}}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);text-align:left;
@@ -4273,7 +4274,7 @@ body.sb-collapsed .mx{left:0}
             ],
             [
               "Medium",
-              "**Sent before the transaction commits: 2 risks.** Found by the LLM.",
+              "**Sent before the transaction commits: 2 risks.**",
               "",
               ""
             ]
@@ -5970,8 +5971,9 @@ const SECTION = {
     return `<div class="tbl-wrap"><table>${(s.columns||[]).length ? `<thead><tr>${s.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}<tbody>${(s.rows||[]).map((r, i) => {
       const g = sub.get(i);
       if (!g) return `<tr>${cells(r, (s.llmRows || []).includes(i), '')}</tr>`;
-      const toggle = `<button type="button" class="row-toggle" aria-expanded="false" data-rows="${i}" aria-label="Show the ${g.rows.length} rows under this one">▸</button>`;
-      return `<tr class="row-parent">${cells(r, (s.llmRows || []).includes(i), toggle)}</tr>${g.rows.map((sr, k) => `<tr class="row-child" data-parent="${i}" hidden>${cells(sr, (g.llmRows || []).includes(k), '')}</tr>`).join('')}`;
+      const ids = g.rows.map((_, k) => `${esc(s.id)}-r${i}-${k}`);
+      const toggle = `<button type="button" class="row-toggle" aria-expanded="false" aria-controls="${ids.join(' ')}" data-parent-row="${i}" aria-label="The ${g.rows.length} rows under this one">▸</button>`;
+      return `<tr class="row-parent">${cells(r, (s.llmRows || []).includes(i), toggle)}</tr>${g.rows.map((sr, k) => `<tr class="row-child" id="${ids[k]}" data-parent="${i}" hidden>${cells(sr, (g.llmRows || []).includes(k), '')}</tr>`).join('')}`;
     }).join('')}</tbody></table></div>`;
   },
 };
@@ -6201,8 +6203,7 @@ document.addEventListener('click', e => {
   if (t){
     const open = t.getAttribute('aria-expanded') !== 'true';
     t.setAttribute('aria-expanded', open);
-    t.setAttribute('aria-label', open ? 'Hide the rows under this one' : `Show the ${t.closest('tbody').querySelectorAll(`tr[data-parent="${t.dataset.rows}"]`).length} rows under this one`);
-    t.closest('tbody').querySelectorAll(`tr[data-parent="${t.dataset.rows}"]`).forEach(r => { r.hidden = !open; });
+    t.closest('tbody').querySelectorAll(`tr[data-parent="${t.dataset.parentRow}"]`).forEach(r => { r.hidden = !open; });
   }
 });
 

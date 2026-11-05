@@ -179,9 +179,15 @@ function diagramElements(section) {
   return ids;
 }
 
-/** The text of a section's rows or items, one string each. */
+/**
+ * The text of a section's rows or items, one string each. A table's parent row stands in for the
+ * rows folded under it, so each folded risk counts and the parent does not (#747).
+ */
 function rowsOf(section) {
-  if (section.type === 'table') return section.rows;
+  if (section.type === 'table') {
+    const folded = new Map((section.subRows ?? []).map((g) => [g.row, g.rows]));
+    return section.rows.flatMap((row, i) => folded.get(i) ?? [row]);
+  }
   if (section.type === 'list') return section.items.map((item) => [item]);
   if (section.type === 'decisions') return section.items.map((item) => [item.title, item.body ?? '']);
   return [];

@@ -196,6 +196,16 @@ td {
   padding-left: 1.5rem;
 }
 
+@media print {
+  .row-child[hidden] {
+    display: table-row;
+  }
+
+  .row-toggle {
+    display: none;
+  }
+}
+
 figure {
   margin: var(--space) 0;
 }

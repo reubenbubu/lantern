@@ -72,9 +72,9 @@ under the owner's standing go-ahead for milestone 1F.
   evidence (the file's blob included) and a confidence of 0.6, 0.45 or 0.3 by the model's own:
   - a verdict, `(lead, lead-verdict, confirmed|refuted|unclear)`, with lineage to the lead, so it
     ends with it, keeping its justification (`finding`) and citations;
-  - a confirmed lead, or a Mode B or C risk, `(first unit, investigated-risk, key)`, the key the
-    lead's kind and units sorted (amendment for #747) or the risk's names sorted, its title, finding, consequence, impact, units,
-    names, citations and mode descriptive; a risk naming no unit is its lead's units', else its
+  - a confirmed lead, or a Mode B or C risk, `(first unit, investigated-risk, key)`, the key
+    the lead's kind and units sorted (amendment for #747) or the risk's names sorted, its
+    title, finding, consequence, impact, units, names, citations and mode descriptive; a risk naming no unit is its lead's units', else its
     conversation's unit's, else the system's;
   - a risk that restates a finding of a fixed check, `(finding, finding-wording, key)` instead,
     with lineage to the finding and the lead. It restates one when it concerns the finding's unit
@@ -181,7 +181,7 @@ conversation read it; Investigate has no sides.
 - **Re-measure.** The measurement of leads a request again on Claude Haiku 5.5 is done by #756,
   with the recalibration of the batched roles; the size stays 1 until it reports.
 
-## Amendment (#747): one risk per kind per unit
+## Amendment (#747): one risk per kind per unit (key superseded by the second part below)
 
 - **Key.** A confirmed lead's `investigated-risk` is keyed on the lead's kind instead of its claim
   ID. The confirmed leads of one kind whose risk is about one unit (the first unit the answer
@@ -227,13 +227,15 @@ The owner's decision of 4 Nov 2026 on #747 ([comment](https://github.com/reubenb
   one gateway to two services (project-8's r2 and r10) make two. Distinct values keep two such
   risks two claims, since the claim is the subject, predicate and value.
 - **Restatement.** A Mode B or C risk restates a stored risk or worded finding that names its unit
-  among its `units`, not only one whose subject is its unit, when every range it cites overlaps
+  among its `units` or, for a lead's, among the leads' units its value holds, not only one whose
+  subject is its unit, when every range it cites overlaps
   that one's evidence. A lead's risk stored under its first unit is so seen by the exploration of
   every unit it names.
 - **Parents in the documents.** In the "Risks and findings" table, the risks of one lead kind in
   the document's scope fold under one parent row: the kind (from `leads.json`, written in words),
   the number of risks and the highest impact among them, expandable to each risk with its own
-  title, impact, finding, consequence, confidence and verified ranges. A kind with one risk is a
+  title, impact, finding, units, consequence, confidence and verified ranges. Every risk row names
+  its units, since a parent folds the risks of several. A kind with one risk is a
   plain row; a risk found exploring, or a worded finding, is never folded. The Executive Brief shows
   a parent as one callout naming the count and the most serious risk. The parent is grouped at
   compose time from the stored risks: not stored, no LLM call, so it is the same in every run. The
@@ -241,7 +243,8 @@ The owner's decision of 4 Nov 2026 on #747 ([comment](https://github.com/reubenb
   (`report-specs/c4-model-sequence-diagrams`), with the owner's approval.
 - **Scoring.** The scorecard counts the risks, not the parents. A risk right for one reference risk
   is also credited for every other reference risk it matches whose cited lines it cites, so a risk
-  gathering several places finds each of them (`risksRow`). The scorecard's "Repeated risks" line
+  gathering several places finds each of them (`risksRow`). The report's risks count a parent row
+  as the rows folded under it. The scorecard's "Repeated risks" line
   lists any two investigated risks of one lead kind with the same units; a fixed check's wordings
   are not counted there (#748 scores them).
 

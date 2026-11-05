@@ -1010,8 +1010,8 @@ function citesOverlap(a, b) {
 }
 
 /**
- * Risks of one problem stored twice (#747): the investigated risks of one lead kind whose units,
- * sorted, are the same, each such group with its kind, units and titles. A risk is one problem, its
+ * Risks of one problem stored twice (#747): the investigated risks of one lead kind whose leads'
+ * units, sorted, are the same, each such group with its kind, units and titles. A risk is one problem, its
  * kind and all its units, so a group here is a duplicate the join should have made one risk. A fixed
  * check's wordings are not counted: two findings of a kind are the checks', scored apart (#748).
  */
@@ -1022,7 +1022,12 @@ export function repeatedRisks(llm) {
     if (fact.predicate !== 'investigated-risk') continue;
     const kind = categoryOf(fact);
     if (!kind) continue;
-    const units = [...new Set(fact.attributes?.units ?? [fact.subject])].sort();
+    // The units of the leads it gathers, in its value after the kind (ADR 0110, amendment for
+    // #747), as the join keys them; else the units it names.
+    const value = String(fact.object?.value ?? '');
+    const units = value.startsWith(`${kind} `)
+      ? value.slice(kind.length + 1).split(',').sort()
+      : [...new Set(fact.attributes?.units ?? [fact.subject])].sort();
     const key = `${kind} ${units.join(',')}`;
     if (!groups.has(key)) groups.set(key, { kind, units, titles: [] });
     groups.get(key).titles.push(fact.attributes?.title ?? fact.subject);

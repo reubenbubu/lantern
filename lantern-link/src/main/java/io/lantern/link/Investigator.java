@@ -1086,14 +1086,21 @@ public final class Investigator {
       return Optional.empty();
     }
 
-    /** Whether a stored risk or wording names the unit among its units. */
+    /**
+     * Whether a stored risk or wording names the unit: among the units its answer named, or, for a
+     * lead's, among its leads' units, which its value holds after the kind (#747).
+     */
     private static boolean namesUnit(Fact fact, String unit) {
       for (JsonNode named : Claims.json(fact).path("units")) {
         if (named.isString() && named.stringValue().equals(unit)) {
           return true;
         }
       }
-      return false;
+      String value = fact.object().value();
+      int space = value.indexOf(' ');
+      return Claims.json(fact).path("lead").isString()
+          && space >= 0
+          && List.of(value.substring(space + 1).split(",")).contains(unit);
     }
 
     /**

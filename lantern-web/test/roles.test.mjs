@@ -191,7 +191,7 @@ test('Investigate: a risk citing the lines of two reference risks it matches is 
   // the leads of both cites each one's lines.
   const key = {
     risks: [
-      { id: 'r2', reference: 'Skils path', subjects: ['gateway', 'technician'], category: 'contract-mismatch', cites: ['gw:src/Overview.java:25-25'] },
+      { id: 'r2', reference: 'Misspelt path', subjects: ['gateway', 'technician'], category: 'contract-mismatch', cites: ['gw:src/Overview.java:25-25'] },
       { id: 'r10', reference: 'Status path', subjects: ['gateway', 'workorder'], category: 'contract-mismatch', cites: ['gw:src/Status.java:40-42'] },
       { id: 'r11', reference: 'Other path', subjects: ['gateway'], category: 'contract-mismatch', cites: ['gw:src/Other.java:7-7'] },
     ],
@@ -235,6 +235,21 @@ test('repeated risks: two risks of one lead kind with the same units are listed;
   assert.equal(row.measured, true);
   assert.deepEqual(row.repeated, [{ kind: 'send-before-commit', units: ['service:a'], titles: ['Mails before commit', 'Sends before commit'] }]);
   assert.deepEqual(repeatedRisks(llm.slice(2)).repeated, []);
+  // The units are the leads' own, in the stored value, not the ones the answer named: two risks
+  // the join kept apart are not repeated even when the model named the same units for both.
+  const keyed = (value, lead, title) => ({
+    predicate: 'investigated-risk',
+    subject: 'service:a',
+    object: { kind: 'string', value },
+    attributes: { units: ['service:a'], lead, title },
+  });
+  assert.deepEqual(
+    repeatedRisks([
+      keyed('identity-from-request service:a', 'lead:identity-from-request/service:a/x', 'Header'),
+      keyed('identity-from-request service:a,service:b', 'lead:identity-from-request/service:a/y', 'Org header'),
+    ]).repeated,
+    [],
+  );
   assert.equal(repeatedRisks(null).measured, false);
 });
 
