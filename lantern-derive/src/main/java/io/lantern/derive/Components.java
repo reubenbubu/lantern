@@ -289,12 +289,15 @@ public final class Components implements LinkRule.OverFacts {
      * the entry points reach, with a root before every entry point and no path through another
      * entry point (Cooper, Harvey and Kennedy's iterative algorithm).
      */
+    /** The made-up root the dominators are taken from: no vocabulary type, so no entity's ID. */
+    private static final String DOMINATOR_ROOT = "root";
+
     private static Map<EntityId, EntityId> owners(
         Set<EntityId> entries,
         Set<EntityId> beans,
         Map<EntityId, Set<EntityId>> uses,
         Map<EntityId, SortedSet<EntityId>> reachedBy) {
-      EntityId root = new EntityId("root", "root");
+      EntityId root = new EntityId(DOMINATOR_ROOT, DOMINATOR_ROOT);
       // Reverse postorder from the root, in ID order so the result does not depend on the input's.
       List<EntityId> post = new ArrayList<>();
       Set<EntityId> visited = new HashSet<>(Set.of(root));

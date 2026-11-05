@@ -1,5 +1,6 @@
 package io.lantern.core.fact;
 
+import io.lantern.core.types.Types;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -18,6 +19,12 @@ public record EntityId(String type, String key) {
   private static final Pattern KEY =
       Pattern.compile(
           "[^\\u0000-\\u0020\\u007f-\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]+");
+
+  /**
+   * The software system a snapshot describes, the one entity every stage names the same way: the
+   * subject of system-wide findings and the scope of a system document (#763).
+   */
+  public static final EntityId SYSTEM = new EntityId(Types.SYSTEM, "snapshot");
 
   public EntityId {
     Objects.requireNonNull(type, "type");

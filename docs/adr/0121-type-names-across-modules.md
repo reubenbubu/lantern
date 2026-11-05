@@ -52,6 +52,14 @@ wants one place that reads predicate names. The issue fixed the choice (owner ma
 - A fixture in a `io.lantern.link` package (`LinkerComparingPredicates`) shows both checks failing
   on a linker that copies a predicate's name as a constant and compares predicates to literals.
 - Fake runs of project-0 and the five development sets are unchanged, document by document.
-- A one-word entity or attribute type's name (`endpoint`, `database`) written as a literal outside
-  a fact query is not caught by the source check: such words are also JSON keys, report-spec kinds
-  and plain English, hundreds of times over. The constants rule and review catch the rest.
+- What the carve-out covers (decision of 4 Nov 2026 on #763, its comment "what ADR 0121's
+  carve-out may cover"):
+  - **Not allowed:** any literal used as a vocabulary type or predicate name, one-word names
+    included: `new EntityId("repo", …)`, a `"type:"` or `"artifact:"` prefix, `startsWith("database:")`,
+    and a private `EntityId` constant copying a core one. These go through `Types` (and the core's
+    `EntityId.SYSTEM`). The source check finds `new EntityId("<type>"` and any literal starting
+    `"<type>:"` for every type name, and the rule `NAMES_CORE_ENTITIES_ONCE` finds a constant equal
+    to `EntityId.SYSTEM` that is not it.
+  - **Allowed:** a one-word string that only coincides with a type name and is not used as one (a
+    JSON key, a report kind, an English word in a message). Where the source check would flag one,
+    it is listed in its exemptions (`NOT_TYPE_NAMES`, `NOT_ENTITY_IDS`) with its reason.

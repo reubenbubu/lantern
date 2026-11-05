@@ -265,7 +265,7 @@ public final class DeploymentExtractor implements Extractor {
       this.repo = repo;
       this.validity = validity;
       this.facts = facts;
-      this.subject = new EntityId("repo", repo.repo().name());
+      this.subject = new EntityId(Types.REPO, repo.repo().name());
     }
 
     void run() {

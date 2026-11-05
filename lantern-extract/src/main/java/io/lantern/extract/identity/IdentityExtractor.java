@@ -478,7 +478,7 @@ public final class IdentityExtractor implements Extractor {
         return;
       }
       String[] lines = text.split("\n", -1);
-      EntityId subject = new EntityId("repo", repo.repo().name());
+      EntityId subject = new EntityId(Types.REPO, repo.repo().name());
       for (JsonNode client : realm.path("clients")) {
         String id = client.path("clientId").asString("");
         if (id.isBlank() || BUILT_IN_CLIENTS.contains(id)) {

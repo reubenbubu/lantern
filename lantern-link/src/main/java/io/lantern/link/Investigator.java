@@ -85,9 +85,6 @@ public final class Investigator {
   /** The origin name of its facts. */
   public static final String NAME = "investigate";
 
-  /** The subject of the system's facts. */
-  public static final EntityId SYSTEM = new EntityId("system", "snapshot");
-
   /** The lead kind a finding's kind is about, for whether a risk restates it. */
   static final Map<String, String> FINDING_LEADS =
       Map.of(
@@ -242,7 +239,7 @@ public final class Investigator {
     if (!config.supports(Capability.TOOL_USE)) {
       String reason = "the model cannot use tools, which Investigate answers through";
       model.units.keySet().forEach(unit -> run.notInvestigated(unit, reason));
-      run.notInvestigated(SYSTEM.toString(), reason);
+      run.notInvestigated(EntityId.SYSTEM.toString(), reason);
       return run.result();
     }
     run.leads();
@@ -289,7 +286,7 @@ public final class Investigator {
 
     /** The unit its conversation is about: its first, or none for the system. */
     String unit() {
-      return units.isEmpty() ? SYSTEM.toString() : units.getFirst();
+      return units.isEmpty() ? EntityId.SYSTEM.toString() : units.getFirst();
     }
 
     String claim() {
@@ -744,7 +741,7 @@ public final class Investigator {
       inputs.add(
           FingerprintInput.answer(
               Fingerprints.sha256(String.join("\n", risks)), List.of(UNITS.name())));
-      String subject = SYSTEM.toString();
+      String subject = EntityId.SYSTEM.toString();
       Item item = new Item(subject, subject, inputs, InvestigatePrompt.system(model.allRepos()));
       contexts.put(subject, context);
       session.plan(List.of(item), prefix(false));
@@ -755,7 +752,7 @@ public final class Investigator {
     private final Map<String, String> contexts = new ConcurrentHashMap<>();
 
     private void proposals(String unit, Outcome outcome, InvestigateRole.Mode mode) {
-      String subject = unit == null ? SYSTEM.toString() : unit;
+      String subject = unit == null ? EntityId.SYSTEM.toString() : unit;
       Outcome.Kind kind = outcome == null ? Outcome.Kind.FAILED : outcome.kind();
       count(outcome);
       switch (kind) {
@@ -828,7 +825,7 @@ public final class Investigator {
     }
 
     private InvestigateRole role(Mode mode, String group) {
-      boolean system = group.equals(SYSTEM.toString());
+      boolean system = group.equals(EntityId.SYSTEM.toString());
       String context =
           switch (mode) {
             case A, A_ALONE -> InvestigatePrompt.facts(system ? List.of() : model.unitFacts(group));
@@ -962,7 +959,7 @@ public final class Investigator {
         units.add(conversation);
       }
       if (units.isEmpty()) {
-        units.add(SYSTEM.toString());
+        units.add(EntityId.SYSTEM.toString());
       }
       return units.stream().distinct().toList();
     }

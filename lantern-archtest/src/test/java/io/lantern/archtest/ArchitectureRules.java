@@ -439,6 +439,46 @@ final class ArchitectureRules {
           .allowEmptyShould(true)
           .because("the typed layer names every vocabulary type in one place (ADR 0114)");
 
+  /**
+   * No module that reads facts keeps its own copy of an entity the core names once: a constant
+   * equal to {@code EntityId.SYSTEM} is that constant, not a new one built from a literal (#763).
+   */
+  static final ArchRule NAMES_CORE_ENTITIES_ONCE =
+      fields()
+          .that()
+          .areStatic()
+          .and()
+          .areFinal()
+          .and()
+          .haveRawType(io.lantern.core.fact.EntityId.class)
+          .and()
+          .areDeclaredInClassesThat(
+              DescribedPredicate.and(
+                  resideInAnyPackage(FACT_READERS),
+                  DescribedPredicate.not(
+                      JavaClass.Predicates.belongToAnyOf(io.lantern.core.fact.EntityId.class))))
+          .should(
+              new ArchCondition<JavaField>("not copy a core entity") {
+                @Override
+                public void check(JavaField field, ConditionEvents events) {
+                  Object value = value(field);
+                  io.lantern.core.fact.EntityId core = io.lantern.core.fact.EntityId.SYSTEM;
+                  if (core.equals(value) && value != core) {
+                    events.add(
+                        SimpleConditionEvent.violated(
+                            field,
+                            field.getOwner().getName()
+                                + "."
+                                + field.getName()
+                                + " copies "
+                                + core
+                                + "; use EntityId.SYSTEM"));
+                  }
+                }
+              })
+          .allowEmptyShould(true)
+          .because("the core names the snapshot's system once (#763)");
+
   /** The names of this version of Lantern's vocabulary types, read when first needed. */
   static final Supplier<Set<String>> TYPE_NAMES =
       new Supplier<>() {

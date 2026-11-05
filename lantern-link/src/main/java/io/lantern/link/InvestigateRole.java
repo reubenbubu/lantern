@@ -1,6 +1,7 @@
 package io.lantern.link;
 
 import io.lantern.core.fact.FactJson;
+import io.lantern.core.types.Types;
 import io.lantern.harness.FileRead;
 import io.lantern.harness.Item;
 import io.lantern.harness.PacketRole;
@@ -637,7 +638,8 @@ final class InvestigateRole implements PacketRole {
                     + "."));
         return;
       }
-      boolean created = to.startsWith("external-system:") || to.startsWith("database:");
+      boolean created =
+          to.startsWith(Types.EXTERNAL_SYSTEM + ":") || to.startsWith(Types.DATABASE + ":");
       if (to.isEmpty() || to.equals(from) || !(created || role.element.apply(to))) {
         found.add(
             reject(

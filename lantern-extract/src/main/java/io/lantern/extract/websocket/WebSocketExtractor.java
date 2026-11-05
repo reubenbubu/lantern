@@ -497,7 +497,7 @@ public final class WebSocketExtractor implements Extractor {
       }
       fact(
           module,
-          new EntityId("type", owner),
+          new EntityId(Types.TYPE, owner),
           Types.STOMP_CHANNEL_INTERCEPTOR,
           owner,
           attributes,
@@ -772,7 +772,7 @@ public final class WebSocketExtractor implements Extractor {
           if (depth > 2) {
             return null;
           }
-          EntityId field = new EntityId("field", f.owner() + "#" + f.name());
+          EntityId field = new EntityId(Types.FIELD, f.owner() + "#" + f.name());
           List<Assignment> given = code.values().assignments(f);
           Text only = null;
           for (Assignment a : given) {

@@ -75,6 +75,22 @@ class TypeNamesInSourceTest {
               + "\\s*\\(?\\s*\""
               + "((?:[^\"\\\\]|\\\\.)*)\"");
 
+  /**
+   * Where code builds or reads an entity ID with its type written out: {@code new EntityId("x",
+   * ...)} or a literal that starts {@code "x:"}, for any type name, one-word names included
+   * (decision of 4 Nov 2026 on #763).
+   */
+  private static final Pattern ENTITY_ID = Pattern.compile("new EntityId\\(\\s*\"([^\"]*)\"");
+
+  /** Literals whose {@code <type>:} is not an entity ID's type, as file and literal, with why. */
+  static final Set<String> NOT_ENTITY_IDS =
+      Set.of(
+          // The word "repo" an LLM wrote in place of a repository's name in a citation (#703).
+          "Checks.java repo:",
+          // The ID of the system's C4 view, not an entity; its colon keeps it apart from a
+          // repository's view.
+          "AnalysisRun.java system:c4");
+
   @Test
   void theModulesThatReadFactsWriteNoTypeNameWhereTheyReadFacts() throws IOException {
     assertThat(found(sources())).as("type names written as strings; use Types").isEmpty();
@@ -87,10 +103,14 @@ class TypeNamesInSourceTest {
 
     assertThat(found(List.of(fixture)))
         .containsExactly(
-            "LinkerComparingPredicates.java:12 \"CALLS_HTTP\"",
-            "LinkerComparingPredicates.java:16 \"USES_DATABASE\"",
-            "LinkerComparingPredicates.java:20 withPredicate(\"endpoint\"",
-            "LinkerComparingPredicates.java:24 \"http-call\"");
+            "LinkerComparingPredicates.java:13 \"CALLS_HTTP\"",
+            "LinkerComparingPredicates.java:17 \"USES_DATABASE\"",
+            "LinkerComparingPredicates.java:21 withPredicate(\"endpoint\"",
+            "LinkerComparingPredicates.java:25 \"http-call\"",
+            "LinkerComparingPredicates.java:28 new EntityId(\"system\"",
+            "LinkerComparingPredicates.java:31 new EntityId(\"repo\"",
+            "LinkerComparingPredicates.java:35 \"type:\"",
+            "LinkerComparingPredicates.java:39 \"artifact:\"");
   }
 
   /** Each type name the files write where they read facts, as {@code file:line text}. */
@@ -118,9 +138,22 @@ class TypeNamesInSourceTest {
             found.add(where + query.group());
           }
         }
+        Matcher entity = ENTITY_ID.matcher(line);
+        while (entity.find()) {
+          if (all.contains(entity.group(1))) {
+            found.add(where + entity.group());
+          }
+        }
         Matcher literal = LITERAL.matcher(line);
         while (literal.find()) {
           String text = literal.group(1);
+          int colon = text.indexOf(':');
+          if (colon > 0
+              && all.contains(text.substring(0, colon))
+              && !NOT_ENTITY_IDS.contains(file.getFileName() + " " + text)) {
+            found.add(where + literal.group());
+            continue;
+          }
           if ((relationships.contains(text) || (text.contains("-") && all.contains(text)))
               && !NOT_TYPE_NAMES.contains(file.getFileName() + " " + literal.group(1))) {
             found.add(where + literal.group());
