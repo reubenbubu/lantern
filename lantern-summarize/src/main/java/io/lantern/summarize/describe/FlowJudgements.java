@@ -825,11 +825,13 @@ public final class FlowJudgements {
   /**
    * Code in a title: a path or a reference ({@code /orders}, {@code #place}), a call or a member
    * ({@code place()}, {@code OrderService.place}), a snake_case name, a camelCase method name, or a
-   * type named by its role ({@code OrderController}).
+   * type named by its role ({@code OrderController}). Plain words that only look like code stay:
+   * "iPhone", "Node.js", "24/7".
    */
   private static final java.util.regex.Pattern CODE =
       java.util.regex.Pattern.compile(
-          "[/#()_]|\\w\\.\\w|\\b[a-z]+[A-Z]\\w*|\\b[A-Z][a-z]+\\w*"
+          "(^|\\s)/\\w|[#()_]|\\b[A-Z][a-z]+[A-Z]\\w*\\.[a-z]|\\b[a-z]{2,}[A-Z][a-z]"
+              + "|\\b[A-Z][a-z]+\\w*"
               + "(Controller|Service|Repository|Handler|Listener|Resource|Endpoint|Client|Job)\\b");
 
   /**

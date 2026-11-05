@@ -36,6 +36,12 @@ class FlowJudgementsTest {
     assertThat(FlowJudgements.titleProblem("OrderController places orders")).isNotNull();
     assertThat(FlowJudgements.titleProblem("Customer posts /orders")).isNotNull();
     assertThat(FlowJudgements.titleProblem("OrderService.place runs")).isNotNull();
+    assertThat(FlowJudgements.titleProblem("Customer calls place_order")).isNotNull();
+    // Plain words that only look like code are kept: product names, versions, "and/or".
+    assertThat(FlowJudgements.titleProblem("Customer pays from an iPhone")).isNull();
+    assertThat(FlowJudgements.titleProblem("Node.js frontend fetches eBay prices")).isNull();
+    assertThat(FlowJudgements.titleProblem("Operator restarts it 24/7")).isNull();
+    assertThat(FlowJudgements.titleProblem("Clerk processes returns")).isNull();
     assertThat(new FlowJudgements.OneItem(null, true).pipeline().checks())
         .extracting(io.lantern.harness.verify.Check::name)
         .contains("Title");
