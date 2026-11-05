@@ -41,6 +41,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.MethodOrderer;
@@ -108,6 +110,48 @@ class EndToEndIT {
       HexFormat.of().toHexDigits(ThreadLocalRandom.current().nextLong());
   private static final String STORE_FAILED = "Storing the facts failed";
 
+  /**
+   * How the fake support judge answers (#751): {@code null} as every fake run does, every text
+   * supported; {@code once}, Describe's first responsibilities rejected and their rewording
+   * accepted; {@code twice}, both rejected.
+   */
+  static final java.util.concurrent.atomic.AtomicReference<String> JUDGE =
+      new java.util.concurrent.atomic.AtomicReference<>();
+
+  private static final Pattern JUDGED =
+      Pattern.compile("<item id=\"(I[0-9]+)\">\n<text>([^<]*)</text>");
+
+  /** The purpose the fake words first, as long as Purpose's checks ask (10 to 25 words). */
+  static final String PURPOSE = "Greets the people who call it, as a small Java library would.";
+
+  /** What the fake words the purpose as when asked again, for the run's judge. */
+  static String retried() {
+    return "Greets each of the people who call it, as the README of the library says ("
+        + JUDGE.get()
+        + ").";
+  }
+
+  /** The fake support judge's answer while {@link #JUDGE} is set, else null. */
+  static String judging(LlmRequest request) {
+    String mode = JUDGE.get();
+    if (mode == null || !request.system().contains("Task: check support.")) {
+      return null;
+    }
+    Matcher items = JUDGED.matcher(request.messages().getFirst().text());
+    List<String> entries = new ArrayList<>();
+    while (items.find()) {
+      String text = items.group(2);
+      boolean rejected = text.equals(PURPOSE) || (mode.equals("twice") && text.equals(retried()));
+      entries.add(
+          "\"%s\": {\"claims\": [{\"claim\": \"%s\", \"verdict\": \"%s\"}]}"
+              .formatted(
+                  items.group(1),
+                  rejected ? "It greets people." : "The text.",
+                  rejected ? "unsupported" : "supported"));
+    }
+    return "{\"items\": {" + String.join(", ", entries) + "}}";
+  }
+
   @TestConfiguration(proxyBeanMethods = false)
   static class Fake {
     /**
@@ -123,6 +167,10 @@ class EndToEndIT {
           .callingTools(request -> FakeLlmConfiguration.resolve(request, "K1"))
           .answering(
               request -> {
+                String judged = judging(request);
+                if (judged != null) {
+                  return judged;
+                }
                 String check = FakeLlmConfiguration.modelCheck(request);
                 if (check != null) {
                   return check;
@@ -148,8 +196,21 @@ class EndToEndIT {
                 if (request.system().contains(FakeLlmConfiguration.PURPOSE_TASK)) {
                   java.util.regex.Matcher ref =
                       java.util.regex.Pattern.compile("\\[([FA][0-9]+)\\]").matcher(prompt);
+                  // Asked again after the support judge rejected it, it words it anew, citing
+                  // the README's claim.
+                  String purpose =
+                      JUDGE.get() == null
+                          ? "Greets people."
+                          : prompt.contains("<retry") ? retried() : PURPOSE;
+                  if (JUDGE.get() != null) {
+                    ref =
+                        java.util.regex.Pattern.compile("\\[([FA][0-9]+)\\] readme:")
+                            .matcher(prompt);
+                  }
                   return ref.find()
-                      ? "{\"items\": {\"I1\": {\"purpose\": {\"text\": \"Greets people.\","
+                      ? "{\"items\": {\"I1\": {\"purpose\": {\"text\": \""
+                          + purpose
+                          + "\","
                           + " \"cites\": [\""
                           + ref.group(1)
                           + "\"]}}}}"
@@ -383,6 +444,70 @@ class EndToEndIT {
                       });
             });
     return asked;
+  }
+
+  /**
+   * A text the support judge rejects is asked again once, told why; rejected again, the documents
+   * show Lantern's plain wording, and the run record counts it (the owner's decision of 4 Nov 2026
+   * on #751). The fixture's one text Describe words is the system's purpose, which the judge always
+   * checks; when it is rejected twice, the README's first descriptive paragraph takes its place.
+   */
+  @Test
+  void aPurposeTheJudgeRejectsIsAskedAgainOnceAndThenLeftToThePlainWording() throws IOException {
+    for (String mode : List.of("once", "twice")) {
+      JUDGE.set(mode);
+      try {
+        // A repository of its own, so no other test's answers are reused for it.
+        Path lib = fixtureRepo("lib-and-service/lib", mode + "-greeting");
+        TestGitRepo.init(lib)
+            .commit("README.md", "# Greeting\n\nThe library greets the people who call it.\n");
+        int sent = fake.sent().size();
+
+        AnalysisRun.Result result =
+            run.run("judged-" + mode, null, Map.of(mode + "-greeting", lib));
+
+        // The purpose was asked again, told the claim the judge found unsupported.
+        assertThat(fake.sent().subList(sent, fake.sent().size()))
+            .extracting(x -> x.request().messages().getFirst().text())
+            .anySatisfy(
+                text ->
+                    assertThat(text)
+                        .contains("<retry")
+                        .contains("\"It greets people.\"")
+                        .contains("The library greets the people who call it."));
+        String overview =
+            DocumentJson.write(result.documents().getLast().document()).replaceAll("\\s+", " ");
+        JsonNode purpose =
+            JsonMapper.builder()
+                .build()
+                .readTree(Files.readString(result.runRecord()))
+                .path("supportVerdicts")
+                .path("purpose");
+        assertThat(purpose.path("retried").asInt()).isEqualTo(1);
+        if (mode.equals("once")) {
+          // The second answer is shown.
+          assertThat(overview).contains(retried()).doesNotContain(PURPOSE);
+          assertThat(purpose.path("fellBack").asInt()).isZero();
+          assertThat(purpose.path("supported").asInt()).isEqualTo(1);
+        } else {
+          // Rejected again: the README's paragraph, quoted, and the run record counts one
+          // fallback.
+          assertThat(overview)
+              .contains("Its README says: \u201cThe library greets the people who call it.\u201d")
+              .doesNotContain(retried())
+              .doesNotContain(PURPOSE);
+          assertThat(purpose.path("fellBack").asInt()).isEqualTo(1);
+          assertThat(purpose.path("unsupported").asInt()).isEqualTo(1);
+        }
+        // No document shows a support mark.
+        for (AnalysisRun.Rendered document : result.documents()) {
+          assertThat(Files.readString(document.file()))
+              .doesNotContain("Not supported by its sources");
+        }
+      } finally {
+        JUDGE.set(null);
+      }
+    }
   }
 
   @Test
