@@ -1,7 +1,9 @@
 package io.lantern.llm;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * The caps of one conversation (knowledge-build epic, section 10, Agent loop). At {@value
@@ -52,7 +54,10 @@ public record ConversationLimits(
       throw new IllegalArgumentException("Caps must be positive");
     }
     nudge = ModelConfig.nonBlank("Nudge", Objects.requireNonNull(nudge, "nudge"));
-    answerTools = Set.copyOf(Objects.requireNonNull(answerTools, "answerTools"));
+    // Sorted, so the caps read the same in every run (a prompt's fingerprint includes them).
+    answerTools =
+        Collections.unmodifiableSortedSet(
+            new TreeSet<>(Objects.requireNonNull(answerTools, "answerTools")));
   }
 
   /** The caps with no cap on a turn's size and no answer turns. */

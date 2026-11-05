@@ -156,6 +156,28 @@ class GraphToolsTest {
   }
 
   @Test
+  void smallAnswersAreCutToWholeLinesAndTheOutlineIsOffered() {
+    GraphTools small = tools().small(80);
+
+    assertThat(small.tools())
+        .extracting(LlmTool::name)
+        .containsExactly("facts_about", "search_facts", "read_file", "find_in_code", "outline");
+    LlmToolResult read =
+        small.run(
+            call(
+                "read_file",
+                "{\"repo\": \"a\", \"path\": \"src/main/resources/application.yml\"}"));
+
+    // A header and as many whole lines as fit under 80 characters, then how to ask for the rest.
+    assertThat(read.content())
+        .startsWith("a:src/main/resources/application.yml, lines 1 to 10 of 10:\n1: spring:\n")
+        .contains("... cut at 80 characters: lines ")
+        .contains("left out; read them with from ");
+    assertThat(small.run(call("outline", "{\"repo\": \"a\", \"path\": \"x.yml\"}")).error())
+        .isTrue();
+  }
+
+  @Test
   void readsLinesWithSecretsMasked() {
     LlmToolResult read =
         tools()

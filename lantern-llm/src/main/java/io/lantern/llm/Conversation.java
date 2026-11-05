@@ -234,7 +234,10 @@ public final class Conversation {
       freshInput += ConversationLimits.freshEquivalent(response.usage());
       lastSent = ConversationLimits.sent(response.usage());
       last = response;
-      if (!response.wantsTools()) {
+      // A turn cut off while it wrote tool calls is not an answer: its calls go back unrun, told
+      // why, and the conversation goes on (#892).
+      boolean cutCalls = response.cutOff() && !response.toolCalls().isEmpty();
+      if (!response.wantsTools() && !cutCalls) {
         return response;
       }
       List<LlmToolResult> results = new ArrayList<>();

@@ -33,7 +33,11 @@ final class LeadWords {
       String bare = id.replaceFirst(" \\(again\\)$", "");
       // lead:<kind>/<unit or place>/<what it is about>
       String[] parts = bare.split("/", 3);
-      String label = parts.length == 3 ? parts[2] : bare;
+      if (parts.length < 3) {
+        // A lead about a whole unit: no word picks lines about it.
+        continue;
+      }
+      String label = parts[2];
       label = URLDecoder.decode(label.replace("+", "%2B"), StandardCharsets.UTF_8);
       label = label.replaceFirst("^(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\\s+", "");
       label = label.replaceFirst("^(header|parameter|property|config|env|environment):", "");
