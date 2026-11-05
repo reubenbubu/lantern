@@ -43,6 +43,30 @@ class AskedWhyTest {
   }
 
   @Test
+  void aChangedAnswerNamesTheItemItComesFromAndAnUnchangedOneNothing() {
+    FingerprintInput kept = FingerprintInput.answer("same", List.of("summarize package:p"));
+    FingerprintInput old = FingerprintInput.answer("old", List.of("summarize-type type:A"));
+    StoredAnswer before = stored("1", "m", List.of(), CLAIM, kept, old);
+    FingerprintInput reworded = FingerprintInput.answer("new", List.of("summarize-type type:A"));
+    AskedWhy why =
+        AskedWhy.of(
+            Optional.of(before),
+            List.of(
+                CLAIM,
+                // The same text, whatever source it names: not a change (#722).
+                FingerprintInput.answer("same", List.of("other")),
+                reworded,
+                FingerprintInput.answer("unnamed")),
+            "1",
+            "p",
+            "m",
+            AskedWhyTest::noFile);
+    assertThat(why.answers()).isEqualTo(3);
+    assertThat(why.changedAnswers())
+        .containsExactly(AskedWhy.UNKNOWN_SOURCE, "summarize-type type:A");
+  }
+
+  @Test
   void eachChangedInputIsCountedByWhereItComesFrom() {
     StoredAnswer before = stored("1", "m", List.of(), CLAIM, OLD_BLOB, OTHER_CLAIM, OLD_ANSWER);
     AskedWhy why =

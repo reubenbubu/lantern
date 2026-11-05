@@ -476,7 +476,13 @@ public final class DescribeItems {
     if (summary.purpose() == Summary.Purpose.EVIDENCED) {
       evidenced.add(local(token));
     }
-    inputs.add(FingerprintInput.answer(io.lantern.harness.Fingerprints.sha256(text)));
+    inputs.add(
+        FingerprintInput.answer(
+            io.lantern.harness.Fingerprints.sha256(text),
+            List.of(
+                io.lantern.summarize.Summarizer.role(summary.level()).name()
+                    + " "
+                    + summary.entity())));
     return "[" + token + "] " + of + ": " + text;
   }
 
@@ -582,7 +588,9 @@ public final class DescribeItems {
       if (answered != null) {
         String token = refs.add('A', unit.toString(), answered, answered.text());
         inputs.add(
-            FingerprintInput.answer(io.lantern.harness.Fingerprints.sha256(answered.text())));
+            FingerprintInput.answer(
+                io.lantern.harness.Fingerprints.sha256(answered.text()),
+                List.of(DescribeRole.UNITS.name() + " " + unit)));
         answers.add(
             "[" + token + "] " + FactLines.oneLine(assembler.name(unit)) + ": " + answered.text());
       }

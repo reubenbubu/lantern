@@ -449,3 +449,20 @@ the drawn flows that overlap (one reaches the other's entry point, or both have 
 The row's own numbers are the judged ones, else the rank's, and they count the flows drawn, not
 every flow the judge marked significant. Without `flows.json` the row is computed as #746 says.
 `scripts/score-testsets.sh` copies `flows.json` with the run's other files.
+
+## Amendment (#722): the one-file gate fails on a cascade
+
+The gate of #755 counted every item re-asked because a shown answer changed as expected, at any
+depth, so a fully cascading run passed. Now (decision of 4 Nov 2026 on #722):
+
+- **What the run records.** `askedWhy` also lists `changedAnswers`: for each changed answer the
+  item shows, the item it comes from, as "`<role> <subject>`" or a role alone for any of its items
+  (`AskedWhy.changedAnswers`, from `FingerprintInput.from`), alternatives as "`a|b`"; "?" names a
+  source not recorded. An item that only lost a shown answer lists none.
+- **The gate.** An item re-asked only through shown answers is expected when each changed
+  answer's item was re-asked in this run and is itself expected, settled level by level. A cascade
+  from an answer this run did not re-ask for the file is unexpected, listed with the answers whose
+  items were not re-asked, and so is a changed answer whose source is not recorded. An item that
+  only lost a shown answer, whose source is no longer named, is expected once something was
+  re-asked for the file. A judge's item on a reworded text stays expected as before, unless another
+  file changed too.

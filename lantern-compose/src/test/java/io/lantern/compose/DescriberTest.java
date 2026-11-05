@@ -2067,6 +2067,87 @@ class DescriberTest {
         });
   }
 
+  /**
+   * The fake's answer, with a sentence for every component of a unit item it leaves out, naming the
+   * component as the item shows it, so each component's sentence is its own.
+   */
+  private static String everyComponent(LlmRequest request, String answer) {
+    String prompt = request.messages().getFirst().text();
+    java.util.regex.Matcher items =
+        java.util.regex.Pattern.compile(
+                "<item id=\"(I[0-9]+)\">\n(The deployable unit .*?)\n</item>",
+                java.util.regex.Pattern.DOTALL)
+            .matcher(prompt);
+    tools.jackson.databind.JsonNode root;
+    try {
+      root = tools.jackson.databind.json.JsonMapper.builder().build().readTree(answer);
+    } catch (RuntimeException e) {
+      return answer;
+    }
+    while (items.find()) {
+      if (!(root.path("items").path(items.group(1))
+          instanceof tools.jackson.databind.node.ObjectNode entry)) {
+        continue;
+      }
+      java.util.regex.Matcher components =
+          java.util.regex.Pattern.compile("(?m)^\\[(C[0-9]+)\\] ([A-Za-z]+)")
+              .matcher(items.group(2));
+      while (components.find()) {
+        tools.jackson.databind.node.ObjectNode all =
+            entry.has("components")
+                ? (tools.jackson.databind.node.ObjectNode) entry.get("components")
+                : entry.putObject("components");
+        if (!all.has(components.group(1))) {
+          tools.jackson.databind.node.ObjectNode text = all.putObject(components.group(1));
+          text.put(
+              "text",
+              "Answers the web shop's requests that the part called "
+                  + components.group(2)
+                  + " receives.");
+          for (String cite : componentCites(items.group(2), components.group(1)).split(", ")) {
+            text.withArray("cites").add(cite.replace("\"", ""));
+          }
+        }
+      }
+    }
+    return root.toString();
+  }
+
+  @Test
+  void aNewComponentSortingFirstLeavesEveryOtherComponentsWordingAsItWas() {
+    java.util.concurrent.atomic.AtomicInteger calls =
+        new java.util.concurrent.atomic.AtomicInteger();
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(r -> reworded(everyComponent(r, answer(r)), calls.incrementAndGet()));
+    new Describer(harness(client(fake))).describe(facts.list());
+    Map<String, String> before = storedTexts("describe-unit", APP);
+
+    // A controller whose name sorts before the others: every other component's key moves (#722).
+    String type = "type:com.example.web.AuditController";
+    String method = "method:com.example.web.AuditController#audit()";
+    List<Fact> grown =
+        facts
+            .relate("shop", "package:com.example:app:com.example.web", "CONTAINS", type)
+            .relate("shop", type, "CONTAINS", method)
+            .attribute("shop", type, "stereotype", "controller", "{\"rest\": true}")
+            .attribute("shop", method, "endpoint", "GET /audit", "{}")
+            .list();
+    new Describer(harness(client(fake))).describe(grown);
+    Map<String, String> after = storedTexts("describe-unit", APP);
+
+    List<String> components =
+        before.entrySet().stream()
+            .filter(e -> e.getKey().contains("/components/"))
+            .map(Map.Entry::getValue)
+            .toList();
+    assertThat(components).isNotEmpty();
+    assertThat(after.entrySet().stream().filter(e -> e.getKey().contains("/components/")))
+        .hasSize(components.size() + 1);
+    // Each earlier component keeps its words under its new key, though the model rewords all.
+    assertThat(after.values()).containsAll(components);
+  }
+
   @Test
   void theSameCodeAtANewCommitMakesNoCallAndChangedCodeAsksAgain() {
     FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);

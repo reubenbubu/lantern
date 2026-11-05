@@ -73,3 +73,34 @@ level of one text.
   re-ask that shows the earlier texts and asks for edits, is the next option.
 - The real-run gate stays open on #722: on project-4 with #529's one-file change, #755's gate must
   pass with 0 unexpected items on Haiku 5.5 and Sonnet 5.5.
+
+## Amendment (#722, review of 4 Nov 2026): found by what a text is about; the cascade stops at a kept text
+
+- **Found by what it is about, not by its key.** An earlier text is looked up by the hash of what
+  it is about (`PacketRole.about`), and among several about the same thing, the one that rested on
+  the lines the new text cites first, then the one of the same field, then in order, each kept at
+  most once. A component or line whose key moves, such as
+  from C3 to C4 when a new component sorts first, keeps its wording; a key that now names another
+  thing still keeps nothing of the old one. Before, texts were matched by field, so one added
+  component reworded every component after it.
+- **Each text recorded under its own field.** A stored text is paired with its field by its place
+  in the stored answer (its path ends with the field), and only where the stored form names no
+  field, such as a summary's sentences, by its words and number of citations. Two texts worded
+  alike no longer swap their records.
+- **How far a one-file change may re-ask** (decision of 4 Nov 2026 on #722). An item is re-asked
+  only when a file it rests on changed, or when the text of an answer it is shown changed in this
+  run. A summary above the package is re-asked only if a summary below it got new wording; one
+  re-asked that kept its wording stops the cascade, since it shows the same text. Each shown
+  answer names the item it comes from, outside the fingerprint (`FingerprintInput.from`), so the
+  run's record says whose answers changed (ADR 0072, amendment for #722):
+  - Summarize's child summaries and the summaries Describe shows: the child's summarize item;
+  - units' sentences shown to the flow roles and to Describe's elements: the unit's Describe item;
+    shown to Purpose: the unit's or the element's;
+  - interaction phrases shown to the flow narratives: Describe's units role, since a large unit's
+    phrases may come from any of its parts;
+  - members' sentences and lines' intents shown to Name groups: the role that wrote them;
+  - flow titles shown to Purpose: the flow narrative role;
+  - Investigate's lead verdicts shown to a unit: the leads role; its risks and system map shown to
+    the system pass: the units role.
+  The other groups' IDs Name groups is shown are derived, not answers, and are now a text input,
+  which asks each Name groups item once anew.

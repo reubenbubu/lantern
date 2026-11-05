@@ -741,7 +741,26 @@ class Project0EndToEndIT {
                               .as(item + " asked for " + why)
                               .isTrue();
                           assertThat(files).as(item).isSubsetOf(repo + ":" + path);
+                          // Asked only through shown answers: each names the item it came from,
+                          // re-asked in this run (#722).
+                          if (files.isEmpty()) {
+                            assertThat(why.path("changedAnswers"))
+                                .as(item + " asked for " + why)
+                                .isNotEmpty()
+                                .allSatisfy(
+                                    from ->
+                                        assertThat(askedByRecord)
+                                            .anyMatch(
+                                                a ->
+                                                    a.equals(from.asString())
+                                                        || a.startsWith(from.asString() + " ")));
+                          }
                         }));
+    // The scorer's one-file gate, which counts an item asked through a shown answer only when that
+    // answer's item was re-asked for the file, passes with nothing unexpected (#722, #755).
+    JsonNode gate = changeGate(changed.runRecord(), repo + ":" + path);
+    assertThat(gate.get("unexpected")).as(gate.toString()).isEmpty();
+    assertThat(gate.get("gate").asBoolean()).as(gate.toString()).isTrue();
     // What the change re-asked, for the run's evidence.
     Files.createDirectories(OUT);
     Files.write(
@@ -1170,6 +1189,36 @@ class Project0EndToEndIT {
       assertThat(scope.get("overlaps")).as(scope.toString()).isEmpty();
     }
     assertThat(scopes).contains(io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE);
+  }
+
+  /** The scorer's one-file change gate (lantern-web/scripts/roles.mjs, changeGate) on a run. */
+  static JsonNode changeGate(Path runRecord, String file) throws IOException {
+    String script =
+        """
+        const [roles, run, file] = process.argv.slice(-3);
+        const { readFileSync } = await import('node:fs');
+        const { changeGate } = await import(roles);
+        console.log(JSON.stringify(changeGate(JSON.parse(readFileSync(run, 'utf8')), file)));
+        """;
+    Process node =
+        new ProcessBuilder(
+                Path.of("../lantern-web/target/node/node").toAbsolutePath().toString(),
+                "--input-type=module",
+                "-e",
+                script,
+                Path.of("../lantern-web/scripts/roles.mjs").toAbsolutePath().toUri().toString(),
+                runRecord.toString(),
+                file)
+            .start();
+    String printed = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    String err = new String(node.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+    try {
+      assertThat(node.waitFor()).as(err).isZero();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException(e);
+    }
+    return JSON.readTree(printed);
   }
 
   /**

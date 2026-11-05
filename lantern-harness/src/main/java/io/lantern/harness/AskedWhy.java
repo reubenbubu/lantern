@@ -21,6 +21,9 @@ import java.util.function.BiFunction;
  * @param files the files, as {@code repo:path}, of the claims and file texts that changed, and of
  *     the files a tool-using item read that changed since
  * @param answers how many earlier answers the item shows changed
+ * @param changedAnswers the items the changed answers it shows come from, each "{@code <role>
+ *     <subject>}" or a role alone, as the answer names them ({@link FingerprintInput#from}); empty
+ *     when none changed; one that names none counts as {@value #UNKNOWN_SOURCE}
  * @param other how many other inputs changed: texts from no file
  * @param prompt the role's prompt version changed
  * @param model the role's provider or model changed
@@ -30,20 +33,26 @@ public record AskedWhy(
     boolean unheld,
     SortedSet<String> files,
     int answers,
+    SortedSet<String> changedAnswers,
     int other,
     boolean prompt,
     boolean model) {
 
   public AskedWhy {
     files = java.util.Collections.unmodifiableSortedSet(new TreeSet<>(files));
+    changedAnswers = java.util.Collections.unmodifiableSortedSet(new TreeSet<>(changedAnswers));
   }
 
+  /** The source of a changed answer that names none. */
+  public static final String UNKNOWN_SOURCE = "?";
+
   /** An item never asked before. */
-  public static final AskedWhy NEW = new AskedWhy(true, false, new TreeSet<>(), 0, 0, false, false);
+  public static final AskedWhy NEW =
+      new AskedWhy(true, false, new TreeSet<>(), 0, new TreeSet<>(), 0, false, false);
 
   /** An item whose stored answer, its inputs unchanged, cites a fact that no longer holds. */
   public static final AskedWhy UNHELD =
-      new AskedWhy(false, true, new TreeSet<>(), 0, 0, false, false);
+      new AskedWhy(false, true, new TreeSet<>(), 0, new TreeSet<>(), 0, false, false);
 
   /**
    * Why the item is asked, against the answer stored last for its subject.
@@ -75,6 +84,16 @@ public record AskedWhy(
     changed.removeAll(same);
     SortedSet<String> files = new TreeSet<>();
     int answers = 0;
+    SortedSet<String> changedAnswers = new TreeSet<>();
+    // Where each answer shown now that was not shown before comes from (#722).
+    for (FingerprintInput input : inputs) {
+      if (input.kind() == FingerprintInput.Kind.ANSWER && !before.contains(input)) {
+        if (input.from().isEmpty()) {
+          changedAnswers.add(UNKNOWN_SOURCE);
+        }
+        changedAnswers.addAll(input.from());
+      }
+    }
     int other = 0;
     for (FingerprintInput input : changed) {
       if (input.kind() == FingerprintInput.Kind.ANSWER) {
@@ -96,6 +115,7 @@ public record AskedWhy(
         false,
         files,
         answers,
+        changedAnswers,
         other,
         !promptVersion.equals(was.promptVersion()),
         !provider.equals(was.provider()) || !modelName.equals(was.model()));

@@ -415,7 +415,12 @@ public final class Summarizer {
     names.append("\nentity ").append(node.entity());
     List<Prompt.Item> shown = Prompt.children(children);
     for (int i = 0; i < children.size(); i++) {
-      inputs.add(FingerprintInput.answer(Fingerprints.sha256(shown.get(i).text())));
+      // From the child's own item, so the run's record can say whose summary changed (#722).
+      Summary child = children.get(i);
+      inputs.add(
+          FingerprintInput.answer(
+              Fingerprints.sha256(shown.get(i).text()),
+              List.of(role(child.level()).name() + " " + child.entity())));
       // The prompt names a contained unit without its full entity ID, which its citation stores.
       names.append("\nchild ").append(children.get(i).entity());
     }

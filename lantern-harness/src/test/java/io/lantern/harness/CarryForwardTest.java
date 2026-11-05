@@ -56,6 +56,86 @@ class CarryForwardTest {
   }
 
   @Test
+  void aTextIsFoundByWhatItIsAboutWhenANewOneSortsBeforeIt() {
+    // Two components, C1 and C2; a new component sorts first, so they are now C2 and C3 (#722).
+    Map<String, String> lines =
+        Map.of("F1", "shop CALLS_HTTP pay.example.com", "F2", "shop PUBLISHES orders");
+    List<CheckedText> first =
+        List.of(
+            text("components.C1", "Charges each order's card.", "Payments", "F1"),
+            text("components.C2", "Announces each order placed.", "Publisher", "F2"));
+    Map<String, CarryForward.Earlier> earlier =
+        CarryForward.earlier(CarryForward.mark(stored(first), first, lines));
+    Map<String, String> now =
+        Map.of(
+            "F1", "shop READS_TABLE audit",
+            "F2", "shop CALLS_HTTP pay.example.com",
+            "F3", "shop PUBLISHES orders");
+    List<CheckedText> reworded =
+        List.of(
+            text("components.C1", "Keeps an audit of each change.", "Audit", "F1"),
+            text("components.C2", "Takes card payments for orders.", "Payments", "F2"),
+            text("components.C3", "Publishes the orders placed.", "Publisher", "F3"));
+
+    assertThat(CarryForward.merge(reworded, earlier, now, t -> true))
+        .extracting(CheckedText::field, CheckedText::text, CheckedText::cites)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(
+                "components.C1", "Keeps an audit of each change.", List.of("F1")),
+            org.assertj.core.groups.Tuple.tuple(
+                "components.C2", "Charges each order's card.", List.of("F2")),
+            org.assertj.core.groups.Tuple.tuple(
+                "components.C3", "Announces each order placed.", List.of("F3")));
+  }
+
+  @Test
+  void ofTwoTextsAboutOneThingEachKeepsTheOneThatRestedOnItsLines() {
+    // Two intents about lines that read alike, R2 and R3, both moved one key on (#722).
+    Map<String, String> lines =
+        Map.of("F1", "a CALLS_HTTP b", "F2", "a CALLS_HTTP c", "F3", "a READS x");
+    List<CheckedText> first =
+        List.of(
+            text("interactions.R2", "Looks up prices", "a calls b", "F1"),
+            text("interactions.R3", "Books the seats", "a calls b", "F2"));
+    Map<String, CarryForward.Earlier> earlier =
+        CarryForward.earlier(CarryForward.mark(stored(first), first, lines));
+    List<CheckedText> now =
+        List.of(
+            text("interactions.R1", "Reads x", "a reads x", "F3"),
+            text("interactions.R3", "Fetches prices", "a calls b", "F1"),
+            text("interactions.R4", "Reserves seats", "a calls b", "F2"));
+
+    assertThat(CarryForward.merge(now, earlier, lines, t -> true))
+        .extracting(CheckedText::text)
+        .containsExactly("Reads x", "Looks up prices", "Books the seats");
+  }
+
+  @Test
+  void twoTextsOfOneWordingAreMarkedEachByItsOwnField() {
+    // Two intents worded alike, about different lines: each records its own field and basis.
+    Map<String, String> lines = Map.of("F1", "a CALLS_HTTP b", "F2", "a CALLS_HTTP c");
+    List<CheckedText> texts =
+        List.of(
+            text("interactions.R1", "Looks up prices", "a to b", "F1"),
+            text("interactions.R2", "Looks up prices", "a to c", "F2"));
+    // Stored in the other order than the texts are listed.
+    String stored =
+        stored(List.of(texts.get(1), texts.get(0)))
+            .replace("\"interactions.R2\"", "\"R2\"")
+            .replace("\"interactions.R1\"", "\"R1\"");
+    String wrapped = "{\"interactions\":" + stored + "}";
+
+    Map<String, CarryForward.Earlier> earlier =
+        CarryForward.earlier(CarryForward.mark(wrapped, texts, lines));
+
+    assertThat(earlier.get("interactions.R1").about()).isEqualTo(Fingerprints.sha256("a to b"));
+    assertThat(earlier.get("interactions.R2").about()).isEqualTo(Fingerprints.sha256("a to c"));
+    // Each field's record sits on its own text, with its own citations.
+    assertThat(earlier.get("interactions.R1").cites()).containsExactly("F1");
+    assertThat(earlier.get("interactions.R2").cites()).containsExactly("F2");
+  }
+
+  @Test
   void aTextWhoseCitedLinesAreAllStillShownKeepsItsWordingAndTheOthersTakeTheNewOne() {
     // The code changed; a fact was added before the others, so every number moved.
     Map<String, String> now =
@@ -198,10 +278,11 @@ class CarryForwardTest {
     List<CheckedText> merged =
         CarryForward.merge(now, earlier, BEFORE, t -> true, t -> moved.get(t.field().substring(6)));
 
-    // The intent of the line to orders does not pass to the line to payments.
+    // The intent of the line to orders does not pass to the line to payments; it follows the line
+    // to orders to its new key (#722).
     assertThat(merged)
         .extracting(CheckedText::text)
-        .containsExactly("Charges the cards", "Publishes each new order");
+        .containsExactly("Charges the cards", "Announces new orders");
   }
 
   @Test

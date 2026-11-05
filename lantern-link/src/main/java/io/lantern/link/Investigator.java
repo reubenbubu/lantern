@@ -655,7 +655,8 @@ public final class Investigator {
       // What it asks the model to judge: a changed judge text asks the lead anew.
       inputs.add(
           FingerprintInput.answer(
-              Fingerprints.sha256(Objects.requireNonNullElse(judges.get(lead.kind()), ""))));
+              Fingerprints.sha256(Objects.requireNonNullElse(judges.get(lead.kind()), "")),
+              List.of("lead-catalog")));
       if (again) {
         inputs.add(FingerprintInput.answer(Fingerprints.sha256("asked again alone")));
       }
@@ -699,7 +700,10 @@ public final class Investigator {
         checked.addAll(touched.getOrDefault(unit, List.of()));
         List<FingerprintInput> inputs = new ArrayList<>();
         shown.forEach(f -> inputs.add(FingerprintInput.of(f)));
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256(String.join("\n", checked))));
+        // From the leads' verdicts this run (#722).
+        inputs.add(
+            FingerprintInput.answer(
+                Fingerprints.sha256(String.join("\n", checked)), List.of(LEADS.name())));
         String context =
             InvestigatePrompt.facts(shown)
                 + (checked.isEmpty() ? "" : "\n" + InvestigatePrompt.answers(checked));
@@ -735,8 +739,11 @@ public final class Investigator {
                   .forEach(line -> risks.add(unit + ": " + line)));
       String context = InvestigatePrompt.answers(risks);
       List<FingerprintInput> inputs = new ArrayList<>();
-      inputs.add(FingerprintInput.answer(Fingerprints.sha256(systemMap)));
-      inputs.add(FingerprintInput.answer(Fingerprints.sha256(String.join("\n", risks))));
+      // The map and the risks come from the units' pass (#722).
+      inputs.add(FingerprintInput.answer(Fingerprints.sha256(systemMap), List.of(UNITS.name())));
+      inputs.add(
+          FingerprintInput.answer(
+              Fingerprints.sha256(String.join("\n", risks)), List.of(UNITS.name())));
       String subject = SYSTEM.toString();
       Item item = new Item(subject, subject, inputs, InvestigatePrompt.system(model.allRepos()));
       contexts.put(subject, context);

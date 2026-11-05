@@ -301,7 +301,9 @@ public final class FlowJudgements {
                 + refs.add('A', unit.toString(), answered, sentence)
                 + "] "
                 + sentence);
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256(sentence)));
+        inputs.add(
+            FingerprintInput.answer(
+                Fingerprints.sha256(sentence), List.of(DescribeRole.UNITS.name() + " " + unit)));
       }
     }
     if (!said.isEmpty()) {
@@ -397,7 +399,9 @@ public final class FlowJudgements {
                 + refs.add('A', unit.toString(), answered, sentence)
                 + "] "
                 + sentence);
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256(sentence)));
+        inputs.add(
+            FingerprintInput.answer(
+                Fingerprints.sha256(sentence), List.of(DescribeRole.UNITS.name() + " " + unit)));
       }
     }
     {
@@ -429,7 +433,10 @@ public final class FlowJudgements {
                         line)
                     + "] "
                     + line);
-            inputs.add(FingerprintInput.answer(Fingerprints.sha256(line)));
+            // Worded by the item of the unit that holds it, or one of its parts (#722).
+            inputs.add(
+                FingerprintInput.answer(
+                    Fingerprints.sha256(line), List.of(DescribeRole.UNITS.name())));
           }
         }
       }
