@@ -438,3 +438,14 @@ fixed. They are now measured, in the drawn lines and in the steps:
 The paragraph of the #742 amendment that says a person's fixed "Uses" lines fail the label check
 until people's lines are worded still holds for a person no intent words.
 
+
+## Amendment (#743): the model's choice and the rank's on one run
+
+The Flow selection row of #746 measured one mode per run, so a judged run gave no rank number to
+compare with. With the run's `flows.json` beside `run.json` (ADR 0108, amendment for #743), the row
+scores the system scope's own candidates twice: as drawn from the model's judgement and as the
+rank fallback would draw them, each with its recall and precision (`judged` and `rank`), and lists
+the drawn flows that overlap (one reaches the other's entry point, or both have one drawn shape).
+The row's own numbers are the judged ones, else the rank's, and they count the flows drawn, not
+every flow the judge marked significant. Without `flows.json` the row is computed as #746 says.
+`scripts/score-testsets.sh` copies `flows.json` with the run's other files.

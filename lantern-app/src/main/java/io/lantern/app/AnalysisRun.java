@@ -679,6 +679,11 @@ public final class AnalysisRun {
       RunRecord.withSupport(record, support.counts());
       Path runRecord = RunRecord.write(out, record);
       LOG.info("Wrote {}", runRecord);
+      // The model's and the rank's choice of flows on the same candidates, side by side (#743).
+      LOG.info(
+          "Wrote {}",
+          FlowSelectionFile.write(
+              out, io.lantern.derive.FlowSelection.of(complete, composed, systemTitle)));
       LOG.info("Wrote {}", Rejections.write(out, harness.rejections()));
       // The values the Secrets check looked for, counted, never written (#645).
       LOG.info(

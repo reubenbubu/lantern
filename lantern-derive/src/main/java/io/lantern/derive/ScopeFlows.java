@@ -1130,6 +1130,30 @@ public final class ScopeFlows {
     };
   }
 
+  /**
+   * The pairs of the flows given that a scope should not both draw (#743): one whose entry point
+   * the other reaches, as "{@code <flow> contains <flow>}", and two of one drawn shape (started the
+   * same way, the same lifelines in the same order), as "{@code <flow> and <flow> have one shape}".
+   * Empty for what {@link #chosen} returns; the scorecard lists what it finds there.
+   */
+  public static List<String> overlaps(List<Trace> drawn) {
+    List<String> result = new ArrayList<>();
+    for (int i = 0; i < drawn.size(); i++) {
+      for (int j = i + 1; j < drawn.size(); j++) {
+        Trace a = drawn.get(i);
+        Trace b = drawn.get(j);
+        if (a.reached.contains(b.entry.key())) {
+          result.add(a.flow.id() + " contains " + b.flow.id());
+        } else if (b.reached.contains(a.entry.key())) {
+          result.add(b.flow.id() + " contains " + a.flow.id());
+        } else if (shape(a).equals(shape(b))) {
+          result.add(a.flow.id() + " and " + b.flow.id() + " have one shape");
+        }
+      }
+    }
+    return result;
+  }
+
   /** The first of each shape, in the order given. */
   public static <T> List<T> firstOfEachShape(List<T> ordered, Function<T, ?> shape) {
     Set<Object> seen = new HashSet<>();

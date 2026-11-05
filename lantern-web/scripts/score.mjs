@@ -844,6 +844,7 @@ function roleRows(report, reference, matched, repFlows, inputs, spell = normaliz
       llm,
       linked,
       spell,
+      inputs.selection ?? null,
     ),
     investigate: investigateRow(answerKey, llm, subjectOf, overlap, SUBJECT_THRESHOLD, judgements),
     // Apart from Investigate's own risks (#748): the fixed checks' findings it only worded, and the
@@ -943,9 +944,14 @@ export function roleCells(roles) {
     : `${f.matched}/${f.reference} recall (${percent(f.recall)}), ${f.matched}/${f.report} precision (${percent(f.precision)})`;
   const sel = roles.selection;
   if (sel) {
+    const choice = (r) =>
+      `${r.right}/${r.items} reference flows chosen (${percent(r.recall)}), ${r.chosenMatching}/${r.chosen} chosen flows in the reference (${percent(r.precision)}), penalized ${percent(r.penalized)} (p = ${r.penalty})`;
     cell['Flow selection'] = !sel.measured
       ? why(sel)
-      : `${sel.mode === 'judged' ? 'judged' : 'rank fallback'}: ${sel.right}/${sel.items} reference flows chosen (${percent(sel.recall)}), ${sel.chosenMatching}/${sel.chosen} chosen flows in the reference (${percent(sel.precision)}), penalized ${percent(sel.penalized)} (p = ${sel.penalty}); ${sel.candidates} candidates, ${sel.notCandidates.length} reference flows not among them`;
+      : `${sel.mode === 'judged' ? 'judged' : 'rank fallback'}: ${choice(sel)}; ${sel.candidates} candidates, ${sel.notCandidates.length} reference flows not among them${
+          // The rank's choice on the same candidates, and drawn flows that overlap (#743).
+          sel.judged && sel.rank ? `; rank fallback on the same candidates: ${choice(sel.rank)}` : ''
+        }${sel.overlaps ? `; ${sel.overlaps.length} overlapping drawn flows${sel.overlaps.length ? ` (${sel.overlaps.join('; ')})` : ''}` : ''}`;
   }
   const i = roles.investigate;
   cell.Investigate = !i.measured
@@ -1146,6 +1152,7 @@ export function scoreFiles(reportPath, setDir, runPath = null, options = {}) {
     changeFile: options.changeFile ?? null,
     wording: readLines(join(beside, 'wording.jsonl.gz')),
     rejections: readLines(join(beside, 'rejections.jsonl.gz')),
+    selection: existsSync(join(beside, 'flows.json')) ? JSON.parse(readFileSync(join(beside, 'flows.json'), 'utf8')) : null,
     labels: readLabels(options.labels),
   };
   return {
