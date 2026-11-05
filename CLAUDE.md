@@ -67,9 +67,9 @@ changes them. This file covers only how you work.
 - An issue is not ready until it has an "Accepted when": what Lantern's output must show, on
   which test sets (`docs/design.md`, Test sets), and the evidence that proves it. The chat that
   picks up an issue without one writes it first. A PR runs Lantern on those sets only; the
-  milestone's test drop runs all development sets, and held-out ones only in milestone 2.9.
+  milestone's test drop runs all development sets, and held-out ones only in milestone 2.10.
 - Held-out test sets (`docs/design.md`, Test sets) are only pinned: no session reads their code,
-  analyzes them or looks at their output until milestone 2.9, where they are scored and judged
+  analyzes them or looks at their output until milestone 2.10, where they are scored and judged
   once.
 - Answer keys and wording labels are checked blind (owner's decision of 3 Nov 2026):
   - Whenever an answer key (`testsets/*/answer-key.json`) is created or changed, a read-only
@@ -180,7 +180,7 @@ changes them. This file covers only how you work.
   issue opens it. When the milestone's other issues are merged, the chat that takes the
   test-drop issue writes the drop to
   `~/workspace/lantern-test-drops/<milestone>/`: per test set, Lantern's documents and the
-  reference side by side, the scorecards (from 2.9 also the judge's verdicts), and a README with
+  reference side by side, the scorecards (from 2.10 also the judge's verdicts), and a README with
   what the milestone set out to do, a checklist of what to try, the known gaps, the reassessment
   of the test sets (`docs/design.md`, Test sets), and the commits and models used. Its path goes
   on the test-drop issue, and the user is told. The user's verdict, recorded on that issue,
