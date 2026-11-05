@@ -421,3 +421,27 @@ Every other role still answers in JSON until it is switched and measured.
 - **Drops.** A TOML document counts as readable, as a JSON object does, when the harness decides
   whether a drop is stored (#744).
 
+
+## Amendment (#874): packed requests for roles whose items ask alone
+
+A role whose items each make their own request, such as Summarize's types, may have the harness
+join their first requests into packed requests (`PacketCollector`), once the harness packs
+(`packingUpTo`, set by `lantern.harness.packets.*`) and the role says how (`Harness.packs`, a
+`Packing` that joins the turns and splits the answer). It is the same pattern as the batch collector:
+
+- A first request waits until no other has come for 250 ms, or a packet is full. Packets take the
+  waiting requests in the order they came, as many as fit both the item limit and the input ceiling,
+  which is in the model's tokens and compared with Lantern's estimate times the model's
+  `estimate-token-scale` (`docs/research/haiku-request-pricing.md`).
+- A packed request asks for each item's output limit plus room to think per item, at most 64,000
+  tokens. It carries the items' system-prompt breakpoint and none after it, so it writes nothing to
+  the cache that will not be read again.
+- Each item gets its own part of the answer, renumbered as its own request numbers it, with a share
+  of the call's tokens by the length of its turn (input) and its part (output); the shares add up to
+  the call. An item the answer leaves out, or whose part cannot be read, or the last item of an
+  answer cut off at its limit, is asked again alone; every item of a packet whose call fails is
+  too. A repair turn is never packed: it goes alone with only its own item's conversation, so a
+  failed item never resends the others.
+- The harness's `promptCeiling()` gives roles the same ceiling, so a unit too large for it is
+  split in parts under it rather than sent past the provider's price tier.
+- A role that batches does not pack.

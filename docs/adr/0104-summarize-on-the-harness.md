@@ -89,3 +89,22 @@ standing go-ahead for milestone 1F.
 ## Amendment (#760): limits in the role's contract
 
 This ADR's word limits and margins now live in the role's response contract, `prompts/<role>.contract.json`, which the checks read (ADR 0118). Change them there.
+
+## Amendment (#874): types share requests; a unit over the ceiling goes in parts
+
+- Summarize's types are packed (ADR 0100, amendment for #874), at most four a request, under 90,000
+  input tokens of the model, with 1,500 output tokens a type to think (`application.properties`,
+  `lantern.harness.packets.*`). `Packets` renames each item's tables to its place in the request
+  (`item.I3`) and numbers its references after the items before it, facts and summaries at the start
+  of their lines, code by its `ref`; code text is left as it is. A cited reference that is not the
+  item's is kept and marked, so the References check rejects it. A merge, whose parts quote their
+  citations inline, is not packed.
+- A type is asked for 3 to 4 sentences, 2 when its inputs give too little for more: asked for 2 to
+  4, a packed request kept fewer, and on all 143 project-4 types it still keeps about 5% fewer than
+  one type a request (439 against 464 sentences), at 85% of the cost (9.9¢ against 11.7¢) and
+  faster (71 s against 84 s). The owner accepted that trade on 5 Nov 2026.
+- A unit's prompt budget is the smaller of the context window's and the ceiling's, the latter
+  counting input only: the system prompt and, for a retry, the rejected answer and the retry message;
+  thinking is not sent back. A source file larger than a part may show is cut into consecutive line
+  ranges, each its own code table under the same reference and lines, so a very large class is
+  summarized in parts, each under the ceiling, and merged.
