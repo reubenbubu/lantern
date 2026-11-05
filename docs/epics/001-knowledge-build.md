@@ -886,14 +886,13 @@ The catalog is data (`vocabulary/leads.json` plus one derive rule per kind). New
 **Role instructions, Mode A** (block 2):
 
 ```text
-Task: check leads. Static analysis flagged each item in <items> as a possible risk, and shows the code it points at. For each item, read the code and decide:
+Task: check leads. Static analysis flagged each item in <items> as a possible risk, and shows the code it points at. For each item, read the code (use the tools to read further when the excerpt does not settle it) and decide:
 - "confirmed": the code shows the risk as described, on at least one path a caller can take;
 - "refuted": the code shows the risk cannot happen (for example, the header is removed or verified on every path that reaches the unit, or the send happens after commit), and you can cite where;
 - "unclear": the code you can read does not settle it.
 For a confirmed item, write the risk: a title of 5 to 7 words; the finding, what the code does, in one or two sentences of 20 to 60 words; the consequence, what can happen because of it, in one or two sentences of 22 to 60 words; its impact (high, medium or low) by what an attacker or a failure could do to data or availability; and your confidence (high, medium or low). For every verdict, give the identifiers your verdict rests on, exactly as the code writes them, and cite the ranges that show them. The two must match: list in names only identifiers that appear, character for character, inside the lines you cite, and make every cited range contain at least one of them. A class or method name is on its declaration line, so cite that line too or leave the name out. The finding and the consequence name only what your cited lines show. Do not name a tool, file or technology the code you cite does not show, not even to say it is missing.
-Cite each range as repo:path:from-to, using the repository, path and line numbers the <code> blocks and read_file and find_in_code results show; cite nothing else. The repository is the name before the first colon, exactly as the <code> blocks and the tool results show it, such as Shop:orders-service/src/main/java/Orders.java:3-9; a service's folder inside the repository belongs to the path, not the repository. Call submit once with every item, each with its lead id and a verdict.
-How to read: the message holds the item and the facts static analysis found about it; look up anything else with the tools, in small, targeted calls one after another. Every tool answer is short, about 1,000 characters, and a longer one is cut to the lines that fit and says how to ask for the rest. Start from the names the item gives (a path, header, class or setting) and search for exactly those; find_in_code tells you the method each hit is in and its lines, and outline lists a Java file's methods with their lines and annotations; then read only the lines you need with read_file from and to. Put calls that do not depend on each other in the same turn. Stop when what you have read settles the verdict.
-Before you call submit, run check with the same input, and fix what it rejects: every name appears in one of its cited ranges, every range holds one of its names, and the title has 5 to 7 words.
+Cite each range as repo:path:from-to, using the repository, path and line numbers the <code> blocks and read_file results show; cite nothing else. The repository is the name before the first colon, exactly as the <code> blocks and read_file results show it, such as Shop:orders-service/src/main/java/Orders.java:3-9; a service's folder inside the repository belongs to the path, not the repository. Call submit once with every item, each with its lead id and a verdict.
+Before you call submit, check each item: every name appears in one of its cited ranges, every range holds one of its names, and the title has 5 to 7 words.
 ```
 
 **Role instructions, Modes B and C** (block 2):
@@ -952,9 +951,6 @@ Submit with the submit tool as soon as you have proposals worth keeping; you may
 - **Effect on the report.** Investigated connections are drawn as lines marked found by the LLM, as ADR 0084 specifies. Sequence flows are not re-traced through them.
 
 **Failure.** An unanswered lead stays `unclear`. A conversation ended by its cap keeps every accepted submission. A budget stop marks the remaining units `not-investigated`, and the findings page says which ones.
-
-**Amendment (#860, #892, #893, milestone 2.9, 5 Nov 2026).** A lead's conversation (Mode A) is shown the units and only the links and unit facts that mention the lead's rarest word; it reads code through small tool answers (about 1,000 characters, `outline` added) and runs under guards on its size (60,000 tokens a turn) and cost instead of 6 tool turns (a safety cap of 100), with 3 turns to answer near a guard in which only `check` (a dry run of submit) and `submit` run. Each entry must name its lead and verdict, and an answer written as text counts. The task text above is the current one; the design (LLM integration) and `docs/research/investigate-agent-design.md` give the reasons.
-
 
 ### 11.3 Summarize
 

@@ -30,7 +30,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class InvestigatePrompt {
 
   /** The prompt's version, part of every answer's cache key and the version of the facts. */
-  static final String VERSION = "9";
+  static final String VERSION = "8";
 
   /** Block 2's instructions of Mode A, checking leads, as the epic writes them. */
   static final String LEADS_TASK = resource("investigate-leads.task.txt");
@@ -235,25 +235,12 @@ final class InvestigatePrompt {
 
   /** The system map, block 3: the deployable units, then the links static analysis found. */
   static String systemMap(List<String> units, List<String> links) {
-    return systemMap(units, links, false);
-  }
-
-  /**
-   * As {@link #systemMap(List, List)}; when counted, each link once with how many there are of it,
-   * as a lead's conversation is shown it: a repeated line says nothing more (#860).
-   */
-  static String systemMap(List<String> units, List<String> links, boolean counted) {
     List<String> lines = new ArrayList<>();
     lines.add("The deployable units of the system, by ID:");
     units.forEach(unit -> lines.add("- " + FactLines.oneLine(unit)));
-    if (!links.isEmpty() && !counted) {
+    if (!links.isEmpty()) {
       lines.add("The links static analysis found between them:");
       links.forEach(link -> lines.add("- " + FactLines.oneLine(link)));
-    } else if (!links.isEmpty()) {
-      Map<String, Integer> times = new java.util.LinkedHashMap<>();
-      links.forEach(link -> times.merge(FactLines.oneLine(link), 1, Integer::sum));
-      lines.add("The links static analysis found between them (xN: N links of that kind):");
-      times.forEach((link, n) -> lines.add("- " + link + (n > 1 ? " x" + n : "")));
     }
     return Blocks.tagged("facts", lines);
   }
