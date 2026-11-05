@@ -913,6 +913,12 @@ class LinkResolverTest {
     // its own, apart from a gateway's routes to rates, which have neither.
     assertThat(link.attributes().has("endpoint")).isFalse();
     assertThat(link.attributes().path("request").asString()).isEqualTo("GET /v2/quotes");
+    // The shared rule: no method gives the bare path; no path, the URL; neither, the call's text.
+    ObjectNode pathOnly = FactJson.newObject().put("path", "/v2/quotes");
+    assertThat(HttpLinker.request(null, pathOnly, "x")).isEqualTo("/v2/quotes");
+    ObjectNode urlOnly = FactJson.newObject().put("url", "http://tax/");
+    assertThat(HttpLinker.request("GET", urlOnly, "x")).isEqualTo("GET http://tax/");
+    assertThat(HttpLinker.request("GET", FactJson.newObject(), "${TAX}")).isEqualTo("GET ${TAX}");
   }
 
   @Test

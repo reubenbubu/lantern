@@ -124,5 +124,7 @@ endpoint keeps the endpoint as its key and does not set it; routes do not set it
 Resolve's picks follow the same rule (#811, review of 4 Nov 2026): a pick that cites no endpoint,
 of a unit none of whose endpoints the call matches, sets `request` the same way, so it is the
 claim static matching would write (ADR 0105) and stays apart from the gateway's routes to that
-unit. The request is the path as written, so one call written two ways (`/users/{id}` in one
-place and `/users/{userId}` in another) gives two claims.
+unit. For a call with a path, the pick's request is the one static matching writes; a call with
+no path, which an open link rarely is, falls back to its URL as written. The request is the path
+as written, so one call written two ways gives two claims: `{id}` and `{userId}` count as
+different text.
