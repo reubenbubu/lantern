@@ -149,15 +149,19 @@ overlaps; `Project0EndToEndIT` and `TestSetScoreIT` fail on any overlap. The jud
 the flows drawn, after containment and shape, not every flow the model marked significant.
 
 The model's containment drops the flow that is reached, whatever the containers each touches,
-where the rank path lets a reaching flow replace those it holds only when it touches as many. The
-two agree in practice: a flow that reaches another's entry point draws that flow's steps, so it
-touches at least its containers. The model's order is its judgement, so no rank rule overrides it.
+where the rank path lets a reaching flow replace those it holds only when it touches as many. A
+flow that reaches another's entry point draws that flow's steps, so it usually touches at least its
+containers, and the two agree. The model's order is its judgement, so no rank rule overrides it.
+Where the rank path does draw a reaching flow beside one it holds (the reaching flow touching
+fewer containers), `overlaps` lists the pair and the integration tests fail, which is the bar's
+"none contained in another" holding for the rank too; on the five sets' fake runs no scope has one.
 
 **Before (prompt version 7, the 1H baseline of #756, Haiku 5.5 and Sonnet 5.5, `1h-baseline-complete`).**
-The judged rows then counted every flow the system's judge marked significant, and no rank row
-was computed on the same candidates:
+The judged rows then counted every flow the system's judge marked significant, not the flows
+drawn, so their precision is not directly comparable with the rows after; no rank row was computed
+on the same candidates:
 
-| Set | Candidates | Judged: reference flows chosen | Judged: chosen flows in the reference |
+| Set | Candidates | Judged (v7): reference flows chosen | Judged (v7): flows marked significant in the reference |
 | --- | --- | --- | --- |
 | project-1 | 11 | 4/4 (100%) | 3/7 (43%) |
 | project-2 | 51 | 6/6 (100%) | 5/18 (28%) |
