@@ -1432,7 +1432,7 @@ The single-conversation design, its uncached turns and its separate store are wh
 | Purpose and key fact | Amends 0060 |
 | Grouping and Name groups | Amends the design's Auto-grouping (explicit signals first, Leiden later) and its Name groups role (members' responsibilities, not summaries) |
 
-The rule that the LLM roles' prompts, schemas, checks and limits are specified in their ADRs, and change only through an issue that shows the effect on the test sets, lives in this epic's header and in ADRs 0113 and 0118, not in `CLAUDE.md`.
+The rule that the LLM roles' prompts, schemas, checks and limits are specified in their ADRs, and change only through an issue that shows the effect on the test sets, lives in this epic's header and section 11, with ADR 0113's rule that a changed prompt raises its role's version, not in `CLAUDE.md`.
 
 ## 16. Risks and open questions
 

@@ -48,7 +48,7 @@ The user's decisions, recorded here; the design says what follows from them.
    LLM. Static extraction stays the main source and wins on conflict. Built in #269.
 2. **Real-model budget.** The real-model runs of 2D (recorded for replay) have a budget of $40 in
    all. Claude Haiku 5.5 serves the high-volume roles; Claude Sonnet 5.5 serves Investigate, the
-   judge and the reasoning roles. The cost is reported to the user after the first round, and the
+   judge and the reasoning roles. (Since #751 the judge runs on each writer's model, ADR 0101.) The cost is reported to the user after the first round, and the
    user is asked before going on if Investigate costs more than about $5 a round. The scoring
    harness and the judge choose the model of every role per run, without code changes, and record
    it (#252, #277). The design's models for a deployment are unchanged.

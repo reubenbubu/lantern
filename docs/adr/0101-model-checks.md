@@ -15,7 +15,8 @@ go-ahead for milestone 1E.
 ## Decisions
 
 - **Two model roles.** `JUDGE` and `SCREEN` join the configurable roles, the judge on the high-volume
-  tier, the screen on the bulk tier since 1F.
+  tier (superseded: since #751 each text is judged on its writer's model, below), the screen on the
+  bulk tier since 1F.
   - The judge ran on the high-volume tier, which Describe's element role and other writing roles
     share. (Superseded: since #751 each role's texts are judged on the model of the role that wrote
     them; `lantern.harness.support-judge.model=judge` puts every text on the judge role's model
@@ -82,9 +83,9 @@ go-ahead for milestone 1E.
   - The screen reads whole files a prompt showed, not the ranges that facts and tool results bring
     into prompts. Text that reaches a prompt only as a fact, such as a config value or a README
     claim, is not screened yet (#651).
-  - An unsupported text gets the note but not the LLM badge. The C4 report badges what rests only
-    on LLM facts (ADR 0086), and these sentences cite static facts. The note marks them in every
-    template.
+  - An unsupported text got the note but not the LLM badge. The C4 report badges what rests only
+    on LLM facts (ADR 0086), and these sentences cite static facts. (Superseded: since #751 no
+    document shows a support mark, amendment for #751.)
   - The run record counted the judge's items, not its verdicts per role. (Superseded: since #751
     it counts each role's verdicts, texts asked again and texts shown in plain wording as
     `supportVerdicts`, amendment for #751.)
