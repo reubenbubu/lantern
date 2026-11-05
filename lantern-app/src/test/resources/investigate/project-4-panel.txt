@@ -1,0 +1,15 @@
+# Investigate's fixed panel on project-4 (#890): one or more leads of each kind the set raises, the
+# three contract mismatches and the baked frontend address that earlier runs found hard, and kinds
+# whose right answer may be refuted or unclear. One lead ID per line; text after # is left out.
+lead:contract-mismatch/frontend:CRM-Frontend/GET%20/api/organizations/{organizationId}/preview   # no gateway route for it
+lead:contract-mismatch/service:com.crm.notification:notification-service/GET%20/api/internal/auth/authorize   # GET against a POST mapping
+lead:contract-mismatch/service:com.crm:api-gateway/GET%20/users/{userId}/organizations/{organizationId}/persmissions   # missing /api/internal prefix
+lead:environment-baked/frontend:CRM-Frontend/apiUrl   # needs the Dockerfile to judge
+lead:identity-from-request/service:com.crm.notification:notification-service/header:Organization-Id   # verdicts swung in earlier runs
+lead:open-cors/module:com.crm:api-gateway//**
+lead:plaintext-secret/shared/app.token.signing.key
+lead:schema-unmanaged/module:com.crm.auth:auth-service/default
+lead:send-before-commit/service:main-service/method:com.crm.main.feign.AuthClient#createRole(com.crm.sharedlib.core.dto.request.CreateRoleRequest)
+lead:shared-type-skew/library:com.crm:messaging/com.crm.sharedlib.messaging.dto.amqp.OrgCreatedMessage   # verdicts swung in earlier runs
+lead:single-instance/service:com.crm.auth:auth-service
+lead:weak-access-check/service:main-service/method:com.crm.main.controller.TaskController#deleteTask(java.util.UUID,java.lang.Long,java.lang.Long)

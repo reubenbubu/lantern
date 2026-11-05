@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -226,8 +227,24 @@ public final class Investigator {
 
   /** What the snapshot's facts lead Investigate to, what it reads only (see before). */
   public Result investigate(Collection<Fact> all, long snapshot) {
+    return investigate(all, snapshot, lead -> true, true);
+  }
+
+  /**
+   * Only the leads {@code chosen} keeps, each checked as a run checks it (Mode A), with no unit or
+   * system explored: how the Investigate test measures it on a fixed panel of leads (#890).
+   *
+   * @param chosen whether to check a lead, by its ID
+   */
+  public Result leads(Collection<Fact> all, long snapshot, Predicate<String> chosen) {
+    return investigate(all, snapshot, chosen, false);
+  }
+
+  private Result investigate(
+      Collection<Fact> all, long snapshot, Predicate<String> chosen, boolean explore) {
     List<Fact> facts = all.stream().filter(Investigator::before).toList();
     Model model = new Model(facts);
+    model.leads.removeIf(lead -> !chosen.test(lead.id()));
     if (model.units.isEmpty()) {
       return new Result(List.of(), 0, 0, 0, List.of());
     }
@@ -243,8 +260,10 @@ public final class Investigator {
       return run.result();
     }
     run.leads();
-    run.units();
-    run.system();
+    if (explore) {
+      run.units();
+      run.system();
+    }
     return run.result();
   }
 
