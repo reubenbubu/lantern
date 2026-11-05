@@ -12,7 +12,9 @@ import io.lantern.core.fact.Fact;
 import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ConfigValues;
+import io.lantern.derive.Decisions;
 import io.lantern.derive.Elements;
+import io.lantern.derive.EntryPoints;
 import io.lantern.derive.ScopeFlows;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -38,14 +40,6 @@ final class ExplorerSections {
   /** How many entry points the start-here list names when there are no main flows. */
   static final int START_ENTRIES = 5;
 
-  private static final List<String> ENTRY_KINDS =
-      List.of(
-          Types.ENDPOINT,
-          Types.MESSAGE_LISTENER,
-          Types.STOMP_MAPPING,
-          Types.WEBSOCKET_ENDPOINT,
-          Types.SCHEDULED,
-          Types.BACKGROUND_JOB);
   private static final Set<String> DESTINATIONS = Set.of(Types.TOPIC, Types.QUEUE, Types.EXCHANGE);
 
   private final ArchitectureModel model;
@@ -77,7 +71,12 @@ final class ExplorerSections {
   }
 
   /** An entry point of a unit in scope. */
-  private record Entry(EntityId unit, EntityId method, Fact fact) {}
+  private record Entry(EntityId unit, EntityId method, EntryPoints.EntryPoint entry) {
+
+    Fact fact() {
+      return entry.fact();
+    }
+  }
 
   /** The entry points of the units in scope, by unit, method and kind. */
   private List<Entry> entries() {
@@ -85,8 +84,8 @@ final class ExplorerSections {
     for (EntityId unit : units) {
       for (EntityId type : code(unit)) {
         for (EntityId method : model.parts(type, Types.METHOD)) {
-          for (Fact fact : model.attributes(method, ENTRY_KINDS)) {
-            result.add(new Entry(unit, method, fact));
+          for (EntryPoints.EntryPoint entry : EntryPoints.of(model, method)) {
+            result.add(new Entry(unit, method, entry));
           }
         }
       }
@@ -127,7 +126,7 @@ final class ExplorerSections {
     }
     for (EntityId unit : units) {
       for (EntityId type : code(unit)) {
-        for (Fact fact : model.attributes(type, Types.MAIN_CLASS)) {
+        for (Fact fact : model.mainClassFacts(type)) {
           List<Inline> content = new ArrayList<>();
           content.add(entity(unit));
           content.add(TextRun.of(" starts in "));
@@ -166,32 +165,16 @@ final class ExplorerSections {
     return new ListBlock.Item(content, assembler.facts(List.of(fact)));
   }
 
-  /** The kind of a scheduled entry point: a JobRunr or Quartz job, else a scheduled job. */
-  static String jobKind(Fact fact) {
-    return io.lantern.derive.Components.jobKind(fact);
-  }
-
   /** What starts an entry point, in words: the endpoint, the destination or the schedule. */
   private static String entryLabel(Fact fact) {
-    String value = fact.object().value();
-    return switch (ArchitectureModel.statement(fact).predicate()) {
-      case Types.ENDPOINT -> value;
-      case Types.MESSAGE_LISTENER -> "Messages on " + value;
-      case Types.STOMP_MAPPING -> "STOMP messages to " + value;
-      case Types.WEBSOCKET_ENDPOINT -> "WebSocket " + value;
-      default -> jobKind(fact) + " (" + value + ")";
-    };
+    return EntryPoints.of(fact).label();
   }
 
   /** The repository's top-level README, else its first by path. */
   private Optional<ListBlock.Item> readme(String repo) {
     SortedMap<String, List<Fact>> byPath = new TreeMap<>(README_ORDER);
-    for (Fact fact : model.withPredicate(Types.CLAIM)) {
-      EntityId subject = fact.subject();
-      String key = subject.key();
-      if (subject.type().equals(Types.README) && key.startsWith(repo + ":")) {
-        byPath.computeIfAbsent(path(subject), p -> new ArrayList<>()).add(fact);
-      }
+    for (Fact fact : model.readmeClaims(repo)) {
+      byPath.computeIfAbsent(path(fact.subject()), p -> new ArrayList<>()).add(fact);
     }
     if (byPath.isEmpty()) {
       return Optional.empty();
@@ -214,12 +197,11 @@ final class ExplorerSections {
   /** Where the repository's decision records are: the folder holding most of them. */
   private Optional<ListBlock.Item> decisionRecords(String repo) {
     Map<String, List<Fact>> byFolder = new TreeMap<>();
-    for (Fact fact : model.withPredicate(Types.TITLE)) {
-      EntityId subject = fact.subject();
-      if (subject.type().equals(Types.DECISION) && subject.key().startsWith(repo + ":")) {
-        String path = path(subject);
+    for (Decisions.Decision decision : Decisions.of(model)) {
+      if (decision.repo().equals(repo)) {
+        String path = path(decision.id());
         String folder = path.contains("/") ? path.substring(0, path.lastIndexOf('/') + 1) : "";
-        byFolder.computeIfAbsent(folder, f -> new ArrayList<>()).add(fact);
+        byFolder.computeIfAbsent(folder, f -> new ArrayList<>()).add(decision.title());
       }
     }
     if (byFolder.isEmpty()) {
@@ -284,7 +266,7 @@ final class ExplorerSections {
                   text(c4.elements().technology(unit)),
                   List.of()),
               c4.elements().containerFacts(unit)));
-      for (Fact fact : model.relations(unit, Types.USES_DATABASE)) {
+      for (Fact fact : model.linksOf(unit, Types.USES_DATABASE)) {
         if (!alternatives.contains(fact)) {
           EntityId database = ArchitectureModel.object(fact);
           databases.computeIfAbsent(database, d -> new ArrayList<>()).add(fact);
@@ -332,29 +314,21 @@ final class ExplorerSections {
   private Optional<Table> entriesTable(String section) {
     List<Table.Row> rows = new ArrayList<>();
     for (Entry entry : entries()) {
-      String kind =
-          switch (ArchitectureModel.statement(entry.fact).predicate()) {
-            case Types.ENDPOINT -> "HTTP endpoint";
-            case Types.MESSAGE_LISTENER -> "Message listener";
-            case Types.STOMP_MAPPING -> "STOMP message handler";
-            case Types.WEBSOCKET_ENDPOINT ->
-                Elements.isStomp(entry.fact) ? "STOMP WebSocket endpoint" : "WebSocket endpoint";
-            default -> jobKind(entry.fact);
-          };
+      String kind = entry.entry.kindName();
       assembler.entity(entry.method);
       rows.add(
           row(
               entry.method,
               List.of(
-                  List.of(code(entry.fact.object().value())),
+                  List.of(code(entry.entry.value())),
                   text(kind),
                   List.of(
                       new CrossReference(
                           ScopeFlows.methodName(entry.method),
                           CrossReference.Target.entity(entry.method))),
                   List.of(entity(entry.unit)),
-                  file(entry.fact).map(p -> List.<Inline>of(code(p))).orElse(List.of())),
-              List.of(entry.fact)));
+                  file(entry.fact()).map(p -> List.<Inline>of(code(p))).orElse(List.of())),
+              List.of(entry.fact())));
     }
     return table(
         section,
@@ -375,7 +349,7 @@ final class ExplorerSections {
     SortedMap<EntityId, List<Fact>> facts = new TreeMap<>(ArchitectureModel.BY_ID);
     for (EntityId unit : units) {
       for (String predicate : List.of(Types.PUBLISHES, Types.CONSUMES)) {
-        for (Fact fact : model.relations(unit, predicate)) {
+        for (Fact fact : model.linksOf(unit, predicate)) {
           EntityId destination = ArchitectureModel.object(fact);
           if (alternatives.contains(fact) || !DESTINATIONS.contains(destination.type())) {
             continue;
@@ -433,7 +407,7 @@ final class ExplorerSections {
       for (EntityId type : code(unit)) {
         for (EntityId method : model.parts(type, Types.METHOD)) {
           for (String predicate : List.of(Types.READS_TABLE, Types.WRITES_TABLE)) {
-            for (Fact fact : model.relations(method, predicate)) {
+            for (Fact fact : model.linksOf(method, predicate)) {
               EntityId table = ArchitectureModel.object(fact);
               containers
                   .computeIfAbsent(table, t -> new TreeSet<>(ArchitectureModel.BY_ID))
@@ -489,7 +463,7 @@ final class ExplorerSections {
         continue;
       }
       String profile = configValue.profile();
-      String value = fact.object().value();
+      String value = configValue.value();
       rows.add(
           row(
               fact.subject(),
@@ -515,20 +489,20 @@ final class ExplorerSections {
   List<Block> changeGuidance(String section) {
     List<ListBlock.Item> items = new ArrayList<>();
     List<Entry> entries = entries();
-    example(entries, Types.ENDPOINT)
-        .ifPresent(e -> items.add(follow("To add an endpoint, follow ", e.method, e.fact, null)));
-    example(entries, Types.MESSAGE_LISTENER)
+    example(entries, EntryPoints.Kind.ENDPOINT)
+        .ifPresent(e -> items.add(follow("To add an endpoint, follow ", e.method, e.fact(), null)));
+    example(entries, EntryPoints.Kind.MESSAGE_LISTENER)
         .ifPresent(
             e ->
                 items.add(
                     follow(
                         "To handle a new message, follow ",
                         e.method,
-                        e.fact,
-                        ", which receives from " + e.fact.object().value())));
-    example(entries, Types.SCHEDULED)
+                        e.fact(),
+                        ", which receives from " + e.entry.value())));
+    example(entries, EntryPoints.Kind.SCHEDULED)
         .ifPresent(
-            e -> items.add(follow("To add a scheduled job, follow ", e.method, e.fact, null)));
+            e -> items.add(follow("To add a scheduled job, follow ", e.method, e.fact(), null)));
     linkExample(Types.PUBLISHES)
         .ifPresent(
             f ->
@@ -563,10 +537,10 @@ final class ExplorerSections {
    * An entry point of the kind to follow: one in the type with most entry points of that kind, ties
    * broken by type ID, its first by method ID.
    */
-  private Optional<Entry> example(List<Entry> entries, String kind) {
+  private Optional<Entry> example(List<Entry> entries, EntryPoints.Kind kind) {
     Map<EntityId, List<Entry>> byType = new TreeMap<>(ArchitectureModel.BY_ID);
     for (Entry entry : entries) {
-      if (ArchitectureModel.statement(entry.fact).predicate().equals(kind)) {
+      if (entry.entry.kind() == kind) {
         byType
             .computeIfAbsent(
                 model.wholes(entry.method).stream().findFirst().orElse(entry.method),
@@ -580,7 +554,7 @@ final class ExplorerSections {
   /** The first link of the kind, by unit and fact ID, whose code is known. */
   private Optional<Fact> linkExample(String predicate) {
     for (EntityId unit : units) {
-      for (Fact fact : model.relations(unit, predicate)) {
+      for (Fact fact : model.linksOf(unit, predicate)) {
         if (!alternatives.contains(fact) && Elements.sourceOf(fact) != null) {
           return Optional.of(fact);
         }
@@ -605,9 +579,6 @@ final class ExplorerSections {
     return new ListBlock.Item(content, assembler.facts(List.of(fact)));
   }
 
-  /** How a schema is migrated, most specific first, as the SQL extractor names it (ADR 0034). */
-  private static final List<String> MIGRATION_KINDS = List.of("flyway", "liquibase", "sql");
-
   /**
    * Where a schema of the units' code is migrated: the folder of the first file of its most
    * specific kind (Flyway, then Liquibase, then plain SQL), which the kind fact points at (ADR
@@ -617,19 +588,13 @@ final class ExplorerSections {
     for (EntityId unit : units) {
       for (EntityId module : Elements.codeModules(model, unit)) {
         for (EntityId schema : model.parts(module, Types.SCHEMA)) {
-          Optional<Fact> kind =
-              model.attributes(schema, Types.KIND).stream()
-                  .filter(f -> f.evidence().path() != null)
-                  .filter(f -> MIGRATION_KINDS.contains(f.object().value()))
-                  .min(
-                      Comparator.comparingInt(
-                          (Fact f) -> MIGRATION_KINDS.indexOf(f.object().value())));
+          Optional<ArchitectureModel.Migration> kind = model.migration(schema);
           if (kind.isEmpty()) {
             continue;
           }
-          String path = kind.get().evidence().path();
+          String path = kind.get().fact().evidence().path();
           String how =
-              switch (kind.get().object().value()) {
+              switch (kind.get().kind()) {
                 case "flyway" -> "a Flyway migration";
                 case "liquibase" -> "a Liquibase change set";
                 default -> "an SQL script";
@@ -644,7 +609,8 @@ final class ExplorerSections {
             content.add(code(path));
           }
           content.add(TextRun.of("."));
-          return Optional.of(new ListBlock.Item(content, assembler.facts(List.of(kind.get()))));
+          return Optional.of(
+              new ListBlock.Item(content, assembler.facts(List.of(kind.get().fact()))));
         }
       }
     }

@@ -85,7 +85,13 @@ public final class DeploymentInstances implements LinkRule.OverFacts {
       String version,
       List<EntityId> runs,
       List<String> ports,
-      List<Fact> facts) {}
+      List<Fact> facts) {
+
+    /** The name the descriptor gives the container. */
+    public String name() {
+      return container.object().value();
+    }
+  }
 
   /**
    * The containers of the deployment descriptors in the repositories (all, when none is given),

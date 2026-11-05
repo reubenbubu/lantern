@@ -221,10 +221,7 @@ final class BriefSections {
     int unresolved = 0;
     for (EntityId unit : units) {
       unresolved +=
-          (int)
-              model.attributes(unit, Types.UNRESOLVED_LINK).stream()
-                  .filter(f -> !model.resolved(f))
-                  .count();
+          (int) model.unresolvedLinks(unit).stream().filter(f -> !model.resolved(f)).count();
     }
     if (unresolved > 0) {
       blocks.add(
@@ -249,7 +246,7 @@ final class BriefSections {
    * between two units in scope.
    */
   private List<Fact> links(EntityId unit, String relationship) {
-    return model.relations(unit, relationship).stream()
+    return model.linksOf(unit, relationship).stream()
         .filter(f -> ArchitectureModel.isEntity(f) && !replaced.contains(f))
         .filter(f -> !(units.contains(unit) && units.contains(ArchitectureModel.object(f))))
         .toList();
@@ -284,7 +281,7 @@ final class BriefSections {
         continue;
       }
       List<Fact> facts = new ArrayList<>();
-      for (Fact fact : model.relations(unit, Types.BUNDLES)) {
+      for (Fact fact : model.bundles(unit)) {
         if (model.parts(ArchitectureModel.object(fact), Types.MODULE).stream()
             .anyMatch(modules::contains)) {
           facts.add(fact);
@@ -394,8 +391,7 @@ final class BriefSections {
   private String kind(EntityId entity) {
     return switch (entity.type()) {
       case Types.EXTERNAL_SYSTEM -> "External system";
-      case Types.DATABASE ->
-          model.attribute(entity, Types.TECHNOLOGY).map(t -> t + " database").orElse("Database");
+      case Types.DATABASE -> model.technology(entity).map(t -> t + " database").orElse("Database");
       default -> {
         SortedSet<String> built = repos(entity);
         yield built.isEmpty()
@@ -718,9 +714,7 @@ final class BriefSections {
   List<Block> qualityEvidence(String section) {
     List<Block> blocks = new ArrayList<>();
     List<EntityId> code =
-        modules.stream()
-            .filter(m -> !model.attribute(m, Types.PACKAGING).orElse("jar").equals("pom"))
-            .toList();
+        modules.stream().filter(m -> !model.packaging(m).orElse("jar").equals("pom")).toList();
     if (code.isEmpty()) {
       blocks.add(
           note(
@@ -759,7 +753,7 @@ final class BriefSections {
             t.coverageFacts.add(coverage.fact());
           }
         }
-        for (Fact fact : model.relations(module, Types.BUILD_DEPENDS_ON)) {
+        for (Fact fact : model.buildDependencyFacts(module)) {
           EntityId target = ArchitectureModel.object(fact);
           if (!ArchitectureModel.isEntity(fact)
               || !target.type().equals(Types.ARTIFACT)

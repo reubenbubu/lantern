@@ -9,13 +9,10 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.SortedSet;
 
 /**
@@ -35,33 +32,17 @@ final class ClaimContradictions {
   private static final int SHORT_QUOTE = 160;
 
   /** How a relationship between entities reads, by predicate; others read as their words. */
-  private static final Map<String, String> VERBS =
-      Map.of(
-          Types.CALLS_HTTP,
-          "calls",
-          Types.SENDS_MAIL,
-          "sends mail through",
-          Types.USES_IDENTITY_PROVIDER,
-          "uses as its identity provider",
-          Types.ACCESSES_DATA_OF,
-          "accesses the data of",
-          Types.USES_DATABASE,
-          "uses",
-          Types.PUBLISHES,
-          "publishes to",
-          Types.CONSUMES,
-          "consumes from",
-          Types.USES_BROKER,
-          "uses");
-
   private final ArchitectureModel model;
+
   private final Assembler assembler;
   private final List<Flag> flags = new ArrayList<>();
 
   /** A contradicted claim, the facts on the code's side and, once shown, its callout's ID. */
   private static final class Flag {
     final Fact contradiction;
+    final String kind;
     final Fact claim;
+    final String claimed;
     final List<Fact> contradictedBy;
     final String stated;
     final List<String> found;
@@ -69,7 +50,9 @@ final class ClaimContradictions {
 
     Flag(ArchitectureModel.Contradiction contradiction) {
       this.contradiction = contradiction.fact();
+      this.kind = contradiction.kind();
       this.claim = contradiction.claim();
+      this.claimed = contradiction.claimed();
       this.contradictedBy = contradiction.contradictedBy();
       this.stated = contradiction.stated();
       this.found = contradiction.found();
@@ -97,7 +80,7 @@ final class ClaimContradictions {
         Comparator.comparing((Flag f) -> f.claim.evidence().repo())
             .thenComparing(f -> String.valueOf(f.claim.evidence().path()))
             .thenComparingInt(f -> line(f.claim.evidence()))
-            .thenComparing(f -> f.contradiction.object().value())
+            .thenComparing(f -> f.kind)
             .thenComparing(f -> f.contradiction.id()));
   }
 
@@ -177,24 +160,21 @@ final class ClaimContradictions {
   }
 
   private static String quote(Flag flag) {
-    return flag.claim.object().value().strip().replaceAll("\\s+", " ");
+    return flag.claimed.strip().replaceAll("\\s+", " ");
   }
 
   /** How a fact on the code's side reads: what relates to what, or what an entity has. */
   private List<Inline> reads(Fact fact) {
-    ArchitectureModel.Statement statement = ArchitectureModel.statement(fact);
+    ArchitectureModel.Reading reading = ArchitectureModel.reading(fact);
     List<Inline> content = new ArrayList<>();
-    content.add(reference(statement.subject()));
-    if (statement.entity() != null) {
-      String verb = VERBS.getOrDefault(statement.predicate(), words(statement.predicate()));
-      content.add(TextRun.of(" " + verb + " "));
-      content.add(reference(statement.entity()));
-    } else if (statement.predicate().equals(Types.UNRESOLVED_LINK)) {
-      content.add(TextRun.of(" makes a call Lantern could not link: " + statement.value()));
+    content.add(reference(reading.subject()));
+    if (reading.entity() != null) {
+      content.add(TextRun.of(" " + reading.verb() + " "));
+      content.add(reference(reading.entity()));
     } else {
-      content.add(TextRun.of("'s " + words(statement.predicate()) + " is " + statement.value()));
+      content.add(TextRun.of(reading.rest()));
     }
-    String profile = statement.view();
+    String profile = reading.view();
     if (profile != null) {
       content.add(TextRun.of(" under the " + profile + " profile"));
     }
@@ -204,10 +184,6 @@ final class ClaimContradictions {
   private Inline reference(EntityId entity) {
     return new CrossReference(
         assembler.name(assembler.entity(entity)), CrossReference.Target.entity(entity));
-  }
-
-  private static String words(String predicate) {
-    return predicate.toLowerCase(Locale.ROOT).replace('_', ' ').replace('-', ' ');
   }
 
   /** Where a fact is written: the file, as code, and line in its repository. */

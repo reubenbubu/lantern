@@ -249,6 +249,22 @@ public final class Elements {
   }
 
   /** Whether a WebSocket endpoint speaks STOMP. */
+  /**
+   * How a unit's link that holds under a profile reads, in place of its default link: "calls",
+   * "sends to", ... (#761).
+   */
+  public static String alternativeVerb(Fact profiled) {
+    return switch (profiled.predicate()) {
+      case Types.CALLS_HTTP -> "calls";
+      case Types.SENDS_MAIL -> "sends mail through";
+      case Types.USES_IDENTITY_PROVIDER -> "uses as its identity provider";
+      case Types.PUBLISHES -> "sends to";
+      case Types.CONSUMES -> "listens on";
+      case Types.USES_DATABASE -> "connects to";
+      default -> "reads tables of";
+    };
+  }
+
   public static boolean isStomp(Fact endpoint) {
     return "stomp".equals(attribute(endpoint, "protocol", ""));
   }

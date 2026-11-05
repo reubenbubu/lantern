@@ -7,7 +7,6 @@ import io.lantern.core.document.Inline;
 import io.lantern.core.document.TextRun;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.fact.Origin;
 import io.lantern.core.types.Types;
 import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
@@ -108,7 +107,7 @@ final class Assembler {
       throw new IllegalArgumentException("CONTAINS facts form a cycle at " + id);
     }
     EntityId parent = parent(id);
-    List<Fact> facts = new ArrayList<>(model.attributes(id));
+    List<Fact> facts = new ArrayList<>(model.describing(id));
     if (id.type().equals(Types.SERVICE) || id.type().equals(Types.LIBRARY)) {
       for (EntityId module : model.parts(id, Types.MODULE)) {
         facts.addAll(model.containsFacts(id, module));
@@ -726,9 +725,7 @@ final class Assembler {
 
   /** The connections Investigate found to an entity (ADR 0110). */
   private List<Fact> investigatedTo(EntityId id) {
-    return model.withPredicate(Types.INVESTIGATED_CONNECTION).stream()
-        .filter(f -> ArchitectureModel.isEntity(f) && ArchitectureModel.object(f).equals(id))
-        .toList();
+    return model.investigatedTo(id);
   }
 
   /**
@@ -740,29 +737,12 @@ final class Assembler {
     if (!destination(id) || investigatedTo(id).isEmpty()) {
       return false;
     }
-    if (model.about(id).stream().anyMatch(f -> f.origin().kind() != Origin.Kind.LLM)) {
-      return false;
-    }
-    if (notFromTheLlm == null) {
-      Set<EntityId> objects = new java.util.HashSet<>();
-      for (Origin.Kind kind : Origin.Kind.values()) {
-        if (kind != Origin.Kind.LLM) {
-          model.withOrigin(kind).stream()
-              .filter(ArchitectureModel::isEntity)
-              .forEach(f -> objects.add(ArchitectureModel.object(f)));
-        }
-      }
-      notFromTheLlm = objects;
-    }
-    return !notFromTheLlm.contains(id);
+    return model.knownOnlyToTheLlm(id);
   }
-
-  /** The entities a fact not from the LLM relates something to, found once. */
-  private Set<EntityId> notFromTheLlm;
 
   /** Whether only Investigate's connections know the entity: no fact is about it. */
   private boolean foundOnlyByTheInvestigator(EntityId id) {
-    return destination(id) && model.about(id).isEmpty() && !investigatedTo(id).isEmpty();
+    return destination(id) && !model.hasFactsAbout(id) && !investigatedTo(id).isEmpty();
   }
 
   /**
@@ -805,7 +785,7 @@ final class Assembler {
     }
     List<Fact> cited = new ArrayList<>(List.of(app.fact()));
     SortedSet<String> called = new TreeSet<>();
-    for (Fact call : model.relations(id, Types.CALLS_HTTP)) {
+    for (Fact call : model.linksOf(id, Types.CALLS_HTTP)) {
       called.add(name(ArchitectureModel.object(call)));
       if (cited.size() < 6) {
         cited.add(call);
@@ -831,7 +811,7 @@ final class Assembler {
    * lines that make it.
    */
   private Text unknownCaller() {
-    List<String> ids = facts(model.withPredicate(Types.CALLS_UNREACHED));
+    List<String> ids = facts(model.unknownCallerLines());
     return new Text(
         List.of(
             TextRun.of(

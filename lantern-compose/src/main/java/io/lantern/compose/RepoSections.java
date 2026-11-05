@@ -15,8 +15,6 @@ import io.lantern.core.document.TextRun;
 import io.lantern.core.document.Tree;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
-import io.lantern.core.fact.FactObject;
-import io.lantern.core.fact.Origin;
 import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.Elements;
@@ -27,7 +25,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -147,13 +144,7 @@ final class RepoSections {
    * table (#229).
    */
   Section glossary(Document document) {
-    Map<String, String> texts = new LinkedHashMap<>();
-    for (Fact fact : model.withOrigin(Origin.Kind.README)) {
-      if (fact.object().kind() == FactObject.Kind.STRING
-          && (repo == null || repo.equals(fact.evidence().repo()))) {
-        texts.put(fact.id(), fact.object().value());
-      }
-    }
+    Map<String, String> texts = model.documentationTexts(repo);
     Map<String, Glossary.Definition> documented = new TreeMap<>();
     Glossary.defined(texts)
         .forEach(
@@ -442,12 +433,7 @@ final class RepoSections {
    */
   private Map<EntityId, Map<EntityId, List<Fact>>> repoEdges() {
     Map<EntityId, Map<EntityId, List<Fact>>> edges = new TreeMap<>(ArchitectureModel.BY_ID);
-    for (Fact fact : model.withPredicate(Types.BUILD_DEPENDS_ON)) {
-      if (!ArchitectureModel.isEntity(fact)
-          || !fact.subject().type().equals(Types.MODULE)
-          || ArchitectureModel.isTestScope(fact)) {
-        continue;
-      }
+    for (Fact fact : model.moduleBuildDependencies()) {
       for (String from : model.repos(fact.subject())) {
         for (String to : model.repos(ArchitectureModel.object(fact))) {
           if (!from.equals(to) && (from.equals(repo) || to.equals(repo))) {
@@ -467,7 +453,7 @@ final class RepoSections {
     List<Fact> facts = new ArrayList<>();
     for (EntityId module : model.parts(container, Types.MODULE)) {
       facts.addAll(model.containsFacts(container, module));
-      facts.addAll(model.attributes(module, Types.PACKAGING));
+      facts.addAll(model.packagingFacts(module));
     }
     return facts;
   }
@@ -493,12 +479,12 @@ final class RepoSections {
     SortedSet<EntityId> thirdParty = new TreeSet<>(ArchitectureModel.BY_ID);
     List<Fact> thirdPartyFacts = new ArrayList<>();
     for (EntityId module : modules) {
-      moduleFacts.addAll(model.attributes(module, Types.PACKAGING));
+      moduleFacts.addAll(model.packagingFacts(module));
       types.addAll(model.typesWithin(module));
       for (EntityId pkg : model.parts(module, Types.PACKAGE)) {
         types.addAll(model.typesWithin(pkg));
       }
-      for (Fact fact : model.relations(module, Types.BUILD_DEPENDS_ON)) {
+      for (Fact fact : model.buildDependencyFacts(module)) {
         if (!ArchitectureModel.isTestScope(fact)
             && ArchitectureModel.object(fact).type().equals(Types.ARTIFACT)) {
           thirdParty.add(ArchitectureModel.object(fact));
@@ -550,7 +536,7 @@ final class RepoSections {
   private void dependencies(String section, List<Block> blocks) {
     List<Tree.Node> roots = new ArrayList<>();
     for (EntityId module : modules) {
-      if (model.relations(module, Types.BUILD_DEPENDS_ON).isEmpty()) {
+      if (model.buildDependencyFacts(module).isEmpty()) {
         continue;
       }
       Set<EntityId> expanded = new HashSet<>();
