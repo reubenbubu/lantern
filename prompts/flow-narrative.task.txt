@@ -1,6 +1,6 @@
 Task: narrate flows. Each item in <items> is one flow through the system: what starts it and the steps that cross from one container to another, in the order of the code, each with the facts behind it. A synchronous step waits for its answer; an asynchronous one hands work on, and what follows it happens later.
 For each item write:
-- a title of 3 to 5 words naming the business scenario, what someone or something gets done, such as "Customer places an order", without request paths or class names;
+- a title of 3 to 5 words naming the business scenario: who or what starts it and what they get done, such as "Customer places an order" or "Scheduler expires stale carts", in plain words, without request paths, class or method names, and without the words "flow" or "process";
 - a walkthrough of two to four plain sentences, 30 to 75 words in all, covering every step in order, telling a reader who does not know the code what the flow does for the system, in the order it happens, naming the containers as the steps name them and saying where work is handed on asynchronously; say only what the steps and their facts show, so a check or a store is named only where a step shows it;
 - the pre-conditions, 6 to 22 words: what must hold before it starts;
 - the post-conditions, 10 to 22 words: what has changed when it ends, such as data written or messages sent; when the last step hands work on asynchronously, say the message was sent, not what its receiver does later.

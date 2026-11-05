@@ -44,7 +44,10 @@ The 1F and 1G review (3 Nov 2026) found four small defects in the C4 report, eac
   routes names both ends: "POST /api/auth/sign-in from crm-frontend to auth-service
   (AuthController.signIn)", "GET /api/ship/status to edge, routed to ship (Status.get)". The
   first flow of a scope with a scenario keeps the bare title; a later one with the same scenario
-  gets its unit's name, then its handler's, then a number, in brackets.
+  gets its unit's name in brackets, then a number. Amended for #885: never its handler's class
+  and method, which the bar's flow-title rule forbids (docs/quality-bar.md, Sequence diagrams);
+  the fallback, the entry point's name, is written as plain words ("Place order" for
+  `placeOrder`).
 
 ## Consequences
 

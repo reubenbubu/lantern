@@ -103,3 +103,7 @@ Six roles asked for one size and accepted another without a written reason. For 
 - `WordingPrompt`'s old flow sizes (8, 100 and 30 words) are not a contract; removing them is #775.
 - The quality score is reasoned, not fitted. CheckEval found fitted weights gained nothing for most judges. The weights change only through an issue.
 - The epic's section 11 is a closed record; its limits now live in the contracts.
+
+## Amendment for #885 (5 Nov 2026)
+
+Flow narrative's title accepts 3 to 8 words, the range of the bar's flow-title rule (owner's decision of 5 Nov 2026, #770), in place of 2 to 6; it still asks for 3 to 5. A title holding the word "flow" or "process", or code (a path, a class or method name), is sent back by the role's own check, `Title`. The prompt names who or what starts the scenario, and its version is 10.

@@ -2946,7 +2946,7 @@ class DescriberTest {
             s ->
                 assertThat(s.request().messages().getLast().text())
                     .contains(
-                        "field=\"title\">Has 1 words; the accepted range is 2 to 6 words, so say"
+                        "field=\"title\">Has 1 words; the accepted range is 3 to 8 words, so say"
                             + " more.</rejection>"));
   }
 

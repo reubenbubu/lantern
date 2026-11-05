@@ -260,7 +260,7 @@ final class SequenceFlows {
   /**
    * A flow's page. Its title is the scenario alone; the request, message or schedule that starts it
    * is the trigger in its Overview table (#767). A title another flow of the scope already has gets
-   * its unit's name, then its handler's, so each page's title is its own.
+   * its unit's name, then a number, so each page's title is its own.
    */
   private Section flowSection(String section, ScopeFlows.Trace trace, Set<String> titles) {
     ScopeFlows.Entry entry = trace.entry();
@@ -277,13 +277,11 @@ final class SequenceFlows {
     String title = scenario;
     if (!titles.add(title)) {
       title = scenario + " (" + nameOf(entry.unit()) + ")";
-      if (!titles.add(title)) {
-        title = scenario + " (" + nameOf(entry.unit()) + ", " + handler + ")";
-        // One handler can start two flows of a unit (two paths, or a gateway route to it too).
-        String base = title;
-        for (int n = 2; !titles.add(title); n++) {
-          title = base + " " + n;
-        }
+      // Then by a number, never by the handler's class and method, which a title does not name
+      // (docs/quality-bar.md, Sequence diagrams; #885).
+      String base = title;
+      for (int n = 2; !titles.add(title); n++) {
+        title = base + " " + n;
       }
     }
     Assembler.Text walkthrough =

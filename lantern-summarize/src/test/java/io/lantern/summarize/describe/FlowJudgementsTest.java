@@ -23,6 +23,24 @@ class FlowJudgementsTest {
     assertThat(significanceRole(2).maxOutputTokens(1)).isEqualTo(1_500);
   }
 
+  @Test
+  void aFlowTitleIsHeldToTheBarsRule() {
+    // docs/quality-bar.md, Sequence diagrams (owner's decision of 5 Nov 2026, #770; #885).
+    assertThat(FlowJudgements.TITLE_WORDS.min()).isEqualTo(3);
+    assertThat(FlowJudgements.TITLE_WORDS.max()).isEqualTo(8);
+    assertThat(FlowJudgements.titleProblem("Customer places an order")).isNull();
+    assertThat(FlowJudgements.titleProblem("Scheduler expires stale carts")).isNull();
+    assertThat(FlowJudgements.titleProblem("Order flow for customers")).isNotNull();
+    assertThat(FlowJudgements.titleProblem("Checkout process runs")).isNotNull();
+    assertThat(FlowJudgements.titleProblem("Customer calls placeOrder")).isNotNull();
+    assertThat(FlowJudgements.titleProblem("OrderController places orders")).isNotNull();
+    assertThat(FlowJudgements.titleProblem("Customer posts /orders")).isNotNull();
+    assertThat(FlowJudgements.titleProblem("OrderService.place runs")).isNotNull();
+    assertThat(new FlowJudgements.OneItem(null, true).pipeline().checks())
+        .extracting(io.lantern.harness.verify.Check::name)
+        .contains("Title");
+  }
+
   private static FlowJudgements.OneItem significanceRole(int flows) {
     Map<String, ScopeFlows.Candidate> candidates = new HashMap<>();
     for (int i = 0; i < flows; i++) {

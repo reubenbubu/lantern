@@ -67,7 +67,7 @@ public final class FlowJudgements {
   static final String SIGNIFICANCE_VERSION = "9";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
-  static final String NARRATIVE_VERSION = "9";
+  static final String NARRATIVE_VERSION = "10";
 
   public static final String SIGNIFICANCE_TASK = DescribeRole.prompt("flow-significance.task.txt");
   public static final String SIGNIFICANCE_SCHEMA =
@@ -551,10 +551,11 @@ public final class FlowJudgements {
 
     @Override
     public Pipeline pipeline() {
-      if (narrative) {
-        return Pipeline.STANDARD;
-      }
       List<Check> checks = new ArrayList<>(Checks.STANDARD);
+      if (narrative) {
+        checks.add(new TitleCheck());
+        return new Pipeline(checks);
+      }
       checks.add(new SignificanceCheck());
       return new Pipeline(checks);
     }
@@ -814,6 +815,61 @@ public final class FlowJudgements {
       private Rejection reject(ItemAnswer answer, String reason) {
         return new Rejection(answer.item(), "", name(), reason);
       }
+    }
+  }
+
+  /** Words a flow's title leaves out: it names the scenario, not that it is a flow (#885). */
+  private static final java.util.regex.Pattern GENERIC_WORD =
+      java.util.regex.Pattern.compile("(?i)\\b(flows?|process)\\b");
+
+  /**
+   * Code in a title: a path or a reference ({@code /orders}, {@code #place}), a call or a member
+   * ({@code place()}, {@code OrderService.place}), a snake_case name, a camelCase method name, or a
+   * type named by its role ({@code OrderController}).
+   */
+  private static final java.util.regex.Pattern CODE =
+      java.util.regex.Pattern.compile(
+          "[/#()_]|\\w\\.\\w|\\b[a-z]+[A-Z]\\w*|\\b[A-Z][a-z]+\\w*"
+              + "(Controller|Service|Repository|Handler|Listener|Resource|Endpoint|Client|Job)\\b");
+
+  /**
+   * Why a flow's title breaks the bar's rule (docs/quality-bar.md, Sequence diagrams; owner's
+   * decision of 5 Nov 2026, #770), or {@code null} when it keeps it. Its length is the contract's
+   * check; this one rejects the word "flow" or "process" and any code.
+   */
+  static String titleProblem(String title) {
+    if (title == null) {
+      return null;
+    }
+    if (GENERIC_WORD.matcher(title).find()) {
+      return "The title says \"flow\" or \"process\": name the scenario alone, who or what starts"
+          + " it and what they get done.";
+    }
+    if (CODE.matcher(title).find()) {
+      return "The title names code (a path, class or method): say in plain words who or what starts"
+          + " the scenario and what they get done.";
+    }
+    return null;
+  }
+
+  /** The bar's rule for a narrative's title, beyond its length (#885). */
+  static final class TitleCheck implements Check {
+
+    @Override
+    public String name() {
+      return "Title";
+    }
+
+    @Override
+    public List<Rejection> check(ItemAnswer answer, CheckInputs inputs) {
+      List<Rejection> found = new ArrayList<>();
+      for (CheckedText text : answer.texts()) {
+        String problem = text.field().equals(TITLE) ? titleProblem(text.text()) : null;
+        if (problem != null) {
+          found.add(new Rejection(answer.item(), text.field(), name(), problem));
+        }
+      }
+      return found;
     }
   }
 
