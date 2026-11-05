@@ -177,6 +177,8 @@ public final class Summarizer {
   public Summarizer(Harness harness, SourceFiles sources) {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.sources = Objects.requireNonNull(sources, "sources");
+    // Types may share requests once the harness packs (#874).
+    harness.packs(TYPES.name(), Packets.INSTANCE);
   }
 
   /**
@@ -665,7 +667,8 @@ public final class Summarizer {
         ModelConfig model = session.model();
         running.put(
             session,
-            session.batching()
+            // A role that batches or packs sends its requests together, so they wait for no slot.
+            session.batching() || session.packing()
                 ? new Semaphore(Integer.MAX_VALUE, true)
                 : lanes.computeIfAbsent(
                     model.provider() + '\u0000' + model.model(),

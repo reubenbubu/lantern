@@ -30,6 +30,8 @@ public final class Harness {
   private final Map<String, Shown> shown = new LinkedHashMap<>();
   private final List<RejectedAnswer> rejections = new ArrayList<>();
   private volatile int batchAbove = BATCH_ABOVE;
+  private volatile Packing.Limits packetLimits;
+  private final Map<String, Packing> packings = new java.util.concurrent.ConcurrentHashMap<>();
   private final Map<String, Calibration> calibrations = new LinkedHashMap<>();
   private final Map<String, Integer> itemsPerRequest = new LinkedHashMap<>();
   private final Map<String, String> retries = new java.util.concurrent.ConcurrentHashMap<>();
@@ -103,6 +105,32 @@ public final class Harness {
     }
     this.batchAbove = misses;
     return this;
+  }
+
+  /**
+   * Joins the first requests of the roles that say how ({@link #packs}) into packed requests cut at
+   * these limits (#874), unless a role batches. Set before any role starts.
+   */
+  public Harness packingUpTo(Packing.Limits limits) {
+    this.packetLimits = java.util.Objects.requireNonNull(limits, "limits");
+    return this;
+  }
+
+  /**
+   * How the named role's first requests are joined, once the harness packs ({@link #packingUpTo}).
+   */
+  public void packs(String role, Packing packing) {
+    packings.put(role, java.util.Objects.requireNonNull(packing, "packing"));
+  }
+
+  /** The limits packed requests are cut at, or null when the harness does not pack. */
+  Packing.Limits packetLimits() {
+    return packetLimits;
+  }
+
+  /** How the named role's requests are joined, or null if they are not. */
+  Packing packing(String role) {
+    return packings.get(role);
   }
 
   /**

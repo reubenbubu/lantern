@@ -89,7 +89,10 @@ import tools.jackson.databind.node.ObjectNode;
  * (such as {@code summarize/project-4-hard-classes.txt} in the test resources), and {@code
  * lantern.test.summarize-cap} (default 0.10) the most US dollars it may spend: a call whose worst
  * case would pass it is not made. {@code lantern.test.llm-properties} names another settings file.
- * Commands: the {@code lantern-commands} skill.
+ * {@code lantern.test.summarize-packet-items} packs that many types at most into one request
+ * (#874), under {@code lantern.test.summarize-packet-tokens} of input (default 80,000), leaving
+ * {@code lantern.test.summarize-thinking-per-item} output tokens per type for thinking (default
+ * 1,500). Commands: the {@code lantern-commands} skill.
  */
 @EnabledIfSystemProperty(
     named = "lantern.test.summarize-run",
@@ -199,6 +202,17 @@ class SummarizeOpenRouterIT {
     Harness harness =
         new Harness(client, new InMemoryAnswerStore(), RunBudget.NONE, (r, p) -> null, Set.of())
             .batchingAbove(Integer.MAX_VALUE);
+    // Types share requests when asked (#874): at most this many per request, under the input
+    // ceiling, with this much room per type to think.
+    String packetItems = System.getProperty("lantern.test.summarize-packet-items");
+    if (packetItems != null) {
+      harness.packingUpTo(
+          new io.lantern.harness.Packing.Limits(
+              Long.parseLong(System.getProperty("lantern.test.summarize-packet-tokens", "80000")),
+              Integer.parseInt(packetItems),
+              Integer.parseInt(
+                  System.getProperty("lantern.test.summarize-thinking-per-item", "1500"))));
+    }
 
     ListAppender<ILoggingEvent> logged = new ListAppender<>();
     logged.start();
