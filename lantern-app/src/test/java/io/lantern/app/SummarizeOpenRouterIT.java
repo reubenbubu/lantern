@@ -423,17 +423,18 @@ class SummarizeOpenRouterIT {
       for (Path file : files.filter(f -> f.toString().endsWith(".json")).toList()) {
         String text =
             JSON.readTree(Files.readString(file)).path("response").path("text").asString();
-        int start = text.indexOf('{');
-        if (start < 0) {
-          continue;
-        }
         try {
-          JsonNode answer = JSON.readTree(text.substring(start, text.lastIndexOf('}') + 1));
-          for (JsonNode item : answer.path("items")) {
+          // A JSON answer holds its items under "items"; a TOML answer (#872) as top-level tables.
+          JsonNode items =
+              text.strip().startsWith("{")
+                  ? JSON.readTree(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1))
+                      .path("items")
+                  : io.lantern.harness.Toml.read(text).root();
+          for (JsonNode item : items) {
             sentences += item.path("sentences").size();
           }
         } catch (RuntimeException e) {
-          // An answer that is not one JSON object counts no sentences; the checks rejected it.
+          // An answer that is not one document counts no sentences; the checks rejected it.
         }
       }
     }
