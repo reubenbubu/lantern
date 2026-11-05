@@ -818,8 +818,36 @@ public final class C4ReportRenderer {
       ArrayNode columns = node.putArray("columns");
       table.columns().forEach(c -> columns.add(c.label()));
       ArrayNode rows = node.putArray("rows");
+      List<Integer> llmRows = rows(table.rows(), rows);
+      if (!llmRows.isEmpty()) {
+        ArrayNode marked = node.putArray("llmRows");
+        llmRows.forEach(marked::add);
+      }
+      // A parent row's folded rows are its subRows, listed by its index (#747).
+      ArrayNode subRows = null;
+      for (int i = 0; i < table.rows().size(); i++) {
+        Table.Row row = table.rows().get(i);
+        if (row.children().isEmpty()) {
+          continue;
+        }
+        if (subRows == null) {
+          subRows = node.putArray("subRows");
+        }
+        ObjectNode group = subRows.addObject();
+        group.put("row", i);
+        List<Integer> llm = rows(row.children(), group.putArray("rows"));
+        if (!llm.isEmpty()) {
+          ArrayNode marked = group.putArray("llmRows");
+          llm.forEach(marked::add);
+        }
+      }
+      return node;
+    }
+
+    /** Writes the rows' cells into {@code rows}; returns the indices of those the LLM found. */
+    private List<Integer> rows(List<Table.Row> from, ArrayNode rows) {
       List<Integer> llmRows = new ArrayList<>();
-      for (Table.Row row : table.rows()) {
+      for (Table.Row row : from) {
         boolean llm = foundByLlm(row.facts());
         if (llm) {
           llmRows.add(rows.size());
@@ -832,11 +860,7 @@ public final class C4ReportRenderer {
                   cells.add(llm ? unmarked(text) : text);
                 });
       }
-      if (!llmRows.isEmpty()) {
-        ArrayNode marked = node.putArray("llmRows");
-        llmRows.forEach(marked::add);
-      }
-      return node;
+      return llmRows;
     }
 
     /** Whether every row of a table is about a decision record, so it is a decisions section. */

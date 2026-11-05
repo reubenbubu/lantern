@@ -231,13 +231,7 @@ public final class DocumentJson {
         ArrayNode columns = node.putArray("columns");
         t.columns().forEach(c -> columns.addObject().put("label", c.label()));
         ArrayNode rows = node.putArray("rows");
-        for (Table.Row row : t.rows()) {
-          ObjectNode rowNode = rows.addObject();
-          putOptional(rowNode, "entity", row.entity());
-          ArrayNode cells = rowNode.putArray("cells");
-          row.cells().forEach(cell -> cells.add(contentToJson(cell)));
-          putFacts(rowNode, row.facts());
-        }
+        t.rows().forEach(row -> rows.add(toJson(row)));
       }
       case Diagram d -> {
         node.put("kind", "diagram");
@@ -416,12 +410,26 @@ public final class DocumentJson {
     };
   }
 
+  private static ObjectNode toJson(Table.Row row) {
+    ObjectNode rowNode = MAPPER.createObjectNode();
+    putOptional(rowNode, "entity", row.entity());
+    ArrayNode cells = rowNode.putArray("cells");
+    row.cells().forEach(cell -> cells.add(contentToJson(cell)));
+    putFacts(rowNode, row.facts());
+    if (!row.children().isEmpty()) {
+      ArrayNode children = rowNode.putArray("children");
+      row.children().forEach(child -> children.add(toJson(child)));
+    }
+    return rowNode;
+  }
+
   private static Table.Row rowFromJson(JsonNode node) {
-    Reader in = Reader.of(node, "row", "entity", "cells", "facts");
+    Reader in = Reader.of(node, "row", "entity", "cells", "facts", "children");
     return new Table.Row(
         in.optionalEntityId("entity"),
         in.array("cells", cell -> Reader.list(cell, "cell", DocumentJson::inlineFromJson)),
-        in.facts());
+        in.facts(),
+        in.has("children") ? in.array("children", DocumentJson::rowFromJson) : List.of());
   }
 
   private static ObjectNode toJson(SequenceDiagram.Participant participant) {

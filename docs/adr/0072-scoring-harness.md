@@ -466,3 +466,18 @@ depth, so a fully cascading run passed. Now (decision of 4 Nov 2026 on #722):
   only lost a shown answer, whose source is no longer named, is expected once something was
   re-asked for the file. A judge's item on a reworded text stays expected as before, unless another
   file changed too.
+
+## Amendment (#747): a risk gathering several places, and repeated risks
+
+- **Credit.** A drawn risk that is right (by a verdict, or by matching a reference risk) also counts
+  for recall toward every other reference risk it matches (subject and category) whose cited lines
+  it cites too. A risk that gathers the confirmed leads of several places, such as the
+  send-before-commit methods of one service, so finds each reference risk at one of them. Precision
+  still counts the drawn risk once. A fixed check's wording gets the same credit in its own row,
+  which shares the rule. The report's risks (the risks table of the C4 report) count a parent row
+  as the rows folded under it, never as a risk of its own.
+- **Repeated risks.** The scorecard's "Repeated risks" line lists every group of investigated risks
+  of one lead kind whose leads' units, sorted (the units in their value after the kind), are the
+  same: one problem stored twice, which the join of
+  ADR 0110 (amendment for #747) should have made one risk. A fixed check's wordings are not
+  counted; #748 scores them apart. It reads `llm.jsonl.gz` and needs no answer key.

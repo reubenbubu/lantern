@@ -859,15 +859,16 @@ public final class Investigator {
 
     /**
      * A risk: the finding it restates, worded; else an {@code investigated-risk}. A confirmed lead
-     * of a kind its unit already holds a risk of joins that risk, and a risk found exploring whose
-     * cited lines overlap a risk of its unit restates it, so a problem is one risk with every place
-     * it occurs (#747).
+     * of the kind and units of a risk already held joins that risk, and a risk found exploring
+     * whose cited lines overlap a risk naming its unit restates it, so a problem is one risk with
+     * every place it occurs (#747, owner's decision of 4 Nov 2026).
      */
     private void risk(
         JsonNode entry, Lead lead, InvestigateRole.Mode mode, String conversation, String fp) {
       List<String> units = units(entry, lead, conversation);
-      // A lead's risk is keyed on its kind, so the leads of one kind in one unit are one risk.
-      String key = lead != null ? lead.kind() : String.join(",", sortedNames(entry));
+      // A lead's risk is keyed on its kind and its lead's units, sorted: the leads of one kind on
+      // the same units are one problem, and leads of one kind on other units are other problems.
+      String key = lead != null ? leadKey(lead) : String.join(",", sortedNames(entry));
       if (lead == null && !keys.add("risk " + units.getFirst() + " " + key)) {
         return;
       }
@@ -887,7 +888,7 @@ public final class Investigator {
       attributes.put("mode", mode.jsonName());
       provenance(attributes, fp);
       Optional<Fact> restated = restated(entry, lead, units);
-      String group = units.getFirst() + " " + key;
+      String group = key;
       // Only a risk of its own gathers the leads of its kind: a lead restating no finding joins it,
       // and never a fixed check's finding it does not restate.
       if (lead != null && restated.isEmpty()) {
@@ -1007,7 +1008,7 @@ public final class Investigator {
 
     private final Set<String> worded = new LinkedHashSet<>();
 
-    /** Where in the facts each unit's risk of a lead kind is, by unit and kind. */
+    /** Where in the facts the risk of each lead kind and set of units is, by its key. */
     private final Map<String, Integer> byKind = new LinkedHashMap<>();
 
     /**
@@ -1073,11 +1074,9 @@ public final class Investigator {
       for (Fact fact : facts) {
         boolean about =
             switch (fact.predicate()) {
-              case Types.INVESTIGATED_RISK -> fact.subject().toString().equals(unit);
-              case Types.FINDING_WORDING -> {
-                JsonNode first = Claims.json(fact).path("units").path(0);
-                yield first.isString() && first.stringValue().equals(unit);
-              }
+              case Types.INVESTIGATED_RISK ->
+                  fact.subject().toString().equals(unit) || namesUnit(fact, unit);
+              case Types.FINDING_WORDING -> namesUnit(fact, unit);
               default -> false;
             };
         if (about && citesOnlyItsEvidence(entry, fact)) {
@@ -1085,6 +1084,32 @@ public final class Investigator {
         }
       }
       return Optional.empty();
+    }
+
+    /**
+     * Whether a stored risk or wording names the unit: among the units its answer named, or, for a
+     * lead's, among its leads' units, which its value holds after the kind (#747).
+     */
+    private static boolean namesUnit(Fact fact, String unit) {
+      for (JsonNode named : Claims.json(fact).path("units")) {
+        if (named.isString() && named.stringValue().equals(unit)) {
+          return true;
+        }
+      }
+      String value = fact.object().value();
+      int space = value.indexOf(' ');
+      return Claims.json(fact).path("lead").isString()
+          && space >= 0
+          && List.of(value.substring(space + 1).split(",")).contains(unit);
+    }
+
+    /**
+     * A lead's risk key: its kind, a space and its units sorted and joined by commas; its kind
+     * alone for a lead of no unit.
+     */
+    static String leadKey(Lead lead) {
+      List<String> sorted = lead.units().stream().distinct().sorted().toList();
+      return sorted.isEmpty() ? lead.kind() : lead.kind() + " " + String.join(",", sorted);
     }
 
     /** Whether a finding rests on a fact the lead shows, or on a file one of them names. */

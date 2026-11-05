@@ -78,7 +78,10 @@ leaves it open. The agent decided these points under the owner's standing go-ahe
 
 ## Amendment (#747): a lead is a place, a risk is a problem
 
-Leads keep their keys above, so each is judged on its own code. A risk is not a lead: the
-confirmed leads of one kind in one unit become one risk citing every place (ADR 0110, amendment
-for #747). A `send-before-commit` lead per sending method, or a `weak-access-check` per endpoint,
-so gives the reader one row per unit, not one per method.
+Leads keep their keys above, so each is judged on its own code. A risk is not a lead: it is one
+distinct problem, so the confirmed leads of one kind on the same set of units become one risk
+citing every place, and leads of one kind on other units stay other risks (ADR 0110, amendment for
+#747, owner's decision of 4 Nov 2026). A `send-before-commit` lead per sending method, or a
+`weak-access-check` per endpoint, so gives the reader one risk per unit, not one per method; two
+`contract-mismatch` leads between different pairs of units are two risks. The documents fold the
+risks of one kind under one expandable parent row, grouped at compose time.

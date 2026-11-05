@@ -28,6 +28,10 @@ public final class InvestigatedRisks {
    * @param cites the citations the LLM verified, as {@code file:line}, in order
    * @param facts the facts the risk rests on: the fact itself, and for a worded finding the fixed
    *     check's too
+   * @param units the units it concerns, its subject first for a risk, each once
+   * @param leadKind the kind of the confirmed leads it gathers, the first word of its value (ADR
+   *     0110, amendment for #747); the empty text for a risk found exploring, a worded finding, or
+   *     a risk stored under an older key
    */
   public record Risk(
       Fact fact,
@@ -37,7 +41,9 @@ public final class InvestigatedRisks {
       String consequence,
       String impact,
       List<String> cites,
-      List<Fact> facts) {}
+      List<Fact> facts,
+      List<EntityId> units,
+      String leadKind) {}
 
   /**
    * The risks and findings about one of the units, in the order the model holds them: the risks
@@ -78,7 +84,21 @@ public final class InvestigatedRisks {
         text(fact, "consequence"),
         text(fact, "impact"),
         cites,
-        List.copyOf(facts));
+        List.copyOf(facts),
+        units(fact).stream().distinct().toList(),
+        leadKind(fact, worded));
+  }
+
+  private static String leadKind(Fact fact, boolean worded) {
+    if (worded || !fact.attributes().path("lead").isString()) {
+      return "";
+    }
+    // The kind its value starts with, which its first lead's ID names too.
+    String value = fact.object().value();
+    String lead = fact.attributes().path("lead").stringValue();
+    int space = value.indexOf(' ');
+    String kind = space < 0 ? value : value.substring(0, space);
+    return lead.startsWith("lead:" + kind + "/") ? kind : "";
   }
 
   private static List<EntityId> units(Fact fact) {

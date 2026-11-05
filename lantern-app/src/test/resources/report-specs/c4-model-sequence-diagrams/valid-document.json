@@ -70,7 +70,11 @@
       "title" : "Dependencies",
       "columns" : [ "From", "To" ],
       "rows" : [ [ "[orders-lib](#/structure/el-library-orders-lib)", "orders-db" ], [ "orders", "" ] ],
-      "llmRows" : [ 0 ]
+      "llmRows" : [ 0 ],
+      "subRows" : [ {
+        "row" : 1,
+        "rows" : [ [ "orders-api", "" ] ]
+      } ]
     }, {
       "type" : "list",
       "id" : "modules",

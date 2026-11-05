@@ -230,6 +230,11 @@ ul.ticks li{position:relative;padding-left:22px;margin:6px 0;color:var(--text-2)
 ul.ticks li::before{content:'';position:absolute;left:3px;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--accent);opacity:.75;transform:rotate(45deg)}
 
 /* tables */
+.row-toggle{border:none;background:none;cursor:pointer;color:var(--muted);padding:0 .35rem 0 0;font:inherit;display:inline-block;transition:transform .15s}
+.row-toggle[aria-expanded="true"]{transform:rotate(90deg)}
+.row-child td{background:var(--s2)}
+.row-child td:first-child{padding-left:1.6rem}
+@media print{.row-child[hidden]{display:table-row}.row-toggle{display:none}}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);text-align:left;
@@ -4266,10 +4271,40 @@ body.sb-collapsed .mx{left:0}
               "**The notifier retries SendGrid without a back-off.**",
               "A SendGrid outage turns into a burst of retries when it recovers.",
               "45%"
+            ],
+            [
+              "Medium",
+              "**Sent before the transaction commits: 2 risks.**",
+              "",
+              ""
             ]
           ],
           "llmRows": [
-            2
+            2,
+            3
+          ],
+          "subRows": [
+            {
+              "row": 3,
+              "rows": [
+                [
+                  "Medium",
+                  "**Order Service publishes OrderPlaced before its transaction commits.**",
+                  "A consumer can read an order that is then rolled back.",
+                  "70%"
+                ],
+                [
+                  "Low",
+                  "**Stock Service sends the reservation e-mail before its transaction commits.**",
+                  "A customer can be told of a reservation that never happened.",
+                  "55%"
+                ]
+              ],
+              "llmRows": [
+                0,
+                1
+              ]
+            }
           ]
         },
         {
@@ -4492,6 +4527,13 @@ function pillsFor(id, key){ const t = drillTargets(id, key); return t.length >= 
       if (s.type === 'elements') for (const id of s.select?.ids || []) if (!EL[id]) issues.push(`${where}: unknown element "${id}"`);
       if (p.level === 'documentation' && ['diagram','sequence','steps'].includes(s.type)) issues.push(`${where}: a documentation page holds no ${s.type} section`);
       for (const r of s.llmRows || []) if (!(s.rows || [])[r]) issues.push(`${where}: llmRows names row ${r}, which the table lacks`);
+      const parents = new Set();
+      for (const g of s.subRows || []){
+        if (!(s.rows || [])[g.row]) issues.push(`${where}: subRows names row ${g.row}, which the table lacks`);
+        if (parents.has(g.row)) issues.push(`${where}: subRows names row ${g.row} twice`);
+        parents.add(g.row);
+        for (const r of g.llmRows || []) if (!(g.rows || [])[r]) issues.push(`${where}: subRows of row ${g.row} mark row ${r} as the LLM's, which they lack`);
+      }
     }
   }
   if (issues.length){ console.groupCollapsed(`[arc-data] ${issues.length} issue${issues.length>1?'s':''} found in the document data`); issues.forEach(i => console.warn(i)); console.groupEnd(); }
@@ -5923,7 +5965,17 @@ const SECTION = {
       ${ids.map(id => `<tr${CATALOGUE[id] && CATALOGUE[id].page === p.id && CATALOGUE[id].section === s.id ? ` id="el-${id}"` : ''}>${cols.map(c => `<td${c.mono?' class="mono"':''}>${c.cell(id)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   },
   decisions: s => `<div class="card">${(s.items||[]).map(d => `<div class="adr"><span class="id">${esc(d.id || '')}</span><div><b>${mdInline(d.title)}</b>${d.body ? `<p>${mdInline(d.body)}</p>` : ''}</div>${d.status ? statusBadge(d.status) : '<span></span>'}</div>`).join('')}</div>`,
-  table: s => `<div class="tbl-wrap"><table>${(s.columns||[]).length ? `<thead><tr>${s.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}<tbody>${(s.rows||[]).map((r, i) => `<tr>${r.map((c, j) => `<td>${j === 0 && (s.llmRows || []).includes(i) ? llmBadge + ' ' : ''}${mdInline(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`,
+  table: s => {
+    const sub = new Map((s.subRows || []).map(g => [g.row, g]));
+    const cells = (r, llm, toggle) => r.map((c, j) => `<td>${j === 0 ? toggle : ''}${j === 0 && llm ? llmBadge + ' ' : ''}${mdInline(c)}</td>`).join('');
+    return `<div class="tbl-wrap"><table>${(s.columns||[]).length ? `<thead><tr>${s.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}<tbody>${(s.rows||[]).map((r, i) => {
+      const g = sub.get(i);
+      if (!g) return `<tr>${cells(r, (s.llmRows || []).includes(i), '')}</tr>`;
+      const ids = g.rows.map((_, k) => `${esc(s.id)}-r${i}-${k}`);
+      const toggle = `<button type="button" class="row-toggle" aria-expanded="false" aria-controls="${ids.join(' ')}" data-parent-row="${i}" aria-label="The ${g.rows.length} rows under this one">▸</button>`;
+      return `<tr class="row-parent">${cells(r, (s.llmRows || []).includes(i), toggle)}</tr>${g.rows.map((sr, k) => `<tr class="row-child" id="${ids[k]}" data-parent="${i}" hidden>${cells(sr, (g.llmRows || []).includes(k), '')}</tr>`).join('')}`;
+    }).join('')}</tbody></table></div>`;
+  },
 };
 
 function renderSection(s, p){
@@ -6147,6 +6199,12 @@ addEventListener('hashchange', route);
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href^="#/"]');
   if (a && a.getAttribute('href') === location.hash){ e.preventDefault(); route(); }
+  const t = e.target.closest('.row-toggle');
+  if (t){
+    const open = t.getAttribute('aria-expanded') !== 'true';
+    t.setAttribute('aria-expanded', open);
+    t.closest('tbody').querySelectorAll(`tr[data-parent="${t.dataset.parentRow}"]`).forEach(r => { r.hidden = !open; });
+  }
 });
 
 /* ==========================================================================

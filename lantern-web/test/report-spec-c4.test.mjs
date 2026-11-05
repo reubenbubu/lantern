@@ -34,6 +34,44 @@ for (const name of goldens) {
   });
 }
 
+test('folded rows must hang under a row the table has, once, and mark only their own rows (#747)', () => {
+  const data = read(`${specDir}${spec}.sample-data.json`);
+  const table = data.pages.flatMap((p) => p.sections).find((s) => s.type === 'table' && s.subRows);
+  assert.ok(table, 'the sample has a table with folded rows');
+  table.subRows.push({ row: table.rows.length, rows: [['x']] });
+  table.subRows.push({ ...table.subRows[0], llmRows: [5] });
+  const issues = reportSpecIssues(spec, data).join('\n');
+  assert.match(issues, new RegExp(`subRows names row ${table.rows.length}, which it lacks`));
+  assert.match(issues, new RegExp(`subRows names row ${table.subRows[0].row} twice`));
+  assert.match(issues, /subRows of row \d+ mark row 5 as the LLM's, which they lack/);
+});
+
+// The template's table renderer, loaded from its source with stand-ins for what it calls.
+const tableRenderer = new Function(
+  'esc',
+  'mdInline',
+  'llmBadge',
+  `return {${readFileSync(`${specDir}${spec}.html`, 'utf8').match(/^ {2}table: s => \{[\s\S]*?^ {2}\},$/m)[0]}}.table;`,
+)((t) => String(t), (t) => String(t), '[LLM]');
+
+test('a parent row shows a toggle and its folded rows hidden beneath it; a plain row has none (#747)', () => {
+  const html = tableRenderer({
+    id: 'risks',
+    columns: ['Impact', 'Finding'],
+    rows: [['High', 'One risk'], ['Medium', 'Two risks of a kind']],
+    llmRows: [0, 1],
+    subRows: [{ row: 1, rows: [['Medium', 'First'], ['Low', 'Second']], llmRows: [0, 1] }],
+  });
+  assert.match(html, /<tr><td>\[LLM\] High<\/td><td>One risk<\/td><\/tr>/);
+  assert.match(
+    html,
+    /<tr class="row-parent"><td><button type="button" class="row-toggle" aria-expanded="false" aria-controls="risks-r1-0 risks-r1-1" data-parent-row="1"[^>]*>▸<\/button>\[LLM\] Medium<\/td>/,
+  );
+  assert.match(html, /<tr class="row-child" id="risks-r1-0" data-parent="1" hidden><td>\[LLM\] Medium<\/td><td>First<\/td><\/tr>/);
+  assert.match(html, /<tr class="row-child" id="risks-r1-1" data-parent="1" hidden><td>\[LLM\] Low<\/td><td>Second<\/td><\/tr>/);
+  assert.equal(html.match(/row-toggle/g).length, 1);
+});
+
 // mdInline is the template's Markdown-lite formatter; load it from the template source.
 const template = readFileSync(`${specDir}${spec}.html`, 'utf8');
 const mdInline = new Function(

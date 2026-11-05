@@ -3,7 +3,7 @@
   "$id": "https://example.com/schemas/architecture-document.schema.json",
   "title": "Architecture Document",
   "description": "Content model for the C4 architecture template. The whole document — elements, pages, diagrams and their layout rules — is one object embedded in the HTML as <script type=\"application/json\" id=\"arc-data\">.",
-  "$comment": "Cross-reference rules JSON Schema cannot express are checked by the page on load and reported in the browser console: every element id used anywhere must exist in `elements`; page ids are unique; section ids are unique within their page; a `parent` must be of a compatible kind (container → system; database/queue → system or container; component → container); a diagram's boundary must be the parent of at least one element in that diagram; sequence steps may only use declared participants; `steps.of` must name a sequence section on the same page; a documentation page holds no diagram, sequence or steps section; `llmRows` may only name rows the table has.",
+  "$comment": "Cross-reference rules JSON Schema cannot express are checked by the page on load and reported in the browser console: every element id used anywhere must exist in `elements`; page ids are unique; section ids are unique within their page; a `parent` must be of a compatible kind (container → system; database/queue → system or container; component → container); a diagram's boundary must be the parent of at least one element in that diagram; sequence steps may only use declared participants; `steps.of` must name a sequence section on the same page; a documentation page holds no diagram, sequence or steps section; `llmRows` may only name rows the table has; each `subRows` entry names a row the table has, no row twice, and its `llmRows` only rows of its own.",
   "type": "object",
   "required": ["document", "elements", "pages"],
   "additionalProperties": false,
@@ -431,6 +431,25 @@
           "items": { "type": "integer", "minimum": 0 },
           "uniqueItems": true,
           "description": "Rows found by the LLM (0-based indices into rows), e.g. risks it found; each shows the LLM badge in its first cell."
+        },
+        "subRows": {
+          "type": "array",
+          "description": "Rows folded under a parent row, which makes it expandable: the row at index `row` shows a toggle, and its `rows` show beneath it when a reader expands it, e.g. the risks of one kind under one row naming the kind, their count and the highest impact.",
+          "items": {
+            "type": "object",
+            "required": ["row", "rows"],
+            "additionalProperties": false,
+            "properties": {
+              "row": { "type": "integer", "minimum": 0, "description": "The parent row (0-based index into rows)." },
+              "rows": { "type": "array", "minItems": 1, "items": { "type": "array", "items": { "$ref": "#/$defs/markdown" } } },
+              "llmRows": {
+                "type": "array",
+                "items": { "type": "integer", "minimum": 0 },
+                "uniqueItems": true,
+                "description": "The folded rows found by the LLM (0-based indices into this entry's rows)."
+              }
+            }
+          }
         }
       },
       "unevaluatedProperties": false

@@ -874,7 +874,9 @@ function verdicts(list) {
  * category (one found exploring, without a lead) matches by subject and the words of its title and
  * finding against the entry's. Precision is over every drawn finding that is judged, each counted
  * once per finding, so a reference risk drawn three times counts three times; recall is over the
- * reference risks, a judged-right finding counting for the risk its judgement names.
+ * reference risks, a judged-right finding counting for the risk its judgement names. A right finding
+ * also counts for every other reference risk it matches whose cited lines it cites too: a risk that
+ * gathers the leads of several places finds each reference risk at one of them (#747).
  */
 function risksRow(key, facts, subjectOf, overlap, threshold, judged) {
   const risks = key.risks ?? [];
@@ -906,6 +908,12 @@ function risksRow(key, facts, subjectOf, overlap, threshold, judged) {
       .map((c) => ({ ...c, score: overlap(words(c.e), risk.text) }))
       .sort((a, b) => b.score - a.score || (a.kind === 'risk' ? -1 : 1) - (b.kind === 'risk' ? -1 : 1))[0];
   };
+  // The other reference risks a right finding finds: those it matches whose lines it cites.
+  const alsoFound = (risk) =>
+    risks
+      .map((e, i) => ({ e, i }))
+      .filter(({ e }) => matches(e, risk) && citesOverlap(e.cites ?? [], risk.fact.attributes?.cites ?? []))
+      .map(({ i }) => i);
   const verdictOf = verdicts(judged?.findings);
   const namedRisk = new Map((judged?.findings ?? []).filter((j) => j.reference).map((j) => [j.key, j.reference]));
   const hit = new Set();
@@ -923,6 +931,7 @@ function risksRow(key, facts, subjectOf, overlap, threshold, judged) {
         const i = risks.findIndex((e) => e.id === namedRisk.get(risk.key));
         if (i >= 0) hit.add(i);
         else if (match?.kind === 'risk') hit.add(match.i);
+        alsoFound(risk).forEach((j) => hit.add(j));
       } else {
         wrong++;
         if (match?.kind === 'decoy') decoyHit.add(match.i);
@@ -933,6 +942,7 @@ function risksRow(key, facts, subjectOf, overlap, threshold, judged) {
       unjudged.push(risk.title);
     } else if (match.kind === 'risk') {
       hit.add(match.i);
+      alsoFound(risk).forEach((j) => hit.add(j));
       right++;
     } else {
       decoyHit.add(match.i);
@@ -984,6 +994,49 @@ export function investigateRow(key, llm, subjectOf, overlap, threshold, judged =
   if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
   if ((key.risks ?? []).length === 0) return notMeasured('the answer key holds no risks');
   return risksRow(key, llm.filter((f) => f.predicate === 'investigated-risk'), subjectOf, overlap, threshold, judged);
+}
+
+/** Whether a range of one list of citations ("repo:path:start-end") overlaps one of the other's. */
+function citesOverlap(a, b) {
+  const parse = (cite) => {
+    const m = String(cite).match(/^(.*):(\d+)-(\d+)$/);
+    return m ? { file: m[1], start: Number(m[2]), end: Number(m[3]) } : null;
+  };
+  const left = a.map(parse).filter(Boolean);
+  return b
+    .map(parse)
+    .filter(Boolean)
+    .some((y) => left.some((x) => x.file === y.file && x.start <= y.end && y.start <= x.end));
+}
+
+/**
+ * Risks of one problem stored twice (#747): the investigated risks of one lead kind whose leads'
+ * units, sorted, are the same, each such group with its kind, units and titles. A risk is one problem, its
+ * kind and all its units, so a group here is a duplicate the join should have made one risk. A fixed
+ * check's wordings are not counted: two findings of a kind are the checks', scored apart (#748).
+ */
+export function repeatedRisks(llm) {
+  if (!llm) return notMeasured('the run wrote no llm.jsonl.gz');
+  const groups = new Map();
+  for (const fact of llm) {
+    if (fact.predicate !== 'investigated-risk') continue;
+    const kind = categoryOf(fact);
+    if (!kind) continue;
+    // The units of the leads it gathers, in its value after the kind (ADR 0110, amendment for
+    // #747), as the join keys them; else the units it names.
+    const value = String(fact.object?.value ?? '');
+    const units = value.startsWith(`${kind} `)
+      ? value.slice(kind.length + 1).split(',').sort()
+      : [...new Set(fact.attributes?.units ?? [fact.subject])].sort();
+    const key = `${kind} ${units.join(',')}`;
+    if (!groups.has(key)) groups.set(key, { kind, units, titles: [] });
+    groups.get(key).titles.push(fact.attributes?.title ?? fact.subject);
+  }
+  const repeated = [...groups.values()]
+    .filter((g) => g.titles.length > 1)
+    .map((g) => ({ ...g, titles: g.titles.sort() }))
+    .sort((a, b) => `${a.kind} ${a.units}`.localeCompare(`${b.kind} ${b.units}`));
+  return { measured: true, repeated };
 }
 
 /**

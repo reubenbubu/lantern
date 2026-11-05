@@ -17,6 +17,7 @@ import {
   fixedCheckRow,
   investigateRow,
   investigateSpread,
+  repeatedRisks,
   unusedVerdicts,
   matchFlows,
   pairedDifference,
@@ -183,6 +184,73 @@ test('Investigate: risks match by subject and category; decoys count against; th
   );
   assert.equal(relay.decoysFlagged, 1);
   assert.equal(relay.matched, 0);
+});
+
+test('Investigate: a risk citing the lines of two reference risks it matches is credited for both (#747)', () => {
+  // On project-8 the gateway's two contract mismatches are two reference risks; a risk gathering
+  // the leads of both cites each one's lines.
+  const key = {
+    risks: [
+      { id: 'r2', reference: 'Misspelt path', subjects: ['gateway', 'technician'], category: 'contract-mismatch', cites: ['gw:src/Overview.java:25-25'] },
+      { id: 'r10', reference: 'Status path', subjects: ['gateway', 'workorder'], category: 'contract-mismatch', cites: ['gw:src/Status.java:40-42'] },
+      { id: 'r11', reference: 'Other path', subjects: ['gateway'], category: 'contract-mismatch', cites: ['gw:src/Other.java:7-7'] },
+    ],
+  };
+  const llm = [
+    {
+      predicate: 'investigated-risk',
+      subject: 'service:gw',
+      attributes: {
+        units: ['service:gw'],
+        lead: 'lead:contract-mismatch/service:gw/a',
+        title: 'The gateway calls paths nobody serves',
+        finding: 'Two calls miss.',
+        cites: ['gw:src/Overview.java:20-30', 'gw:src/Status.java:41-41'],
+      },
+    },
+  ];
+  const row = investigateRow(key, llm, (e) => (e === 'service:gw' ? 'gateway' : null), () => 0, 0.5);
+  assert.equal(row.matched, 2);
+  assert.deepEqual(row.scores, { r2: 1, r10: 1, r11: 0 });
+  // Precision still counts the drawn risk once.
+  assert.equal(row.right, 1);
+});
+
+test('repeated risks: two risks of one lead kind with the same units are listed; fixed-check wordings are not (#747)', () => {
+  const risk = (units, lead, title, predicate = 'investigated-risk') => ({
+    predicate,
+    subject: units[0],
+    attributes: { units, lead, title },
+  });
+  const llm = [
+    risk(['service:a'], 'lead:send-before-commit/service:a/x', 'Sends before commit'),
+    risk(['service:a'], 'lead:send-before-commit/service:a/y', 'Mails before commit'),
+    risk(['service:a', 'service:b'], 'lead:send-before-commit/service:a/z', 'Calls b before commit'),
+    risk(['service:a'], 'lead:identity-from-request/service:a/h', 'Trusts a header'),
+    risk(['service:a'], undefined, 'Found exploring'),
+    risk(['service:a'], 'lead:plaintext-secret/service:a/s', 'One secret', 'finding-wording'),
+    risk(['service:a'], 'lead:plaintext-secret/service:a/t', 'Another secret', 'finding-wording'),
+  ];
+  const row = repeatedRisks(llm);
+  assert.equal(row.measured, true);
+  assert.deepEqual(row.repeated, [{ kind: 'send-before-commit', units: ['service:a'], titles: ['Mails before commit', 'Sends before commit'] }]);
+  assert.deepEqual(repeatedRisks(llm.slice(2)).repeated, []);
+  // The units are the leads' own, in the stored value, not the ones the answer named: two risks
+  // the join kept apart are not repeated even when the model named the same units for both.
+  const keyed = (value, lead, title) => ({
+    predicate: 'investigated-risk',
+    subject: 'service:a',
+    object: { kind: 'string', value },
+    attributes: { units: ['service:a'], lead, title },
+  });
+  assert.deepEqual(
+    repeatedRisks([
+      keyed('identity-from-request service:a', 'lead:identity-from-request/service:a/x', 'Header'),
+      keyed('identity-from-request service:a,service:b', 'lead:identity-from-request/service:a/y', 'Org header'),
+    ]).repeated,
+    [],
+  );
+  assert.equal(repeatedRisks(null).measured, false);
 });
 
 test('the harness row reads the run record, and the warm rerun gate needs zero calls', () => {

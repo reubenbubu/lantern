@@ -38,6 +38,7 @@ import {
   fixedCheckRow,
   investigateRow,
   investigateSpread,
+  repeatedRisks,
   isGenericLabel,
   unusedVerdicts,
   itemPairs,
@@ -178,9 +179,15 @@ function diagramElements(section) {
   return ids;
 }
 
-/** The text of a section's rows or items, one string each. */
+/**
+ * The text of a section's rows or items, one string each. A table's parent row stands in for the
+ * rows folded under it, so each folded risk counts and the parent does not (#747).
+ */
 function rowsOf(section) {
-  if (section.type === 'table') return section.rows;
+  if (section.type === 'table') {
+    const folded = new Map((section.subRows ?? []).map((g) => [g.row, g.rows]));
+    return section.rows.flatMap((row, i) => folded.get(i) ?? [row]);
+  }
   if (section.type === 'list') return section.items.map((item) => [item]);
   if (section.type === 'decisions') return section.items.map((item) => [item.title, item.body ?? '']);
   return [];
@@ -850,6 +857,8 @@ function roleRows(report, reference, matched, repFlows, inputs, spell = normaliz
     // Apart from Investigate's own risks (#748): the fixed checks' findings it only worded, and the
     // connections it found, by their two ends.
     fixedChecks: fixedCheckRow(answerKey, llm, subjectOf, overlap, SUBJECT_THRESHOLD, judgements),
+    // Two risks of one lead kind with the same units: one problem stored twice (#747).
+    repeatedRisks: repeatedRisks(llm),
     connections: connectionsRow(
       llm,
       connectionsOf(reference).map((l) => l.key),
@@ -957,6 +966,14 @@ export function roleCells(roles) {
   cell.Investigate = !i.measured
     ? why(i)
     : `${i.matched}/${i.reference} recall (${percent(i.recall)}), ${i.right}/${i.right + i.wrong} drawn risks right (precision ${percent(i.precision)}), ${i.unjudged.length} of ${i.found} drawn unjudged; decoys flagged ${i.decoysFlagged}/${i.decoys}, TPR − FPR ${percent(i.tprMinusFpr)}`;
+  const rr = roles.repeatedRisks;
+  if (rr) {
+    cell['Repeated risks'] = !rr.measured
+      ? why(rr)
+      : rr.repeated.length === 0
+        ? 'none'
+        : rr.repeated.map((g) => `${g.titles.length} of ${g.kind} on ${g.units.join(', ')}: ${g.titles.join('; ')}`).join(' | ');
+  }
   const fc = roles.fixedChecks;
   if (fc) {
     cell['Fixed checks worded'] = !fc.measured

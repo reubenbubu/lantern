@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import {
+  risksOf,
   compareMarkdown,
   isComponent,
   normalizeName,
@@ -499,4 +500,30 @@ test('the command line reads HTML reports and writes the scorecard, and compares
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('a parent row of risks counts as the risks folded under it, not as one risk (#747)', () => {
+  const data = {
+    pages: [
+      {
+        id: 'risks',
+        level: 'documentation',
+        title: 'Risks and findings',
+        sections: [
+          {
+            type: 'table',
+            id: 'risks',
+            title: 'Risks and findings',
+            columns: ['Impact', 'Finding'],
+            rows: [
+              ['High', 'One risk'],
+              ['Medium', 'Send before commit: 2 risks.'],
+            ],
+            subRows: [{ row: 1, rows: [['Medium', 'First'], ['Low', 'Second']] }],
+          },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(risksOf(data), ['One risk', 'First', 'Second']);
 });

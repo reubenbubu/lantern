@@ -1,5 +1,5 @@
 // Renders a document model: its sections and every kind of block, in document order.
-import { createContext, memo, type MouseEvent, type ReactNode, useContext, useMemo } from 'react';
+import { createContext, memo, type MouseEvent, type ReactNode, useContext, useMemo, useState } from 'react';
 import type {
   Block,
   Callout,
@@ -14,6 +14,7 @@ import type {
   SequenceDiagram,
   SequenceStep,
   Table,
+  TableRow,
   Tree,
   TreeNode,
 } from './generated/document.ts';
@@ -396,18 +397,64 @@ function TableView({ table }: { table: Table }) {
           </tr>
         </thead>
         <tbody>
-          {table.rows.map((row, r) => (
-            <tr key={r}>
-              {row.cells.map((cell, c) => (
-                <td key={c}>
-                  <Content content={cell} />
-                </td>
-              ))}
-            </tr>
-          ))}
+          {table.rows.map((row, r) =>
+            row.children?.length ? (
+              <ParentRow key={r} row={row} id={`${table.id}-r${r}-children`} />
+            ) : (
+              <tr key={r}>
+                {row.cells.map((cell, c) => (
+                  <td key={c}>
+                    <Content content={cell} />
+                  </td>
+                ))}
+              </tr>
+            ),
+          )}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * A row with rows folded under it: a button in its first cell shows or hides them, so a reader sees
+ * one row per kind of thing until they ask for each one (#747).
+ */
+function ParentRow({ row, id }: { row: TableRow; id: string }) {
+  const [open, setOpen] = useState(false);
+  const children = row.children ?? [];
+  const ids = children.map((_, i) => `${id}-${i}`);
+  return (
+    <>
+      <tr className="row-parent">
+        {row.cells.map((cell, c) => (
+          <td key={c}>
+            {c === 0 && (
+              <button
+                type="button"
+                className="row-toggle"
+                aria-expanded={open}
+                aria-controls={ids.join(' ')}
+                aria-label={`The ${children.length} rows under this one`}
+                onClick={() => setOpen(!open)}
+              >
+                {open ? '▾' : '▸'}
+              </button>
+            )}
+            <Content content={cell} />
+          </td>
+        ))}
+      </tr>
+      {children.map((child, i) => (
+        <tr key={i} className="row-child" id={ids[i]} hidden={!open}>
+          {child.cells.map((cell, c) => (
+            <td key={c}>
+              <Content content={cell} />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
   );
 }
 

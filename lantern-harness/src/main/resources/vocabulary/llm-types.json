@@ -193,7 +193,7 @@
   {
     "name": "investigated-risk",
     "kind": "attribute",
-    "description": "A risk Investigate found and Lantern verified (knowledge-build epic, section 11.2; ADR 0110): a confirmed lead, or a risk it found exploring a unit or the system. The subject is its first unit; the value is its key, the lead's claim ID when it confirms a lead, else its names sorted and joined by commas, so a reworded rerun is a new observation of the same risk. Of origin llm, shown as found by the LLM.",
+    "description": "A risk Investigate found and Lantern verified (knowledge-build epic, section 11.2; ADR 0110): a confirmed lead, or a risk it found exploring a unit or the system. The subject is its first unit; the value is its key: when it confirms leads, their kind, a space and their units sorted and joined by commas (the confirmed leads of one kind on the same units are one risk, #747), else its names sorted and joined by commas, so a reworded rerun is a new observation of the same risk. Of origin llm, shown as found by the LLM.",
     "attributeSchema": {
       "type": "object",
       "properties": {
