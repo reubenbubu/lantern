@@ -8,6 +8,7 @@ import io.lantern.derive.Components;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.MergedLines;
 import io.lantern.derive.UnitInteractions;
 import io.lantern.harness.FingerprintInput;
 import io.lantern.harness.Item;
@@ -614,6 +615,69 @@ public final class DescribeItems {
         Map.of(),
         Map.of(),
         evidenced,
+        item);
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Lines
+
+  /**
+   * The item of a container line that merges links whose intents differ (ADR 0103, amendment for
+   * #810): the line's ends and what each request it carries does, as earlier answers it may cite.
+   * Its subject is the key its intent is stored under.
+   *
+   * @param line the merged line
+   * @param intents the intent Describe wrote for each link, by its claim
+   */
+  Described line(MergedLines.Merged line, Map<String, DescribeRole.Answered> intents) {
+    Refs refs = new Refs();
+    List<FingerprintInput> inputs = new ArrayList<>();
+    String from = FactLines.oneLine(assembler.name(line.from()));
+    String name =
+        "The line from "
+            + from
+            + " ("
+            + WordingPrompt.kind(line.from())
+            + ") to "
+            + FactLines.oneLine(assembler.name(line.to()))
+            + " ("
+            + WordingPrompt.kind(line.to())
+            + ")";
+    List<String> answers = new ArrayList<>();
+    for (Fact link : line.links()) {
+      DescribeRole.Answered answered = intents.get(MergedLines.claim(link));
+      if (answered == null) {
+        continue;
+      }
+      String request = Elements.attribute(link, "request", null);
+      String shown = FactLines.oneLine(request != null ? request : FactLines.line(link));
+      String token = refs.add('A', link.id(), answered, shown + ": " + answered.text());
+      inputs.add(
+          FingerprintInput.answer(
+              io.lantern.harness.Fingerprints.sha256(answered.text()),
+              List.of(DescribeRole.UNITS.name() + " " + line.from())));
+      answers.add("[" + token + "] " + shown + ": " + answered.text());
+    }
+    String text =
+        name
+            + " carries "
+            + answers.size()
+            + " requests. What each does:\n"
+            + Blocks.tagged("answers", answers);
+    Item item = new Item(line.key(), "line", inputs, text);
+    return new Described(
+        DescribeRole.Kind.LINE,
+        line.from(),
+        name,
+        false,
+        refs,
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Map.of(),
+        Set.of(),
         item);
   }
 

@@ -1044,6 +1044,7 @@ Before you answer, check: each responsibility opens with what the part does and 
 ```text
 Task: describe the elements the units use. Each item in <items> is one database, topic, queue, exchange, external system or person, with its facts, what is built in it, and how the system's units use it.
 For each item, write a responsibility sentence: one plain sentence of 6 to 22 words saying what it holds or carries, what it does for the system, or (for a person) what they do with the system, in words a non-engineer understands. Infer it from names, paths, routing keys, tables and how the units use it. Do not restate its name or its kind. It is shown on its own beside the part, so open it with what the part does, usually a verb ("Keeps each customer's cart until checkout.", "Sends password-reset emails to users."); never open with a pronoun (It, This, These) or with its kind ("The service…", "A database that…"). Do not open by echoing its name: for a part called PasswordResetService, write "Emails a one-time code so a user can choose a new password", not "Handles password resets". Use the code's own terms for what it handles (passwords, organizations, bookings) rather than a vaguer word.
+An item that opens "The line from" is instead one line of the container diagram that carries many requests from one part to another, with what each request does as earlier answers [A..]. For it, answer {"intent": ...} in place of a responsibility: an intent phrase of 4 to 8 words saying what the line as a whole is for, covering its requests together ("Manages customers, tasks and work orders"). Do not copy one request's answer, and do not name either end.
 Answer {"omitted": true} for an item whose facts do not show its responsibility. Cite facts [F..] and earlier answers [A..]. A citation is the bare reference, such as "F2" or "A1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
 Before you answer, check: each responsibility opens with what the item does or holds, does not open by echoing its name, and has 6 to 22 words.
@@ -1069,8 +1070,8 @@ Elements:
 {"$defs": {"text": {"type": "object", "required": ["text", "cites"], "additionalProperties": false, "properties": {
    "text": {"type": "string", "maxLength": 240}, "cites": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}},
  "type": "object", "required": ["items"], "properties": {"items": {"type": "object", "additionalProperties": {
-   "type": "object", "required": ["responsibility"], "additionalProperties": false,
-   "properties": {"responsibility": {"$ref": "#/$defs/text"}}}}}}
+   "type": "object", "minProperties": 1, "additionalProperties": false,
+   "properties": {"responsibility": {"$ref": "#/$defs/text"}, "intent": {"$ref": "#/$defs/text"}}}}}}
 ```
 
 - **Checks.** The shared pipeline: Form checks the word limits, banned openings, and restating the name. An intent that names a protocol is rejected.

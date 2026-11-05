@@ -3023,6 +3023,175 @@ class DescriberTest {
         .contains("Lets shoppers browse the orders they placed with the shop.");
   }
 
+  /** The shop's web frontend, making each of the requests to the shop's app (#810). */
+  private static TestFacts webCalling(String... requests) {
+    TestFacts facts =
+        TestFacts.runtime()
+            .attribute(
+                "shop",
+                "frontend:shop/web",
+                "frontend-app",
+                "angular",
+                "{\"name\":\"web\",\"directory\":\"web\",\"framework\":\"Angular\","
+                    + "\"version\":\"19.2\",\"server\":\"nginx\","
+                    + "\"technology\":\"Angular 19.2 · nginx\"}");
+    for (String request : requests) {
+      String[] parts = request.split(" ", 2);
+      facts =
+          facts.relate(
+              "shop",
+              "frontend:shop/web",
+              "CALLS_HTTP",
+              "service:com.example:app",
+              "{\"httpMethod\":\""
+                  + parts[0]
+                  + "\",\"path\":\""
+                  + parts[1]
+                  + "\",\"request\":\""
+                  + request
+                  + "\",\"protocol\":\"JSON/HTTP\","
+                  + "\"url\":\"http://shop-app:8080"
+                  + parts[1]
+                  + "\",\"matchedBy\":\"host\"}");
+    }
+    return facts;
+  }
+
+  /**
+   * The web frontend's item, its sentence and each request's intent, in the order given; the line
+   * item, the intent given; every other item as {@link #answer} words it.
+   */
+  private static FakeLlmProvider webAnswering(String line, String... intents) {
+    return new FakeLlmProvider()
+        .answering(
+            request -> {
+              String prompt = request.messages().getFirst().text();
+              if (prompt.contains("The deployable unit web")) {
+                List<String> entries = new java.util.ArrayList<>();
+                java.util.regex.Matcher r =
+                    java.util.regex.Pattern.compile("\\[(R[0-9]+)\\][^\\[]*\\[(F[0-9]+)\\]")
+                        .matcher(prompt);
+                int i = 0;
+                while (r.find() && i < intents.length) {
+                  entries.add(
+                      "\""
+                          + r.group(1)
+                          + "\": {\"text\": \""
+                          + intents[i++]
+                          + "\", \"cites\": [\""
+                          + r.group(2)
+                          + "\"]}");
+                }
+                java.util.regex.Matcher id =
+                    java.util.regex.Pattern.compile(
+                            "<item id=\"(I[0-9]+)\">\\nThe deployable unit web")
+                        .matcher(prompt);
+                id.find();
+                return "{\"items\": {\""
+                    + id.group(1)
+                    + "\": {\"unit\": {\"text\": \"Lets shoppers browse and"
+                    + " change the orders they placed.\", \"cites\": [\"F1\"]}, \"interactions\": {"
+                    + String.join(", ", entries)
+                    + "}}}}";
+              }
+              if (prompt.contains("<item id=\"I1\">\nThe line from") && line == null) {
+                return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+              }
+              if (prompt.contains("<item id=\"I1\">\nThe line from")) {
+                return "{\"items\": {\"I1\": {\"intent\": {\"text\": \""
+                    + line
+                    + "\", \"cites\": [\"A1\", \"A2\"]}}}}";
+              }
+              return answer(request);
+            });
+  }
+
+  /** The system's document, composed from the facts and the texts the run stored. */
+  private static Document webDocument(Describer.Result result, TestFacts facts) {
+    List<Fact> stored = new java.util.ArrayList<>(facts.list());
+    result.facts(1).values().forEach(stored::addAll);
+    return new Composer("1")
+        .compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE), SNAPSHOT, stored);
+  }
+
+  private static Diagram.Edge webLine(Describer.Result result, TestFacts facts) {
+    return diagrams(webDocument(result, facts), Diagram.Kind.C4_CONTAINER).stream()
+        .flatMap(d -> d.edges().stream())
+        .filter(
+            e ->
+                e.from().toString().equals("frontend:shop/web")
+                    && e.to().toString().equals("service:com.example:app"))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
+  void aLineOfRequestsWithDifferentIntentsIsWordedAsAWhole() {
+    TestFacts facts = webCalling("GET /orders", "POST /orders", "DELETE /orders/{id}");
+    FakeLlmProvider fake =
+        webAnswering(
+            "Manages the shopper's orders",
+            "Lists the shopper's orders",
+            "Places a new shop order",
+            "Cancels one of the orders");
+
+    Describer.Result result = new Describer(harness(client(fake))).describe(facts.list());
+
+    // The line was asked about, showing each request's intent as an earlier answer.
+    String asked =
+        fake.sent().stream()
+            .map(c -> c.request().messages().getFirst().text())
+            .filter(t -> t.contains("The line from"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(asked)
+        .contains("Lists the shopper's orders")
+        .contains("Places a new shop order")
+        .contains("Cancels one of the orders");
+    // The container line reads the line's own intent, not one request's (owner's decision on #810).
+    assertThat(webLine(result, facts).label()).isEqualTo("Manages the shopper's orders");
+  }
+
+  @Test
+  void aLineLeftWithoutAnIntentOfItsOwnReadsWhatItsLinksRecordAndIsListedAsUnknown() {
+    TestFacts facts = webCalling("GET /orders", "POST /orders", "DELETE /orders/{id}");
+    FakeLlmProvider fake =
+        webAnswering(
+            null,
+            "Lists the shopper's orders",
+            "Places a new shop order",
+            "Cancels one of the orders");
+
+    Describer.Result result = new Describer(harness(client(fake))).describe(facts.list());
+
+    // No request's intent stands for the whole line (review of #810).
+    assertThat(webLine(result, facts).label())
+        .isNotIn(
+            "Lists the shopper's orders", "Places a new shop order", "Cancels one of the orders")
+        .startsWith("Calls ");
+    assertThat(result.unknown()).contains("frontend:shop/web|service:com.example:app|CALLS_HTTP");
+    assertThat(io.lantern.core.document.DocumentJson.write(webDocument(result, facts)))
+        .contains("as a whole, whose requests do different things:")
+        .contains("web to shop-app, 3 requests.");
+  }
+
+  @Test
+  void aLineWhoseRequestsMostlyShareAnIntentIsNotAskedAbout() {
+    TestFacts facts = webCalling("GET /orders", "GET /orders/{id}", "DELETE /orders/{id}");
+    FakeLlmProvider fake =
+        webAnswering(
+            "Manages the shopper's orders",
+            "Shows the shopper's orders",
+            "Shows the shopper's orders",
+            "Cancels one of the orders");
+
+    Describer.Result result = new Describer(harness(client(fake))).describe(facts.list());
+
+    assertThat(fake.sent())
+        .noneMatch(c -> c.request().messages().getFirst().text().contains("The line from"));
+    assertThat(webLine(result, facts).label()).isEqualTo("Shows the shopper's orders");
+  }
+
   @Test
   void anItemMayNotCiteWhatAnotherItemOfItsRequestShows() {
     TestFacts two =
@@ -3059,9 +3228,12 @@ class DescriberTest {
             .map(s -> s.request().messages().getFirst().text())
             .findFirst()
             .orElseThrow();
+    // The two items share one request, in whichever order their fingerprints put them.
     assertThat(request)
-        .contains("<item id=\"I1\">\nThe external system mail.example.com")
-        .contains("<item id=\"I2\">\nThe external system pay.example.com");
+        .contains("<item id=\"I1\">\nThe external system ")
+        .contains("<item id=\"I2\">\nThe external system ")
+        .contains("The external system mail.example.com")
+        .contains("The external system pay.example.com");
     assertThat(
             fake.sent().stream()
                 .filter(s -> s.request().purpose().endsWith("(repair)"))

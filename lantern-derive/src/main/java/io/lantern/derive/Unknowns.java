@@ -305,6 +305,22 @@ public final class Unknowns {
     return result;
   }
 
+  /**
+   * The container lines Describe words as a whole that hold no intent of their own (ADR 0103,
+   * amendment for #810): they merge links whose intents differ, none said by most of them, and the
+   * line's own item was not asked, was left out or was rejected.
+   */
+  public List<MergedLines.Merged> linesWithoutIntent() {
+    List<MergedLines.Merged> result = new ArrayList<>();
+    for (MergedLines.Merged line : MergedLines.of(elements.lines(), units)) {
+      if (MergedLines.needsWording(line, link -> model.intent(link).map(t -> t.text()))
+          && model.lineIntent(line.from(), line.to(), line.relationship()).isEmpty()) {
+        result.add(line);
+      }
+    }
+    return result;
+  }
+
   /** The scope's units, and the system for the system's scope, Investigate did not look at. */
   public SortedSet<EntityId> notInvestigated() {
     SortedSet<EntityId> result = new TreeSet<>(Knowledge.BY_ID);

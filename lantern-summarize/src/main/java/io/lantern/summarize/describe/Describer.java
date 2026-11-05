@@ -8,6 +8,7 @@ import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Knowledge;
+import io.lantern.derive.MergedLines;
 import io.lantern.derive.ScopeFlows;
 import io.lantern.harness.Harness;
 import io.lantern.harness.Item;
@@ -204,8 +205,10 @@ public final class Describer {
                 text.model(),
                 text.answer(),
                 snapshot);
-        Verdict verdict = verdicts.get(judgedKey(text).toString());
-        if (fact.predicate().equals(Types.RESPONSIBILITY)
+        boolean line = text.described().kind() == DescribeRole.Kind.LINE;
+        Verdict verdict =
+            verdicts.get(line ? text.described().item().subject() : judgedKey(text).toString());
+        if ((fact.predicate().equals(Types.RESPONSIBILITY) || line)
             && verdict != null
             && verdict.text().equals(text.worded().text())) {
           fact = io.lantern.harness.LlmFacts.withSupport(fact, verdict.support());
@@ -469,12 +472,23 @@ public final class Describer {
             DescribeRole.units(bySubject));
     DescribeRole.SummaryFacts summaryFacts = describeItems.summaryFacts();
     Map<EntityId, DescribeRole.Answered> unitAnswers = new TreeMap<>(Knowledge.BY_ID);
+    // The intent of each link, by its claim, which a merged line's item shows.
+    Map<String, DescribeRole.Answered> linkIntents = new HashMap<>();
     List<PurposeRole.Said> sentences = new ArrayList<>();
     for (DescribeRole.Described described : unitItems) {
       Outcome outcome = unitOutcomes.get(described.item().subject());
       List<DescribeRole.Worded> worded =
           tally.add(described, outcome, DescribeRole.UNITS, unitSession, summaryFacts);
       for (DescribeRole.Worded text : worded) {
+        if (text.field().startsWith(DescribeRole.INTERACTIONS + ".")
+            && !text.about().type().equals(Types.PERSON)) {
+          Fact link =
+              described
+                  .interactions()
+                  .get(text.field().substring(DescribeRole.INTERACTIONS.length() + 1));
+          linkIntents.put(
+              MergedLines.claim(link), new DescribeRole.Answered(text.text(), text.cited()));
+        }
         if (text.field().equals(DescribeRole.UNIT)) {
           unitAnswers.put(
               described.element(), new DescribeRole.Answered(text.text(), text.cited()));
@@ -491,9 +505,25 @@ public final class Describer {
     for (EntityId element : describeItems.elements()) {
       elementItems.add(describeItems.element(element, unitAnswers));
     }
+    // And the container lines that merge three or more links whose intents differ, no phrase
+    // covering a majority of them, each worded as a whole (ADR 0103, amendment for #810).
+    List<DescribeRole.Described> lineItems = new ArrayList<>();
+    for (MergedLines.Merged line : MergedLines.of(shown.lines(), units)) {
+      if (MergedLines.needsWording(
+          line,
+          link ->
+              Optional.ofNullable(linkIntents.get(MergedLines.claim(link)))
+                  .map(DescribeRole.Answered::text))) {
+        lineItems.add(describeItems.line(line, linkIntents));
+      }
+    }
     elementItems.forEach(d -> bySubject.put(d.item().subject(), d));
+    lineItems.forEach(d -> bySubject.put(d.item().subject(), d));
     RoleSession elementSession = harness.session(DescribeRole.ELEMENTS);
-    List<Item> elements = elementItems.stream().map(DescribeRole.Described::item).toList();
+    List<Item> elements =
+        java.util.stream.Stream.concat(elementItems.stream(), lineItems.stream())
+            .map(DescribeRole.Described::item)
+            .toList();
     elementSession.plan(
         elements,
         Tokens.estimate(io.lantern.harness.checks.CommonPrompt.SYSTEM + DescribeRole.ELEMENT_TASK));
@@ -523,6 +553,14 @@ public final class Describer {
       } else if (described.element().type().equals(Types.EXTERNAL_SYSTEM)) {
         firstFact(described).ifPresent(f -> externals.putIfAbsent(described.name(), f));
       }
+    }
+    for (DescribeRole.Described described : lineItems) {
+      tally.add(
+          described,
+          elementOutcomes.get(described.item().subject()),
+          DescribeRole.ELEMENTS,
+          elementSession,
+          summaryFacts);
     }
     // Then the flows: which are worth drawing in each scope, then the narrative of each one drawn,
     // from the units' sentences and the interactions' phrases (knowledge-build epic, section 11.5;
@@ -583,7 +621,9 @@ public final class Describer {
         judges
             ? new SupportJudge(harness)
                 .judge(
-                    List.copyOf(tally.judgeable.values()),
+                    java.util.stream.Stream.concat(
+                            tally.judgeable.values().stream(), tally.lines.values().stream())
+                        .toList(),
                     alsoJudged.stream().map(EntityId::toString).collect(Collectors.toSet()))
             : Map.of();
     Set<EntityId> unsupported = new TreeSet<>(java.util.Comparator.comparing(EntityId::toString));
@@ -593,8 +633,14 @@ public final class Describer {
             unsupported.add(element);
           }
         });
+    long unsupportedLines =
+        tally.lines.values().stream()
+            .filter(t -> verdicts.get(t.key()) == SupportJudge.Support.UNSUPPORTED)
+            .count();
     LOG.info(
-        "Support judge: {} sentences checked, {} unsupported", verdicts.size(), unsupported.size());
+        "Support judge: {} sentences checked, {} unsupported",
+        verdicts.size(),
+        unsupported.size() + unsupportedLines);
     tally.documented.forEach(documented::add);
     Map<String, Result.Verdict> stored = new java.util.TreeMap<>();
     tally.judgeable.forEach(
@@ -602,6 +648,13 @@ public final class Describer {
           SupportJudge.Support verdict = verdicts.get(text.key());
           if (verdict != null) {
             stored.put(element.toString(), new Result.Verdict(text.text(), verdict));
+          }
+        });
+    tally.lines.forEach(
+        (line, text) -> {
+          SupportJudge.Support verdict = verdicts.get(text.key());
+          if (verdict != null) {
+            stored.put(line, new Result.Verdict(text.text(), verdict));
           }
         });
     return new Result(
@@ -622,6 +675,8 @@ public final class Describer {
     final Map<EntityId, SupportJudge.Text> judgeable =
         new java.util.TreeMap<>(java.util.Comparator.comparing(EntityId::toString));
     final Map<String, Phrase> phrases = new HashMap<>();
+    // The intents of the merged lines, by the line's key, for the support judge (#810).
+    final Map<String, SupportJudge.Text> lines = new java.util.TreeMap<>();
     final Map<String, FlowJudgements.Flow> flows = new HashMap<>();
     final List<EntityId> rejected = new ArrayList<>();
     final List<EntityId> skipped = new ArrayList<>();
@@ -659,6 +714,10 @@ public final class Describer {
         DescribeRole.SummaryFacts summaries) {
       List<DescribeRole.Worded> worded = new ArrayList<>();
       EntityId element = described.element();
+      // A line's item is not its unit's: an unanswered line leaves the line's own intent unknown.
+      boolean line = described.kind() == DescribeRole.Kind.LINE;
+      List<EntityId> skipped = line ? new ArrayList<>() : this.skipped;
+      List<EntityId> rejected = line ? new ArrayList<>() : this.rejected;
       if (outcome == null) {
         skipped.add(element);
       } else {
@@ -697,7 +756,10 @@ public final class Describer {
         said.add(text.field());
         texts.add(new LlmText(role, model, outcome.answerKey(), described, text));
         String markers = markers(text.cited());
-        if (text.field().startsWith(DescribeRole.INTERACTIONS + ".")) {
+        if (line) {
+          lines.put(
+              described.item().subject(), DescribeRole.judged(described.item().subject(), text));
+        } else if (text.field().startsWith(DescribeRole.INTERACTIONS + ".")) {
           Fact interaction =
               described
                   .interactions()
@@ -727,6 +789,9 @@ public final class Describer {
                 .forEach(f -> documented.add(f.id()));
           }
         }
+      }
+      if (line && !said.contains(Types.INTENT)) {
+        unknown.add(described.item().subject());
       }
       if (described.asksUnit()
           && !said.contains(DescribeRole.UNIT)

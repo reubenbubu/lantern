@@ -93,6 +93,8 @@ function storedIn(field, fact) {
   const sel = field.facts ?? {};
   if (!sel.predicate) return false;
   if (!new RegExp(`^(?:${sel.predicate})$`).test(fact.predicate)) return false;
+  // A merged line's intent is told from a link's by its object, the line's key (#810).
+  if (sel.object && fact.object && !new RegExp(sel.object).test(fact.object.value ?? '')) return false;
   return !sel.subject || new RegExp(sel.subject).test(fact.subject ?? '');
 }
 

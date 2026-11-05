@@ -38,6 +38,26 @@
         "F",
         "A"
       ]
+    },
+    {
+      "name": "intent",
+      "kind": "intent",
+      "answer": "^intent$",
+      "facts": {
+        "predicate": "intent",
+        "object": "\\|"
+      },
+      "words": {
+        "requested": [
+          4,
+          8
+        ],
+        "stated": "an intent phrase of 4 to 8 words"
+      },
+      "cites": [
+        "F",
+        "A"
+      ]
     }
   ],
   "judged": [
