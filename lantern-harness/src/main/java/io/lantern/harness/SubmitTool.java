@@ -29,6 +29,9 @@ final class SubmitTool implements ToolBox {
   /** The tool's name. */
   static final String NAME = "submit";
 
+  /** The dry run's name (#892). */
+  static final String CHECK = "check";
+
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
   private final ToolBox tools;
@@ -88,11 +91,22 @@ final class SubmitTool implements ToolBox {
     LlmTool submit = schema == null ? definition() : definition(schema);
     String description = role.submitDescription();
     all.add(description == null ? submit : new LlmTool(NAME, description, submit.inputSchema()));
+    if (role.offersCheck()) {
+      all.add(
+          new LlmTool(
+              CHECK,
+              "A dry run of submit: the same input and the same checks, but nothing is recorded and"
+                  + " a rejection here does not count. Use it before submit.",
+              submit.inputSchema()));
+    }
     return all;
   }
 
   @Override
   public synchronized LlmToolResult run(LlmToolCall call) {
+    if (call.name().equals(CHECK) && role.offersCheck()) {
+      return dryRun(call);
+    }
     if (!call.name().equals(NAME)) {
       return tools.run(call);
     }
@@ -189,6 +203,41 @@ final class SubmitTool implements ToolBox {
     }
     verdicts.put(id, text.append(" Submit corrected ones again, or leave them out.").toString());
     return true;
+  }
+
+  /** What submit would say of the call's entries, recording nothing. */
+  private LlmToolResult dryRun(LlmToolCall call) {
+    var entries = Envelope.entries(role.envelope(call.input()));
+    if (entries.isEmpty()) {
+      return LlmToolResult.error(call, "Check an object {\"items\": {\"<item id>\": {...}}}.");
+    }
+    ObjectNode verdicts = JSON.createObjectNode();
+    for (Map.Entry<String, JsonNode> entry : entries.get().entrySet()) {
+      String id = entry.getKey();
+      int index = ids.indexOf(id);
+      if (index < 0) {
+        verdicts.put(id, "not an item of this task");
+        continue;
+      }
+      // As submit would answer it, so the check never says what submit then refuses.
+      if (accepted.containsKey(id) && !role.partial()) {
+        verdicts.put(id, "already accepted");
+        continue;
+      }
+      if (dropped.contains(id)) {
+        verdicts.put(id, "dropped after a second rejection");
+        continue;
+      }
+      ItemAnswer answer = role.read(entry.getKey(), packet.get(index), entry.getValue());
+      List<Rejection> found =
+          answer.omitted() ? List.of() : role.pipeline().check(answer, inputs.apply(index));
+      verdicts.put(
+          entry.getKey(),
+          found.isEmpty()
+              ? "accepted"
+              : "rejected: " + String.join(" ", found.stream().map(Rejection::reason).toList()));
+    }
+    return LlmToolResult.of(call, "Dry run, nothing recorded: " + verdicts);
   }
 
   /** Whether the item was submitted wrongly twice. */

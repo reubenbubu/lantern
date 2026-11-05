@@ -90,6 +90,20 @@ public final class GraphTools implements ToolBox {
   static final String FIND_IN_CODE = "find_in_code";
   static final String NEIGHBOURS = "neighbours";
   static final String SUMMARY_OF = "summary_of";
+  static final String OUTLINE = "outline";
+
+  /**
+   * The most characters a tool answer of a lead's conversation holds (#893): small answers, so each
+   * turn adds little to a conversation read back from the cache (the owner's decision of 5 Nov
+   * 2026). A longer answer is cut to the whole lines that fit and says how to ask for the rest.
+   */
+  static final int SMALL_CHARS = 1_000;
+
+  /**
+   * The most characters of one line or fact small answers show (#893), so a long line never fills
+   * an answer: a search shows the part around what it found, a read the line's start.
+   */
+  static final int LINE_CHARS = 300;
 
   /** The most lines one search gives. */
   static final int MAX_HITS = 30;
@@ -200,6 +214,8 @@ public final class GraphTools implements ToolBox {
   // The lines of each file the conversation was shown, by a tool or an excerpt of the request.
   private final Map<String, java.util.BitSet> linesShown = new HashMap<>();
   private final int factsBefore;
+  // The most characters an answer holds; outline's answers are held to MAX_CHARS only.
+  private int cap = MAX_CHARS;
 
   private GraphTools(Graph graph, int factsBefore) {
     this.graph = graph;
@@ -208,6 +224,12 @@ public final class GraphTools implements ToolBox {
     this.repos = graph.repos;
     this.files = graph.files;
     this.factsBefore = factsBefore;
+  }
+
+  /** These tools with every answer held to the given characters, outline's aside (#893). */
+  public synchronized GraphTools small(int chars) {
+    this.cap = chars;
+    return this;
   }
 
   /**
@@ -322,8 +344,26 @@ public final class GraphTools implements ToolBox {
               "Finds the lines of the analyzed repositories' files that hold a text, such as a"
                   + " property key, host name, client or class name: up to "
                   + MAX_HITS
-                  + " lines, each as repo:path:line with the line, secrets masked.",
+                  + " lines, each as repo:path:line with the line, secrets masked"
+                  + (cap < MAX_CHARS
+                      ? ", and in a Java file the method or class it is in with its line range."
+                      : "."),
               find));
+    }
+    if (files != RepoFiles.NONE && cap < MAX_CHARS) {
+      // Only a conversation of small answers gets the outline, its guide to what to read (#893).
+      ObjectNode outline = schema();
+      property(outline, "repo", "string", "The repository, as a fact's file names it before the :");
+      property(outline, "path", "string", "The Java file's path in the repository");
+      outline.putArray("required").add("repo").add("path");
+      tools.add(
+          new LlmTool(
+              OUTLINE,
+              "Lists the classes, constructors and methods of a Java file, each with its line range"
+                  + " and the annotations written on it (routes, checks, transactions), so you can"
+                  + " read only the lines you need with read_file. Not citable itself: cite the"
+                  + " lines you read.",
+              outline));
     }
     return List.copyOf(tools);
   }
@@ -399,6 +439,12 @@ public final class GraphTools implements ToolBox {
           yield LlmToolResult.error(call, "No files can be searched.");
         }
         yield find(call, input);
+      }
+      case OUTLINE -> {
+        if (files == RepoFiles.NONE) {
+          yield LlmToolResult.error(call, "No files can be read.");
+        }
+        yield outline(call, input);
       }
       case NEIGHBOURS -> {
         String entity = text(input, "entity");
@@ -519,8 +565,8 @@ public final class GraphTools implements ToolBox {
       String known = refs.get(fact.id());
       // The longest a new reference can be, so a fact cut off for length gets no reference.
       String line = "[" + (known == null ? nextRef() : known) + "] ";
-      line += rendered.get(fact.id()) + "\n";
-      if (out.length() + line.length() > MAX_CHARS) {
+      line += clip(rendered.get(fact.id()), null) + "\n";
+      if (out.length() + line.length() > cap) {
         break;
       }
       ref(fact);
@@ -586,28 +632,30 @@ public final class GraphTools implements ToolBox {
     if (to < from) {
       return LlmToolResult.error(call, "The last line must not be before the first.");
     }
-    StringBuilder out =
-        new StringBuilder()
-            .append(repo)
-            .append(':')
-            .append(path)
-            .append(", lines ")
-            .append(from)
+    String head = repo + ":" + path + ", lines " + from + " to ";
+    String tail = " of " + lines.size() + ":\n";
+    int headerLength = head.length() + String.valueOf(to).length() + tail.length();
+    StringBuilder out = new StringBuilder();
+    int last = to;
+    for (int i = from; i <= to; i++) {
+      String line = i + ": " + clip(lines.get(i - 1), null) + "\n";
+      if (headerLength + out.length() + line.length() > cap && i > from) {
+        last = i - 1;
+        out.append("... cut at ")
+            .append(cap)
+            .append(" characters: lines ")
+            .append(i)
             .append(" to ")
             .append(to)
-            .append(" of ")
-            .append(lines.size())
-            .append(":\n");
-    for (int i = from; i <= to; i++) {
-      String line = i + ": " + lines.get(i - 1) + "\n";
-      if (out.length() + line.length() > MAX_CHARS) {
-        out.append("... cut off; read from line ").append(i).append(".\n");
+            .append(" left out; read them with from ")
+            .append(i)
+            .append(", fewer at a time.\n");
         break;
       }
       out.append(line);
       markShown(repo, path, i, i);
     }
-    return LlmToolResult.of(call, out.toString());
+    return LlmToolResult.of(call, head + last + tail + out);
   }
 
   /**
@@ -659,8 +707,17 @@ public final class GraphTools implements ToolBox {
         if (!line.contains(needle)) {
           continue;
         }
-        String shown = repo + ":" + hit.path() + ":" + hit.line() + ": " + line.strip() + "\n";
-        if (out.length() + shown.length() > MAX_CHARS) {
+        String shown =
+            repo
+                + ":"
+                + hit.path()
+                + ":"
+                + hit.line()
+                + ": "
+                + clip(line.strip(), needle)
+                + (cap < MAX_CHARS ? in(lines, hit) : "")
+                + "\n";
+        if (out.length() + shown.length() > cap) {
           more = true;
           break;
         }
@@ -672,11 +729,72 @@ public final class GraphTools implements ToolBox {
         break;
       }
     }
-    if (found == 0) {
+    if (found == 0 && !more) {
       return LlmToolResult.of(call, "No line of the files holds \"" + needle + "\".");
     }
     if (more) {
-      out.append("... and more; narrow the search, for example to one repository.\n");
+      out.append(
+          "... and more, cut to fit; narrow the search: one repository, or a longer text.\n");
+    }
+    return LlmToolResult.of(call, out.toString());
+  }
+
+  /**
+   * A line as small answers show it: whole up to {@link #LINE_CHARS}, else the part around the text
+   * looked for, or its start, marked as cut. Answers that are not small show lines whole.
+   */
+  private String clip(String line, String needle) {
+    if (cap == MAX_CHARS || line.length() <= LINE_CHARS) {
+      return line;
+    }
+    int at = needle == null ? -1 : line.indexOf(needle);
+    int start = at < 0 ? 0 : Math.max(0, Math.min(at - LINE_CHARS / 3, line.length() - LINE_CHARS));
+    int end = Math.min(line.length(), start + LINE_CHARS);
+    return (start > 0 ? "[...] " : "")
+        + line.substring(start, end)
+        + " [... the line has "
+        + line.length()
+        + " characters; find_in_code shows the part around a text]";
+  }
+
+  /** Where a hit in a Java file is: the method or class around it with its lines, or nothing. */
+  private static String in(List<String> lines, Hit hit) {
+    if (!hit.path().endsWith(".java")) {
+      return "";
+    }
+    JavaOutline.Declaration around = JavaOutline.enclosing(JavaOutline.of(lines), hit.line());
+    return around == null
+        ? ""
+        : "  (in " + around.name() + ", lines " + around.from() + "-" + around.to() + ")";
+  }
+
+  /** A Java file's declarations with their line ranges and annotations. */
+  private LlmToolResult outline(LlmToolCall call, JsonNode input) {
+    String repo = text(input, "repo");
+    String path = text(input, "path");
+    if (repo == null || path == null || path.isBlank()) {
+      return LlmToolResult.error(call, "Give the repo and the path.");
+    }
+    if (!repos.contains(repo)) {
+      return LlmToolResult.error(
+          call, "No repository named " + repo + ". The repositories: " + String.join(", ", repos));
+    }
+    path = path.strip().replaceFirst("^/+", "");
+    if (!path.endsWith(".java")) {
+      return LlmToolResult.error(call, "outline reads Java files; use read_file for " + path + ".");
+    }
+    List<String> lines = lines(repo, path);
+    if (lines == null) {
+      return LlmToolResult.error(call, "No file " + path + " in " + repo + " that can be shown.");
+    }
+    StringBuilder out = new StringBuilder(repo + ":" + path + ", " + lines.size() + " lines:\n");
+    for (JavaOutline.Declaration d : JavaOutline.of(lines)) {
+      String line = d.from() + "-" + d.to() + ": " + d.text() + "\n";
+      if (out.length() + line.length() > MAX_CHARS) {
+        out.append("... cut off; read the rest of the file with read_file.\n");
+        break;
+      }
+      out.append(line);
     }
     return LlmToolResult.of(call, out.toString());
   }

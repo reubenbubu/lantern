@@ -1196,7 +1196,31 @@ public final class RoleSession {
     LlmException failure = null;
     boolean capped = false;
     try {
-      conversation.answer();
+      LlmResponse last = conversation.answer();
+      if (role.textAnswers()) {
+        // An answer written as text in the submit tool's form counts as one; a text with none is
+        // reminded once to call submit (#892).
+        boolean reminded = false;
+        while (unanswered(submit, ids) && !last.cutOff()) {
+          String verdicts = submittedAsText(submit, last.text());
+          if (verdicts != null && !unanswered(submit, ids)) {
+            break;
+          }
+          if (reminded) {
+            break;
+          }
+          reminded = true;
+          last =
+              conversation.reply(
+                  verdicts == null
+                      ? "Give your answer by calling submit (or check first): an answer written as"
+                          + " text is not recorded."
+                      : "Your answer, read from your text: "
+                          + verdicts
+                          + " Call submit with the corrected answer.",
+                  request.purpose());
+        }
+      }
       conversation.end(io.lantern.llm.LlmConversation.Ending.ANSWERED);
     } catch (io.lantern.llm.ConversationCappedException e) {
       capped = true;
@@ -1260,6 +1284,30 @@ public final class RoleSession {
             false);
       }
     }
+  }
+
+  /** Whether an item of the packet has neither an accepted answer nor been rejected twice. */
+  private static boolean unanswered(SubmitTool submit, List<String> ids) {
+    Map<String, ItemAnswer> accepted = submit.accepted();
+    return ids.stream().anyMatch(id -> !accepted.containsKey(id) && !submit.rejectedTwice(id));
+  }
+
+  /**
+   * Submits the first JSON object of a text answer, if it is one in the submit tool's form, and
+   * returns what submit said of it; null if the text holds none.
+   */
+  private static String submittedAsText(SubmitTool submit, String text) {
+    int start = text == null ? -1 : text.indexOf('{');
+    if (start < 0) {
+      return null;
+    }
+    JsonFaults.First first = JsonFaults.first(text.substring(start));
+    if (first == null || !first.object().has("items")) {
+      return null;
+    }
+    return submit
+        .run(new io.lantern.llm.LlmToolCall("text-answer", SubmitTool.NAME, first.object()))
+        .content();
   }
 
   /**

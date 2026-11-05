@@ -69,7 +69,11 @@ final class InvestigateRole implements PacketRole {
 
   /** The tools Mode A may use (knowledge-build epic, section 11.2). */
   static final Set<String> LEAD_TOOLS =
-      Set.of(GraphTools.READ_FILE, GraphTools.FIND_IN_CODE, GraphTools.FACTS_ABOUT);
+      Set.of(
+          GraphTools.READ_FILE,
+          GraphTools.FIND_IN_CODE,
+          GraphTools.FACTS_ABOUT,
+          GraphTools.OUTLINE);
 
   /** The verdicts of a lead. */
   static final Set<String> VERDICTS = Set.of("confirmed", "refuted", "unclear");
@@ -198,7 +202,8 @@ final class InvestigateRole implements PacketRole {
     this.systemMap = systemMap;
     this.context = context;
     this.graph = graph;
-    this.tools = graph.tools();
+    // A lead's conversation reads code in small answers (#893); exploring keeps its larger reads.
+    this.tools = mode == Mode.LEADS ? graph.tools().small(GraphTools.SMALL_CHARS) : graph.tools();
     this.unit = unit;
     this.units = Set.copyOf(units);
     this.element = element;
@@ -287,7 +292,34 @@ final class InvestigateRole implements PacketRole {
 
   @Override
   public JsonNode submitSchema() {
-    return InvestigatePrompt.SUBMIT_SCHEMA;
+    return mode == Mode.LEADS ? LEADS_SCHEMA : InvestigatePrompt.SUBMIT_SCHEMA;
+  }
+
+  /**
+   * Mode A's submit schema: the shared one with each entry's lead and verdict required, which a
+   * model otherwise leaves out (#892).
+   */
+  static final JsonNode LEADS_SCHEMA = leadsSchema();
+
+  private static JsonNode leadsSchema() {
+    ObjectNode schema = (ObjectNode) InvestigatePrompt.SUBMIT_SCHEMA.deepCopy();
+    ObjectNode entry = (ObjectNode) schema.path("properties").path("items").path("items");
+    tools.jackson.databind.node.ArrayNode required = entry.putArray("required");
+    for (String field : List.of("lead", "verdict", "kind", "names", "cites")) {
+      required.add(field);
+    }
+    return schema;
+  }
+
+  /** Mode A offers the dry run, and counts an answer written as text (#892). */
+  @Override
+  public boolean offersCheck() {
+    return mode == Mode.LEADS;
+  }
+
+  @Override
+  public boolean textAnswers() {
+    return mode == Mode.LEADS;
   }
 
   @Override

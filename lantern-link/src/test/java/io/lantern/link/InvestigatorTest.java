@@ -359,7 +359,8 @@ class InvestigatorTest {
         .contains("6    String upload(@RequestHeader(\"X-User-Id\")")
         .contains("- " + FILES_UNIT);
     assertThat(request.tools().stream().map(t -> t.name()).toList())
-        .containsExactlyInAnyOrder("facts_about", "read_file", "find_in_code", "submit");
+        .containsExactlyInAnyOrder(
+            "facts_about", "read_file", "find_in_code", "outline", "submit", "check");
   }
 
   @Test
