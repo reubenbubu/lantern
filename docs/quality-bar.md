@@ -241,7 +241,7 @@ server are infrastructure, not business dependencies.
 Each check is yes or no. These are the checks the report is held to; which ones Lantern makes
 mechanically on every run and which are judged is in the design.
 
-**Every diagram:** a title naming its type and scope. A legend for every shape, colour, line style
+**Every diagram:** a title naming its type and scope (a sequence diagram's names its scenario instead, Sequence diagrams). A legend for every shape, colour, line style
 and arrowhead used. One abstraction level. Readable (Diagrams stay readable), else split at the same
 level or detail folded away. Every element has a name, a type and a responsibility sentence that does
 not restate the name; containers and components have a technology, a container's naming its
