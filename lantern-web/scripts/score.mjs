@@ -163,11 +163,18 @@ function diagrams(data) {
 }
 
 /**
- * The readability thresholds the composer splits or folds views by, before layout
- * (docs/design.md, Readable diagrams; ADR 0117); provisional until #366 measures them after layout.
+ * The diagram limits a report was composed with, its `document.readable`, which Lantern writes from
+ * its one setting (#836, docs/design.md, Readable diagrams): the most elements a view shows, the
+ * target plus its tolerance, and the most lines per element. Null for a report without them, whose
+ * diagram sizes are then not judged.
  */
-const MAX_ELEMENTS = 50;
-const MAX_LINES_PER_ELEMENT = 2;
+export function diagramLimits(data) {
+  const r = data.document?.readable;
+  if (!r || !Number.isInteger(r.target) || !Number.isInteger(r.tolerance) || !Number.isInteger(r.linesPerElement)) {
+    return null;
+  }
+  return { elements: r.target + r.tolerance, linesPerElement: r.linesPerElement };
+}
 
 /** The element ids a diagram shows: those its lines use and the extra ones it lists. */
 function diagramElements(section) {
@@ -538,8 +545,11 @@ const asDecisions = (items) =>
 /**
  * The quality-bar checks that can be read from the data alone (docs/design.md, Quality bar). The
  * ones marked (review) there need a reader or the judge (#277) and are not here.
+ *
+ * @param limits the diagram limits to judge sizes by; the data's own by default. A reference,
+ *     which carries none, is judged by those of the report scored against it (#836).
  */
-export function qualityChecks(data) {
+export function qualityChecks(data, limits = diagramLimits(data)) {
   const failures = {
     'diagram-size': [],
     'element-descriptions': [],
@@ -558,9 +568,11 @@ export function qualityChecks(data) {
     // Boundaries, the system and what others are drawn in, are not counted, as the composer does.
     const inside = new Set([...ids].map((id) => data.elements[id]?.parent).filter(Boolean));
     const drawn = [...ids].filter((id) => data.elements[id]?.kind !== 'system' && !inside.has(id));
-    if (drawn.length > MAX_ELEMENTS) {
+    if (!limits) {
+      // not judged without the report's limits
+    } else if (drawn.length > limits.elements) {
       failures['diagram-size'].push(`${where} (${drawn.length} elements)`);
-    } else if (section.relationships.length > MAX_LINES_PER_ELEMENT * drawn.length) {
+    } else if (section.relationships.length > limits.linesPerElement * drawn.length) {
       failures['diagram-size'].push(`${where} (${section.relationships.length} lines)`);
     }
     for (const r of section.relationships) {
@@ -601,7 +613,9 @@ export function qualityChecks(data) {
   ].join('\n');
   const has = (type) => data.pages.some((p) => p.sections.some((s) => s.type === type));
   const checks = [
-    ['diagram-size', `Every diagram has at most ${MAX_ELEMENTS} elements and ${MAX_LINES_PER_ELEMENT} lines per element`],
+    ...(limits
+      ? [['diagram-size', `Every diagram has at most ${limits.elements} elements and ${limits.linesPerElement} lines per element`]]
+      : []),
     ['element-descriptions', 'Every element shown has a description'],
     ['technology', 'Every container and component shown has a technology'],
     ['line-labels', 'Every line has an intent phrase, not one that opens with "uses" or "calls"'],
@@ -803,7 +817,7 @@ export function score(original, reference, aliases = {}, inputs = {}) {
     .filter(([id, e]) => !scope.has(id) && e.kind !== 'system' && e.kind !== 'component')
     .map(([, e]) => e.name);
   result.checks = qualityChecks(report);
-  result.referenceChecks = qualityChecks(reference)
+  result.referenceChecks = qualityChecks(reference, diagramLimits(report))
     .filter((c) => !c.pass)
     .map((c) => c.id);
   result.selfReportedGaps = selfReportedGaps(report);

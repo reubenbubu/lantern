@@ -102,7 +102,7 @@ class QualityBarTest {
     List<Fact> facts = List.of(SHOP_UNIT, PAY_UNIT, CALL, AUDIT);
     Map<EntityId, DocumentEntity> entities = new TreeMap<>(Knowledge.BY_ID);
     List<EntityId> ids = new ArrayList<>(List.of(SYSTEM, SHOP, PAY, DB, PACKAGE));
-    for (int i = 0; i < C4Views.MAX_ELEMENTS - 2; i++) {
+    for (int i = 0; i < DiagramLimits.DEFAULT.mostElements() - 2; i++) {
       ids.add(EntityId.parse("topic:kafka:t" + i));
     }
     for (EntityId id : ids) {
@@ -305,7 +305,7 @@ class QualityBarTest {
     nodes.add(node(SHOP, "shop", null, SHOP_UNIT));
     nodes.add(node(DB, "shop on db", "PostgreSQL"));
     nodes.add(node(PACKAGE, "com.example", null, SHOP_UNIT));
-    for (int i = 0; i < C4Views.MAX_ELEMENTS - 2; i++) {
+    for (int i = 0; i < DiagramLimits.DEFAULT.mostElements() - 2; i++) {
       EntityId topic = EntityId.parse("topic:kafka:t" + i);
       nodes.add(node(topic, "t" + i, "Kafka", SHOP_UNIT));
     }
@@ -336,7 +336,8 @@ class QualityBarTest {
         .containsExactly("d: \"Everything\" does not name the diagram's type.");
     assertThat(failed(document, QualityBar.ONE_LEVEL))
         .containsExactly("d: It also shows com.example (package).");
-    assertThat(failed(document, QualityBar.ELEMENTS)).containsExactly("d: It shows 51 elements.");
+    assertThat(failed(document, QualityBar.elements(DiagramLimits.DEFAULT)))
+        .containsExactly("d: It shows 51 elements.");
     // What a box or line lacks is asked of the model, not of the diagram (UnknownsTest).
     assertThat(failed(document, QualityBar.TECHNOLOGY)).isEmpty();
     assertThat(failed(document, QualityBar.LABELLED))
@@ -355,7 +356,7 @@ class QualityBarTest {
   @Test
   void aDiagramWithMoreLinesPerElementThanTheThresholdIsNotReadable() {
     List<Diagram.Edge> edges = new ArrayList<>();
-    for (int i = 0; i <= C4Views.MAX_LINES_PER_ELEMENT * 2; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.linesPerElement() * 2; i++) {
       edges.add(
           edge("e" + i, i % 2 == 0 ? SHOP : PAY, i % 2 == 0 ? PAY : SHOP, "Asks " + i, "HTTP"));
     }
@@ -370,8 +371,46 @@ class QualityBarTest {
             List.of());
     Document document = document("c4-model-sequence-diagrams", "a", section("s", "S", diagram));
 
-    assertThat(failed(document, QualityBar.ELEMENTS))
+    assertThat(failed(document, QualityBar.elements(DiagramLimits.DEFAULT)))
         .containsExactly("d: It draws 5 lines between 2 elements.");
+  }
+
+  @Test
+  void aDiagramsSizeIsJudgedByTheLimitsTheComposerIsGiven() {
+    // Two elements and five lines: too many lines by default, within looser limits, and too many
+    // elements by tighter ones (#836).
+    List<Diagram.Edge> edges = new ArrayList<>();
+    for (int i = 0; i < 5; i++) {
+      edges.add(
+          edge("e" + i, i % 2 == 0 ? SHOP : PAY, i % 2 == 0 ? PAY : SHOP, "Asks " + i, "HTTP"));
+    }
+    Diagram diagram =
+        new Diagram(
+            "d",
+            Diagram.Kind.C4_CONTAINER,
+            "Containers of Shop",
+            List.of(
+                node(SYSTEM, "Shop", null), node(SHOP, "shop", "Java"), node(PAY, "pay", "Java")),
+            edges,
+            List.of());
+    Document document = document("c4-model-sequence-diagrams", "a", section("s", "S", diagram));
+    DiagramLimits loose = new DiagramLimits(2, 0, 3, 0.8, 5);
+    DiagramLimits tight = new DiagramLimits(1, 0, 3, 0.8, 5);
+
+    assertThat(sizeFailures(document, DiagramLimits.DEFAULT))
+        .containsExactly(
+            "Size: at most 50 elements and 2 lines per element: It draws 5 lines between 2"
+                + " elements.");
+    assertThat(sizeFailures(document, loose)).isEmpty();
+    assertThat(sizeFailures(document, tight))
+        .containsExactly("Size: at most 1 elements and 3 lines per element: It shows 2 elements.");
+  }
+
+  private static List<String> sizeFailures(Document document, DiagramLimits limits) {
+    return QualityBar.failures(document, io.lantern.derive.Vocabularies.standard(), limits).stream()
+        .filter(f -> f.check().startsWith("Size:"))
+        .map(f -> f.check() + ": " + text(f.detail()))
+        .toList();
   }
 
   @Test

@@ -34,7 +34,7 @@ class GroupViewsTest {
   @Test
   void topicsBetweenOneSenderAndOneReceiverAreFoldedIntoViaLabelsWhenThatMakesOneOverview() {
     TestFacts many = TestFacts.runtime();
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       many.relate("shop", APP, "PUBLISHES", "topic:kafka:e" + i, "{\"protocol\": \"Kafka\"}")
           .relate("base", WORKER, "CONSUMES", "topic:kafka:e" + i, "{\"protocol\": \"Kafka\"}");
     }
@@ -68,7 +68,7 @@ class GroupViewsTest {
     many.attribute("shop", other, "deployable-unit", "spring-boot", "{}")
         .attribute("shop", other, "application-name", "other", "{}")
         .relate("shop", other, "CONSUMES", "topic:kafka:orders", "{\"protocol\": \"Kafka\"}");
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       many.relate("shop", APP, "PUBLISHES", "topic:kafka:e" + i, "{\"protocol\": \"Kafka\"}")
           .relate("base", WORKER, "CONSUMES", "topic:kafka:e" + i, "{\"protocol\": \"Kafka\"}");
     }
@@ -92,7 +92,7 @@ class GroupViewsTest {
             "{\"scope\": \"system\", \"basis\": \"repository\", \"signal\": \"pair\"}")
         .relate("shop", domain, "GROUPS", APP, "{\"basis\": \"repository\"}")
         .relate("shop", domain, "GROUPS", WORKER, "{\"basis\": \"repository\"}");
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       many.relate(
           "base",
           WORKER,
@@ -125,7 +125,7 @@ class GroupViewsTest {
           "domain",
           "{\"scope\": \"system\", \"basis\": \"repository\", \"signal\": \"x\"}");
     }
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       String unit = "service:com.example:u" + i;
       many.attribute("shop", unit, "deployable-unit", "spring-boot", "{}")
           .attribute("shop", unit, "application-name", "u" + i, "{}")
@@ -143,7 +143,7 @@ class GroupViewsTest {
         .extracting(n -> n.id().toString())
         .contains(first, second, APP, WORKER)
         .doesNotContain("service:com.example:u0");
-    assertThat(C4Views.fits(overview)).isTrue();
+    assertThat(C4Views.fits(overview, DiagramLimits.DEFAULT)).isTrue();
     // A domain stands for its units, at their level.
     assertThat(QualityBar.failures(document))
         .noneMatch(f -> f.check().equals(QualityBar.ONE_LEVEL));
@@ -163,7 +163,7 @@ class GroupViewsTest {
     for (String feature : features) {
       String pkg = "package:com.example:app:com.example." + feature;
       many.relate("shop", module, "CONTAINS", pkg);
-      for (int i = 0; i <= C4Views.MAX_ELEMENTS / features.size(); i++) {
+      for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements() / features.size(); i++) {
         String type = "type:com.example." + feature + ".C" + i;
         String method = "method:com.example." + feature + ".C" + i + "#get()";
         many.relate("shop", pkg, "CONTAINS", type)
@@ -183,10 +183,13 @@ class GroupViewsTest {
     Diagram overview = block(app, Diagram.class);
     assertThat(overview.title()).isEqualTo("Components of shop-app, by feature area");
     assertThat(overview.nodes()).anyMatch(n -> n.id().type().equals("group"));
-    assertThat(C4Views.fits(overview)).isTrue();
+    assertThat(C4Views.fits(overview, DiagramLimits.DEFAULT)).isTrue();
     assertThat(app.sections()).hasSize(features.size());
     assertThat(app.sections())
-        .allSatisfy(area -> assertThat(C4Views.fits(block(area, Diagram.class))).isTrue());
+        .allSatisfy(
+            area ->
+                assertThat(C4Views.fits(block(area, Diagram.class), DiagramLimits.DEFAULT))
+                    .isTrue());
   }
 
   private static Document system(List<Fact> facts) {

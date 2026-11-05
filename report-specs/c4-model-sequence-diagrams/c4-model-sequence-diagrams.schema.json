@@ -57,6 +57,19 @@
         "owner": { "type": "string" },
         "updated": { "$ref": "#/$defs/date" },
         "classification": { "type": "string", "examples": ["Public", "Internal", "Confidential"] },
+        "readable": {
+          "type": "object",
+          "description": "How much a container or component diagram may hold and still read well, the limits the document was composed with (Lantern's setting lantern.diagrams). The template judges each drawn view by scale and crossings; without this object it judges none.",
+          "required": ["target", "tolerance", "linesPerElement", "scale", "crossings"],
+          "additionalProperties": false,
+          "properties": {
+            "target": { "type": "integer", "minimum": 1, "description": "The elements a view aims to stay within." },
+            "tolerance": { "type": "integer", "minimum": 0, "description": "How many elements past the target a view may still show." },
+            "linesPerElement": { "type": "integer", "minimum": 1, "description": "The most lines per element a view draws." },
+            "scale": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "The least scale a drawn view may be shrunk to so it fits the page." },
+            "crossings": { "type": "integer", "minimum": 0, "description": "The most line crossings before a drawn view is called hard to read." }
+          }
+        },
         "revisions": {
           "type": "array",
           "description": "Revision history, newest first. Omit or leave empty to hide the section.",

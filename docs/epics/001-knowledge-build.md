@@ -728,7 +728,7 @@ Rules for every task:
 ```
 
 - **Fact lines.** A fact line holds `subject predicate object`, then the key and descriptive attributes as compact JSON with sorted keys, then `(repo:path)`. Lines are sorted by subject, predicate, object.
-- **No identifiers that change.** A fact line never holds claim IDs, commits or line numbers. An entity or object that is itself a claim ID (a `flow:` entity, an intent's link) is rendered by the readable key of what it refers to: the flow by its trigger entity, the link by `source → target [channel]`.
+- **No identifiers that change.** A fact line never holds claim IDs, commits or line numbers. An entity or object that is itself a claim ID (a `flow:` entity, an intent's link) is rendered by the readable key of what it refers to: the flow by its trigger entity, the link by `source → target [channel]`. An attribute whose value is a fact or claim ID, or a list or map of them only, is left out whatever its name, such as a flow trigger's `trigger`, `route` and `routed` (#881).
 - **Code excerpts** carry line numbers, so that a citation can be written as a range.
 - **Secrets** are masked before rendering.
 - **Reference letters** are fixed across roles, so a letter never means two things:
@@ -1345,10 +1345,10 @@ Every role is tested without a real model, and measured on the development test 
 | --- | --- | --- |
 | Resolve | Share of open links resolved; share correct | Reference links |
 | Investigate | Risk recall and precision by subject; connections by end pair | Reference risks and connections |
-| Describe | Coverage (share of elements with a responsibility, of interactions with an intent); judge score of wording | Reference catalog; wording judge (#668) |
+| Describe | Coverage (share of elements with a responsibility, of interactions with an intent); judge score of wording, parked with the wording judge (#757, Later) | Reference catalog; wording judge (#668) |
 | Flows | Recall and precision of significant flows by trigger and participants | Reference flows |
-| Purpose | Judge score of the key fact; the purpose stays unscored, as the bar says | Reference first paragraph |
-| Grouping and Name groups | Groups against the domains and feature areas project-8's cases name; judge score of group names | project-8 cases; wording judge (#668) |
+| Purpose | Judge score of the key fact, parked with the wording judge (#757, Later); the purpose stays unscored, as the bar says | Reference first paragraph |
+| Grouping and Name groups | Groups against the domains and feature areas project-8's cases name; judge score of group names, parked with the wording judge (#757, Later) | project-8 cases; wording judge (#668) |
 | Harness | Dollars and tokens per run, cold and warm; cache hit rate; calls after a one-file change | Previous scorecard |
 
 - **Acceptance gates.** A milestone that changes a role states targets for its row, as milestones do today. The harness row has two fixed gates:
@@ -1400,7 +1400,7 @@ The single-conversation design, its uncached turns and its separate store are wh
 
 ## 15. Changes to the design, the bar and the ADRs
 
-`design.md` changes in nine sections. `quality-bar.md` needs no change: this spec changes how Lantern meets the bar, not the bar. Each step of section 14 edits its own sections in its own PR, as `CLAUDE.md` requires.
+`design.md` changes in nine sections. `quality-bar.md` changes only by the owner's decisions in 1H (#764): this spec changes how Lantern meets the bar, not the bar. Each step of section 14 edits its own sections in its own PR, as `CLAUDE.md` requires.
 
 **`docs/design.md`**
 
@@ -1432,7 +1432,7 @@ The single-conversation design, its uncached turns and its separate store are wh
 | Purpose and key fact | Amends 0060 |
 | Grouping and Name groups | Amends the design's Auto-grouping (explicit signals first, Leiden later) and its Name groups role (members' responsibilities, not summaries) |
 
-One rule to add to `CLAUDE.md`: "The LLM roles' prompts, schemas, checks and limits are specified in their ADRs. Change them only through an issue that shows the effect on the test sets."
+The rule that the LLM roles' prompts, schemas, checks and limits are specified in their ADRs, and change only through an issue that shows the effect on the test sets, lives in this epic's header and section 11, with ADR 0113's rule that a changed prompt raises its role's version, not in `CLAUDE.md`.
 
 ## 16. Risks and open questions
 

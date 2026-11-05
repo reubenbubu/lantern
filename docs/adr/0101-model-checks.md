@@ -1,6 +1,6 @@
 # 0101: Model checks: the support judge and the injection screen
 
-Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier), amended for #529 (the support judge asks five a request)
+Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier), amended for #529 (the support judge asks five a request), #530 (the verdict is stored on the text), #765 (injection findings on the findings page) and #751 (every role's texts judged on the writer's model, after the screen; inputs masked; a rejected text asked again, then left to the plain wording)
 
 ## Context
 
@@ -15,10 +15,12 @@ go-ahead for milestone 1E.
 ## Decisions
 
 - **Two model roles.** `JUDGE` and `SCREEN` join the configurable roles, the judge on the high-volume
-  tier, the screen on the bulk tier since 1F.
-  - The judge runs on the high-volume tier, which Describe's element role and other writing
-    roles share (Describe's units are on the reasoning tier). Since #751 each role's texts are
-    judged on the writer's own model (amendment for #751).
+  tier (superseded: since #751 each text is judged on its writer's model, below), the screen on the
+  bulk tier since 1F.
+  - The judge ran on the high-volume tier, which Describe's element role and other writing roles
+    share. (Superseded: since #751 each role's texts are judged on the model of the role that wrote
+    them; `lantern.harness.support-judge.model=judge` puts every text on the judge role's model
+    instead, amendment for #751.)
   - Both are in the `model-checks` share of the run budget (ADR 0100, amendment for #42).
   - Both used the epic's prompts and schemas word for word, after the common system prompt of
     section 11.0 (`CommonPrompt`), which every request the harness lays out will share. They now
@@ -26,9 +28,10 @@ go-ahead for milestone 1E.
     version 4 with #768); the epic's section 11.7 points there.
   - Both send at most 10 items a request.
 - **What the judge checks.**
-  - It checks every responsibility sentence Describe accepts (units, components, data stores,
-    destinations and external systems) and the system's purpose, the texts a document shows with
-    their sources.
+  - It checked every responsibility sentence Describe accepts (units, components, data stores,
+    destinations and external systems) and the system's purpose. (Superseded: since #751 it reads
+    every writing role's texts, every risk, purpose, key fact and group name, and every text that
+    cites a flagged range, amendment for #751.)
   - It checks a deterministic 10%: the texts whose judge item's fingerprint, read as a number, is
     divisible by 10. A caller can name texts to check regardless, as the epic asks for every
     investigated risk, which comes with Investigate (#269). `Describer.alsoJudging` names the
@@ -36,9 +39,8 @@ go-ahead for milestone 1E.
     from Describe through the judge to the document's note (#654).
   - Each item shows the text and each fact it cites, as the Describe prompt showed it. Its
     fingerprint rests on the text and those lines, so a text judged once is not judged again.
-  - Intent phrases, flow narratives, summaries, group names and Investigate's risks are not
-    judged. Phrases are diagram labels that take no note. 1F rebuilt the flow and summary roles
-    without bringing the judge to them; #751 does.
+  - Intent phrases, flow narratives, summaries, group names and Investigate's risks were not
+    judged. (Superseded: #751 brings the judge to them, amendment for #751.)
 - **What a verdict does.**
   - The claims add up as the epic says: `unsupported` if any claim is, else `partly` if any is,
     else `supported`.
@@ -68,7 +70,8 @@ go-ahead for milestone 1E.
     the finding, so the C4 report marks the row as found by the LLM (ADR 0086).
   - It does not block the run.
   - The epic also asks that texts citing a flagged range be judged regardless of the sample. That
-    is not done: the screen runs after Describe (#751).
+    was not done while the screen ran after Describe. (Superseded: since #751 the judge runs after
+    the screen and judges them, amendment for #751.)
 - **The fake model** answers every judge item as supported and every chunk as not suspected. Fake
   runs then show what the checks cost, and their documents do not change.
 - **Fixtures.** `lantern-harness/src/test/resources/injection` holds text addressed to an AI in a
@@ -80,16 +83,18 @@ go-ahead for milestone 1E.
   - The screen reads whole files a prompt showed, not the ranges that facts and tool results bring
     into prompts. Text that reaches a prompt only as a fact, such as a config value or a README
     claim, is not screened yet (#651).
-  - An unsupported text gets the note but not the LLM badge. The C4 report badges what rests only
-    on LLM facts (ADR 0086), and these sentences cite static facts. The note marks them in every
-    template.
-  - The run record counts the judge's items, not its verdicts per role. The log counts the
-    sentences checked and found unsupported. Verdicts per role are #751's.
+  - An unsupported text got the note but not the LLM badge. The C4 report badges what rests only
+    on LLM facts (ADR 0086), and these sentences cite static facts. (Superseded: since #751 no
+    document shows a support mark, amendment for #751.)
+  - The run record counted the judge's items, not its verdicts per role. (Superseded: since #751
+    it counts each role's verdicts, texts asked again and texts shown in plain wording as
+    `supportVerdicts`, amendment for #751.)
   - A judge packet may mix the Describe roles' sentences and the purpose, up to 10 texts. They are
     all responsibility sentences of one kind.
   - The claim list is kept in the judge's cached answer; the text's observation carries only the
     verdict.
-  - Findings are shown as a repository risk.
+  - Findings are shown as a repository risk, and since #765 also on the risks and findings page
+    (amendment for #765).
   - A complete screen ends only the findings of files it read in that run. A finding on a file no
     prompt showed this time, such as one only a cached Resolve answer read, still holds.
 

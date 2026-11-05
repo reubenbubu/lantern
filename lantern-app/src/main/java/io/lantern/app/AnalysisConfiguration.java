@@ -25,7 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * {@code <workspace>/documents}, where the workspace is {@code lantern.workspace} (ADR 0016).
  */
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(SandboxProperties.class)
+@EnableConfigurationProperties({SandboxProperties.class, DiagramProperties.class})
 class AnalysisConfiguration {
 
   @Bean
@@ -51,8 +51,8 @@ class AnalysisConfiguration {
   }
 
   @Bean
-  C4ReportRenderer c4ReportRenderer() {
-    return C4ReportRenderer.fromClassPath();
+  C4ReportRenderer c4ReportRenderer(DiagramProperties diagrams) {
+    return C4ReportRenderer.fromClassPath(diagrams.limits());
   }
 
   @Bean

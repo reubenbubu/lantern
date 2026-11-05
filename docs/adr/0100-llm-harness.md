@@ -38,10 +38,10 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   answer is reused only while every file it read still has the same blob, and, for Resolve, while
   every fact a tool showed still holds. When it no longer holds, the item is asked again under the
   same fingerprint and the new answer replaces the stored one, so the next run reuses it.
-- **Legacy roles keep their prompts word for word.** Summarize, the four Describe roles (unit,
-  element, flow narrative, purpose) and Resolve move onto the harness with their prompts, checks and
-  repair turns unchanged, so the fake-model documents hold. Each keeps its own check, run inside the
-  harness together with its Secrets check. The harness's eight checks (Schema, References, Ranges,
+- **Legacy roles kept their prompts word for word until 1F.** Summarize, the four Describe roles
+  (unit, element, flow narrative, purpose) and Resolve moved onto the harness with their prompts,
+  checks and repair turns unchanged, so the fake-model documents held, each with its own check run
+  inside the harness together with its Secrets check, until milestone 1F rebuilt them. The harness's eight checks (Schema, References, Ranges,
   Names, Coverage, Form, Conflict, Secrets; a ninth, Generic, since ADR 0106) and its packet
   envelope are used by every role prompt since milestone 1F rebuilt them; no role keeps a legacy
   prompt.
@@ -49,7 +49,9 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   that a link fact lists in its `facts` attribute, and a flow narrative listed each step's facts in
   fact-ID order. Fact IDs change with extractor versions and commits, so a one-file change re-asked
   items it did not touch. Summary prompts now strip the same ID attributes as wording prompts
-  (`PromptAttributes`), and a step's facts are sorted by their rendered line.
+  (`FactLines.shown`), and a step's facts are sorted by their rendered line. Amended for #881: an
+  attribute is left out by its value, not its name, when it holds only fact or claim IDs, such as a
+  flow trigger's `trigger`.
 - **The plan prints the estimate before a role's first call.** `Plan <role>: n items, h cached, m to
   ask, about t tokens, $c`, from uncached input, one cache write of the shared prefix, cache reads
   for the other requests, and expected output. The run budget and the printed estimates are
@@ -188,8 +190,8 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   `scripts/score-testsets.sh` declare `prompt-caching` (with zero cache prices for `fake`, and
   1.25x, 2x for a one-hour write, and 0.1x the input price for `fake-priced`). Fake runs then show in their run record what a
   warmed cache saves. The documents do not change: only the reported token split does.
-- **Bulk runs.** Writing the prefix with a one-hour lifetime before a batch is submitted comes with
-  the batch path (#527).
+- **Bulk runs.** Writing the prefix with a one-hour lifetime before a batch is submitted came with
+  the batch path (#527, ADR 0102).
 
 ## Amendment for #349: each turn of a conversation reads its history from the cache
 

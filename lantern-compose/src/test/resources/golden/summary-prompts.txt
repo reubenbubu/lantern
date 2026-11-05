@@ -6,43 +6,50 @@ Rules for every task:
 2. Use only what your inputs and tool results show. Do not use what you know about other projects with similar names. Never invent an element, a step, a responsibility, a person, a purpose or a risk.
 3. Every text you write cites what it rests on. Cite only the kinds of reference your task lists as citable, and only references that appear in your inputs or tool results.
 4. A text that names a class, method, field, table, topic, queue, exchange, path, host, header or technology must cite an input in which that name appears.
-5. When your inputs do not show what a field asks for, leave that field out. When they show nothing for an item at all, answer {"omitted": true} for that item. Every item you were given must appear in your answer. An omitted field or item is a correct answer; a guess is a wrong one.
+5. When your inputs do not show what a field asks for, leave that field out. When they show nothing for an item at all, answer a table with omitted = true (for example [I3] followed by omitted = true) for that item. Every item you were given must appear in your answer. An omitted field or item is a correct answer; a guess is a wrong one.
 6. Write plain English for a reader who does not know the code. Say what a part is responsible for, decides, owns or protects. Do not restate its name or its kind, and do not use marketing words.
-7. Answer with exactly one JSON object that matches the schema of your task, and nothing else.
+7. Answer with exactly one TOML document in the format of your task, and nothing else.
 
-Task: summarise code units. Each item in <items> is one unit at the level it names (type, package, Maven module or repository), with its facts, its source code (for a type) and the summaries of the units it contains.
-For each item write a summary as a list of sentences, at most as many as the item asks for:
+Task: summarise code units. <items> holds a TOML document with one table per item (item.I1, item.I2, and so on). Each item is one unit at the level it names (type, package, Maven module or repository): what to write (ask), its facts (one per line, each starting with its reference in brackets; grouped under the file they come from, "@ repository:path", and indented under the class, method or other thing they are about; a class is written by its short name, and names gives each short name's full name), the summaries of the units it contains, facts about those units (contained), and for a type its source code (code, with line numbers).
+For each item write a summary as a list of sentences, at most as many as the item asks for. Every item gets the same care however many share the request: never shorten one because others come with it.
 - The first sentence says what the unit is for: the job it does for the system, in words a reader who does not know the code understands. It is shown on its own as the unit's description, so it must stand alone: open it with what the unit does, usually a verb ("Issues access tokens for signed-in users.", "Keeps each work order's SLA clock."). Never open with a pronoun (This, It, These, Its) or with what kind of part it is ("The service…", "A controller that…", "This class…"). Take this from what people wrote (a README claim, Javadoc in the code) when they wrote it; otherwise infer it from the code and the facts.
 - The following sentences say what it decides, owns or protects, which other parts it works with and how (calls it makes, messages it sends, data it reads or writes), and anything a maintainer must know (constraints, side effects, error handling).
 - Do not list members, restate names, or describe framework boilerplate. A sentence that would be true of any Spring class or module says nothing; leave it out.
-Every sentence cites the facts [F..], code excerpts [E..] or contained summaries [S..] it rests on. A citation is the bare reference, such as "F2" or "E1"; never add line numbers or other words to it.
+Every sentence cites the facts [F..], code excerpts [E..] or contained summaries [S..] it rests on. A citation is the bare reference, such as "F2" or "E1"; never add line numbers or other words to it. Cite the line that states what you say: a fact indented under another line is not stated by that line, so cite it too.
 
-Answer schema:
-{"type": "object", "required": ["items"], "properties": {"items": {"type": "object", "additionalProperties": {
-  "type": "object", "required": ["sentences"],
-  "properties": {"sentences": {"type": "array", "minItems": 1, "maxItems": 6, "items": {
-    "type": "object", "required": ["text", "cites"],
-    "properties": {"text": {"type": "string", "maxLength": 300},
-                   "cites": {"type": "array", "minItems": 1, "items": {"type": "string"}}}}}}}}}}
-Answer with the JSON object alone, keyed by the item IDs (I1, I2, …), for example:
-{"items": {"I1": {"sentences": [{"text": "Issues access tokens for signed-in users.", "cites": ["F2", "E1"]}]}}}
-Check that every bracket you open is closed once, and that nothing follows the object.
+Answer with the TOML document alone, with no code fence: one table per item, named by its item ID, holding one [[ID.sentences]] table per sentence, each with its text and its cites. For example:
+[I1]
+[[I1.sentences]]
+text = "Issues access tokens for signed-in users."
+cites = ["F2", "E1"]
+[[I1.sentences]]
+text = "Rejects a token whose signature does not match."
+cites = ["F3"]
+Write every text as a string in double quotes on one line, with a double quote or backslash inside it written as \" or \\. Write every cite as a string in double quotes. An item has at most 6 sentences, each at most 300 characters. Write each table once, and nothing before the first table or after the last one.
 Before you answer, check each item: the first sentence opens with what the unit does, not with This, It or the kind of part; each sentence has a number of words in the range asked for; each citation is a bare reference from the item's input.
 Do not say how the unit is wired or built: not that it is a Spring bean or component, how its dependencies are injected, or which annotations it carries. Say what it does with them.
 
 ##### summarize type type:com.example.greeting.lib.Greeter
 <items>
-<item id="I1">
-Unit: type Greeter in package com.example.greeting.lib
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#<init>() (greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java)
-[F2] type:com.example.greeting.lib.Greeter CONTAINS method:com.example.greeting.lib.Greeter#greet(java.lang.String) (greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java)
-[F3] type:com.example.greeting.lib.Greeter kind "class" (greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java)
-</facts>
-Its source code:
-<code ref="E1" repo="greeting-lib" path="src/main/java/com/example/greeting/lib/Greeter.java" lines="1-9">
+[item.I1]
+unit = "type Greeter in package com.example.greeting.lib"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java
+Greeter
+  [F1] CONTAINS method <init>()
+  [F2] CONTAINS method greet(String)
+  [F3] kind "class"
+'''
+names = '''
+Greeter = com.example.greeting.lib.Greeter
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "greeting-lib"
+path = "src/main/java/com/example/greeting/lib/Greeter.java"
+lines = "1-9"
+text = '''
 1  package com.example.greeting.lib;
 2  
 3  /** The service's logic, kept in the library. */
@@ -52,73 +59,87 @@ Its source code:
 7      return "Hello, " + name + "!";
 8    }
 9  }
-</code>
-</item>
+'''
 </items>
 ##### summarize package package:com.example.greeting:greeting-lib:com.example.greeting.lib
 <items>
-<item id="I1">
-Unit: package com.example.greeting.lib
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] package:com.example.greeting:greeting-lib:com.example.greeting.lib CONTAINS type:com.example.greeting.lib.Greeter (greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "package com.example.greeting.lib"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ greeting-lib:src/main/java/com/example/greeting/lib/Greeter.java
+package:com.example.greeting:greeting-lib:com.example.greeting.lib
+  [F1] CONTAINS Greeter
+'''
+summaries = '''
 [S1] type Greeter in package com.example.greeting.lib: Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+names = '''
+Greeter = com.example.greeting.lib.Greeter
+'''
 </items>
 ##### summarize module module:com.example.greeting:greeting-lib
 <items>
-<item id="I1">
-Unit: Maven module greeting-lib
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] library:com.example.greeting:greeting-lib CONTAINS module:com.example.greeting:greeting-lib (greeting-lib:pom.xml)
-[F2] module:com.example.greeting:greeting-lib CONTAINS package:com.example.greeting:greeting-lib:com.example.greeting.lib (greeting-lib:src/main/java/com/example/greeting/lib)
-[F3] module:com.example.greeting:greeting-lib java-release "21" (greeting-lib:pom.xml)
-[F4] module:com.example.greeting:greeting-lib packaging "jar" (greeting-lib:pom.xml)
-[F5] module:com.example.greeting:greeting-lib version "1.0.0" (greeting-lib:pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "Maven module greeting-lib"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ greeting-lib:pom.xml
+library:com.example.greeting:greeting-lib
+  [F1] CONTAINS module:com.example.greeting:greeting-lib
+module:com.example.greeting:greeting-lib
+  [F3] java-release "21"
+  [F4] packaging "jar"
+  [F5] version "1.0.0"
+@ greeting-lib:src/main/java/com/example/greeting/lib
+module:com.example.greeting:greeting-lib
+  [F2] CONTAINS package:com.example.greeting:greeting-lib:com.example.greeting.lib
+'''
+summaries = '''
 [S1] package com.example.greeting.lib: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
 </items>
 ##### summarize repo repo:greeting-lib
 <items>
-<item id="I1">
-Unit: repository greeting-lib
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Of the units it contains, technology:
-<facts>
-[F1] module:com.example.greeting:greeting-lib java-release "21" (greeting-lib:pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "repository greeting-lib"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+summaries = '''
 [S1] Maven module greeting-lib: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+[[item.I1.contained]]
+about = "Of the units it contains, technology"
+facts = '''
+@ greeting-lib:pom.xml
+module:com.example.greeting:greeting-lib
+  [F1] java-release "21"
+'''
 </items>
 ##### summarize type type:com.example.greeting.service.GreetingServiceMain
 <items>
-<item id="I1">
-Unit: type GreetingServiceMain in package com.example.greeting.service
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#<init>() (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
-[F2] method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) CALLS method:com.example.greeting.lib.Greeter#greet(java.lang.String) (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
-[F3] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#<init>() (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
-[F4] type:com.example.greeting.service.GreetingServiceMain CONTAINS method:com.example.greeting.service.GreetingServiceMain#main(java.lang.String[]) (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
-[F5] type:com.example.greeting.service.GreetingServiceMain kind "class" (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
-</facts>
-Its source code:
-<code ref="E1" repo="greeting-service" path="src/main/java/com/example/greeting/service/GreetingServiceMain.java" lines="1-13">
+[item.I1]
+unit = "type GreetingServiceMain in package com.example.greeting.service"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java
+GreetingServiceMain
+  [F3] CONTAINS method <init>()
+  [F4] CONTAINS method main(String[])
+  [F5] kind "class"
+GreetingServiceMain#main(String[])
+  [F1] CALLS Greeter#<init>()
+  [F2] CALLS Greeter#greet(String)
+'''
+names = '''
+GreetingServiceMain = com.example.greeting.service.GreetingServiceMain
+Greeter = com.example.greeting.lib.Greeter
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "greeting-service"
+path = "src/main/java/com/example/greeting/service/GreetingServiceMain.java"
+lines = "1-13"
+text = '''
  1  package com.example.greeting.service;
  2  
  3  import com.example.greeting.lib.Greeter;
@@ -132,80 +153,92 @@ Its source code:
 11      System.out.println(new Greeter().greet(args.length > 0 ? args[0] : "world"));
 12    }
 13  }
-</code>
-</item>
+'''
 </items>
 ##### summarize package package:com.example.greeting:greeting-service:com.example.greeting.service
 <items>
-<item id="I1">
-Unit: package com.example.greeting.service
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] package:com.example.greeting:greeting-service:com.example.greeting.service CONTAINS type:com.example.greeting.service.GreetingServiceMain (greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "package com.example.greeting.service"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ greeting-service:src/main/java/com/example/greeting/service/GreetingServiceMain.java
+package:com.example.greeting:greeting-service:com.example.greeting.service
+  [F1] CONTAINS GreetingServiceMain
+'''
+summaries = '''
 [S1] type GreetingServiceMain in package com.example.greeting.service: Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+names = '''
+GreetingServiceMain = com.example.greeting.service.GreetingServiceMain
+'''
 </items>
 ##### summarize module module:com.example.greeting:greeting-service
 <items>
-<item id="I1">
-Unit: Maven module greeting-service
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] module:com.example.greeting:greeting-service BUILD_DEPENDS_ON module:com.example.greeting:greeting-lib {"scope":"compile","version":"1.0.0"} (greeting-service:pom.xml)
-[F2] module:com.example.greeting:greeting-service CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service (greeting-service:src/main/java/com/example/greeting/service)
-[F3] module:com.example.greeting:greeting-service deployable-by "spring-boot" (greeting-service:pom.xml)
-[F4] module:com.example.greeting:greeting-service java-release "21" (greeting-service:pom.xml)
-[F5] module:com.example.greeting:greeting-service packaging "jar" (greeting-service:pom.xml)
-[F6] module:com.example.greeting:greeting-service version "1.0.0" (greeting-service:pom.xml)
-[F7] service:com.example.greeting:greeting-service CONTAINS module:com.example.greeting:greeting-service (greeting-service:pom.xml)
-[F8] service:com.example.greeting:greeting-service PACKAGES library:com.example.greeting:greeting-lib (greeting-service:pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "Maven module greeting-service"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ greeting-service:pom.xml
+service:com.example.greeting:greeting-service
+  [F7] CONTAINS module:com.example.greeting:greeting-service
+  [F8] PACKAGES library:com.example.greeting:greeting-lib
+module:com.example.greeting:greeting-service
+  [F1] BUILD_DEPENDS_ON module:com.example.greeting:greeting-lib {"scope":"compile","version":"1.0.0"}
+  [F3] deployable-by "spring-boot"
+  [F4] java-release "21"
+  [F5] packaging "jar"
+  [F6] version "1.0.0"
+@ greeting-service:src/main/java/com/example/greeting/service
+module:com.example.greeting:greeting-service
+  [F2] CONTAINS package:com.example.greeting:greeting-service:com.example.greeting.service
+'''
+summaries = '''
 [S1] package com.example.greeting.service: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
 </items>
 ##### summarize repo repo:greeting-service
 <items>
-<item id="I1">
-Unit: repository greeting-service
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Of the units it contains, technology:
-<facts>
-[F1] module:com.example.greeting:greeting-service java-release "21" (greeting-service:pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "repository greeting-service"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+summaries = '''
 [S1] Maven module greeting-service: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+[[item.I1.contained]]
+about = "Of the units it contains, technology"
+facts = '''
+@ greeting-service:pom.xml
+module:com.example.greeting:greeting-service
+  [F1] java-release "21"
+'''
 </items>
 ##### summarize type type:com.example.orders.Account
 <items>
-<item id="I1">
-Unit: type Account in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#balance (orders:src/main/java/com/example/orders/Account.java)
-[F2] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#count (orders:src/main/java/com/example/orders/Account.java)
-[F3] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#currency (orders:src/main/java/com/example/orders/Account.java)
-[F4] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#id (orders:src/main/java/com/example/orders/Account.java)
-[F5] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#log (orders:src/main/java/com/example/orders/Account.java)
-[F6] type:com.example.orders.Account CONTAINS field:com.example.orders.Account#owner (orders:src/main/java/com/example/orders/Account.java)
-[F7] type:com.example.orders.Account CONTAINS method:com.example.orders.Account#<init>(java.lang.String,java.lang.String) (orders:src/main/java/com/example/orders/Account.java)
-[F8] type:com.example.orders.Account CONTAINS method:com.example.orders.Account#open() (orders:src/main/java/com/example/orders/Account.java)
-[F9] type:com.example.orders.Account kind "class" (orders:src/main/java/com/example/orders/Account.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/Account.java" lines="1-21">
+[item.I1]
+unit = "type Account in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/Account.java
+Account
+  [F1] CONTAINS field balance
+  [F2] CONTAINS field count
+  [F3] CONTAINS field currency
+  [F4] CONTAINS field id
+  [F5] CONTAINS field log
+  [F6] CONTAINS field owner
+  [F7] CONTAINS method <init>(String,String)
+  [F8] CONTAINS method open()
+  [F9] kind "class"
+'''
+names = '''
+Account = com.example.orders.Account
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/Account.java"
+lines = "1-21"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.Data;
@@ -227,24 +260,32 @@ Its source code:
 19      log.info("opened " + id);
 20    }
 21  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.Billing
 <items>
-<item id="I1">
-Unit: type Billing in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.Billing CONTAINS field:com.example.orders.Billing#currency (orders:src/main/java/com/example/orders/Billing.java)
-[F2] type:com.example.orders.Billing CONTAINS field:com.example.orders.Billing#ledger (orders:src/main/java/com/example/orders/Billing.java)
-[F3] type:com.example.orders.Billing CONTAINS field:com.example.orders.Billing#retries (orders:src/main/java/com/example/orders/Billing.java)
-[F4] type:com.example.orders.Billing CONTAINS method:com.example.orders.Billing#<init>(com.example.orders.Ledger,java.lang.String) (orders:src/main/java/com/example/orders/Billing.java)
-[F5] type:com.example.orders.Billing kind "class" (orders:src/main/java/com/example/orders/Billing.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/Billing.java" lines="1-16">
+[item.I1]
+unit = "type Billing in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/Billing.java
+Billing
+  [F1] CONTAINS field currency
+  [F2] CONTAINS field ledger
+  [F3] CONTAINS field retries
+  [F4] CONTAINS method <init>(Ledger,String)
+  [F5] kind "class"
+'''
+names = '''
+Billing = com.example.orders.Billing
+Ledger = com.example.orders.Ledger
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/Billing.java"
+lines = "1-16"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.AccessLevel;
@@ -261,24 +302,31 @@ Its source code:
 14    String currency;
 15    @NonFinal int retries;
 16  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.Customer
 <items>
-<item id="I1">
-Unit: type Customer in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.Customer CONTAINS field:com.example.orders.Customer#id (orders:src/main/java/com/example/orders/Customer.java)
-[F2] type:com.example.orders.Customer CONTAINS field:com.example.orders.Customer#name (orders:src/main/java/com/example/orders/Customer.java)
-[F3] type:com.example.orders.Customer CONTAINS method:com.example.orders.Customer#<init>() (orders:src/main/java/com/example/orders/Customer.java)
-[F4] type:com.example.orders.Customer CONTAINS method:com.example.orders.Customer#<init>(java.lang.String,java.lang.String) (orders:src/main/java/com/example/orders/Customer.java)
-[F5] type:com.example.orders.Customer kind "class" (orders:src/main/java/com/example/orders/Customer.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/Customer.java" lines="1-16">
+[item.I1]
+unit = "type Customer in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/Customer.java
+Customer
+  [F1] CONTAINS field id
+  [F2] CONTAINS field name
+  [F3] CONTAINS method <init>()
+  [F4] CONTAINS method <init>(String,String)
+  [F5] kind "class"
+'''
+names = '''
+Customer = com.example.orders.Customer
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/Customer.java"
+lines = "1-16"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.AllArgsConstructor;
@@ -295,24 +343,31 @@ Its source code:
 14    @NonNull private String id;
 15    private String name;
 16  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.Ledger
 <items>
-<item id="I1">
-Unit: type Ledger in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.Ledger CONTAINS field:com.example.orders.Ledger#name (orders:src/main/java/com/example/orders/Ledger.java)
-[F2] type:com.example.orders.Ledger CONTAINS field:com.example.orders.Ledger#size (orders:src/main/java/com/example/orders/Ledger.java)
-[F3] type:com.example.orders.Ledger CONTAINS method:com.example.orders.Ledger#<init>() (orders:src/main/java/com/example/orders/Ledger.java)
-[F4] type:com.example.orders.Ledger CONTAINS method:com.example.orders.Ledger#<init>(java.lang.String,int) (orders:src/main/java/com/example/orders/Ledger.java)
-[F5] type:com.example.orders.Ledger kind "class" (orders:src/main/java/com/example/orders/Ledger.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/Ledger.java" lines="1-15">
+[item.I1]
+unit = "type Ledger in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/Ledger.java
+Ledger
+  [F1] CONTAINS field name
+  [F2] CONTAINS field size
+  [F3] CONTAINS method <init>()
+  [F4] CONTAINS method <init>(String,int)
+  [F5] kind "class"
+'''
+names = '''
+Ledger = com.example.orders.Ledger
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/Ledger.java"
+lines = "1-15"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.AllArgsConstructor;
@@ -328,23 +383,30 @@ Its source code:
 13    private String name;
 14    private int size;
 15  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.Money
 <items>
-<item id="I1">
-Unit: type Money in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.Money CONTAINS field:com.example.orders.Money#cents (orders:src/main/java/com/example/orders/Money.java)
-[F2] type:com.example.orders.Money CONTAINS field:com.example.orders.Money#scale (orders:src/main/java/com/example/orders/Money.java)
-[F3] type:com.example.orders.Money CONTAINS method:com.example.orders.Money#<init>(long,int) (orders:src/main/java/com/example/orders/Money.java)
-[F4] type:com.example.orders.Money kind "class" (orders:src/main/java/com/example/orders/Money.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/Money.java" lines="1-12">
+[item.I1]
+unit = "type Money in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/Money.java
+Money
+  [F1] CONTAINS field cents
+  [F2] CONTAINS field scale
+  [F3] CONTAINS method <init>(long,int)
+  [F4] kind "class"
+'''
+names = '''
+Money = com.example.orders.Money
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/Money.java"
+lines = "1-12"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.Value;
@@ -357,24 +419,31 @@ Its source code:
 10    long cents;
 11    @NonFinal int scale = 2;
 12  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.Order
 <items>
-<item id="I1">
-Unit: type Order in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#customer (orders:src/main/java/com/example/orders/Order.java)
-[F2] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#id (orders:src/main/java/com/example/orders/Order.java)
-[F3] type:com.example.orders.Order CONTAINS field:com.example.orders.Order#lines (orders:src/main/java/com/example/orders/Order.java)
-[F4] type:com.example.orders.Order CONTAINS method:com.example.orders.Order#<init>(java.lang.String,java.lang.String,java.util.List) (orders:src/main/java/com/example/orders/Order.java)
-[F5] type:com.example.orders.Order kind "class" (orders:src/main/java/com/example/orders/Order.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/Order.java" lines="1-16">
+[item.I1]
+unit = "type Order in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/Order.java
+Order
+  [F1] CONTAINS field customer
+  [F2] CONTAINS field id
+  [F3] CONTAINS field lines
+  [F4] CONTAINS method <init>(String,String,List)
+  [F5] kind "class"
+'''
+names = '''
+Order = com.example.orders.Order
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/Order.java"
+lines = "1-16"
+text = '''
  1  package com.example.orders;
  2  
  3  import java.util.List;
@@ -391,23 +460,30 @@ Its source code:
 14    String customer;
 15    @Singular List<OrderLine> lines;
 16  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.OrderDto
 <items>
-<item id="I1">
-Unit: type OrderDto in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.OrderDto CONTAINS field:com.example.orders.OrderDto#count (orders:src/main/java/com/example/orders/OrderDto.java)
-[F2] type:com.example.orders.OrderDto CONTAINS field:com.example.orders.OrderDto#id (orders:src/main/java/com/example/orders/OrderDto.java)
-[F3] type:com.example.orders.OrderDto CONTAINS method:com.example.orders.OrderDto#<init>(java.lang.String,int) (orders:src/main/java/com/example/orders/OrderDto.java)
-[F4] type:com.example.orders.OrderDto kind "class" (orders:src/main/java/com/example/orders/OrderDto.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/OrderDto.java" lines="1-13">
+[item.I1]
+unit = "type OrderDto in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/OrderDto.java
+OrderDto
+  [F1] CONTAINS field count
+  [F2] CONTAINS field id
+  [F3] CONTAINS method <init>(String,int)
+  [F4] kind "class"
+'''
+names = '''
+OrderDto = com.example.orders.OrderDto
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/OrderDto.java"
+lines = "1-13"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.Builder;
@@ -421,24 +497,31 @@ Its source code:
 11    private String id;
 12    private int count;
 13  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.OrderLine
 <items>
-<item id="I1">
-Unit: type OrderLine in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#productId (orders:src/main/java/com/example/orders/OrderLine.java)
-[F2] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#quantity (orders:src/main/java/com/example/orders/OrderLine.java)
-[F3] type:com.example.orders.OrderLine CONTAINS field:com.example.orders.OrderLine#unitPriceCents (orders:src/main/java/com/example/orders/OrderLine.java)
-[F4] type:com.example.orders.OrderLine CONTAINS method:com.example.orders.OrderLine#<init>(java.lang.String,int,long) (orders:src/main/java/com/example/orders/OrderLine.java)
-[F5] type:com.example.orders.OrderLine kind "class" (orders:src/main/java/com/example/orders/OrderLine.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/OrderLine.java" lines="1-12">
+[item.I1]
+unit = "type OrderLine in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/OrderLine.java
+OrderLine
+  [F1] CONTAINS field productId
+  [F2] CONTAINS field quantity
+  [F3] CONTAINS field unitPriceCents
+  [F4] CONTAINS method <init>(String,int,long)
+  [F5] kind "class"
+'''
+names = '''
+OrderLine = com.example.orders.OrderLine
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/OrderLine.java"
+lines = "1-12"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.Value;
@@ -451,24 +534,32 @@ Its source code:
 10    int quantity;
 11    long unitPriceCents;
 12  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.OrderService
 <items>
-<item id="I1">
-Unit: type OrderService in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.OrderService CONTAINS field:com.example.orders.OrderService#currency (orders:src/main/java/com/example/orders/OrderService.java)
-[F2] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#<init>(java.lang.String) (orders:src/main/java/com/example/orders/OrderService.java)
-[F3] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#newOrder(java.lang.String,java.lang.String,java.lang.String,int) (orders:src/main/java/com/example/orders/OrderService.java)
-[F4] type:com.example.orders.OrderService CONTAINS method:com.example.orders.OrderService#total(com.example.orders.Order) (orders:src/main/java/com/example/orders/OrderService.java)
-[F5] type:com.example.orders.OrderService kind "class" (orders:src/main/java/com/example/orders/OrderService.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/OrderService.java" lines="1-26">
+[item.I1]
+unit = "type OrderService in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/OrderService.java
+OrderService
+  [F1] CONTAINS field currency
+  [F2] CONTAINS method <init>(String)
+  [F3] CONTAINS method newOrder(String,String,String,int)
+  [F4] CONTAINS method total(Order)
+  [F5] kind "class"
+'''
+names = '''
+OrderService = com.example.orders.OrderService
+Order = com.example.orders.Order
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/OrderService.java"
+lines = "1-26"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.RequiredArgsConstructor;
@@ -495,24 +586,31 @@ Its source code:
 24      return cents + " " + currency;
 25    }
 26  }
-</code>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.orders.Status
 <items>
-<item id="I1">
-Unit: type Status in package com.example.orders
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.orders.Status CONTAINS field:com.example.orders.Status#CLOSED (orders:src/main/java/com/example/orders/Status.java)
-[F2] type:com.example.orders.Status CONTAINS field:com.example.orders.Status#OPEN (orders:src/main/java/com/example/orders/Status.java)
-[F3] type:com.example.orders.Status CONTAINS field:com.example.orders.Status#code (orders:src/main/java/com/example/orders/Status.java)
-[F4] type:com.example.orders.Status CONTAINS method:com.example.orders.Status#<init>(java.lang.String) (orders:src/main/java/com/example/orders/Status.java)
-[F5] type:com.example.orders.Status kind "enum" (orders:src/main/java/com/example/orders/Status.java)
-</facts>
-Its source code:
-<code ref="E1" repo="orders" path="src/main/java/com/example/orders/Status.java" lines="1-14">
+[item.I1]
+unit = "type Status in package com.example.orders"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ orders:src/main/java/com/example/orders/Status.java
+Status
+  [F1] CONTAINS field CLOSED
+  [F2] CONTAINS field OPEN
+  [F3] CONTAINS field code
+  [F4] CONTAINS method <init>(String)
+  [F5] kind "enum"
+'''
+names = '''
+Status = com.example.orders.Status
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "orders"
+path = "src/main/java/com/example/orders/Status.java"
+lines = "1-14"
+text = '''
  1  package com.example.orders;
  2  
  3  import lombok.Getter;
@@ -527,29 +625,46 @@ Its source code:
 12  
 13    private final String code;
 14  }
-</code>
-</item>
+'''
 </items>
 ##### summarize package package:com.example.orders:orders:com.example.orders
 <items>
-<item id="I1">
-Unit: package com.example.orders
-Write 3 to 5 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Account (orders:src/main/java/com/example/orders/Account.java)
-[F2] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Billing (orders:src/main/java/com/example/orders/Billing.java)
-[F3] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Customer (orders:src/main/java/com/example/orders/Customer.java)
-[F4] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Ledger (orders:src/main/java/com/example/orders/Ledger.java)
-[F5] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Money (orders:src/main/java/com/example/orders/Money.java)
-[F6] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Order (orders:src/main/java/com/example/orders/Order.java)
-[F7] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderDto (orders:src/main/java/com/example/orders/OrderDto.java)
-[F8] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderLine (orders:src/main/java/com/example/orders/OrderLine.java)
-[F9] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.OrderService (orders:src/main/java/com/example/orders/OrderService.java)
-[F10] package:com.example.orders:orders:com.example.orders CONTAINS type:com.example.orders.Status (orders:src/main/java/com/example/orders/Status.java)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "package com.example.orders"
+ask = "Write 3 to 5 sentences of 10 to 30 words each."
+facts = '''
+@ orders:src/main/java/com/example/orders/Account.java
+package:com.example.orders:orders:com.example.orders
+  [F1] CONTAINS Account
+@ orders:src/main/java/com/example/orders/Billing.java
+package:com.example.orders:orders:com.example.orders
+  [F2] CONTAINS Billing
+@ orders:src/main/java/com/example/orders/Customer.java
+package:com.example.orders:orders:com.example.orders
+  [F3] CONTAINS Customer
+@ orders:src/main/java/com/example/orders/Ledger.java
+package:com.example.orders:orders:com.example.orders
+  [F4] CONTAINS Ledger
+@ orders:src/main/java/com/example/orders/Money.java
+package:com.example.orders:orders:com.example.orders
+  [F5] CONTAINS Money
+@ orders:src/main/java/com/example/orders/Order.java
+package:com.example.orders:orders:com.example.orders
+  [F6] CONTAINS Order
+@ orders:src/main/java/com/example/orders/OrderDto.java
+package:com.example.orders:orders:com.example.orders
+  [F7] CONTAINS OrderDto
+@ orders:src/main/java/com/example/orders/OrderLine.java
+package:com.example.orders:orders:com.example.orders
+  [F8] CONTAINS OrderLine
+@ orders:src/main/java/com/example/orders/OrderService.java
+package:com.example.orders:orders:com.example.orders
+  [F9] CONTAINS OrderService
+@ orders:src/main/java/com/example/orders/Status.java
+package:com.example.orders:orders:com.example.orders
+  [F10] CONTAINS Status
+'''
+summaries = '''
 [S1] type Account in package com.example.orders: Described by its facts, as the analysis of its code found them.
 [S2] type Billing in package com.example.orders: Described by its facts, as the analysis of its code found them.
 [S3] type Customer in package com.example.orders: Described by its facts, as the analysis of its code found them.
@@ -560,56 +675,78 @@ Summaries of the units it contains:
 [S8] type OrderLine in package com.example.orders: Described by its facts, as the analysis of its code found them.
 [S9] type OrderService in package com.example.orders: Described by its facts, as the analysis of its code found them.
 [S10] type Status in package com.example.orders: Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+names = '''
+Account = com.example.orders.Account
+Billing = com.example.orders.Billing
+Customer = com.example.orders.Customer
+Ledger = com.example.orders.Ledger
+Money = com.example.orders.Money
+Order = com.example.orders.Order
+OrderDto = com.example.orders.OrderDto
+OrderLine = com.example.orders.OrderLine
+OrderService = com.example.orders.OrderService
+Status = com.example.orders.Status
+'''
 </items>
 ##### summarize module module:com.example.orders:orders
 <items>
-<item id="I1">
-Unit: Maven module orders
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] library:com.example.orders:orders CONTAINS module:com.example.orders:orders (orders:pom.xml)
-[F2] module:com.example.orders:orders BUILD_DEPENDS_ON artifact:org.projectlombok:lombok {"scope":"provided","version":"1.18.48"} (orders:pom.xml)
-[F3] module:com.example.orders:orders CONTAINS package:com.example.orders:orders:com.example.orders (orders:src/main/java/com/example/orders)
-[F4] module:com.example.orders:orders java-release "21" (orders:pom.xml)
-[F5] module:com.example.orders:orders packaging "jar" (orders:pom.xml)
-[F6] module:com.example.orders:orders version "1.0.0" (orders:pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "Maven module orders"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ orders:pom.xml
+library:com.example.orders:orders
+  [F1] CONTAINS module:com.example.orders:orders
+module:com.example.orders:orders
+  [F2] BUILD_DEPENDS_ON artifact:org.projectlombok:lombok {"scope":"provided","version":"1.18.48"}
+  [F4] java-release "21"
+  [F5] packaging "jar"
+  [F6] version "1.0.0"
+@ orders:src/main/java/com/example/orders
+module:com.example.orders:orders
+  [F3] CONTAINS package:com.example.orders:orders:com.example.orders
+'''
+summaries = '''
 [S1] package com.example.orders: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
 </items>
 ##### summarize repo repo:orders
 <items>
-<item id="I1">
-Unit: repository orders
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Of the units it contains, technology:
-<facts>
-[F1] module:com.example.orders:orders java-release "21" (orders:pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "repository orders"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+summaries = '''
 [S1] Maven module orders: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+[[item.I1.contained]]
+about = "Of the units it contains, technology"
+facts = '''
+@ orders:pom.xml
+module:com.example.orders:orders
+  [F1] java-release "21"
+'''
 </items>
 ##### summarize type type:com.example.shop.api.PriceService
 <items>
-<item id="I1">
-Unit: type PriceService in package com.example.shop.api
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.shop.api.PriceService CONTAINS method:com.example.shop.api.PriceService#priceOf(java.lang.String) (shop:api/src/main/java/com/example/shop/api/PriceService.java)
-[F2] type:com.example.shop.api.PriceService kind "interface" (shop:api/src/main/java/com/example/shop/api/PriceService.java)
-</facts>
-Its source code:
-<code ref="E1" repo="shop" path="api/src/main/java/com/example/shop/api/PriceService.java" lines="1-7">
+[item.I1]
+unit = "type PriceService in package com.example.shop.api"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ shop:api/src/main/java/com/example/shop/api/PriceService.java
+PriceService
+  [F1] CONTAINS method priceOf(String)
+  [F2] kind "interface"
+'''
+names = '''
+PriceService = com.example.shop.api.PriceService
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "shop"
+path = "api/src/main/java/com/example/shop/api/PriceService.java"
+lines = "1-7"
+text = '''
 1  package com.example.shop.api;
 2  
 3  /** Looks up the price of a product in cents. */
@@ -617,59 +754,71 @@ Its source code:
 5  
 6    long priceOf(String productId);
 7  }
-</code>
-</item>
+'''
 </items>
 ##### summarize package package:com.example.shop:shop-api:com.example.shop.api
 <items>
-<item id="I1">
-Unit: package com.example.shop.api
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] package:com.example.shop:shop-api:com.example.shop.api CONTAINS type:com.example.shop.api.PriceService (shop:api/src/main/java/com/example/shop/api/PriceService.java)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "package com.example.shop.api"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ shop:api/src/main/java/com/example/shop/api/PriceService.java
+package:com.example.shop:shop-api:com.example.shop.api
+  [F1] CONTAINS PriceService
+'''
+summaries = '''
 [S1] type PriceService in package com.example.shop.api: Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+names = '''
+PriceService = com.example.shop.api.PriceService
+'''
 </items>
 ##### summarize module module:com.example.shop:shop-api
 <items>
-<item id="I1">
-Unit: Maven module shop-api
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] library:com.example.shop:shop-api CONTAINS module:com.example.shop:shop-api (shop:api/pom.xml)
-[F2] module:com.example.shop:shop-api CONTAINS package:com.example.shop:shop-api:com.example.shop.api (shop:api/src/main/java/com/example/shop/api)
-[F3] module:com.example.shop:shop-api java-release "21" (shop:api/pom.xml)
-[F4] module:com.example.shop:shop-api packaging "jar" (shop:api/pom.xml)
-[F5] module:com.example.shop:shop-api parent "com.example.shop:shop-parent:1.0.0" (shop:api/pom.xml)
-[F6] module:com.example.shop:shop-api version "1.0.0" (shop:api/pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "Maven module shop-api"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ shop:api/pom.xml
+library:com.example.shop:shop-api
+  [F1] CONTAINS module:com.example.shop:shop-api
+module:com.example.shop:shop-api
+  [F3] java-release "21"
+  [F4] packaging "jar"
+  [F5] parent "com.example.shop:shop-parent:1.0.0"
+  [F6] version "1.0.0"
+@ shop:api/src/main/java/com/example/shop/api
+module:com.example.shop:shop-api
+  [F2] CONTAINS package:com.example.shop:shop-api:com.example.shop.api
+'''
+summaries = '''
 [S1] package com.example.shop.api: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
 </items>
 ##### summarize type type:com.example.shop.core.FixedPriceService
 <items>
-<item id="I1">
-Unit: type FixedPriceService in package com.example.shop.core
-Write 2 to 4 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] type:com.example.shop.core.FixedPriceService CONTAINS field:com.example.shop.core.FixedPriceService#cents (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
-[F2] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#<init>(long) (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
-[F3] type:com.example.shop.core.FixedPriceService CONTAINS method:com.example.shop.core.FixedPriceService#priceOf(java.lang.String) (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
-[F4] type:com.example.shop.core.FixedPriceService IMPLEMENTS type:com.example.shop.api.PriceService (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
-[F5] type:com.example.shop.core.FixedPriceService kind "class" (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
-</facts>
-Its source code:
-<code ref="E1" repo="shop" path="core/src/main/java/com/example/shop/core/FixedPriceService.java" lines="1-18">
+[item.I1]
+unit = "type FixedPriceService in package com.example.shop.core"
+ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
+facts = '''
+@ shop:core/src/main/java/com/example/shop/core/FixedPriceService.java
+FixedPriceService
+  [F1] CONTAINS field cents
+  [F2] CONTAINS method <init>(long)
+  [F3] CONTAINS method priceOf(String)
+  [F4] IMPLEMENTS PriceService
+  [F5] kind "class"
+'''
+names = '''
+FixedPriceService = com.example.shop.core.FixedPriceService
+PriceService = com.example.shop.api.PriceService
+'''
+[[item.I1.code]]
+ref = "E1"
+repo = "shop"
+path = "core/src/main/java/com/example/shop/core/FixedPriceService.java"
+lines = "1-18"
+text = '''
  1  package com.example.shop.core;
  2  
  3  import com.example.shop.api.PriceService;
@@ -688,84 +837,96 @@ Its source code:
 16      return cents;
 17    }
 18  }
-</code>
-</item>
+'''
 </items>
 ##### summarize package package:com.example.shop:shop-core:com.example.shop.core
 <items>
-<item id="I1">
-Unit: package com.example.shop.core
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] package:com.example.shop:shop-core:com.example.shop.core CONTAINS type:com.example.shop.core.FixedPriceService (shop:core/src/main/java/com/example/shop/core/FixedPriceService.java)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "package com.example.shop.core"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ shop:core/src/main/java/com/example/shop/core/FixedPriceService.java
+package:com.example.shop:shop-core:com.example.shop.core
+  [F1] CONTAINS FixedPriceService
+'''
+summaries = '''
 [S1] type FixedPriceService in package com.example.shop.core: Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+names = '''
+FixedPriceService = com.example.shop.core.FixedPriceService
+'''
 </items>
 ##### summarize module module:com.example.shop:shop-core
 <items>
-<item id="I1">
-Unit: Maven module shop-core
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Its facts:
-<facts>
-[F1] library:com.example.shop:shop-core CONTAINS module:com.example.shop:shop-core (shop:core/pom.xml)
-[F2] module:com.example.shop:shop-core BUILD_DEPENDS_ON module:com.example.shop:shop-api {"scope":"compile","version":"1.0.0"} (shop:core/pom.xml)
-[F3] module:com.example.shop:shop-core CONTAINS package:com.example.shop:shop-core:com.example.shop.core (shop:core/src/main/java/com/example/shop/core)
-[F4] module:com.example.shop:shop-core java-release "21" (shop:core/pom.xml)
-[F5] module:com.example.shop:shop-core packaging "jar" (shop:core/pom.xml)
-[F6] module:com.example.shop:shop-core parent "com.example.shop:shop-parent:1.0.0" (shop:core/pom.xml)
-[F7] module:com.example.shop:shop-core version "1.0.0" (shop:core/pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "Maven module shop-core"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+facts = '''
+@ shop:core/pom.xml
+library:com.example.shop:shop-core
+  [F1] CONTAINS module:com.example.shop:shop-core
+module:com.example.shop:shop-core
+  [F2] BUILD_DEPENDS_ON module:com.example.shop:shop-api {"scope":"compile","version":"1.0.0"}
+  [F4] java-release "21"
+  [F5] packaging "jar"
+  [F6] parent "com.example.shop:shop-parent:1.0.0"
+  [F7] version "1.0.0"
+@ shop:core/src/main/java/com/example/shop/core
+module:com.example.shop:shop-core
+  [F3] CONTAINS package:com.example.shop:shop-core:com.example.shop.core
+'''
+summaries = '''
 [S1] package com.example.shop.core: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
 </items>
 ##### summarize module module:com.example.shop:shop-parent
 <items>
-<item id="I1">
-Unit: Maven module shop-parent
-Write 3 to 6 sentences of 10 to 30 words each.
-Its facts:
-<facts>
-[F1] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-api (shop:pom.xml)
-[F2] module:com.example.shop:shop-parent CONTAINS module:com.example.shop:shop-core (shop:pom.xml)
-[F3] module:com.example.shop:shop-parent java-release "21" (shop:pom.xml)
-[F4] module:com.example.shop:shop-parent packaging "pom" (shop:pom.xml)
-[F5] module:com.example.shop:shop-parent version "1.0.0" (shop:pom.xml)
-</facts>
-Of the units it contains, technology:
-<facts>
-[F6] module:com.example.shop:shop-api java-release "21" (shop:api/pom.xml)
-[F7] module:com.example.shop:shop-core java-release "21" (shop:core/pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "Maven module shop-parent"
+ask = "Write 3 to 6 sentences of 10 to 30 words each."
+facts = '''
+@ shop:pom.xml
+module:com.example.shop:shop-parent
+  [F1] CONTAINS module:com.example.shop:shop-api
+  [F2] CONTAINS module:com.example.shop:shop-core
+  [F3] java-release "21"
+  [F4] packaging "pom"
+  [F5] version "1.0.0"
+'''
+summaries = '''
 [S1] Maven module shop-api: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
 [S2] Maven module shop-core: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+[[item.I1.contained]]
+about = "Of the units it contains, technology"
+facts = '''
+@ shop:api/pom.xml
+module:com.example.shop:shop-api
+  [F6] java-release "21"
+@ shop:core/pom.xml
+module:com.example.shop:shop-core
+  [F7] java-release "21"
+'''
 </items>
 ##### summarize repo repo:shop
 <items>
-<item id="I1">
-Unit: repository shop
-Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary.
-Of the units it contains, technology:
-<facts>
-[F1] module:com.example.shop:shop-api java-release "21" (shop:api/pom.xml)
-[F2] module:com.example.shop:shop-core java-release "21" (shop:core/pom.xml)
-[F3] module:com.example.shop:shop-parent java-release "21" (shop:pom.xml)
-</facts>
-Summaries of the units it contains:
-<summaries>
+[item.I1]
+unit = "repository shop"
+ask = "Write 1 to 3 sentences of 10 to 30 words each. It contains only one unit [S1]: say what it adds to that unit, such as its dependencies, and do not restate that unit's summary."
+summaries = '''
 [S1] Maven module shop-parent: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.
-</summaries>
-</item>
+'''
+[[item.I1.contained]]
+about = "Of the units it contains, technology"
+facts = '''
+@ shop:api/pom.xml
+module:com.example.shop:shop-api
+  [F1] java-release "21"
+@ shop:core/pom.xml
+module:com.example.shop:shop-core
+  [F2] java-release "21"
+@ shop:pom.xml
+module:com.example.shop:shop-parent
+  [F3] java-release "21"
+'''
 </items>

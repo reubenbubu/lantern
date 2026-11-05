@@ -49,10 +49,11 @@ public final class LeanFacts {
       Pattern.compile("(?<![\\w.$])((?:[a-z_][\\w]*\\.)+)([A-Z][\\w$]*)");
 
   /** The entity kinds whose prefix the lean form leaves out. */
-  private static final List<String> KINDS = List.of("type:", "method:", "field:");
+  private static final List<String> KINDS =
+      List.of(Types.TYPE + ":", Types.METHOD + ":", Types.FIELD + ":");
 
   /** The entity kinds that are members of a type, listed under it even without facts of theirs. */
-  private static final List<String> MEMBERS = List.of("method:", "field:");
+  private static final List<String> MEMBERS = List.of(Types.METHOD + ":", Types.FIELD + ":");
 
   private LeanFacts() {}
 

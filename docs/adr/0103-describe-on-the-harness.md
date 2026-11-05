@@ -96,11 +96,11 @@ owner's standing go-ahead for milestone 1F.
 - **The fake model** (`fake-llm`) answers Describe in the epic's form: a placeholder
   responsibility for every unit, component and element and a placeholder intent for every
   interaction, each citing the item's first fact, and `{"omitted": true}` for an item with none.
-- **The judge's tier (amends ADR 0101).** With the epic's defaults, element texts are written on the
-  high-volume tier, the judge's own. The judge still checks them; whether that sample stays is for
-  the judge's rules (#668).
+- **The judge's tier (amends ADR 0101).** With the epic's defaults, element texts were written on
+  the high-volume tier, then the judge's own. Since #751 each role's texts are judged on the model
+  of the role that wrote them (ADR 0101, amendment for #751).
 - **What is retired.** The unit and element prompts of `WordingPrompt`, their versions and checks;
-  flows and the system's purpose keep theirs until #272 and #274.
+  flows and the system's purpose kept theirs until 1F rebuilt them (#272, #274).
 
 ## Consequences
 

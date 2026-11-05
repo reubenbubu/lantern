@@ -76,7 +76,8 @@ grouping. 50 elements and 2 lines per element are rejected as a cap. Views are t
 meaning, at a level chosen among groupings the code proves, with size only a warning and
 readability measured after layout (#764, with #366).
 
-- Until #764 lands, the two values stay where they are, as the quality check "Readable" and the
+- Until #764 lands, the two values stay where they are, as the quality check "Size: at most 50
+  elements and 2 lines per element" (ADR 0123) and the
   scorer's diagram-size check: a warning on the report, never a reason to drop or hide content.
   The fold, domain and feature-area steps above keep running as they do, since #764 replaces them.
 - No new work uses `C4Views.MAX_ELEMENTS` or `MAX_LINES_PER_ELEMENT` to decide how a view is
@@ -88,5 +89,23 @@ The research for #764 (`docs/research/grouping-level-by-meaning.md`, high depth)
 that replaces the fixed thresholds: derivation proposes only levels the code proves, one stored
 judgement picks a level per view in a fixed order of criteria, box count is a soft target with a
 warning, and the after-layout measures of #366 have the final word (`docs/design.md`, Readable
-diagrams). The fold, domain and feature-area steps above stay until the view code of #764 lands,
-which waits for the owner to approve the rule and the soft targets on #764.
+diagrams). The fold, domain and feature-area steps above stay until the view code of #764 lands.
+The owner approved the rule and the soft targets on 4 Nov 2026 (#764); the soft limit's value is
+measured by #836 (amendment for #836).
+
+## Amendment (#836): one setting holds the limits, and its value is measured
+
+On 4 Nov 2026 the owner decided that fit is not decided per view during the run (#764's question
+(f), superseded). Instead the element limit is found by measuring the report template's own layout
+on many synthetic views shaped like Lantern's, and it is soft and configurable: a view a little over
+the target is fine, and above target plus tolerance what can be merged is merged.
+
+- `C4Views.MAX_ELEMENTS` and `MAX_LINES_PER_ELEMENT` are gone. `DiagramLimits` holds the element
+  target, its tolerance and the most lines per element, with the scale and crossings of ADR 0123;
+  the app binds it from `lantern.diagrams`, each value left unset keeping `DiagramLimits.DEFAULT`.
+  The composer folds and splits by it, and its quality report's size check is worded from it.
+- Until the owner approves the measured value on #836, the defaults keep the old behaviour: a
+  target of 50, no tolerance, 2 lines per element. Changing them is a configuration change; #764
+  merges by the limit once approved.
+- The measurement and the recommended value are in `docs/research/diagram-element-limit.md`;
+  `lantern-web/scripts/diagram-limit.mjs` reruns it with one command and gives the same numbers.

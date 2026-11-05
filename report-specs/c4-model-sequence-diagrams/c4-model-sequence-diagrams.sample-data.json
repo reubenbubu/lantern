@@ -1,6 +1,7 @@
 {
   "$schema": "./architecture-data.schema.json",
   "document": {
+    "readable": { "target": 50, "tolerance": 0, "linesPerElement": 2, "scale": 0.8, "crossings": 5 },
     "id": "ARC-0042",
     "title": "Meridian Commerce Platform",
     "subtitle": "Solution architecture for the Meridian online store and its fulfilment operation — documented with the C4 model from system context down to components, plus dynamic views of the most important runtime flows.",

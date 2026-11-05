@@ -1,5 +1,6 @@
 package io.lantern.app;
 
+import io.lantern.compose.DiagramLimits;
 import io.lantern.compose.SectionKind;
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
@@ -87,9 +88,15 @@ public final class C4ReportRenderer {
       JsonMapper.builder().enable(SerializationFeature.INDENT_OUTPUT).build();
 
   private final ReportSpecTemplate template;
+  private final DiagramLimits limits;
 
   C4ReportRenderer(ReportSpecTemplate template) {
+    this(template, DiagramLimits.DEFAULT);
+  }
+
+  C4ReportRenderer(ReportSpecTemplate template, DiagramLimits limits) {
     this.template = Objects.requireNonNull(template, "template");
+    this.limits = Objects.requireNonNull(limits, "limits");
   }
 
   /**
@@ -98,16 +105,49 @@ public final class C4ReportRenderer {
    * @throws IllegalStateException if the template is not on the class path
    */
   public static C4ReportRenderer fromClassPath() {
-    return new C4ReportRenderer(ReportSpecTemplate.fromClassPath(SPEC, DATA_ID));
+    return fromClassPath(DiagramLimits.DEFAULT);
   }
 
   /**
-   * The document as the report spec's HTML file.
+   * A renderer with the template from the class path that writes the diagram limits into each
+   * report, which the template and the scorer judge its views by (#836).
+   *
+   * @throws IllegalStateException if the template is not on the class path
+   */
+  public static C4ReportRenderer fromClassPath(DiagramLimits limits) {
+    return new C4ReportRenderer(ReportSpecTemplate.fromClassPath(SPEC, DATA_ID), limits);
+  }
+
+  /** The diagram limits the reports it renders were composed with (#836). */
+  public DiagramLimits limits() {
+    return limits;
+  }
+
+  /**
+   * The document as the report spec's HTML file, with the diagram limits it was composed with as
+   * its document's {@code readable} (#836).
    *
    * @throws IllegalArgumentException if two Lantern IDs would become the same report spec ID
    */
   public String render(Document document) {
-    return template.render(MAPPER.writeValueAsString(toJson(document).data()));
+    return template.render(MAPPER.writeValueAsString(data(document)));
+  }
+
+  /**
+   * The report spec's data for a document as {@link #render} writes it: {@link #toJson}'s, with the
+   * diagram limits as its document's {@code readable} (#836).
+   *
+   * @throws IllegalArgumentException if two Lantern IDs would become the same report spec ID
+   */
+  public ObjectNode data(Document document) {
+    ObjectNode data = toJson(document).data();
+    ObjectNode readable = data.withObject("document").putObject("readable");
+    readable.put("target", limits.target());
+    readable.put("tolerance", limits.tolerance());
+    readable.put("linesPerElement", limits.linesPerElement());
+    readable.put("scale", limits.scale());
+    readable.put("crossings", limits.crossings());
+    return data;
   }
 
   /**

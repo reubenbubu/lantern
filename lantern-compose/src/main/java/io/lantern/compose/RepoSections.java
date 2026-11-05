@@ -86,7 +86,8 @@ final class RepoSections {
       String repo,
       SortedSet<String> snapshotRepos,
       String systemName,
-      LocalDate asOf) {
+      LocalDate asOf,
+      DiagramLimits limits) {
     this.model = model;
     this.asOf = asOf;
     this.repo = repo;
@@ -114,7 +115,7 @@ final class RepoSections {
         new Assembler(
             model, inScope, repo, systemName == null ? systemName(snapshotRepos) : systemName);
     inScope.forEach(assembler::entity);
-    this.c4 = new C4Views(model, assembler, SYSTEM, units, repos);
+    this.c4 = new C4Views(model, assembler, SYSTEM, units, repos, limits);
   }
 
   /** The system's name: its repositories, or how many there are. */

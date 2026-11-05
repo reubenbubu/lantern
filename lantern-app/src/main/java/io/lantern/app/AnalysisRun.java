@@ -677,7 +677,10 @@ public final class AnalysisRun {
                           snapshot.commits().keySet(),
                           readmeHeadings(snapshot, registered)));
       List<Rendered> documents = new ArrayList<>();
-      Composer composer = new Composer(toolVersion);
+      // Composed with the diagram limits the report is rendered with, so the template and the
+      // scorer judge its views by the same ones (#836).
+      Composer composer =
+          new Composer(toolVersion, io.lantern.derive.Vocabularies.standard(), c4Renderer.limits());
       Path out = documentsDirectory.resolve(system).resolve(Long.toString(snapshot.number()));
       for (String name : registered.keySet()) {
         for (ViewDefinition view : views(name)) {

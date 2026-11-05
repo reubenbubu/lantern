@@ -236,8 +236,7 @@ final class WordingPrompt {
     } else {
       line.append(object.value());
     }
-    ObjectNode attributes = fact.attributes().deepCopy();
-    io.lantern.summarize.PromptAttributes.ID_ATTRIBUTES.forEach(attributes::remove);
+    ObjectNode attributes = io.lantern.harness.render.FactLines.shown(fact.attributes());
     if (!attributes.isEmpty()) {
       line.append(' ').append(attributes);
     }

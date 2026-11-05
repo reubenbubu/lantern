@@ -24,6 +24,7 @@ import {
   supportLine,
   subjectWords,
   qualityChecks,
+  diagramLimits,
 } from '../scripts/score.mjs';
 
 const testsets = fileURLToPath(new URL('../../testsets/', import.meta.url));
@@ -85,7 +86,12 @@ const reference = {
 
 /** A report of the same system plus an unrelated one, as reports were before one system per run. */
 const report = {
-  document: { title: 'System', updated: '2026-10-29', subtitle: 'Pinned to `1234567`.' },
+  document: {
+    title: 'System',
+    updated: '2026-10-29',
+    subtitle: 'Pinned to `1234567`.',
+    readable: { target: 50, tolerance: 0, linesPerElement: 2, scale: 0.8, crossings: 5 },
+  },
   elements: {
     s: { kind: 'system', name: 'System' },
     g: { kind: 'container', name: 'API-Gateway', parent: 's', technology: 'Boot', description: 'Routes.' },
@@ -594,4 +600,30 @@ test("the scorecard shows the support judge's verdicts, retries and fallbacks pe
   );
   assert.equal(supportLine({}), null);
   assert.equal(supportLine(undefined), null);
+});
+
+test("the scorer judges a diagram's size by the report's own limits, and not without them (#836)", () => {
+  const sized = (readable) => {
+    const data = structuredClone(report);
+    if (readable) data.document.readable = { ...report.document.readable, ...readable };
+    else delete data.document.readable;
+    return Object.fromEntries(qualityChecks(data).map((c) => [c.id, c]))['diagram-size'];
+  };
+  assert.equal(sized({}).pass, true);
+  // A target of 2 with a tolerance of 1: the report's views of 4 or more elements fail.
+  const tight = sized({ target: 2, tolerance: 1 });
+  assert.equal(tight.pass, false);
+  assert.match(tight.description, /at most 3 elements and 2 lines per element/);
+  assert.ok(tight.failures.length > 0);
+  // Without limits the size is not judged at all.
+  assert.equal(sized(null), undefined);
+  assert.equal(diagramLimits({ document: {} }), null);
+});
+
+test("a reference, which carries no limits, is judged by those of the report scored against it (#836)", () => {
+  const tight = structuredClone(report);
+  tight.document.readable = { ...report.document.readable, target: 2, tolerance: 0 };
+  assert.equal(reference.document.readable, undefined);
+  assert.ok(score(tight, reference, aliases).referenceChecks.includes('diagram-size'));
+  assert.ok(!score(report, reference, aliases).referenceChecks.includes('diagram-size'));
 });
