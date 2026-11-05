@@ -545,8 +545,11 @@ const asDecisions = (items) =>
 /**
  * The quality-bar checks that can be read from the data alone (docs/design.md, Quality bar). The
  * ones marked (review) there need a reader or the judge (#277) and are not here.
+ *
+ * @param limits the diagram limits to judge sizes by; the data's own by default. A reference,
+ *     which carries none, is judged by those of the report scored against it (#836).
  */
-export function qualityChecks(data) {
+export function qualityChecks(data, limits = diagramLimits(data)) {
   const failures = {
     'diagram-size': [],
     'element-descriptions': [],
@@ -557,7 +560,6 @@ export function qualityChecks(data) {
   };
   const shown = new Set();
   const seen = new Map();
-  const limits = diagramLimits(data);
   for (const { page, section } of diagrams(data)) {
     const where = `${page.title} / ${section.title ?? section.id}`;
     const ids = diagramElements(section);
@@ -815,7 +817,7 @@ export function score(original, reference, aliases = {}, inputs = {}) {
     .filter(([id, e]) => !scope.has(id) && e.kind !== 'system' && e.kind !== 'component')
     .map(([, e]) => e.name);
   result.checks = qualityChecks(report);
-  result.referenceChecks = qualityChecks(reference)
+  result.referenceChecks = qualityChecks(reference, diagramLimits(report))
     .filter((c) => !c.pass)
     .map((c) => c.id);
   result.selfReportedGaps = selfReportedGaps(report);

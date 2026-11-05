@@ -619,3 +619,11 @@ test("the scorer judges a diagram's size by the report's own limits, and not wit
   assert.equal(sized(null), undefined);
   assert.equal(diagramLimits({ document: {} }), null);
 });
+
+test("a reference, which carries no limits, is judged by those of the report scored against it (#836)", () => {
+  const tight = structuredClone(report);
+  tight.document.readable = { ...report.document.readable, target: 2, tolerance: 0 };
+  assert.equal(reference.document.readable, undefined);
+  assert.ok(score(tight, reference, aliases).referenceChecks.includes('diagram-size'));
+  assert.ok(!score(report, reference, aliases).referenceChecks.includes('diagram-size'));
+});
