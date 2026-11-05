@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
 class SummarizerTest {
 
   private static final Pattern REF =
-      Pattern.compile("^\\[([FES]\\d+)\\]|^ref = \"(E\\d+)\"", Pattern.MULTILINE);
+      Pattern.compile("^[ \\t]*\\[([FES]\\d+)\\]|^ref = \"(E\\d+)\"", Pattern.MULTILINE);
   private static final Pattern UNIT = Pattern.compile("^summarize \\S+ (\\S+:\\S+)");
 
   private final FakeLlmProvider fake =
@@ -1670,8 +1670,8 @@ class SummarizerTest {
     String prompt = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
-            "\nfacts = \'\'\'\n[F1] readme:shop:README.md claim \"Shop sells books to"
-                + " readers.\" (shop:README.md)\n");
+            "\nfacts = \'\'\'\n@ shop:README.md\nreadme:shop:README.md\n"
+                + "  [F1] claim \"Shop sells books to readers.\"\n");
     // A summary that cites nothing people wrote is inferred.
     assertThat(result.summaries().get(EntityId.parse("module:com.example:shop")))
         .extracting(Summary::purpose, Summary::confidence)
@@ -1974,7 +1974,8 @@ class SummarizerTest {
         .anyMatch(
             p ->
                 p.contains(
-                    "\nabout = \"Of the units it contains, entry points\"\nfacts = \'\'\'\n[F201] "));
+                        "\nabout = \"Of the units it contains, entry points\"\nfacts = \'\'\'\n@ ")
+                    && p.contains("[F201] "));
     for (String prompt : prompts) {
       assertThat(Tokens.estimate(Prompt.SYSTEM + prompt)).isLessThanOrEqualTo(4_000);
     }

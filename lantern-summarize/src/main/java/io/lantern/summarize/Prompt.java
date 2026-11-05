@@ -9,6 +9,7 @@ import io.lantern.harness.Toml;
 import io.lantern.harness.checks.CommonPrompt;
 import io.lantern.harness.render.Blocks;
 import io.lantern.harness.render.FactLines;
+import io.lantern.harness.render.LeanFacts;
 import io.lantern.llm.LlmRequest;
 import io.lantern.llm.Role;
 import java.util.ArrayList;
@@ -39,7 +40,7 @@ import java.util.regex.Pattern;
 final class Prompt {
 
   /** The prompt's version, part of every summary's cache key. */
-  static final String VERSION = "19";
+  static final String VERSION = "20";
 
   /**
    * The version answers are keyed by: {@link #VERSION}, with a digest of the prompt files when one
@@ -105,11 +106,17 @@ final class Prompt {
    * @param ref its reference, such as {@code F1}
    * @param text what the reference stands for: a fact's line, a summary, or a whole code block
    * @param heading the heading of the group of a fact sheet it is listed under, or {@code null}
+   * @param fact the fact it shows, which the prompt writes in the lean form ({@link LeanFacts}), or
+   *     {@code null} for a summary, a code block or a placeholder
    */
-  record Item(String ref, String text, String heading) {
+  record Item(String ref, String text, String heading, Fact fact) {
 
     Item(String ref, String text) {
-      this(ref, text, null);
+      this(ref, text, null, null);
+    }
+
+    Item(String ref, String text, String heading) {
+      this(ref, text, heading, null);
     }
 
     /** The item as the prompt writes it. */
@@ -141,7 +148,7 @@ final class Prompt {
   static List<Item> facts(List<Fact> facts) {
     List<Item> items = new ArrayList<>();
     for (int i = 0; i < facts.size(); i++) {
-      items.add(new Item("F" + (i + 1), fact(facts.get(i))));
+      items.add(new Item("F" + (i + 1), fact(facts.get(i)), null, facts.get(i)));
     }
     return items;
   }
@@ -155,7 +162,7 @@ final class Prompt {
     List<Item> items = new ArrayList<>();
     for (int i = 0; i < sheet.size(); i++) {
       FactSheet.Entry entry = sheet.get(i);
-      items.add(new Item("F" + (facts + i + 1), fact(entry.fact()), entry.heading()));
+      items.add(new Item("F" + (facts + i + 1), fact(entry.fact()), entry.heading(), entry.fact()));
     }
     return items;
   }
@@ -241,9 +248,20 @@ final class Prompt {
     text.append('[').append(table()).append("]\n");
     text.append("unit = ").append(Toml.string(describe(node.level(), node.entity()))).append('\n');
     text.append("ask = ").append(Toml.string(ask.toString())).append('\n');
-    lines(text, "facts", facts);
-    lines(text, "summaries", children);
-    sheet(text, sheet);
+    // One list of short names serves the unit's facts and its fact sheet (#873).
+    List<Fact> shown = new ArrayList<>();
+    facts.stream().map(Item::fact).filter(f -> f != null).forEach(shown::add);
+    sheet.stream().map(Item::fact).filter(f -> f != null).forEach(shown::add);
+    LeanFacts.Names names = new LeanFacts.Names(shown);
+    lines(text, "facts", facts, names);
+    lines(text, "summaries", children, names);
+    StringBuilder tables = new StringBuilder();
+    sheet(tables, sheet, names);
+    String legend = names.legend();
+    if (!legend.isEmpty()) {
+      text.append("names = ").append(Toml.string(legend)).append('\n');
+    }
+    text.append(tables);
     excerpts.forEach(item -> text.append(item.rendered()));
     return text.toString();
   }
@@ -317,33 +335,44 @@ final class Prompt {
   }
 
   /**
-   * The items as one multi-line string under the key, one per line; nothing when there are none.
+   * The items as one multi-line string under the key, one per line, facts in the lean form ({@link
+   * LeanFacts}); nothing when there are none.
    */
-  private static void lines(StringBuilder text, String key, List<Item> items) {
+  private static void lines(
+      StringBuilder text, String key, List<Item> items, LeanFacts.Names names) {
     if (items.isEmpty()) {
       return;
     }
     StringBuilder lines = new StringBuilder();
-    items.forEach(item -> lines.append(item.rendered()));
+    List<LeanFacts.Labeled> facts =
+        items.stream()
+            .filter(item -> item.fact() != null)
+            .map(item -> new LeanFacts.Labeled(item.ref(), item.fact()))
+            .toList();
+    if (!facts.isEmpty()) {
+      lines.append(LeanFacts.render(facts, names));
+    }
+    items.stream().filter(item -> item.fact() == null).forEach(i -> lines.append(i.rendered()));
     text.append(key).append(" = ").append(Toml.string(lines.toString())).append('\n');
   }
 
   /** The fact sheet, one table per group, under its heading. */
-  private static void sheet(StringBuilder text, List<Item> sheet) {
+  private static void sheet(StringBuilder text, List<Item> sheet, LeanFacts.Names names) {
     List<Item> group = new ArrayList<>();
     String heading = null;
     for (Item item : sheet) {
       if (!item.heading().equals(heading)) {
-        group(text, heading, group);
+        group(text, heading, group, names);
         group = new ArrayList<>();
         heading = item.heading();
       }
       group.add(item);
     }
-    group(text, heading, group);
+    group(text, heading, group, names);
   }
 
-  private static void group(StringBuilder text, String heading, List<Item> group) {
+  private static void group(
+      StringBuilder text, String heading, List<Item> group, LeanFacts.Names names) {
     if (group.isEmpty()) {
       return;
     }
@@ -351,7 +380,7 @@ final class Prompt {
     text.append("about = ")
         .append(Toml.string("Of the units it contains, " + lowerFirst(heading)))
         .append('\n');
-    lines(text, "facts", group);
+    lines(text, "facts", group, names);
   }
 
   /** A source file as a code table: its reference, repository, path, lines and numbered text. */

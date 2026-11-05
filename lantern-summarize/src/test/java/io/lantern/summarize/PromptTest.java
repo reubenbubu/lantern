@@ -21,10 +21,10 @@ class PromptTest {
    * changed: raise {@link Prompt#VERSION} so cached summaries made with the old prompt are not
    * reused, then update both values here.
    */
-  private static final String VERSION = "19";
+  private static final String VERSION = "20";
 
   private static final String FINGERPRINT =
-      "88d704349d6dc43158d12026eb6f3e7f8d7c93389100bc16f39e420c9606917c";
+      "e3b810852ae477824cbf3f44f2d557503a4d7ec1f6448cbcbf007c1e5988cd11";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -145,13 +145,15 @@ class PromptTest {
             unit = "type PriceService in package com.example.shop"
             ask = "Write 2 to 4 sentences of 10 to 30 words each."
             facts = '''
-            [F1] %s
-            [F2] %s
+            @ shop:pom.xml
+            PriceService
+              [F1] method price()
+              [F2] kind "interface"
             '''
-            """
-                .formatted(
-                    Prompt.fact(priceService.facts().get(0)),
-                    Prompt.fact(priceService.facts().get(1))));
+            names = '''
+            PriceService = com.example.shop.PriceService
+            '''
+            """);
   }
 
   @Test
@@ -196,10 +198,14 @@ class PromptTest {
             parts. This is part 2. Write 1 to 3 sentences of 10 to 30 words each on what this part \
             shows about it; the summaries of the parts are merged later."
             facts = '''
-            [F2] %s
+            @ shop:pom.xml
+            PriceService
+              [F2] kind "interface"
             '''
-            """
-                .formatted(Prompt.fact(priceService.facts().get(1))));
+            names = '''
+            PriceService = com.example.shop.PriceService
+            '''
+            """);
     assertThat(Prompt.merge(priceService, List.of("It is an interface. [F1]", "It prices. [F2]\n")))
         .isEqualTo(
             """
