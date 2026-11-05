@@ -1096,9 +1096,9 @@ class SummarizerTest {
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
         .contains(
-            "Left out 2 sentences from the answer to summarize type type:p.Line: sentences.2:"
-                + " Cites nothing; every sentence cites the references it rests on. | sentences.3:"
-                + " Cites nothing; every sentence cites the references it rests on.");
+            "Left out 2 sentences from the answer to summarize type type:p.Line: sentences.2"
+                + " (Schema): Cites nothing; every sentence cites the references it rests on. |"
+                + " sentences.3 (Schema): Cites nothing; every sentence cites the references it rests on.");
     // What is stored, and so reused, is the summary without them.
     assertThat(SummaryJson.read(store.find(summary.key()).orElseThrow().answer()).text())
         .isEqualTo(summary.text());
@@ -1134,8 +1134,8 @@ class SummarizerTest {
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
         .contains(
-            "Left out 1 sentences from the answer to summarize type type:p.OrderLine: sentences.2:"
-                + " Names JPA, LineRepository, which none of its citations show.");
+            "Left out 1 sentences from the answer to summarize type type:p.OrderLine: sentences.2"
+                + " (Names): Names JPA, LineRepository, which none of its citations show.");
   }
 
   @Test
@@ -1275,7 +1275,8 @@ class SummarizerTest {
     assertThat(fake.sent()).noneMatch(s -> s.request().purpose().endsWith("(retry)"));
     assertThat(log.list)
         .extracting(ILoggingEvent::getFormattedMessage)
-        .anyMatch(m -> m.contains("sentences.2: Cites fact:abc, which is not a reference."));
+        .anyMatch(
+            m -> m.contains("sentences.2 (References): Cites fact:abc, which is not a reference."));
   }
 
   /** Answers the first prompt for {@code Order$Line} with the given text, and others well. */
