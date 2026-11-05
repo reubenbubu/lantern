@@ -54,7 +54,57 @@ public final class Groups implements LinkRule.OverFacts {
   public static final String NAME = "groups";
 
   /** Raised whenever the groups it gives for the same facts change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "2";
+
+  /** The basis of a pocket of units that work closely together (#764). */
+  public static final String COUPLING = "coupling";
+
+  /** The file of the diagram defaults (setting {@code lantern.diagrams}), beside this class. */
+  public static final String DIAGRAM_DEFAULTS = "diagram-limits.properties";
+
+  /**
+   * The most units a pocket holds unless set otherwise: {@code lantern.diagrams.pocket-size} of
+   * {@value #DIAGRAM_DEFAULTS}.
+   */
+  public static final int POCKET_SIZE = Integer.parseInt(diagramDefault("pocket-size"));
+
+  /** The most units a pocket holds. */
+  private final int pocketSize;
+
+  /** The groups, with pockets of at most {@link #POCKET_SIZE} units. */
+  public Groups() {
+    this(POCKET_SIZE);
+  }
+
+  /**
+   * The groups.
+   *
+   * @param pocketSize the most units a pocket holds, at least 2
+   */
+  public Groups(int pocketSize) {
+    if (pocketSize < 2) {
+      throw new IllegalArgumentException("A pocket holds at least 2 units: " + pocketSize);
+    }
+    this.pocketSize = pocketSize;
+  }
+
+  /** A default of the diagram settings, from {@value #DIAGRAM_DEFAULTS}. */
+  public static String diagramDefault(String name) {
+    java.util.Properties defaults = new java.util.Properties();
+    try (java.io.InputStream in = Groups.class.getResourceAsStream(DIAGRAM_DEFAULTS)) {
+      if (in == null) {
+        throw new IllegalStateException(DIAGRAM_DEFAULTS + " is missing beside " + Groups.class);
+      }
+      defaults.load(in);
+    } catch (java.io.IOException e) {
+      throw new java.io.UncheckedIOException(e);
+    }
+    String value = defaults.getProperty("lantern.diagrams." + name);
+    if (value == null) {
+      throw new IllegalStateException(DIAGRAM_DEFAULTS + " has no lantern.diagrams." + name);
+    }
+    return value.strip();
+  }
 
   public static final String FEATURE_AREA = "feature-area";
   public static final String DOMAIN = "domain";
@@ -117,7 +167,11 @@ public final class Groups implements LinkRule.OverFacts {
 
   @Override
   public RuleInfo info() {
-    return new RuleInfo(NAME, VERSION, Origin.Kind.STATIC);
+    // A pocket size other than the default gives other groups, so it is part of the version.
+    return new RuleInfo(
+        NAME,
+        pocketSize == POCKET_SIZE ? VERSION : VERSION + "-pockets-" + pocketSize,
+        Origin.Kind.STATIC);
   }
 
   @Override
@@ -159,7 +213,7 @@ public final class Groups implements LinkRule.OverFacts {
     for (EntityId unit : units) {
       write(featureAreas(knowledge, unit), FEATURE_AREA, unit.toString(), validity, derived);
     }
-    write(domains(knowledge, units, units), DOMAIN, SYSTEM, validity, derived);
+    write(domains(knowledge, units, units, pocketSize), DOMAIN, SYSTEM, validity, derived);
     return Derivation.merged(derived);
   }
 
@@ -643,7 +697,7 @@ public final class Groups implements LinkRule.OverFacts {
   // Domains.
 
   static SortedMap<String, Forming> domains(
-      Knowledge knowledge, SortedSet<EntityId> units, Set<EntityId> system) {
+      Knowledge knowledge, SortedSet<EntityId> units, Set<EntityId> system, int pocketSize) {
     SortedMap<String, Forming> domains = new TreeMap<>();
     Set<EntityId> left = new TreeSet<>(Knowledge.BY_ID);
     left.addAll(units);
@@ -651,7 +705,113 @@ public final class Groups implements LinkRule.OverFacts {
     stage(domains, left, byRoute(knowledge, left));
     stage(domains, left, byRepository(knowledge, left));
     stage(domains, left, byMavenGroup(knowledge, left, system));
+    stage(domains, left, byCoupling(knowledge, left, pocketSize));
     return domains;
+  }
+
+  /**
+   * Signal 5 (#764; docs/research/grouping-services-into-pockets.md): pockets of the units the
+   * explicit signals left, by how closely they work together ({@link Pockets}): HTTP calls between
+   * them, messages from one to another through a topic, queue or exchange, and data stores they
+   * share. A unit that routes requests, a gateway, joins none, as every pocket would lean on it.
+   * Each pocket's signal is its central unit's name.
+   */
+  private static SortedMap<String, Forming> byCoupling(
+      Knowledge knowledge, Set<EntityId> units, int pocketSize) {
+    Set<EntityId> gateways = new HashSet<>();
+    List<Pockets.Edge> edges = new ArrayList<>();
+    Map<EntityId, List<Fact>> publishers = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, List<Fact>> consumers = new TreeMap<>(Knowledge.BY_ID);
+    Map<EntityId, List<Fact>> stores = new TreeMap<>(Knowledge.BY_ID);
+    for (EntityId unit : units) {
+      for (Fact fact : knowledge.relations(unit, Types.CALLS_HTTP)) {
+        if (attribute(fact, "route", null) != null) {
+          gateways.add(unit);
+        }
+        edges.add(
+            new Pockets.Edge(
+                unit, Knowledge.object(fact), Types.CALLS_HTTP, Pockets.CALL, List.of(fact)));
+      }
+      for (Fact fact : knowledge.relations(unit, Types.PUBLISHES)) {
+        publishers.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
+      }
+      for (Fact fact : knowledge.relations(unit, Types.CONSUMES)) {
+        consumers.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
+      }
+      for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
+        // The default view's datasources only, as for signal 1.
+        if (attribute(fact, "view", null) == null && attribute(fact, "profile", null) == null) {
+          stores.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
+        }
+      }
+      for (Fact fact : knowledge.relations(unit, Types.ACCESSES_DATA_OF)) {
+        edges.add(
+            new Pockets.Edge(
+                unit,
+                Knowledge.object(fact),
+                Types.ACCESSES_DATA_OF,
+                Pockets.SHARED_STORE,
+                List.of(fact)));
+      }
+    }
+    // A queue an exchange routes to delivers what is published to the exchange.
+    for (Fact route : knowledge.withPredicate(Types.ROUTES_TO)) {
+      if (Knowledge.isEntity(route) && publishers.containsKey(route.subject())) {
+        List<Fact> via = new ArrayList<>();
+        publishers.get(route.subject()).forEach(p -> via.add(p));
+        consumers
+            .getOrDefault(Knowledge.object(route), List.of())
+            .forEach(
+                c ->
+                    via.forEach(
+                        p ->
+                            edges.add(
+                                new Pockets.Edge(
+                                    p.subject(),
+                                    c.subject(),
+                                    Types.PUBLISHES,
+                                    Pockets.MESSAGE,
+                                    List.of(p, route, c)))));
+      }
+    }
+    publishers.forEach(
+        (destination, sent) ->
+            consumers
+                .getOrDefault(destination, List.of())
+                .forEach(
+                    c ->
+                        sent.forEach(
+                            p ->
+                                edges.add(
+                                    new Pockets.Edge(
+                                        p.subject(),
+                                        c.subject(),
+                                        Types.PUBLISHES,
+                                        Pockets.MESSAGE,
+                                        List.of(p, c))))));
+    stores.forEach(
+        (store, used) ->
+            used.forEach(
+                a ->
+                    used.forEach(
+                        b ->
+                            edges.add(
+                                new Pockets.Edge(
+                                    a.subject(),
+                                    b.subject(),
+                                    Types.USES_DATABASE,
+                                    Pockets.SHARED_STORE,
+                                    List.of(a, b))))));
+    List<EntityId> grouped = units.stream().filter(u -> !gateways.contains(u)).toList();
+    SortedMap<String, Forming> found = new TreeMap<>();
+    for (Pockets.Pocket pocket : Pockets.of(grouped, edges, pocketSize)) {
+      String key = pocket.central().key();
+      String signal = "pocket-" + key.substring(key.lastIndexOf(':') + 1);
+      Forming forming = new Forming(signal, COUPLING);
+      pocket.members().forEach((member, facts) -> forming.join(member, COUPLING, facts));
+      found.put(signal, forming);
+    }
+    return found;
   }
 
   /** Keeps a signal's groups of at least 2 units; their units are grouped. */

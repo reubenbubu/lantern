@@ -52,8 +52,17 @@ public final class Derivation {
 
   private Derivation() {}
 
-  /** The derive rules of this version of Lantern. */
+  /** The derive rules of this version of Lantern, with the default pocket size. */
   public static List<LinkRule> rules() {
+    return rules(Groups.POCKET_SIZE);
+  }
+
+  /**
+   * The derive rules of this version of Lantern.
+   *
+   * @param pocketSize the most units a pocket of units that work closely together holds (#764)
+   */
+  public static List<LinkRule> rules(int pocketSize) {
     List<LinkRule> rules =
         new java.util.ArrayList<>(
             List.of(
@@ -63,7 +72,7 @@ public final class Derivation {
                 new Flows(),
                 new ClaimChecks(),
                 new Findings(),
-                new Groups(),
+                new Groups(pocketSize),
                 new UnknownCallers()));
     rules.addAll(LeadRules.all());
     return List.copyOf(rules);

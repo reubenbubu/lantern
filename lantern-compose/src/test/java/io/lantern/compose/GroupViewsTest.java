@@ -112,6 +112,13 @@ class GroupViewsTest {
         .containsExactly("Containers of base and shop, by domain");
     // The domain's page, split by concern as its units do not fit either.
     assertThat(containers.sections()).extracting(Section::id).anyMatch(id -> id.contains("pair"));
+    // Each of its pages names the domain, so two domains' "requests" pages are told apart (#764).
+    assertThat(containers.sections())
+        .filteredOn(p -> p.id().contains("pair"))
+        .isNotEmpty()
+        .allSatisfy(p -> assertThat(p.title()).startsWith("pair (not named): "))
+        .allSatisfy(
+            p -> assertThat(block(p, Diagram.class).title()).contains(" in pair (not named): "));
   }
 
   @Test
@@ -239,13 +246,17 @@ class GroupViewsTest {
     assertThat(whole.title()).doesNotEndWith(", by domain");
     assertThat(whole.nodes()).anyMatch(n2 -> n2.id().toString().equals("topic:kafka:paid"));
 
-    // One element fewer: the domain stands for its two units, and the topic is not folded.
+    // One element fewer: the domain stands for its two units, with the topic only they use, its
+    // own detail, which its page draws; nothing is folded.
     Section byDomain = section(system(facts, limits(n - 1, 2)), "containers");
     Diagram overview = block(byDomain, Diagram.class);
     assertThat(overview.title()).endsWith(", by domain");
-    assertThat(C4Views.elements(overview)).isEqualTo(n - 1);
-    assertThat(overview.nodes()).anyMatch(n2 -> n2.id().toString().equals("topic:kafka:paid"));
+    assertThat(C4Views.elements(overview)).isLessThanOrEqualTo(n - 1);
+    assertThat(overview.nodes()).noneMatch(n2 -> n2.id().toString().equals("topic:kafka:paid"));
     assertThat(byDomain.blocks()).noneMatch(Callout.class::isInstance);
+    assertThat(diagrams(byDomain))
+        .anyMatch(
+            d -> d.nodes().stream().anyMatch(n2 -> n2.id().toString().equals("topic:kafka:paid")));
 
     // A smallest group of three: the pair stands for nothing, so the topic is folded instead.
     Section noDomain = section(system(facts, limits(n - 1, 3)), "containers");

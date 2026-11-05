@@ -287,6 +287,98 @@ class GroupsTest {
   }
 
   @Test
+  void unitsNoSignalGroupsFormPocketsByHowCloselyTheyWorkAndAGatewayJoinsNone() {
+    // #764: the fifth signal, after the four explicit ones.
+    EntityId orders = unitNamed("orders");
+    EntityId stock = unitNamed("stock");
+    EntityId mailer = unitNamed("mailer");
+    EntityId audit = unitNamed("audit");
+    EntityId gateway = unitNamed("gateway");
+    calls(orders, stock);
+    calls(stock, orders);
+    model.add(mailer, Types.PUBLISHES, EntityId.parse("topic:kafka:mails"));
+    model.add(audit, Types.CONSUMES, EntityId.parse("topic:kafka:mails"));
+    for (EntityId unit : List.of(orders, stock, mailer, audit)) {
+      ObjectNode route = FactJson.newObject();
+      route.put("protocol", "HTTP");
+      route.put("route", "r-" + unit.key());
+      model.add(gateway, Types.CALLS_HTTP, FactObject.entity(unit), route);
+    }
+
+    Map<String, Set<String>> domains = domains();
+
+    // Each named after its central unit; ties go to the first by ID.
+    assertThat(domains)
+        .containsOnlyKeys(domain("pocket-orders"), domain("pocket-audit"))
+        .containsEntry(domain("pocket-orders"), Set.of(orders.toString(), stock.toString()))
+        .containsEntry(domain("pocket-audit"), Set.of(mailer.toString(), audit.toString()));
+    Knowledge knowledge = new Knowledge(Derivation.withModel(model.facts, 1));
+    assertThat(Groups.of(knowledge, Groups.DOMAIN))
+        .allSatisfy(g -> assertThat(g.basis()).isEqualTo(Groups.COUPLING));
+  }
+
+  @Test
+  void thePocketSizeSettingCapsAPocketAndTheOrderOfTheFactsChangesNothing() {
+    EntityId a = unitNamed("a");
+    EntityId b = unitNamed("b");
+    EntityId c = unitNamed("c");
+    EntityId d = unitNamed("d");
+    EntityId e = unitNamed("e");
+    for (EntityId[] pair :
+        List.of(
+            new EntityId[] {a, b},
+            new EntityId[] {b, c},
+            new EntityId[] {c, a},
+            new EntityId[] {d, e})) {
+      calls(pair[0], pair[1]);
+      calls(pair[1], pair[0]);
+    }
+
+    assertThat(pockets(Groups.POCKET_SIZE, model.facts))
+        .containsExactlyInAnyOrder(
+            Set.of(a.toString(), b.toString(), c.toString()), Set.of(d.toString(), e.toString()));
+    // At most 2 a pocket: the triangle loses one unit, which stands alone.
+    assertThat(pockets(2, model.facts))
+        .hasSize(2)
+        .allSatisfy(p -> assertThat(p).hasSize(2))
+        .contains(Set.of(d.toString(), e.toString()));
+    List<Fact> reversed = new java.util.ArrayList<>(model.facts);
+    java.util.Collections.reverse(reversed);
+    assertThat(pockets(Groups.POCKET_SIZE, reversed))
+        .isEqualTo(pockets(Groups.POCKET_SIZE, model.facts));
+    assertThat(pockets(2, reversed)).isEqualTo(pockets(2, model.facts));
+  }
+
+  @Test
+  void aCallWeighsLessTheMoreUnitsCallTheSameOne() {
+    // Dedication (SArF): a call into a unit four units call weighs a quarter of one into a unit
+    // only one calls, so a unit everyone uses glues no pockets together; each kind of connection
+    // between two units counts once, however many there are.
+    EntityId a = EntityId.parse("service:io.acme:a");
+    EntityId b = EntityId.parse("service:io.acme:b");
+    EntityId notify = EntityId.parse("service:io.acme:notify");
+    List<EntityId> units = new java.util.ArrayList<>(List.of(a, b, notify));
+    List<Pockets.Edge> edges = new java.util.ArrayList<>();
+    edges.add(new Pockets.Edge(a, b, Types.CALLS_HTTP, Pockets.CALL, List.of()));
+    edges.add(new Pockets.Edge(a, b, Types.CALLS_HTTP, Pockets.CALL, List.of()));
+    for (String name : List.of("a", "p1", "p2", "p3")) {
+      EntityId caller = EntityId.parse("service:io.acme:" + name);
+      if (!units.contains(caller)) {
+        units.add(caller);
+      }
+      edges.add(new Pockets.Edge(caller, notify, Types.CALLS_HTTP, Pockets.CALL, List.of()));
+    }
+
+    Map<EntityId, Integer> index = new java.util.HashMap<>();
+    units.forEach(u -> index.put(u, index.size()));
+    double[][] w = Pockets.weights(index, edges);
+
+    assertThat(w[index.get(a)][index.get(b)]).isEqualTo(Pockets.CALL);
+    assertThat(w[index.get(a)][index.get(notify)]).isEqualTo(Pockets.CALL / 4);
+    assertThat(w[index.get(notify)][index.get(a)]).isEqualTo(Pockets.CALL / 4);
+  }
+
+  @Test
   void linesBetweenGroupsAreOnePerOrderedPairAndProtocol() {
     EntityId a = EntityId.parse("group:system/domain/db-a");
     EntityId b = EntityId.parse("group:system/domain/db-b");
@@ -362,6 +454,31 @@ class GroupsTest {
 
   private void link(EntityId from, String to) {
     model.add(from, Types.COMPONENT_LINK, EntityId.parse(to));
+  }
+
+  private EntityId unitNamed(String name) {
+    EntityId unit = EntityId.parse("service:io.acme:" + name);
+    model.add(unit, "deployable-unit", FactObject.string("spring-boot"));
+    return unit;
+  }
+
+  private void calls(EntityId from, EntityId to) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("protocol", "HTTP");
+    model.add(from, Types.CALLS_HTTP, FactObject.entity(to), attributes);
+  }
+
+  /** The members of each domain a Groups rule of this pocket size derives from the facts. */
+  private static List<Set<String>> pockets(int pocketSize, List<Fact> facts) {
+    List<Fact> all = new java.util.ArrayList<>(facts);
+    all.addAll(new Groups(pocketSize).derive(facts, 1));
+    List<Set<String>> result = new java.util.ArrayList<>();
+    for (Groups.Group group : Groups.of(new Knowledge(all), Groups.DOMAIN)) {
+      Set<String> members = new java.util.TreeSet<>();
+      group.members().forEach(m -> members.add(m.toString()));
+      result.add(members);
+    }
+    return result;
   }
 
   private void uses(EntityId unit, String database, String protocol) {

@@ -23,7 +23,8 @@ class DiagramPropertiesTest {
   @Test
   void theDefaultsAreThoseOfThePropertiesFileNoneInCode() throws Exception {
     Properties file = new Properties();
-    try (InputStream in = DiagramLimits.class.getResourceAsStream(DiagramLimits.DEFAULTS)) {
+    try (InputStream in =
+        DiagramLimits.class.getClassLoader().getResourceAsStream(DiagramLimits.DEFAULTS)) {
       file.load(in);
     }
     // The owner's values of 5 Nov 2026 (#836): 8 elements, 2 more tolerated.
@@ -38,7 +39,8 @@ class DiagramPropertiesTest {
                 Integer.parseInt(file.getProperty("lantern.diagrams.lines-per-element")),
                 Double.parseDouble(file.getProperty("lantern.diagrams.scale")),
                 Integer.parseInt(file.getProperty("lantern.diagrams.crossings")),
-                Integer.parseInt(file.getProperty("lantern.diagrams.smallest-group"))));
+                Integer.parseInt(file.getProperty("lantern.diagrams.smallest-group")),
+                Integer.parseInt(file.getProperty("lantern.diagrams.pocket-size"))));
   }
 
   @Test
@@ -54,6 +56,16 @@ class DiagramPropertiesTest {
         .isEqualTo(
             new DiagramLimits(
                 d.target(), d.tolerance(), d.linesPerElement(), d.scale(), d.crossings(), 3));
+    assertThat(bound(Map.of("lantern.diagrams.pocket-size", "6")))
+        .isEqualTo(
+            new DiagramLimits(
+                d.target(),
+                d.tolerance(),
+                d.linesPerElement(),
+                d.scale(),
+                d.crossings(),
+                d.smallestGroup(),
+                6));
   }
 
   @Test
@@ -67,5 +79,8 @@ class DiagramPropertiesTest {
     assertThatThrownBy(() -> bound(Map.of("lantern.diagrams.smallest-group", "1")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("smallest group");
+    assertThatThrownBy(() -> bound(Map.of("lantern.diagrams.pocket-size", "1")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("pocket size");
   }
 }

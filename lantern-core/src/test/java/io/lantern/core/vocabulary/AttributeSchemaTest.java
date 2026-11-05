@@ -206,4 +206,35 @@ class AttributeSchemaTest {
                         "{\"properties\": {\"m\": {\"type\": \"string\", \"enum\": [\"y\", \"x\"]}}}")))
         .isEmpty();
   }
+
+  @Test
+  void allowingMoreValuesIsAdditiveAllowingFewerIsNot() {
+    // #764: a new allowed value only widens what is accepted, so every stored fact stays valid.
+    AttributeSchema xy = enumOf("[\"x\", \"y\"]");
+    assertThat(xy.nonAdditiveChanges(enumOf("[\"x\", \"y\", \"z\"]"))).isEmpty();
+    assertThat(xy.nonAdditiveChanges(schema("{\"properties\": {\"m\": {\"type\": \"string\"}}}")))
+        .isEmpty();
+    assertThat(xy.nonAdditiveChanges(enumOf("[\"x\"]"))).containsExactly("changes attribute 'm'");
+    assertThat(xy.nonAdditiveChanges(enumOf("[\"x\", \"z\"]")))
+        .containsExactly("changes attribute 'm'");
+    assertThat(
+            schema("{\"properties\": {\"m\": {\"type\": \"string\"}}}")
+                .nonAdditiveChanges(enumOf("[\"x\"]")))
+        .containsExactly("changes attribute 'm'");
+    // The same inside an array's items.
+    AttributeSchema list =
+        schema(
+            "{\"properties\": {\"l\": {\"type\": \"array\", \"items\": {\"type\": \"string\","
+                + " \"enum\": [\"x\"]}}}}");
+    AttributeSchema wider =
+        schema(
+            "{\"properties\": {\"l\": {\"type\": \"array\", \"items\": {\"type\": \"string\","
+                + " \"enum\": [\"x\", \"y\"]}}}}");
+    assertThat(list.nonAdditiveChanges(wider)).isEmpty();
+    assertThat(wider.nonAdditiveChanges(list)).containsExactly("changes attribute 'l'");
+  }
+
+  private static AttributeSchema enumOf(String values) {
+    return schema("{\"properties\": {\"m\": {\"type\": \"string\", \"enum\": " + values + "}}}");
+  }
 }

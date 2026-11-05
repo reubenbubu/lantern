@@ -129,6 +129,24 @@ public record AttributeSchema(
               : other.items != null && items.sameConstraints(other.items));
     }
 
+    /**
+     * Whether this accepts every value the older one accepts (#764): the same type, allowed values
+     * that are a superset of the older ones (or none, accepting any), and items that accept at
+     * least as much. Descriptions are ignored.
+     */
+    public boolean acceptsAtLeast(Property older) {
+      if (type != older.type) {
+        return false;
+      }
+      if (!allowed.isEmpty()
+          && (older.allowed.isEmpty() || !Set.copyOf(allowed).containsAll(older.allowed))) {
+        return false;
+      }
+      return items == null
+          ? older.items == null
+          : older.items != null && items.acceptsAtLeast(older.items);
+    }
+
     void check(JsonNode value, String path, List<String> problems) {
       boolean matches =
           switch (type) {
@@ -279,8 +297,9 @@ public record AttributeSchema(
   /**
    * What would make replacing this schema with a newer one more than an additive change. Allowed:
    * declaring new optional attributes, dropping required ones, starting to allow undeclared
-   * attributes, and changing descriptions. Refused: removing or changing a declared attribute,
-   * making an attribute required, and starting to refuse undeclared attributes.
+   * attributes, allowing more values of an attribute (#764) and changing descriptions. Refused:
+   * removing a declared attribute or changing it so it accepts less or other values, making an
+   * attribute required, and starting to refuse undeclared attributes.
    *
    * <p>Declaring a new attribute on a schema that allows undeclared ones does constrain values it
    * used to accept, for example a new {@code integer} attribute refuses a string that was accepted
@@ -295,7 +314,7 @@ public record AttributeSchema(
       Property replacement = newer.properties.get(entry.getKey());
       if (replacement == null) {
         problems.add("removes attribute '" + entry.getKey() + "'");
-      } else if (!replacement.sameConstraints(entry.getValue())) {
+      } else if (!replacement.acceptsAtLeast(entry.getValue())) {
         problems.add("changes attribute '" + entry.getKey() + "'");
       }
     }

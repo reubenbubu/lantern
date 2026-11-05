@@ -1,5 +1,7 @@
 package io.lantern.compose;
 
+import io.lantern.derive.Groups;
+
 /**
  * How much a container or component diagram may hold and still read well: the one setting the
  * composer, its quality report, the report template and the scorer all read (#836, docs/design.md,
@@ -17,6 +19,8 @@ package io.lantern.compose;
  * @param crossings the most line crossings of a drawn view before it is called hard to read
  * @param smallestGroup the fewest members a domain or feature area needs in a view to be drawn as
  *     one box standing for them
+ * @param pocketSize the most units a pocket of units that work closely together holds, which the
+ *     derive step groups by (#764)
  */
 public record DiagramLimits(
     int target,
@@ -24,10 +28,11 @@ public record DiagramLimits(
     int linesPerElement,
     double scale,
     int crossings,
-    int smallestGroup) {
+    int smallestGroup,
+    int pocketSize) {
 
-  /** The file of the defaults, beside this class. */
-  public static final String DEFAULTS = "diagram-limits.properties";
+  /** The file of the defaults, in lantern-derive, which groups by the pocket size. */
+  public static final String DEFAULTS = "io/lantern/derive/" + Groups.DIAGRAM_DEFAULTS;
 
   /**
    * The limits Lantern uses unless set otherwise: those of {@value #DEFAULTS} (setting {@code
@@ -36,40 +41,39 @@ public record DiagramLimits(
   public static final DiagramLimits DEFAULT = load();
 
   private static DiagramLimits load() {
-    java.util.Properties defaults = new java.util.Properties();
-    try (java.io.InputStream in = DiagramLimits.class.getResourceAsStream(DEFAULTS)) {
-      if (in == null) {
-        throw new IllegalStateException(DEFAULTS + " is missing beside " + DiagramLimits.class);
-      }
-      defaults.load(in);
-    } catch (java.io.IOException e) {
-      throw new java.io.UncheckedIOException(e);
-    }
     return new DiagramLimits(
-        Integer.parseInt(value(defaults, "target")),
-        Integer.parseInt(value(defaults, "tolerance")),
-        Integer.parseInt(value(defaults, "lines-per-element")),
-        Double.parseDouble(value(defaults, "scale")),
-        Integer.parseInt(value(defaults, "crossings")),
-        Integer.parseInt(value(defaults, "smallest-group")));
+        Integer.parseInt(Groups.diagramDefault("target")),
+        Integer.parseInt(Groups.diagramDefault("tolerance")),
+        Integer.parseInt(Groups.diagramDefault("lines-per-element")),
+        Double.parseDouble(Groups.diagramDefault("scale")),
+        Integer.parseInt(Groups.diagramDefault("crossings")),
+        Integer.parseInt(Groups.diagramDefault("smallest-group")),
+        Groups.POCKET_SIZE);
   }
 
-  private static String value(java.util.Properties defaults, String name) {
-    String value = defaults.getProperty("lantern.diagrams." + name);
-    if (value == null) {
-      throw new IllegalStateException(DEFAULTS + " has no lantern.diagrams." + name);
-    }
-    return value.strip();
+  /** The limits with the default pocket size. */
+  public DiagramLimits(
+      int target,
+      int tolerance,
+      int linesPerElement,
+      double scale,
+      int crossings,
+      int smallestGroup) {
+    this(target, tolerance, linesPerElement, scale, crossings, smallestGroup, Groups.POCKET_SIZE);
   }
 
   public DiagramLimits {
     if (target < 1) {
       throw new IllegalArgumentException("The element target must be at least 1: " + target);
     }
-    if (tolerance < 0 || linesPerElement < 1 || crossings < 0 || smallestGroup < 2) {
+    if (tolerance < 0
+        || linesPerElement < 1
+        || crossings < 0
+        || smallestGroup < 2
+        || pocketSize < 2) {
       throw new IllegalArgumentException(
           "The tolerance and crossings must not be negative, the lines per element at least 1, and"
-              + " the smallest group at least 2");
+              + " the smallest group and the pocket size at least 2");
     }
     if (!(scale > 0 && scale <= 1)) {
       throw new IllegalArgumentException("The scale must be above 0 and at most 1: " + scale);

@@ -96,6 +96,14 @@ final class C4Views {
    */
   private boolean perPair;
 
+  /** The name of the domain whose page is being split, which each part's title names. */
+  private String splitIn;
+
+  /** A split page's title, naming the domain it is a part of when one is being split. */
+  private String splitTitle(String title) {
+    return splitIn == null ? title : splitIn + ": " + title.toLowerCase(Locale.ROOT);
+  }
+
   /** Each profile-only link that replaces a default one under its profile, with that default. */
   private final Map<Fact, Fact> alternatives;
 
@@ -662,20 +670,17 @@ final class C4Views {
     // one sender and one receiver into "via" labels.
     Map<EntityId, EntityId> domainOf = domainOf(shown);
     String id = assembler.id(section, "diagram");
-    String title =
-        domainOf.isEmpty()
-            ? "Containers of " + assembler.name(system)
-            : "Containers of " + assembler.name(system) + ", by domain";
-    java.util.function.Supplier<Diagram> view =
-        () -> containerDiagram(id, shown, title, null, true, domainOf);
-    Diagram coarsest = view.get();
+    String byDomain = "Containers of " + assembler.name(system) + ", by domain";
+    String title = domainOf.isEmpty() ? "Containers of " + assembler.name(system) : byDomain;
+    Map<EntityId, EntityId> lifted = inner(domainOf);
+    Diagram coarsest = containerDiagram(id, shown, title, null, true, lifted);
     SortedSet<EntityId> folded = new TreeSet<>(ArchitectureModel.BY_ID);
     if (!fits(coarsest)) {
       perPair = true;
-      coarsest = view.get();
+      coarsest = containerDiagram(id, shown, title, null, true, lifted);
       if (!fits(coarsest)) {
         drawing = foldTopics(folded);
-        coarsest = view.get();
+        coarsest = containerDiagram(id, shown, title, null, true, lifted);
       }
     }
     boolean fitted = fits(coarsest);
@@ -759,9 +764,12 @@ final class C4Views {
             subsections.add(subsection(id, name, domain, view));
             return;
           }
+          // Each page names the domain it is a part of (#764).
           List<Diagram> drawn = new ArrayList<>();
+          splitIn = name;
           split(id, units, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
           split(id, units, MESSAGING, List.of(), false, drawn, subsections);
+          splitIn = null;
         });
   }
 
@@ -789,7 +797,7 @@ final class C4Views {
     }
     if (fits(view)) {
       drawn.add(view);
-      subsections.add(subsection(id, concern.title, null, view));
+      subsections.add(subsection(id, splitTitle(concern.title), null, view));
       return;
     }
     if (!parts.isEmpty()) {
@@ -828,7 +836,8 @@ final class C4Views {
       }
       drawn.add(around);
       subsections.add(
-          subsection(unitId, concern.title + " around " + assembler.name(unit), unit, around));
+          subsection(
+              unitId, splitTitle(concern.title + " around " + assembler.name(unit)), unit, around));
     }
   }
 
@@ -1046,10 +1055,11 @@ final class C4Views {
   private Diagram containerDiagram(
       String id, SortedSet<EntityId> shown, String title, Concern concern, boolean everyContainer) {
     String scope = concern == null ? "" : ": " + concern.title.toLowerCase(Locale.ROOT);
+    String in = splitIn == null ? "" : " in " + splitIn;
     return containerDiagram(
         id,
         shown,
-        title + " of " + assembler.name(system) + scope,
+        title + " of " + assembler.name(system) + in + scope,
         concern,
         everyContainer,
         Map.of());
@@ -1201,6 +1211,44 @@ final class C4Views {
     }
     return result;
   }
+
+  /**
+   * The groups each unit is drawn as, with each data store, topic, queue or exchange that only the
+   * units of one group use drawn as that group too: a group's own detail, which its page shows
+   * (#764).
+   */
+  private Map<EntityId, EntityId> inner(Map<EntityId, EntityId> groupOf) {
+    if (groupOf.isEmpty()) {
+      return groupOf;
+    }
+    Map<EntityId, Set<EntityId>> users = new TreeMap<>(ArchitectureModel.BY_ID);
+    for (Line link : drawing) {
+      if (link.relationship().equals(Types.ROUTES_TO)) {
+        continue;
+      }
+      for (EntityId[] ends :
+          List.of(
+              new EntityId[] {link.from(), link.to()}, new EntityId[] {link.to(), link.from()})) {
+        if (STORES.contains(ends[0].type())) {
+          users
+              .computeIfAbsent(ends[0], e -> new HashSet<>())
+              .add(groupOf.getOrDefault(ends[1], ends[1]));
+        }
+      }
+    }
+    Map<EntityId, EntityId> result = new HashMap<>(groupOf);
+    users.forEach(
+        (store, by) -> {
+          if (by.size() == 1 && by.iterator().next().type().equals(Types.GROUP)) {
+            result.put(store, by.iterator().next());
+          }
+        });
+    return result;
+  }
+
+  /** What a group's own detail can be. */
+  private static final Set<String> STORES =
+      Set.of(Types.DATABASE, Types.TOPIC, Types.QUEUE, Types.EXCHANGE);
 
   /**
    * The decision records of the scope's repositories, oldest number first, each with its rationale

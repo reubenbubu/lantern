@@ -1377,7 +1377,9 @@ public final class AnalysisRun {
           // A rule whose input and version are those of its last run is not run again (ADR 0095).
           // The derive rules follow the link rules whose facts they read, as rules of the same
           // linker, so the architecture model is stored with the links (#523).
-          Linker linker = Linker.standard(facts, resolver, ruleRuns, Derivation.rules());
+          Linker linker =
+              Linker.standard(
+                  facts, resolver, ruleRuns, Derivation.rules(c4Renderer.limits().pocketSize()));
           // Each origin kind is recorded on its own, so a static analysis closes only the facts of
           // its kind; the docs extractor's facts are of kind readme (ADR 0033).
           Map<Origin.Kind, List<Fact>> byKind = new LinkedHashMap<>();
