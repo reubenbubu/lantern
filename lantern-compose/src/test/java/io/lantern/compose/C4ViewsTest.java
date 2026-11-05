@@ -1402,7 +1402,7 @@ class C4ViewsTest {
                 Derivation.withModel(many.list(), 1));
 
     // shop-app calls batch, so batch's view comes after shop-app's, as a service's would (worker's
-    // view repeats shop-app's and is left out). How batch is named is #762's follow-up.
+    // view repeats shop-app's and is left out). How batch is named is #864's.
     assertThat(section(document, "containers").sections())
         .extracting(Section::title)
         .filteredOn(t -> t.startsWith("Requests around"))
