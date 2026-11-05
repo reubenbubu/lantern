@@ -109,6 +109,9 @@ public final class JsonFaults {
       int end = trimmed.lastIndexOf("```");
       if (start > 0 && end > start) {
         trimmed = trimmed.substring(start + 1, end).strip();
+      } else if (start > 0) {
+        // A fence never closed: what follows its opening line, as {@link #first} reads it (#744).
+        trimmed = trimmed.substring(start + 1).strip();
       }
     }
     return trimmed;

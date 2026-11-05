@@ -30,6 +30,9 @@ class JsonFaultsTest {
         .startsWith("the object is not closed");
     assertThat(JsonFaults.of("```json\n{\"items\": {\"I1\": {}}}\n```", "I1")).isNull();
     assertThat(JsonFaults.of("{\"items\": {\"I1\": {\"a\": \"}\"}}}", "I1")).isNull();
+    // A fence that is never closed is read as the object it opens, and its fault named (#744).
+    assertThat(JsonFaults.of("```json\n{\"items\": {\"com.acme\": {}}}", "I1"))
+        .startsWith("it has no entry \"I1\"");
   }
 
   @Test
