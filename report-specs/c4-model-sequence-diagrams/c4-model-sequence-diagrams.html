@@ -715,6 +715,7 @@ body.sb-collapsed .mx{left:0}
 {
   "document": {
     "id": "ARC-0042",
+    "readable": { "target": 50, "tolerance": 0, "linesPerElement": 2, "scale": 0.8, "crossings": 5 },
     "title": "Meridian Commerce Platform",
     "subtitle": "Solution architecture for the Meridian online store and its fulfilment operation — documented with the C4 model from system context down to components, plus dynamic views of the most important runtime flows.",
     "version": "2.5.0",
@@ -5416,17 +5417,18 @@ function ruleOverlaySVG(spec, map, uid, src){
    A container or component diagram is readable when it fits the page at a scale its smallest
    labels stay legible at, and its lines cross at most READABLE.maxCrossings times. Both are
    measured on the drawn geometry, written into the document's section as `readability`, and a
-   diagram that fails says so under it. Thresholds: docs/design.md, Readable diagrams.
+   diagram that fails says so under it. The thresholds are the report's own, `document.readable`,
+   which Lantern writes from its one setting (#836, docs/design.md, Readable diagrams); a report
+   without them judges no view.
    ========================================================================== */
-const READABLE = {
+const READABLE = readableOf(DATA.document && DATA.document.readable);
+/** The thresholds of a report's `document.readable`, or null when it has none. */
+function readableOf(r){
+  if (!r || typeof r.scale !== 'number' || typeof r.crossings !== 'number') return null;
   // the maximized diagram (.mx) on a 1920 × 1080 screen: the width beside the sidebar, and the
   // height below its bar
-  canvas: [1632, 1024],
-  // the smallest scale at which a line label (11.5px) stays at least 9px tall
-  scale: 0.8,
-  // the most line crossings before a view warns (docs/design.md, Readable diagrams)
-  maxCrossings: 5,
-};
+  return {canvas: [1632, 1024], scale: r.scale, maxCrossings: r.crossings};
+}
 const MEASURED_LEVELS = new Set(['containers', 'components']);
 
 /** Whether two segments cross at a point inside both; touching or running along each other is no crossing. */
@@ -5454,12 +5456,12 @@ const isReadable = r => r.fits && r.crossings <= READABLE.maxCrossings;
 /** Measures a container or component diagram as drawn and writes the result into its section. */
 function measureDiagram(raw, spec, geoms){
   // the section is the drawn diagram's own: a cached layout may come from another page's twin
-  if (!MEASURED_LEVELS.has(raw._level) || !raw._section) return;
+  if (!READABLE || !MEASURED_LEVELS.has(raw._level) || !raw._section) return;
   raw._section.readability = readabilityOf(geoms.map(g => g.pts), spec.vb);
 }
 /** Why a measured diagram is not readable, or null when it is. */
 function readabilityWhy(r){
-  if (!r || isReadable(r)) return null;
+  if (!READABLE || !r || isReadable(r)) return null;
   const why = [];
   if (!r.fits) why.push(`it is ${r.width} × ${r.height} px, too large to read without zooming`);
   if (r.crossings > READABLE.maxCrossings) why.push(`its lines cross ${r.crossings} times (at most ${READABLE.maxCrossings})`);
@@ -5493,6 +5495,7 @@ function qualitySection(s, p){
 /** Lays out every container and component diagram and returns each one's readability, by key. */
 function measureAll(){
   const out = {};
+  if (!READABLE) return out;
   for (const [key, spec] of Object.entries(DIAGRAMS)){
     if (!MEASURED_LEVELS.has(spec._level)) continue;
     try { c4SVG(spec, key, key); out[key] = {...spec._section.readability, title: spec.title, sub: spec.sub, readable: isReadable(spec._section.readability)}; }

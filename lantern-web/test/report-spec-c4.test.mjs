@@ -141,17 +141,23 @@ test('the legend of a sequence has the async arrowhead when a message is async',
   assert.doesNotMatch(legendHTML(['container'], { seq: true }), /Async message/);
 });
 
-// The after-layout readability check (#366), loaded from the template source like mdInline.
-const readability = new Function(
-  `${template.match(/^const READABLE = \{[\s\S]*?^\};$/m)[0]}\n` +
-    `${template.match(/^function segmentsCross[\s\S]*?^\}/m)[0]}\n` +
-    `${template.match(/^function lineCrossings[\s\S]*?^\}/m)[0]}\n` +
-    `${template.match(/^function readabilityOf[\s\S]*?^\}/m)[0]}\n` +
-    `${template.match(/^const isReadable = .*$/m)[0]}\n` +
-    `${template.match(/^function readabilityWhy[\s\S]*?^\}/m)[0]}\n` +
-    `${template.match(/^function readabilityGaps[\s\S]*?^\}/m)[0]}\n` +
-    'return {READABLE, lineCrossings, readabilityOf, isReadable, readabilityGaps};',
-)();
+// The after-layout readability check (#366), loaded from the template source like mdInline, with
+// the report's own limits (#836).
+const loadReadability = (readable) =>
+  new Function(
+    'DATA',
+    `${template.match(/^const READABLE = .*$/m)[0]}\n` +
+      `${template.match(/^function readableOf[\s\S]*?^\}/m)[0]}\n` +
+      `${template.match(/^function segmentsCross[\s\S]*?^\}/m)[0]}\n` +
+      `${template.match(/^function lineCrossings[\s\S]*?^\}/m)[0]}\n` +
+      `${template.match(/^function readabilityOf[\s\S]*?^\}/m)[0]}\n` +
+      `${template.match(/^const isReadable = .*$/m)[0]}\n` +
+      `${template.match(/^function readabilityWhy[\s\S]*?^\}/m)[0]}\n` +
+      `${template.match(/^function readabilityGaps[\s\S]*?^\}/m)[0]}\n` +
+      'return {READABLE, lineCrossings, readabilityOf, isReadable, readabilityWhy, readabilityGaps};',
+  )({ document: { readable } });
+const sampleReadable = read(`${specDir}${spec}.sample-data.json`).document.readable;
+const readability = loadReadability(sampleReadable);
 
 test('lines that only touch or run side by side do not cross; lines through each other do', () => {
   const { lineCrossings } = readability;
@@ -212,7 +218,9 @@ function reports(pages) {
     ...new Function(
       'PAGES',
       'measured',
-      `${template.match(/^const READABLE = \{[\s\S]*?^\};$/m)[0]}\n` +
+      'DATA',
+      `${template.match(/^const READABLE = .*$/m)[0]}\n` +
+        `${template.match(/^function readableOf[\s\S]*?^\}/m)[0]}\n` +
         `${template.match(/^const isReadable = .*$/m)[0]}\n` +
         `${template.match(/^function readabilityWhy[\s\S]*?^\}/m)[0]}\n` +
         `${template.match(/^function readabilityGaps[\s\S]*?^\}/m)[0]}\n` +
@@ -222,7 +230,7 @@ function reports(pages) {
         'const renderSection = (s) => s.title + ":" + JSON.stringify(s.items);\n' +
         'function measureAll(){ measured.push(true); }\n' +
         'return {qualitySection, afterLayoutReport};',
-    )(pages, measured),
+    )(pages, measured, { document: { readable: sampleReadable } }),
   };
 }
 
@@ -245,4 +253,23 @@ test('the report that says every check passed measures every view first and list
   assert.equal(qualitySection(passed, first), 'list:["**Readable after layout** ([Containers](#/containers/dense)): its lines cross 50 times (at most 5)."]');
   assert.equal(measured.length, 1);
   assert.equal(reports([first]).qualitySection(passed, first), 'callout:Every check passed.');
+});
+
+test("the template judges a view by the report's own limits, and none without them (#836)", () => {
+  // One view: 1000 px wide on the 1632 px page, its lines crossing 8 times.
+  const grid = [];
+  for (let i = 0; i < 2; i++) grid.push([[0, 50 + i * 100], [700, 50 + i * 100]]);
+  for (let i = 0; i < 4; i++) grid.push([[50 + i * 100, 0], [50 + i * 100, 700]]);
+  const view = [0, 0, 1632 / 0.7, 600];
+  const strict = loadReadability({ ...sampleReadable, scale: 0.8, crossings: 5 });
+  const loose = loadReadability({ ...sampleReadable, scale: 0.6, crossings: 10 });
+  assert.equal(strict.readabilityOf(grid, view).crossings, 8);
+  assert.match(strict.readabilityWhy(strict.readabilityOf(grid, view)), /too large.*cross 8 times \(at most 5\)/);
+  assert.equal(loose.readabilityWhy(loose.readabilityOf(grid, view)), null);
+  // A report without limits: no view is judged, so its quality report lists no gap.
+  const none = loadReadability(undefined);
+  assert.equal(none.READABLE, null);
+  const page = { id: 'p', title: 'P', sections: [{ type: 'diagram', id: 'd', readability: { crossings: 99, fits: false, width: 9000, height: 900 } }] };
+  assert.deepEqual(none.readabilityGaps(page), []);
+  assert.equal(strict.readabilityGaps(page).length, 1);
 });

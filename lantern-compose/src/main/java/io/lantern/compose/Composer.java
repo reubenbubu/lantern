@@ -37,6 +37,7 @@ public final class Composer {
 
   private final String toolVersion;
   private final Vocabulary vocabulary;
+  private final DiagramLimits limits;
 
   /**
    * A composer that draws each type as this version of Lantern's vocabulary says, the one every
@@ -54,6 +55,17 @@ public final class Composer {
    *     0114)
    */
   public Composer(String toolVersion, Vocabulary vocabulary) {
+    this(toolVersion, vocabulary, DiagramLimits.DEFAULT);
+  }
+
+  /**
+   * @param toolVersion the Lantern version, recorded in each document's source
+   * @param vocabulary the vocabulary that says what each type is a kind of and how it is drawn (ADR
+   *     0114)
+   * @param limits how much a container or component diagram may hold (#836)
+   */
+  public Composer(String toolVersion, Vocabulary vocabulary, DiagramLimits limits) {
+    this.limits = Objects.requireNonNull(limits, "limits");
     this.vocabulary = Objects.requireNonNull(vocabulary, "vocabulary");
     this.toolVersion = Objects.requireNonNull(toolVersion, "toolVersion");
     if (toolVersion.isBlank()) {
@@ -104,7 +116,8 @@ public final class Composer {
             repo,
             new TreeSet<>(snapshot.commits().keySet()),
             systemName,
-            LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC));
+            LocalDate.ofInstant(snapshot.createdAt(), ZoneOffset.UTC),
+            limits);
     List<Section> sections = new ArrayList<>();
     int glossary = -1;
     for (SectionKind kind : view.sections()) {
@@ -167,7 +180,7 @@ public final class Composer {
       id = QUALITY + "-" + n;
     }
     List<QualityReport.Failure> failures =
-        new ArrayList<>(QualityBar.failures(document, vocabulary));
+        new ArrayList<>(QualityBar.failures(document, vocabulary, limits));
     failures.addAll(claims);
     QualityReport report = new QualityReport(id + ".report", null, failures, List.of());
     return new Section(id, "Quality report", Set.of(), null, List.of(), List.of(report), List.of());
