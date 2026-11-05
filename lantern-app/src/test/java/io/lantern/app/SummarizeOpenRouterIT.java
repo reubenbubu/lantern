@@ -85,10 +85,11 @@ import tools.jackson.databind.node.ObjectNode;
  * the OpenRouter key, and {@code lantern.test.summarize-description} says what the run tests, such
  * as "Baseline: today's format against Haiku through OpenRouter", written at the top of its report,
  * README and logs and into its folder's name. {@code lantern.test.summarize-items} (default 10)
- * says how many classes, and {@code lantern.test.summarize-cap} (default 0.10) the most US dollars
- * it may spend: a call whose worst case would pass it is not made. {@code
- * lantern.test.llm-properties} names another settings file. Commands: the {@code lantern-commands}
- * skill.
+ * says how many classes, or {@code lantern.test.summarize-classes} names a file that lists them
+ * (such as {@code summarize/project-4-hard-classes.txt} in the test resources), and {@code
+ * lantern.test.summarize-cap} (default 0.10) the most US dollars it may spend: a call whose worst
+ * case would pass it is not made. {@code lantern.test.llm-properties} names another settings file.
+ * Commands: the {@code lantern-commands} skill.
  */
 @EnabledIfSystemProperty(
     named = "lantern.test.summarize-run",
@@ -163,7 +164,9 @@ class SummarizeOpenRouterIT {
     SummaryTree.fromFacts(summarizable, AnalysisRun.modelTypes(linked))
         .forEach(root -> collectTypes(root, types));
     types.sort(Comparator.comparing(n -> n.entity().toString()));
-    List<SummaryNode> chosen = spread(types, items);
+    String classes = System.getProperty("lantern.test.summarize-classes");
+    List<SummaryNode> chosen =
+        classes == null ? spread(types, items) : listed(types, Path.of(classes));
 
     // The prompts of the checkout, as a run reads them, so an edit there needs no rebuild.
     if (System.getProperty(io.lantern.harness.Prompts.FOLDER_PROPERTY) == null) {
@@ -276,6 +279,25 @@ class SummarizeOpenRouterIT {
       return;
     }
     node.children().forEach(child -> collectTypes(child, types));
+  }
+
+  /**
+   * The classes a list file names, in its order: one class ID per line, such as {@code
+   * type:com.crm.auth.cache.UserPermissionRepository}; blank lines and text after {@code #} are
+   * left out.
+   */
+  static List<SummaryNode> listed(List<SummaryNode> types, Path file) throws IOException {
+    Map<String, SummaryNode> byId = new java.util.HashMap<>();
+    types.forEach(t -> byId.put(t.entity().toString(), t));
+    List<SummaryNode> chosen = new ArrayList<>();
+    for (String line : Files.readAllLines(file)) {
+      String id = line.replaceFirst("#.*", "").strip();
+      if (!id.isEmpty()) {
+        assertThat(byId).as("a class the list names").containsKey(id);
+        chosen.add(byId.get(id));
+      }
+    }
+    return chosen;
   }
 
   /** {@code n} of the nodes, evenly spaced over them; all of them when there are fewer. */

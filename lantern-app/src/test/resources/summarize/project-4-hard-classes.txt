@@ -1,0 +1,24 @@
+# Project-4 classes where the Summarize test showed problems (#873), for short runs of
+# SummarizeOpenRouterIT with -Dlantern.test.summarize-classes. One class ID per line.
+
+# The model named Redis while citing only a method's own line, and the Names check sent it back.
+type:com.crm.auth.cache.UserPermissionRepository
+# A sentence copied a short method signature, getRole(Long, Long), that the Names check did not find.
+type:com.crm.main.service.wrapper.RoleClientWrapper
+# A sentence said only that the class holds an unused log field.
+type:com.crm.auth.service.AuthorizationService
+
+# Classes that got one sentence fewer with the lean facts than with full fact lines.
+type:com.crm.main.service.consumer.OrganizationRootDirCreatedConsumer
+type:com.crm.main.controller.TaskController
+type:com.crm.gateway.config.RouteConfig
+type:com.crm.gateway.filters.AuthFilter
+type:com.crm.file.persistance.repository.FileMetadataRepository
+type:com.crm.main.persistance.repository.TaskRepository
+type:com.crm.auth.controller.internal.InternalAuthController
+type:com.crm.notification.notification_service.service.email.EmailService
+type:com.crm.sharedlib.rbac.aspectj.PermissionControlAspect
+type:com.crm.main.facade.OrganizationFacade
+type:com.crm.notification.notification_service.service.consumer.SendMessageConsumer
+type:com.crm.auth.facade.internal.InternalUserPermissionsFacade
+type:com.crm.gateway.composite.clients.TasksClient

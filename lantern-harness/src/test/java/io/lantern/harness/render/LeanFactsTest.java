@@ -90,10 +90,11 @@ class LeanFactsTest {
             AuthorizationService
               [F3] CONTAINS field log
               [F4] CONTAINS method authorize(AuthorizationRequest)
-                [F1] CALLS JwtPayload#getId()
-                [F2] CALLS String#trim()
               [F5] kind "class"
               [F6] stereotype "service" {"annotation":"Service"}
+            AuthorizationService#authorize(AuthorizationRequest)
+              [F1] CALLS JwtPayload#getId()
+              [F2] CALLS String#trim()
             @ Auth-Service:src/Other.java
             Other
               [F7] kind "interface"
@@ -103,8 +104,8 @@ class LeanFactsTest {
             """
             AuthorizationService = com.crm.auth.service.AuthorizationService
             AuthorizationRequest = com.crm.sharedlib.core.dto.request.AuthorizationRequest
-            JwtPayload = com.crm.sharedlib.rbac.dto.JwtPayload
             Service = org.springframework.stereotype.Service
+            JwtPayload = com.crm.sharedlib.rbac.dto.JwtPayload
             Other = com.crm.auth.Other
             """);
   }
@@ -119,10 +120,9 @@ class LeanFactsTest {
     String text = LeanFacts.render(labeled(facts), new LeanFacts.Names(facts));
 
     assertThat(text)
-        .contains(
-            "@ Auth-Service:x\npackage:a\n  [F8] CONTAINS package:b\n    [F9] CONTAINS package:a\n")
-        .contains(
-            "package:b\n  [F10] CONTAINS type AuthorizationService\n    [F3] CONTAINS field log\n");
+        .contains("@ Auth-Service:x\npackage:a\n  [F8] CONTAINS package:b\n")
+        .contains("package:b\n  [F9] CONTAINS package:a\n")
+        .contains("package:b\n  [F10] CONTAINS AuthorizationService\nAuthorizationService\n");
     Matcher refs = Pattern.compile("\\[(F\\d+)]").matcher(text);
     List<String> seen = new ArrayList<>();
     while (refs.find()) {
@@ -145,5 +145,20 @@ class LeanFactsTest {
         .contains("\na.b.Order\n")
         .contains("\nc.d.Order\n");
     assertThat(names.legend()).isEmpty();
+  }
+
+  @Test
+  void aLineWithShortNamesHoldsTheSignatureTheModelWasShown() {
+    String line =
+        "method:com.crm.main.RoleClientWrapper#getRole(java.lang.Long,java.lang.Long)"
+            + " CALLS method:com.crm.Client#get() (r:A.java)";
+
+    assertThat(LeanFacts.shortNames(line))
+        .isEqualTo(
+            "method:RoleClientWrapper#getRole(Long,Long) CALLS method:Client#get() (r:A.java)");
+    assertThat(
+            io.lantern.harness.verify.Grounding.unsupported(
+                "Fetches a role through getRole(Long, Long).", List.of(LeanFacts.shortNames(line))))
+        .isEmpty();
   }
 }

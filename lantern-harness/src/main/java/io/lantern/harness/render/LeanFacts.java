@@ -23,11 +23,12 @@ import java.util.regex.Pattern;
  *
  * <ul>
  *   <li>The facts of one file are listed under one {@code @ repo:path} heading.
- *   <li>The facts about one subject are listed under it, indented, without repeating it.
- *   <li>What a subject contains is listed under it, on the line of the {@code CONTAINS} fact, with
- *       its own facts indented under that: {@code [F8] CONTAINS method
- *       authorize(AuthorizationRequest)} for a member of a type, {@code [F2] CONTAINS
- *       module:g:orders} for any other part.
+ *   <li>The facts about one subject are listed under it, indented, without repeating it. The
+ *       subject's own line has no reference, so a sentence cites the fact that says what it states.
+ *   <li>A member a type contains is named on its {@code CONTAINS} fact's line by its kind and own
+ *       name, {@code [F8] CONTAINS method authorize(AuthorizationRequest)}; a part with facts of
+ *       its own is listed after its container, under its own line, {@code
+ *       AuthorizationService#authorize(AuthorizationRequest)}.
  *   <li>A class is written by its simple name, and a {@code names} list gives each one's full name
  *       once ({@link Names}); classes of {@code java.} and {@code javax.} packages are written by
  *       their simple names alone. Two classes of one simple name keep their full names.
@@ -150,7 +151,10 @@ public final class LeanFacts {
     return out.toString();
   }
 
-  /** The facts of one file, as a tree of subjects. */
+  /**
+   * The facts of one file, subject by subject: each subject's line, which has no reference, then
+   * its facts indented under it, then the subjects it contains, each the same way.
+   */
   private static final class File {
 
     private final Map<String, List<Labeled>> bySubject = new LinkedHashMap<>();
@@ -168,8 +172,9 @@ public final class LeanFacts {
             .add(labeled);
       }
       for (Labeled labeled : facts) {
-        if (nests(labeled.fact())) {
-          contained.add(labeled.fact().object().value());
+        String part = part(labeled.fact());
+        if (part != null) {
+          contained.add(part);
         }
       }
     }
@@ -177,67 +182,67 @@ public final class LeanFacts {
     void render() {
       for (String subject : bySubject.keySet()) {
         if (!contained.contains(subject)) {
-          subject(subject, 0, null, null);
+          subject(subject);
         }
       }
-      // Subjects contained only in a cycle, which no root reaches.
+      // Subjects contained only in a cycle, which no subject at the top reaches.
       for (String subject : bySubject.keySet()) {
-        if (!written.contains(subject)) {
-          subject(subject, 0, null, null);
-        }
+        subject(subject);
       }
-    }
-
-    /** Whether the fact's object is listed under its subject: a part contained in this file. */
-    private boolean nests(Fact fact) {
-      if (!Types.CONTAINS.equals(fact.predicate())
-          || fact.object().kind() != FactObject.Kind.ENTITY) {
-        return false;
-      }
-      String object = fact.object().value();
-      return !object.equals(fact.subject().toString())
-          && (bySubject.containsKey(object) || MEMBERS.stream().anyMatch(object::startsWith));
     }
 
     /**
-     * A subject's line, then its facts indented under it.
-     *
-     * @param label the reference of the {@code CONTAINS} fact it is listed by, or {@code null}
-     * @param parent what contains it, or {@code null} for a subject at the top
+     * The part a {@code CONTAINS} fact names when the part has facts of its own in this file, else
+     * {@code null}.
      */
-    private void subject(String subject, int depth, String label, String parent) {
-      written.add(subject);
-      String head;
-      if (parent == null) {
-        head = names.shorten(withoutKind(subject));
-      } else {
-        String kind = kind(subject);
-        // The line states the containment alone, so the facts under it are not taken as said by it
-        // (#873): "CONTAINS method price()".
-        head =
-            Types.CONTAINS
-                + " "
-                + (kind == null ? "" : kind + " ")
-                + names.shorten(member(parent, subject));
+    private String part(Fact fact) {
+      if (!Types.CONTAINS.equals(fact.predicate())
+          || fact.object().kind() != FactObject.Kind.ENTITY) {
+        return null;
       }
-      line(depth, label, head);
-      for (Labeled labeled : bySubject.getOrDefault(subject, List.of())) {
-        Fact fact = labeled.fact();
-        String object = fact.object().value();
-        if (nests(fact) && !written.contains(object)) {
-          subject(object, depth + 1, labeled.label(), subject);
-        } else {
-          line(depth + 1, labeled.label(), fact(fact));
-        }
-      }
+      String object = fact.object().value();
+      return !object.equals(fact.subject().toString()) && bySubject.containsKey(object)
+          ? object
+          : null;
     }
 
-    /** A fact's line under its subject: predicate, object and attributes. */
-    private String fact(Fact fact) {
-      String object =
-          fact.object().kind() == FactObject.Kind.ENTITY
-              ? names.shorten(withoutKind(fact.object().value()))
-              : FactLines.object(fact, UnaryOperator.identity());
+    /**
+     * A subject's line, its facts indented under it, then the subjects it contains. The subject's
+     * line has no reference, so a sentence cites the fact that states what it says, not the line
+     * the fact is listed under (#873).
+     */
+    private void subject(String subject) {
+      if (!written.add(subject)) {
+        return;
+      }
+      line(0, null, names.shorten(withoutKind(subject)));
+      List<String> parts = new ArrayList<>();
+      for (Labeled labeled : bySubject.get(subject)) {
+        Fact fact = labeled.fact();
+        line(1, labeled.label(), fact(subject, fact));
+        String part = part(fact);
+        if (part != null) {
+          parts.add(part);
+        }
+      }
+      parts.forEach(this::subject);
+    }
+
+    /**
+     * A fact's line under its subject: predicate, object and attributes. A member the subject
+     * contains is named by its kind and its own name: {@code CONTAINS method price()}.
+     */
+    private String fact(String subject, Fact fact) {
+      String object;
+      if (fact.object().kind() != FactObject.Kind.ENTITY) {
+        object = FactLines.object(fact, UnaryOperator.identity());
+      } else if (Types.CONTAINS.equals(fact.predicate())
+          && MEMBERS.stream().anyMatch(fact.object().value()::startsWith)) {
+        String value = fact.object().value();
+        object = kind(value) + " " + names.shorten(member(subject, value));
+      } else {
+        object = names.shorten(withoutKind(fact.object().value()));
+      }
       String attributes = FactLines.attributes(fact);
       return fact.predicate()
           + " "
@@ -252,6 +257,15 @@ public final class LeanFacts {
       }
       out.append(FactLines.oneLine(Refs.clean(text))).append('\n');
     }
+  }
+
+  /**
+   * The text with every qualified class written by its simple name, as the lean form shows it, so a
+   * check finds a name the model copied from it, such as {@code getRole(Long, Long)}, in a fact's
+   * full line.
+   */
+  public static String shortNames(String text) {
+    return CLASS.matcher(text).replaceAll(m -> Matcher.quoteReplacement(m.group(2)));
   }
 
   /** The entity's kind when the lean form leaves its prefix out, such as {@code method}. */

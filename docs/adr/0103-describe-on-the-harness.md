@@ -243,21 +243,26 @@ request's intent stood for all of them. The owner decided on 4 Nov 2026:
 
 A prompt that shows many facts of a few files may write them in a lean form
 (`render.LeanFacts`), which Summarize uses; the other roles keep the fact line above. Each fact
-still has its own line and its reference, and the checks still read its full line, so every
-reference is citable and a short name counts as shown wherever its full name is.
+still has its own line and its reference, and every reference is citable.
 
 - The facts of one file come under one `@ repo:path` heading, and the facts about one subject come
-  under it, indented. A part the subject contains in that file is listed on its `CONTAINS` fact's
-  line, which says only that (`[F18] CONTAINS method findById(Long,Long)`), with the part's own
-  facts indented under it. A first try without the word `CONTAINS` had the model cite a method's
-  line for what the facts under it say, and the Names check sent the answer back.
+  under its line, indented. The subject's line has no reference. A member a type contains is named
+  on its `CONTAINS` fact's line by kind and own name (`[F18] CONTAINS method findById(Long,Long)`);
+  a part with facts of its own follows its container under its own line
+  (`UserPermissionRepository#findById(Long,Long)`), not nested under the `CONTAINS` line. Two
+  earlier forms nested a member's facts under its `CONTAINS` line, with and without the word
+  `CONTAINS`; in both the model cited that line for what the facts under it say ("Redis"), and the
+  Names check sent the answer back or left the sentence out.
 - A class is written by its simple name, and the item's `names` list gives each one's full name
   once. A class of `java.` or `javax.` keeps no package and has no entry. Two classes that share a
   simple name both keep their full names. Strings are left as they are.
-- `type:`, `method:` and `field:` are left out where the line or the indentation says what
-  something is.
+- `type:`, `method:` and `field:` are left out where the line says what something is.
+- The checks read a fact as its full line and as that line with short class names, so a name the
+  model copies from the prompt, such as `getRole(Long, Long)`, is found.
 
-On the Summarize test (10 project-4 classes, Haiku 5.5 through OpenRouter, two runs each), input
-tokens fell from 28,097 to 10,767 per run (−62%), and the cost from about $0.0099 to $0.0073. The
-model wrote 34 sentences in each run against 35 to 36, all of them kept but one, and no answer was
+On the Summarize test (Haiku 5.5 through OpenRouter), all 143 project-4 classes: input tokens fell
+from 461k to 185k (−60%) and the cost from 14.4¢ to 11.5¢. That run used the first nested form and
+kept 453 sentences against 471. On the 16 classes where it lost sentences or failed a check
+(`summarize/project-4-hard-classes.txt` in lantern-app's test resources), the final form wrote 52
+and 51 sentences in two runs against 42 for the nested form and 56 before the change, with no answer
 sent back.

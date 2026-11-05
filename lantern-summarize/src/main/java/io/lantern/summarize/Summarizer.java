@@ -19,6 +19,7 @@ import io.lantern.harness.Repair;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
+import io.lantern.harness.render.LeanFacts;
 import io.lantern.harness.verify.CheckInputs;
 import io.lantern.harness.verify.CheckedText;
 import io.lantern.harness.verify.Checks;
@@ -1451,7 +1452,15 @@ public final class Summarizer {
       this.subject = Prompt.describe(node.level(), node.entity());
       for (List<Prompt.Item> items :
           List.of(this.facts, this.sheet, this.excerpts, this.children)) {
-        items.forEach(item -> texts.put(item.ref(), item.text()));
+        // A fact's text for the checks is its full line, and the line with short class names as
+        // the lean form shows it, so a name the model copied from the prompt is found (#873).
+        items.forEach(
+            item ->
+                texts.put(
+                    item.ref(),
+                    item.fact() == null
+                        ? item.text()
+                        : item.text() + "\n" + LeanFacts.shortNames(item.text())));
       }
       List<Fact> facts = promptFacts(node);
       for (int i = 0; i < facts.size(); i++) {
