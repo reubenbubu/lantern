@@ -641,6 +641,29 @@ class DescriberTest {
   }
 
   @Test
+  void theFlowSelectionHoldsTheJudgedChoiceBesideTheRanksOnTheSameCandidates() {
+    Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
+    List<Fact> stored = stored(facts.list(), result);
+    io.lantern.derive.ArchitectureModel model = new io.lantern.derive.ArchitectureModel(stored);
+
+    // Each scope the model judged: the flows its judgement draws, beside the rank's, on the same
+    // candidates (#743).
+    List<io.lantern.derive.FlowSelection.Scope> scopes =
+        io.lantern.derive.FlowSelection.of(stored, stored, "System");
+    io.lantern.derive.FlowSelection.Scope system =
+        scopes.stream()
+            .filter(s -> s.scope().equals(io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE))
+            .findFirst()
+            .orElseThrow();
+    assertThat(model.significantFlows(system.scope())).isPresent();
+    assertThat(system.judged()).isNotNull().isNotEmpty();
+    assertThat(model.significantFlows(system.scope()).orElseThrow()).containsAll(system.judged());
+    assertThat(system.rank()).isNotEmpty();
+    assertThat(system.candidates()).isNotEmpty();
+    assertThat(system.overlaps()).isEmpty();
+  }
+
+  @Test
   void composingTheSameStoredFactsTwiceInAnyOrderGivesTheSameDocument() {
     Describer.Result result = describe(new FakeLlmProvider().answering(DescriberTest::answer));
     List<Fact> stored = stored(facts.list(), result);
