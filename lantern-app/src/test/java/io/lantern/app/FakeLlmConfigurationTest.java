@@ -38,6 +38,17 @@ class FakeLlmConfigurationTest {
                 "[item.I1]\nunit = \"type Order\"\nparts = \'\'\'\nPart 1: It is. [F3, E1]\n\'\'\'"))
         .contains("cites = [\"F3\"]");
     assertThat(summarize("[item.I1]\nunit = \"type Order\"\n")).isEqualTo("[I1]\nomitted = true\n");
+    // A packed request (#874) is answered item by item, each citing what its own table shows.
+    String packed =
+        summarize(
+            "[item.I1]\nunit = \"type A\"\nfacts = \'\'\'\n@ r:A.java\nA\n  [F1] kind\n\'\'\'\n\n"
+                + "[item.I2]\nunit = \"type B\"\nfacts = \'\'\'\n@ r:B.java\nB\n  [F2] kind\n\'\'\'");
+    tools.jackson.databind.JsonNode both = io.lantern.harness.Toml.read(packed).root();
+    assertThat(both.path("I1").path("sentences").get(0).path("cites").get(0).asString())
+        .isEqualTo("F1");
+    assertThat(both.path("I2").path("sentences").get(0).path("cites").get(0).asString())
+        .isEqualTo("F2");
+    assertThat(both.path("I2").path("sentences").get(0).path("text").asString()).contains("type B");
     // Each answer is one TOML document the role reads.
     assertThat(
             io.lantern.harness.Toml.read(summarize("[item.I1]\nunit = \"type Order\"\n"))

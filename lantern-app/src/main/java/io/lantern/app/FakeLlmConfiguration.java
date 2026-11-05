@@ -94,12 +94,44 @@ class FakeLlmConfiguration {
    * one citing its first fact or excerpt; a merge cites the first reference its parts cite.
    */
   static String summarize(LlmRequest request) {
-    String subject = subject(request.messages().getFirst().text());
-    return summarize(
-        request,
-        "{{placeholder: summary of " + subject + " from its parts}}.",
-        "{{placeholder: description of " + subject + " from its facts}}.");
+    if (!request.system().contains("Task: summarise code units.")) {
+      return null;
+    }
+    // A packed request holds several items (#874), each answered from its own table.
+    String prompt = request.messages().getFirst().text();
+    Matcher table = ITEM_TABLE.matcher(prompt);
+    List<Integer> starts = new ArrayList<>();
+    List<String> ids = new ArrayList<>();
+    while (table.find()) {
+      starts.add(table.start());
+      ids.add(table.group(1));
+    }
+    if (ids.size() < 2) {
+      String subject = subject(prompt);
+      return summarize(
+          request,
+          "{{placeholder: summary of " + subject + " from its parts}}.",
+          "{{placeholder: description of " + subject + " from its facts}}.");
+    }
+    StringBuilder answer = new StringBuilder();
+    for (int i = 0; i < ids.size(); i++) {
+      String section =
+          prompt.substring(starts.get(i), i + 1 < ids.size() ? starts.get(i + 1) : prompt.length());
+      String subject = subject(section);
+      answer
+          .append(
+              answer(
+                  ids.get(i),
+                  section,
+                  "{{placeholder: summary of " + subject + " from its parts}}.",
+                  "{{placeholder: description of " + subject + " from its facts}}."))
+          .append('\n');
+    }
+    return answer.toString();
   }
+
+  /** An item's table in a Summarize request. */
+  private static final Pattern ITEM_TABLE = Pattern.compile("(?m)^\\[item\\.(I\\d+)\\]$");
 
   /**
    * A Summarize answer as {@link #summarize(LlmRequest)} gives, with the given sentences, or null
@@ -109,26 +141,34 @@ class FakeLlmConfiguration {
     if (!request.system().contains("Task: summarise code units.")) {
       return null;
     }
-    String prompt = request.messages().getFirst().text();
+    return answer("I1", request.messages().getFirst().text(), fromParts, fromFacts);
+  }
+
+  /** The answer to one item of a Summarize request, as table {@code id}. */
+  private static String answer(String id, String prompt, String fromParts, String fromFacts) {
     List<String> sentences = new ArrayList<>();
-    if (prompt.contains("[S1]")) {
-      sentences.add(sentence(fromParts, "S1"));
+    Matcher child = CHILD_REF.matcher(prompt);
+    if (child.find()) {
+      sentences.add(sentence(id, fromParts, child.group(1)));
     }
     Matcher ref = SUMMARY_REF.matcher(prompt);
     while (ref.find()) {
       String found =
           ref.group(1) != null ? ref.group(1) : ref.group(2) != null ? ref.group(2) : ref.group(3);
       if (!found.startsWith("S")) {
-        sentences.add(sentence(fromFacts, found));
+        sentences.add(sentence(id, fromFacts, found));
         break;
       }
     }
     // In TOML, as the role asks since #872.
     if (sentences.isEmpty()) {
-      return "[I1]\nomitted = true\n";
+      return "[" + id + "]\nomitted = true\n";
     }
-    return "[I1]\n" + String.join("", sentences);
+    return "[" + id + "]\n" + String.join("", sentences);
   }
+
+  /** A contained summary's reference as an item lists it, at the start of its line. */
+  private static final Pattern CHILD_REF = Pattern.compile("(?m)^\\[(S\\d+)\\]");
 
   /** What the summary prompt says is summarized, such as "type Order in package a.b". */
   private static String subject(String prompt) {
@@ -136,8 +176,10 @@ class FakeLlmConfiguration {
     return unit.find() ? (unit.group(1) != null ? unit.group(1) : unit.group(2)) : "the unit";
   }
 
-  private static String sentence(String text, String cite) {
-    return "[[I1.sentences]]\ntext = "
+  private static String sentence(String id, String text, String cite) {
+    return "[["
+        + id
+        + ".sentences]]\ntext = "
         + io.lantern.harness.Toml.basic(text)
         + "\ncites = ["
         + io.lantern.harness.Toml.basic(cite)
