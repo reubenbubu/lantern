@@ -11,8 +11,12 @@ import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
+import io.lantern.harness.verify.Check;
 import io.lantern.harness.verify.CheckInputs;
+import io.lantern.harness.verify.Checks;
 import io.lantern.harness.verify.ItemAnswer;
+import io.lantern.harness.verify.Pipeline;
+import io.lantern.harness.verify.Rejection;
 import io.lantern.llm.Role;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -43,7 +47,7 @@ public final class SupportJudge {
               "support-judge",
               Role.JUDGE,
               Prompts.version(
-                  "3", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
+                  "4", "common.system.txt", "support-judge.task.txt", "support-judge.schema.json"),
               "model-checks",
               RunMode.BULK,
               300)
@@ -252,6 +256,83 @@ public final class SupportJudge {
     return Optional.of(partly ? Support.PARTLY : Support.SUPPORTED);
   }
 
+  /**
+   * The inputs a judge item cites, by the reference each is written with: the tag of a fact or an
+   * earlier answer ({@code F1} for {@code [F1] ...}), or a file range as written.
+   */
+  static Map<String, String> citedInputs(Item item) {
+    Map<String, String> cited = new LinkedHashMap<>();
+    String rendering = item.rendering();
+    int start = rendering.indexOf("<inputs>\n");
+    int end = rendering.lastIndexOf("</inputs>");
+    if (start < 0 || end < start) {
+      return cited;
+    }
+    for (String line : rendering.substring(start + "<inputs>\n".length(), end).split("\n")) {
+      String ref = reference(line);
+      if (!ref.isEmpty()) {
+        cited.putIfAbsent(ref, line);
+      }
+    }
+    return cited;
+  }
+
+  /** The reference a cited input or a verdict's "by" is written with, without its brackets. */
+  static String reference(String text) {
+    String token = text.strip().split("\\s+", 2)[0];
+    if (token.startsWith("[")) {
+      int close = token.indexOf(']');
+      token = close < 0 ? token.substring(1) : token.substring(1, close);
+    }
+    return token.replaceAll("[,;.]+$", "");
+  }
+
+  /**
+   * A claim found supported, or partly, rests on an input the item cites: a verdict whose "by"
+   * names anything else, such as a file the text shown as data asked for, is rejected (#768, the
+   * decision of 4 Nov 2026). A verdict that gives no "by" is not checked here.
+   */
+  static final class SupportedBy implements Check {
+
+    @Override
+    public String name() {
+      return "Supported by";
+    }
+
+    @Override
+    public List<Rejection> check(ItemAnswer answer, CheckInputs inputs) {
+      List<Rejection> found = new ArrayList<>();
+      JsonNode raw = answer.raw();
+      if (raw == null) {
+        return found;
+      }
+      for (JsonNode claim : raw.path("claims")) {
+        String verdict = claim.path("verdict").asString("");
+        String by = claim.path("by").asString("").strip();
+        if (by.isEmpty() || verdict.equals("unsupported")) {
+          continue;
+        }
+        for (String part : by.split("[,\\s]+")) {
+          String ref = reference(part);
+          if (!ref.isEmpty() && !inputs.references().containsKey(ref)) {
+            found.add(
+                new Rejection(
+                    answer.item(),
+                    "claims",
+                    name(),
+                    "Gives "
+                        + ref
+                        + " as the support of \""
+                        + claim.path("claim").asString("")
+                        + "\", which the item does not cite; judge only against its cited"
+                        + " inputs."));
+          }
+        }
+      }
+      return found;
+    }
+  }
+
   private static final PacketRole PACKETS =
       new PacketRole() {
         @Override
@@ -281,14 +362,17 @@ public final class SupportJudge {
 
         @Override
         public CheckInputs inputs(List<Item> packet, List<String> ids) {
+          Map<String, String> cited = new LinkedHashMap<>();
+          packet.forEach(item -> cited.putAll(citedInputs(item)));
           return new CheckInputs(
-              SCHEMA,
-              Map.of(),
-              Set.of(),
-              false,
-              (repo, path) -> Optional.empty(),
-              Map.of(),
-              Set.of());
+              SCHEMA, cited, Set.of(), false, (repo, path) -> Optional.empty(), Map.of(), Set.of());
+        }
+
+        @Override
+        public Pipeline pipeline() {
+          List<Check> checks = new ArrayList<>(Checks.STANDARD);
+          checks.add(new SupportedBy());
+          return new Pipeline(checks);
         }
 
         @Override

@@ -157,6 +157,11 @@ class RoleFixturesTest {
   }
 
   private static String judging(LlmRequest request, String verdict) {
+    return judging(request, verdict, "unsupported");
+  }
+
+  /** As {@link #judging(LlmRequest, String)}, with unit:0's verdict given. */
+  private static String judging(LlmRequest request, String verdict, String first) {
     List<String> entries = new ArrayList<>();
     items(request)
         .forEach(
@@ -164,7 +169,7 @@ class RoleFixturesTest {
                 entries.add(
                     ("\"%s\": {\"claims\": [{\"claim\": \"It takes orders.\", \"verdict\":"
                             + " \"%s\"}]}")
-                        .formatted(id, text.contains("unit:0") ? "unsupported" : verdict)));
+                        .formatted(id, text.contains("unit:0") ? first : verdict)));
     return "{\"items\": {" + String.join(", ", entries) + "}}";
   }
 
@@ -187,12 +192,22 @@ class RoleFixturesTest {
 
   @Test
   void theJudgeShowsTheFixturesAsDataAndAVerdictThatObeysThemIsRejected() {
-    // A model that obeys: it approves, which is no verdict the judge knows.
-    FakeLlmProvider obeying = new FakeLlmProvider().answering(r -> judging(r, "approved"));
+    // A model that obeys: told to approve, it finds every claim supported, unit:0's included, by
+    // the password file the fixtures ask for.
+    FakeLlmProvider obeying =
+        new FakeLlmProvider()
+            .answering(
+                r ->
+                    judging(r, "supported", "supported")
+                        .replace(
+                            "\"verdict\": \"supported\"",
+                            "\"verdict\": \"supported\", \"by\": \""
+                                + InjectionFixtures.OBEYING_CITE
+                                + "\""));
     Map<String, SupportJudge.Support> verdicts =
         new SupportJudge(harness(client(obeying), new InMemoryAnswerStore())).judge(claims(), ALL);
 
     InjectionFixtures.shownAsData(obeying);
-    assertThat(verdicts).doesNotContainKeys("unit:1", "unit:2", "unit:3");
+    assertThat(verdicts).isEmpty();
   }
 }

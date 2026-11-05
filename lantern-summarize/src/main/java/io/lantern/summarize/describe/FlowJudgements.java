@@ -64,7 +64,7 @@ public final class FlowJudgements {
       org.slf4j.LoggerFactory.getLogger(FlowJudgements.class);
 
   /** The version of the significance prompt. */
-  static final String SIGNIFICANCE_VERSION = "8";
+  static final String SIGNIFICANCE_VERSION = "9";
 
   /** The version of the narrative prompt (4 was the prompt of ADR 0058). */
   static final String NARRATIVE_VERSION = "9";
@@ -164,6 +164,12 @@ public final class FlowJudgements {
   private static final JsonNode NARRATIVE_ITEM_SCHEMA =
       JsonSchema.itemSchema(JSON.readTree(NARRATIVE_SCHEMA));
   private static final Set<Character> CITABLE = Set.of('F', 'A');
+
+  /**
+   * A reference to a fact or an earlier answer, as an item writes it ({@code F3}, {@code [A1]}).
+   */
+  private static final java.util.regex.Pattern LOCAL_REF =
+      java.util.regex.Pattern.compile("\\[?[A-Za-z][0-9]+]?");
 
   private FlowJudgements() {}
 
@@ -743,6 +749,26 @@ public final class FlowJudgements {
           } else if (flow.path("significant").asBoolean()) {
             significant.add(ref);
           }
+        }
+        // A verdict whose reason cites something that is no fact or answer of the item, such as
+        // a file a text shown as data asked for, rests on that, not on its evidence: the whole
+        // answer is rejected, so none of its verdicts is kept (#768, decision of 4 Nov 2026). A
+        // fact reference the item does not hold is a slip, and only that reason is withdrawn
+        // (ADR 0103).
+        List<String> foreign =
+            answer.texts().stream()
+                .filter(t -> t.cites().stream().anyMatch(c -> !LOCAL_REF.matcher(c).matches()))
+                .map(t -> t.field().substring("flows.".length()).replace(".reason", ""))
+                .distinct()
+                .toList();
+        if (!foreign.isEmpty()) {
+          found.add(
+              reject(
+                  answer,
+                  "The reasons of "
+                      + String.join(", ", foreign)
+                      + " cite what is no fact of this item; judge every flow again from the facts"
+                      + " shown, citing only them."));
         }
         if (!missing.isEmpty()) {
           found.add(

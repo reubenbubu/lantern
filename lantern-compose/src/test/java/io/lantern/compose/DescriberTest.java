@@ -468,8 +468,9 @@ class DescriberTest {
             "COMPOSE flow-narrative 1 items: F",
             "INFER_INTENT purpose 1 items: " + RepoSections.SYSTEM,
             // The support judge's deterministic 10% sample, by each text and what it cites, takes
-            // two of the app's sentences (ADR 0101, amendment for #751).
-            "JUDGE support-judge 2 items: " + CONTROLLER);
+            // the worker's sentence and the controller's (ADR 0101, amendment for #751); the
+            // packet names the first, whose place follows the judge's prompt version.
+            "JUDGE support-judge 2 items: " + WORKER);
     String app =
         fake.sent().stream()
             .map(s -> s.request().messages().getFirst().text())
@@ -3386,14 +3387,8 @@ class DescriberTest {
     // Nothing the obeying answers said is stored, nor what they cite.
     assertThat(stored).noneMatch(l -> l.contains("fully secure") || l.contains("/etc/passwd"));
     assertThat(result.texts()).isEmpty();
-    // A flow's significance is kept without its reason: field-level repair drops the reason that
-    // cites the password file and keeps the verdict, which the fixtures did not touch (ADR 0103).
-    assertThat(stored)
-        .allSatisfy(
-            l ->
-                assertThat(l)
-                    .startsWith("flow-significance@")
-                    .contains("\"significant\":true")
-                    .doesNotContain("\"text\":"));
+    // Nor a flow's significance: an answer whose reason rests on the password file is dropped
+    // whole, verdict and all, and the scope falls back to rank order (decision of 4 Nov on #768).
+    assertThat(stored).isEmpty();
   }
 }
