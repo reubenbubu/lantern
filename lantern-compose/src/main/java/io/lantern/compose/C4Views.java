@@ -59,20 +59,6 @@ final class C4Views {
   /** A decision record's rationale when it has no context section. */
   static final String NOT_RECORDED = "Not recorded.";
 
-  /**
-   * The most elements a container or component diagram shows before detail is folded away or it is
-   * split (docs/design.md, Readable diagrams; ADR 0117): the least size at which the studies saw
-   * readers struggle, with dense lines (docs/research/readable-large-diagrams.md). #366 added the
-   * measures after layout (ADR 0123), which report a view but do not yet fold or split it (#764).
-   */
-  static final int MAX_ELEMENTS = 50;
-
-  /**
-   * The most lines per element such a diagram draws before it is folded or split: the upper end of
-   * what the studies call sparse (docs/research/readable-large-diagrams.md). Provisional, as above.
-   */
-  static final int MAX_LINES_PER_ELEMENT = 2;
-
   /** The most participants a sequence diagram shows (docs/design.md, Sequence diagrams). */
   static final int MAX_PARTICIPANTS = 15;
 
@@ -82,6 +68,10 @@ final class C4Views {
   private final ArchitectureModel model;
   private final Assembler assembler;
   private final EntityId system;
+
+  /** How much a container or component diagram may hold before it is folded or split (#836). */
+  private final DiagramLimits limits;
+
   private final SortedSet<EntityId> units;
 
   private final Set<String> repos;
@@ -114,8 +104,10 @@ final class C4Views {
       Assembler assembler,
       EntityId system,
       SortedSet<EntityId> units,
-      Set<String> repos) {
+      Set<String> repos,
+      DiagramLimits limits) {
     this.model = model;
+    this.limits = java.util.Objects.requireNonNull(limits, "limits");
     this.assembler = assembler;
     this.system = system;
     this.units = units;
@@ -541,8 +533,8 @@ final class C4Views {
   // Containers.
 
   /**
-   * A concern a container view is split by when the whole system's view would show more than {@link
-   * #MAX_ELEMENTS} elements (design, Quality bar): its title and the relationships its lines draw.
+   * A concern a container view is split by when the whole system's view would show more than the
+   * limits' most elements (design, Quality bar): its title and the relationships its lines draw.
    */
   private record Concern(String title, Set<String> relationships) {
 
@@ -712,7 +704,7 @@ final class C4Views {
   }
 
   /**
-   * Adds the view of one concern as a subsection, or when it shows more than {@link #MAX_ELEMENTS}
+   * Adds the view of one concern as a subsection, or when it shows more than the limits' most
    * elements, those of its parts, else one per unit.
    *
    * @param everyContainer whether the view draws every container shown, with lines or not, so the
@@ -888,13 +880,16 @@ final class C4Views {
   }
 
   /**
-   * Whether a container or component diagram is readable by the signals measured before layout: at
-   * most {@link #MAX_ELEMENTS} elements besides the boundaries it draws others in, and at most
-   * {@link #MAX_LINES_PER_ELEMENT} lines per element (docs/design.md, Readable diagrams).
+   * Whether a container or component diagram is readable by the signals measured before layout:
+   * within the limits' elements, the boundaries it draws others in not counted, and lines per
+   * element (docs/design.md, Readable diagrams).
    */
-  static boolean fits(Diagram diagram) {
-    int elements = elements(diagram);
-    return elements <= MAX_ELEMENTS && diagram.edges().size() <= MAX_LINES_PER_ELEMENT * elements;
+  static boolean fits(Diagram diagram, DiagramLimits limits) {
+    return limits.fits(elements(diagram), diagram.edges().size());
+  }
+
+  private boolean fits(Diagram diagram) {
+    return fits(diagram, limits);
   }
 
   /** The elements a diagram draws, the boundaries others are drawn in not counted. */

@@ -1,0 +1,3970 @@
+[
+ {
+  "level": "components",
+  "n": 5,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 1,
+  "widthScale": {
+   "p10": 1.2,
+   "median": 1.33
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.15,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 5,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.84,
+  "widthScale": {
+   "p10": 0.93,
+   "median": 1.11
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 1.95,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 5,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.72,
+  "widthScale": {
+   "p10": 1.11,
+   "median": 1.37
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 1.4,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 5,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.96,
+  "fitsLow": 0.87,
+  "fitsWhole": 0.96,
+  "crossingsOk": 1,
+  "readable": 0.96,
+  "readableLow": 0.87,
+  "clean": 0.64,
+  "widthScale": {
+   "p10": 0.82,
+   "median": 0.95
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.04,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 6,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.98,
+  "widthScale": {
+   "p10": 1,
+   "median": 1.25
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.08,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 6,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.98,
+  "fitsLow": 0.9,
+  "fitsWhole": 0.98,
+  "crossingsOk": 1,
+  "readable": 0.98,
+  "readableLow": 0.9,
+  "clean": 0.9,
+  "widthScale": {
+   "p10": 0.9,
+   "median": 1.06
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.77,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 6,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.84,
+  "widthScale": {
+   "p10": 1,
+   "median": 1.25
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 1.46,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 6,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.52,
+  "fitsLow": 0.39,
+  "fitsWhole": 0.52,
+  "crossingsOk": 1,
+  "readable": 0.52,
+  "readableLow": 0.39,
+  "clean": 0.3,
+  "widthScale": {
+   "p10": 0.72,
+   "median": 0.82
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 6.63,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 7,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.96,
+  "widthScale": {
+   "p10": 0.9,
+   "median": 1.11
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.31,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 7,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.74,
+  "fitsLow": 0.6,
+  "fitsWhole": 0.72,
+  "crossingsOk": 1,
+  "readable": 0.74,
+  "readableLow": 0.6,
+  "clean": 0.6,
+  "widthScale": {
+   "p10": 0.74,
+   "median": 0.88
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.39,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 7,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.98,
+  "fitsLow": 0.9,
+  "fitsWhole": 0.98,
+  "crossingsOk": 1,
+  "readable": 0.98,
+  "readableLow": 0.9,
+  "clean": 0.78,
+  "widthScale": {
+   "p10": 0.88,
+   "median": 1.06
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.76,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 7,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.54,
+  "fitsLow": 0.4,
+  "fitsWhole": 0.54,
+  "crossingsOk": 1,
+  "readable": 0.54,
+  "readableLow": 0.4,
+  "clean": 0.36,
+  "widthScale": {
+   "p10": 0.67,
+   "median": 0.81
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 7.66,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 8,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.98,
+  "fitsLow": 0.9,
+  "fitsWhole": 0.98,
+  "crossingsOk": 1,
+  "readable": 0.98,
+  "readableLow": 0.9,
+  "clean": 0.96,
+  "widthScale": {
+   "p10": 0.87,
+   "median": 1
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.46,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 8,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.68,
+  "fitsLow": 0.54,
+  "fitsWhole": 0.66,
+  "crossingsOk": 1,
+  "readable": 0.68,
+  "readableLow": 0.54,
+  "clean": 0.6,
+  "widthScale": {
+   "p10": 0.71,
+   "median": 0.84
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.46,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 8,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.96,
+  "fitsLow": 0.87,
+  "fitsWhole": 0.96,
+  "crossingsOk": 1,
+  "readable": 0.96,
+  "readableLow": 0.87,
+  "clean": 0.86,
+  "widthScale": {
+   "p10": 0.89,
+   "median": 0.97
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.89,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 8,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.24,
+  "fitsLow": 0.14,
+  "fitsWhole": 0.24,
+  "crossingsOk": 0.94,
+  "readable": 0.24,
+  "readableLow": 0.14,
+  "clean": 0.12,
+  "widthScale": {
+   "p10": 0.66,
+   "median": 0.73
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 5
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 9.92,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 9,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.9,
+  "fitsLow": 0.79,
+  "fitsWhole": 0.9,
+  "crossingsOk": 1,
+  "readable": 0.9,
+  "readableLow": 0.79,
+  "clean": 0.86,
+  "widthScale": {
+   "p10": 0.81,
+   "median": 0.95
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.58,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 9,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.36,
+  "fitsLow": 0.24,
+  "fitsWhole": 0.36,
+  "crossingsOk": 1,
+  "readable": 0.36,
+  "readableLow": 0.24,
+  "clean": 0.3,
+  "widthScale": {
+   "p10": 0.68,
+   "median": 0.77
+  },
+  "crossings": {
+   "median": 0.5,
+   "p90": 2
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.82,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 9,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.82,
+  "fitsLow": 0.69,
+  "fitsWhole": 0.82,
+  "crossingsOk": 1,
+  "readable": 0.82,
+  "readableLow": 0.69,
+  "clean": 0.64,
+  "widthScale": {
+   "p10": 0.76,
+   "median": 0.88
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.13,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 9,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.14,
+  "fitsLow": 0.07,
+  "fitsWhole": 0.14,
+  "crossingsOk": 0.88,
+  "readable": 0.14,
+  "readableLow": 0.07,
+  "clean": 0.06,
+  "widthScale": {
+   "p10": 0.58,
+   "median": 0.66
+  },
+  "crossings": {
+   "median": 2,
+   "p90": 6
+  },
+  "through": {
+   "median": 0,
+   "p90": 2.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 11.63,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 10,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.7,
+  "fitsLow": 0.56,
+  "fitsWhole": 0.7,
+  "crossingsOk": 1,
+  "readable": 0.7,
+  "readableLow": 0.56,
+  "clean": 0.62,
+  "widthScale": {
+   "p10": 0.74,
+   "median": 0.88
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.75,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 10,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.22,
+  "fitsLow": 0.13,
+  "fitsWhole": 0.22,
+  "crossingsOk": 1,
+  "readable": 0.22,
+  "readableLow": 0.13,
+  "clean": 0.12,
+  "widthScale": {
+   "p10": 0.56,
+   "median": 0.7
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.93,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 10,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.6,
+  "fitsLow": 0.46,
+  "fitsWhole": 0.6,
+  "crossingsOk": 1,
+  "readable": 0.6,
+  "readableLow": 0.46,
+  "clean": 0.5,
+  "widthScale": {
+   "p10": 0.68,
+   "median": 0.84
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.32,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 10,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.02,
+  "fitsLow": 0,
+  "fitsWhole": 0.02,
+  "crossingsOk": 0.84,
+  "readable": 0.02,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.55,
+   "median": 0.63
+  },
+  "crossings": {
+   "median": 3,
+   "p90": 6.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 13.96,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 11,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.52,
+  "fitsLow": 0.39,
+  "fitsWhole": 0.52,
+  "crossingsOk": 1,
+  "readable": 0.52,
+  "readableLow": 0.39,
+  "clean": 0.52,
+  "widthScale": {
+   "p10": 0.69,
+   "median": 0.8
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.75,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 11,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.08,
+  "fitsLow": 0.03,
+  "fitsWhole": 0.08,
+  "crossingsOk": 1,
+  "readable": 0.08,
+  "readableLow": 0.03,
+  "clean": 0.08,
+  "widthScale": {
+   "p10": 0.6,
+   "median": 0.68
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.88,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 11,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.32,
+  "fitsLow": 0.21,
+  "fitsWhole": 0.32,
+  "crossingsOk": 1,
+  "readable": 0.32,
+  "readableLow": 0.21,
+  "clean": 0.26,
+  "widthScale": {
+   "p10": 0.65,
+   "median": 0.76
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.66,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 11,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.06,
+  "fitsLow": 0.02,
+  "fitsWhole": 0.02,
+  "crossingsOk": 0.72,
+  "readable": 0.04,
+  "readableLow": 0.01,
+  "clean": 0.02,
+  "widthScale": {
+   "p10": 0.49,
+   "median": 0.6
+  },
+  "crossings": {
+   "median": 4,
+   "p90": 7
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 14,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 12,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.46,
+  "fitsLow": 0.33,
+  "fitsWhole": 0.46,
+  "crossingsOk": 1,
+  "readable": 0.46,
+  "readableLow": 0.33,
+  "clean": 0.4,
+  "widthScale": {
+   "p10": 0.65,
+   "median": 0.78
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.85,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 12,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.06,
+  "fitsLow": 0.02,
+  "fitsWhole": 0.02,
+  "crossingsOk": 0.98,
+  "readable": 0.06,
+  "readableLow": 0.02,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.55,
+   "median": 0.62
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 5.18,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 12,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.22,
+  "fitsLow": 0.13,
+  "fitsWhole": 0.22,
+  "crossingsOk": 1,
+  "readable": 0.22,
+  "readableLow": 0.13,
+  "clean": 0.12,
+  "widthScale": {
+   "p10": 0.62,
+   "median": 0.7
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.65,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 12,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.66,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.48,
+   "median": 0.56
+  },
+  "crossings": {
+   "median": 5,
+   "p90": 10
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 16.94,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 13,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.22,
+  "fitsLow": 0.13,
+  "fitsWhole": 0.22,
+  "crossingsOk": 1,
+  "readable": 0.22,
+  "readableLow": 0.13,
+  "clean": 0.2,
+  "widthScale": {
+   "p10": 0.62,
+   "median": 0.73
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.03,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 13,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.94,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.49,
+   "median": 0.59
+  },
+  "crossings": {
+   "median": 1.5,
+   "p90": 4.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 6.66,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 13,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.08,
+  "fitsLow": 0.03,
+  "fitsWhole": 0.08,
+  "crossingsOk": 0.98,
+  "readable": 0.08,
+  "readableLow": 0.03,
+  "clean": 0.04,
+  "widthScale": {
+   "p10": 0.57,
+   "median": 0.68
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.3,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 13,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.44,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.46,
+   "median": 0.53
+  },
+  "crossings": {
+   "median": 6,
+   "p90": 11
+  },
+  "through": {
+   "median": 0.5,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 19.3,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 14,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.12,
+  "fitsLow": 0.06,
+  "fitsWhole": 0.12,
+  "crossingsOk": 1,
+  "readable": 0.12,
+  "readableLow": 0.06,
+  "clean": 0.1,
+  "widthScale": {
+   "p10": 0.6,
+   "median": 0.69
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.08,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 14,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.02,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.92,
+  "readable": 0.02,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.49,
+   "median": 0.56
+  },
+  "crossings": {
+   "median": 2,
+   "p90": 4.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 6.92,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 14,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.02,
+  "fitsLow": 0,
+  "fitsWhole": 0.02,
+  "crossingsOk": 1,
+  "readable": 0.02,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.54,
+   "median": 0.6
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.47,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 14,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.32,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.42,
+   "median": 0.48
+  },
+  "crossings": {
+   "median": 7,
+   "p90": 14.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 19.7,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 15,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.1,
+  "fitsLow": 0.04,
+  "fitsWhole": 0.1,
+  "crossingsOk": 1,
+  "readable": 0.1,
+  "readableLow": 0.04,
+  "clean": 0.1,
+  "widthScale": {
+   "p10": 0.56,
+   "median": 0.68
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.18,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 15,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.9,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.44,
+   "median": 0.5
+  },
+  "crossings": {
+   "median": 3,
+   "p90": 5.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 9.04,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 15,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.02,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 1,
+  "readable": 0.02,
+  "readableLow": 0,
+  "clean": 0.02,
+  "widthScale": {
+   "p10": 0.51,
+   "median": 0.59
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.16,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 15,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.1,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.38,
+   "median": 0.44
+  },
+  "crossings": {
+   "median": 9,
+   "p90": 14
+  },
+  "through": {
+   "median": 1,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 23.69,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 20,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 1,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.48,
+   "median": 0.55
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 2
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.01,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 20,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.36,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.38,
+   "median": 0.43
+  },
+  "crossings": {
+   "median": 6,
+   "p90": 11
+  },
+  "through": {
+   "median": 0.5,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 16.3,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 20,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.9,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.39,
+   "median": 0.44
+  },
+  "crossings": {
+   "median": 3,
+   "p90": 5.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 6.35,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 20,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.34,
+   "median": 0.38
+  },
+  "crossings": {
+   "median": 20,
+   "p90": 25
+  },
+  "through": {
+   "median": 1,
+   "p90": 3
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 37.09,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 25,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.94,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.39,
+   "median": 0.46
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 4
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.24,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 25,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.06,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.33,
+   "median": 0.38
+  },
+  "crossings": {
+   "median": 12,
+   "p90": 22.3
+  },
+  "through": {
+   "median": 0.5,
+   "p90": 2.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 21.28,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 25,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.36,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.35,
+   "median": 0.39
+  },
+  "crossings": {
+   "median": 7.5,
+   "p90": 13
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 10.26,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 25,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.33,
+   "median": 0.35
+  },
+  "crossings": {
+   "median": 33.5,
+   "p90": 47
+  },
+  "through": {
+   "median": 3,
+   "p90": 5
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 49.37,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 30,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.9,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.37,
+   "median": 0.42
+  },
+  "crossings": {
+   "median": 2,
+   "p90": 5.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 5.05,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 30,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.32,
+   "median": 0.35
+  },
+  "crossings": {
+   "median": 19,
+   "p90": 28.1
+  },
+  "through": {
+   "median": 1,
+   "p90": 3.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 25.86,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 30,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.34,
+   "median": 0.36
+  },
+  "crossings": {
+   "median": 15,
+   "p90": 22
+  },
+  "through": {
+   "median": 1,
+   "p90": 3.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 14.7,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 30,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.32,
+   "median": 0.34
+  },
+  "crossings": {
+   "median": 53,
+   "p90": 74.3
+  },
+  "through": {
+   "median": 4.5,
+   "p90": 10.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 62.8,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 35,
+  "density": 1,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.6,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.33,
+   "median": 0.39
+  },
+  "crossings": {
+   "median": 5,
+   "p90": 6.3
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.4
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 6.97,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 35,
+  "density": 1.5,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.3,
+   "median": 0.34
+  },
+  "crossings": {
+   "median": 35.5,
+   "p90": 43.1
+  },
+  "through": {
+   "median": 1,
+   "p90": 3.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "costPerElement": 38.63,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 35,
+  "density": 2,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.3,
+   "median": 0.32
+  },
+  "crossings": {
+   "median": 83,
+   "p90": 96
+  },
+  "through": {
+   "median": 4.5,
+   "p90": 11.1
+  },
+  "labelOverlaps": {
+   "median": 0.5,
+   "p90": 2.3
+  },
+  "costPerElement": 80.15,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 40,
+  "density": 1,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.5,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.31,
+   "median": 0.37
+  },
+  "crossings": {
+   "median": 5.5,
+   "p90": 9.5
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 8.52,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 40,
+  "density": 1.5,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.3,
+   "median": 0.32
+  },
+  "crossings": {
+   "median": 41.5,
+   "p90": 55.3
+  },
+  "through": {
+   "median": 1,
+   "p90": 4.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.2
+  },
+  "costPerElement": 40.03,
+  "violations": 0
+ },
+ {
+  "level": "components",
+  "n": 40,
+  "density": 2,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.31,
+   "median": 0.32
+  },
+  "crossings": {
+   "median": 118.5,
+   "p90": 138.8
+  },
+  "through": {
+   "median": 7.5,
+   "p90": 12
+  },
+  "labelOverlaps": {
+   "median": 1.5,
+   "p90": 4.1
+  },
+  "costPerElement": 97.5,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 5,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.94,
+  "widthScale": {
+   "p10": 1.21,
+   "median": 1.38
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 0.94,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 5,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.7,
+  "widthScale": {
+   "p10": 1.02,
+   "median": 1.2
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 1.41,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 5,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.82,
+  "widthScale": {
+   "p10": 1.1,
+   "median": 1.29
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.2
+  },
+  "costPerElement": 1.38,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 5,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.76,
+  "widthScale": {
+   "p10": 0.88,
+   "median": 1.06
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 2.49,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 6,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.98,
+  "widthScale": {
+   "p10": 1.09,
+   "median": 1.23
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.01,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 6,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.72,
+  "widthScale": {
+   "p10": 0.88,
+   "median": 1.11
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "costPerElement": 1.62,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 6,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.78,
+  "widthScale": {
+   "p10": 1.03,
+   "median": 1.16
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 1.45,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 6,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.8,
+  "fitsLow": 0.67,
+  "fitsWhole": 0.8,
+  "crossingsOk": 1,
+  "readable": 0.8,
+  "readableLow": 0.67,
+  "clean": 0.58,
+  "widthScale": {
+   "p10": 0.74,
+   "median": 0.97
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.42,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 7,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 1,
+  "fitsLow": 0.93,
+  "fitsWhole": 1,
+  "crossingsOk": 1,
+  "readable": 1,
+  "readableLow": 0.93,
+  "clean": 0.98,
+  "widthScale": {
+   "p10": 0.96,
+   "median": 1.12
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.19,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 7,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.84,
+  "fitsLow": 0.71,
+  "fitsWhole": 0.84,
+  "crossingsOk": 1,
+  "readable": 0.84,
+  "readableLow": 0.71,
+  "clean": 0.66,
+  "widthScale": {
+   "p10": 0.78,
+   "median": 0.92
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.93,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 7,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.98,
+  "fitsLow": 0.9,
+  "fitsWhole": 0.98,
+  "crossingsOk": 1,
+  "readable": 0.98,
+  "readableLow": 0.9,
+  "clean": 0.7,
+  "widthScale": {
+   "p10": 0.86,
+   "median": 1.07
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.76,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 7,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.6,
+  "fitsLow": 0.46,
+  "fitsWhole": 0.58,
+  "crossingsOk": 0.98,
+  "readable": 0.6,
+  "readableLow": 0.46,
+  "clean": 0.3,
+  "widthScale": {
+   "p10": 0.68,
+   "median": 0.82
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 2
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 3.39,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 8,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.98,
+  "fitsLow": 0.9,
+  "fitsWhole": 0.98,
+  "crossingsOk": 1,
+  "readable": 0.98,
+  "readableLow": 0.9,
+  "clean": 0.94,
+  "widthScale": {
+   "p10": 0.88,
+   "median": 1.03
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.29,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 8,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.76,
+  "fitsLow": 0.63,
+  "fitsWhole": 0.76,
+  "crossingsOk": 1,
+  "readable": 0.76,
+  "readableLow": 0.63,
+  "clean": 0.6,
+  "widthScale": {
+   "p10": 0.74,
+   "median": 0.86
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.87,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 8,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.92,
+  "fitsLow": 0.81,
+  "fitsWhole": 0.92,
+  "crossingsOk": 1,
+  "readable": 0.92,
+  "readableLow": 0.81,
+  "clean": 0.78,
+  "widthScale": {
+   "p10": 0.81,
+   "median": 0.92
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.89,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 8,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.4,
+  "fitsLow": 0.28,
+  "fitsWhole": 0.36,
+  "crossingsOk": 0.96,
+  "readable": 0.4,
+  "readableLow": 0.28,
+  "clean": 0.12,
+  "widthScale": {
+   "p10": 0.61,
+   "median": 0.76
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 2.3
+  },
+  "through": {
+   "median": 1,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 3.49,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 9,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.9,
+  "fitsLow": 0.79,
+  "fitsWhole": 0.9,
+  "crossingsOk": 1,
+  "readable": 0.9,
+  "readableLow": 0.79,
+  "clean": 0.82,
+  "widthScale": {
+   "p10": 0.81,
+   "median": 0.92
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.3,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 9,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.38,
+  "fitsLow": 0.26,
+  "fitsWhole": 0.38,
+  "crossingsOk": 1,
+  "readable": 0.38,
+  "readableLow": 0.26,
+  "clean": 0.22,
+  "widthScale": {
+   "p10": 0.66,
+   "median": 0.76
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 2.49,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 9,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.82,
+  "fitsLow": 0.69,
+  "fitsWhole": 0.82,
+  "crossingsOk": 1,
+  "readable": 0.82,
+  "readableLow": 0.69,
+  "clean": 0.58,
+  "widthScale": {
+   "p10": 0.74,
+   "median": 0.89
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.07,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 9,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.24,
+  "fitsLow": 0.14,
+  "fitsWhole": 0.2,
+  "crossingsOk": 1,
+  "readable": 0.24,
+  "readableLow": 0.14,
+  "clean": 0.06,
+  "widthScale": {
+   "p10": 0.61,
+   "median": 0.71
+  },
+  "crossings": {
+   "median": 0.5,
+   "p90": 3
+  },
+  "through": {
+   "median": 1,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 4.29,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 10,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.76,
+  "fitsLow": 0.63,
+  "fitsWhole": 0.76,
+  "crossingsOk": 1,
+  "readable": 0.76,
+  "readableLow": 0.63,
+  "clean": 0.72,
+  "widthScale": {
+   "p10": 0.74,
+   "median": 0.9
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.54,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 10,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.28,
+  "fitsLow": 0.17,
+  "fitsWhole": 0.28,
+  "crossingsOk": 1,
+  "readable": 0.28,
+  "readableLow": 0.17,
+  "clean": 0.18,
+  "widthScale": {
+   "p10": 0.64,
+   "median": 0.77
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.66,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 10,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.6,
+  "fitsLow": 0.46,
+  "fitsWhole": 0.6,
+  "crossingsOk": 1,
+  "readable": 0.6,
+  "readableLow": 0.46,
+  "clean": 0.34,
+  "widthScale": {
+   "p10": 0.7,
+   "median": 0.81
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.27,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 10,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.12,
+  "fitsLow": 0.06,
+  "fitsWhole": 0.06,
+  "crossingsOk": 0.9,
+  "readable": 0.12,
+  "readableLow": 0.06,
+  "clean": 0.06,
+  "widthScale": {
+   "p10": 0.57,
+   "median": 0.67
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 4.2
+  },
+  "through": {
+   "median": 1,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 6.72,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 11,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.62,
+  "fitsLow": 0.48,
+  "fitsWhole": 0.62,
+  "crossingsOk": 1,
+  "readable": 0.62,
+  "readableLow": 0.48,
+  "clean": 0.6,
+  "widthScale": {
+   "p10": 0.73,
+   "median": 0.82
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.56,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 11,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.08,
+  "fitsLow": 0.03,
+  "fitsWhole": 0.08,
+  "crossingsOk": 1,
+  "readable": 0.08,
+  "readableLow": 0.03,
+  "clean": 0.08,
+  "widthScale": {
+   "p10": 0.59,
+   "median": 0.67
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.55,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 11,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.34,
+  "fitsLow": 0.22,
+  "fitsWhole": 0.34,
+  "crossingsOk": 1,
+  "readable": 0.34,
+  "readableLow": 0.22,
+  "clean": 0.2,
+  "widthScale": {
+   "p10": 0.64,
+   "median": 0.74
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.53,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 11,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0.06,
+  "fitsLow": 0.02,
+  "fitsWhole": 0.02,
+  "crossingsOk": 0.92,
+  "readable": 0.06,
+  "readableLow": 0.02,
+  "clean": 0.04,
+  "widthScale": {
+   "p10": 0.5,
+   "median": 0.61
+  },
+  "crossings": {
+   "median": 2,
+   "p90": 4.1
+  },
+  "through": {
+   "median": 0.5,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 8.65,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 12,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.38,
+  "fitsLow": 0.26,
+  "fitsWhole": 0.38,
+  "crossingsOk": 1,
+  "readable": 0.38,
+  "readableLow": 0.26,
+  "clean": 0.38,
+  "widthScale": {
+   "p10": 0.62,
+   "median": 0.75
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.58,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 12,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0.08,
+  "fitsLow": 0.03,
+  "fitsWhole": 0.08,
+  "crossingsOk": 1,
+  "readable": 0.08,
+  "readableLow": 0.03,
+  "clean": 0.02,
+  "widthScale": {
+   "p10": 0.53,
+   "median": 0.62
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "costPerElement": 3.29,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 12,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.22,
+  "fitsLow": 0.13,
+  "fitsWhole": 0.2,
+  "crossingsOk": 1,
+  "readable": 0.22,
+  "readableLow": 0.13,
+  "clean": 0.18,
+  "widthScale": {
+   "p10": 0.61,
+   "median": 0.72
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.6,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 12,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.82,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.47,
+   "median": 0.56
+  },
+  "crossings": {
+   "median": 3,
+   "p90": 7
+  },
+  "through": {
+   "median": 1,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 9.77,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 13,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.28,
+  "fitsLow": 0.17,
+  "fitsWhole": 0.28,
+  "crossingsOk": 1,
+  "readable": 0.28,
+  "readableLow": 0.17,
+  "clean": 0.24,
+  "widthScale": {
+   "p10": 0.63,
+   "median": 0.75
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.72,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 13,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 1,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.52,
+   "median": 0.59
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.28,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 13,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.04,
+  "fitsLow": 0.01,
+  "fitsWhole": 0.04,
+  "crossingsOk": 1,
+  "readable": 0.04,
+  "readableLow": 0.01,
+  "clean": 0.02,
+  "widthScale": {
+   "p10": 0.55,
+   "median": 0.65
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.32,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 13,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.88,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.44,
+   "median": 0.53
+  },
+  "crossings": {
+   "median": 3,
+   "p90": 6
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 9.85,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 14,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.14,
+  "fitsLow": 0.07,
+  "fitsWhole": 0.12,
+  "crossingsOk": 1,
+  "readable": 0.14,
+  "readableLow": 0.07,
+  "clean": 0.14,
+  "widthScale": {
+   "p10": 0.63,
+   "median": 0.72
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 1.85,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 14,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.94,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.47,
+   "median": 0.57
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 4
+  },
+  "through": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 4.88,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 14,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0.02,
+  "fitsLow": 0,
+  "fitsWhole": 0.02,
+  "crossingsOk": 1,
+  "readable": 0.02,
+  "readableLow": 0,
+  "clean": 0.02,
+  "widthScale": {
+   "p10": 0.54,
+   "median": 0.62
+  },
+  "crossings": {
+   "median": 0.5,
+   "p90": 2
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.53,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 14,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.74,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.44,
+   "median": 0.5
+  },
+  "crossings": {
+   "median": 4,
+   "p90": 10.1
+  },
+  "through": {
+   "median": 1,
+   "p90": 2.1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 11.16,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 15,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0.04,
+  "fitsLow": 0.01,
+  "fitsWhole": 0.04,
+  "crossingsOk": 1,
+  "readable": 0.04,
+  "readableLow": 0.01,
+  "clean": 0.04,
+  "widthScale": {
+   "p10": 0.57,
+   "median": 0.65
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 0
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 15,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.94,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.46,
+   "median": 0.53
+  },
+  "crossings": {
+   "median": 2,
+   "p90": 5
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 5.51,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 15,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 1,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.48,
+   "median": 0.56
+  },
+  "crossings": {
+   "median": 0.5,
+   "p90": 2.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.08,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 15,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.36,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.4,
+   "median": 0.47
+  },
+  "crossings": {
+   "median": 7,
+   "p90": 12
+  },
+  "through": {
+   "median": 1,
+   "p90": 3
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0.1
+  },
+  "costPerElement": 16.09,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 20,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 1,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.47,
+   "median": 0.53
+  },
+  "crossings": {
+   "median": 0,
+   "p90": 1
+  },
+  "through": {
+   "median": 0,
+   "p90": 0
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 2.63,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 20,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.62,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.38,
+   "median": 0.43
+  },
+  "crossings": {
+   "median": 5,
+   "p90": 8
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 10.05,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 20,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.8,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.4,
+   "median": 0.47
+  },
+  "crossings": {
+   "median": 3,
+   "p90": 8
+  },
+  "through": {
+   "median": 0,
+   "p90": 2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 6.37,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 20,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.04,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.34,
+   "median": 0.37
+  },
+  "crossings": {
+   "median": 16.5,
+   "p90": 23
+  },
+  "through": {
+   "median": 2,
+   "p90": 4
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 23.42,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 25,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.98,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.41,
+   "median": 0.47
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 3
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 3.43,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 25,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.16,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.33,
+   "median": 0.37
+  },
+  "crossings": {
+   "median": 9,
+   "p90": 16
+  },
+  "through": {
+   "median": 1,
+   "p90": 3
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 14.29,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 25,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.26,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.35,
+   "median": 0.39
+  },
+  "crossings": {
+   "median": 7,
+   "p90": 13.1
+  },
+  "through": {
+   "median": 0,
+   "p90": 3
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 10.16,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 25,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.32,
+   "median": 0.35
+  },
+  "crossings": {
+   "median": 33,
+   "p90": 40.2
+  },
+  "through": {
+   "median": 3,
+   "p90": 6
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 38.14,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 30,
+  "density": 1,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.94,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.38,
+   "median": 0.42
+  },
+  "crossings": {
+   "median": 1,
+   "p90": 5
+  },
+  "through": {
+   "median": 0,
+   "p90": 1
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.09,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 30,
+  "density": 1.5,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.31,
+   "median": 0.35
+  },
+  "crossings": {
+   "median": 15,
+   "p90": 24.1
+  },
+  "through": {
+   "median": 1,
+   "p90": 4
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 19.7,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 30,
+  "density": 1.5,
+  "frame": false,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.06,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.33,
+   "median": 0.36
+  },
+  "crossings": {
+   "median": 14,
+   "p90": 23.2
+  },
+  "through": {
+   "median": 1,
+   "p90": 3
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1
+  },
+  "costPerElement": 15.08,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 30,
+  "density": 2,
+  "frame": true,
+  "views": 50,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.31,
+   "median": 0.34
+  },
+  "crossings": {
+   "median": 49.5,
+   "p90": 72.1
+  },
+  "through": {
+   "median": 4,
+   "p90": 8
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 2
+  },
+  "costPerElement": 52.18,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 35,
+  "density": 1,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.8,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.33,
+   "median": 0.35
+  },
+  "crossings": {
+   "median": 1.5,
+   "p90": 7.2
+  },
+  "through": {
+   "median": 0,
+   "p90": 2.2
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 4.63,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 35,
+  "density": 1.5,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.31,
+   "median": 0.34
+  },
+  "crossings": {
+   "median": 29,
+   "p90": 44.1
+  },
+  "through": {
+   "median": 2.5,
+   "p90": 6
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "costPerElement": 31.79,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 35,
+  "density": 2,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.3,
+   "median": 0.32
+  },
+  "crossings": {
+   "median": 68.5,
+   "p90": 84.1
+  },
+  "through": {
+   "median": 8,
+   "p90": 12.2
+  },
+  "labelOverlaps": {
+   "median": 1,
+   "p90": 2.2
+  },
+  "costPerElement": 64.09,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 40,
+  "density": 1,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0.3,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.34,
+   "median": 0.35
+  },
+  "crossings": {
+   "median": 6.5,
+   "p90": 8.6
+  },
+  "through": {
+   "median": 0,
+   "p90": 2.4
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 0
+  },
+  "costPerElement": 7.3,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 40,
+  "density": 1.5,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.31,
+   "median": 0.33
+  },
+  "crossings": {
+   "median": 43,
+   "p90": 56.1
+  },
+  "through": {
+   "median": 3.5,
+   "p90": 5
+  },
+  "labelOverlaps": {
+   "median": 0,
+   "p90": 1.1
+  },
+  "costPerElement": 38.23,
+  "violations": 0
+ },
+ {
+  "level": "containers",
+  "n": 40,
+  "density": 2,
+  "frame": true,
+  "views": 10,
+  "fits": 0,
+  "fitsLow": 0,
+  "fitsWhole": 0,
+  "crossingsOk": 0,
+  "readable": 0,
+  "readableLow": 0,
+  "clean": 0,
+  "widthScale": {
+   "p10": 0.3,
+   "median": 0.32
+  },
+  "crossings": {
+   "median": 96,
+   "p90": 138.7
+  },
+  "through": {
+   "median": 7.5,
+   "p90": 11.1
+  },
+  "labelOverlaps": {
+   "median": 1.5,
+   "p90": 3.1
+  },
+  "costPerElement": 75.37,
+  "violations": 0
+ }
+]

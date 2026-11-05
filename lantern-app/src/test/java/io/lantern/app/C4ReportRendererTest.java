@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The C4 report spec renderer, compared with golden files in {@code
@@ -784,12 +785,37 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void writesTheDiagramLimitsItIsGivenIntoEachReport() throws IOException {
+    Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
+
+    String html =
+        C4ReportRenderer.fromClassPath(new io.lantern.compose.DiagramLimits(20, 5, 3, 0.7, 8))
+            .render(document);
+
+    assertThat(html)
+        .contains(
+            "\"readable\" : {\n      \"target\" : 20,\n      \"tolerance\" : 5,\n"
+                + "      \"linesPerElement\" : 3,\n      \"scale\" : 0.7,\n"
+                + "      \"crossings\" : 8\n    }");
+  }
+
+  @Test
   void writesTheDataIntoTheTemplateInPlaceOfTheSampleData() throws IOException {
     Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
 
     String html = C4ReportRenderer.fromClassPath().render(document);
 
-    String data = C4ReportRenderer.write(C4ReportRenderer.toJson(document).data());
+    // The data, with the diagram limits the report was composed with (#836).
+    ObjectNode expected = C4ReportRenderer.toJson(document).data();
+    expected
+        .withObject("document")
+        .putObject("readable")
+        .put("target", 50)
+        .put("tolerance", 0)
+        .put("linesPerElement", 2)
+        .put("scale", 0.8)
+        .put("crossings", 5);
+    String data = C4ReportRenderer.write(expected);
     assertThat(html)
         .contains(
             "<script type=\"application/json\" id=\"arc-data\">\n"

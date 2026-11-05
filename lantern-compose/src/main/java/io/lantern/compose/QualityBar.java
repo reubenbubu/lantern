@@ -84,15 +84,16 @@ final class QualityBar {
   static final String ONE_LEVEL = "One abstraction level";
 
   /**
-   * The size before layout, a warning until #764 sets its soft targets; whether a diagram is
-   * readable is measured after layout, in the page (#366, docs/design.md, Readable diagrams).
+   * The check of the size before layout, by the limits (#836); whether a diagram is readable is
+   * measured after layout, in the page (#366, docs/design.md, Readable diagrams).
    */
-  static final String ELEMENTS =
-      "Size: at most "
-          + C4Views.MAX_ELEMENTS
-          + " elements and "
-          + C4Views.MAX_LINES_PER_ELEMENT
-          + " lines per element";
+  static String elements(DiagramLimits limits) {
+    return "Size: at most "
+        + limits.mostElements()
+        + " elements and "
+        + limits.linesPerElement()
+        + " lines per element";
+  }
 
   static final String PARTICIPANTS = "At most " + C4Views.MAX_PARTICIPANTS + " participants";
   static final String TECHNOLOGY = "Containers and components have a technology";
@@ -180,13 +181,15 @@ final class QualityBar {
 
   private final Document document;
   private final Vocabulary vocabulary;
+  private final DiagramLimits limits;
   private final Map<EntityId, DocumentEntity> entities = new HashMap<>();
   private final Map<String, Fact> facts = new HashMap<>();
   private final List<QualityReport.Failure> failures = new ArrayList<>();
 
-  private QualityBar(Document document, Vocabulary vocabulary) {
+  private QualityBar(Document document, Vocabulary vocabulary, DiagramLimits limits) {
     this.document = document;
     this.vocabulary = vocabulary;
+    this.limits = limits;
     if (document != null) {
       document.entities().forEach(e -> entities.put(e.id(), e));
       document.facts().forEach(f -> facts.put(f.id(), f));
@@ -208,7 +211,7 @@ final class QualityBar {
       Unknowns unknowns,
       Function<EntityId, String> name,
       Function<Unknowns.Part, String> component) {
-    QualityBar bar = new QualityBar(null, vocabulary);
+    QualityBar bar = new QualityBar(null, vocabulary, DiagramLimits.DEFAULT);
     List<String> noTechnology = new ArrayList<>();
     unknowns.containersWithoutTechnology().forEach(e -> noTechnology.add(name.apply(e)));
     unknowns.componentsWithoutTechnology().forEach(p -> noTechnology.add(component.apply(p)));
@@ -260,7 +263,17 @@ final class QualityBar {
    * one of a diagram's types is drawn at its level (ADR 0114).
    */
   static List<QualityReport.Failure> failures(Document document, Vocabulary vocabulary) {
-    QualityBar bar = new QualityBar(Objects.requireNonNull(document, "document"), vocabulary);
+    return failures(document, vocabulary, DiagramLimits.DEFAULT);
+  }
+
+  /** As {@link #failures(Document, Vocabulary)}, a diagram's size judged by the limits (#836). */
+  static List<QualityReport.Failure> failures(
+      Document document, Vocabulary vocabulary, DiagramLimits limits) {
+    QualityBar bar =
+        new QualityBar(
+            Objects.requireNonNull(document, "document"),
+            vocabulary,
+            Objects.requireNonNull(limits, "limits"));
     bar.check();
     return List.copyOf(bar.failures);
   }
@@ -347,11 +360,11 @@ final class QualityBar {
     if (!offLevel.isEmpty()) {
       fail(ONE_LEVEL, target, "It also shows " + names(offLevel) + ".");
     }
-    if (elements > C4Views.MAX_ELEMENTS) {
-      fail(ELEMENTS, target, "It shows " + elements + " elements.");
-    } else if (diagram.edges().size() > C4Views.MAX_LINES_PER_ELEMENT * elements) {
+    if (elements > limits.mostElements()) {
+      fail(elements(limits), target, "It shows " + elements + " elements.");
+    } else if (diagram.edges().size() > limits.linesPerElement() * elements) {
       fail(
-          ELEMENTS,
+          elements(limits),
           target,
           "It draws " + diagram.edges().size() + " lines between " + elements + " elements.");
     }

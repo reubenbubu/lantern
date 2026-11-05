@@ -50,3 +50,19 @@ to a coarser level (`docs/design.md`, Readable diagrams, "Layout has the final w
   For #764 to use it as its gate, the measure has to run where the composer can read it: the
   template exposes it as `window.lanternReadability()`, which a headless browser can call, as
   the measurements in `docs/design.md` were taken. How #764 gets it is #764's decision.
+
+## Amendment (#836): the thresholds are the report's own
+
+The template's `READABLE` no longer holds values of its own. Each C4 report carries the limits it was composed
+with as its document's `readable` (target, tolerance, lines per element, scale, crossings), which
+the renderer writes from the setting `lantern.diagrams` (ADR 0117, amendment for #836). The
+template judges fit and crossings by them, and the scorer its size check, so a report is judged by
+the limits it was made with, and changing the setting changes both verdicts. A report without
+`readable`, such as one written before this change, has no view judged after layout and no size
+check in its scorecard. Fit is judged by width alone, as the owner decided on 4 Nov 2026 (#764),
+replacing decision 1's whole-canvas fit: a view taller than the canvas scrolls and still fits. The canvas, 1632 × 1024 px, stays in the template: it is the page, not a
+limit.
+
+Laying out a view takes longer than this ADR assumed: the measurement for #836 found about 5 s at
+20 elements, 27 s at 30 and 2 minutes at 40 in a headless browser, rising about with the fourth
+power of the element count, once per view and then cached in the reader's browser.

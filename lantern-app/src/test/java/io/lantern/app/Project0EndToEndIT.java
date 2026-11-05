@@ -1274,7 +1274,8 @@ class Project0EndToEndIT {
     Files.writeString(OUT.resolve("system.json"), DocumentJson.write(document));
     JsonNode data = C4ReportRenderer.toJson(document).data();
     Path json = OUT.resolve("system.c4.json");
-    Files.writeString(json, C4ReportRenderer.write(C4ReportRenderer.toJson(document).data()));
+    Files.writeString(
+        json, C4ReportRenderer.write(C4ReportRenderer.fromClassPath().data(document)));
 
     // Valid for the report spec, as lantern-web's tests check the renderer's golden files.
     Process check =

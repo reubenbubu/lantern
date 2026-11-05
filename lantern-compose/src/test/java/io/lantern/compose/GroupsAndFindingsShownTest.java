@@ -244,7 +244,7 @@ class GroupsAndFindingsShownTest {
           "domain",
           "{\"scope\": \"system\", \"basis\": \"repository\", \"signal\": \"x\"}");
     }
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       String unit = "service:com.example:u" + i;
       many.attribute("shop", unit, "deployable-unit", "spring-boot", "{}")
           .attribute("shop", unit, "application-name", "u" + i, "{}")

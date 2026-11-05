@@ -877,7 +877,7 @@ class C4ViewsTest {
             "database:db:5432/shop",
             "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
                 + " \"absentIn\": [\"local\"]}");
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       many.relate(
           "shop",
           "service:com.example:app",
@@ -917,7 +917,7 @@ class C4ViewsTest {
     // shop-app's own messaging is still above the threshold: a quality gap, not hidden.
     QualityReport gaps = block(document.sections().getLast(), QualityReport.class);
     assertThat(gaps.failures())
-        .filteredOn(f -> f.check().equals(QualityBar.ELEMENTS))
+        .filteredOn(f -> f.check().equals(QualityBar.elements(DiagramLimits.DEFAULT)))
         .singleElement()
         .satisfies(
             f ->
@@ -939,7 +939,7 @@ class C4ViewsTest {
             "CALLS_HTTP",
             audit,
             "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"POST /audit\"}");
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       many.relate(
           "shop",
           "service:com.example:app",
@@ -1425,7 +1425,7 @@ class C4ViewsTest {
             "CALLS_HTTP",
             batch,
             "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"POST /runs\"}");
-    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       many.relate(
           "shop",
           batch,
