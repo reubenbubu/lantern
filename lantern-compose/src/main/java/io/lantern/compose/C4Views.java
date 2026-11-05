@@ -793,11 +793,11 @@ final class C4Views {
     for (Line link : links) {
       if (isTopic(link.to())
           && link.relationship().equals(Types.PUBLISHES)
-          && Elements.runsCode(link.from())) {
+          && elements.runsCode(link.from())) {
         sent.computeIfAbsent(link.to(), t -> new ArrayList<>()).add(link);
       } else if (isTopic(link.from())
           && link.relationship().equals(Types.CONSUMES)
-          && Elements.runsCode(link.to())) {
+          && elements.runsCode(link.to())) {
         delivered.computeIfAbsent(link.from(), t -> new ArrayList<>()).add(link);
       } else {
         for (EntityId end : List.of(link.from(), link.to())) {
@@ -1060,7 +1060,7 @@ final class C4Views {
       Set<EntityId> called = new HashSet<>();
       List<EntityId> gateways = new ArrayList<>();
       for (Line link : links) {
-        if (link.relationship().equals(Types.CALLS_HTTP) && Elements.runsCode(link.to())) {
+        if (link.relationship().equals(Types.CALLS_HTTP) && elements.runsCode(link.to())) {
           called.add(link.to());
           if ("Routes".equals(link.prefix())) {
             gateways.add(link.from());
@@ -1082,14 +1082,14 @@ final class C4Views {
         for (Line link : links) {
           if (link.relationship().equals(Types.CALLS_HTTP)
               && link.from().equals(from)
-              && Elements.runsCode(link.to())
+              && elements.runsCode(link.to())
               && depth.putIfAbsent(link.to(), depth.get(from) + 1) == null) {
             queue.add(link.to());
           }
         }
       }
       entryFirst =
-          Comparator.comparing((EntityId e) -> !e.type().equals(Types.FRONTEND))
+          Comparator.comparing((EntityId e) -> !isType(e.type(), Types.FRONTEND))
               .thenComparing(e -> depth.getOrDefault(e, Integer.MAX_VALUE))
               .thenComparing(ArchitectureModel.BY_ID);
     }

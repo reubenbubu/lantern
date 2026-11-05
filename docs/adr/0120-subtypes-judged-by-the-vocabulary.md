@@ -22,6 +22,10 @@ treated an external-system subtype as inside the system's boundary.
 - **Counts and boundaries.** The "Databases", "Topics, queues and exchanges" and "External systems"
   counts, the external-system boundary (C4Views and `Unknowns.isOutside`), and the topic test use
   the same relation.
+- **What runs code.** `Elements.runsCode` asks whether a type extends `service` or `frontend`
+  (#762's review). A service subtype is then a unit, not a data destination: its data stores
+  count among the destinations, its calls order the pages from the entry inward, and topics it
+  publishes to fold as a service's do.
 - **The base type belongs to the container level.** `container` itself is in the container
   diagram's set, so a type that extends it directly is drawn at that level.
 - **The quality check gets the vocabulary.** `QualityBar.failures(document, vocabulary)`;
@@ -33,7 +37,7 @@ treated an external-system subtype as inside the system's boundary.
 - Not changed here, and to follow: other exact-name comparisons that a new subtype could still
   trip on: `Assembler` (the person and frontend checks), `ScopeFlows` (database), `FlowTracer`
   (external system), `BriefSections` (the technology and person checks), and `ElementNames` (a
-  switch on the type). They keep their exact names until a follow-up issue covers them.
+  switch on the type). They keep their exact names until #864 covers them.
 - A subtype of `topic`, `queue`, `exchange` or `frontend` gets the plain technology attribute,
   not the broker or frontend wording, since the switch matches exact names first. No such subtype
   exists in Lantern's own vocabulary.
