@@ -1,0 +1,5 @@
+# Investigate's fixed panel on project-2 (#890): the first lead of each kind the set raises, by ID.
+lead:plaintext-secret/module:com.eventplatform:attendee-service/platform.security.qr.signing-secret
+lead:send-before-commit/service:com.eventplatform:event-service/method:com.eventplatform.event.infrastructure.venue.HttpVenueAvailabilityAdapter#release(java.util.UUID,java.util.UUID,java.lang.String)
+lead:single-instance/database:localhost:6379/redis
+lead:weak-access-check/service:com.eventplatform:auth-service/method:com.eventplatform.auth.api.AuthController#login(com.eventplatform.auth.api.LoginRequest,jakarta.servlet.http.HttpServletRequest)
