@@ -629,7 +629,7 @@ Every answer, batched or agentic, goes through the same checks before anything i
 - **Outcomes.** Each failure produces a reason. All of an answer's failures go back in **one** repair turn; what fails again is dropped. Accepted items become observations, and the item's answer goes into `llm_answers` under its fingerprint.
 - **Revalidation on reuse.** A cached answer is reused only while its cited file ranges still hold the same blob, which extends ADR 0084's rule to every role.
 - **Sampled semantic check.** The checks above are mechanical: they prove a cited input exists and mentions what the text names, but not that it supports the claim.
-  - A sample of accepted texts (10% per role per run, and every Investigate risk) is checked by a judge model of another tier. It splits the text into atomic claims and asks whether the cited inputs support each one.
+  - A sample of accepted texts (10% per role per run, and every Investigate risk, purpose, key fact and group name) is checked by the model of the role that wrote it (the owner's decision on #751). It splits the text into atomic claims and asks whether the cited inputs support each one.
   - The verdict is stored on the observation as `support` (`supported`, `partly`, `unsupported`) and lowers its confidence. It is never a gate: published agreement of such judges with people is a kappa of about 0.5 to 0.7.
 - **Citations come with the answer.** Every role cites as it writes; no role is asked to add citations afterwards. Citing after writing gave the worst citation recall in the research (section 4).
 
@@ -784,7 +784,7 @@ Answer with one JSON object in the same schema, holding only the items you are c
 | Flows, narrative | high-volume | Claude Sonnet 5.5 | Claude Haiku 5.5 | off | bulk |
 | Purpose and key fact | reasoning (as today) | Claude Opus 5.5 | Claude Sonnet 5.5 | off | interactive |
 | Name groups | high-volume | Claude Sonnet 5.5 | Claude Haiku 5.5 | off | bulk |
-| Model checks (11.7) | high-volume for the judge; bulk for the screen | Claude Sonnet 5.5; Claude Haiku 5.5 | Claude Haiku 5.5 | off | bulk |
+| Model checks (11.7) | the writer's model for the judge (the owner's decision on #751); bulk for the screen | each writer's; Claude Haiku 5.5 | each writer's; Claude Haiku 5.5 | off | bulk |
 
 The new `bulk` tier is for the highest-volume role. It may be set to the same model as `high-volume`.
 
@@ -1200,31 +1200,26 @@ Answer schema (cites may be \[F..\] and earlier answers \[A..\]):
 
 ### 11.7 Model checks: support judge and injection screen
 
-Two small model checks run after the roles. Neither is a gate: both only add signals, so a wrong judgement lowers a confidence or adds a finding, never deletes knowledge.
+Two small model checks run after the roles. Neither deletes knowledge: the screen adds a finding, and the judge lowers a confidence; a text it rejects is asked again once and, rejected again, kept in the store but left out of the documents (Shown, below).
 
 **Support judge.**
 
-- **What it checks.** Every `investigated-risk`. Every accepted text of the other roles whose fingerprint, read as a number, is divisible by 10: a deterministic 10% sample.
-- **Model.** Of another tier than the text's author (table in 11.0).
+- **What it checks.** Every `investigated-risk`, each system's purpose and key fact, and every group's name (decided on #751, 4 Nov 2026). Every text that cites a range the injection screen flagged, and every text of an answer asked again after a rejection. Of the rest, a deterministic 10%: the texts whose judge item (the text and its cited inputs), hashed and read as a number, is divisible by 10, the same whichever model judges.
+- **Model.** The model of the role that wrote the text (the owner's decision of 4 Nov 2026 on #751): each model checks its own texts, with a strict prompt. `lantern.harness.support-judge.model=judge` checks every text on the judge role's model instead.
 - **Item and packet.** One item per text, showing the text and the inputs it cites, rendered as they were in its request. At most 10 items of one role per request; these are short, uniform judgements.
 - **Fingerprint inputs.** The text's observation and the cited inputs' observations or blobs.
 
-```text
-Task: check support. Each item in <items> is a text another model wrote, with the inputs it cites. Split the text into its atomic claims, 1 to 6 of them, each a short sentence that is true or false on its own. For each claim, answer "supported" when a cited input states or directly shows it, "partly" when a cited input shows part of it, or "unsupported" when no cited input shows it, and give the reference of the input that supports it, if any. Judge only against the cited inputs, not against what you know.
-```
-
-```json
-{"type": "object", "required": ["items"], "properties": {"items": {"type": "object", "additionalProperties": {
-  "type": "object", "required": ["claims"], "additionalProperties": false,
-  "properties": {"claims": {"type": "array", "minItems": 1, "maxItems": 6, "items": {
-    "type": "object", "required": ["claim", "verdict"], "additionalProperties": false,
-    "properties": {"claim": {"type": "string", "maxLength": 200},
-                   "verdict": {"enum": ["supported", "partly", "unsupported"]},
-                   "by": {"type": "string"}}}}}}}}}
-```
+The prompt and its schema are `prompts/support-judge.task.txt` and `prompts/support-judge.schema.json` (`docs/adr/0113-prompts-folder.md`), at the version `SupportJudge.ROLE` names. Only the cited inputs count, never what the model knows; a claim that adds a specific is only partly supported, and an unsure claim is never supported.
 
 - **Stored.** On the checked observation: `support` is `supported` when all claims are supported, `unsupported` when any claim is unsupported, else `partly`; the claim list is kept beside it. Confidence is multiplied by 1, 0.8 or 0.5.
-- **Shown.** The report shows `unsupported` texts with the LLM badge and a note "not supported by its sources". The run record counts the verdicts per role.
+- **Shown.** Never as a mark: the documents stay clean (the owner's decision of 4 Nov 2026 on #751). A text found `unsupported` is asked again once: its role's item is asked again in a second pass, told the claims the judge found unsupported (`prompts/support-retry.txt`), and the new answer goes through the role's checks and is judged again. If it is rejected again, or fails its checks, the documents show Lantern's plain wording in its place:
+  - a line: its static label;
+  - a box: its name, kind and technology, without a responsibility sentence;
+  - a summary, narrative, group description, risk or key fact: left out;
+  - a purpose: the first paragraph of a README that reads as a description, quoted as its authors wrote it, else a plain line of what the system is made of, from the model's counts;
+  - a group's name: the name the code gives the group (its key's last part).
+
+  The rejected text stays in the store for the record. The run record counts, per role, the verdicts, the texts asked again and those shown in plain wording (`supportVerdicts`), and the scorecard shows them.
 
 **Injection screen.**
 

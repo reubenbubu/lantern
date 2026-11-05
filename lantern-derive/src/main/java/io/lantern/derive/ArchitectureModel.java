@@ -734,6 +734,38 @@ public final class ArchitectureModel {
     return rejected.contains(subject + "\u0000" + predicate);
   }
 
+  /**
+   * A paragraph of a README that reads as a description of the system.
+   *
+   * @param text the paragraph as its authors wrote it, its line breaks made spaces
+   * @param fact the ID of the claim fact it comes from
+   */
+  public record ReadmeParagraph(String text, String fact) {}
+
+  /**
+   * The first README claim, in the order of the repositories, that reads as a description: a
+   * sentence of at least six words; what the documents quote in place of a purpose the support
+   * judge rejected (#751).
+   */
+  public Optional<ReadmeParagraph> firstReadmeDescription() {
+    for (String repo : repos()) {
+      for (Fact claim : readmeClaims(repo)) {
+        String text = claim.object().value().strip().replaceAll("\\s+", " ");
+        if (descriptive(text)) {
+          return Optional.of(new ReadmeParagraph(text, claim.id()));
+        }
+      }
+    }
+    return Optional.empty();
+  }
+
+  /** Whether a README paragraph reads as a description: a sentence of at least six words. */
+  static boolean descriptive(String text) {
+    return text.split(" ").length >= 6
+        && text.matches("[\\p{L}\\p{N}\"'(].*[.!?]")
+        && !text.startsWith("|");
+  }
+
   /** The entities of the type that facts of the model are about, by ID. */
   public SortedSet<EntityId> entities(String type) {
     SortedSet<EntityId> found = new TreeSet<>(Knowledge.BY_ID);

@@ -21,6 +21,7 @@ import {
   scoreFiles,
   scorecardMarkdown,
   subjectOverlap,
+  supportLine,
   subjectWords,
   qualityChecks,
 } from '../scripts/score.mjs';
@@ -573,4 +574,24 @@ test('LLM marks: the system box, prefixes where the badge shows, and found lines
     'risks table row 1',
   ]);
   assert.deepEqual(marks.infrastructureLines, ['orders -> zipkin (zipkin)', 'orders -> Parcel carrier (zipkin)']);
+});
+
+test("the scorecard shows the support judge's verdicts, retries and fallbacks per role (#751)", () => {
+  const run = {
+    calls: 3,
+    tokens: 10,
+    costUsd: 0,
+    roles: [],
+    supportVerdicts: {
+      purpose: { supported: 0, partly: 0, unsupported: 1, retried: 1, fellBack: 1 },
+      summarize: { supported: 4, partly: 1, unsupported: 0, retried: 0, fellBack: 0 },
+    },
+  };
+  const markdown = scorecardMarkdown({ set: 'x', report: 'r', reportTitle: 't', reference: 'ref', run, scores: score(report, reference, aliases) });
+  assert.match(
+    markdown,
+    /- Support judge: purpose 0 supported, 0 partly, 1 unsupported, 1 asked again, 1 in plain wording; summarize 4 supported, 1 partly, 0 unsupported, 0 asked again, 0 in plain wording\n/,
+  );
+  assert.equal(supportLine({}), null);
+  assert.equal(supportLine(undefined), null);
 });

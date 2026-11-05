@@ -27,11 +27,14 @@ import tools.jackson.databind.JsonNode;
 /**
  * The support judge over every role's stored texts (knowledge-build epic, section 11.7; ADR 0101,
  * amendment for #751). It runs once every role has stored its texts and the injection screen has
- * run: every Investigate risk is judged, every text that cites a range the screen flagged is
- * judged, and of the rest a deterministic 10% by fingerprint. Each role's texts go in requests of
- * their own. A verdict is stored on the text's observation ({@link LlmFacts#withSupport}); it never
- * drops a text. A cited range's lines are shown masked as every role is shown a file ({@link
- * SourceFiles#shownAt}), and what the masking took out reaches the harness's Secrets check.
+ * run: every Investigate risk, purpose, key fact and group name is judged, every text that cites a
+ * range the screen flagged, and every text of an answer asked again, and of the rest a
+ * deterministic 10% by the text and what it cites. Each role's texts go in requests of their own. A
+ * verdict is stored on the text's observation ({@link LlmFacts#withSupport}); it never drops a text
+ * from the store. A text found unsupported is handed back with the claims no input shows, so its
+ * answer can be asked again once (#751). A cited range's lines are shown masked as every role is
+ * shown a file ({@link SourceFiles#shownAt}), and what the masking took out reaches the harness's
+ * Secrets check.
  */
 public final class SupportChecks {
 

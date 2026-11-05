@@ -30,11 +30,12 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The support judge (knowledge-build epic, section 11.7; ADR 0101): a model on the high-volume tier
- * splits an accepted text into atomic claims and says whether the inputs the text cites support
- * each. It checks a deterministic 10% sample, the texts whose judge item's fingerprint read as a
- * number is divisible by 10, plus any text it is told to check regardless. It is never a gate: a
- * verdict only marks a text, it never drops one.
+ * The support judge (knowledge-build epic, section 11.7; ADR 0101): the model of the role that
+ * wrote a text, or the judge role's own, splits an accepted text into atomic claims and says
+ * whether the inputs the text cites support each. It checks a deterministic 10% sample, the texts
+ * whose judge item (the text and its cited inputs), hashed and read as a number, is divisible by
+ * 10, plus any text it is told to check regardless. A verdict never drops a text from the store;
+ * what the run does with a rejected one is {@code SupportChecks}' and the analyze run's (#751).
  */
 public final class SupportJudge {
 
@@ -122,7 +123,9 @@ public final class SupportJudge {
     return Fingerprints.sha256("support-judge sample\n" + item.rendering());
   }
 
-  /** Whether the judge item's fingerprint, read as a number, is divisible by 10. */
+  /**
+   * Whether the hash of a judge item ({@link #sampleKey}), read as a number, is divisible by 10.
+   */
   static boolean sampled(String fingerprint) {
     return new BigInteger(fingerprint, 16).mod(BigInteger.TEN).signum() == 0;
   }

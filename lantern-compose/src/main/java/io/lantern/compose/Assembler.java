@@ -349,19 +349,12 @@ final class Assembler {
     if (!model.rejected(RepoSections.SYSTEM, Types.PURPOSE)) {
       return null;
     }
-    for (String repo : model.repos()) {
-      for (Fact claim : model.readmeClaims(repo)) {
-        if (descriptive(claim.object().value())) {
-          factIds.add(claim.id());
-          return new Text(
-              List.of(
-                  TextRun.of(
-                      "Its README says: \u201c"
-                          + claim.object().value().strip().replaceAll("\\s+", " ")
-                          + "\u201d")),
-              List.of(claim.id()));
-        }
-      }
+    java.util.Optional<ArchitectureModel.ReadmeParagraph> readme = model.firstReadmeDescription();
+    if (readme.isPresent()) {
+      factIds.add(readme.get().fact());
+      return new Text(
+          List.of(TextRun.of("Its README says: \u201c" + readme.get().text() + "\u201d")),
+          List.of(readme.get().fact()));
     }
     List<String> parts = new ArrayList<>();
     count(parts, io.lantern.derive.Elements.units(model).size(), "service", "services");
@@ -379,14 +372,6 @@ final class Assembler {
             ? "The system"
             : Character.toUpperCase(systemName.charAt(0)) + systemName.substring(1);
     return new Text(List.of(TextRun.of(name + " is made of " + made + ".")), List.of());
-  }
-
-  /** A README paragraph that reads as a description: a sentence of at least six words. */
-  static boolean descriptive(String text) {
-    String t = text.strip();
-    return t.split("\\s+").length >= 6
-        && t.matches("(?s)[\\p{L}\\p{N}\"'(].*[.!?]")
-        && !t.startsWith("|");
   }
 
   private static void count(List<String> parts, int n, String one, String many) {
