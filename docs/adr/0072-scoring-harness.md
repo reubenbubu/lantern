@@ -481,3 +481,18 @@ depth, so a fully cascading run passed. Now (decision of 4 Nov 2026 on #722):
   same: one problem stored twice, which the join of
   ADR 0110 (amendment for #747) should have made one risk. A fixed check's wordings are not
   counted; #748 scores them apart. It reads `llm.jsonl.gz` and needs no answer key.
+
+## Amendment (#749): LLM marks
+
+The scorecard's "LLM marks" section reads the C4 report alone, so the drop is judged by the scorer
+and not by eye (`llmMarks` in `lantern-web/scripts/score.mjs`):
+
+- the number of elements and lines carrying the LLM badge;
+- the system boxes carrying it, which should be none: the system's purpose is a wording, and what a
+  role did not ask is bookkeeping (ADR 0110, amendment for #749);
+- the badged elements, lines and table rows whose text still opens with "Found by the LLM:", which
+  should be none;
+- the badged lines whose target or label names a word of the Investigate contract's
+  `infrastructure` list, matched as whole words as the check does, which should be none.
+
+Connection precision, which the issue also judges, is the existing container-connection row.

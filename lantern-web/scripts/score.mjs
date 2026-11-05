@@ -807,10 +807,70 @@ export function score(original, reference, aliases = {}, inputs = {}) {
     .filter((c) => !c.pass)
     .map((c) => c.id);
   result.selfReportedGaps = selfReportedGaps(report);
+  result.llmMarks = llmMarks(report, infrastructureList());
   result.unknownCallers = unknownCallersOf(original);
   result.roles = roleRows(report, reference, matched, repFlows, inputs, (t) => canonical(normalizeTrigger(t)));
   result.contracts = contractRows(inputs);
   return result;
+}
+
+/** Whether a text opens with "Found by the LLM:", plain or emphasized. */
+const FOUND_PREFIX = /^\*?Found by the LLM:\*?/;
+
+/**
+ * How the report marks what the LLM found (#749): the focus system boxes that carry the LLM badge
+ * (none should), how many elements and lines carry it, which of them (and which marked table rows)
+ * still open with "Found by the LLM:" where the badge already says it, and the marked lines that go
+ * to infrastructure the Investigate contract names (tracing, logging, metrics, registries, config
+ * servers), which Investigate must not propose.
+ *
+ * @param infrastructure the contract's list, lower case
+ */
+export function llmMarks(data, infrastructure) {
+  const elements = data.elements ?? {};
+  const named = (text) =>
+    infrastructure.find((word) =>
+      new RegExp(`(?<![a-z0-9])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z0-9])`).test(text.toLowerCase()),
+    );
+  const prefixed = [];
+  const infrastructureLines = [];
+  let lines = 0;
+  for (const [, e] of Object.entries(elements)) {
+    if (e.llm && FOUND_PREFIX.test(e.description ?? '')) prefixed.push(`element ${e.name}`);
+  }
+  for (const page of data.pages ?? []) {
+    for (const section of page.sections ?? []) {
+      for (const r of section.relationships ?? []) {
+        if (!r.llm) continue;
+        lines++;
+        const line = `${elements[r.from]?.name ?? r.from} -> ${elements[r.to]?.name ?? r.to}`;
+        if (FOUND_PREFIX.test(r.label ?? '')) prefixed.push(`line ${line}`);
+        const word = named(`${r.to} ${elements[r.to]?.name ?? ''} ${r.label ?? ''}`);
+        if (word) infrastructureLines.push(`${line} (${word})`);
+      }
+      if (section.type === 'table') {
+        for (const i of section.llmRows ?? []) {
+          if ((section.rows[i] ?? []).some((cell) => FOUND_PREFIX.test(cell))) {
+            prefixed.push(`${page.id} table row ${i + 1}`);
+          }
+        }
+      }
+    }
+  }
+  return {
+    systemMarked: Object.values(elements)
+      .filter((e) => e.kind === 'system' && e.llm)
+      .map((e) => e.name),
+    elements: Object.values(elements).filter((e) => e.llm).length,
+    lines,
+    prefixed,
+    infrastructureLines,
+  };
+}
+
+/** The Investigate contract's infrastructure list (#749), lower case. */
+function infrastructureList() {
+  return (readContracts().investigate?.lists?.infrastructure ?? []).map((w) => w.toLowerCase());
 }
 
 /** Each role's size rules three ways and its quality score (contracts.mjs; ADR 0118). */
@@ -1123,6 +1183,19 @@ export function scorecardMarkdown(card) {
     const shown = check.failures.slice(0, 5).join('; ');
     const more = check.failures.length > 5 ? ` and ${check.failures.length - 5} more` : '';
     lines.push(`- ${check.pass ? 'pass' : 'FAIL'}: ${check.description}${check.pass ? '' : shown ? ` (${shown}${more})` : ''}`);
+  }
+  if (s.llmMarks) {
+    const m = s.llmMarks;
+    const list = (items) => (items.length === 0 ? 'none' : items.join('; '));
+    lines.push(
+      '',
+      '## LLM marks',
+      '',
+      `- Badged: ${m.elements} elements, ${m.lines} lines.`,
+      `- System boxes badged (should be none): ${list(m.systemMarked)}.`,
+      `- Badged but still opening with "Found by the LLM:" (should be none): ${list(m.prefixed)}.`,
+      `- Found lines to infrastructure (should be none): ${list(m.infrastructureLines)}.`,
+    );
   }
   lines.push(
     '',

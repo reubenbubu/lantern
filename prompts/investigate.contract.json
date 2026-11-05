@@ -127,7 +127,7 @@
   ],
   "lists": {
     "infrastructure": [
-      "tracing", "distributed tracing", "zipkin", "jaeger", "opentelemetry", "otel", "grafana tempo",
+      "distributed tracing", "zipkin", "jaeger", "opentelemetry", "otel", "grafana tempo",
       "log aggregation", "centralized logging", "loki", "logstash", "fluentd", "fluent-bit", "kibana",
       "prometheus", "grafana", "graphite", "statsd", "micrometer", "datadog", "new relic", "newrelic",
       "splunk", "sentry",

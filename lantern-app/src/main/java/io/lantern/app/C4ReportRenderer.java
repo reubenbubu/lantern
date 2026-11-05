@@ -208,6 +208,13 @@ public final class C4ReportRenderer {
             Types.DISPLAY_NAME,
             Types.FINDING_WORDING);
 
+    /**
+     * What an LLM role records about its own run, not about the system: what it did not ask, what
+     * Investigate did not look at, and Investigate's verdicts on leads. None is a finding (#749).
+     */
+    private static final Set<String> BOOKKEEPING =
+        Set.of(Types.NOT_ASKED, Types.NOT_INVESTIGATED, Types.LEAD_VERDICT);
+
     /** What opens a text the LLM found, plain or emphasized, which the mark replaces. */
     private static final java.util.regex.Pattern FOUND =
         java.util.regex.Pattern.compile(
@@ -227,8 +234,10 @@ public final class C4ReportRenderer {
     }
 
     /**
-     * Whether the facts show something only the LLM found: leaving out what an LLM role only
-     * worded, there are facts, and every one comes from the LLM (#749).
+     * Whether the facts show something only the LLM found: leaving out what an LLM role only worded
+     * and what it records about its own run, there are facts, and every one comes from the LLM, so
+     * at least one is a finding of the LLM's: a risk or connection Investigate found, or a link
+     * Resolve picked (#749).
      */
     private boolean foundByLlm(Collection<String> ids) {
       List<Fact> evidence = new ArrayList<>();
@@ -237,7 +246,9 @@ public final class C4ReportRenderer {
         if (fact == null) {
           return false;
         }
-        if (!(fact.origin().kind() == Origin.Kind.LLM && WORDINGS.contains(fact.predicate()))) {
+        boolean llm = fact.origin().kind() == Origin.Kind.LLM;
+        if (!(llm
+            && (WORDINGS.contains(fact.predicate()) || BOOKKEEPING.contains(fact.predicate())))) {
           evidence.add(fact);
         }
       }
