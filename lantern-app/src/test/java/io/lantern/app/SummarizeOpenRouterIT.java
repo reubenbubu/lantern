@@ -17,7 +17,6 @@ import io.lantern.llm.CallLimiter;
 import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmClient;
-import io.lantern.llm.LlmException;
 import io.lantern.llm.LlmMessage;
 import io.lantern.llm.LlmProvider;
 import io.lantern.llm.LlmRequest;
@@ -113,10 +112,18 @@ class SummarizeOpenRouterIT {
 
   /** The log line Summarize writes when the checks leave sentences out of an answer it keeps. */
   private static final Pattern LEFT_OUT =
-      Pattern.compile("^Left out (\\d+) sentences from the answer to summarize type (\\S+): (.*)$");
+      Pattern.compile(
+          "^Left out (\\d+) sentences from the answer to summarize type (\\S+): (.*)$",
+          Pattern.DOTALL);
+
+  /**
+   * A kept sentence's citations, as a stored summary writes them after it: one run of markers per
+   * sentence, however many it cites.
+   */
+  static final Pattern KEPT = Pattern.compile("(?:\\s*\\[(?:fact|summary):[^\\]]*\\])+");
 
   /** A left-out sentence's check, in that line: {@code sentences.2 (Names): ...}. */
-  private static final Pattern CHECK = Pattern.compile("sentences(?:\\.\\d+)? \\(([A-Za-z]+)\\)");
+  private static final Pattern CHECK = Pattern.compile("sentences(?:\\.\\d+)? \\(([^)]+)\\)");
 
   @Test
   void summarizesProject4sClassesThroughTheRealModelWithinTheCapAndRecordsWhatHappened()
@@ -195,16 +202,17 @@ class SummarizeOpenRouterIT {
     summarizerLog.addAppender(logged);
     Summarizer.Result result = null;
     String stopped = null;
-    Files.writeString(
-        out.resolve("README.md"),
-        "# " + about(description, chosen, model, cap, settingsFile, saved));
     long started = System.nanoTime();
     try {
+      Files.writeString(
+          out.resolve("README.md"),
+          "# " + about(description, chosen, model, cap, settingsFile, saved));
       result =
           new Summarizer(harness, new GitSourceFiles(name -> Optional.ofNullable(repos.get(name))))
               .summarize(chosen);
-    } catch (LlmException e) {
-      stopped = e.getMessage();
+    } catch (RuntimeException e) {
+      // Whatever stopped it, what was spent is reported.
+      stopped = e.getClass().getSimpleName() + ": " + e.getMessage();
     } finally {
       summarizerLog.detachAppender(logged);
       anthropic.close();
@@ -347,7 +355,8 @@ class SummarizeOpenRouterIT {
         continue;
       }
       leftOut += Integer.parseInt(m.group(1));
-      leftOutByItem.put(m.group(2), m.group(3));
+      String earlier = leftOutByItem.path(m.group(2)).asString("");
+      leftOutByItem.put(m.group(2), earlier.isEmpty() ? m.group(3) : earlier + " | " + m.group(3));
       Matcher check = CHECK.matcher(m.group(3));
       while (check.find()) {
         byCheck.merge(check.group(1), 1, Integer::sum);
@@ -371,6 +380,13 @@ class SummarizeOpenRouterIT {
         });
     // The sentences the model wrote, read from its answers.
     report.put("sentencesAnswered", answeredSentences(recordings));
+    if (result != null) {
+      report.put(
+          "sentencesKept",
+          result.summaries().values().stream()
+              .mapToLong(s -> KEPT.matcher(s.text()).results().count())
+              .sum());
+    }
     // Calls, tokens by kind, time and cost.
     ObjectNode tokens = report.putObject("tokens");
     tokens.put("input", calls.stream().mapToLong(c -> c.usage().input()).sum());
@@ -506,7 +522,8 @@ class SummarizeOpenRouterIT {
         try {
           Files.writeString(folder.resolve(name), text);
         } catch (IOException e) {
-          throw new java.io.UncheckedIOException(e);
+          // The call happened and is paid for; a log that cannot be written must not lose it.
+          System.err.println("Cannot write the log of " + request.purpose() + ": " + e);
         }
       }
     }
@@ -597,6 +614,8 @@ class SummarizeOpenRouterIT {
             "rejectedTwice",
             "notAsked",
             "omitted",
+            "sentencesAnswered",
+            "sentencesKept",
             "sentencesLeftOut",
             "answersSentBack",
             "itemsDropped",

@@ -53,4 +53,12 @@ class SummarizeOpenRouterLogTest {
     assertThat(SummarizeOpenRouterIT.slug("Baseline: today's format against Haiku (OpenRouter)"))
         .isEqualTo("baseline-today-s-format-against-haiku-openrouter");
   }
+
+  @Test
+  void aKeptSentenceCountsOnceHoweverManyFactsItCites() {
+    String a = "a".repeat(64);
+    String b = "b".repeat(64);
+    String text = "Issues tokens. [fact:" + a + "] [fact:" + b + "] Checks them. [fact:" + a + "]";
+    assertThat(SummarizeOpenRouterIT.KEPT.matcher(text).results().count()).isEqualTo(2);
+  }
 }
