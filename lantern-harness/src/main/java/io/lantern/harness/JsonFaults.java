@@ -74,7 +74,14 @@ public final class JsonFaults {
 
   /** The first complete JSON object of the answer and what follows it, or null (#744). */
   public static First first(String text) {
-    String body = unfenced(text);
+    String body = text == null ? "" : text.strip();
+    boolean fenced = body.startsWith("```");
+    if (fenced) {
+      // The object starts on the line after the opening fence; the closing fence is not part of
+      // what follows it, the text after the fence is.
+      int start = body.indexOf('\n');
+      body = start < 0 ? "" : body.substring(start + 1).strip();
+    }
     if (body.isEmpty() || body.charAt(0) != '{') {
       return null;
     }
@@ -82,9 +89,13 @@ public final class JsonFaults {
     if (end < 0) {
       return null;
     }
+    String rest = body.substring(end).strip();
+    if (fenced && rest.startsWith("```")) {
+      rest = rest.substring(3).strip();
+    }
     try {
       JsonNode node = JSON.readTree(body.substring(0, end));
-      return node != null && node.isObject() ? new First(node, body.substring(end).strip()) : null;
+      return node != null && node.isObject() ? new First(node, rest) : null;
     } catch (JacksonException e) {
       return null;
     }
@@ -98,6 +109,9 @@ public final class JsonFaults {
       int end = trimmed.lastIndexOf("```");
       if (start > 0 && end > start) {
         trimmed = trimmed.substring(start + 1, end).strip();
+      } else if (start > 0) {
+        // A fence never closed: what follows its opening line, as {@link #first} reads it (#744).
+        trimmed = trimmed.substring(start + 1).strip();
       }
     }
     return trimmed;
