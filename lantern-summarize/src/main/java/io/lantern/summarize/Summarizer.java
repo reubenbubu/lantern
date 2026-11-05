@@ -1267,7 +1267,10 @@ public final class Summarizer {
             purpose,
             logged(
                 String.join(
-                    " | ", dropped.stream().map(r -> r.field() + ": " + r.reason()).toList())));
+                    " | ",
+                    dropped.stream()
+                        .map(r -> r.field() + " (" + r.check() + "): " + r.reason())
+                        .toList())));
       }
       String text = String.join(" ", kept);
       Citations.Checked checked;
