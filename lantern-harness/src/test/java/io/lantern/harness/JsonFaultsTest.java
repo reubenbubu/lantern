@@ -31,4 +31,25 @@ class JsonFaultsTest {
     assertThat(JsonFaults.of("```json\n{\"items\": {\"I1\": {}}}\n```", "I1")).isNull();
     assertThat(JsonFaults.of("{\"items\": {\"I1\": {\"a\": \"}\"}}}", "I1")).isNull();
   }
+
+  @Test
+  void theFirstObjectIsReadAndWhatFollowsItIsKept() {
+    // A brace inside a string does not close the object (#744).
+    JsonFaults.First braces = JsonFaults.first("{\"a\": \"} {\"} trailing words");
+    assertThat(braces.object().path("a").asString()).isEqualTo("} {");
+    assertThat(braces.rest()).isEqualTo("trailing words");
+    // Of two objects, the first is read and the second is what follows.
+    JsonFaults.First two = JsonFaults.first("{\"a\": 1}\n{\"b\": 2}");
+    assertThat(two.object().path("a").asInt()).isEqualTo(1);
+    assertThat(two.rest()).isEqualTo("{\"b\": 2}");
+    // In a fence, the object is read, and text after the fence is what follows.
+    JsonFaults.First fenced = JsonFaults.first("```json\n{\"a\": [1, 2]}\n```\nHope this helps.");
+    assertThat(fenced.object().path("a").size()).isEqualTo(2);
+    assertThat(fenced.rest()).isEqualTo("Hope this helps.");
+    assertThat(JsonFaults.first("```json\n{\"a\": 1}\n```").rest()).isEmpty();
+    // Text before the object, an unclosed object or an array is not an answer.
+    assertThat(JsonFaults.first("Here it is: {\"a\": 1}")).isNull();
+    assertThat(JsonFaults.first("{\"a\": {\"b\": 1}")).isNull();
+    assertThat(JsonFaults.first("[{\"a\": 1}]")).isNull();
+  }
 }

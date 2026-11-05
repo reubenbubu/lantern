@@ -372,8 +372,9 @@ stored, so every rerun repeated them.
 
 - **The first complete object is read.** The harness (`Envelope.parse`) and Summarize read the
   first complete JSON object the answer opens with (`JsonFaults.first`), fences allowed. Text after
-  it is logged and left out, with no repair turn. An object that never closes, or an answer that
-  does not open with one, still goes back once with its fault named (#685).
+  it is logged and left out, with no repair turn; in a fenced answer, so is text after the
+  closing fence. An object that never closes, or an answer that does not open with one, still
+  goes back once with its fault named (#685).
 - **A drop of an unreadable answer is not stored.** When the second answer holds no readable JSON
   object, the item is dropped for this run but not stored, as an answer cut off at its limit is
   not: the next run asks again. A drop for what the checks rejected in a readable answer is stored

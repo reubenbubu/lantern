@@ -2356,6 +2356,37 @@ class SummarizerTest {
   }
 
   @Test
+  void aUnitDroppedForAnUnreadableAnswerIsAskedAgainOnTheNextRun() {
+    // An object never closed, first and after the repair turn: dropped, and the drop is not
+    // stored, since a new call may give a readable answer (#744).
+    fake.answering(
+        Answers.epic(
+            request ->
+                request.purpose().contains("type:com.example.shop.Order$Line")
+                    ? "{\"items\": {\"I1\": {\"sentences\": ["
+                    : citingAll(request)));
+    EntityId line = EntityId.parse("type:com.example.shop.Order$Line");
+
+    Summarizer.Result result =
+        summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    assertThat(result.summaries()).doesNotContainKey(line).hasSize(6);
+    assertThat(lineCalls()).isEqualTo(2);
+
+    summarizer().summarize(SummaryTree.fromFacts(TestFacts.shop().list()));
+
+    // Asked again, with its repair turn; the other units come from the cache.
+    assertThat(lineCalls()).isEqualTo(4);
+    assertThat(fake.sent()).hasSize(result.summaries().size() + 4);
+  }
+
+  private long lineCalls() {
+    return fake.sent().stream()
+        .filter(s -> s.request().purpose().contains("type:com.example.shop.Order$Line"))
+        .count();
+  }
+
+  @Test
   void sentencesPastTheCountTheItemAsksForAreLeftOut() {
     fake.answering(
         Answers.epic(
