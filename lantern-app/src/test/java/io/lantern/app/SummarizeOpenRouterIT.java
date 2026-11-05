@@ -72,11 +72,11 @@ import tools.jackson.databind.node.ObjectNode;
  * names for it (Claude Haiku through OpenRouter in {@code llm-openrouter.properties}), within a
  * cost cap. It writes, per run, every request and answer (a folder {@code lantern.llm.replay-from}
  * can replay for free), what the checks kept and dropped and why, the repairs and re-asks, the
- * tokens by kind, the time and the cost, to {@code
- * ~/workspace/lantern-llm-logs/summarize/<time>-<description>/} (written in {@code current/} while
- * the run goes on, to watch, and moved there when it ends), and each call, as soon as it finishes,
- * as plain text to read in its {@code log/}. It is the measuring stick of the Summarize changes
- * that follow it (#872 to #875).
+ * tokens by kind, the time and the cost, to the checkout's git-ignored {@code
+ * workspace/llm-logs/summarize/<time>-<description>/} (written in {@code current/} while the run
+ * goes on, to watch, and moved there when it ends), and each call, as soon as it finishes, as plain
+ * text to read in its {@code log/}. It is the measuring stick of the Summarize changes that follow
+ * it (#872 to #875).
  *
  * <p>It costs money, so it runs only when asked, never in the full check: when {@code
  * lantern.test.summarize-run} names the documents folder of an analyze run of project-4 (its {@code
@@ -99,10 +99,11 @@ class SummarizeOpenRouterIT {
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
   /**
-   * Where runs go unless {@code lantern.test.summarize-out} says otherwise: outside the checkout.
+   * Where runs go unless {@code lantern.test.summarize-out} says otherwise: the checkout's own
+   * {@code workspace/}, which git ignores (#878).
    */
   private static final Path DEFAULT_OUT =
-      Path.of(System.getProperty("user.home"), "workspace", "lantern-llm-logs", "summarize");
+      Path.of("..", "workspace", "llm-logs", "summarize").toAbsolutePath().normalize();
 
   /** The folder a run writes into while it goes on. */
   static final String CURRENT = "current";
