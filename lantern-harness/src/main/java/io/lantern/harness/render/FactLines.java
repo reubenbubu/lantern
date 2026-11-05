@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -56,8 +57,7 @@ public final class FactLines {
     } else {
       line.append(value);
     }
-    ObjectNode attributes = fact.attributes().deepCopy();
-    HIDDEN.forEach(attributes::remove);
+    ObjectNode attributes = shown(fact.attributes());
     if (!attributes.isEmpty()) {
       line.append(' ').append(attributes);
     }
@@ -68,6 +68,45 @@ public final class FactLines {
     }
     line.append(')');
     return oneLine(Refs.clean(line.toString()));
+  }
+
+  /**
+   * The attributes a prompt shows: all but those {@link #HIDDEN} and those, whatever their name,
+   * whose value is a fact or claim ID, or a list or map of them only, such as a flow's {@code
+   * trigger} (#881). An ID changes with any edit of its file, and tells the model nothing.
+   */
+  public static ObjectNode shown(ObjectNode attributes) {
+    ObjectNode shown = attributes.deepCopy();
+    HIDDEN.forEach(shown::remove);
+    List<String> ids = new ArrayList<>();
+    shown
+        .properties()
+        .forEach(
+            e -> {
+              if (onlyIds(e.getValue())) {
+                ids.add(e.getKey());
+              }
+            });
+    ids.forEach(shown::remove);
+    return shown;
+  }
+
+  private static boolean onlyIds(JsonNode value) {
+    if (value.isString()) {
+      return CLAIM_ID.matcher(value.asString()).matches();
+    }
+    if (value.isArray() || value.isObject()) {
+      if (value.isEmpty()) {
+        return false;
+      }
+      for (JsonNode element : value.values()) {
+        if (!onlyIds(element)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return false;
   }
 
   /** The facts in the order of their lines, which does not depend on their IDs. */

@@ -728,7 +728,7 @@ Rules for every task:
 ```
 
 - **Fact lines.** A fact line holds `subject predicate object`, then the key and descriptive attributes as compact JSON with sorted keys, then `(repo:path)`. Lines are sorted by subject, predicate, object.
-- **No identifiers that change.** A fact line never holds claim IDs, commits or line numbers. An entity or object that is itself a claim ID (a `flow:` entity, an intent's link) is rendered by the readable key of what it refers to: the flow by its trigger entity, the link by `source → target [channel]`.
+- **No identifiers that change.** A fact line never holds claim IDs, commits or line numbers. An entity or object that is itself a claim ID (a `flow:` entity, an intent's link) is rendered by the readable key of what it refers to: the flow by its trigger entity, the link by `source → target [channel]`. An attribute whose value is a fact or claim ID, or a list or map of them only, is left out whatever its name, such as a flow trigger's `trigger`, `route` and `routed` (#881).
 - **Code excerpts** carry line numbers, so that a citation can be written as a range.
 - **Secrets** are masked before rendering.
 - **Reference letters** are fixed across roles, so a letter never means two things:

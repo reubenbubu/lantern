@@ -61,4 +61,41 @@ class FactLinesTest {
     assertThat(FactLines.line(b)).isEqualTo("service:b:b name \"two lines\" (shop:src/A.java)");
     assertThat(FactLines.sorted(List.of(b, a))).containsExactly(a, b);
   }
+
+  @Test
+  void attributesHoldingIdsAreLeftOutWhateverTheirNameAndReadableValuesAreKept() {
+    String id = "b".repeat(64);
+    String other = "c".repeat(64);
+    Fact triggered =
+        fact(
+            "flow:service:com.example:app/x",
+            "TRIGGERED_BY",
+            FactObject.string("browser"),
+            "{\"trigger\": \""
+                + id
+                + "\", \"route\": \""
+                + other
+                + "\", \"routed\": \""
+                + id
+                + "\", \"filledBy\": [\""
+                + id
+                + "\"], \"fieldCites\": {\"title\": [\""
+                + other
+                + "\"]}, \"person\": \"person:user\"}");
+    Fact scheduled =
+        fact(
+            "service:com.example:app",
+            "SCHEDULED",
+            FactObject.string("job"),
+            "{\"trigger\": \"cron\", \"route\": \"admin-service\"}");
+
+    assertThat(FactLines.line(triggered))
+        .isEqualTo(
+            "flow:service:com.example:app/x TRIGGERED_BY \"browser\""
+                + " {\"person\":\"person:user\"} (shop:src/A.java)");
+    assertThat(FactLines.line(scheduled))
+        .isEqualTo(
+            "service:com.example:app SCHEDULED \"job\""
+                + " {\"route\":\"admin-service\",\"trigger\":\"cron\"} (shop:src/A.java)");
+  }
 }
