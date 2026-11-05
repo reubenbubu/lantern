@@ -305,8 +305,8 @@ public final class DescribeItems {
 
   /**
    * The unit's interactions, as {@link UnitInteractions} holds them: its links to other containers,
-   * every other line of the diagrams it holds (#738), its other interactions with units, the lines
-   * between its components, and the people who use it.
+   * every other line of the diagrams it holds (#738), its other interactions with units, its pushes
+   * to STOMP subscribers (#738), the lines between its components, and the people who use it.
    */
   private List<Interaction> interactions(EntityId unit, List<ComponentShown> components) {
     Map<EntityId, String> componentNames = new TreeMap<>(Knowledge.BY_ID);
@@ -350,6 +350,16 @@ public final class DescribeItems {
                               + ")"),
                   fact));
         }
+        case PUSH ->
+            result.add(
+                new Interaction(
+                    unit,
+                    ("true".equals(Elements.attribute(fact, "toUser", ""))
+                            ? "pushes to the user's subscribers of "
+                            : "pushes to the subscribers of ")
+                        + FactLines.oneLine(fact.object().value())
+                        + " (browsers)",
+                    fact));
         case COMPONENT_LINK -> {
           String name = componentNames.get(held.from());
           String other = componentNames.get(held.to());

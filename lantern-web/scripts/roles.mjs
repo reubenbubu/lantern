@@ -331,6 +331,21 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
       result.push({ id: `interaction:${f.id}`, fact: f, kind: 'COMPONENT_LINK', owners: [unit], keys: keys(f) });
     }
   }
+  // A message a flow pushes from a unit to its STOMP subscribers (#738): each stored step of
+  // action stomp-push follows its push first and stands over its unit, as UnitInteractions.pushes
+  // reads them, once per unit, since a library two units bundle pushes from both. A push no flow
+  // reaches is drawn by no view.
+  const byId = new Map(facts.map((f) => [f.id, f]));
+  const pushed = new Set();
+  for (const f of facts) {
+    if (f.predicate !== 'STEP_OF' || f.attributes?.action !== 'stomp-push') continue;
+    const unit = f.attributes.over?.[0];
+    const pushId = f.attributes.facts?.[0];
+    if (!unit || !pushId || pushed.has(`${unit} ${pushId}`)) continue;
+    pushed.add(`${unit} ${pushId}`);
+    const push = byId.get(pushId) ?? { id: pushId };
+    result.push({ id: `interaction:${pushId}:${unit}`, fact: push, kind: 'stomp-send', owners: [unit], keys: keys(push) });
+  }
   for (const f of facts) {
     if (f.predicate !== 'data-access') continue;
     const unit = unitOf.get(f.subject);

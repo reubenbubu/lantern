@@ -371,8 +371,7 @@ class Project0EndToEndIT {
     // (#742), apart from a component's use of a store, which takes its unit's store intent (#739).
     assertThat(io.lantern.summarize.describe.Describer.interactionsAsked(held))
         .isEqualTo(
-            drawableInteractions(
-                held, vocabulary.current(), C4ReportRenderer.toJson(written).data()));
+            drawableInteractions(system.file(), C4ReportRenderer.toJson(written).data(), OUT));
     checkIntentNotKnown(held, second, written);
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));
@@ -1151,62 +1150,45 @@ class Project0EndToEndIT {
   }
 
   /**
-   * The IDs of the facts of every interaction a view of the system report can draw, as the
-   * scorecard's model coverage counts them (lantern-web/scripts/roles.mjs, interactionsOf; #742):
-   * each link of a kind under INTERACTS_WITH between two ends the report draws (a queue folded into
-   * its exchange's line drawn through the exchange), other than a profile's alternative; each line
-   * between two components of one unit other than to code at the end of a call; and each person's
-   * use of a frontend the report draws. A component's data access is left out (#739).
+   * Every interaction a view of the system report can draw, as the scorecard's model coverage
+   * counts them (#742), apart from a component's use of a store (#739): the scorer's own {@code
+   * interactionsOf} (lantern-web/scripts/roles.mjs), run with the build's Node over the facts the
+   * run wrote beside the document ({@code linked.jsonl.gz} and {@code llm.jsonl.gz}) and the report
+   * data, as the scorecard reads them, so the test and the scorecard have one definition (#738).
+   * Each is named as {@link io.lantern.summarize.describe.Describer#interactionsAsked} names it.
+   * The report data is written to {@code out} for the scorer.
    */
-  static java.util.SortedSet<String> drawableInteractions(
-      List<Fact> facts, io.lantern.core.vocabulary.Vocabulary vocabulary, JsonNode report) {
-    JsonNode elements = report.path("elements");
-    java.util.function.Predicate<String> shown =
-        entity ->
-            elements.has(
-                entity
-                    .toLowerCase(java.util.Locale.ROOT)
-                    .replaceAll("[^a-z0-9]+", "-")
-                    .replaceAll("^-|-$", ""));
-    Map<String, List<String>> routedFrom = new TreeMap<>();
-    Map<String, String> unitOf = new TreeMap<>();
-    for (Fact f : facts) {
-      if (f.predicate().equals(Types.ROUTES_TO) && io.lantern.derive.Knowledge.isEntity(f)) {
-        routedFrom
-            .computeIfAbsent(f.object().value(), k -> new ArrayList<>())
-            .add(f.subject().toString());
-      }
-      if (f.predicate().equals(Types.PART_OF) && io.lantern.derive.Knowledge.isEntity(f)) {
-        unitOf.put(f.subject().toString(), f.object().value());
-      }
-    }
-    java.util.function.Predicate<String> drawn =
-        entity ->
-            shown.test(entity)
-                || routedFrom.getOrDefault(entity, List.of()).stream().anyMatch(shown);
-    Set<Fact> alternatives =
-        io.lantern.derive.Screens.alternatives(new io.lantern.derive.Knowledge(facts)).keySet();
-    java.util.SortedSet<String> result = new java.util.TreeSet<>();
-    for (Fact f : facts) {
-      if (vocabulary.isA(f.predicate(), Types.INTERACTS_WITH)
-          && io.lantern.derive.Knowledge.isEntity(f)
-          && drawn.test(f.subject().toString())
-          && (f.predicate().equals(Types.ROUTES_TO) ? shown : drawn).test(f.object().value())
-          && !alternatives.contains(f)) {
-        result.add(f.id());
-      }
-      if (f.predicate().equals(Types.COMPONENT_LINK)
-          && !"code-end".equals(io.lantern.derive.Elements.attribute(f, "kind", ""))
-          && unitOf.get(f.subject().toString()) != null
-          && unitOf.get(f.subject().toString()).equals(unitOf.get(f.object().value()))) {
-        result.add(f.id());
-      }
-      if (f.predicate().equals("person-basis")
-          && !io.lantern.derive.Elements.strings(f, "frontends").isEmpty()) {
-        result.add(f.id());
-      }
-    }
-    return result;
+  static java.util.SortedSet<String> drawableInteractions(Path document, JsonNode report, Path out)
+      throws IOException, InterruptedException {
+    Files.createDirectories(out);
+    Path reportFile = out.resolve("interactions-report.json");
+    Files.writeString(reportFile, report.toString(), StandardCharsets.UTF_8);
+    String script =
+        """
+        const [roles, linkedFile, llmFile, reportFile] = process.argv.slice(-4);
+        const { readFileSync } = await import('node:fs');
+        const { interactionsOf, readFacts } = await import(roles);
+        const report = JSON.parse(readFileSync(reportFile, 'utf8'));
+        const facts = [...readFacts(linkedFile), ...(readFacts(llmFile) ?? [])];
+        for (const i of interactionsOf(facts, report)) {
+          if (i.kind !== 'data-access') console.log(i.id.slice('interaction:'.length));
+        }
+        """;
+    Process node =
+        new ProcessBuilder(
+                Path.of("../lantern-web/target/node/node").toAbsolutePath().toString(),
+                "--input-type=module",
+                "-e",
+                script,
+                Path.of("../lantern-web/scripts/roles.mjs").toAbsolutePath().toUri().toString(),
+                document.resolveSibling(ExtractedFacts.LINKED_FILE).toString(),
+                document.resolveSibling(ExtractedFacts.LLM_FILE).toString(),
+                reportFile.toString())
+            .start();
+    String printed = new String(node.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    String err = new String(node.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+    assertThat(node.waitFor()).as(err).isZero();
+    return new java.util.TreeSet<>(printed.lines().filter(l -> !l.isBlank()).toList());
   }
 
   /**

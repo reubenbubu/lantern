@@ -255,9 +255,11 @@ public final class Describer {
   }
 
   /**
-   * The IDs of the link, line and person facts whose interactions Describe asks about over these
-   * facts, across every unit and frontend (#738): what a test compares with the interactions any
-   * view can draw.
+   * The interactions Describe asks about over these facts, across every unit and frontend (#738),
+   * each named as the scorer names it (`interactionsOf`, lantern-web/scripts/roles.mjs): by the ID
+   * of its link, line or component link; a person's use of a frontend by the person's basis and the
+   * frontend, and a push to STOMP subscribers by the push and its unit, as one fact stands for each
+   * frontend or unit. What a test compares with the interactions any view can draw.
    */
   public static SortedSet<String> interactionsAsked(Collection<Fact> facts) {
     List<Fact> shown = withoutTexts(facts);
@@ -272,7 +274,11 @@ public final class Describer {
     units.addAll(Elements.frontends(knowledge));
     SortedSet<String> result = new TreeSet<>();
     for (EntityId unit : units) {
-      items.interactionFacts(unit).forEach(f -> result.add(f.id()));
+      for (Fact f : items.interactionFacts(unit)) {
+        boolean perUnit =
+            f.predicate().equals(Types.PERSON_BASIS) || f.predicate().equals(Types.STOMP_SEND);
+        result.add(perUnit ? f.id() + ":" + unit : f.id());
+      }
     }
     return result;
   }

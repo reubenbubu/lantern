@@ -541,6 +541,35 @@ test("Describe's model: a folded queue's consumer is drawn at the exchange, so i
   assert.equal(byId['interaction:f-ra'], undefined);
 });
 
+test("Describe's model: a push a flow draws to a unit's STOMP subscribers is the unit's (#738)", () => {
+  const report = { elements: { 'service-a': { kind: 'container', name: 'a' } }, pages: [] };
+  const push = { id: 'f-push', claim: 'c-push', predicate: 'stomp-send', subject: 'method:p.A#tell()', object: { kind: 'string', value: '/topic/orders' } };
+  const step = (id, facts) => ({
+    id,
+    predicate: 'STEP_OF',
+    subject: `flow-step:${id}`,
+    object: { kind: 'entity', value: 'flow:service:a/x' },
+    attributes: { action: 'stomp-push', kind: 'note', over: ['service:a'], facts },
+  });
+  const facts = [
+    { id: 'u-a', predicate: 'deployable-unit', subject: 'service:a', object: { kind: 'string', value: 'a' } },
+    push,
+    // Two flows draw the same push: one interaction.
+    step('s1', ['f-push', 'f-ws']),
+    step('s2', ['f-push']),
+  ];
+  const pushes = interactionsOf(facts, report).filter((i) => i.kind === 'stomp-send');
+  assert.deepEqual(
+    pushes.map(({ id, owners, keys }) => ({ id, owners, keys })),
+    [{ id: 'interaction:f-push:service:a', owners: ['service:a'], keys: ['c-push', 'f-push'] }],
+  );
+  const asked = { harness: [{ role: 'describe-unit', askedSubjects: ['service:a'], cachedSubjects: [], unaskedSubjects: [] }] };
+  const kinds = (llm) => Object.fromEntries(describeRow(report, facts, llm, asked).model.byKind.map((k) => [k.kind, k]));
+  assert.equal(kinds([])['stomp-send'].unknown, 1);
+  const intent = { predicate: 'intent', origin: { name: 'describe-unit' }, object: { kind: 'string', value: 'c-push' }, attributes: { text: 'Tells browsers about new orders' } };
+  assert.equal(kinds([intent])['stomp-send'].own, 1);
+});
+
 test("Describe's model: a unit asked in parts is asked, and an interaction a refused part may hold is not asked (#741)", () => {
   const report = { elements: { 'service-a': { kind: 'container', name: 'a' }, 'service-b': { kind: 'container', name: 'b' } }, pages: [] };
   const facts = [link('ab', 'CALLS_HTTP', 'service:a', 'service:b')];

@@ -122,6 +122,7 @@ class TestSetScoreIT {
   @Autowired LlmProperties properties;
   @Autowired JdbcLlmCallLog callLog;
   @Autowired FakeLlmProvider fake;
+  @Autowired FactRepository facts;
 
   @Test
   void scoresTheSetTwiceWithSummarizeOnAnotherModel() throws Exception {
@@ -145,6 +146,19 @@ class TestSetScoreIT {
         .forEach(
             (name, build) -> assertThat(build.status()).as(name).isEqualTo(BuildStatus.SUCCEEDED));
     Path firstCard = keep(first, out, "fake-model");
+    // Describe asks about every interaction a view can draw, as the scorecard counts them, apart
+    // from a component's use of a store (#738): on a set with STOMP pushes, those too.
+    AnalysisRun.Rendered system =
+        first.documents().stream()
+            .filter(d -> d.file().getFileName().toString().equals("_system.c4.html"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(
+            io.lantern.summarize.describe.Describer.interactionsAsked(
+                facts.findValidAt(first.snapshot().number(), repos.keySet())))
+        .isEqualTo(
+            Project0EndToEndIT.drawableInteractions(
+                system.file(), C4ReportRenderer.toJson(system.document()).data(), out));
 
     // The same settings with Summarize on the priced fake, as --lantern.llm.roles.summarize would
     // set it for the app.
