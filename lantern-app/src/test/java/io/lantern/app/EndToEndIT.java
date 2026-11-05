@@ -1096,7 +1096,7 @@ class EndToEndIT {
     assertThat(Files.readString(report.file()))
         .contains(
             "<script type=\"application/json\" id=\"arc-data\">\n"
-                + C4ReportRenderer.write(C4ReportRenderer.toJson(report.document()).data())
+                + C4ReportRenderer.write(C4ReportRenderer.fromClassPath().data(report.document()))
                     .replace("<", "\\u003c")
                 + "\n</script>");
 

@@ -130,6 +130,16 @@ public final class C4ReportRenderer {
    * @throws IllegalArgumentException if two Lantern IDs would become the same report spec ID
    */
   public String render(Document document) {
+    return template.render(MAPPER.writeValueAsString(data(document)));
+  }
+
+  /**
+   * The report spec's data for a document as {@link #render} writes it: {@link #toJson}'s, with the
+   * diagram limits as its document's {@code readable} (#836).
+   *
+   * @throws IllegalArgumentException if two Lantern IDs would become the same report spec ID
+   */
+  public ObjectNode data(Document document) {
     ObjectNode data = toJson(document).data();
     ObjectNode readable = data.withObject("document").putObject("readable");
     readable.put("target", limits.target());
@@ -137,7 +147,7 @@ public final class C4ReportRenderer {
     readable.put("linesPerElement", limits.linesPerElement());
     readable.put("scale", limits.scale());
     readable.put("crossings", limits.crossings());
-    return template.render(MAPPER.writeValueAsString(data));
+    return data;
   }
 
   /**
