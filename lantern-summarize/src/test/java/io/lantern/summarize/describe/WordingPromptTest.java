@@ -3,10 +3,17 @@ package io.lantern.summarize.describe;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
+import io.lantern.core.fact.Fact;
+import io.lantern.core.fact.FactJson;
+import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
 import io.lantern.derive.ScopeFlows;
 import io.lantern.summarize.describe.WordingPrompt.Question;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * How a flow's trace is written as a question, whose user text keys the flow's wording (ADR 0058,
@@ -61,5 +68,32 @@ class WordingPromptTest {
     assertThat(WordingPrompt.javadoc("/*********\n * Banner\n *********/")).isFalse();
     assertThat(WordingPrompt.javadoc("/**/ class A {}")).isFalse();
     assertThat(WordingPrompt.javadoc("/* Not Javadoc. */")).isFalse();
+  }
+
+  @Test
+  void aFlowsQuestionDoesNotChangeWhenTheIdsItsTriggerHoldsDo() {
+    assertThat(triggered("a".repeat(64)).user()).isEqualTo(triggered("b".repeat(64)).user());
+    assertThat(triggered("a".repeat(64)).user()).doesNotContain("a".repeat(64));
+  }
+
+  /** A flow whose trigger fact names the fact it starts from by its ID, which an edit changes. */
+  private static Question triggered(String triggerId) {
+    Fact trigger =
+        Fact.create(
+            EntityId.parse("flow:service:com.example:app/x"),
+            "TRIGGERED_BY",
+            FactObject.string("browser"),
+            (ObjectNode)
+                FactJson.parse("{\"trigger\": \"" + triggerId + "\", \"person\": \"person:user\"}"),
+            new Origin(Origin.Kind.STATIC, "test", "1"),
+            Evidence.of("shop", "src/A.java", null, null),
+            1.0,
+            Validity.from(1));
+    return WordingPrompt.flow(
+        EntityId.parse("method:com.example.web.Controller#list()"),
+        "GET /orders on shop-app",
+        "shop-app receives GET /orders (Controller.list)",
+        trigger,
+        List.of());
   }
 }

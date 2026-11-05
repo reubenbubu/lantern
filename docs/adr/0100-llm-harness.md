@@ -49,7 +49,9 @@ of ADRs 0010, 0055 and 0045, and amends ADR 0081 (caps, submit tool).
   that a link fact lists in its `facts` attribute, and a flow narrative listed each step's facts in
   fact-ID order. Fact IDs change with extractor versions and commits, so a one-file change re-asked
   items it did not touch. Summary prompts now strip the same ID attributes as wording prompts
-  (`PromptAttributes`), and a step's facts are sorted by their rendered line.
+  (`FactLines.shown`), and a step's facts are sorted by their rendered line. Amended for #881: an
+  attribute is left out by its value, not its name, when it holds only fact or claim IDs, such as a
+  flow trigger's `trigger`.
 - **The plan prints the estimate before a role's first call.** `Plan <role>: n items, h cached, m to
   ask, about t tokens, $c`, from uncached input, one cache write of the shared prefix, cache reads
   for the other requests, and expected output. The run budget and the printed estimates are

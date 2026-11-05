@@ -3,12 +3,16 @@ package io.lantern.derive;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.fact.EntityId;
+import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.fact.Origin;
+import io.lantern.core.fact.Validity;
 import io.lantern.core.types.Types;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -151,6 +155,46 @@ class FlowsTest {
     assertThat(TestModel.about(derived, representative, Types.SAME_SHAPE_AS)).isEmpty();
     assertThat(only(TestModel.about(derived, first, Types.FLOW_SHAPE)).object())
         .isEqualTo(only(TestModel.about(derived, second, Types.FLOW_SHAPE)).object());
+  }
+
+  @Test
+  void stepsOnOneLineToOneTargetKeepTheirOrderWhenTheirFactIdsChange() {
+    // Two calls from one line of place() to billing, as one call site resolved two ways; the
+    // facts' IDs rest on what they cite, which an edit of their file changes (#881).
+    assertThat(pathsInOrder("a".repeat(64))).isEqualTo(pathsInOrder("b".repeat(64)));
+    assertThat(pathsInOrder("a".repeat(64))).containsExactly("/fallback", "/public");
+  }
+
+  private static List<String> pathsInOrder(String cites) {
+    FlowsTest test = new FlowsTest();
+    Fact endpoint = test.system();
+    for (String path : List.of("/public", "/fallback")) {
+      ObjectNode at = FactJson.newObject();
+      at.put("source", PLACE.toString());
+      at.put("path", path);
+      at.putArray("facts").add(cites + path);
+      test.model.facts.add(
+          Fact.create(
+                  SHOP,
+                  "CALLS_HTTP",
+                  FactObject.entity(BILLING),
+                  at,
+                  new Origin(Origin.Kind.STATIC, "java", "1"),
+                  Evidence.of("shop", "src/Orders.java", new Evidence.LineRange(7, 7), null),
+                  1.0,
+                  Validity.from(1))
+              .stored(TestModel.claim("shop:CALLS_HTTP:" + path), Validity.from(1)));
+    }
+    List<Fact> derived = test.model.derived(Flows.NAME);
+    EntityId flow = Flows.id(SHOP, endpoint);
+    Map<String, String> pathOfClaim =
+        test.model.facts.stream()
+            .filter(f -> f.predicate().equals("CALLS_HTTP"))
+            .collect(Collectors.toMap(Fact::claimId, f -> f.attributes().get("path").asString()));
+    return steps(derived, flow).stream()
+        .map(s -> pathOfClaim.get(s.lineage().getFirst()))
+        .filter(java.util.Objects::nonNull)
+        .toList();
   }
 
   /** shop's OrdersController#place is POST /orders; billing's Payments#charge is POST /charge. */

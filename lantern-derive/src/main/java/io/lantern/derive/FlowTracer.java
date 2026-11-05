@@ -8,6 +8,7 @@ import io.lantern.derive.FlowModel.Operand;
 import io.lantern.derive.FlowModel.Part;
 import io.lantern.derive.FlowModel.Start;
 import io.lantern.derive.FlowModel.Step;
+import io.lantern.harness.render.FactLines;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -149,6 +150,7 @@ final class FlowTracer {
             .sorted(
                 Comparator.comparing((Fact f) -> f.evidence().path())
                     .thenComparingInt(FlowTracer::line)
+                    .thenComparing((Fact f) -> FactLines.line(f))
                     .thenComparing(Fact::id))
             .toList();
     for (Fact call : calls) {
@@ -716,15 +718,22 @@ final class FlowTracer {
   /**
    * Something a method does, in the order of the code: a call, or a step out of its unit. Ordered
    * by line, then kind (calls; then links, STOMP pushes and jobs; then reads; then writes), then
-   * what it reaches as its fact says it; the fact's ID only between steps the same in all of these
-   * (#545).
+   * what it reaches as its fact says it, then the fact's line as prompts show it; the fact's ID
+   * only between steps the same in all of these (#545). An ID changes with any edit of its file, so
+   * ordering by it would reorder steps an edit did not touch (#881).
    */
-  private record Event(int line, int order, String reaches, String id, Runnable action) {
+  private record Event(
+      int line, int order, String reaches, String text, String id, Runnable action) {
+
+    Event(int line, int order, String reaches, Fact fact, Runnable action) {
+      this(line, order, reaches, FactLines.line(fact), fact.id(), action);
+    }
 
     static final Comparator<Event> ORDER =
         Comparator.comparingInt(Event::line)
             .thenComparingInt(Event::order)
             .thenComparing(Event::reaches)
+            .thenComparing(Event::text)
             .thenComparing(Event::id);
   }
 
@@ -767,12 +776,11 @@ final class FlowTracer {
                 line(call),
                 0,
                 reaches(call),
-                call.id(),
+                call,
                 () -> repositoryCall(trace, unit, call, profiles)));
       } else {
         events.add(
-            new Event(
-                line(call), 0, reaches(call), call.id(), () -> call(trace, unit, call, profiles)));
+            new Event(line(call), 0, reaches(call), call, () -> call(trace, unit, call, profiles)));
       }
     }
     for (Fact link : linksBySource.getOrDefault(unit + " " + method, List.of())) {
@@ -785,18 +793,14 @@ final class FlowTracer {
             default -> null;
           };
       if (action != null) {
-        events.add(new Event(line(link), 1, reaches(link), link.id(), action));
+        events.add(new Event(line(link), 1, reaches(link), link, action));
       }
     }
     for (Fact push : knowledge.attributes(method)) {
       if (push.predicate().equals(Types.STOMP_SEND)) {
         events.add(
             new Event(
-                line(push),
-                1,
-                reaches(push),
-                push.id(),
-                () -> stompPush(trace, unit, push, profiles)));
+                line(push), 1, reaches(push), push, () -> stompPush(trace, unit, push, profiles)));
       }
     }
     List<Entry> jobs = jobsByScheduler.getOrDefault(method.toString(), List.of());
@@ -807,7 +811,7 @@ final class FlowTracer {
               schedulingLine(method),
               1,
               job.method + " " + job.fact.object().value(),
-              job.fact.id(),
+              job.fact,
               () -> schedule(trace, unit, job, profiles)));
     }
     List<Fact> reads = knowledge.relations(method, Types.READS_TABLE);
@@ -817,7 +821,7 @@ final class FlowTracer {
               reads.stream().mapToInt(FlowTracer::line).min().orElseThrow(),
               2,
               "",
-              reads.getFirst().id(),
+              reads.getFirst(),
               () -> dataAccess(trace, unit, "Reads", reads, profiles)));
     }
     List<Fact> writes = knowledge.relations(method, Types.WRITES_TABLE);
@@ -827,7 +831,7 @@ final class FlowTracer {
               writes.stream().mapToInt(FlowTracer::line).min().orElseThrow(),
               3,
               "",
-              writes.getFirst().id(),
+              writes.getFirst(),
               () -> dataAccess(trace, unit, "Writes", writes, profiles)));
     }
     events.sort(Event.ORDER);
