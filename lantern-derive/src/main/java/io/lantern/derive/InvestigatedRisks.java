@@ -28,6 +28,8 @@ public final class InvestigatedRisks {
    * @param cites the citations the LLM verified, as {@code file:line}, in order
    * @param facts the facts the risk rests on: the fact itself, and for a worded finding the fixed
    *     check's too
+   * @param leadKind the kind of the confirmed leads it gathers, the first word of its value (ADR
+   *     0110, amendment for #747); the empty text for a risk found exploring or a worded finding
    */
   public record Risk(
       Fact fact,
@@ -37,7 +39,8 @@ public final class InvestigatedRisks {
       String consequence,
       String impact,
       List<String> cites,
-      List<Fact> facts) {}
+      List<Fact> facts,
+      String leadKind) {}
 
   /**
    * The risks and findings about one of the units, in the order the model holds them: the risks
@@ -78,7 +81,17 @@ public final class InvestigatedRisks {
         text(fact, "consequence"),
         text(fact, "impact"),
         cites,
-        List.copyOf(facts));
+        List.copyOf(facts),
+        leadKind(fact, worded));
+  }
+
+  private static String leadKind(Fact fact, boolean worded) {
+    if (worded || !fact.attributes().path("lead").isString()) {
+      return "";
+    }
+    String value = fact.object().value();
+    int space = value.indexOf(' ');
+    return space < 0 ? value : value.substring(0, space);
   }
 
   private static List<EntityId> units(Fact fact) {

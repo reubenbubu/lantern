@@ -274,7 +274,14 @@
             "kind" : "text",
             "text" : "orders"
           } ], [ ] ],
-          "facts" : [ ]
+          "facts" : [ ],
+          "children" : [ {
+            "cells" : [ [ {
+              "kind" : "text",
+              "text" : "orders-api"
+            } ], [ ] ],
+            "facts" : [ ]
+          } ]
         } ],
         "facts" : [ ]
       }, {

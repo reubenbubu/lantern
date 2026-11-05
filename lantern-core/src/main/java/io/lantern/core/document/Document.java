@@ -147,7 +147,7 @@ public record Document(
                     });
         case Callout c -> content(c.content());
         case Table t ->
-            t.rows()
+            t.allRows()
                 .forEach(
                     row -> {
                       entity(row.entity());

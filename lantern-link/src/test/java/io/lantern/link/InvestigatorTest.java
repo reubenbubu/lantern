@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -811,7 +812,7 @@ class InvestigatorTest {
   }
 
   /** A second lead of the header kind in the files unit, on another header, at line 7. */
-  private Fact orgLead() {
+  private Fact orgLead(String... alsoUnits) {
     Fact read =
         add(
             "spring",
@@ -824,7 +825,10 @@ class InvestigatorTest {
             7);
     ObjectNode attributes = FactJson.newObject();
     attributes.put("trigger", "The header X-Org-Id is read by the code of files");
-    attributes.putArray("units").add(FILES_UNIT);
+    ArrayNode orgUnits = attributes.putArray("units").add(FILES_UNIT);
+    for (String unit : alsoUnits) {
+      orgUnits.add(unit);
+    }
     attributes.putArray("code").add("method:f.FileController#upload()");
     attributes.put("content", "sha256:def");
     attributes.putArray("facts").add(read.id());
@@ -866,7 +870,7 @@ class InvestigatorTest {
     assertThat(of(result, Types.LEAD_VERDICT)).hasSize(2);
     assertThat(result.confirmed()).isEqualTo(2);
     Fact risk = of(result, Types.INVESTIGATED_RISK).stream().collect(onlyOne());
-    assertThat(risk.object().value()).isEqualTo("identity-from-request");
+    assertThat(risk.object().value()).isEqualTo("identity-from-request " + FILES_UNIT);
     // The first lead's wording, every lead's places.
     assertThat(risk.attributes().path("title").asString())
         .isIn(
@@ -878,6 +882,72 @@ class InvestigatorTest {
     assertThat(risk.lineage()).containsExactlyInAnyOrder(claimOf(header), claimOf(org));
     assertThat(risk.attributes().path("impact").asString()).isEqualTo("high");
     assertValidAttributes(result);
+  }
+
+  @Test
+  void twoLeadsOfOneKindWithDifferentUnitsAreTwoRisks() {
+    // A risk is one problem: its kind and all its units (owner's decision on #747). The header
+    // lead is about files alone; the organization lead about files and the gateway.
+    headerLead();
+    orgLead(GATEWAY_UNIT);
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                !leads(r) || turn(r) != 1
+                    ? null
+                    : r.messages().getFirst().text().contains("header:X-Org-Id")
+                        ? CONFIRMED_ORG
+                        : CONFIRMED);
+
+    Investigator.Result result = investigate(fake);
+
+    List<Fact> risks = of(result, Types.INVESTIGATED_RISK);
+    assertThat(risks).hasSize(2);
+    // Each risk's value is its kind and its leads' units, so the two are two claims.
+    assertThat(risks)
+        .extracting(r -> r.object().value())
+        .containsExactlyInAnyOrder(
+            "identity-from-request " + FILES_UNIT,
+            "identity-from-request " + FILES_UNIT + "," + GATEWAY_UNIT);
+    assertValidAttributes(result);
+  }
+
+  @Test
+  void aRiskFoundExploringThatCitesTheLinesOfARiskNamingItsUnitIsNotASecondRisk() {
+    // The lead is the gateway's first and files' second; its risk names both units.
+    Fact lead = headerLead();
+    ObjectNode attributes = (ObjectNode) lead.attributes().deepCopy();
+    attributes.putArray("units").add(GATEWAY_UNIT).add(FILES_UNIT);
+    add(
+        "lead-identity-from-request",
+        "lead:identity-from-request/" + GATEWAY_UNIT + "/header:X-User-Id",
+        Types.LEAD_TRIGGER,
+        FactObject.string("identity-from-request"),
+        attributes.toString(),
+        "fs",
+        CONTROLLER,
+        6);
+    String confirmed =
+        CONFIRMED.replace(
+            "\"units\": [\"service:g:files\"]",
+            "\"units\": [\"" + GATEWAY_UNIT + "\", \"" + FILES_UNIT + "\"]");
+    String overlapping = uploadRisk("fs:" + CONTROLLER + ":6-6");
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                turn(r) != 1
+                    ? null
+                    : leads(r)
+                        ? r.messages().getFirst().text().contains(GATEWAY_UNIT + "/header")
+                            ? confirmed
+                            : null
+                        : unit(r, FILES_UNIT) ? overlapping : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.INVESTIGATED_RISK))
+        .singleElement()
+        .satisfies(r -> assertThat(r.subject().toString()).isEqualTo(GATEWAY_UNIT));
   }
 
   @Test

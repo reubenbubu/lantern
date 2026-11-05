@@ -71,5 +71,6 @@
   {"description": "empty quality failure detail", "pointer": "/sections/1/blocks/2/failures/0/detail", "value": []},
   {"description": "title of only a no-break space", "pointer": "/title", "value": "\u00a0"},
   {"description": "empty entity description", "pointer": "/entities/2/description", "value": []},
-  {"description": "position beyond what JavaScript numbers hold exactly", "pointer": "/sections/0/sections/0/blocks/0/nodes/2/position/x", "value": 9007199254740992}
+  {"description": "position beyond what JavaScript numbers hold exactly", "pointer": "/sections/0/sections/0/blocks/0/nodes/2/position/x", "value": 9007199254740992},
+  {"description": "a row folded under another with rows of its own", "pointer": "/sections/0/sections/0/blocks/1/rows/1/children/0/children", "value": [{"cells": [[], []], "facts": []}]}
 ]

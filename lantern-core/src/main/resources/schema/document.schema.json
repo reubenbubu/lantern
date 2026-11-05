@@ -287,7 +287,12 @@
             "items": { "$ref": "#/$defs/inline" }
           }
         },
-        "facts": { "$ref": "#/$defs/factIds" }
+        "facts": { "$ref": "#/$defs/factIds" },
+        "children": {
+          "description": "The rows folded under this one, which makes it an expandable parent row: a reader expands it to see them. Each has one cell per column and no children of its own. Absent for a plain row.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/tableRow", "not": { "type": "object", "properties": { "children": true }, "required": ["children"] } }
+        }
       }
     },
     "diagram": {

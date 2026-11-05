@@ -231,6 +231,56 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void aParentRowsFoldedRowsAreItsSubRows() {
+    EntityId system = EntityId.parse("repo:shop");
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Table risks =
+        new Table(
+            "risks.table",
+            "Risks",
+            List.of(new Table.Column("Impact"), new Table.Column("Finding")),
+            List.of(
+                new Table.Row(
+                    null,
+                    List.of(List.of(TextRun.of("High")), List.of(TextRun.of("A risk"))),
+                    List.of()),
+                new Table.Row(
+                    null,
+                    List.of(List.of(TextRun.of("Medium")), List.of(TextRun.of("Two of a kind"))),
+                    List.of(),
+                    List.of(
+                        new Table.Row(
+                            null,
+                            List.of(List.of(TextRun.of("Medium")), List.of(TextRun.of("First"))),
+                            List.of()),
+                        new Table.Row(
+                            null,
+                            List.of(List.of(TextRun.of("Low")), List.of(TextRun.of("Second"))),
+                            List.of())))),
+            List.of());
+    Document document =
+        document(
+            List.of(entity(system)),
+            section("context", system, List.of(context), List.of()),
+            section("risks", system, List.of(risks), List.of()));
+
+    JsonNode table =
+        C4ReportRenderer.toJson(document).data().get("pages").get(1).get("sections").get(0);
+
+    // The parent stays one row; what is folded under it is listed by its index (#747).
+    assertThat(table.get("rows").size()).isEqualTo(2);
+    assertThat(table.get("subRows").toString())
+        .isEqualTo("[{\"row\":1,\"rows\":[[\"Medium\",\"First\"],[\"Low\",\"Second\"]]}]");
+  }
+
+  @Test
   void marksWhatOnlyTheLlmFoundAsFoundByTheLlm() throws IOException {
     Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
 

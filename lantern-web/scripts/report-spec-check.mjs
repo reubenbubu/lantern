@@ -90,6 +90,17 @@ export function crossReferenceIssues(data) {
       for (const row of section.llmRows ?? []) {
         if (row >= section.rows.length) issues.push(`${where}: llmRows names row ${row}, which it lacks`);
       }
+      const parents = new Set();
+      for (const group of section.subRows ?? []) {
+        if (group.row >= section.rows.length) issues.push(`${where}: subRows names row ${group.row}, which it lacks`);
+        if (parents.has(group.row)) issues.push(`${where}: subRows names row ${group.row} twice`);
+        parents.add(group.row);
+        for (const row of group.llmRows ?? []) {
+          if (row >= group.rows.length) {
+            issues.push(`${where}: subRows of row ${group.row} mark row ${row} as the LLM's, which they lack`);
+          }
+        }
+      }
     }
   }
   return issues;

@@ -68,6 +68,33 @@ class InvestigatedFindingsTest {
     return fact;
   }
 
+  /** A risk of a confirmed lead of the kind, about the app, with the impact. */
+  private Fact leadRisk(String kind, String title, String impact) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("title", title);
+    attributes.put("finding", title + " in the code.");
+    attributes.put("consequence", "A consumer can act on data that is then rolled back.");
+    attributes.put("impact", impact);
+    attributes.put("confidence", "high");
+    attributes.putArray("units").add(APP);
+    attributes.put("lead", "lead:" + kind + "/" + APP + "/" + title.length());
+    attributes.putArray("cites").add("shop:" + CONTROLLER + ":" + title.length() + "-9");
+    attributes.put("mode", "leads");
+    attributes.put("model", "fake/m");
+    Fact fact =
+        Fact.create(
+            EntityId.parse(APP),
+            Types.INVESTIGATED_RISK,
+            FactObject.string(kind + " " + APP + (title.length() % 2 == 0 ? "" : ",db")),
+            attributes,
+            INVESTIGATE,
+            Evidence.of("shop", CONTROLLER, new Evidence.LineRange(3, 5), null),
+            0.6,
+            Validity.from(1));
+    facts.add(fact);
+    return fact;
+  }
+
   private Fact connection() {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("interaction", "http");
@@ -148,6 +175,73 @@ class InvestigatedFindingsTest {
       assertThat(text(row.cells().get(4))).isEqualTo("shop:" + CONTROLLER + ":3-5");
       assertThat(row.facts()).containsExactly(risk.id());
     }
+  }
+
+  @Test
+  void risksOfOneLeadKindFoldUnderOneParentRowAndALoneRiskStaysAPlainRow() {
+    Fact first = leadRisk("send-before-commit", "Orders publish before commit", "medium");
+    Fact second = leadRisk("send-before-commit", "Refunds mail before the commit", "high");
+    Fact lone = leadRisk("identity-from-request", "Orders trust the user header", "low");
+
+    for (Document document :
+        List.of(
+            compose(ViewDefinition.perRepo("shop", "shop", TEMPLATE)),
+            compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE)))) {
+      Table table =
+          (Table)
+              section(document, "findings").blocks().stream()
+                  .filter(Table.class::isInstance)
+                  .findFirst()
+                  .orElseThrow();
+      // One parent for the kind, first as its most serious risk is high; then the lone risk.
+      assertThat(table.rows()).hasSize(2);
+      Table.Row parent = table.rows().getFirst();
+      assertThat(text(parent.cells().get(0))).isEqualTo("High");
+      assertThat(text(parent.cells().get(1)))
+          .isEqualTo(InvestigatedFindings.FOUND_BY_LLM + " Send before commit: 2 risks.");
+      assertThat(parent.facts()).containsExactlyInAnyOrder(first.id(), second.id());
+      // Each risk under it with its own title, impact and places, most serious first.
+      assertThat(parent.children())
+          .extracting(r -> text(r.cells().get(0)) + " " + text(r.cells().get(1)))
+          .containsExactly(
+              "High "
+                  + InvestigatedFindings.FOUND_BY_LLM
+                  + " Refunds mail before the commit. Refunds mail before the commit in the code.",
+              "Medium "
+                  + InvestigatedFindings.FOUND_BY_LLM
+                  + " Orders publish before commit. Orders publish before commit in the code.");
+      assertThat(text(parent.children().getFirst().cells().get(4)))
+          .isEqualTo("shop:" + CONTROLLER + ":30-9");
+      Table.Row plain = table.rows().get(1);
+      assertThat(plain.children()).isEmpty();
+      assertThat(plain.facts()).containsExactly(lone.id());
+    }
+  }
+
+  @Test
+  void theBriefShowsAParentAsOneCalloutNamingItsCountAndItsMostSeriousRisk() {
+    Fact first = leadRisk("send-before-commit", "Orders publish before commit", "medium");
+    Fact second = leadRisk("send-before-commit", "Refunds mail before the commit", "high");
+
+    Document brief = compose(ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE));
+
+    List<Callout> callouts =
+        section(brief, "risks").blocks().stream()
+            .filter(Callout.class::isInstance)
+            .map(Callout.class::cast)
+            .filter(c -> c.facts().contains(first.id()) || c.facts().contains(second.id()))
+            .toList();
+    assertThat(callouts).hasSize(1);
+    Callout callout = callouts.getFirst();
+    assertThat(callout.title()).isEqualTo("Send before commit: 2 risks");
+    assertThat(callout.severity()).isEqualTo(Callout.Severity.HIGH);
+    assertThat(text(callout.content()))
+        .startsWith(
+            InvestigatedFindings.FOUND_BY_LLM
+                + " The most serious: Refunds mail before the commit. Refunds mail before the"
+                + " commit in the code.")
+        .contains("shop:" + CONTROLLER + ":30-9");
+    assertThat(callout.facts()).containsExactlyInAnyOrder(first.id(), second.id());
   }
 
   @Test

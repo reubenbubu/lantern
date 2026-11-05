@@ -3558,10 +3558,40 @@
               "**The notifier retries SendGrid without a back-off.**",
               "A SendGrid outage turns into a burst of retries when it recovers.",
               "45%"
+            ],
+            [
+              "Medium",
+              "**Sent before the transaction commits: 2 risks.** Found by the LLM.",
+              "",
+              ""
             ]
           ],
           "llmRows": [
-            2
+            2,
+            3
+          ],
+          "subRows": [
+            {
+              "row": 3,
+              "rows": [
+                [
+                  "Medium",
+                  "**Order Service publishes OrderPlaced before its transaction commits.**",
+                  "A consumer can read an order that is then rolled back.",
+                  "70%"
+                ],
+                [
+                  "Low",
+                  "**Stock Service sends the reservation e-mail before its transaction commits.**",
+                  "A customer can be told of a reservation that never happened.",
+                  "55%"
+                ]
+              ],
+              "llmRows": [
+                0,
+                1
+              ]
+            }
           ]
         },
         {

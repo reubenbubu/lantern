@@ -183,6 +183,19 @@ td {
   vertical-align: top;
 }
 
+.row-toggle {
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0 0.25rem 0 0;
+  color: inherit;
+  font: inherit;
+}
+
+.row-child td:first-child {
+  padding-left: 1.5rem;
+}
+
 figure {
   margin: var(--space) 0;
 }

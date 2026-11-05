@@ -44,6 +44,15 @@ describe('DocumentView', () => {
     expect(html).toContain('Note: a remark on the flow, not a step.');
   });
 
+  test('folds the rows under a parent row until the reader expands it', () => {
+    const table = html.slice(html.indexOf('id="dependencies"'));
+    expect(table).toMatch(/<tr class="row-parent"><td><button type="button" class="row-toggle" aria-expanded="false" aria-controls="dependencies-r1-children-0"[^>]*>[^<]*<\/button>orders<\/td>/);
+    expect(table).toContain('<tr class="row-child" id="dependencies-r1-children-0" hidden="">');
+    expect(table).toContain('orders-api');
+    // A row with nothing folded under it has no button.
+    expect(table.slice(0, table.indexOf('row-parent'))).not.toContain('row-toggle');
+  });
+
   test('states its reader and pins its commits and date', () => {
     expect(html).toContain(
       `For ${document.audience}. Pinned to commit <span>orders <code title="${'a'.repeat(40)}">${'a'.repeat(12)}</code></span>, as of 2026-01-15.`,

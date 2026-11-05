@@ -156,7 +156,15 @@ final class SampleDocument {
                             new CrossReference("orders-lib", CrossReference.Target.entity(LIB))),
                         List.of(TextRun.of("orders-db"))),
                     facts(READS)),
-                new Table.Row(null, List.of(List.of(TextRun.of("orders")), List.of()), List.of())),
+                new Table.Row(
+                    null,
+                    List.of(List.of(TextRun.of("orders")), List.of()),
+                    List.of(),
+                    List.of(
+                        new Table.Row(
+                            null,
+                            List.of(List.of(TextRun.of("orders-api")), List.of()),
+                            List.of())))),
             List.of());
     Tree modules =
         new Tree(

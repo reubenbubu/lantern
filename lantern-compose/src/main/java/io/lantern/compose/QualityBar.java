@@ -605,7 +605,7 @@ final class QualityBar {
         }
       }
       case Table t -> {
-        for (Table.Row row : t.rows()) {
+        for (Table.Row row : t.allRows()) {
           if (row.facts().isEmpty() && !hasFacts(row.entity())) {
             uncited.add(row.cells().isEmpty() ? "a row" : oneLine(plain(row.cells().getFirst())));
           }
@@ -796,7 +796,7 @@ final class QualityBar {
       case Paragraph p -> content.accept(p.content());
       case ListBlock l -> l.items().forEach(item -> content.accept(item.content()));
       case Callout c -> content.accept(c.content());
-      case Table t -> t.rows().forEach(row -> row.cells().forEach(content));
+      case Table t -> t.allRows().forEach(row -> row.cells().forEach(content));
       case SequenceDiagram s -> {
         forEachStep(
             s.steps(),
