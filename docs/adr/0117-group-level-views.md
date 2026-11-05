@@ -76,7 +76,8 @@ grouping. 50 elements and 2 lines per element are rejected as a cap. Views are t
 meaning, at a level chosen among groupings the code proves, with size only a warning and
 readability measured after layout (#764, with #366).
 
-- Until #764 lands, the two values stay where they are, as the quality check "Readable" and the
+- Until #764 lands, the two values stay where they are, as the quality check "Size: at most 50
+  elements and 2 lines per element" (ADR 0123) and the
   scorer's diagram-size check: a warning on the report, never a reason to drop or hide content.
   The fold, domain and feature-area steps above keep running as they do, since #764 replaces them.
 - No new work uses `C4Views.MAX_ELEMENTS` or `MAX_LINES_PER_ELEMENT` to decide how a view is
@@ -88,8 +89,9 @@ The research for #764 (`docs/research/grouping-level-by-meaning.md`, high depth)
 that replaces the fixed thresholds: derivation proposes only levels the code proves, one stored
 judgement picks a level per view in a fixed order of criteria, box count is a soft target with a
 warning, and the after-layout measures of #366 have the final word (`docs/design.md`, Readable
-diagrams). The fold, domain and feature-area steps above stay until the view code of #764 lands,
-which waits for the owner to approve the rule and the soft targets on #764.
+diagrams). The fold, domain and feature-area steps above stay until the view code of #764 lands.
+The owner approved the rule and the soft targets on 4 Nov 2026 (#764); the soft limit's value is
+measured by #836 (amendment for #836).
 
 ## Amendment (#836): one setting holds the limits, and its value is measured
 

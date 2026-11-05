@@ -154,8 +154,9 @@ On 3 Nov 2026 the owner decided which models a result that counts comes from:
   Anthropic key used as BYOK, falling back to OpenRouter's own Anthropic capacity when the key's
   allowance is empty or rate limited (the route: ADR 0102, amendment for #754). That
   covers every scorecard, baseline, calibration and test drop. The roles keep their split from
-  decision 2: Haiku for the high-volume roles, Sonnet for Investigate, the judge and the reasoning
-  roles.
+  decision 2: Haiku for the high-volume roles, Sonnet for Investigate and the reasoning roles;
+  the support judge runs on the model of each role that wrote the text (owner's decision on #751,
+  ADR 0101).
 - **DeepSeek, or any other non-Claude model, only for smoke runs**: a run that checks the wiring
   and whose numbers are never reported as a result. The DeepSeek measurements of #529 (ADR 0112)
   stay as a record and are measured again on Haiku and Sonnet (#756).

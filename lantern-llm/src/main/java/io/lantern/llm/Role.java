@@ -27,7 +27,11 @@ public enum Role {
   FLOW_SIGNIFICANCE(Tier.REASONING),
   COMPOSE(Tier.HIGH_VOLUME),
   TRANSLATE(Tier.HIGH_VOLUME),
-  /** The support judge (ADR 0101), on the high-volume tier. */
+  /**
+   * The support judge (ADR 0101). By default each text is judged on the model of the role that wrote
+   * it; on this role's tier, high-volume, only when {@code lantern.harness.support-judge.model} is
+   * {@code judge} (ADR 0101, amendment for #751).
+   */
   JUDGE(Tier.HIGH_VOLUME),
   /** The injection screen (ADR 0101): the bulk tier. */
   SCREEN(Tier.BULK),

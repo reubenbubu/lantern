@@ -109,8 +109,9 @@ research in `docs/research/role-measurement.md`), computed by `lantern-web/scrip
   files beside the scorecard. A set's answer key is `testsets/<set>/answer-key.json`
   (`--answer-key` names another).
 - **The answer key** is prepared by the agent from the code at the pins and the references, never
-  from a model's answers, and says so in its header with its status (awaiting the owner's check
-  until the 1F test drop). It holds, per open link of the set (from a fake run's static facts),
+  from a model's answers, and says so in its header with its status: the blind check by a
+  read-only Opus subagent and the owner's settlement of each disagreement (CLAUDE.md, owner's
+  decision of 3 Nov 2026). It holds, per open link of the set (from a fake run's static facts),
   its right target, several when every one of them receives the message, or "unknown"; per
   reference risk, its subject elements (reference IDs) and category (one of the lead kinds,
   `version-skew` or `other`); and decoys, code that looks like a risk of a category and is safe,
