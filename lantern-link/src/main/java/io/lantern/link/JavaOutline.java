@@ -31,18 +31,34 @@ final class JavaOutline {
   private static final Pattern METHOD =
       Pattern.compile(
           "^(?:(?:public|protected|private|static|final|abstract|synchronized|default|native)\\s+)*"
-              + "(?:<[^>]*>\\s+)?(?:[\\w$.<>\\[\\],?&\\s]+\\s+)?([A-Za-z_$][\\w$]*)\\s*\\(");
+              + "(?:<[^>]*>\\s+)?([\\w$.<>\\[\\],?&\\s]+\\s+)?([A-Za-z_$][\\w$]*)\\s*\\(");
 
   private static final Pattern ANNOTATION = Pattern.compile("^@[A-Za-z_$][\\w$.]*");
 
   private static final List<String> NOT_METHODS =
-      List.of("if", "for", "while", "switch", "catch", "return", "new", "throw", "else", "do");
+      List.of(
+          "if",
+          "for",
+          "while",
+          "switch",
+          "catch",
+          "return",
+          "new",
+          "throw",
+          "else",
+          "do",
+          "synchronized",
+          "try",
+          "yield",
+          "assert",
+          "case");
 
   private JavaOutline() {}
 
   /** The declarations of a file's lines, in the order they start. */
   static List<Declaration> of(List<String> lines) {
     List<Declaration> found = new ArrayList<>();
+    List<String> types = new ArrayList<>();
     int annotationsFrom = -1;
     StringBuilder annotations = new StringBuilder();
     int parens = 0;
@@ -55,7 +71,7 @@ final class JavaOutline {
         parens += count(line, '(') - count(line, ')');
         continue;
       }
-      if (ANNOTATION.matcher(line).find() && !line.contains("{")) {
+      if (ANNOTATION.matcher(line).find() && !outsideParentheses(line).contains("{")) {
         if (annotationsFrom < 0) {
           annotationsFrom = i;
         }
@@ -69,12 +85,16 @@ final class JavaOutline {
       String name = null;
       if (type.find()) {
         name = type.group(1);
+        types.add(name);
       } else if (method.find()
-          && !NOT_METHODS.contains(method.group(1))
+          && !NOT_METHODS.contains(method.group(2))
+          && !NOT_METHODS.contains(bare.split("[\\s(]", 2)[0])
+          // With no return type it is a constructor, named as a type is; else a call.
+          && (method.group(1) != null || types.contains(method.group(2)))
           && !bare.endsWith(";")
           && !bare.contains("=")
           && !bare.startsWith(".")) {
-        name = method.group(1);
+        name = method.group(2);
       }
       if (name != null) {
         int from = annotationsFrom >= 0 ? annotationsFrom : i;
@@ -174,6 +194,22 @@ final class JavaOutline {
         out.append(" ".repeat(line.length() - i));
         break;
       } else {
+        out.append(c);
+      }
+    }
+    return out.toString();
+  }
+
+  /** A line's text outside its parentheses, so braces in an annotation's arguments are left out. */
+  private static String outsideParentheses(String line) {
+    StringBuilder out = new StringBuilder();
+    int depth = 0;
+    for (char c : line.toCharArray()) {
+      if (c == '(') {
+        depth++;
+      } else if (c == ')') {
+        depth = Math.max(0, depth - 1);
+      } else if (depth == 0) {
         out.append(c);
       }
     }

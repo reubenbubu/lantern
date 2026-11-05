@@ -242,8 +242,11 @@ public final class Conversation {
       }
       List<LlmToolResult> results = new ArrayList<>();
       for (LlmToolCall call : response.toolCalls()) {
-        toolCalls.merge(call.name(), 1, Integer::sum);
         LlmToolResult result;
+        if (!response.cutOff()) {
+          // Counted when it is answered; one of a cut-off turn never ran.
+          toolCalls.merge(call.name(), 1, Integer::sum);
+        }
         if (response.cutOff()) {
           // A call written as the output ran out may be cut short: it is not run (#892).
           result =

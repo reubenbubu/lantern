@@ -213,9 +213,19 @@ final class SubmitTool implements ToolBox {
     }
     ObjectNode verdicts = JSON.createObjectNode();
     for (Map.Entry<String, JsonNode> entry : entries.get().entrySet()) {
-      int index = ids.indexOf(entry.getKey());
+      String id = entry.getKey();
+      int index = ids.indexOf(id);
       if (index < 0) {
-        verdicts.put(entry.getKey(), "not an item of this task");
+        verdicts.put(id, "not an item of this task");
+        continue;
+      }
+      // As submit would answer it, so the check never says what submit then refuses.
+      if (accepted.containsKey(id) && !role.partial()) {
+        verdicts.put(id, "already accepted");
+        continue;
+      }
+      if (dropped.contains(id)) {
+        verdicts.put(id, "dropped after a second rejection");
         continue;
       }
       ItemAnswer answer = role.read(entry.getKey(), packet.get(index), entry.getValue());

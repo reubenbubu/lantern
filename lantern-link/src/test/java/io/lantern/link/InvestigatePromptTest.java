@@ -104,4 +104,39 @@ class InvestigatePromptTest {
     assertThat(InvestigatePrompt.EXPLORE_TASK).startsWith("Task: investigate what static");
     assertThat(InvestigatePrompt.SUBMIT_SCHEMA).isEqualTo(FactJson.parse(InvestigatePrompt.SCHEMA));
   }
+
+  @Test
+  void aLeadsSystemMapShowsEachLinkOnceWithItsCount() {
+    String map =
+        InvestigatePrompt.systemMap(
+            List.of("service:g:a"),
+            List.of("a -> b [CALLS_HTTP]", "a -> b [CALLS_HTTP]", "a -> c [PUBLISHES]"),
+            true);
+
+    assertThat(map)
+        .contains(
+            "(xN: N links of that kind)", "- a -> b [CALLS_HTTP] x2\n", "- a -> c [PUBLISHES]\n");
+    assertThat(map.split("a -> b", -1)).hasSize(2);
+  }
+
+  @Test
+  void aLeadsAnswerMustNameItsLeadVerdictAndWhatItCites() {
+    // Mode A's submit tool requires them (#892); the other modes keep the shared schema.
+    assertThat(
+            InvestigateRole.LEADS_SCHEMA
+                .path("properties")
+                .path("items")
+                .path("items")
+                .path("required"))
+        .extracting(tools.jackson.databind.JsonNode::asString)
+        .containsExactly("lead", "verdict", "kind", "names", "cites");
+    assertThat(
+            InvestigatePrompt.SUBMIT_SCHEMA
+                .path("properties")
+                .path("items")
+                .path("items")
+                .path("required"))
+        .extracting(tools.jackson.databind.JsonNode::asString)
+        .doesNotContain("lead");
+  }
 }

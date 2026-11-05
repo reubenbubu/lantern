@@ -66,4 +66,38 @@ class JavaOutlineTest {
     assertThat(JavaOutline.enclosing(declarations, 6).name()).isEqualTo("OrderController");
     assertThat(JavaOutline.enclosing(declarations, 1)).isNull();
   }
+
+  @Test
+  void callsBlocksAndAnonymousClassesAreNoDeclarations() {
+    List<String> file =
+        """
+        public class Jobs {
+          @RequestMapping(value = {"/a", "/b"}, method = RequestMethod.GET)
+          public Jobs(Runner runner) {
+            synchronized (lock) {
+              runner.run(
+                  this);
+            }
+            doThing(a,
+                b);
+            Runnable r = new Runnable() {
+              public void run() {}
+            };
+            return new Foo() {
+            };
+          }
+        }
+        """
+            .lines()
+            .toList();
+
+    List<JavaOutline.Declaration> declarations = JavaOutline.of(file);
+
+    assertThat(declarations)
+        .extracting(JavaOutline.Declaration::name)
+        .containsExactly("Jobs", "Jobs", "run");
+    JavaOutline.Declaration constructor = declarations.get(1);
+    assertThat(constructor.from()).isEqualTo(2);
+    assertThat(constructor.text()).startsWith("@RequestMapping(value = {\"/a\", \"/b\"}");
+  }
 }

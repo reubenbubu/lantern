@@ -461,8 +461,9 @@ For conversations that take many small turns (Investigate's leads, ADR 0110, ame
 - **Answer turns.** With `answerTurns` and `answerTools`, the conversation does not end at the
   nudge or a cap: from the nudge on, only the answer tools run (any other call is answered "No
   exploring is left", with those tools named), and it ends when the model answers or those turns are
-  spent. A cap reached before the nudge sends the nudge then. The safety cap on turns leaves room
-  for them.
+  spent. So exploring ends at the nudge, three quarters of the caps; the caps themselves stop
+  only a conversation without answer turns, and no cap applies to the answer turns. A cap reached
+  before the nudge sends the nudge then. The safety cap on turns leaves room for them.
 - **A turn cut off at its output limit** is never taken as the answer: each tool call it made is
   answered that it was not run, and the model asked to make it again with less thinking.
 - **A dry-run check.** A role that `offersCheck()` gets a `check` tool beside `submit`, which runs

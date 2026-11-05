@@ -110,8 +110,9 @@ public final class Investigator {
    * The caps of a Mode A conversation (#892): small tool answers keep each turn a small increment
    * on a cached conversation, so turns are cheap and a safety cap of 100 is enough (the owner's
    * decision of 5 Nov 2026); the guards are its size, 60,000 tokens a turn, well under Haiku's
-   * 100,000-token price line, and its cost, 200,000 input tokens in fresh-token equivalents. Near a
-   * guard the model is told to answer, and has 3 turns in which only check and submit run.
+   * 100,000-token price line, and its cost, 200,000 input tokens in fresh-token equivalents. At
+   * three quarters of any cap (75 turns, 45,000 tokens a turn, 150,000 in all) exploring stops: the
+   * model is told to answer, and has 3 turns in which only check and submit run.
    */
   static final ConversationLimits LEAD_LIMITS =
       new ConversationLimits(100, 200_000, MAX_OUTPUT_TOKENS)

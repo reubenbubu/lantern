@@ -294,14 +294,21 @@ pieces to a cached conversation, so it may take many turns:
   shows each kind of link once, with how many there are (`x3`). The rest the model looks up.
 - **Small tool answers** (#893). In a lead's conversation `read_file`, `find_in_code`,
   `facts_about` and `search_facts` answer at most 1,000 characters, cut at a whole line, and say how
-  to ask for the rest (the lines left out, or a narrower search). A hit in a Java file names the
-  method or class it is in, with its lines. A new tool, `outline`, lists a Java file's types and
-  methods with their lines and annotations (`JavaOutline`, read from the text: a guide to where to
-  read, never cited). The explore and Resolve conversations keep the tools as they were.
-- **Guards on size and cost, not turns** (#892). A lead's conversation may take up to 100 tool
-  turns; it is guarded by its size, at most 60,000 tokens sent in a turn (below Haiku's 100,000-token
-  price line), and its cost, 200,000 fresh-token equivalents. Near a guard the model is told to
-  answer, and then has 3 turns in which only `check` and `submit` run (ADR 0100, amendment for #892).
+  to ask for the rest (the lines left out, or a narrower search). A line or fact longer than 300
+  characters is shown in part, marked as cut: a search shows the part around what it found, a read
+  the line's start; the line counts as shown for the citation check, which still checks that the
+  cited range holds what the proposal names. A hit in a Java file names the method or class it is
+  in, with its lines. A new tool, `outline`, lists a Java file's types, constructors and methods
+  with their lines and annotations (`JavaOutline`, read from the text: a guide to where to read,
+  never cited); it is bounded only by the 24,000 characters of every tool answer, since an outline
+  is short. The explore and Resolve conversations keep the tools as they were.
+- **Guards on size and cost, not turns** (#892). A lead's conversation is guarded by its size,
+  60,000 tokens sent in a turn (below Haiku's 100,000-token price line), its cost, 200,000
+  fresh-token equivalents, and 100 tool turns. Exploring stops at three quarters of any of them
+  (45,000 tokens in a turn, 150,000 in all, or 75 turns): the model is told to answer, and then has
+  3 turns in which only `check` and `submit` run (ADR 0100, amendment for #892). Those turns add
+  little, so a turn stays well under the price line, though no cap stops them. A lead's first message
+  is a few thousand tokens, far from the first of these.
 - **Check and text answers** (#892). `check` runs submit's checks on an answer and records nothing,
   so the model can fix what they reject first. An answer written as text instead of a call is read
   as if submitted; with none, the model is reminded once. A lead's answer must name its lead,

@@ -99,6 +99,12 @@ public final class GraphTools implements ToolBox {
    */
   static final int SMALL_CHARS = 1_000;
 
+  /**
+   * The most characters of one line or fact small answers show (#893), so a long line never fills
+   * an answer: a search shows the part around what it found, a read the line's start.
+   */
+  static final int LINE_CHARS = 300;
+
   /** The most lines one search gives. */
   static final int MAX_HITS = 30;
 
@@ -559,7 +565,7 @@ public final class GraphTools implements ToolBox {
       String known = refs.get(fact.id());
       // The longest a new reference can be, so a fact cut off for length gets no reference.
       String line = "[" + (known == null ? nextRef() : known) + "] ";
-      line += rendered.get(fact.id()) + "\n";
+      line += clip(rendered.get(fact.id()), null) + "\n";
       if (out.length() + line.length() > cap) {
         break;
       }
@@ -626,21 +632,15 @@ public final class GraphTools implements ToolBox {
     if (to < from) {
       return LlmToolResult.error(call, "The last line must not be before the first.");
     }
-    StringBuilder out =
-        new StringBuilder()
-            .append(repo)
-            .append(':')
-            .append(path)
-            .append(", lines ")
-            .append(from)
-            .append(" to ")
-            .append(to)
-            .append(" of ")
-            .append(lines.size())
-            .append(":\n");
+    String head = repo + ":" + path + ", lines " + from + " to ";
+    String tail = " of " + lines.size() + ":\n";
+    int headerLength = head.length() + String.valueOf(to).length() + tail.length();
+    StringBuilder out = new StringBuilder();
+    int last = to;
     for (int i = from; i <= to; i++) {
-      String line = i + ": " + lines.get(i - 1) + "\n";
-      if (out.length() + line.length() > cap) {
+      String line = i + ": " + clip(lines.get(i - 1), null) + "\n";
+      if (headerLength + out.length() + line.length() > cap && i > from) {
+        last = i - 1;
         out.append("... cut at ")
             .append(cap)
             .append(" characters: lines ")
@@ -655,7 +655,7 @@ public final class GraphTools implements ToolBox {
       out.append(line);
       markShown(repo, path, i, i);
     }
-    return LlmToolResult.of(call, out.toString());
+    return LlmToolResult.of(call, head + last + tail + out);
   }
 
   /**
@@ -714,7 +714,7 @@ public final class GraphTools implements ToolBox {
                 + ":"
                 + hit.line()
                 + ": "
-                + line.strip()
+                + clip(line.strip(), needle)
                 + (cap < MAX_CHARS ? in(lines, hit) : "")
                 + "\n";
         if (out.length() + shown.length() > cap) {
@@ -729,7 +729,7 @@ public final class GraphTools implements ToolBox {
         break;
       }
     }
-    if (found == 0) {
+    if (found == 0 && !more) {
       return LlmToolResult.of(call, "No line of the files holds \"" + needle + "\".");
     }
     if (more) {
@@ -737,6 +737,24 @@ public final class GraphTools implements ToolBox {
           "... and more, cut to fit; narrow the search: one repository, or a longer text.\n");
     }
     return LlmToolResult.of(call, out.toString());
+  }
+
+  /**
+   * A line as small answers show it: whole up to {@link #LINE_CHARS}, else the part around the text
+   * looked for, or its start, marked as cut. Answers that are not small show lines whole.
+   */
+  private String clip(String line, String needle) {
+    if (cap == MAX_CHARS || line.length() <= LINE_CHARS) {
+      return line;
+    }
+    int at = needle == null ? -1 : line.indexOf(needle);
+    int start = at < 0 ? 0 : Math.max(0, Math.min(at - LINE_CHARS / 3, line.length() - LINE_CHARS));
+    int end = Math.min(line.length(), start + LINE_CHARS);
+    return (start > 0 ? "[...] " : "")
+        + line.substring(start, end)
+        + " [... the line has "
+        + line.length()
+        + " characters; find_in_code shows the part around a text]";
   }
 
   /** Where a hit in a Java file is: the method or class around it with its lines, or nothing. */
