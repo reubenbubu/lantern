@@ -109,3 +109,21 @@ the target is fine, and above target plus tolerance what can be merged is merged
   merges by the limit once approved.
 - The measurement and the recommended value are in `docs/research/diagram-element-limit.md`;
   `lantern-web/scripts/diagram-limit.mjs` reruns it with one command and gives the same numbers.
+
+## Amendment (#764): the limit picks the level; then merge, fold, split
+
+On 5 Nov 2026 the owner set how the level is chosen, superseding the judgement and soft targets of
+the amendment for #764 above: the soft targets are dropped, and the measured limit of #836
+(`lantern.diagrams`, target 8 and tolerance 2, approved on #836) is the only size number.
+
+- Levels: none, feature areas (component views), domains (container views). A group needs at
+  least `lantern.diagrams.smallest-group` members of the view (2 by default) to be a candidate.
+- A view that fits the limit shows every member; each box's tag names its group ("Service ·
+  Orders"). No frame is drawn, since the template draws one boundary per diagram (#897).
+- Over the limit, each group becomes one box with a page of its own. While the view is still over
+  it: lines between two boxes merge into one (labels and technologies kept, a profile only if every
+  merged line had one), then topics become "via" labels, then the view is split: an overview plus a
+  page per group, or by concern where there are no groups.
+- Every threshold is a default in `lantern-compose/src/main/resources/io/lantern/compose/diagram-limits.properties`,
+  read by `DiagramLimits.DEFAULT`, with no copy in code; the app's `lantern.diagrams` settings
+  override each one.

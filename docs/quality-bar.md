@@ -92,21 +92,23 @@ coupled to which consumer"
 A diagram is readable when it answers one question, can be read without zooming, and every line can
 be followed from end to end. A diagram that fails this is split into several at the same level (for
 example one per concern, or one per service with its inbound and outbound neighbours,
-[c4model.com FAQ](https://c4model.com/faq)), or detail is folded away. No number of elements decides
-this on its own. Brown gives no cap; third-party guides suggest about 10 to 15 elements
+[c4model.com FAQ](https://c4model.com/faq)), or detail is folded away. No guideline's number decides
+this: Brown gives no cap, and third-party guides suggest about 10 to 15 elements
 ([Visual Paradigm](https://skills.visual-paradigm.com/?p=971)), a heuristic only. Size, line count
 and crossing lines are signals of a diagram that has stopped being readable; how Lantern measures
 them is in the design.
 
-Size is a soft target, a warning and never a reason to drop content: an overview shows about 10
-to 20 boxes, with a warning above 25 boxes or about 30 distinct lines, and below 5 boxes when a finer grouping
-exists; a component view about 8 to
-20, with a warning above 25. Each line between two boxes is drawn once. 7 ± 2 is no target. After
-layout, lines cross as little as possible (a warning above about 5 crossings), and the smallest text
-is readable at page width without zooming. A view that is too large is drawn at a coarser grouping
-the code proves, else split by question into an overview and a view per group
-([Brown](https://dev.to/simonbrown/diagramming-distributed-architectures-with-the-c4-model-51cm);
-`docs/research/grouping-level-by-meaning.md`).
+Size is measured, not guessed. A container or component view holds at most a measured number of
+boxes, the limit Lantern's diagram layout still draws legibly at page width (8 plus 2 by default,
+owner's decision of 5 Nov 2026; `docs/research/diagram-element-limit.md`), and the limit is a
+setting, so it can be tuned. 7 ± 2 is no target. A view over the limit is drawn at a coarser grouping
+the code proves; still over it, its lines between two boxes merge into one, then queues and topics
+between two boxes become "via" labels, then it is split by question into an overview and a view
+per group ([Brown](https://dev.to/simonbrown/diagramming-distributed-architectures-with-the-c4-model-51cm);
+`docs/research/grouping-level-by-meaning.md`). Size never drops content: what a view leaves out
+is one page away. Unless lines are merged, two boxes have one line per protocol between them. After layout,
+lines cross as little as possible (a warning above about 5 crossings), and the smallest text is
+readable at page width without zooming.
 
 ## Components come from how the code is used, not how it is filed
 
