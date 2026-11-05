@@ -229,6 +229,10 @@ final class RunRecord {
     if (why.answers() > 0) {
       node.put("answers", why.answers());
     }
+    // Whose answers changed, for the one-file gate (#722); a source of "?" names none.
+    if (why.answers() > 0 && !why.changedAnswers().isEmpty()) {
+      why.changedAnswers().forEach(node.putArray("changedAnswers")::add);
+    }
     if (why.other() > 0) {
       node.put("other", why.other());
     }

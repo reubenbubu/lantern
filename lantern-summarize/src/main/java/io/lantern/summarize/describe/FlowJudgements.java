@@ -301,7 +301,9 @@ public final class FlowJudgements {
                 + refs.add('A', unit.toString(), answered, sentence)
                 + "] "
                 + sentence);
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256(sentence)));
+        inputs.add(
+            FingerprintInput.answer(
+                Fingerprints.sha256(sentence), List.of(DescribeRole.UNITS.name() + " " + unit)));
       }
     }
     if (!said.isEmpty()) {
@@ -397,7 +399,9 @@ public final class FlowJudgements {
                 + refs.add('A', unit.toString(), answered, sentence)
                 + "] "
                 + sentence);
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256(sentence)));
+        inputs.add(
+            FingerprintInput.answer(
+                Fingerprints.sha256(sentence), List.of(DescribeRole.UNITS.name() + " " + unit)));
       }
     }
     {

@@ -1158,9 +1158,41 @@ export function changeGate(change, file) {
         if (others.length > 0) reason = `inputs from ${others.join(', ')} changed`;
         else if (!(w.files ?? []).includes(file) && !w.answers) reason = 'nothing it rests on changed';
       }
-      const entry = { item, expected: reason === null, reason, byAnswer: !!w?.answers && !(w.files ?? []).includes(file) };
-      if (judging(role.role) && (w?.new || w?.other) && !w?.prompt && !w?.model) judged.push(entry);
+      const byAnswer = !!w?.answers && !(w.files ?? []).includes(file);
+      // Re-asked only because shown answers changed: expected once each of their items is (#722).
+      let refs = byAnswer && reason === null ? (w.changedAnswers ?? null) : [];
+      if (refs === null || refs.includes('?')) {
+        reason = 'a shown answer changed whose source is not recorded';
+        refs = [];
+      }
+      const entry = { item, role: role.role, subject: again ?? subject, expected: reason === null && refs.length === 0, reason, byAnswer, refs };
+      // A judge's item shows the text it judges as an answer: reworded, it is judged like a new text.
+      if (judging(role.role) && (w?.new || w?.other || w?.answers) && !w?.prompt && !w?.model) judged.push(entry);
       else items.push(entry);
+    }
+  }
+  // An item re-asked through shown answers is expected when the item of each answer that changed,
+  // "<role> <subject>" or a role alone for any of its items, was re-asked in this run and is itself
+  // expected (the decision of 4 Nov on #722): a cascade from an answer this run did not re-ask for
+  // the file is not. Settled level by level, until nothing more is.
+  const met = (ref) => {
+    const space = ref.indexOf(' ');
+    return items.some((i) =>
+      i.expected && (space < 0 ? i.role === ref : i.role === ref.slice(0, space) && i.subject === ref.slice(space + 1)),
+    );
+  };
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const i of items) {
+      if (!i.expected && i.reason === null && i.refs.length > 0 && i.refs.every(met)) {
+        i.expected = true;
+        changed = true;
+      }
+    }
+  }
+  for (const i of items) {
+    if (!i.expected && i.reason === null) {
+      i.reason = `a shown answer changed whose item was not re-asked for the file (${i.refs.filter((r) => !met(r)).join(', ')})`;
     }
   }
   // A judge's item on a reworded text is expected when a writing role re-asked an item for the file.

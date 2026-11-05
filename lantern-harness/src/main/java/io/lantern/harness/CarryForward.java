@@ -130,11 +130,26 @@ public final class CarryForward {
     }
     Map<String, String> refByLine = refByLine(references);
     Map<String, String> lines = hashes(references);
+    // Earlier texts by what they are about, so one keeps its wording when a new part sorts before
+    // it and its key moves, such as from C3 to C4 (#722); of several about the same, the one of
+    // the same field first, then in order, each taken once.
+    Map<String, List<String>> byAbout = new LinkedHashMap<>();
+    earlier.forEach(
+        (field, text) -> byAbout.computeIfAbsent(text.about(), a -> new ArrayList<>()).add(field));
+    java.util.Set<String> taken = new java.util.HashSet<>();
     List<CheckedText> merged = new ArrayList<>(texts.size());
     for (CheckedText text : texts) {
-      Earlier before = earlier.get(text.field());
-      List<String> cites =
-          before == null ? null : cites(before, about.apply(text), refByLine, lines);
+      String name = about.apply(text);
+      List<String> fields = byAbout.getOrDefault(Fingerprints.sha256(name), List.of());
+      String field =
+          fields.contains(text.field()) && !taken.contains(text.field())
+              ? text.field()
+              : fields.stream().filter(f -> !taken.contains(f)).findFirst().orElse(null);
+      Earlier before = field == null ? null : earlier.get(field);
+      List<String> cites = before == null ? null : cites(before, name, refByLine, lines);
+      if (cites != null && carries.test(text)) {
+        taken.add(field);
+      }
       merged.add(
           cites == null || !carries.test(text)
               ? text
@@ -363,12 +378,19 @@ public final class CarryForward {
     }
     List<CheckedText> left = new ArrayList<>(texts);
     boolean[] marked = {false};
-    mark(root, left, references, about, marked);
+    mark(root, "", left, references, about, marked);
     return marked[0] ? JSON.writeValueAsString(root) : stored;
   }
 
+  /**
+   * Marks each stored text with the text of its own field: the one whose field the node's path ends
+   * with, so two texts of one wording keep their own records (#722); else, where the stored form
+   * names no field (a summary's sentences), the first left with the same words and as many
+   * citations.
+   */
   private static void mark(
       JsonNode node,
+      String path,
       List<CheckedText> left,
       Map<String, String> references,
       Function<CheckedText, String> about,
@@ -380,30 +402,48 @@ public final class CarryForward {
       if (object.path("text").isString() && object.path("cites").isArray()) {
         String text = object.get("text").asString();
         int cited = object.get("cites").size();
-        for (int i = 0; i < left.size(); i++) {
+        int match = -1;
+        for (int i = 0; i < left.size() && match < 0; i++) {
+          String field = left.get(i).field();
+          if (!field.isEmpty() && (path.equals(field) || path.endsWith("." + field))) {
+            match = i;
+          }
+        }
+        for (int i = 0; i < left.size() && match < 0; i++) {
           CheckedText candidate = left.get(i);
           if (candidate.text().equals(text) && candidate.cites().size() == cited) {
-            left.remove(i);
-            List<String> basis = basis(candidate, references);
-            if (basis != null) {
-              ObjectNode carry = object.putObject(KEY);
-              carry.put("field", candidate.field());
-              carry.put("about", Fingerprints.sha256(about.apply(candidate)));
-              ArrayNode lines = carry.putArray("basis");
-              basis.forEach(lines::add);
-              marked[0] = true;
-            }
-            break;
+            match = i;
+          }
+        }
+        if (match >= 0) {
+          CheckedText candidate = left.remove(match);
+          List<String> basis = basis(candidate, references);
+          if (basis != null) {
+            ObjectNode carry = object.putObject(KEY);
+            carry.put("field", candidate.field());
+            carry.put("about", Fingerprints.sha256(about.apply(candidate)));
+            ArrayNode lines = carry.putArray("basis");
+            basis.forEach(lines::add);
+            marked[0] = true;
           }
         }
       }
       for (var entry : new ArrayList<>(object.properties())) {
         if (!entry.getKey().equals(KEY)) {
-          mark(entry.getValue(), left, references, about, marked);
+          mark(
+              entry.getValue(),
+              path.isEmpty() ? entry.getKey() : path + "." + entry.getKey(),
+              left,
+              references,
+              about,
+              marked);
         }
       }
     } else if (node.isArray()) {
-      node.forEach(child -> mark(child, left, references, about, marked));
+      int i = 0;
+      for (JsonNode child : node) {
+        mark(child, path + "." + i++, left, references, about, marked);
+      }
     }
   }
 

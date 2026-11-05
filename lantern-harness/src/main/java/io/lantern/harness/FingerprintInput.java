@@ -3,6 +3,7 @@ package io.lantern.harness;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -16,8 +17,11 @@ import java.util.Objects;
  *     SHA-256
  * @param repo the repository of the file it comes from, or empty
  * @param path the file's path in the repository, or empty
+ * @param from for an answer, the items it comes from, each "{@code <role> <subject>}" or a role
+ *     alone for any of its items, so the run's record can say whose answer changed (#722); not part
+ *     of the input's identity, its fingerprint line or its equality
  */
-public record FingerprintInput(Kind kind, String id, String repo, String path)
+public record FingerprintInput(Kind kind, String id, String repo, String path, List<String> from)
     implements Comparable<FingerprintInput> {
 
   /** The kinds of input. */
@@ -51,6 +55,27 @@ public record FingerprintInput(Kind kind, String id, String repo, String path)
     }
     repo = repo == null ? "" : repo;
     path = path == null ? "" : path;
+    from = from == null ? List.of() : List.copyOf(from);
+  }
+
+  /** An input that names no item it comes from. */
+  public FingerprintInput(Kind kind, String id, String repo, String path) {
+    this(kind, id, repo, path, List.of());
+  }
+
+  /** Equal by kind, ID, repository and path; where an answer comes from is not compared. */
+  @Override
+  public boolean equals(Object other) {
+    return other instanceof FingerprintInput o
+        && kind == o.kind
+        && id.equals(o.id)
+        && repo.equals(o.repo)
+        && path.equals(o.path);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(kind, id, repo, path);
   }
 
   /**
@@ -88,6 +113,15 @@ public record FingerprintInput(Kind kind, String id, String repo, String path)
   /** An earlier answer shown, by the hash of the text shown. */
   public static FingerprintInput answer(String hash) {
     return new FingerprintInput(Kind.ANSWER, hash, "", "");
+  }
+
+  /**
+   * An earlier answer shown, by the hash of the text shown, with the items it comes from (#722).
+   *
+   * @param from each "{@code <role> <subject>}", or a role alone for any of its items
+   */
+  public static FingerprintInput answer(String hash, List<String> from) {
+    return new FingerprintInput(Kind.ANSWER, hash, "", "", from);
   }
 
   /** A text that comes from no file or answer, by its hash. */

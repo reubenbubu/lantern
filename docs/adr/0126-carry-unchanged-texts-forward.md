@@ -73,3 +73,24 @@ level of one text.
   re-ask that shows the earlier texts and asks for edits, is the next option.
 - The real-run gate stays open on #722: on project-4 with #529's one-file change, #755's gate must
   pass with 0 unexpected items on Haiku 5.5 and Sonnet 5.5.
+
+## Amendment (#722, review of 4 Nov 2026): found by what a text is about; the cascade stops at a kept text
+
+- **Found by what it is about, not by its key.** An earlier text is looked up by the hash of what
+  it is about (`PacketRole.about`), and among several about the same thing, the one of the same
+  field first, then in order, each kept at most once. A component or line whose key moves, such as
+  from C3 to C4 when a new component sorts first, keeps its wording; a key that now names another
+  thing still keeps nothing of the old one. Before, texts were matched by field, so one added
+  component reworded every component after it.
+- **Each text recorded under its own field.** A stored text is paired with its field by its place
+  in the stored answer (its path ends with the field), and only where the stored form names no
+  field, such as a summary's sentences, by its words and number of citations. Two texts worded
+  alike no longer swap their records.
+- **How far a one-file change may re-ask** (decision of 4 Nov 2026 on #722). An item is re-asked
+  only when a file it rests on changed, or when the text of an answer it is shown changed in this
+  run. A summary above the package is re-asked only if a summary below it got new wording; one
+  re-asked that kept its wording stops the cascade, since it shows the same text. Each shown
+  answer names the item it comes from, outside the fingerprint (`FingerprintInput.from`:
+  Summarize's child summaries, Describe's sentences in the flow roles, Investigate's lead verdicts
+  and units' risks), so the run's record says whose answers changed (ADR 0072, amendment for
+  #722).

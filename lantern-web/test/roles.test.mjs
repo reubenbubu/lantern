@@ -216,7 +216,8 @@ test('the one-file change gate: an item may be re-asked only for the changed fil
         askedSubjects: ['service:shop', 'service:other', 'service:new', 'service:unknown'],
         askedWhy: [
           { subject: 'service:shop', files: [file], answers: 1 }, // the file and an answer: expected
-          { subject: 'service:other', answers: 2 }, // a reworded answer it shows: expected
+          // Answers it shows, reworded by an item re-asked for the file: expected (#722).
+          { subject: 'service:other', answers: 2, changedAnswers: ['summarize-type type:A'] },
           { subject: 'service:new', new: true }, // never asked before: not expected
           // service:unknown has no reason recorded: not expected
         ],
@@ -258,6 +259,29 @@ test('the one-file change gate: retries, judges of reworded texts and answers th
   assert.deepEqual(gate([{ role: 'resolve', askedSubjects: ['link:1'], askedWhy: [{ subject: 'link:1', unheld: true }] }]).unexpected, [
     'resolve link:1: a fact its stored answer cites no longer holds',
   ]);
+});
+
+test("the one-file change gate: an item re-asked through a shown answer is expected only when that answer's item was re-asked for the file (#722)", () => {
+  const file = 'shop:src/A.java';
+  const gate = (harness) => changeGate({ harness }, file);
+  const type = { role: 'summarize-type', askedSubjects: ['type:A'], askedWhy: [{ subject: 'type:A', files: [file] }] };
+  // The package shows the type's summary, which changed; the module shows the package's.
+  const pkg = (changed) => ({ role: 'summarize', askedSubjects: ['package:p'], askedWhy: [{ subject: 'package:p', answers: 1, changedAnswers: changed }] });
+  const module = { role: 'summarize', askedSubjects: ['module:m'], askedWhy: [{ subject: 'module:m', answers: 1, changedAnswers: ['summarize package:p'] }] };
+  // Two levels, each through an answer re-asked in this run for the file: expected.
+  const chain = gate([type, pkg(['summarize-type type:A']), module]);
+  assert.deepEqual({ gate: chain.gate, through: chain.throughAnswers, unexpected: chain.unexpected }, { gate: true, through: 2, unexpected: [] });
+  // A cascade from an answer this run did not re-ask for the file: both levels unexpected.
+  const cascade = gate([type, pkg(['summarize-type type:B']), module]);
+  assert.equal(cascade.gate, false);
+  assert.deepEqual(cascade.unexpected, [
+    'summarize package:p: a shown answer changed whose item was not re-asked for the file (summarize-type type:B)',
+    'summarize module:m: a shown answer changed whose item was not re-asked for the file (summarize package:p)',
+  ]);
+  // A changed answer whose source is not recorded is not taken on trust.
+  assert.deepEqual(gate([type, pkg(undefined)]).unexpected, ['summarize package:p: a shown answer changed whose source is not recorded']);
+  // A ref naming a role alone is met by any item of that role re-asked for the file.
+  assert.equal(gate([type, pkg(['summarize-type'])]).gate, true);
 });
 
 // Every committed answer key is well formed: who prepared it and its status, each repository's
