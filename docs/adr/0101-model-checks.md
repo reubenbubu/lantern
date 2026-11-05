@@ -242,9 +242,9 @@ always judged and the fallbacks of the purpose, key fact and group names.
   - the new answer goes through the role's checks; items that show it, such as a group that shows a
     member's sentence, or a unit's investigation that reads a retried summary, are asked again as
     on any change, and cost what they ask;
-  - the second pass counts in the run record only the items it asks, not those it reuses, which
+  - a later pass counts in the run record only the items it asks, not those it reuses, which
     the first pass counted.
-- **Then the plain wording.** A text that holds with an `unsupported` verdict after the second pass,
+- **Then the plain wording.** A text that holds with an `unsupported` verdict after the last pass,
   or whose item gave no new text, is left out of the architecture model (`ArchitectureModel`
   keeps it aside as rejected), so every document shows what it shows without it:
   - a line: its static label;
@@ -263,7 +263,7 @@ always judged and the fallbacks of the purpose, key fact and group names.
   its role writes it anew.
 - **No mark.** "Not supported by its sources" is gone from the composer; no document shows a
   support mark.
-- **Counted.** `supportVerdicts` in the run record gives, per role, the verdicts after the second
+- **Counted.** `supportVerdicts` in the run record gives, per role, the verdicts after the last
   pass, the texts asked again (`retried`) and those shown in plain wording (`fellBack`); the
   scorecard's run lines show them ("Support judge: ..."). The run's log line and result count the
   first pass's summaries and Describe items; the run record holds every pass's calls.
