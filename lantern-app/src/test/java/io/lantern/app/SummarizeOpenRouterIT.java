@@ -326,7 +326,7 @@ class SummarizeOpenRouterIT {
     return chosen;
   }
 
-  private static Map<String, Path> repositories(Path folder) throws IOException {
+  static Map<String, Path> repositories(Path folder) throws IOException {
     Map<String, Path> repos = new TreeMap<>();
     try (Stream<Path> list = Files.list(folder)) {
       list.filter(repo -> Files.exists(repo.resolve(".git")))
@@ -336,7 +336,13 @@ class SummarizeOpenRouterIT {
   }
 
   /** The settings file's {@code lantern.llm} properties, bound as the app binds them. */
-  private static LlmProperties settings(Path file, String key) throws IOException {
+  static LlmProperties settings(Path file, String key) throws IOException {
+    return settings(file, key, Map.of());
+  }
+
+  /** As {@link #settings(Path, String)}, with these properties set over the file's. */
+  static LlmProperties settings(Path file, String key, Map<String, String> over)
+      throws IOException {
     Properties raw = new Properties();
     try (Reader in = Files.newBufferedReader(file)) {
       raw.load(in);
@@ -344,6 +350,7 @@ class SummarizeOpenRouterIT {
     Map<String, String> map = new LinkedHashMap<>();
     raw.stringPropertyNames().forEach(name -> map.put(name, raw.getProperty(name)));
     map.put("lantern.llm.anthropic.api-key", key);
+    map.putAll(over);
     return new Binder(new MapConfigurationPropertySource(map))
         .bind("lantern.llm", LlmProperties.class)
         .orElseThrow(() -> new IllegalStateException("No lantern.llm settings in " + file));
@@ -352,7 +359,7 @@ class SummarizeOpenRouterIT {
   // -----------------------------------------------------------------------------------------------
   // The record
 
-  private static BigDecimal cost(List<LlmCall> calls) {
+  static BigDecimal cost(List<LlmCall> calls) {
     return calls.stream()
         .map(LlmCall::costUsd)
         .filter(java.util.Objects::nonNull)

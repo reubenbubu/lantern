@@ -1,0 +1,5 @@
+# Investigate's fixed panel on project-1 (#890): the first lead of each kind the set raises, by ID.
+lead:plaintext-secret/module:com.example:bff/bff.jwt.signing-key
+lead:send-before-commit/service:com.example:profile-service/method:com.example.profileservice.service.KeycloakAdminClient#createUser(com.example.profileservice.dto.UserRegistrationDTO,java.lang.String)
+lead:single-instance/database:localhost:6379/redis
+lead:weak-access-check/service:com.example:profile-service/method:com.example.profileservice.controller.ProfileController#createProfile(org.springframework.security.oauth2.jwt.Jwt,com.example.profileservice.dto.UserProfileRequest)

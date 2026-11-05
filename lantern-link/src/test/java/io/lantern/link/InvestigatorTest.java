@@ -363,6 +363,33 @@ class InvestigatorTest {
   }
 
   @Test
+  void leadsAloneChecksOnlyTheChosenLeadsAndExploresNothing() {
+    headerLead();
+    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);
+    harness =
+        new Harness(
+            client(fake),
+            store,
+            RunBudget.NONE,
+            (repo, path) -> FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
+            Set.of());
+    Investigator investigator =
+        new Investigator(
+            harness, FILES, Map.of("identity-from-request", "Whether anything verifies it."));
+
+    // A lead not chosen is not asked; no unit or the system is explored (#890).
+    Investigator.Result none = investigator.leads(facts, 1, lead -> false);
+    assertThat(fake.sent()).isEmpty();
+    assertThat(of(none, Types.LEAD_VERDICT)).isEmpty();
+
+    Investigator.Result chosen = investigator.leads(facts, 1, lead -> true);
+    assertThat(fake.sent()).isNotEmpty().allSatisfy(s -> assertThat(leads(s.request())).isTrue());
+    assertThat(of(chosen, Types.LEAD_VERDICT))
+        .singleElement()
+        .satisfies(v -> assertThat(v.object().value()).isEqualTo("confirmed"));
+  }
+
+  @Test
   void anExhaustedBudgetStopsInvestigateWithoutFailingAndALaterRunAsks() {
     headerLead();
     FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) == 1 ? CONFIRMED : null);

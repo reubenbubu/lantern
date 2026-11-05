@@ -1,0 +1,5 @@
+# Investigate's fixed panel on project-3 (#890): the first lead of each kind the set raises, by ID.
+lead:contract-mismatch/frontend:mediahub-frontend-ui/POST%20/api/v1/auth/login
+lead:plaintext-secret/module:com.mediahub:user-service/spring.datasource.password
+lead:schema-unmanaged/module:com.mediahub:user-service/default
+lead:single-instance/service:com.mediahub:media-service
