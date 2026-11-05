@@ -245,24 +245,37 @@ final class RunRecord {
     return node;
   }
 
-  /** Writes the record into the directory and returns the file. */
   /**
    * Adds the support judge's verdicts per role (knowledge-build epic, section 11.7; #751): for each
-   * role whose texts hold a verdict, how many are supported, partly supported and unsupported.
+   * role whose texts hold a verdict or were asked again, how many are supported, partly supported
+   * and unsupported, how many it rejected and had asked again once, and how many the documents show
+   * in Lantern's plain wording instead (the owner's decision of 4 Nov 2026).
    */
   static ObjectNode withSupport(
-      ObjectNode record, java.util.Map<String, io.lantern.summarize.SupportChecks.Counts> counts) {
+      ObjectNode record,
+      java.util.Map<String, io.lantern.summarize.SupportChecks.Counts> counts,
+      java.util.Map<String, Integer> retried,
+      java.util.Map<String, Integer> fellBack) {
     ObjectNode verdicts = record.putObject("supportVerdicts");
-    counts.forEach(
-        (role, c) ->
-            verdicts
-                .putObject(role)
-                .put("supported", c.supported())
-                .put("partly", c.partly())
-                .put("unsupported", c.unsupported()));
+    java.util.SortedSet<String> roles = new java.util.TreeSet<>(counts.keySet());
+    roles.addAll(retried.keySet());
+    roles.addAll(fellBack.keySet());
+    io.lantern.summarize.SupportChecks.Counts none =
+        new io.lantern.summarize.SupportChecks.Counts(0, 0, 0);
+    for (String role : roles) {
+      io.lantern.summarize.SupportChecks.Counts c = counts.getOrDefault(role, none);
+      verdicts
+          .putObject(role)
+          .put("supported", c.supported())
+          .put("partly", c.partly())
+          .put("unsupported", c.unsupported())
+          .put("retried", retried.getOrDefault(role, 0))
+          .put("fellBack", fellBack.getOrDefault(role, 0));
+    }
     return record;
   }
 
+  /** Writes the record into the directory and returns the file. */
   static Path write(Path directory, ObjectNode record) {
     try {
       Files.createDirectories(directory);

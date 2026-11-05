@@ -27,11 +27,14 @@ import tools.jackson.databind.JsonNode;
 /**
  * The support judge over every role's stored texts (knowledge-build epic, section 11.7; ADR 0101,
  * amendment for #751). It runs once every role has stored its texts and the injection screen has
- * run: every Investigate risk is judged, every text that cites a range the screen flagged is
- * judged, and of the rest a deterministic 10% by fingerprint. Each role's texts go in requests of
- * their own. A verdict is stored on the text's observation ({@link LlmFacts#withSupport}); it never
- * drops a text. A cited range's lines are shown masked as every role is shown a file ({@link
- * SourceFiles#shownAt}), and what the masking took out reaches the harness's Secrets check.
+ * run: every Investigate risk, purpose, key fact and group name is judged, every text that cites a
+ * range the screen flagged, and every text of an answer asked again, and of the rest a
+ * deterministic 10% by the text and what it cites. Each role's texts go in requests of their own. A
+ * verdict is stored on the text's observation ({@link LlmFacts#withSupport}); it never drops a text
+ * from the store. A text found unsupported is handed back with the claims no input shows, so its
+ * answer can be asked again once (#751). A cited range's lines are shown masked as every role is
+ * shown a file ({@link SourceFiles#shownAt}), and what the masking took out reaches the harness's
+ * Secrets check.
  */
 public final class SupportChecks {
 
@@ -72,8 +75,62 @@ public final class SupportChecks {
    *     recording a name, which ends the facts of that name it is not given
    * @param counts the verdicts per role, the stored ones of texts judged before included
    * @param judged how many texts this run judged
+   * @param rejected the texts this run found unsupported, each with the claims no cited input
+   *     shows, which tell its role why it is asked again (#751)
    */
-  public record Result(Map<Origin, List<Fact>> byOrigin, Map<String, Counts> counts, int judged) {}
+  public record Result(
+      Map<Origin, List<Fact>> byOrigin,
+      Map<String, Counts> counts,
+      int judged,
+      List<Rejected> rejected) {
+
+    /**
+     * Why each rejected answer is asked again, by the fingerprint of the stored answer its texts
+     * came from: the reasons of all its rejected texts, such as a purpose's and its key fact's, in
+     * the order judged (#751). A text that names no stored answer cannot be asked again.
+     */
+    public Map<String, String> retries() {
+      Map<String, List<String>> reasons = new java.util.TreeMap<>();
+      for (Rejected r : rejected) {
+        String answer = answer(r.text());
+        if (!answer.isEmpty()) {
+          reasons.computeIfAbsent(answer, a -> new ArrayList<>()).add(r.reason());
+        }
+      }
+      Map<String, String> retries = new java.util.TreeMap<>();
+      reasons.forEach(
+          (answer, list) -> {
+            String joined =
+                String.join(
+                    "; ", new LinkedHashSet<>(list.stream().filter(x -> !x.isBlank()).toList()));
+            retries.put(answer, joined.isBlank() ? A_CLAIM : joined);
+          });
+      return retries;
+    }
+  }
+
+  /** What a reason says when the judge named no claim. */
+  static final String A_CLAIM = "a claim of it";
+
+  /** The fingerprint of the stored answer a text came from, or empty if it names none. */
+  public static String answer(Fact text) {
+    return text.attributes().path(LlmFacts.ANSWER).asString("");
+  }
+
+  /**
+   * A text the judge found unsupported.
+   *
+   * @param text the text, as it was stored before the verdict
+   * @param reason the claims no cited input shows, as the judge wrote them
+   */
+  public record Rejected(Fact text, String reason) {}
+
+  /**
+   * The kinds of text judged whatever the sample, as risks are: each system's purpose and key fact,
+   * and every group's name (the decision of 4 Nov 2026 on #751).
+   */
+  static final Set<String> ALWAYS =
+      Set.of(Types.INVESTIGATED_RISK, Types.PURPOSE, Types.KEY_FACT, Types.DISPLAY_NAME);
 
   /** How many texts of a role got each verdict. */
   public record Counts(int supported, int partly, int unsupported) {
@@ -103,6 +160,7 @@ public final class SupportChecks {
   private final SourceFiles files;
   private final Map<String, String> commits;
   private boolean byWriter = true;
+  private Set<String> retried = Set.of();
 
   /**
    * @param harness the run's harness
@@ -122,6 +180,15 @@ public final class SupportChecks {
    */
   public SupportChecks byWriter(boolean byWriter) {
     this.byWriter = byWriter;
+    return this;
+  }
+
+  /**
+   * The fingerprints of the answers asked again after an earlier judgement found them unsupported
+   * ({@link Harness#retried()}): their texts are judged whatever the sample (#751).
+   */
+  public SupportChecks retried(Set<String> retried) {
+    this.retried = Set.copyOf(retried);
     return this;
   }
 
@@ -183,20 +250,28 @@ public final class SupportChecks {
       byRole
           .computeIfAbsent(fact.origin().name(), r -> new ArrayList<>())
           .add(new SupportJudge.Text(key, text, cited));
-      // Every risk; every text resting on what the screen flagged, whatever the sample.
-      if (fact.predicate().equals(Types.INVESTIGATED_RISK)
+      // Every risk, purpose, key fact and group name; every text resting on what the screen
+      // flagged; every text of an answer asked again after its judgement: whatever the sample.
+      if (ALWAYS.contains(fact.predicate())
+          || retried.contains(fact.attributes().path(LlmFacts.ANSWER).asString(""))
           || places.stream().anyMatch(p -> flaggedPlaces.stream().anyMatch(p::overlaps))) {
         always.add(key);
       }
     }
-    Map<String, SupportJudge.Support> verdicts =
+    Map<String, SupportJudge.Verdict> verdicts =
         byRole.isEmpty()
             ? Map.of()
-            : new SupportJudge(harness).judge(byRole, always, byWriter ? ROLES : Map.of());
+            : new SupportJudge(harness).judged(byRole, always, byWriter ? ROLES : Map.of());
     Map<String, Fact> judgedFacts = new HashMap<>();
+    List<Rejected> rejected = new ArrayList<>();
     verdicts.forEach(
-        (key, verdict) ->
-            judgedFacts.put(byKey.get(key).id(), LlmFacts.withSupport(byKey.get(key), verdict)));
+        (key, verdict) -> {
+          judgedFacts.put(
+              byKey.get(key).id(), LlmFacts.withSupport(byKey.get(key), verdict.support()));
+          if (verdict.support() == SupportJudge.Support.UNSUPPORTED) {
+            rejected.add(new Rejected(byKey.get(key), reason(verdict)));
+          }
+        });
     Map<String, Origin> changed = new LinkedHashMap<>();
     verdicts
         .keySet()
@@ -231,7 +306,19 @@ public final class SupportChecks {
                     a.unsupported() + b.unsupported()));
       }
     }
-    return new Result(byOrigin, counts, verdicts.size());
+    return new Result(byOrigin, counts, verdicts.size(), rejected);
+  }
+
+  /**
+   * What tells a text's role why its answer is asked again: the claims none of its inputs shows.
+   */
+  static String reason(SupportJudge.Verdict verdict) {
+    String joined =
+        verdict.unsupported().stream()
+            .filter(c -> !c.isBlank())
+            .map(c -> "\"" + c + "\"")
+            .collect(java.util.stream.Collectors.joining("; "));
+    return joined.isEmpty() ? A_CLAIM : joined;
   }
 
   /** The fact as it holds from the snapshot, as recording the snapshot's facts needs. */
@@ -258,11 +345,12 @@ public final class SupportChecks {
 
   /**
    * The kinds of text a verdict is stored on: those whose type declares {@code support} ({@code
-   * llm-types.json}). A lead's verdict or a group's display name is not judged.
+   * llm-types.json}, and a group's name in {@code display-name}). A lead's verdict is not judged.
    */
   static final Set<String> TEXTS =
       Set.of(
           Types.RESPONSIBILITY,
+          Types.DISPLAY_NAME,
           Types.INTENT,
           Types.SUMMARY,
           Types.FLOW_NARRATIVE,

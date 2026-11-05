@@ -58,6 +58,22 @@ class GroupsAndFindingsShownTest {
   }
 
   @Test
+  void aGroupNameTheSupportJudgeRejectedGivesWayToTheNameTheCodeGivesIt() {
+    List<Fact> facts = domains(TestFacts.runtime());
+    Fact member = membership(facts, SECOND);
+    facts.add(
+        io.lantern.harness.LlmFacts.withSupport(
+            text(SECOND, Types.DISPLAY_NAME, LlmFacts.C4, "Billing", member),
+            io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED));
+
+    Diagram overview = overview(system(facts));
+
+    // Rejected though asked again: the key's last part, which no mark follows (#751).
+    assertThat(label(overview, SECOND)).isEqualTo("second");
+    assertThat(label(overview, FIRST)).isEqualTo("first (not named)");
+  }
+
+  @Test
   void aGroupsIntentShowsOnALineDrawnFromAQueueIntoTheGroup() {
     List<Fact> facts =
         domains(

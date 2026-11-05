@@ -1072,6 +1072,8 @@ export function scorecardMarkdown(card) {
         `  - ${role.role}: ${role.provider}/${role.model} (${role.calls} calls, $${role.costUsd})${conversations(role.conversations)}`,
       );
     }
+    const support = supportLine(card.run.supportVerdicts);
+    if (support) lines.push(`- Support judge: ${support}`);
   } else {
     lines.push('- Run: not recorded (no run.json given)');
   }
@@ -1204,6 +1206,22 @@ export function scorecardMarkdown(card) {
     }.`,
   );
   return `${lines.join('\n')}\n`;
+}
+
+/**
+ * The support judge's verdicts per role from run.json (ADR 0101, #751): how many texts it found
+ * supported, partly supported and unsupported, how many it rejected and had asked again once, and
+ * how many the documents show in Lantern's plain wording instead; null when the run judged none.
+ */
+export function supportLine(verdicts) {
+  const roles = Object.entries(verdicts ?? {});
+  if (roles.length === 0) return null;
+  return roles
+    .map(
+      ([role, v]) =>
+        `${role} ${v.supported ?? 0} supported, ${v.partly ?? 0} partly, ${v.unsupported ?? 0} unsupported, ${v.retried ?? 0} asked again, ${v.fellBack ?? 0} in plain wording`,
+    )
+    .join('; ');
 }
 
 /**

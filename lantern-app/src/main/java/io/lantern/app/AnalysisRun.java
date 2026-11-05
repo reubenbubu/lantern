@@ -493,60 +493,6 @@ public final class AnalysisRun {
           "Summarize: units per level {}, of {} the facts hold",
           levels(units),
           levels(SummaryTree.fromFacts(summarizable)));
-      Summarizer.Result summarized = new Summarizer(harness, sources).summarize(units);
-      LOG.info(
-          "Summaries: {} written by the LLM, {} reused",
-          summarized.generated(),
-          summarized.reused());
-      // Stored as claims of origin llm, which later roles read (knowledge-build epic, section 6).
-      Map<Origin, List<Fact>> summaryFacts =
-          Summarizer.facts(summarized, summarizable, snapshot.number());
-      // A run summarizes only the repositories it analyzes, so it ends only their summaries; those
-      // of repositories carried forward keep holding.
-      recordLlmFacts(snapshot, summaryFacts, registered.keySet());
-      LOG.info(
-          "Summarize stored {} summaries as claims of {} summaries",
-          summaryFacts.values().stream().mapToInt(List::size).sum(),
-          summarized.summaries().size());
-      if (!summarized.rejected().isEmpty()) {
-        LOG.warn(
-            "Units without a summary, their answer rejected twice: {}",
-            summarized.rejected().size());
-      }
-      if (!summarized.notAsked().isEmpty()) {
-        LOG.warn(
-            "Units without a summary, not asked because a budget refused the call: {}",
-            summarized.notAsked().size());
-      }
-
-      // Investigate checks the leads derivation stored, then explores each unit and the system,
-      // every finding cited to code Lantern verifies; what it finds is stored as claims of origin
-      // llm before anything is described or composed (knowledge-build epic, section 11.2; ADR
-      // 0110). It reads the facts made before it: static facts, summaries and resolved links.
-      io.lantern.link.Investigator.Result investigated =
-          new io.lantern.link.Investigator(
-                  harness, snapshotFiles, io.lantern.derive.LeadRules.judges())
-              .investigate(
-                  facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
-                  snapshot.number());
-      recordLlmFacts(snapshot, investigated.byOrigin());
-      LOG.info(
-          "Investigate: {} asked, {} reused, {} leads confirmed, {} facts; not investigated: {}",
-          investigated.asked(),
-          investigated.reused(),
-          investigated.confirmed(),
-          investigated.facts().size(),
-          investigated.notInvestigated());
-
-      // The LLM words the responsibilities of the snapshot's units and components and the intent
-      // of their links, and narrates the main flows, from every fact that holds in it, carried
-      // forward repositories included (ADR 0050, ADR 0058), and of no other system (ADR 0071).
-      // The texts an earlier run's roles stored are left out: this run words them again, and the
-      // documents take the words of this run (ADR 0103).
-      List<Fact> systemFacts =
-          Describer.withoutTexts(facts.findValidAt(snapshot.number(), snapshot.commits().keySet()));
-      // Each repository's documents are composed from its extracted facts, so its flows are traced
-      // from those.
       // Their prompts show the code of components, read from every registered repository, carried
       // forward ones included, so a run gives the same prompts whichever repositories it names
       // (ADR 0069).
@@ -558,55 +504,147 @@ public final class AnalysisRun {
                           .map(Repo::path))
               .withSecretKeys(secretKeys)
               .withMaskedValues(secrets::add);
-      Describer.Result described =
-          new Describer(harness, allSources)
-              .judgedLater()
-              .describe(systemFacts, extracted, summarized.summaries());
-      // What Describe wrote is stored as claims of origin llm before anything is composed
-      // (knowledge-build epic, section 6, Derived and LLM facts).
-      Map<Origin, List<Fact>> llmFacts = described.facts(snapshot.number());
-      recordLlmFacts(snapshot, llmFacts);
-      Map<String, Long> storedTexts =
-          llmFacts.values().stream()
-              .flatMap(List::stream)
-              .collect(
-                  java.util.stream.Collectors.groupingBy(
-                      Fact::predicate,
-                      java.util.TreeMap::new,
-                      java.util.stream.Collectors.counting()));
-      LOG.info(
-          "Describe stored {}; left {} elements, components and interactions unknown: {}",
-          storedTexts,
-          described.unknown().size(),
-          described.unknown());
-      // Name groups words each group the derive stage formed from what Describe wrote of its
-      // members, and stores its names, responsibilities and intents, and its merge suggestions as
-      // findings (knowledge-build epic, section 11.8; ADR 0107).
-      List<Fact> withTexts = new ArrayList<>(systemFacts);
-      llmFacts.values().forEach(withTexts::addAll);
-      NameGroups.Result named = new NameGroups(harness).name(withTexts, snapshot.number());
-      recordLlmFacts(snapshot, named.byOrigin());
-      if (!named.unknown().isEmpty()) {
-        LOG.info("Groups left unnamed: {}", named.unknown());
+      // The roles write their texts, the screen reads what they were shown, and the support judge
+      // checks what they wrote. A text it rejects is asked again once, told why, in a further pass
+      // that reuses every other answer from the cache; a text first rejected in that pass, such as
+      // a group name worded anew from a retried sentence, gets its one retry in the next; what is
+      // rejected again is left to the plain wording (ADR 0101, the owner's decision of 4 Nov 2026
+      // on #751).
+      io.lantern.summarize.SupportChecks.Result support;
+      Summarizer.Result summarizedFirst = null;
+      Describer.Result describedFirst = null;
+      List<io.lantern.summarize.SupportChecks.Rejected> retriedTexts = new ArrayList<>();
+      Set<String> marked = new java.util.HashSet<>();
+      for (int pass = 1; ; pass++) {
+        Summarizer.Result summarized = new Summarizer(harness, sources).summarize(units);
+        summarizedFirst = summarizedFirst == null ? summarized : summarizedFirst;
+        LOG.info(
+            "Summaries: {} written by the LLM, {} reused",
+            summarized.generated(),
+            summarized.reused());
+        // Stored as claims of origin llm, which later roles read (knowledge-build epic, section 6).
+        Map<Origin, List<Fact>> summaryFacts =
+            Summarizer.facts(summarized, summarizable, snapshot.number());
+        // A run summarizes only the repositories it analyzes, so it ends only their summaries;
+        // those
+        // of repositories carried forward keep holding.
+        recordLlmFacts(snapshot, summaryFacts, registered.keySet());
+        LOG.info(
+            "Summarize stored {} summaries as claims of {} summaries",
+            summaryFacts.values().stream().mapToInt(List::size).sum(),
+            summarized.summaries().size());
+        if (!summarized.rejected().isEmpty()) {
+          LOG.warn(
+              "Units without a summary, their answer rejected twice: {}",
+              summarized.rejected().size());
+        }
+        if (!summarized.notAsked().isEmpty()) {
+          LOG.warn(
+              "Units without a summary, not asked because a budget refused the call: {}",
+              summarized.notAsked().size());
+        }
+
+        // Investigate checks the leads derivation stored, then explores each unit and the system,
+        // every finding cited to code Lantern verifies; what it finds is stored as claims of origin
+        // llm before anything is described or composed (knowledge-build epic, section 11.2; ADR
+        // 0110). It reads the facts made before it: static facts, summaries and resolved links.
+        io.lantern.link.Investigator.Result investigated =
+            new io.lantern.link.Investigator(
+                    harness, snapshotFiles, io.lantern.derive.LeadRules.judges())
+                .investigate(
+                    facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+                    snapshot.number());
+        recordLlmFacts(snapshot, investigated.byOrigin());
+        LOG.info(
+            "Investigate: {} asked, {} reused, {} leads confirmed, {} facts; not investigated: {}",
+            investigated.asked(),
+            investigated.reused(),
+            investigated.confirmed(),
+            investigated.facts().size(),
+            investigated.notInvestigated());
+
+        // The LLM words the responsibilities of the snapshot's units and components and the intent
+        // of their links, and narrates the main flows, from every fact that holds in it, carried
+        // forward repositories included (ADR 0050, ADR 0058), and of no other system (ADR 0071).
+        // The texts an earlier run's roles stored are left out: this run words them again, and the
+        // documents take the words of this run (ADR 0103).
+        List<Fact> systemFacts =
+            Describer.withoutTexts(
+                facts.findValidAt(snapshot.number(), snapshot.commits().keySet()));
+        // Each repository's documents are composed from its extracted facts, so its flows are
+        // traced
+        // from those.
+        Describer.Result described =
+            new Describer(harness, allSources)
+                .judgedLater()
+                .describe(systemFacts, extracted, summarized.summaries());
+        describedFirst = describedFirst == null ? described : describedFirst;
+        // What Describe wrote is stored as claims of origin llm before anything is composed
+        // (knowledge-build epic, section 6, Derived and LLM facts).
+        Map<Origin, List<Fact>> llmFacts = described.facts(snapshot.number());
+        recordLlmFacts(snapshot, llmFacts);
+        Map<String, Long> storedTexts =
+            llmFacts.values().stream()
+                .flatMap(List::stream)
+                .collect(
+                    java.util.stream.Collectors.groupingBy(
+                        Fact::predicate,
+                        java.util.TreeMap::new,
+                        java.util.stream.Collectors.counting()));
+        LOG.info(
+            "Describe stored {}; left {} elements, components and interactions unknown: {}",
+            storedTexts,
+            described.unknown().size(),
+            described.unknown());
+        // Name groups words each group the derive stage formed from what Describe wrote of its
+        // members, and stores its names, responsibilities and intents, and its merge suggestions as
+        // findings (knowledge-build epic, section 11.8; ADR 0107).
+        List<Fact> withTexts = new ArrayList<>(systemFacts);
+        llmFacts.values().forEach(withTexts::addAll);
+        NameGroups.Result named = new NameGroups(harness).name(withTexts, snapshot.number());
+        recordLlmFacts(snapshot, named.byOrigin());
+        if (!named.unknown().isEmpty()) {
+          LOG.info("Groups left unnamed: {}", named.unknown());
+        }
+        // The injection screen reads every file the run's prompts showed, each blob once; what it
+        // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
+        List<Fact> flagged = screen(harness, snapshot);
+        // Then the support judge checks what every role stored: each Investigate risk, each text
+        // resting on a range the screen flagged, and a 10% sample of the rest (knowledge-build
+        // epic,
+        // section 11.7; ADR 0101, amendment for #751). A verdict marks a text, never drops it.
+        support =
+            new io.lantern.summarize.SupportChecks(harness, allSources, snapshot.commits())
+                .byWriter(supportByWriter)
+                .retried(harness.retried())
+                .judge(
+                    facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
+                    flagged,
+                    snapshot.number());
+        recordLlmFacts(snapshot, support.byOrigin());
+        LOG.info(
+            "Support judge: {} texts judged; verdicts by role {}",
+            support.judged(),
+            support.counts());
+        Map<String, String> fresh = toRetry(pass, support.retries(), marked, harness.retried());
+        if (fresh.isEmpty()) {
+          break;
+        }
+        fresh.forEach(harness::retry);
+        marked.addAll(fresh.keySet());
+        support.rejected().stream()
+            .filter(r -> fresh.containsKey(io.lantern.summarize.SupportChecks.answer(r.text())))
+            .forEach(retriedTexts::add);
+        LOG.info("Support judge: {} answers rejected; each is asked again once", fresh.size());
+        harness.retryPass(true);
       }
-      // The injection screen reads every file the run's prompts showed, each blob once; what it
-      // flags is a finding of origin llm, shown as a risk, never a reason to stop (ADR 0101).
-      List<Fact> flagged = screen(harness, snapshot);
-      // Then the support judge checks what every role stored: each Investigate risk, each text
-      // resting on a range the screen flagged, and a 10% sample of the rest (knowledge-build epic,
-      // section 11.7; ADR 0101, amendment for #751). A verdict marks a text, never drops it.
-      io.lantern.summarize.SupportChecks.Result support =
-          new io.lantern.summarize.SupportChecks(harness, allSources, snapshot.commits())
-              .byWriter(supportByWriter)
-              .judge(
-                  facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
-                  flagged,
-                  snapshot.number());
-      recordLlmFacts(snapshot, support.byOrigin());
-      LOG.info(
-          "Support judge: {} texts judged; verdicts by role {}",
-          support.judged(),
-          support.counts());
+      harness.retryPass(false);
+      List<Fact> judgedFacts = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
+      Map<String, Integer> retried = retried(retriedTexts);
+      Map<String, Integer> fellBack = fellBack(judgedFacts, retriedTexts);
+      if (!fellBack.isEmpty()) {
+        LOG.info("Support judge: texts left to the plain wording, by role {}", fellBack);
+      }
       // Every item a role did not ask about, or got no answer for, is stored, so the unknowns page
       // lists it (#741); the next run asks again and ends the fact.
       recordLlmFacts(snapshot, Map.of(NOT_ASKED_ORIGIN, notAsked(harness.records(), snapshot)));
@@ -676,7 +714,7 @@ public final class AnalysisRun {
               callLog.spentByModelSince(started),
               callLog.conversationsSince(started),
               harness.records());
-      RunRecord.withSupport(record, support.counts());
+      RunRecord.withSupport(record, support.counts(), retried, fellBack);
       Path runRecord = RunRecord.write(out, record);
       LOG.info("Wrote {}", runRecord);
       // The model's and the rank's choice of flows on the same candidates, side by side (#743).
@@ -711,17 +749,82 @@ public final class AnalysisRun {
           newFacts,
           stored.linksAsked(),
           stored.linksReused(),
-          summarized.generated(),
-          summarized.reused(),
-          summarized.rejected(),
-          described.asked(),
-          described.reused(),
+          summarizedFirst.generated(),
+          summarizedFirst.reused(),
+          summarizedFirst.rejected(),
+          describedFirst.asked(),
+          describedFirst.reused(),
           callLog.spentSince(started),
           checked(harness.records()),
           documents,
           runRecord,
           harness.secrets());
     }
+  }
+
+  /**
+   * The most times the roles run in one analysis: once, then once more for the texts the judge
+   * rejected, then once more for texts first rejected in that pass (#751).
+   */
+  static final int RETRY_PASSES = 3;
+
+  /**
+   * The answers to ask again after a pass (#751): those rejected for the first time, not marked in
+   * an earlier pass and not themselves the answer of an item asked again, each with why; none after
+   * the last pass.
+   *
+   * @param retries why each rejected answer would be asked again, by its fingerprint
+   * @param marked the answers marked in earlier passes
+   * @param retriedAnswers the fingerprints the marked items were asked again under
+   */
+  static Map<String, String> toRetry(
+      int pass, Map<String, String> retries, Set<String> marked, Set<String> retriedAnswers) {
+    Map<String, String> fresh = new java.util.TreeMap<>(retries);
+    if (pass >= RETRY_PASSES) {
+      return Map.of();
+    }
+    fresh.keySet().removeAll(marked);
+    fresh.keySet().removeAll(retriedAnswers);
+    return fresh;
+  }
+
+  /** How many texts of each role the support judge rejected and had asked again (#751). */
+  static Map<String, Integer> retried(List<io.lantern.summarize.SupportChecks.Rejected> rejected) {
+    Map<String, Integer> counts = new java.util.TreeMap<>();
+    rejected.forEach(r -> counts.merge(r.text().origin().name(), 1, Integer::sum));
+    return counts;
+  }
+
+  /**
+   * How many texts of each role the documents show in Lantern's plain wording because the support
+   * judge rejected them (#751): each text that holds with an unsupported verdict, and each text
+   * rejected first whose role gave no new text for its subject when asked again.
+   *
+   * @param held every fact that holds once the judge is done
+   * @param rejectedFirst the texts the judge rejected and had asked again, in any pass
+   */
+  static Map<String, Integer> fellBack(
+      List<Fact> held, List<io.lantern.summarize.SupportChecks.Rejected> rejectedFirst) {
+    Map<String, Integer> counts = new java.util.TreeMap<>();
+    Set<String> holding = new java.util.HashSet<>();
+    for (Fact fact : held) {
+      if (fact.origin().kind() != Origin.Kind.LLM) {
+        continue;
+      }
+      if ("unsupported"
+          .equals(fact.attributes().path(io.lantern.harness.LlmFacts.SUPPORT).asString(""))) {
+        counts.merge(fact.origin().name(), 1, Integer::sum);
+      }
+      holding.add(fact.origin().name() + "\u0000" + fact.subject() + "\u0000" + fact.predicate());
+    }
+    for (io.lantern.summarize.SupportChecks.Rejected r : rejectedFirst) {
+      Fact text = r.text();
+      if (!holding.contains(
+          text.origin().name() + "\u0000" + text.subject() + "\u0000" + text.predicate())) {
+        counts.merge(text.origin().name(), 1, Integer::sum);
+      }
+    }
+    return counts;
   }
 
   /** The origin of the facts that say a role did not ask about an item (#741). */

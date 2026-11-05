@@ -386,6 +386,11 @@ final class RepoSections {
   private List<Block> purpose(String section) {
     String id = assembler.id(section, "purpose");
     Assembler.Text purpose = assembler.purpose();
+    if (purpose == null) {
+      // A purpose the support judge rejected, though asked again, gives way to plain wording
+      // (#751).
+      purpose = assembler.plainPurpose();
+    }
     Assembler.Text keyFact = assembler.keyFact();
     if (purpose == null) {
       List<Block> blocks = new ArrayList<>();

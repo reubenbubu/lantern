@@ -22,6 +22,9 @@ import tools.jackson.databind.node.ObjectNode;
  * @param basis Descriptive. For a group's name, as for a responsibility.
  * @param cites Descriptive. For a group's name, the facts it cites.
  * @param model Descriptive. For a group's name, the model that wrote it, as provider/model.
+ * @param support Descriptive. For a group's name, the support judge's verdict on it against its
+ *     cited inputs (knowledge-build epic, section 11.7; ADR 0101): every group's name is judged
+ *     (#751).
  * @param text Descriptive. For a group's name, the name, without citations.
  */
 public record DisplayNameAttributes(
@@ -29,6 +32,7 @@ public record DisplayNameAttributes(
     String basis,
     List<String> cites,
     String model,
+    String support,
     String text) {
 
   /** The vocabulary type these are the attributes of. */
@@ -44,6 +48,7 @@ public record DisplayNameAttributes(
         AttributeValues.string(attributes, "basis"),
         AttributeValues.strings(attributes, "cites"),
         AttributeValues.string(attributes, "model"),
+        AttributeValues.string(attributes, "support"),
         AttributeValues.string(attributes, "text"));
   }
 
@@ -54,6 +59,7 @@ public record DisplayNameAttributes(
     AttributeValues.put(attributes, "basis", basis);
     AttributeValues.put(attributes, "cites", cites);
     AttributeValues.put(attributes, "model", model);
+    AttributeValues.put(attributes, "support", support);
     AttributeValues.put(attributes, "text", text);
     return attributes;
   }

@@ -48,9 +48,6 @@ final class Assembler {
    */
   static final String INFERRED_SENTENCE = "Inferred:";
 
-  /** What opens a sentence the support judge found unsupported by its sources (ADR 0101). */
-  static final String UNSUPPORTED = "Not supported by its sources:";
-
   /**
    * What opens a deployable unit's description taken from its module's summary because the unit has
    * no responsibility sentence (ADR 0066), when the summary's purpose is evidenced.
@@ -174,8 +171,12 @@ final class Assembler {
   String name(EntityId id) {
     if (id.type().equals(Types.GROUP)) {
       // The name Name groups gave it (ADR 0107), else its key's last part, marked as not named
-      // (knowledge-build epic, section 11.8).
-      return model.displayName(id).orElseGet(() -> names.name(id) + NOT_NAMED);
+      // (knowledge-build epic, section 11.8). A name the support judge rejected, though asked
+      // again, gives way to the name the code gives the group, its key's last part (#751).
+      return model
+          .displayName(id)
+          .orElseGet(
+              () -> names.name(id) + (model.rejected(id, Types.DISPLAY_NAME) ? "" : NOT_NAMED));
     }
     return names.name(id);
   }
@@ -335,7 +336,48 @@ final class Assembler {
   }
 
   private Text purpose(Text text) {
-    return unsupported(RepoSections.SYSTEM, evidenced(RepoSections.SYSTEM) ? text : inferred(text));
+    return evidenced(RepoSections.SYSTEM) ? text : inferred(text);
+  }
+
+  /**
+   * What the documents say of the system in place of a purpose the support judge rejected, though
+   * asked again (the decision of 4 Nov 2026 on #751): the first paragraph of a README that reads as
+   * a description, quoted as its authors wrote it; else a plain line of what the system is made of;
+   * {@code null} when the judge rejected none, or the model holds neither.
+   */
+  Text plainPurpose() {
+    if (!model.rejected(RepoSections.SYSTEM, Types.PURPOSE)) {
+      return null;
+    }
+    java.util.Optional<ArchitectureModel.ReadmeParagraph> readme = model.firstReadmeDescription();
+    if (readme.isPresent()) {
+      factIds.add(readme.get().fact());
+      return new Text(
+          List.of(TextRun.of("Its README says: \u201c" + readme.get().text() + "\u201d")),
+          List.of(readme.get().fact()));
+    }
+    List<String> parts = new ArrayList<>();
+    count(parts, io.lantern.derive.Elements.units(model).size(), "service", "services");
+    count(parts, io.lantern.derive.Elements.frontends(model).size(), "frontend", "frontends");
+    count(parts, model.entities(Types.DATABASE).size(), "database", "databases");
+    if (parts.isEmpty()) {
+      return null;
+    }
+    String made =
+        parts.size() == 1
+            ? parts.getFirst()
+            : String.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.getLast();
+    String name =
+        systemName.isEmpty()
+            ? "The system"
+            : Character.toUpperCase(systemName.charAt(0)) + systemName.substring(1);
+    return new Text(List.of(TextRun.of(name + " is made of " + made + ".")), List.of());
+  }
+
+  private static void count(List<String> parts, int n, String one, String many) {
+    if (n > 0) {
+      parts.add(n + " " + (n == 1 ? one : many));
+    }
   }
 
   /**
@@ -344,17 +386,7 @@ final class Assembler {
    */
   private Text responsibility(EntityId about, String sentence) {
     Text text = rich(about, sentence);
-    return unsupported(about, evidenced(about) ? text : opened(INFERRED_SENTENCE, text));
-  }
-
-  /**
-   * The text opened with {@value #UNSUPPORTED}, emphasized, when the support judge found the
-   * element's sentence unsupported by its cited facts (ADR 0101); otherwise as it is.
-   */
-  private Text unsupported(EntityId about, Text text) {
-    return sentence(about).filter(ArchitectureModel.Text::unsupported).isPresent()
-        ? opened(UNSUPPORTED, text)
-        : text;
+    return evidenced(about) ? text : opened(INFERRED_SENTENCE, text);
   }
 
   /**
@@ -624,7 +656,11 @@ final class Assembler {
                               ? purpose().content()
                               : responsibility != null
                                   ? responsibility(entity.id(), responsibility).content()
-                                  : summarizedDescription(entity.id()).content();
+                                  // A box whose sentence the support judge rejected, though
+                                  // asked again, shows its name, kind and technology only (#751).
+                                  : model.rejected(entity.id(), Types.RESPONSIBILITY)
+                                      ? List.<Inline>of()
+                                      : summarizedDescription(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(

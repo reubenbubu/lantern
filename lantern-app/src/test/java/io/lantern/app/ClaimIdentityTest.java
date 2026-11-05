@@ -133,8 +133,8 @@ class ClaimIdentityTest {
               "finding-raised",
               Set.of("support", "line", "ends", "lines", "quote", "reason", "model", "basis")),
           // Since #536, a group's name the LLM worded: its text, basis and model, as a
-          // responsibility's.
-          Map.entry("display-name", Set.of("text", "basis", "model")),
+          // responsibility's. Since #751, the support judge's verdict on it, as on every text.
+          Map.entry("display-name", Set.of("text", "basis", "model", "support")),
           // Since #587: the text config resolved an expression to; URLs that differ only in their
           // path are one address.
           Map.entry(

@@ -20,8 +20,10 @@ go-ahead for milestone 1E.
     roles share (Describe's units are on the reasoning tier). Since #751 each role's texts are
     judged on the writer's own model (amendment for #751).
   - Both are in the `model-checks` share of the run budget (ADR 0100, amendment for #42).
-  - Both use the epic's prompts and schemas word for word, after the common system prompt of
-    section 11.0 (`CommonPrompt`), which every request the harness lays out will share.
+  - Both used the epic's prompts and schemas word for word, after the common system prompt of
+    section 11.0 (`CommonPrompt`), which every request the harness lays out will share. They now
+    live in `prompts/` (ADR 0113), where the judge's prompt has moved on (version 3 with #751,
+    version 4 with #768); the epic's section 11.7 points there.
   - Both send at most 10 items a request.
 - **What the judge checks.**
   - It checks every responsibility sentence Describe accepts (units, components, data stores,
@@ -41,7 +43,8 @@ go-ahead for milestone 1E.
   - The claims add up as the epic says: `unsupported` if any claim is, else `partly` if any is,
     else `supported`.
   - An unsupported sentence is kept and opens with "Not supported by its sources:", emphasized,
-    before any "Inferred:" label, in every document that shows it.
+    before any "Inferred:" label, in every document that shows it. (Superseded: since #751 no
+    document shows a mark; a rejected text is asked again once, then left to the plain wording.)
   - The confidence factors (1, 0.8, 0.5) multiply the confidence of the text's stored observation,
     which carries the verdict as `support` (`LlmFacts.withSupport`).
   - The verdicts are cached as the judge role's answers in `llm_answers`, the log counts the
@@ -94,8 +97,9 @@ go-ahead for milestone 1E.
 
 - A cold run makes the judge's and the screen's calls on top of the roles'. A warm run makes
   none.
-- A document can now say that one of its sentences is not supported by its sources. A repository
-  with text addressed to an AI shows it as a risk.
+- A document can now say that one of its sentences is not supported by its sources (until #751,
+  which keeps documents clean instead). A repository with text addressed to an AI shows it as a
+  risk.
 
 ## Amendment for #529: the support judge asks five texts a request
 
@@ -166,8 +170,8 @@ claim list stays in the judge's cached answer.
   (a run holds one session a role name), each at the judge's packet size; its estimates and
   calibrations are those of `support-judge`.
 - Only kinds whose type declares `support` are judged: responsibilities, intents, summaries, flow
-  narratives, purposes, key facts, investigated risks and finding wordings. A lead's verdict and a
-  group's display name are not.
+  narratives, purposes, key facts, investigated risks and finding wordings. A lead's verdict is
+  not. (A group's display name was not either, until the last amendment for #751.)
 - The judge's facts are recorded once for each role name, every version of that role's facts
   together, so recording one version never ends another's (summaries of a repository not
   analyzed again keep an older version).
@@ -181,7 +185,8 @@ claim list stays in the judge's cached answer.
   one; and, when unsure, does not call a claim supported. How well it holds is measured on real
   runs in the 1H test drop.
 - Documents mark only responsibility sentences and the purpose as unsupported, as before; the
-  other kinds carry the verdict in the store only.
+  other kinds carry the verdict in the store only. (Superseded by the last amendment for #751: no
+  document shows a mark.)
 
 ## Amendment for #751: the judge's cited lines are masked as every role's are
 
@@ -209,3 +214,64 @@ its value never reached the harness's Secrets check.
   case above (#844); a config file with Windows line endings is not masked (#845); a quoted value
   or a Dockerfile `ENV` line reaches the Secrets check with its quotes or key, so the bare value
   repeated in an answer passes it (#846).
+
+## Amendment for #751: a rejected text is asked again once, then left to the plain wording
+
+The owner's decision of 4 Nov 2026 on #751: the documents are final, not for debugging, so they
+show no support mark. A text the judge rejects is asked again once, then replaced by Lantern's
+plain wording; the decision of the same day, taken by Claude at the owner's request, adds what is
+always judged and the fallbacks of the purpose, key fact and group names.
+
+- **Always judged**, outside the 10% sample, besides every investigated risk and every text on a
+  flagged range: each system's purpose and key fact, every group's name (`display-name`, whose type
+  now declares `support`), and every text of an answer asked again (`SupportChecks.ALWAYS`).
+- **Asked again once.** A text found `unsupported` (not `partly`) names the stored answer it came
+  from (`answer`, #753). `Harness.retry` marks that answer with the claims the judge found
+  unsupported, all its rejected texts' together (a purpose's and its key fact's are one answer;
+  "a claim of it" when the judge named none), and the analyze run runs its roles again, from
+  Summarize to Name groups, then the screen and the judge, each item reused from the cache but
+  those marked. A text first rejected in that pass, such as a group's name worded anew from a
+  retried member sentence, gets its own one retry in a third pass; a retried answer is never
+  marked again, and there is no fourth pass (`AnalysisRun.toRetry`, `RETRY_PASSES`). In each pass:
+  - a marked item's fingerprint also hashes the reason, so its new answer is cached apart from
+    the rejected one, and a later run at the same inputs replays both from the cache with no call;
+  - its request ends its first turn with a note, `prompts/support-retry.txt`, giving the reason
+    (`RoleSession.noted`, for packets, conversations and single requests alike);
+  - its earlier texts are not carried forward (ADR 0126), since the evidence they rest on is
+    unchanged and keeping them would keep the rejected wording;
+  - the new answer goes through the role's checks; items that show it, such as a group that shows a
+    member's sentence, or a unit's investigation that reads a retried summary, are asked again as
+    on any change, and cost what they ask;
+  - a later pass counts in the run record only the items it asks, not those it reuses, which
+    the first pass counted.
+- **Then the plain wording.** A text that holds with an `unsupported` verdict after the last pass,
+  or whose item gave no new text, is left out of the architecture model (`ArchitectureModel`
+  keeps it aside as rejected), so every document shows what it shows without it:
+  - a line: its static label;
+  - a box: its name, kind and technology, without a responsibility sentence, and without the
+    module summary that stands in for a sentence a role never wrote;
+  - a summary, narrative, group description, risk or key fact: left out;
+  - a purpose: the first README claim, in the order of the repositories, that reads as a
+    description (a sentence of at least six words), quoted as written: "Its README says: “…”",
+    citing the claim; else "<System> is made of 11 services, 3 frontends and 4 databases.", from
+    the model's deployable units, frontends and databases (`ArchitectureModel.firstReadmeDescription`, `Assembler.plainPurpose`);
+  - a group's name: its key's last part, the name the code gives it (a database's name, a route
+    prefix, a repository or a Maven group segment), with no "(not named)" after it.
+  The rejected text stays in the store, with its verdict, for the record. A text that already
+  held an `unsupported` verdict from an earlier run (a repository carried forward, or a run before
+  this amendment) is not judged again, so it is left to the plain wording without a retry until
+  its role writes it anew.
+- **No mark.** "Not supported by its sources" is gone from the composer; no document shows a
+  support mark.
+- **Counted.** `supportVerdicts` in the run record gives, per role, the verdicts after the last
+  pass, the texts asked again (`retried`) and those shown in plain wording (`fellBack`); the
+  scorecard's run lines show them ("Support judge: ..."). The run's log line and result count the
+  first pass's summaries and Describe items; the run record holds every pass's calls.
+- **Tests**, each shown failing first: `PacketsTest` (an item marked for retry is asked again
+  alone, told the reason, under its own fingerprint, its earlier texts not carried), `SupportChecksTest`
+  (the always-judged kinds; a retried answer's texts judged whatever the sample, with the reason),
+  `ArchitectureModelTest` and the composer's tests (each fallback; no mark), `SupportRetriesTest`
+  (which answers each pass asks again; what counts as a fallback), and
+  `EndToEndIT.aPurposeTheJudgeRejectsIsAskedAgainOnceAndThenLeftToThePlainWording`: a fake judge
+  rejects the purpose once, and the retry's text is shown; twice, and the README's paragraph is
+  shown and `run.json` counts one fallback.

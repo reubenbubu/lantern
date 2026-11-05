@@ -791,6 +791,46 @@ class C4ViewsTest {
   }
 
   @Test
+  void aUnitWhoseSentenceTheJudgeRejectedShowsNoDescriptionNotItsModulesSummary() {
+    EntityId module = EntityId.parse("module:com.example:app");
+    String packaging = facts.find("module:com.example:app", "packaging").id();
+    Map<EntityId, io.lantern.summarize.Summary> summaries =
+        Map.of(
+            module,
+            ComposerTest.summary(
+                module, "Serves orders. [fact:" + packaging + "]", List.of(packaging)));
+    List<io.lantern.core.fact.Fact> held =
+        new java.util.ArrayList<>(TestTexts.with(facts.list(), summaries));
+    held.add(
+        io.lantern.harness.LlmFacts.withSupport(
+            io.lantern.harness.LlmFacts.text(
+                io.lantern.summarize.describe.DescribeRole.UNITS,
+                "test/test",
+                "a".repeat(64),
+                EntityId.parse("service:com.example:app"),
+                io.lantern.core.types.Types.RESPONSIBILITY,
+                io.lantern.harness.LlmFacts.C4,
+                "Takes the shop's orders.",
+                List.of(facts.find("module:com.example:app", "packaging")),
+                io.lantern.harness.LlmFacts.Basis.INFERRED,
+                1),
+            io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED));
+
+    Document document =
+        new Composer("1")
+            .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, held);
+
+    // Rejected though asked again: its name, kind and technology only (#751).
+    DocumentEntity app =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("service:com.example:app"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(app.name()).isEqualTo("shop-app");
+    assertThat(app.description()).isEmpty();
+  }
+
+  @Test
   void aUnitsInferredFallbackSaysBoth() {
     EntityId module = EntityId.parse("module:com.example:app");
     String packaging = facts.find("module:com.example:app", "packaging").id();
