@@ -283,15 +283,15 @@ public final class Components implements LinkRule.OverFacts {
       return components;
     }
 
+    /** The made-up root the dominators are taken from: no vocabulary type, so no entity's ID. */
+    private static final String DOMINATOR_ROOT = "root";
+
     /**
      * The component each bean the entry points reach belongs to: its entry point, or the anchor of
      * the shared component it sits behind, or itself. Dominators are taken in the graph of the code
      * the entry points reach, with a root before every entry point and no path through another
      * entry point (Cooper, Harvey and Kennedy's iterative algorithm).
      */
-    /** The made-up root the dominators are taken from: no vocabulary type, so no entity's ID. */
-    private static final String DOMINATOR_ROOT = "root";
-
     private static Map<EntityId, EntityId> owners(
         Set<EntityId> entries,
         Set<EntityId> beans,

@@ -31,6 +31,12 @@ public class LinkerComparingPredicates {
     return new EntityId("repo", name);
   }
 
+  public EntityId schema(String module) {
+    return new EntityId(
+        // the type on a line of its own, which a line-by-line scan would miss
+        "schema", module);
+  }
+
   public boolean isAType(Fact fact) {
     return fact.subject().toString().startsWith("type:");
   }
