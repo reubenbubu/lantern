@@ -952,6 +952,8 @@ Submit with the submit tool as soon as you have proposals worth keeping; you may
 
 **Failure.** An unanswered lead stays `unclear`. A conversation ended by its cap keeps every accepted submission. A budget stop marks the remaining units `not-investigated`, and the findings page says which ones.
 
+**Amendment (#902, milestone 2.9, 6 Nov 2026).** Investigate's three conversations (Modes A, B and C) follow `docs/design.md`, LLM integration, "Investigate's conversation, the target of milestone 2.9", as the milestone's issues build it. For Investigate this replaces: 11.0's fact line (its inputs are TOML, facts as short sentences with short names); the blocks of 11.2's prompt layout (the first message holds the task and the evidence about it, not the system map and every fact of the unit); 11.2's tools (`shell`, `find_in_code`, `outline` and `answer`); its submit schema and the rule that a cited range was shown (a TOML answer whose evidence quotes a line exactly); and Mode A's packets (one lead to a conversation). What a lead is, the verdicts, what is stored and how documents show it stay as 11.2 says.
+
 ### 11.3 Summarize
 
 Summaries are condensed knowledge of the code, which later roles read in place of whole files. The report itself uses them only as a fallback. One change from today, and one thing kept:
