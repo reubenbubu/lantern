@@ -256,9 +256,18 @@ public final class SupportJudge {
     return Optional.of(partly ? Support.PARTLY : Support.SUPPORTED);
   }
 
+  /** A fact's or an earlier answer's tag, as an item writes it: {@code F1}. */
+  private static final java.util.regex.Pattern TAG =
+      java.util.regex.Pattern.compile("[A-Za-z][0-9]+");
+
+  /** A trailing line or line range of a file reference: {@code :3} or {@code :3-9}. */
+  private static final java.util.regex.Pattern LINES =
+      java.util.regex.Pattern.compile(":[0-9]+(-[0-9]+)?$");
+
   /**
    * The inputs a judge item cites, by the reference each is written with: the tag of a fact or an
-   * earlier answer ({@code F1} for {@code [F1] ...}), or a file range as written.
+   * earlier answer ({@code F1} for {@code [F1] ...}), or a file range as written. A line that
+   * starts with neither, such as the next line of a cited excerpt, adds none.
    */
   static Map<String, String> citedInputs(Item item) {
     Map<String, String> cited = new LinkedHashMap<>();
@@ -269,28 +278,36 @@ public final class SupportJudge {
       return cited;
     }
     for (String line : rendering.substring(start + "<inputs>\n".length(), end).split("\n")) {
-      String ref = reference(line);
-      if (!ref.isEmpty()) {
+      String ref = reference(line.strip().split("\\s+", 2)[0]);
+      if (TAG.matcher(ref).matches() || ref.contains(":")) {
         cited.putIfAbsent(ref, line);
       }
     }
     return cited;
   }
 
-  /** The reference a cited input or a verdict's "by" is written with, without its brackets. */
-  static String reference(String text) {
-    String token = text.strip().split("\\s+", 2)[0];
-    if (token.startsWith("[")) {
-      int close = token.indexOf(']');
-      token = close < 0 ? token.substring(1) : token.substring(1, close);
-    }
-    return token.replaceAll("[,;.]+$", "");
+  /** A reference without its brackets and trailing punctuation. */
+  static String reference(String token) {
+    String ref = token.strip().replaceAll("^[\\[(]+|[\\]),;.]+$", "");
+    int close = ref.indexOf(']');
+    return close < 0 ? ref : ref.substring(0, close);
+  }
+
+  /**
+   * A file reference without its lines: {@code orders:src/A.java} for {@code
+   * orders:src/A.java:3-9}.
+   */
+  private static String file(String ref) {
+    return LINES.matcher(ref).replaceFirst("");
   }
 
   /**
    * A claim found supported, or partly, rests on an input the item cites: a verdict whose "by"
-   * names anything else, such as a file the text shown as data asked for, is rejected (#768, the
-   * decision of 4 Nov 2026). A verdict that gives no "by" is not checked here.
+   * names a fact, an answer or a file the item does not cite, such as the file a text shown as data
+   * asked for, is rejected (#768, the decision of 4 Nov 2026). Only what reads as a reference is
+   * checked, a tag or a file with a colon, so words around it ("F1 and F2", "F1 (line 3)") pass; a
+   * file named without its repository, or a narrower line range, counts as the cited file. A
+   * verdict that gives no "by" is not checked here.
    */
   static final class SupportedBy implements Check {
 
@@ -306,30 +323,54 @@ public final class SupportJudge {
       if (raw == null) {
         return found;
       }
+      String own = answer.item() + " ";
+      List<String> cited =
+          inputs.references().keySet().stream()
+              .filter(k -> k.startsWith(own))
+              .map(k -> k.substring(own.length()))
+              .toList();
       for (JsonNode claim : raw.path("claims")) {
         String verdict = claim.path("verdict").asString("");
         String by = claim.path("by").asString("").strip();
         if (by.isEmpty() || verdict.equals("unsupported")) {
           continue;
         }
-        for (String part : by.split("[,\\s]+")) {
+        for (String part : by.split("[,;\\s]+")) {
           String ref = reference(part);
-          if (!ref.isEmpty() && !inputs.references().containsKey(ref)) {
-            found.add(
-                new Rejection(
-                    answer.item(),
-                    "claims",
-                    name(),
-                    "Gives "
-                        + ref
-                        + " as the support of \""
-                        + claim.path("claim").asString("")
-                        + "\", which the item does not cite; judge only against its cited"
-                        + " inputs."));
+          // A tag with a line added (F1:3) is still the tag.
+          boolean tag = TAG.matcher(file(ref)).matches();
+          if (tag) {
+            ref = file(ref);
           }
+          if (!(tag || ref.contains(":")) || cites(cited, ref, tag)) {
+            continue;
+          }
+          found.add(
+              new Rejection(
+                  answer.item(),
+                  "claims",
+                  name(),
+                  "Gives "
+                      + ref
+                      + " as the support of \""
+                      + claim.path("claim").asString("")
+                      + "\", which the item does not cite; judge only against its cited"
+                      + " inputs."));
         }
       }
       return found;
+    }
+
+    /** Whether the item cites the reference: the same tag, or the same file, by path's end. */
+    private static boolean cites(List<String> cited, String ref, boolean tag) {
+      if (tag) {
+        return cited.contains(ref);
+      }
+      String file = file(ref);
+      return cited.stream()
+          .filter(c -> c.contains(":"))
+          .map(SupportJudge::file)
+          .anyMatch(c -> c.equals(file) || c.endsWith(":" + file) || c.endsWith("/" + file));
     }
   }
 
@@ -362,8 +403,13 @@ public final class SupportJudge {
 
         @Override
         public CheckInputs inputs(List<Item> packet, List<String> ids) {
+          // Each item's cited inputs, keyed by its ID in the packet, so a verdict is held to the
+          // inputs of its own item.
           Map<String, String> cited = new LinkedHashMap<>();
-          packet.forEach(item -> cited.putAll(citedInputs(item)));
+          for (int i = 0; i < packet.size(); i++) {
+            String id = ids.get(i);
+            citedInputs(packet.get(i)).forEach((ref, line) -> cited.put(id + " " + ref, line));
+          }
           return new CheckInputs(
               SCHEMA, cited, Set.of(), false, (repo, path) -> Optional.empty(), Map.of(), Set.of());
         }

@@ -166,10 +166,11 @@ public final class FlowJudgements {
   private static final Set<Character> CITABLE = Set.of('F', 'A');
 
   /**
-   * A reference to a fact or an earlier answer, as an item writes it ({@code F3}, {@code [A1]}).
+   * A reference to a fact or an earlier answer, as an item writes it ({@code F3}, {@code [A1]}),
+   * with a line the model may add ({@code F3:12}): a slip, not a reference to something else.
    */
   private static final java.util.regex.Pattern LOCAL_REF =
-      java.util.regex.Pattern.compile("\\[?[A-Za-z][0-9]+]?");
+      java.util.regex.Pattern.compile("\\[?[A-Za-z][0-9]+]?(:[0-9]+(-[0-9]+)?)?");
 
   private FlowJudgements() {}
 

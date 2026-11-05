@@ -83,7 +83,12 @@ used the fixtures. No real model may be called in a test (CLAUDE.md, Safety and 
   stays open until that replacement lands.
 - **Decision 2: no obeying significance verdict is stored.** `FlowJudgements`' significance check
   rejects the whole answer when a reason cites anything that is no fact or answer reference of the
-  item, so a verdict that rests on text shown as data is never kept (prompt version 9).
+  item, so a verdict that rests on text shown as data is never kept (prompt version 9). A tag
+  with a line added (`F3:12`) still counts as a slip. The cost: one reason citing a file or other
+  outside reference drops every verdict of that scope's answer after its repair turn, and the
+  scope is drawn by rank order, where before only that reason was withdrawn.
 - **Decision 3: the judge's injection test covers every item.** Its obeying fake finds every claim
-  supported, `unit:0` included, by the password file. The judge rejects a "by" the item does not
-  cite (prompt version 4), and no verdict is stored.
+  supported, `unit:0` included, by the password file. The judge rejects a "by" naming a fact tag
+  or a file its own item does not cite (prompt version 4), and no verdict is stored. Only what
+  reads as a reference is checked: words around it ("F1 and F2", "F1 (line 3)"), a tag with a
+  line, a file without its repository or a narrower range of a cited file all pass, as tests show.
