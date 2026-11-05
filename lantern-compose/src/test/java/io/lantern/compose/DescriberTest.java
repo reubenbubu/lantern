@@ -370,6 +370,24 @@ class DescriberTest {
         .contains("] sends messages, through orders (a topic), to worker (a deployable unit)\n");
   }
 
+  @Test
+  void asksAboutAMessageAUnitPushesToItsStompSubscribers() {
+    // GET /orders pushes to the browsers subscribed to a topic, which its flow draws as a message
+    // to them (#745); Describe asks for its intent like any other interaction (#738).
+    List<Fact> all =
+        facts.attribute("shop", LIST.toString(), "stomp-send", "/topic/orders", "{}").list();
+    Fact push = facts.find(LIST.toString(), "stomp-send");
+
+    assertThat(Describer.interactionsAsked(all)).contains(push.id() + ":" + APP);
+    FakeLlmProvider fake = new FakeLlmProvider().answering(DescriberTest::answer);
+    new Describer(harness(client(fake))).describe(all);
+    assertThat(fake.sent())
+        .extracting(s -> s.request().messages().getFirst().text())
+        .filteredOn(p -> p.contains("The deployable unit shop-app"))
+        .singleElement(org.assertj.core.api.InstanceOfAssertFactories.STRING)
+        .contains("] pushes to the subscribers of /topic/orders (browsers)\n");
+  }
+
   private Describer.Result describe(FakeLlmProvider fake) {
     return new Describer(harness(client(fake))).describe(facts.list());
   }

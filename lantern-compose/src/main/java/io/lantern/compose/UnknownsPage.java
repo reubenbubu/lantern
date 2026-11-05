@@ -257,7 +257,11 @@ final class UnknownsPage {
     // read as one line with their count.
     Map<String, Integer> lines = new LinkedHashMap<>();
     for (UnitInteractions.Held interaction : interactions) {
-      String detail = details.get(interaction.fact());
+      // A push reads with its destination, as its flow's step does (#738).
+      String detail =
+          interaction.kind() == UnitInteractions.Kind.PUSH
+              ? interaction.fact().object().value()
+              : details.get(interaction.fact());
       lines.merge(
           end(interaction.unit(), interaction.from())
               + " to "

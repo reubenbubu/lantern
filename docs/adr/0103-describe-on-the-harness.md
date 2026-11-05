@@ -185,3 +185,28 @@ interactions to them:
   listeners".
 
 `Describer.LINKS` is `UnitInteractions.LINKS`.
+
+## Amendment (#738, review of 4 Nov 2026): pushes to STOMP subscribers
+
+Since #745 a flow draws each STOMP push as a message from its unit to "Subscribed browsers". The
+push rests on a `stomp-send` fact, not a link, so no list above held it: Describe never worded it,
+the unknowns page never listed it and the scorer never counted it. Now:
+
+- **A unit holds each push a stored flow draws from it** (`UnitInteractions`, kind `PUSH`): every
+  flow step of action `stomp-push` stands over its unit and follows its `stomp-send` fact first. A
+  push no flow reaches is drawn by no view, so it is not asked. The unit's item reads it as
+  "pushes to the subscribers of \<destination> (browsers)", or "pushes to the user's subscribers
+  of …" for a send to one user. Its intent is stored under the `stomp-send` claim, the one the
+  flow's step is worded by. The unknowns page lists a push without an intent with its destination.
+- **The scorer counts the same pushes** (`interactionsOf`, lantern-web/scripts/roles.mjs), from the
+  same flow steps, once per unit.
+- **A scheduled job's "Schedules X" step needs no intent** (decision of 4 Nov 2026 on #738). It is
+  the flow's trigger, not an interaction between two parts of the system. It keeps its fixed label
+  and is not listed on the unknowns page.
+
+The checks compare with the scorer itself, so the two have one definition. `Project0EndToEndIT`,
+and `TestSetScoreIT` on whichever set it runs, check that `Describer.interactionsAsked` equals
+what the scorer's `interactionsOf` counts over the run's `linked.jsonl.gz` and `llm.jsonl.gz`,
+leaving out a component's use of a store. They run the scorer through Node. A person's use of a
+frontend and a push are each named by their fact and their frontend or unit, as the scorer names
+them. This replaced a Java copy of the scorer, which had drifted from #741's person rule.

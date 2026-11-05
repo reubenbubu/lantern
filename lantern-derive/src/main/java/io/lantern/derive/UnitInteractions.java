@@ -42,6 +42,11 @@ public final class UnitInteractions {
     LINE,
     /** Another interaction with a unit or frontend, which the flows draw. */
     UNIT_LINK,
+    /**
+     * A message the unit pushes to the browsers subscribed to a STOMP destination, which a flow
+     * draws as a message to them (#745, #738).
+     */
+    PUSH,
     /** A line between two of the unit's components. */
     COMPONENT_LINK,
     /** A person's use of the frontend. */
@@ -55,11 +60,11 @@ public final class UnitInteractions {
    *
    * @param kind what kind it is
    * @param unit the unit or frontend that holds it
-   * @param fact its fact: the link, the line's fact, the component link, the person's basis or the
-   *     component's data access
+   * @param fact its fact: the link, the line's fact, the push, the component link, the person's
+   *     basis or the component's data access
    * @param line the diagram line it is drawn as, for a {@link Kind#LINE}; else null
    * @param from where it starts: the unit, the line's start, the component, or the person
-   * @param to where it ends: the other element, component or the store
+   * @param to where it ends: the other element, the subscribed browsers, the component or the store
    * @param through for a {@link Kind#DATA_ACCESS}, the unit's link to the store, whose intent it
    *     takes; else null
    */
@@ -78,6 +83,7 @@ public final class UnitInteractions {
   private final Set<Fact> alternatives;
   private final Set<EntityId> units;
   private Map<EntityId, List<Elements.Line>> otherLines;
+  private Map<EntityId, List<Fact>> pushes;
 
   /**
    * @param knowledge the facts
@@ -103,7 +109,8 @@ public final class UnitInteractions {
   /**
    * The interactions the unit holds, other than data access, in the order its item shows them: its
    * links to other containers, every other line of the diagrams it holds, its other interactions
-   * with units, the lines between its components and the people who use it.
+   * with units, its pushes to STOMP subscribers, the lines between its components and the people
+   * who use it.
    */
   public List<Held> of(EntityId unit) {
     List<Held> result = new ArrayList<>();
@@ -133,6 +140,9 @@ public final class UnitInteractions {
           && held.add(link)) {
         result.add(new Held(Kind.UNIT_LINK, unit, link, null, unit, Knowledge.object(link), null));
       }
+    }
+    for (Fact push : order.apply(pushes().getOrDefault(unit, List.of()))) {
+      result.add(new Held(Kind.PUSH, unit, push, null, unit, ScopeFlows.SUBSCRIBERS, null));
     }
     Set<EntityId> components = new java.util.LinkedHashSet<>();
     elements.components(unit).forEach(c -> components.add(Components.id(unit, c.main())));
@@ -190,6 +200,41 @@ public final class UnitInteractions {
       }
     }
     return result;
+  }
+
+  /**
+   * The {@code stomp-send} facts a stored flow pushes from each unit (#738): each step of kind
+   * {@link FlowModel#STOMP_PUSH}, by the unit it stands over, follows its push first. A push no
+   * flow reaches is drawn by no view. The scorer reads the same steps (`interactionsOf`,
+   * lantern-web/scripts/roles.mjs).
+   */
+  private Map<EntityId, List<Fact>> pushes() {
+    if (pushes != null) {
+      return pushes;
+    }
+    Map<EntityId, Set<Fact>> result = new LinkedHashMap<>();
+    for (FlowModel.Flow flow : FlowModel.read(knowledge)) {
+      pushes(flow.steps(), result);
+    }
+    Map<EntityId, List<Fact>> lists = new LinkedHashMap<>();
+    result.forEach((unit, facts) -> lists.put(unit, List.copyOf(facts)));
+    pushes = lists;
+    return lists;
+  }
+
+  private static void pushes(List<FlowModel.Step> steps, Map<EntityId, Set<Fact>> result) {
+    for (FlowModel.Step step : steps) {
+      if (step.action().equals(FlowModel.STOMP_PUSH)
+          && !step.over().isEmpty()
+          && !step.facts().isEmpty()) {
+        result
+            .computeIfAbsent(step.over().getFirst(), u -> new java.util.LinkedHashSet<>())
+            .add(step.facts().getFirst());
+      }
+      for (FlowModel.Operand operand : step.operands()) {
+        pushes(operand.steps(), result);
+      }
+    }
   }
 
   /**
