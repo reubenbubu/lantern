@@ -358,26 +358,34 @@ final class TestTexts {
         subjects.add(fact.subject());
       }
     }
+    // A text the support judge rejected is left out of the model (#751): read from its fact.
+    Map<EntityId, String> rejected = new HashMap<>();
+    for (Fact fact : texts) {
+      if ((fact.predicate().equals(Types.RESPONSIBILITY) || fact.predicate().equals(Types.PURPOSE))
+          && "unsupported".equals(fact.attributes().path("support").asString(""))) {
+        StringBuilder marked = new StringBuilder(fact.attributes().path("text").asString(""));
+        fact.attributes()
+            .path("cites")
+            .forEach(c -> marked.append(" [fact:").append(c.asString()).append(']'));
+        rejected.put(fact.subject(), marked.toString());
+      }
+    }
     for (EntityId subject : subjects) {
-      model
-          .responsibility(subject)
-          .ifPresent(
-              text -> {
-                responsibilities.put(subject, text.marked());
-                if (text.unsupported()) {
-                  unsupported.add(subject);
-                }
-              });
+      model.responsibility(subject).ifPresent(text -> responsibilities.put(subject, text.marked()));
+      if (model.rejected(subject, Types.RESPONSIBILITY) && rejected.containsKey(subject)) {
+        responsibilities.putIfAbsent(subject, rejected.get(subject));
+        unsupported.add(subject);
+      }
     }
     model
         .purpose()
-        .ifPresent(
-            text -> {
-              responsibilities.put(ArchitectureModel.SYSTEM, text.marked());
-              if (text.unsupported()) {
-                unsupported.add(ArchitectureModel.SYSTEM);
-              }
-            });
+        .ifPresent(text -> responsibilities.put(ArchitectureModel.SYSTEM, text.marked()));
+    if (model.rejected(ArchitectureModel.SYSTEM, Types.PURPOSE)
+        && rejected.containsKey(ArchitectureModel.SYSTEM)) {
+      responsibilities.putIfAbsent(
+          ArchitectureModel.SYSTEM, rejected.get(ArchitectureModel.SYSTEM));
+      unsupported.add(ArchitectureModel.SYSTEM);
+    }
     Map<String, Describer.Phrase> phrases = new HashMap<>();
     for (Fact fact : texts) {
       if (fact.predicate().equals(Types.INTENT) && !fact.subject().type().equals("person")) {

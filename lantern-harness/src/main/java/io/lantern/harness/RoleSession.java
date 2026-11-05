@@ -390,7 +390,11 @@ public final class RoleSession {
             output,
             usd,
             share);
-    record.planned(estimate);
+    // A pass that only asks again what the support judge rejected plans for the budget, but its
+    // items were counted by the first pass (#751).
+    if (!harness.retryPass()) {
+      record.planned(estimate);
+    }
     LOG.info("Plan {}", estimate.line(spec.name()));
     decide(toAskInOrder, claim);
     return estimate;
@@ -605,7 +609,9 @@ public final class RoleSession {
     Optional<StoredAnswer> stored = harness.answers().find(fingerprint);
     if (stored.isPresent() && revalidated(stored.get()) && holdsOrDropped(stored.get(), holds)) {
       Outcome outcome = reused(stored.get());
-      record.reused(item.subject(), outcome);
+      if (!harness.retryPass()) {
+        record.reused(item.subject(), outcome);
+      }
       settledWithoutAsking(item);
       return outcome;
     }
@@ -1265,7 +1271,9 @@ public final class RoleSession {
   private void settleReused(Map<String, Outcome> outcomes, Item item, Outcome outcome) {
     synchronized (this) {
       outcomes.put(item.subject(), outcome);
-      record.reused(item.subject(), outcome);
+      if (!harness.retryPass()) {
+        record.reused(item.subject(), outcome);
+      }
     }
     ended(item);
   }

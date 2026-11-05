@@ -56,6 +56,7 @@ public final class ArchitectureModel {
   private final List<Fact> purposes = new ArrayList<>();
   private final List<Fact> keyFacts = new ArrayList<>();
   private final Set<String> documented = new TreeSet<>();
+  private final Set<String> rejected = new java.util.HashSet<>();
 
   /**
    * The model of the facts, with this version of Lantern's vocabulary ({@link
@@ -72,9 +73,20 @@ public final class ArchitectureModel {
    *     type is drawn (ADR 0114)
    * @param facts the facts that hold in a snapshot, the roles' texts included
    */
-  public ArchitectureModel(Vocabulary vocabulary, Collection<Fact> facts) {
+  public ArchitectureModel(Vocabulary vocabulary, Collection<Fact> held) {
     this.vocabulary = Objects.requireNonNull(vocabulary, "vocabulary");
-    Objects.requireNonNull(facts, "facts");
+    Objects.requireNonNull(held, "facts");
+    // What the support judge rejected, though asked again, is kept in the store for the record and
+    // left out of the model, so the documents show Lantern's plain wording in its place (ADR 0101,
+    // the owner's decision of 4 Nov 2026 on #751).
+    List<Fact> facts = new ArrayList<>();
+    for (Fact fact : held) {
+      if (rejectedByTheJudge(fact)) {
+        rejected.add(fact.subject() + "\u0000" + fact.predicate());
+      } else {
+        facts.add(fact);
+      }
+    }
     List<Fact> others = new ArrayList<>();
     List<Fact> texts = new ArrayList<>();
     for (Fact fact : facts) {
@@ -708,6 +720,30 @@ public final class ArchitectureModel {
             .toList());
   }
 
+  /** Whether the support judge found a text a role wrote unsupported by what it cites. */
+  static boolean rejectedByTheJudge(Fact fact) {
+    return fact.origin().kind() == Origin.Kind.LLM
+        && "unsupported".equals(fact.attributes().path(LlmFacts.SUPPORT).asString(""));
+  }
+
+  /**
+   * Whether the model left out a text of the kind about the subject because the support judge
+   * rejected it (#751): the documents then show Lantern's plain wording for it.
+   */
+  public boolean rejected(EntityId subject, String predicate) {
+    return rejected.contains(subject + "\u0000" + predicate);
+  }
+
+  /** The entities of the type that facts of the model are about, by ID. */
+  public SortedSet<EntityId> entities(String type) {
+    SortedSet<EntityId> found = new TreeSet<>(Knowledge.BY_ID);
+    everyFact.values().stream()
+        .map(Fact::subject)
+        .filter(id -> id.type().equals(type))
+        .forEach(found::add);
+    return found;
+  }
+
   /** The system's purpose (section 11.6). */
   public Optional<Text> purpose() {
     return purposes.stream().findFirst().map(ArchitectureModel::text);
@@ -743,11 +779,6 @@ public final class ArchitectureModel {
       StringBuilder marked = new StringBuilder(text);
       cites.forEach(c -> marked.append(" [fact:").append(c).append(']'));
       return marked.toString();
-    }
-
-    /** Whether the support judge found a claim of it supported by none of its cited facts. */
-    public boolean unsupported() {
-      return "unsupported".equals(support);
     }
 
     /** Whether it rests on what people wrote, not only on what the code shows. */

@@ -39,18 +39,37 @@ class ArchitectureModelTest {
   }
 
   @Test
-  void theMostConfidentTextOfAThingIsReadAndAVerdictIsKept() {
-    Fact judged =
+  void aTextTheJudgeRejectedIsLeftOutAndNotedSoThePlainWordingTakesItsPlace() {
+    Fact rejected =
         LlmFacts.withSupport(
             text(UNIT, Types.RESPONSIBILITY, LlmFacts.C4, "Takes orders.", 0.6),
             SupportJudge.Support.UNSUPPORTED);
-    Fact other = text(UNIT, Types.RESPONSIBILITY, LlmFacts.C4, "Sells things.", 0.6);
+    Fact partly =
+        LlmFacts.withSupport(
+            text(UNIT, Types.RESPONSIBILITY, LlmFacts.C4, "Sells things.", 0.3),
+            SupportJudge.Support.PARTLY);
+    EntityId group = EntityId.parse("group:system/domain/orders");
+    Fact name =
+        LlmFacts.withSupport(
+            text(group, Types.DISPLAY_NAME, LlmFacts.C4, "Ordering", 0.6),
+            SupportJudge.Support.UNSUPPORTED);
+    Fact purpose =
+        LlmFacts.withSupport(
+            text(ArchitectureModel.SYSTEM, Types.PURPOSE, LlmFacts.C4, "Sells shoes.", 0.6),
+            SupportJudge.Support.UNSUPPORTED);
 
-    ArchitectureModel read = new ArchitectureModel(with(judged, other));
+    ArchitectureModel read = new ArchitectureModel(with(rejected, partly, name, purpose));
 
+    // A partly supported text is read; the rejected ones are not, though more confident (#751).
     assertThat(read.responsibility(UNIT).orElseThrow().text()).isEqualTo("Sells things.");
-    assertThat(new ArchitectureModel(with(judged)).responsibility(UNIT).orElseThrow().unsupported())
-        .isTrue();
+    assertThat(new ArchitectureModel(with(rejected)).responsibility(UNIT)).isEmpty();
+    assertThat(read.displayName(group)).isEmpty();
+    assertThat(read.purpose()).isEmpty();
+    assertThat(read.fact(rejected.id())).isNull();
+    assertThat(read.factOrText(rejected.id())).isNull();
+    assertThat(read.rejected(ArchitectureModel.SYSTEM, Types.PURPOSE)).isTrue();
+    assertThat(read.rejected(group, Types.DISPLAY_NAME)).isTrue();
+    assertThat(read.rejected(UNIT, Types.SUMMARY)).isFalse();
   }
 
   @Test

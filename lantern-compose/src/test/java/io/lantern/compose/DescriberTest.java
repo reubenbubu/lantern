@@ -573,23 +573,21 @@ class DescriberTest {
   }
 
   @Test
-  void aSentenceTheSupportJudgeFoundUnsupportedIsMarkedAndKept() {
+  void aSentenceTheSupportJudgeRejectedLeavesTheBoxWithoutOneAndNothingIsMarked() {
     TestTexts.Written wordings =
         TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)))
             .withUnsupported(Set.of(APP));
 
     Document document = system(wordings);
 
+    // The box keeps its name, kind and technology, with no sentence; no document shows a support
+    // mark (the owner's decision of 4 Nov 2026 on #751).
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(app.description().getFirst())
-        .isEqualTo(new TextRun(Assembler.UNSUPPORTED, TextRun.Style.EMPHASIS));
     assertThat(text(app.description()))
-        .isEqualTo(
-            Assembler.UNSUPPORTED
-                + " "
-                + Assembler.INFERRED_SENTENCE
-                + " Takes and lists the shop's orders for its web customers.");
+        .doesNotContain("Takes and lists the shop's orders for its web customers.");
+    assertThat(app.name()).isEqualTo("shop-app");
+    assertThat(String.valueOf(document)).doesNotContain("Not supported by its sources");
     DocumentEntity database =
         document.entities().stream().filter(e -> e.id().equals(DATABASE)).findFirst().orElseThrow();
     assertThat(text(database.description()))
@@ -738,16 +736,11 @@ class DescriberTest {
             .orElseThrow();
     assertThat(sentence.attributes().path("support").asString()).isEqualTo("unsupported");
     assertThat(sentence.confidence()).isEqualTo(io.lantern.harness.LlmFacts.CONFIDENCE * 0.5);
+    // The document shows the box without the rejected sentence (#751).
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(app.description().getFirst())
-        .isEqualTo(new TextRun(Assembler.UNSUPPORTED, TextRun.Style.EMPHASIS));
     assertThat(text(app.description()))
-        .isEqualTo(
-            Assembler.UNSUPPORTED
-                + " "
-                + Assembler.INFERRED_SENTENCE
-                + " Takes and lists the shop's orders for its web customers.");
+        .doesNotContain("Takes and lists the shop's orders for its web customers.");
   }
 
   @Test
@@ -1362,6 +1355,82 @@ class DescriberTest {
           .attributeSchema()
           .validate(claim.attributes());
     }
+  }
+
+  /** The facts with those of the predicate about the system marked as rejected by the judge. */
+  private static List<Fact> rejecting(List<Fact> facts, String... predicates) {
+    Set<String> rejected = Set.of(predicates);
+    return facts.stream()
+        .map(
+            f ->
+                f.subject().equals(RepoSections.SYSTEM) && rejected.contains(f.predicate())
+                    ? io.lantern.harness.LlmFacts.withSupport(
+                        f, io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED)
+                    : f)
+        .toList();
+  }
+
+  private static List<io.lantern.core.document.Block> overview(List<Fact> facts) {
+    return new Composer("1")
+        .compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE), SNAPSHOT, facts)
+        .sections()
+        .getFirst()
+        .blocks();
+  }
+
+  @Test
+  void aPurposeTheJudgeRejectedGivesWayToItsReadmesFirstDescriptiveParagraph() {
+    List<Fact> withClaim = TestFacts.runtimeWithContradictedClaim();
+    Describer.Result result =
+        new Describer(harness(client(new FakeLlmProvider().answering(DescriberTest::answer))))
+            .describe(withClaim);
+
+    List<io.lantern.core.document.Block> blocks =
+        overview(rejecting(stored(withClaim, result), io.lantern.core.types.Types.PURPOSE));
+
+    // Quoted as its authors wrote it, citing the claim (the decision of 4 Nov 2026 on #751).
+    Paragraph first = (Paragraph) blocks.getFirst();
+    assertThat(text(first.content()))
+        .startsWith("Its README says: \u201cThe app keeps its orders in MySQL.\u201d")
+        .doesNotContain("Not supported by its sources");
+    assertThat(first.facts())
+        .contains(
+            withClaim.stream()
+                .filter(f -> f.predicate().equals("claim"))
+                .findFirst()
+                .orElseThrow()
+                .id());
+  }
+
+  @Test
+  void withoutAReadmeARejectedPurposeGivesWayToWhatTheSystemIsMadeOf() {
+    List<io.lantern.core.document.Block> blocks =
+        overview(
+            rejecting(
+                stored(
+                    facts.list(), describe(new FakeLlmProvider().answering(DescriberTest::answer))),
+                io.lantern.core.types.Types.PURPOSE));
+
+    assertThat(text(((Paragraph) blocks.getFirst()).content()))
+        .startsWith("Base and shop is made of 2 services and 1 database.");
+  }
+
+  @Test
+  void aKeyFactTheJudgeRejectedIsLeftOut() {
+    List<io.lantern.core.document.Block> kept =
+        overview(
+            stored(facts.list(), describe(new FakeLlmProvider().answering(DescriberTest::answer))));
+    List<io.lantern.core.document.Block> blocks =
+        overview(
+            rejecting(
+                stored(
+                    facts.list(), describe(new FakeLlmProvider().answering(DescriberTest::answer))),
+                io.lantern.core.types.Types.KEY_FACT));
+
+    assertThat(text(((Paragraph) kept.getFirst()).content()))
+        .contains("Card payments go to pay.example.com");
+    assertThat(text(((Paragraph) blocks.getFirst()).content()))
+        .doesNotContain("Card payments go to pay.example.com");
   }
 
   @Test

@@ -34,6 +34,7 @@ public final class Harness {
   private final Map<String, Integer> itemsPerRequest = new LinkedHashMap<>();
   private final Map<String, String> retries = new java.util.concurrent.ConcurrentHashMap<>();
   private final Set<String> retried = java.util.concurrent.ConcurrentHashMap.newKeySet();
+  private volatile boolean retryPass;
 
   /**
    * A role asked at another packet size for packet-size calibration (knowledge-build epic, section
@@ -296,6 +297,20 @@ public final class Harness {
   /** Records the fingerprint an item marked for retry was asked again under. */
   void retriedAs(String fingerprint) {
     retried.add(fingerprint);
+  }
+
+  /**
+   * Starts or ends the pass that asks again what the support judge rejected: the roles run again,
+   * every other item reused from the cache, and the run's record counts only what that pass asks,
+   * since the first pass counted the rest (#751).
+   */
+  public void retryPass(boolean on) {
+    retryPass = on;
+  }
+
+  /** Whether the roles run again to ask what the support judge rejected. */
+  boolean retryPass() {
+    return retryPass;
   }
 
   /** The fingerprints the items marked for retry were asked again under this run. */

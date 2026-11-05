@@ -154,6 +154,20 @@ class InvestigatedFindingsTest {
   }
 
   @Test
+  void aRiskTheSupportJudgeRejectedIsLeftOutOfTheDocument() {
+    Fact risk = risk(Types.INVESTIGATED_RISK, APP, "Orders trust the caller's user header");
+    facts.remove(risk);
+    facts.add(
+        io.lantern.harness.LlmFacts.withSupport(
+            risk, io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED));
+
+    Document brief = compose(ViewDefinition.executiveBrief("shop.brief", "shop", TEMPLATE));
+
+    // Rejected though asked again, it is kept in the store only (the decision of 4 Nov 2026, #751).
+    assertThat(String.valueOf(brief)).doesNotContain("Orders trust the caller's user header");
+  }
+
+  @Test
   void theExplorerAndTheSystemReportListItInTheirRisksAndFindings() {
     Fact risk = risk(Types.INVESTIGATED_RISK, APP, "Orders trust the caller's user header");
 
