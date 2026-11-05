@@ -630,6 +630,31 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void flowsTitledByTheirEntryPointNameNoClassOrMethod() {
+    // Three of ship's handlers are each called fetchStatus(): their flows share a scenario, so the
+    // titles are told apart, by the unit, then by a number, never by the handler's class and
+    // method (docs/quality-bar.md, Sequence diagrams; #885).
+    for (String type : List.of("Listener", "Nightly", "Status")) {
+      String method = "method:x.ship." + type + "#fetchStatus()";
+      relate("ship", "type:x.ship." + type, "CONTAINS", method, "{}", 0);
+      attribute("ship", method, "endpoint", "GET /" + type.toLowerCase(), "{}", 0);
+      // Each calls a host of its own, so the three flows differ in shape and all are shown.
+      relate(
+          "ship",
+          SHIP,
+          "CALLS_HTTP",
+          "external-system:" + type.toLowerCase() + ".example.com",
+          "{\"protocol\": \"HTTPS\", \"source\": \"" + method + "\"}",
+          5);
+    }
+
+    List<String> titles = flows(system(facts)).sections().stream().map(Section::title).toList();
+
+    assertThat(titles).as("%s", titles).filteredOn(t -> t.startsWith("Fetch status")).hasSize(3);
+    assertThat(titles).noneMatch(t -> t.matches(".*[A-Za-z]\\.[a-z].*|.*[#/].*|.*fetchStatus.*"));
+  }
+
+  @Test
   void aFlowAFrontendsCallReachesStartsWithThePersonAndTheFrontend() {
     browser();
     // ui calls front's endpoint directly, through the proxy its nginx passes /orders on with.

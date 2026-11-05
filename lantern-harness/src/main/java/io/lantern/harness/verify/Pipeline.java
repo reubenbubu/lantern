@@ -19,6 +19,11 @@ public final class Pipeline {
     this.checks = List.copyOf(Objects.requireNonNull(checks, "checks"));
   }
 
+  /** The checks it runs, in order. */
+  public List<Check> checks() {
+    return checks;
+  }
+
   /** Every rejection of the answer, check by check; empty when every check accepts it. */
   public List<Rejection> check(ItemAnswer answer, CheckInputs inputs) {
     List<Rejection> found = new ArrayList<>();

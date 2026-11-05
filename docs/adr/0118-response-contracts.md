@@ -58,7 +58,7 @@ Six roles asked for one size and accepted another without a written reason. For 
   | describe-elements responsibility | 73 | 5 | 8 | 13 | 18 | 6 to 22 | 5 to 25 | 0 (0.0%) |
   | describe-units responsibility | 306 | 7 | 10 | 14 | 21 | 10 to 22 | 8 to 25 | 1 (0.3%) |
   | describe-units intent | 1054 | 3 | 4 | 6 | 8 | 4 to 7 | 3 to 8 | 0 (0.0%) |
-  | flow-narrative title | 116 | 3 | 3 | 4 | 5 | 3 to 5 | 2 to 6 | 0 (0.0%) |
+  | flow-narrative title | 116 | 3 | 3 | 4 | 5 | 3 to 5 | 2 to 6 (3 to 8 since #885) | 0 (0.0%) |
   | flow-narrative walkthrough | 116 | 25 | 30 | 48 | 75 | 30 to 75 | 25 to 80 | 0 (0.0%) |
   | flow-narrative preconditions | 116 | 5 | 6 | 11 | 21 | 6 to 22 | 5 to 25 | 0 (0.0%) |
   | flow-narrative postconditions | 110 | 9 | 10 | 16 | 22 | 10 to 22 | 8 to 25 | 0 (0.0%) |
@@ -103,3 +103,7 @@ Six roles asked for one size and accepted another without a written reason. For 
 - `WordingPrompt`'s old flow sizes (8, 100 and 30 words) are not a contract; removing them is #775.
 - The quality score is reasoned, not fitted. CheckEval found fitted weights gained nothing for most judges. The weights change only through an issue.
 - The epic's section 11 is a closed record; its limits now live in the contracts.
+
+## Amendment for #885 (5 Nov 2026)
+
+Flow narrative's title accepts 3 to 8 words, the range of the bar's flow-title rule (owner's decision of 5 Nov 2026, #770), in place of 2 to 6; it still asks for 3 to 5. A title holding the word "flow" or "process", or code (a path, a class or method name), is sent back by the role's own check, `Title`. The prompt names who or what starts the scenario, and its version is 10.
