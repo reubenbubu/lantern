@@ -373,6 +373,7 @@ class Project0EndToEndIT {
         .isEqualTo(
             drawableInteractions(system.file(), C4ReportRenderer.toJson(written).data(), OUT));
     checkIntentNotKnown(held, second, written);
+    checkFlowSelection(system.file());
     Files.copy(system.file(), OUT.resolve("system.c4.html"), StandardCopyOption.REPLACE_EXISTING);
     checkExtractionCoverage(system.file().resolveSibling(ExtractedFacts.FILE));
   }
@@ -1147,6 +1148,28 @@ class Project0EndToEndIT {
                   l.startsWith(
                       names.name(interaction.from()) + " to " + names.name(interaction.to())));
     }
+  }
+
+  /**
+   * The run writes each scope's flows chosen by the model and by rank on the same candidates beside
+   * its documents, and no scope draws two flows of which one holds the other or both have one shape
+   * (#743).
+   */
+  static void checkFlowSelection(Path document) throws IOException {
+    JsonNode selection =
+        tools.jackson.databind.json.JsonMapper.builder()
+            .build()
+            .readTree(Files.readString(document.resolveSibling(FlowSelectionFile.FILE)));
+    List<String> scopes = new ArrayList<>();
+    for (JsonNode scope : selection.get("scopes")) {
+      scopes.add(scope.get("scope").asString());
+      if (scope.get("scope").asString().equals(io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE)) {
+        assertThat(scope.get("candidates")).as(scope.toString()).isNotEmpty();
+        assertThat(scope.get("rank")).as(scope.toString()).isNotEmpty();
+      }
+      assertThat(scope.get("overlaps")).as(scope.toString()).isEmpty();
+    }
+    assertThat(scopes).contains(io.lantern.derive.ArchitectureModel.SYSTEM_SCOPE);
   }
 
   /**

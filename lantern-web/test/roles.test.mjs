@@ -918,6 +918,39 @@ test('flow selection: a flow a unit pass dropped is missed, and a flow of the sa
   assert.deepEqual(row.notCandidates, []);
 });
 
+test("flow selection: one run's flows.json scores the model's choice and the rank's on the same candidates (#743)", () => {
+  const flow = (name) => `flow:service:a/entry-${name}`;
+  const selection = {
+    scopes: [
+      { scope: 'service-a', candidates: [], judged: null, rank: [], overlaps: [] },
+      {
+        scope: 'system',
+        candidates: ['order', 'pay', 'login', 'list', 'health'].map(flow),
+        judged: ['order', 'login', 'health'].map(flow),
+        rank: ['order', 'pay', 'list'].map(flow),
+        overlaps: [`${flow('order')} contains ${flow('pay')}`],
+      },
+    ],
+  };
+  const row = flowSelectionRow(selectionRef, [], [], selectionLinked, spell, selection);
+  assert.equal(row.mode, 'judged');
+  const pick = (r) => ({ candidates: r.candidates, chosen: r.chosen, right: r.right, items: r.items, chosenMatching: r.chosenMatching });
+  // The model: order and login of the three reference flows among the candidates; health is extra.
+  assert.deepEqual(pick(row.judged), { candidates: 5, chosen: 3, right: 2, items: 3, chosenMatching: 2 });
+  assert.deepEqual(pick(row), pick(row.judged));
+  // The rank on the same candidates: order and pay; list is extra.
+  assert.deepEqual(pick(row.rank), { candidates: 5, chosen: 3, right: 2, items: 3, chosenMatching: 2 });
+  assert.deepEqual(row.rank.missed, ['Sign in']);
+  assert.deepEqual(row.judged.missed, ['Pay']);
+  assert.deepEqual(row.overlaps, [`${flow('order')} contains ${flow('pay')}`]);
+  // A scope with no judgement that holds is scored by its rank alone.
+  const unjudged = { scopes: [{ ...selection.scopes[1], judged: null, overlaps: [] }] };
+  const rankOnly = flowSelectionRow(selectionRef, [], [], selectionLinked, spell, unjudged);
+  assert.equal(rankOnly.mode, 'rank');
+  assert.equal(rankOnly.judged, null);
+  assert.deepEqual(pick(rankOnly), pick(row.rank));
+});
+
 test('flow selection, rank fallback: without the system judge the chosen flows are those the report draws', () => {
   // Only units were judged; the system fell back to the rank, and the report draws two flows.
   const llm = [verdict('order', 'service:a', true), verdict('pay', 'service:a', true), verdict('list', 'service:a', false)];

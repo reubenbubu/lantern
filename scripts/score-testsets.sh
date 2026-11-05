@@ -23,7 +23,7 @@ Writes to <workspace>/scores/<label>/: for each set <set>/_system.c4.html, run.j
 the extractors found), linked.jsonl.gz and llm.jsonl.gz (the linker's facts and those of
 origin llm, which the rows per role read with testsets/<set>/answer-key.json),
 wording.jsonl.gz (the wording judge's verdicts, with --judge-wording), rejections.jsonl.gz
-(every answer the checks rejected and every item dropped, with why), <set>.scorecard.json and <set>.scorecard.md, the extraction
+(every answer the checks rejected and every item dropped, with why), flows.json (each scope's flows chosen by the model and by rank on the same candidates, #743), <set>.scorecard.json and <set>.scorecard.md, the extraction
 coverage <set>.coverage.json and <set>.coverage.md (lantern-web/scripts/coverage.mjs,
 when the set has a testsets/<set>/coverage.json); with --compare-with, <set>.compare.md
 beside them.
@@ -511,7 +511,7 @@ for set in "${sets[@]}"; do
   # The run's facts the rows per role read beside run.json, and the set's answer key
   # (docs/adr/0072-scoring-harness.md, amendment for #667).
   # With every answer the checks rejected and every item dropped, for the owner to read (#682).
-  facts_files=(linked.jsonl.gz llm.jsonl.gz rejections.jsonl.gz)
+  facts_files=(linked.jsonl.gz llm.jsonl.gz rejections.jsonl.gz flows.json)
   # The wording judge's verdicts only from a run that judged, never an earlier run's.
   [[ "$judge_wording" == true ]] && facts_files+=(wording.jsonl.gz)
   for facts in "${facts_files[@]}"; do

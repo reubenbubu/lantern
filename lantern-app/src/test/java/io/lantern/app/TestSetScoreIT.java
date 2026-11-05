@@ -159,6 +159,7 @@ class TestSetScoreIT {
         .isEqualTo(
             Project0EndToEndIT.drawableInteractions(
                 system.file(), C4ReportRenderer.toJson(system.document()).data(), out));
+    Project0EndToEndIT.checkFlowSelection(system.file());
 
     // The same settings with Summarize on the priced fake, as --lantern.llm.roles.summarize would
     // set it for the app.

@@ -138,6 +138,37 @@ Now:
   judges the scope again. A judgement that names no steps, or whose flow's steps are not known, is
   read as before.
 
-The five sets' flow-selection rows (#746), judged and on the rank fallback, before and after,
-come from the 1H test drop's real runs on Haiku 5.5 and Sonnet 5.5. Fake runs judge no flow
-significant, so they show only the rank fallback, and this change leaves it unchanged.
+**Measured on one run, both ways (review of 4 Nov 2026).** Each analysis writes `flows.json`
+beside `run.json` (`FlowSelection`): for each scope (the system and each repository with a unit)
+its candidates, one per shape, the flows drawn from the model's judgement (`null` when no
+judgement holds), the flows the rank would draw on the same candidates (`chosen(null)`), and
+`overlaps`, the pairs of drawn flows of which one reaches the other's entry point or both have one
+drawn shape (`ScopeFlows.overlaps`). The scorecard's flow selection row (ADR 0072) scores the
+system scope's judged and rank choices on those same candidates, side by side, and lists the
+overlaps; `Project0EndToEndIT` and `TestSetScoreIT` fail on any overlap. The judged row now counts
+the flows drawn, after containment and shape, not every flow the model marked significant.
+
+The model's containment drops the flow that is reached, whatever the containers each touches,
+where the rank path lets a reaching flow replace those it holds only when it touches as many. A
+flow that reaches another's entry point draws that flow's steps, so it usually touches at least its
+containers, and the two agree. The model's order is its judgement, so no rank rule overrides it.
+Where the rank path does draw a reaching flow beside one it holds (the reaching flow touching
+fewer containers), `overlaps` lists the pair and the integration tests fail, which is the bar's
+"none contained in another" holding for the rank too; on the five sets' fake runs no scope has one.
+
+**Before (prompt version 7, the 1H baseline of #756, Haiku 5.5 and Sonnet 5.5, `1h-baseline-complete`).**
+The judged rows then counted every flow the system's judge marked significant, not the flows
+drawn, so their precision is not directly comparable with the rows after; no rank row was computed
+on the same candidates:
+
+| Set | Candidates | Judged (v7): reference flows chosen | Judged (v7): flows marked significant in the reference |
+| --- | --- | --- | --- |
+| project-1 | 11 | 4/4 (100%) | 3/7 (43%) |
+| project-2 | 51 | 6/6 (100%) | 5/18 (28%) |
+| project-3 | 13 | 4/4 (100%) | 4/5 (80%) |
+| project-4 | 41 | 4/5 (80%) | 4/21 (19%) |
+| project-8 | 48 | 3/3 (100%) | 2/18 (11%) |
+
+**After** (prompt version 8, judged and rank rows side by side, and the overlaps): from the 1H test
+drop's real runs on Haiku 5.5 and Sonnet 5.5 (#771). Fake runs judge no flow significant, so their
+judged rows draw nothing and only the rank rows mean anything there.

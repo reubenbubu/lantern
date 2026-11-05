@@ -107,6 +107,29 @@ class ScopeFlowsTest {
   }
 
   @Test
+  void overlapsListsAFlowAnotherReachesAndTheChoicesHaveNone() {
+    system();
+    link(PLACE, BILLING, CHARGE);
+    send(CHARGE, TOPIC);
+    ScopeFlows flows = flows(Set.of(SHOP, BILLING), new ArrayList<>());
+    ScopeFlows.Trace place = place(flows);
+    ScopeFlows.Trace charge =
+        flows.traces().stream()
+            .filter(t -> t.entry().method().equals(CHARGE))
+            .findFirst()
+            .orElseThrow();
+
+    // Both drawn: placing an order reaches the charge, so one is inside the other (#743).
+    assertThat(ScopeFlows.overlaps(List.of(charge, place)))
+        .containsExactly(place.flow().id() + " contains " + charge.flow().id());
+    // Neither the model's choice nor the rank's draws two that overlap.
+    String placeId = place.flow().id().toString();
+    String chargeId = charge.flow().id().toString();
+    assertThat(ScopeFlows.overlaps(flows.chosen(List.of(chargeId, placeId)))).isEmpty();
+    assertThat(ScopeFlows.overlaps(flows.chosen(null))).isEmpty();
+  }
+
+  @Test
   void everyElementAStepNamesGoesThroughTheNamingHook() {
     system();
     link(PLACE, BILLING, CHARGE);

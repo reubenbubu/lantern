@@ -649,16 +649,23 @@ function flowTriggers(linked, spell) {
  * significant flow. Recall is the items chosen; precision the chosen candidates that match a
  * reference flow.
  *
+ * With the run's `flows.json` (#743), the system scope's own candidates are scored twice on one
+ * run: as drawn from the model's judgement (`judged`, null when no judgement holds) and as the rank
+ * fallback would draw them (`rank`), each a row of its own; the row itself is the judged one, else
+ * the rank's, and `overlaps` lists the drawn flows of which one holds the other or both have one
+ * shape (ScopeFlows.overlaps). A judged row then counts the flows drawn, not every one the judge
+ * marked significant.
+ *
  * @param refFlows the reference's flows, triggers spelled as `spell` spells them
  * @param drawnTriggers the triggers of the flows the report draws, spelled the same way
  * @param spell a request as the scorecard spells a trigger (normalized, then aliased)
+ * @param selection the run's flows.json, or null
  */
-export function flowSelectionRow(refFlows, drawnTriggers, llm, linked, spell) {
+export function flowSelectionRow(refFlows, drawnTriggers, llm, linked, spell, selection = null) {
   if (refFlows.length === 0) return notMeasured('the reference draws no flow');
   if (!llm || !linked) return notMeasured('the run wrote no llm.jsonl.gz or linked.jsonl.gz');
   const judgements = llm.filter((f) => f.predicate === 'flow-significance');
   const system = judgements.filter((f) => f.object?.value === 'system');
-  const mode = system.length > 0 ? 'judged' : 'rank';
   // Flows of one shape are one candidate (ScopeFlows.candidates keeps the smallest ID), started by
   // the requests of each of them.
   const sameAs = new Map();
@@ -680,51 +687,68 @@ export function flowSelectionRow(refFlows, drawnTriggers, llm, linked, spell) {
     if (!startedBy.has(shape)) startedBy.set(shape, new Set());
     for (const t of triggersOf(f.subject)) startedBy.get(shape).add(t);
   }
+  // Scores a choice among candidate flows: each reference flow among them right when one of its
+  // shape is chosen, and each chosen one in a reference flow or not.
+  const score = (mode, seenFlows, isChosen) => {
+    const candidates = new Map();
+    for (const flow of seenFlows) {
+      const shape = shapeOf(flow);
+      if (candidates.has(shape)) continue;
+      const triggers = [...new Set([...(startedBy.get(shape) ?? []), ...triggersOf(flow)])];
+      candidates.set(shape, { triggers, chosen: isChosen(shape, triggers) });
+    }
+    const all = [...candidates.values()];
+    const items = [];
+    const notCandidates = [];
+    refFlows.forEach((ref, i) => {
+      const theirs = all.filter((c) => ref.trigger !== null && c.triggers.includes(ref.trigger));
+      if (theirs.length === 0) {
+        notCandidates.push(`${ref.title} (${ref.trigger ?? 'no trigger'})`);
+        return;
+      }
+      const chosen = theirs.some((c) => c.chosen);
+      items.push({ id: `${ref.trigger}#${i}`, outcome: chosen ? 'correct' : 'wrong', unknown: false, title: ref.title });
+    });
+    const refTriggers = new Set(refFlows.map((f) => f.trigger).filter(Boolean));
+    const chosen = all.filter((c) => c.chosen);
+    const chosenMatching = chosen.filter((c) => c.triggers.some((t) => refTriggers.has(t)));
+    const row = threeOutcomes(items, PENALTY.flows);
+    return {
+      measured: true,
+      mode,
+      candidates: all.length,
+      chosen: chosen.length,
+      items: row.items,
+      right: row.correct,
+      recall: ratio(row.correct, row.items),
+      chosenMatching: chosenMatching.length,
+      precision: ratio(chosenMatching.length, chosen.length),
+      penalized: row.penalized,
+      penalty: row.penalty,
+      missed: items.filter((i) => i.outcome === 'wrong').map((i) => i.title),
+      notCandidates,
+      scores: row.scores,
+    };
+  };
+  // One run's flows.json (#743): the system scope's candidates, the flows drawn from the model's
+  // judgement and those the rank would draw, so both are scored on the same candidates.
+  const scope = selection?.scopes?.find((s) => s.scope === 'system');
+  if (scope) {
+    const drawnFrom = (ids) => {
+      const shapes = new Set(ids.map(shapeOf));
+      return (shape) => shapes.has(shape);
+    };
+    const rank = score('rank', scope.candidates, drawnFrom(scope.rank));
+    const judged = scope.judged ? score('judged', scope.candidates, drawnFrom(scope.judged)) : null;
+    return { ...(judged ?? rank), judged, rank, overlaps: scope.overlaps ?? [] };
+  }
+  const mode = system.length > 0 ? 'judged' : 'rank';
   // The candidates: every flow a judge saw, in any scope (the system's own first pass, on a large
   // system, is not stored, but each unit's pass is), or every traced flow when none did.
   const seenFlows = judgements.length > 0 ? judgements.map((f) => f.subject) : [...startedBy.keys()];
   const drawn = new Set(drawnTriggers.filter(Boolean));
   const significant = new Set(system.filter((f) => f.attributes?.significant === true).map((f) => shapeOf(f.subject)));
-  const candidates = new Map();
-  for (const flow of seenFlows) {
-    const shape = shapeOf(flow);
-    if (candidates.has(shape)) continue;
-    const triggers = [...new Set([...(startedBy.get(shape) ?? []), ...triggersOf(flow)])];
-    const chosen = mode === 'judged' ? significant.has(shape) : triggers.some((t) => drawn.has(t));
-    candidates.set(shape, { triggers, chosen });
-  }
-  const all = [...candidates.values()];
-  const items = [];
-  const notCandidates = [];
-  refFlows.forEach((ref, i) => {
-    const theirs = all.filter((c) => ref.trigger !== null && c.triggers.includes(ref.trigger));
-    if (theirs.length === 0) {
-      notCandidates.push(`${ref.title} (${ref.trigger ?? 'no trigger'})`);
-      return;
-    }
-    const chosen = theirs.some((c) => c.chosen);
-    items.push({ id: `${ref.trigger}#${i}`, outcome: chosen ? 'correct' : 'wrong', unknown: false, title: ref.title });
-  });
-  const refTriggers = new Set(refFlows.map((f) => f.trigger).filter(Boolean));
-  const chosen = all.filter((c) => c.chosen);
-  const chosenMatching = chosen.filter((c) => c.triggers.some((t) => refTriggers.has(t)));
-  const row = threeOutcomes(items, PENALTY.flows);
-  return {
-    measured: true,
-    mode,
-    candidates: all.length,
-    chosen: chosen.length,
-    items: row.items,
-    right: row.correct,
-    recall: ratio(row.correct, row.items),
-    chosenMatching: chosenMatching.length,
-    precision: ratio(chosenMatching.length, chosen.length),
-    penalized: row.penalized,
-    penalty: row.penalty,
-    missed: items.filter((i) => i.outcome === 'wrong').map((i) => i.title),
-    notCandidates,
-    scores: row.scores,
-  };
+  return score(mode, seenFlows, (shape, triggers) => (mode === 'judged' ? significant.has(shape) : triggers.some((t) => drawn.has(t))));
 }
 
 /**
