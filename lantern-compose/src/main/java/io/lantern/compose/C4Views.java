@@ -216,6 +216,9 @@ final class C4Views {
      */
     String lineIntent;
 
+    /** The distinct claims of the links drawn as the edge. */
+    final Set<String> claims = new HashSet<>();
+
     EdgeBuilder(EntityId from, String relationship, EntityId to) {
       this.from = from;
       this.relationship = relationship;
@@ -223,6 +226,7 @@ final class C4Views {
     }
 
     void add(Line link, Assembler.Phrased phrase) {
+      claims.add(MergedLines.claim(link.facts().getFirst()));
       add(link.plain(), link.prefix(), link.detail(), link.technology(), link.profile());
       if (link.via() != null) {
         vias.add(link.via());
@@ -283,9 +287,9 @@ final class C4Views {
 
     /**
      * The intent phrase of its links when any link has one: one intent per line, the one more than
-     * half its links say; else the intent Describe wrote for the line as a whole; else the one most
-     * of its links say (the first alphabetically on a tie). The rest stay with the line's facts.
-     * Else what the links record.
+     * half its links say; else the intent Describe wrote for the line as a whole; else, on a line
+     * of fewer than three claims or one phrase, the one most of its links say (the first
+     * alphabetically on a tie). The rest stay with the line's facts. Else what the links record.
      */
     String label() {
       if (intent != null) {
@@ -299,12 +303,16 @@ final class C4Views {
         if (lineIntent != null) {
           return lineIntent;
         }
-        return phrases.entrySet().stream()
-            .max(
-                Map.Entry.<String, Integer>comparingByValue()
-                    .thenComparing(Map.Entry.<String, Integer>comparingByKey().reversed()))
-            .orElseThrow()
-            .getKey();
+        // A line Describe words as a whole that holds no intent of its own reads what its links
+        // record, not one request's intent (ADR 0103, amendment for #810).
+        if (claims.size() < MergedLines.MIN_CLAIMS || phrases.size() < 2) {
+          return phrases.entrySet().stream()
+              .max(
+                  Map.Entry.<String, Integer>comparingByValue()
+                      .thenComparing(Map.Entry.<String, Integer>comparingByKey().reversed()))
+              .orElseThrow()
+              .getKey();
+        }
       }
       if (details.isEmpty()) {
         return plain;

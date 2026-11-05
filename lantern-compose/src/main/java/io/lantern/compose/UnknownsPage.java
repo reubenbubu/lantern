@@ -234,10 +234,15 @@ final class UnknownsPage {
    */
   private Optional<Callout> intentNotKnown(String section) {
     List<UnitInteractions.Held> interactions = unknowns.interactionsWithoutIntent();
-    if (interactions.isEmpty()) {
+    List<io.lantern.derive.MergedLines.Merged> merged = unknowns.linesWithoutIntent();
+    if (interactions.isEmpty() && merged.isEmpty()) {
       return Optional.empty();
     }
     List<Inline> content = new ArrayList<>();
+    if (interactions.isEmpty()) {
+      linesNotKnown(merged, content);
+      return Optional.of(intentCallout(section, content));
+    }
     content.add(
         TextRun.of(
             "Lantern holds no intent for "
@@ -274,15 +279,47 @@ final class UnknownsPage {
         (line, count) ->
             content.add(
                 TextRun.of(" " + line + (count == 1 ? "" : ", " + count + " interactions") + ".")));
-    // A note: what the model does not hold cites no fact (Quality bar, ADR 0046).
-    return Optional.of(
-        new Callout(
-            assembler.id(section, "intent-not-known"),
-            Callout.Variant.NOTE,
-            null,
-            "Intent not known",
-            content,
-            List.of()));
+    linesNotKnown(merged, content);
+    return Optional.of(intentCallout(section, content));
+  }
+
+  /**
+   * The lines whose requests do different things, none most of them, that hold no intent of their
+   * own, so the diagram labels them with what their links record (ADR 0103, amendment for #810).
+   */
+  private void linesNotKnown(
+      List<io.lantern.derive.MergedLines.Merged> merged, List<Inline> content) {
+    if (merged.isEmpty()) {
+      return;
+    }
+    content.add(
+        TextRun.of(
+            (content.isEmpty() ? "" : " ")
+                + "Lantern holds no intent for "
+                + (merged.size() == 1 ? "this line" : "these lines")
+                + " as a whole, whose requests do different things:"));
+    for (io.lantern.derive.MergedLines.Merged line : merged) {
+      content.add(
+          TextRun.of(
+              " "
+                  + assembler.name(line.from())
+                  + " to "
+                  + assembler.name(line.to())
+                  + ", "
+                  + line.links().size()
+                  + " requests."));
+    }
+  }
+
+  // A note: what the model does not hold cites no fact (Quality bar, ADR 0046).
+  private Callout intentCallout(String section, List<Inline> content) {
+    return new Callout(
+        assembler.id(section, "intent-not-known"),
+        Callout.Variant.NOTE,
+        null,
+        "Intent not known",
+        content,
+        List.of());
   }
 
   /**

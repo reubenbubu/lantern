@@ -228,8 +228,13 @@ request's intent stood for all of them. The owner decided on 4 Nov 2026:
 - Its intent is stored as an `intent` fact of the unit or frontend, with the object
   `<from>|<to>|<relationship>`.
 - `EdgeBuilder.label` (C4Views) reads a majority phrase first; without one, the stored line
-  intent; without that, the most-common rule as before. Flow steps keep each request's own intent.
-- The scorer (`ownLink`, roles.mjs) counts a line that has a stored line intent as having its own
-  intent only when it reads that intent, not one of its links'.
-- Component views draw a component's share of the line and keep the most-common rule.
+  intent. A line of three or more claims with two or more phrases and neither reads what its links
+  record ("Calls GET /orders, POST /orders and 1 more"), never one request's intent; a smaller line
+  keeps the most-common rule. This holds for component lines too. Flow steps keep each request's
+  own intent.
+- A line left without its own intent (not asked, left out or rejected) is listed on the unknowns
+  page under "Intent not known", with its ends and number of requests.
+- The scorer (`ownLink`, roles.mjs) counts a diagram line that has a stored line intent as having
+  its own intent only when it reads that intent; a link of another relationship between the same
+  ends keeps its own. Flow steps are scored by their request's intent as before.
 

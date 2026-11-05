@@ -482,26 +482,27 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
     for (const [key, texts] of intentOf) {
       const link = byKey.get(key);
       if (link) {
-        worded.push({ texts, consumes: link.predicate === 'CONSUMES', source: drawnIds(link.subject), target: drawnIds(link.object?.value) });
+        worded.push({ texts, predicate: link.predicate, consumes: link.predicate === 'CONSUMES', source: drawnIds(link.subject), target: drawnIds(link.object?.value) });
       }
     }
   }
   // A container line that merges links whose intents differ is worded as a whole (ADR 0103,
-  // amendment for #810), its intent stored under `<from>|<to>|<relationship>`: such a line has an
-  // intent of its own only when it reads that intent, not one of its links'.
+  // amendment for #810), its intent stored under `<from>|<to>|<relationship>`: on a diagram, such a
+  // line has an intent of its own only when it reads that intent, not one of its links'. A flow's
+  // step is one request, and keeps reading its own.
   const lineIntents = [];
   for (const f of llm) {
     const key = String(f.object?.value ?? '');
     if (f.predicate !== 'intent' || f.origin?.name !== 'describe-element' || !key.includes('|')) continue;
-    const [from, to] = key.split('|');
-    lineIntents.push({ from: drawnIds(from), to: drawnIds(to), text: label(f.attributes?.text) });
+    const [from, to, relationship] = key.split('|');
+    lineIntents.push({ from: drawnIds(from), to: drawnIds(to), relationship, text: label(f.attributes?.text) });
   }
-  const ownLink = (r) => {
+  const ownLink = (r, line = false) => {
     const text = label(r.label);
-    const whole = lineIntents.filter((l) => l.from.includes(r.from) && l.to.includes(r.to));
-    if (whole.length > 0) return whole.some((l) => l.text === text);
+    const whole = line ? lineIntents.filter((l) => l.from.includes(r.from) && l.to.includes(r.to)) : [];
+    if (whole.some((l) => l.text === text)) return true;
     return worded.some((w) =>
-      !w.texts.has(text)
+      !w.texts.has(text) || whole.some((l) => l.relationship === w.predicate)
         ? false
         : w.consumes
           ? MESSAGING_KINDS.has(report.elements[r.from]?.kind) && related(r.to, w.source)
@@ -534,9 +535,9 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
     }
     return texts;
   };
-  const ownOrPerson = (r) => {
+  const ownOrPerson = (r, line = false) => {
     const texts = personTexts(r);
-    return texts ? texts.has(label(r.label)) : ownLink(r);
+    return texts ? texts.has(label(r.label)) : ownLink(r, line);
   };
   const intendedOrPerson = (r) => {
     const texts = personTexts(r);
@@ -548,7 +549,7 @@ export function describeRow(report, linked, llm, run = null, vocabulary = defaul
       if (section.type !== 'diagram') continue;
       for (const r of section.relationships) {
         const key = `${r.from}->${r.to}`;
-        const own = ownOrPerson(r);
+        const own = ownOrPerson(r, true);
         const was = lines.get(key) ?? { own: false, generic: true, intended: false };
         lines.set(key, {
           own: was.own || own,

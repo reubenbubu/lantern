@@ -3094,6 +3094,9 @@ class DescriberTest {
                     + String.join(", ", entries)
                     + "}}}}";
               }
+              if (prompt.contains("<item id=\"I1\">\nThe line from") && line == null) {
+                return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+              }
               if (prompt.contains("<item id=\"I1\">\nThe line from")) {
                 return "{\"items\": {\"I1\": {\"intent\": {\"text\": \""
                     + line
@@ -3103,14 +3106,16 @@ class DescriberTest {
             });
   }
 
-  private static Diagram.Edge webLine(Describer.Result result, TestFacts facts) {
-    // The texts as the run stored them, beside the facts they are about.
+  /** The system's document, composed from the facts and the texts the run stored. */
+  private static Document webDocument(Describer.Result result, TestFacts facts) {
     List<Fact> stored = new java.util.ArrayList<>(facts.list());
     result.facts(1).values().forEach(stored::addAll);
-    Document document =
-        new Composer("1")
-            .compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE), SNAPSHOT, stored);
-    return diagrams(document, Diagram.Kind.C4_CONTAINER).stream()
+    return new Composer("1")
+        .compose(ViewDefinition.c4System("system:c4", "System", TEMPLATE), SNAPSHOT, stored);
+  }
+
+  private static Diagram.Edge webLine(Describer.Result result, TestFacts facts) {
+    return diagrams(webDocument(result, facts), Diagram.Kind.C4_CONTAINER).stream()
         .flatMap(d -> d.edges().stream())
         .filter(
             e ->
@@ -3145,6 +3150,29 @@ class DescriberTest {
         .contains("Cancels one of the orders");
     // The container line reads the line's own intent, not one request's (owner's decision on #810).
     assertThat(webLine(result, facts).label()).isEqualTo("Manages the shopper's orders");
+  }
+
+  @Test
+  void aLineLeftWithoutAnIntentOfItsOwnReadsWhatItsLinksRecordAndIsListedAsUnknown() {
+    TestFacts facts = webCalling("GET /orders", "POST /orders", "DELETE /orders/{id}");
+    FakeLlmProvider fake =
+        webAnswering(
+            null,
+            "Lists the shopper's orders",
+            "Places a new shop order",
+            "Cancels one of the orders");
+
+    Describer.Result result = new Describer(harness(client(fake))).describe(facts.list());
+
+    // No request's intent stands for the whole line (review of #810).
+    assertThat(webLine(result, facts).label())
+        .isNotIn(
+            "Lists the shopper's orders", "Places a new shop order", "Cancels one of the orders")
+        .startsWith("Calls ");
+    assertThat(result.unknown()).contains("frontend:shop/web|service:com.example:app|CALLS_HTTP");
+    assertThat(io.lantern.core.document.DocumentJson.write(webDocument(result, facts)))
+        .contains("as a whole, whose requests do different things:")
+        .contains("web to shop-app, 3 requests.");
   }
 
   @Test

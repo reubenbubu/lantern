@@ -740,6 +740,17 @@ test("Describe on the page: a line worded as a whole counts only when it reads t
   // With one, a link's intent no longer stands for the whole line; the line's own intent does.
   assert.equal(own('Looks up prices', [...requests, line]), 0);
   assert.equal(own('Prices and reserves stock for orders', [...requests, line]), 1);
+  // Another kind of link between the same ends keeps its own intent.
+  const published = link('abp', 'PUBLISHES', 'service:a', 'service:b');
+  const ownWith = (label, llm) => describeRow(report(label), [...linked, ...more, published], llm, run).scores['line:service-a->service-b'];
+  assert.equal(ownWith('Announces price changes', [...requests, line, intentFor('c-abp', 'Announces price changes')]), 1);
+  // A flow's step is one request: it keeps reading that request's intent.
+  const flow = {
+    elements: report('x').elements,
+    pages: [{ sections: [{ type: 'sequence', id: 'f1', steps: [{ from: 'service-a', to: 'service-b', message: 'Looks up prices' }] }] }],
+  };
+  const row = describeRow(flow, [...linked, ...more], [...requests, line], run);
+  assert.equal(row.scores['step:f1/service-a->service-b#0'], 1);
 });
 
 test('Describe on the page: a generic label on a line whose link has a stored intent is counted apart (#739)', () => {

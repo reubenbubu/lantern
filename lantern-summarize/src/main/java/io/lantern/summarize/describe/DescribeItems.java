@@ -627,7 +627,7 @@ public final class DescribeItems {
    * Its subject is the key its intent is stored under.
    *
    * @param line the merged line
-   * @param intents the intent Describe wrote for each link, by the link's fact ID
+   * @param intents the intent Describe wrote for each link, by its claim
    */
   Described line(MergedLines.Merged line, Map<String, DescribeRole.Answered> intents) {
     Refs refs = new Refs();
@@ -645,7 +645,7 @@ public final class DescribeItems {
             + ")";
     List<String> answers = new ArrayList<>();
     for (Fact link : line.links()) {
-      DescribeRole.Answered answered = intents.get(link.id());
+      DescribeRole.Answered answered = intents.get(MergedLines.claim(link));
       if (answered == null) {
         continue;
       }
@@ -661,7 +661,7 @@ public final class DescribeItems {
     String text =
         name
             + " carries "
-            + line.links().size()
+            + answers.size()
             + " requests. What each does:\n"
             + Blocks.tagged("answers", answers);
     Item item = new Item(line.key(), "line", inputs, text);

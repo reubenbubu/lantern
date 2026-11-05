@@ -61,9 +61,7 @@ public final class MergedLines {
       }
       String key = key(line.from(), line.to(), line.relationship());
       Fact link = line.facts().getFirst();
-      claims
-          .computeIfAbsent(key, k -> new LinkedHashMap<>())
-          .putIfAbsent(link.claimId() != null ? link.claimId() : link.id(), link);
+      claims.computeIfAbsent(key, k -> new LinkedHashMap<>()).putIfAbsent(claim(link), link);
       byKey.putIfAbsent(key, new Merged(line.from(), line.relationship(), line.to(), List.of()));
     }
     List<Merged> result = new ArrayList<>();
@@ -75,6 +73,26 @@ public final class MergedLines {
           }
         });
     return result;
+  }
+
+  /**
+   * Whether the line is one Describe words as a whole: two or more of its links have intents that
+   * differ, and none is said by more than half of them.
+   *
+   * @param intent the intent stored for a link, if any
+   */
+  public static boolean needsWording(
+      Merged line, java.util.function.Function<Fact, Optional<String>> intent) {
+    Map<String, Integer> said = new TreeMap<>();
+    for (Fact link : line.links()) {
+      intent.apply(link).ifPresent(text -> said.merge(text, 1, Integer::sum));
+    }
+    return said.size() > 1 && majority(said).isEmpty();
+  }
+
+  /** The key a link is told apart by: its claim ID, or its fact ID when it has none. */
+  public static String claim(Fact link) {
+    return link.claimId() != null ? link.claimId() : link.id();
   }
 
   /**

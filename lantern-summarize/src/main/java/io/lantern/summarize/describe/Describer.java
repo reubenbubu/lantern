@@ -472,7 +472,7 @@ public final class Describer {
             DescribeRole.units(bySubject));
     DescribeRole.SummaryFacts summaryFacts = describeItems.summaryFacts();
     Map<EntityId, DescribeRole.Answered> unitAnswers = new TreeMap<>(Knowledge.BY_ID);
-    // The intent of each link, by its fact ID, which a merged line's item shows.
+    // The intent of each link, by its claim, which a merged line's item shows.
     Map<String, DescribeRole.Answered> linkIntents = new HashMap<>();
     List<PurposeRole.Said> sentences = new ArrayList<>();
     for (DescribeRole.Described described : unitItems) {
@@ -486,7 +486,8 @@ public final class Describer {
               described
                   .interactions()
                   .get(text.field().substring(DescribeRole.INTERACTIONS.length() + 1));
-          linkIntents.put(link.id(), new DescribeRole.Answered(text.text(), text.cited()));
+          linkIntents.put(
+              MergedLines.claim(link), new DescribeRole.Answered(text.text(), text.cited()));
         }
         if (text.field().equals(DescribeRole.UNIT)) {
           unitAnswers.put(
@@ -508,14 +509,11 @@ public final class Describer {
     // covering a majority of them, each worded as a whole (ADR 0103, amendment for #810).
     List<DescribeRole.Described> lineItems = new ArrayList<>();
     for (MergedLines.Merged line : MergedLines.of(shown.lines(), units)) {
-      Map<String, Integer> said = new TreeMap<>();
-      for (Fact link : line.links()) {
-        DescribeRole.Answered intent = linkIntents.get(link.id());
-        if (intent != null) {
-          said.merge(intent.text(), 1, Integer::sum);
-        }
-      }
-      if (said.size() > 1 && MergedLines.majority(said).isEmpty()) {
+      if (MergedLines.needsWording(
+          line,
+          link ->
+              Optional.ofNullable(linkIntents.get(MergedLines.claim(link)))
+                  .map(DescribeRole.Answered::text))) {
         lineItems.add(describeItems.line(line, linkIntents));
       }
     }
