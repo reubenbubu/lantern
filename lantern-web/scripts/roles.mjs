@@ -341,9 +341,10 @@ export function interactionsOf(facts, report, vocabulary = defaultVocabulary()) 
     if (f.predicate !== 'STEP_OF' || f.attributes?.action !== 'stomp-push') continue;
     const unit = f.attributes.over?.[0];
     const pushId = f.attributes.facts?.[0];
-    if (!unit || !pushId || pushed.has(`${unit} ${pushId}`)) continue;
+    // A push whose fact the run's files lack is not read, as a flow is read only whole (FlowModel).
+    if (!unit || !byId.has(pushId) || pushed.has(`${unit} ${pushId}`)) continue;
     pushed.add(`${unit} ${pushId}`);
-    const push = byId.get(pushId) ?? { id: pushId };
+    const push = byId.get(pushId);
     result.push({ id: `interaction:${pushId}:${unit}`, fact: push, kind: 'stomp-send', owners: [unit], keys: keys(push) });
   }
   for (const f of facts) {
