@@ -1132,6 +1132,7 @@
         "text": { "type": "string", "description": "For a group's name, the name, without citations." },
         "cites": { "type": "array", "items": { "type": "string" }, "description": "For a group's name, the facts it cites." },
         "basis": { "type": "string", "enum": ["evidenced", "inferred"], "description": "For a group's name, as for a responsibility." },
+        "support": { "type": "string", "enum": ["supported", "partly", "unsupported"], "description": "For a group's name, the support judge's verdict on it against its cited inputs (knowledge-build epic, section 11.7; ADR 0101): every group's name is judged (#751)." },
         "model": { "type": "string", "description": "For a group's name, the model that wrote it, as provider/model." },
         "answer": { "type": "string", "description": "The stored answer it comes from: its fingerprint in the answer cache, which names the role, prompt version, model and inputs of the request (#753)." }
       },

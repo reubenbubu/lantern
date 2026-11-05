@@ -159,6 +159,30 @@ public final class SupportJudge {
    */
   public Map<String, Support> judge(
       Map<String, List<Text>> byGroup, Set<String> always, Map<String, Role> writers) {
+    Map<String, Support> supports = new LinkedHashMap<>();
+    judged(byGroup, always, writers)
+        .forEach((key, verdict) -> supports.put(key, verdict.support()));
+    return supports;
+  }
+
+  /**
+   * A text's verdict and the claims the judge found unsupported, which tell the text's role why its
+   * answer is asked again (#751).
+   *
+   * @param support how well the cited inputs support the text
+   * @param unsupported the claims no cited input shows, as the judge wrote them
+   */
+  public record Verdict(Support support, List<String> unsupported) {
+
+    public Verdict {
+      Objects.requireNonNull(support, "support");
+      unsupported = List.copyOf(unsupported);
+    }
+  }
+
+  /** As {@link #judge(Map, Set, Map)}, with the claims found unsupported. */
+  public Map<String, Verdict> judged(
+      Map<String, List<Text>> byGroup, Set<String> always, Map<String, Role> writers) {
     Map<String, List<Item>> items = new java.util.TreeMap<>();
     // A text that reads the same and cites the same inputs as one already taken is judged once,
     // its verdict given to each (#751).
@@ -179,7 +203,7 @@ public final class SupportJudge {
             }
           }
         });
-    Map<String, Support> verdicts = new LinkedHashMap<>();
+    Map<String, Verdict> verdicts = new LinkedHashMap<>();
     // One session for each model that judges, planned with all the items it asks.
     Map<Role, List<String>> groupsByModel = new java.util.EnumMap<>(Role.class);
     items
@@ -201,12 +225,15 @@ public final class SupportJudge {
                 .askPackets(items.get(group), PACKETS)
                 .forEach(
                     (key, outcome) ->
-                        support(outcome).ifPresent(support -> verdicts.put(key, support)));
+                        support(outcome)
+                            .ifPresent(
+                                support ->
+                                    verdicts.put(key, new Verdict(support, unsupported(outcome)))));
           }
         });
     same.forEach(
         (first, others) -> {
-          Support verdict = verdicts.get(first);
+          Verdict verdict = verdicts.get(first);
           if (verdict != null) {
             others.forEach(key -> verdicts.put(key, verdict));
           }
@@ -254,6 +281,17 @@ public final class SupportJudge {
       partly |= verdict.equals("partly");
     }
     return Optional.of(partly ? Support.PARTLY : Support.SUPPORTED);
+  }
+
+  /** The claims of an answered item the judge found unsupported, as it wrote them. */
+  static List<String> unsupported(Outcome outcome) {
+    List<String> claims = new ArrayList<>();
+    for (JsonNode claim : JSON.readTree(outcome.answer()).path("claims")) {
+      if (claim.path("verdict").asString("").equals("unsupported")) {
+        claims.add(claim.path("claim").asString("").strip());
+      }
+    }
+    return claims;
   }
 
   /** A fact's or an earlier answer's tag, as an item writes it: {@code F1}. */

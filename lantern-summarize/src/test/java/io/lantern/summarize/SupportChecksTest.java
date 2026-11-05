@@ -385,7 +385,78 @@ class SupportChecksTest {
         }
       }
     }
+    // A group's name, whose type the linker's vocabulary declares, carries one too (#751).
+    assertThat(
+            io.lantern.derive.Vocabularies.standard()
+                .find(Types.DISPLAY_NAME)
+                .orElseThrow()
+                .attributeSchema()
+                .properties())
+        .containsKey(LlmFacts.SUPPORT);
+    declaring.add(Types.DISPLAY_NAME);
     assertThat(new TreeSet<>(SupportChecks.TEXTS)).isEqualTo(declaring);
+  }
+
+  @Test
+  void eachPurposeKeyFactAndGroupNameIsJudgedWhateverTheSample() {
+    List<Fact> held = new ArrayList<>(List.of(code));
+    List<String> always = new ArrayList<>();
+    for (int i = 0; i < 20; i++) {
+      for (String predicate : List.of(Types.PURPOSE, Types.KEY_FACT, Types.DISPLAY_NAME)) {
+        String words = predicate + " " + i + " of the shop";
+        held.add(
+            text(
+                predicate.equals(Types.DISPLAY_NAME) ? "name-groups" : "purpose",
+                predicate,
+                words,
+                code));
+        always.add(words);
+      }
+    }
+
+    SupportChecks.Result result =
+        new SupportChecks(harness, files, Map.of("shop", "c1")).judge(held, List.of(), 1);
+
+    // Each of them, though a 10% sample would take about 6 of the 60 (#751).
+    Set<String> judged = new TreeSet<>();
+    result.byOrigin().values().stream()
+        .flatMap(List::stream)
+        .filter(f -> f.attributes().hasNonNull(LlmFacts.SUPPORT))
+        .forEach(f -> judged.add(SupportChecks.text(f)));
+    assertThat(judged).containsExactlyInAnyOrderElementsOf(always);
+  }
+
+  @Test
+  void aTextOfAnAnswerAskedAgainIsJudgedWhateverTheSampleAndARejectedOneSaysWhy() {
+    List<Fact> held = new ArrayList<>(List.of(code));
+    List<String> retried = new ArrayList<>();
+    for (int i = 0; i < 20; i++) {
+      Fact text = text("describe-element", "describe-element text " + i + " is wrong", code);
+      ObjectNode attributes = text.attributes().deepCopy();
+      attributes.put(LlmFacts.ANSWER, "answer" + i);
+      held.add(
+          Fact.create(
+              text.subject(),
+              text.predicate(),
+              text.object(),
+              attributes,
+              text.origin(),
+              text.evidence(),
+              text.confidence(),
+              text.validity()));
+      retried.add("answer" + i);
+    }
+
+    SupportChecks.Result result =
+        new SupportChecks(harness, files, Map.of("shop", "c1"))
+            .retried(Set.copyOf(retried))
+            .judge(held, List.of(), 1);
+
+    assertThat(result.judged()).isEqualTo(20);
+    assertThat(result.rejected()).hasSize(20);
+    assertThat(result.rejected())
+        .allSatisfy(r -> assertThat(r.reason()).isEqualTo("\"It does it.\""));
+    assertThat(result.rejected().getFirst().text().attributes().has(LlmFacts.SUPPORT)).isFalse();
   }
 
   @Test
@@ -456,13 +527,17 @@ class SupportChecksTest {
   }
 
   private static Fact text(String role, String text, Fact cited) {
+    return text(role, Types.RESPONSIBILITY, text, cited);
+  }
+
+  private static Fact text(String role, String predicate, String text, Fact cited) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("text", text);
     attributes.putArray("cites").add(cited.id());
     attributes.put("basis", "inferred");
     return Fact.create(
         EntityId.parse("service:shop:" + Math.abs(text.hashCode())),
-        Types.RESPONSIBILITY,
+        predicate,
         FactObject.string("c4"),
         attributes,
         new Origin(Origin.Kind.LLM, role, "1"),

@@ -32,6 +32,8 @@ public final class Harness {
   private volatile int batchAbove = BATCH_ABOVE;
   private final Map<String, Calibration> calibrations = new LinkedHashMap<>();
   private final Map<String, Integer> itemsPerRequest = new LinkedHashMap<>();
+  private final Map<String, String> retries = new java.util.concurrent.ConcurrentHashMap<>();
+  private final Set<String> retried = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
   /**
    * A role asked at another packet size for packet-size calibration (knowledge-build epic, section
@@ -271,6 +273,34 @@ public final class Harness {
       }
     }
     return kept;
+  }
+
+  /**
+   * Marks the item whose answer was stored under the fingerprint to be asked again, once, told why
+   * its answer was rejected (ADR 0101, the owner's decision on #751): the next time its role asks
+   * it, the item shows the reason, which gives it a fingerprint of its own, and its earlier texts
+   * are not carried forward.
+   *
+   * @param answer the fingerprint of the rejected answer, as its facts record it
+   * @param reason what the support judge found, as the request shows it
+   */
+  public void retry(String answer, String reason) {
+    retries.put(Objects.requireNonNull(answer, "answer"), Text.nonBlank("Reason", reason));
+  }
+
+  /** Why the item whose answer had the fingerprint is asked again, or null if it is not. */
+  String retryReason(String answer) {
+    return retries.get(answer);
+  }
+
+  /** Records the fingerprint an item marked for retry was asked again under. */
+  void retriedAs(String fingerprint) {
+    retried.add(fingerprint);
+  }
+
+  /** The fingerprints the items marked for retry were asked again under this run. */
+  public Set<String> retried() {
+    return Set.copyOf(retried);
   }
 
   /** A secret value the text holds, or null if it holds none. */

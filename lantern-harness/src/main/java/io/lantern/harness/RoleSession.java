@@ -115,7 +115,84 @@ public final class RoleSession {
 
   /** The item's fingerprint for this role and model. */
   public String fingerprint(Item item) {
-    return Fingerprints.of(spec, cacheVersion(), model.provider(), model.model(), item);
+    String fingerprint =
+        Fingerprints.of(spec, cacheVersion(), model.provider(), model.model(), item);
+    String reason = harness.retryReason(fingerprint);
+    if (reason == null) {
+      return fingerprint;
+    }
+    // An item asked again after the support judge rejected its answer shows why, so its answer is
+    // cached apart from the rejected one (#751).
+    String retried =
+        Fingerprints.of(
+            spec,
+            cacheVersion(),
+            model.provider(),
+            model.model(),
+            new Item(
+                item.subject(),
+                item.locality(),
+                item.inputs(),
+                item.rendering() + "\n" + retryNote(null, reason)));
+    harness.retriedAs(retried);
+    return retried;
+  }
+
+  /** Why the item is asked again after the support judge rejected its answer, or null. */
+  private String retryReason(Item item) {
+    return harness.retryReason(
+        Fingerprints.of(spec, cacheVersion(), model.provider(), model.model(), item));
+  }
+
+  /** What tells the model why an item is asked again (prompts/support-retry.txt). */
+  static String retryNote(String id, String reason) {
+    return (id == null ? "<retry>\n" : "<retry item=\"" + id + "\">\n")
+        + Prompts.text(RETRY_PROMPT).strip().replace("{reason}", reason)
+        + "\n</retry>";
+  }
+
+  /** The prompt file that tells the model why an item is asked again (#751). */
+  static final String RETRY_PROMPT = "support-retry.txt";
+
+  /**
+   * The request with a note, at the end of its first turn, for each of the packet's items asked
+   * again after the support judge rejected its answer, saying why (#751); the request as it is when
+   * none is, or when it already holds the notes.
+   *
+   * @param ids the items' local IDs, or null for a request about one item that names none
+   */
+  LlmRequest noted(LlmRequest request, List<Item> packet, List<String> ids) {
+    StringBuilder notes = new StringBuilder();
+    for (int i = 0; i < packet.size(); i++) {
+      String reason = retryReason(packet.get(i));
+      if (reason != null) {
+        notes.append("\n\n").append(retryNote(ids == null ? null : ids.get(i), reason));
+      }
+    }
+    return noted(request, notes.toString());
+  }
+
+  /**
+   * The request with the note at the end of its first turn, unless it is empty or already there.
+   */
+  static LlmRequest noted(LlmRequest request, String note) {
+    if (note == null || note.isEmpty()) {
+      return request;
+    }
+    List<io.lantern.llm.LlmMessage> messages = new ArrayList<>(request.messages());
+    io.lantern.llm.LlmMessage first = messages.getFirst();
+    if (first.text().endsWith(note)) {
+      return request;
+    }
+    messages.set(
+        0,
+        new io.lantern.llm.LlmMessage(
+            first.author(),
+            first.text() + note,
+            first.toolCalls(),
+            first.toolResults(),
+            first.thinking()));
+    return request.withMessages(messages);
   }
 
   /**
@@ -557,7 +634,10 @@ public final class RoleSession {
     if (first) {
       record.warmUp(item.subject());
     }
-    Calls calls = new Calls(this, client, item.subject());
+    String reason = retryReason(item);
+    Calls calls =
+        new Calls(
+            this, client, item.subject(), reason == null ? null : "\n\n" + retryNote(null, reason));
     Outcome outcome;
     try {
       Answer answer = asker.ask(calls);
@@ -771,12 +851,15 @@ public final class RoleSession {
       ids.add("I" + i);
     }
     LlmRequest request =
-        role.layout(packet, ids)
-            .request(
-                spec.modelRole(),
-                spec.name() + " " + packet.size() + " items: " + packet.getFirst().subject(),
-                role.maxOutputTokens(packet),
-                List.of());
+        noted(
+            role.layout(packet, ids)
+                .request(
+                    spec.modelRole(),
+                    spec.name() + " " + packet.size() + " items: " + packet.getFirst().subject(),
+                    role.maxOutputTokens(packet),
+                    List.of()),
+            packet,
+            ids);
     List<CheckInputs> inputs = new ArrayList<>();
     for (int i = 0; i < packet.size(); i++) {
       inputs.add(role.inputs(packet, ids, i).withSecrets(harness.secrets()));
@@ -1074,12 +1157,15 @@ public final class RoleSession {
             index -> role.inputs(packet, ids, index).withSecrets(harness.secrets()),
             this::rejected);
     LlmRequest request =
-        role.layout(packet, ids)
-            .request(
-                spec.modelRole(),
-                spec.name() + " conversation: " + packet.getFirst().subject(),
-                role.maxOutputTokens(packet.size()),
-                submit.tools());
+        noted(
+            role.layout(packet, ids)
+                .request(
+                    spec.modelRole(),
+                    spec.name() + " conversation: " + packet.getFirst().subject(),
+                    role.maxOutputTokens(packet.size()),
+                    submit.tools()),
+            packet,
+            ids);
     io.lantern.llm.Conversation conversation = client.converse(request, submit, spec.limits());
     LlmException failure = null;
     boolean capped = false;
@@ -1274,6 +1360,8 @@ public final class RoleSession {
         .answers()
         .previous(spec.name(), subject, cacheVersion(), model.provider(), model.model())
         .filter(a -> a.answer() != null)
+        // A rejected answer asked again is worded anew, none of its texts kept (#751).
+        .filter(a -> harness.retryReason(a.fingerprint()) == null)
         .map(a -> CarryForward.earlier(a.answer()));
   }
 

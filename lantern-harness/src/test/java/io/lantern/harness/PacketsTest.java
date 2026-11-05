@@ -622,4 +622,43 @@ class PacketsTest {
             CacheBreak.inSystem(request.system().length()),
             new CacheBreak(0, "<facts>\n[F1] a\n[F2] b\n[F3] c\n</facts>".length()));
   }
+
+  @Test
+  void anItemMarkedForRetryIsAskedAgainToldTheReasonAndTheOthersAreReused() {
+    FakeLlmProvider fake =
+        answering(
+            request -> {
+              List<String> entries = new ArrayList<>();
+              for (String id : ids(request)) {
+                entries.add(
+                    "\"" + id.substring(0, id.indexOf('=')) + "\": " + good("Keeps records"));
+              }
+              return "{\"items\": {" + String.join(", ", entries) + "}}";
+            });
+    Harness harness = harness(client(fake), store);
+    Map<String, Outcome> first =
+        harness.session(ROLE).askPackets(List.of(item("orders"), item("billing")), SENTENCES);
+    assertThat(fake.sent()).hasSize(1);
+
+    // The support judge found the orders item's text unsupported (#751).
+    String rejected = first.get("orders").fingerprint();
+    assertThat(harness.session(ROLE).earlier("orders")).isPresent();
+    harness.retry(rejected, "\"Keeps records\" is shown by none of its cited inputs");
+    // Its earlier texts are not carried forward into the new answer.
+    assertThat(harness.session(ROLE).earlier("orders")).isEmpty();
+    assertThat(harness.session(ROLE).earlier("billing")).isPresent();
+    Map<String, Outcome> again =
+        harness.session(ROLE).askPackets(List.of(item("orders"), item("billing")), SENTENCES);
+
+    // Only the orders item is asked again, under a fingerprint of its own, told the reason.
+    assertThat(fake.sent()).hasSize(2);
+    String request = fake.sent().get(1).request().messages().getFirst().text();
+    assertThat(ids(fake.sent().get(1).request())).containsExactly("I1=orders");
+    assertThat(request)
+        .contains("<retry item=\"I1\">")
+        .contains("\"Keeps records\" is shown by none of its cited inputs");
+    assertThat(again.get("orders").fingerprint()).isNotEqualTo(rejected);
+    assertThat(again.get("billing").fingerprint()).isEqualTo(first.get("billing").fingerprint());
+    assertThat(harness.retried()).containsExactly(again.get("orders").fingerprint());
+  }
 }

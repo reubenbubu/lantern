@@ -1,0 +1,2 @@
+A checker compared your earlier answer with the inputs it cites and found claims that none of them shows: {reason}
+Answer again. Claim only what the cited inputs state, and cite the inputs that state it.

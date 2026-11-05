@@ -27,18 +27,24 @@ public final class Calls {
   private final RoleSession session;
   private final LlmClient client;
   private final String subject;
+  private final String note;
   private boolean repaired;
   private int verified;
 
-  Calls(RoleSession session, LlmClient client, String subject) {
+  /**
+   * @param note what each request about the item ends its first turn with, such as why it is asked
+   *     again after the support judge rejected its answer (#751); null for nothing
+   */
+  Calls(RoleSession session, LlmClient client, String subject, String note) {
     this.session = Objects.requireNonNull(session, "session");
     this.client = Objects.requireNonNull(client, "client");
     this.subject = Objects.requireNonNull(subject, "subject");
+    this.note = note;
   }
 
   /** Sends one request. */
   public LlmResponse call(LlmRequest request) {
-    return session.send(client, request, session.expectedOutput(1));
+    return session.send(client, RoleSession.noted(request, note), session.expectedOutput(1));
   }
 
   /**
@@ -46,7 +52,7 @@ public final class Calls {
    * loop); the request's tools are replaced by the tool box's.
    */
   public Conversation converse(LlmRequest request, ToolBox tools) {
-    return client.converse(request, tools, session.spec().limits());
+    return client.converse(RoleSession.noted(request, note), tools, session.spec().limits());
   }
 
   /**
