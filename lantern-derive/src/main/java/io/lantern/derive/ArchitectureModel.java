@@ -47,6 +47,7 @@ public final class ArchitectureModel {
   private final Knowledge knowledge;
   private final Map<EntityId, Fact> responsibilities = new HashMap<>();
   private final Map<String, Fact> intents = new HashMap<>();
+  private final Map<String, Fact> everyFact;
   private final Map<EntityId, Fact> summaries = new HashMap<>();
   private final Map<EntityId, List<Fact>> narratives = new HashMap<>();
   private final Map<String, Fact> groupIntents = new HashMap<>();
@@ -83,6 +84,7 @@ public final class ArchitectureModel {
     texts.sort(PREFERRED);
     Map<String, Fact> byId = new HashMap<>();
     facts.forEach(f -> byId.putIfAbsent(f.id(), f));
+    this.everyFact = byId;
     // A component's sentence also describes the type it is anchored on, which its diagram draws.
     Map<EntityId, EntityId> anchors = new HashMap<>();
     for (Fact anchored : knowledge.withPredicate(Types.ANCHORED_ON)) {
@@ -171,6 +173,14 @@ public final class ArchitectureModel {
   /** The fact with the ID, or {@code null}. */
   public Fact fact(String id) {
     return knowledge.fact(id);
+  }
+
+  /**
+   * A fact of the snapshot by its ID, the roles' texts included, or {@code null}: what a finding
+   * may cite, such as an earlier answer a merge reason rests on (#765).
+   */
+  public Fact factOrText(String id) {
+    return everyFact.get(id);
   }
 
   /** The facts a derived fact was made from, those that hold in the model, in the order stored. */

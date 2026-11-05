@@ -86,7 +86,7 @@ go-ahead for milestone 1E.
     all responsibility sentences of one kind.
   - The claim list is kept in the judge's cached answer; the text's observation carries only the
     verdict.
-  - Findings are shown as a repository risk. There is no separate findings page.
+  - Findings are shown as a repository risk.
   - A complete screen ends only the findings of files it read in that run. A finding on a file no
     prompt showed this time, such as one only a cached Resolve answer read, still holds.
 

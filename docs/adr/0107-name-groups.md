@@ -84,3 +84,9 @@ This ADR's word limits and margins now live in the role's response contract, `pr
   templates that have one, in an "Other findings" table, opening with "Found by the LLM:": all of
   them in the system's documents, and in a repository's documents those that name one of its
   units' feature areas, as either group of the pair.
+- A finding's cited facts are looked up among all of the snapshot's facts, the roles' texts
+  included, so a merge reason citing an earlier answer is listed; a finding whose cited fact is
+  gone is still dropped (review of 4 Nov 2026).
+- A consume line through a RabbitMQ queue folded into its exchange is drawn from the exchange;
+  when the group's intent is not found by the exchange, it is looked up by the queue the consume
+  fact names, under which the group stored it.

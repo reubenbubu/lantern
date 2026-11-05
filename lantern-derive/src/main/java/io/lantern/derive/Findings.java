@@ -453,9 +453,18 @@ public final class Findings implements LinkRule.OverFacts {
     values.forEach(v -> array.add(v.toString()));
   }
 
-  /** The findings of a kind the model holds, by ID. */
+  /**
+   * The findings of a kind the model holds, by ID: each whose cited facts the snapshot holds, the
+   * roles' texts included, since a merge reason may cite an earlier answer (#765).
+   */
   public static List<Fact> of(ArchitectureModel model, String kind) {
-    return of(model.index(), kind);
+    List<Fact> found = new ArrayList<>();
+    for (Fact fact : model.index().withPredicate(Types.FINDING_RAISED)) {
+      if (fact.object().value().equals(kind) && cited(model::factOrText, fact) != null) {
+        found.add(fact);
+      }
+    }
+    return found;
   }
 
   /** The findings of a kind stored in the knowledge, by ID. */
@@ -575,13 +584,17 @@ public final class Findings implements LinkRule.OverFacts {
    * document composed from part of the snapshot's facts shows a finding only whole.
    */
   public static List<Fact> cited(Knowledge knowledge, Fact finding) {
+    return cited(knowledge::fact, finding);
+  }
+
+  private static List<Fact> cited(java.util.function.Function<String, Fact> lookup, Fact finding) {
     List<Fact> facts = new ArrayList<>();
     JsonNode ids = finding.attributes().get("facts");
     if (ids == null || !ids.isArray()) {
       return facts;
     }
     for (JsonNode id : ids) {
-      Fact fact = knowledge.fact(id.asString());
+      Fact fact = lookup.apply(id.asString());
       if (fact == null) {
         return null;
       }
