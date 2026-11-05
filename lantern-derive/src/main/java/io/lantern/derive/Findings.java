@@ -576,7 +576,7 @@ public final class Findings implements LinkRule.OverFacts {
 
   /** The facts a finding cites, as the model holds them. */
   public static List<Fact> cited(ArchitectureModel model, Fact finding) {
-    return cited(model.index(), finding);
+    return cited(model::factOrText, finding);
   }
 
   /**
