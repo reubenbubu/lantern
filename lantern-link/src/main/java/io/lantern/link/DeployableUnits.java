@@ -480,7 +480,9 @@ public final class DeployableUnits implements LinkRule {
           .flatMap(m -> index.deps.getOrDefault(m, List.of()).stream())
           .anyMatch(
               d ->
-                  d.object().value().equals("artifact:" + SPRING_BOOT_GROUP + artifactPrefix)
+                  d.object()
+                          .value()
+                          .equals(Types.ARTIFACT + ":" + SPRING_BOOT_GROUP + artifactPrefix)
                       && PACKAGED_SCOPES.contains(index.dep(d).scope()));
     }
 
@@ -492,7 +494,7 @@ public final class DeployableUnits implements LinkRule {
         }
         for (EntityId m : modules()) {
           for (Fact dep : index.deps.getOrDefault(m, List.of())) {
-            if (dep.object().value().startsWith("artifact:" + framework.artifactPrefix())
+            if (dep.object().value().startsWith(Types.ARTIFACT + ":" + framework.artifactPrefix())
                 && PACKAGED_SCOPES.contains(index.dep(dep).scope())) {
               // Spring Boot's own starters are at Spring Boot's version, already named.
               String version =
@@ -532,7 +534,8 @@ public final class DeployableUnits implements LinkRule {
       for (EntityId m : modules()) {
         List<Fact> deps =
             index.deps.getOrDefault(m, List.of()).stream()
-                .filter(d -> d.object().value().startsWith("artifact:" + SPRING_BOOT_GROUP))
+                .filter(
+                    d -> d.object().value().startsWith(Types.ARTIFACT + ":" + SPRING_BOOT_GROUP))
                 .toList();
         usesBoot |= !deps.isEmpty();
         boot =

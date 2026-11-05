@@ -283,6 +283,9 @@ public final class Components implements LinkRule.OverFacts {
       return components;
     }
 
+    /** The made-up root the dominators are taken from: no vocabulary type, so no entity's ID. */
+    private static final String DOMINATOR_ROOT = "root";
+
     /**
      * The component each bean the entry points reach belongs to: its entry point, or the anchor of
      * the shared component it sits behind, or itself. Dominators are taken in the graph of the code
@@ -294,7 +297,7 @@ public final class Components implements LinkRule.OverFacts {
         Set<EntityId> beans,
         Map<EntityId, Set<EntityId>> uses,
         Map<EntityId, SortedSet<EntityId>> reachedBy) {
-      EntityId root = new EntityId("root", "root");
+      EntityId root = new EntityId(DOMINATOR_ROOT, DOMINATOR_ROOT);
       // Reverse postorder from the root, in ID order so the result does not depend on the input's.
       List<EntityId> post = new ArrayList<>();
       Set<EntityId> visited = new HashSet<>(Set.of(root));

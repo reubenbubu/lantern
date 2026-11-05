@@ -1441,7 +1441,7 @@ class InvestigatorTest {
 
     assertThat(fake.sent()).isEmpty();
     assertThat(of(result, Types.NOT_INVESTIGATED).stream().map(f -> f.subject().toString()))
-        .containsExactlyInAnyOrder(FILES_UNIT, GATEWAY_UNIT, Investigator.SYSTEM.toString());
+        .containsExactlyInAnyOrder(FILES_UNIT, GATEWAY_UNIT, EntityId.SYSTEM.toString());
   }
 
   @Test

@@ -377,7 +377,7 @@ public final class Findings implements LinkRule.OverFacts {
     void add(
         String kind, String repo, EntityId target, Collection<String> versions, List<Fact> cited) {
       ObjectNode attributes = FactJson.newObject();
-      attributes.put("about", "repo:" + repo);
+      attributes.put("about", Types.REPO + ":" + repo);
       attributes.put("repo", repo);
       attributes.put("target", target.toString());
       strings(attributes, "versions", versions);

@@ -143,7 +143,7 @@ final class ConfigReader {
       }
     }
     List<ModuleConfig> result = new ArrayList<>();
-    EntityId subject = new EntityId("repo", repo.repo().name());
+    EntityId subject = new EntityId(Types.REPO, repo.repo().name());
     for (Map.Entry<String, Map<String, Map<String, String>>> application : files.entrySet()) {
       List<Document> documents = new ArrayList<>();
       for (Map.Entry<String, Map<String, String>> profile : application.getValue().entrySet()) {

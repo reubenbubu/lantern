@@ -229,7 +229,7 @@ public final class People implements LinkRule {
     for (Cited endpoint : endpoints) {
       String controller = text(endpoint.endpoint().controller());
       if (endpoint.fact().subject().equals(check.fact().subject())
-          || ("type:" + controller).equals(check.fact().subject().toString())) {
+          || (Types.TYPE + ":" + controller).equals(check.fact().subject().toString())) {
         paths.add(endpoint.path());
       }
     }

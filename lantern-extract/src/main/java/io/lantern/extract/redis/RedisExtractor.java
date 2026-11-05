@@ -1034,7 +1034,7 @@ public final class RedisExtractor implements Extractor {
 
   private static EntityId typeId(String binaryName) {
     try {
-      return new EntityId("type", binaryName);
+      return new EntityId(Types.TYPE, binaryName);
     } catch (IllegalArgumentException e) {
       return null;
     }

@@ -37,7 +37,7 @@ public final class ArchitectureModel {
   public static final String SYSTEM_SCOPE = "system";
 
   /** The software system all repositories of a snapshot form, the system scope's subject. */
-  public static final EntityId SYSTEM = new EntityId(Types.SYSTEM, "snapshot");
+  public static final EntityId SYSTEM = EntityId.SYSTEM;
 
   /** The ordering of texts: the most confident first, then by fact ID. */
   private static final Comparator<Fact> PREFERRED =

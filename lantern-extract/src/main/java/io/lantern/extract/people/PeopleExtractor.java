@@ -428,7 +428,7 @@ public final class PeopleExtractor implements Extractor {
 
   private static EntityId typeId(String binaryName) {
     try {
-      return new EntityId("type", binaryName);
+      return new EntityId(Types.TYPE, binaryName);
     } catch (IllegalArgumentException e) {
       return null;
     }
@@ -773,7 +773,7 @@ public final class PeopleExtractor implements Extractor {
 
     /** The Keycloak realm files and the routers of frontends in the repository. */
     void files(RepoBuild repo) {
-      EntityId subject = new EntityId("repo", repo.repo().name());
+      EntityId subject = new EntityId(Types.REPO, repo.repo().name());
       for (String path : GitFiles.list(repo, "")) {
         if (path.contains("node_modules/")
             || path.contains("/dist/")

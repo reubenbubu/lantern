@@ -150,6 +150,10 @@ class ArchitectureRulesTest {
         .isInstanceOf(AssertionError.class)
         .hasMessageContaining(
             "LinkerComparingPredicates.CALLS_HTTP holds the type name 'CALLS_HTTP'");
+    assertThatThrownBy(() -> ArchitectureRules.NAMES_CORE_ENTITIES_ONCE.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining(
+            "LinkerComparingPredicates.SYSTEM copies system:snapshot; use EntityId.SYSTEM");
   }
 
   @Test

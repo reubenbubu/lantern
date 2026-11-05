@@ -42,4 +42,7 @@ class ArchitectureTest {
   @ArchTest
   static final ArchRule namesTypesThroughTheTypedLayer =
       ArchitectureRules.NAMES_TYPES_THROUGH_THE_TYPED_LAYER;
+
+  @ArchTest
+  static final ArchRule namesCoreEntitiesOnce = ArchitectureRules.NAMES_CORE_ENTITIES_ONCE;
 }

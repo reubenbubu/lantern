@@ -104,7 +104,7 @@ public final class InvestigatedRisks {
     String lead = fact.attributes().path("lead").stringValue();
     int space = value.indexOf(' ');
     String kind = space < 0 ? value : value.substring(0, space);
-    return lead.startsWith("lead:" + kind + "/") ? kind : "";
+    return lead.startsWith(Types.LEAD + ":" + kind + "/") ? kind : "";
   }
 
   private static List<EntityId> units(Fact fact) {

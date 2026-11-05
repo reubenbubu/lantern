@@ -887,7 +887,7 @@ public final class LeadRules {
 
     /** Whether the module's schema is built by Flyway or Liquibase migrations. */
     private static boolean migrated(Knowledge knowledge, EntityId module) {
-      EntityId schema = new EntityId("schema", module.key());
+      EntityId schema = new EntityId(Types.SCHEMA, module.key());
       for (Fact kind : knowledge.attributes(schema)) {
         if (kind.predicate().equals(Types.KIND)
             && Set.of("flyway", "liquibase").contains(kind.object().value().toString())) {

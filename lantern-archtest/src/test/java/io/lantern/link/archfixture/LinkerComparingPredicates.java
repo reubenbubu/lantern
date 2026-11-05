@@ -1,5 +1,6 @@
 package io.lantern.link.archfixture;
 
+import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import java.util.List;
 
@@ -22,6 +23,27 @@ public class LinkerComparingPredicates {
 
   /** The sends, as a list of predicates. */
   static final List<String> SENDS = List.of("http-call");
+
+  /** A private copy of the snapshot's system, with its type written as a literal. */
+  static final EntityId SYSTEM = new EntityId("system", "snapshot");
+
+  public EntityId repo(String name) {
+    return new EntityId("repo", name);
+  }
+
+  public EntityId schema(String module) {
+    return new EntityId(
+        // the type on a line of its own, which a line-by-line scan would miss
+        "schema", module);
+  }
+
+  public boolean isAType(Fact fact) {
+    return fact.subject().toString().startsWith("type:");
+  }
+
+  public String artifact(String group) {
+    return "artifact:" + group;
+  }
 
   /** A stand-in for a fact query. */
   public interface Query {
