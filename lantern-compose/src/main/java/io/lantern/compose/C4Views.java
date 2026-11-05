@@ -28,6 +28,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,6 +88,13 @@ final class C4Views {
    * without (ADR 0117).
    */
   private List<Line> drawing;
+
+  /**
+   * Whether the diagram being drawn merges the lines between two elements into one, whatever they
+   * carry: the first step when a view at its coarsest level still does not fit (owner's decision
+   * (b) of 4 Nov 2026 on #764). Otherwise each ordered pair draws one line per relationship.
+   */
+  private boolean perPair;
 
   /** Each profile-only link that replaces a default one under its profile, with that default. */
   private final Map<Fact, Fact> alternatives;
@@ -393,8 +401,55 @@ final class C4Views {
                 edge.always ? List.of() : List.copyOf(edge.profiles),
                 assembler.facts(edge.facts)));
       }
-      return result;
+      return perPair ? merged(result) : result;
     }
+  }
+
+  /**
+   * One line per ordered pair of elements: the first line's relationship, each label and each
+   * technology once, the profiles only if every line it merges holds only under some, and every
+   * fact cited.
+   */
+  static List<Diagram.Edge> merged(List<Diagram.Edge> edges) {
+    Map<String, List<Diagram.Edge>> byPair = new java.util.LinkedHashMap<>();
+    for (Diagram.Edge edge : edges) {
+      byPair.computeIfAbsent(edge.from() + " " + edge.to(), k -> new ArrayList<>()).add(edge);
+    }
+    List<Diagram.Edge> result = new ArrayList<>();
+    for (List<Diagram.Edge> pair : byPair.values()) {
+      Diagram.Edge first = pair.getFirst();
+      if (pair.size() == 1) {
+        result.add(first);
+        continue;
+      }
+      Set<String> labels = new LinkedHashSet<>();
+      Set<String> technologies = new LinkedHashSet<>();
+      Set<String> profiles = new LinkedHashSet<>();
+      Set<String> facts = new LinkedHashSet<>();
+      boolean always = false;
+      for (Diagram.Edge edge : pair) {
+        if (edge.label() != null) {
+          labels.add(edge.label());
+        }
+        if (edge.technology() != null) {
+          technologies.add(edge.technology());
+        }
+        always |= edge.profiles().isEmpty();
+        profiles.addAll(edge.profiles());
+        facts.addAll(edge.facts());
+      }
+      result.add(
+          new Diagram.Edge(
+              first.id(),
+              first.from(),
+              first.to(),
+              labels.isEmpty() ? null : String.join("; ", labels),
+              technologies.isEmpty() ? null : String.join(", ", technologies),
+              first.relationship(),
+              always ? List.of() : List.copyOf(profiles),
+              List.copyOf(facts)));
+    }
+    return result;
   }
 
   // System context.
@@ -601,44 +656,51 @@ final class C4Views {
       profiles.ifPresent(blocks::add);
       return;
     }
-    // Detail folded away before the view is split (docs/design.md, Readable diagrams): topics and
-    // queues between one sender and one receiver become "via" labels, as C4 allows.
+    // The coarser level the code proves (owner's decisions (a) and (b) of 4 Nov 2026 on #764):
+    // each domain one box standing for its units, with a page per domain. A view still too large
+    // there, or with no domains, merges its lines per pair, then folds topics and queues between
+    // one sender and one receiver into "via" labels.
+    Map<EntityId, EntityId> domainOf = domainOf(shown);
+    String id = assembler.id(section, "diagram");
+    String title =
+        domainOf.isEmpty()
+            ? "Containers of " + assembler.name(system)
+            : "Containers of " + assembler.name(system) + ", by domain";
+    java.util.function.Supplier<Diagram> view =
+        () -> containerDiagram(id, shown, title, null, true, domainOf);
+    Diagram coarsest = view.get();
     SortedSet<EntityId> folded = new TreeSet<>(ArchitectureModel.BY_ID);
-    drawing = foldTopics(folded);
-    Optional<Callout> foldNote = foldNote(assembler.id(section, "folded"), folded);
-    if (!folded.isEmpty()) {
-      whole = containerDiagram(assembler.id(section, "diagram"), shown, "Containers", null, true);
-      if (fits(whole)) {
-        blocks.add(whole);
-        foldNote.ifPresent(blocks::add);
-        profiles.ifPresent(blocks::add);
+    if (!fits(coarsest)) {
+      perPair = true;
+      coarsest = view.get();
+      if (!fits(coarsest)) {
+        drawing = foldTopics(folded);
+        coarsest = view.get();
+      }
+    }
+    boolean fitted = fits(coarsest);
+    if (!domainOf.isEmpty() || fitted) {
+      blocks.add(coarsest);
+      foldNote(assembler.id(section, "folded"), folded).ifPresent(blocks::add);
+      profiles.ifPresent(blocks::add);
+      perPair = false;
+      drawing = links;
+      List<Diagram> drawn = new ArrayList<>(List.of(coarsest));
+      if (!domainOf.isEmpty()) {
+        // The overview at domain level is the smallest the code proves; each domain's page draws
+        // its units in full, split by concern where it still does not fit.
+        domains(section, shown, domainOf, subsections);
+      }
+      if (!folded.isEmpty()) {
         // The detail folded away stays one page away: the messaging view draws every topic and
         // queue as an element, split per unit when it is not readable either.
-        drawing = links;
-        List<Diagram> drawn = new ArrayList<>(List.of(whole));
         split(section, shown, MESSAGING, List.of(), false, drawn, subsections);
-        return;
       }
+      return;
     }
-    // Folding was not enough: the views below draw every topic and queue, by domain or concern.
+    // No domain and still too large: split by concern, each view drawing every topic and queue.
+    perPair = false;
     drawing = links;
-    Map<EntityId, EntityId> domainOf = domainOf(shown);
-    if (!domainOf.isEmpty()) {
-      Diagram byDomain =
-          containerDiagram(
-              assembler.id(section, "diagram"),
-              shown,
-              "Containers of " + assembler.name(system) + ", by domain",
-              null,
-              true,
-              domainOf);
-      if (fits(byDomain)) {
-        blocks.add(byDomain);
-        domains(section, shown, domainOf, subsections);
-        profiles.ifPresent(blocks::add);
-        return;
-      }
-    }
     List<Diagram> drawn = new ArrayList<>();
     split(section, shown, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
     split(section, shown, MESSAGING, List.of(), false, drawn, subsections);
@@ -1126,14 +1188,14 @@ final class C4Views {
 
   /**
    * The system's domains the scope draws (#535; ADR 0117): each unit in scope that a stored domain
-   * holds with another unit in scope, with that domain. A domain holding one unit in scope stands
-   * for nothing and is left out.
+   * holds with enough other units in scope, the limits' smallest group, with that domain. A smaller
+   * domain stands for nothing and is left out.
    */
   private Map<EntityId, EntityId> domainOf(Set<EntityId> shown) {
     Map<EntityId, EntityId> result = new HashMap<>();
     for (Groups.Group domain : Groups.of(model, Groups.DOMAIN)) {
       List<EntityId> inScope = domain.members().stream().filter(shown::contains).toList();
-      if (inScope.size() >= 2) {
+      if (inScope.size() >= limits.smallestGroup()) {
         inScope.forEach(m -> result.putIfAbsent(m, domain.id()));
       }
     }
@@ -1260,16 +1322,21 @@ final class C4Views {
               Map.of());
       List<Section> areas = new ArrayList<>();
       if (!fits(diagram)) {
+        // The coarser level the code proves, each feature area one box with a page of its own;
+        // a view still too large there, or with no areas, merges its lines per pair (owner's
+        // decisions (a) and (b) of 4 Nov 2026 on #764).
         Map<EntityId, EntityId> areaOf = areaOf(unit, components);
-        if (!areaOf.isEmpty()) {
+        String title =
+            "Components of " + assembler.name(unit) + (areaOf.isEmpty() ? "" : ", by feature area");
+        diagram =
+            componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
+        if (!fits(diagram)) {
+          perPair = true;
           diagram =
-              componentDiagram(
-                  assembler.id(id, "diagram"),
-                  unit,
-                  components,
-                  "Components of " + assembler.name(unit) + ", by feature area",
-                  all,
-                  areaOf);
+              componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
+          perPair = false;
+        }
+        if (!areaOf.isEmpty()) {
           areas = areas(id, unit, components, areaOf);
         }
       }
@@ -1306,6 +1373,10 @@ final class C4Views {
         result.put(component.main(), area);
       }
     }
+    // An area with fewer of the view's components than the smallest group stands for nothing.
+    Map<EntityId, Long> sizes = new HashMap<>();
+    result.values().forEach(a -> sizes.merge(a, 1L, Long::sum));
+    result.values().removeIf(a -> sizes.get(a) < limits.smallestGroup());
     return result;
   }
 

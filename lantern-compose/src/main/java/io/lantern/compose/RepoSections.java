@@ -114,6 +114,7 @@ final class RepoSections {
     this.assembler =
         new Assembler(
             model, inScope, repo, systemName == null ? systemName(snapshotRepos) : systemName);
+    assembler.groups(limits.smallestGroup());
     inScope.forEach(assembler::entity);
     this.c4 = new C4Views(model, assembler, SYSTEM, units, repos, limits);
   }

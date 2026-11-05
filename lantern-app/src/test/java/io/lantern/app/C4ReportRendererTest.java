@@ -789,7 +789,7 @@ class C4ReportRendererTest {
     Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
 
     String html =
-        C4ReportRenderer.fromClassPath(new io.lantern.compose.DiagramLimits(20, 5, 3, 0.7, 8))
+        C4ReportRenderer.fromClassPath(new io.lantern.compose.DiagramLimits(20, 5, 3, 0.7, 8, 2))
             .render(document);
 
     assertThat(html)
@@ -810,11 +810,11 @@ class C4ReportRendererTest {
     expected
         .withObject("document")
         .putObject("readable")
-        .put("target", 50)
-        .put("tolerance", 0)
-        .put("linesPerElement", 2)
-        .put("scale", 0.8)
-        .put("crossings", 5);
+        .put("target", io.lantern.compose.DiagramLimits.DEFAULT.target())
+        .put("tolerance", io.lantern.compose.DiagramLimits.DEFAULT.tolerance())
+        .put("linesPerElement", io.lantern.compose.DiagramLimits.DEFAULT.linesPerElement())
+        .put("scale", io.lantern.compose.DiagramLimits.DEFAULT.scale())
+        .put("crossings", io.lantern.compose.DiagramLimits.DEFAULT.crossings());
     String data = C4ReportRenderer.write(expected);
     assertThat(html)
         .contains(
