@@ -389,6 +389,96 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void bookkeepingOfTheLlmRolesMarksNothing() {
+    var llm = io.lantern.core.fact.Origin.Kind.LLM;
+    EntityId system = EntityId.parse("system:snapshot");
+    var purpose = fact(system, "purpose", io.lantern.core.fact.FactObject.string("system"), llm);
+    // On a budget-cut run the system holds what a role did not ask and Investigate did not see.
+    var notAsked =
+        fact(system, "not-asked", io.lantern.core.fact.FactObject.string("describe-unit"), llm);
+    var notInvestigated =
+        fact(system, "not-investigated", io.lantern.core.fact.FactObject.string("budget"), llm);
+    Diagram diagram =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Document document =
+        new Document(
+            "shop.c4",
+            "shop",
+            null,
+            AnalysisRun.C4_REPORT,
+            new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
+            List.of(
+                new DocumentEntity(
+                    system,
+                    "Shop",
+                    null,
+                    List.of(TextRun.of("Sells books.")),
+                    List.of(purpose.id(), notAsked.id(), notInvestigated.id()))),
+            List.of(purpose, notAsked, notInvestigated),
+            List.of(section("context", null, List.of(diagram), List.of())));
+
+    JsonNode data = C4ReportRenderer.toJson(document).data();
+
+    assertThat(data.get("elements").get("system-snapshot").has("llm")).isFalse();
+  }
+
+  @Test
+  void aRiskRowOfInvestigateKeepsItsBadgeAndLosesTheWordsThatSayIt() {
+    var llm = io.lantern.core.fact.Origin.Kind.LLM;
+    EntityId system = EntityId.parse("repo:shop");
+    EntityId unit = EntityId.parse("service:shop");
+    var risk = fact(unit, "investigated-risk", io.lantern.core.fact.FactObject.string("k"), llm);
+    Diagram context =
+        new Diagram(
+            "context.diagram",
+            Diagram.Kind.C4_CONTEXT,
+            null,
+            List.of(node(system)),
+            List.of(),
+            List.of());
+    Table risks =
+        new Table(
+            "risks.table",
+            "Risks and findings",
+            List.of(new Table.Column("Impact"), new Table.Column("Finding")),
+            List.of(
+                new Table.Row(
+                    null,
+                    List.of(
+                        List.of(TextRun.of("High")),
+                        List.of(
+                            new TextRun("Found by the LLM:", TextRun.Style.EMPHASIS),
+                            TextRun.of(" "),
+                            new TextRun("Orders trust a header.", TextRun.Style.STRONG))),
+                    List.of(risk.id()))),
+            List.of());
+    Document document =
+        new Document(
+            "shop.c4",
+            "shop",
+            null,
+            AnalysisRun.C4_REPORT,
+            new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
+            List.of(entity(system), new DocumentEntity(unit, "shop", null, List.of(), List.of())),
+            List.of(risk),
+            List.of(
+                section("context", system, List.of(context), List.of()),
+                section("risks", system, List.of(risks), List.of())));
+
+    JsonNode table =
+        C4ReportRenderer.toJson(document).data().get("pages").get(1).get("sections").get(0);
+
+    assertThat(table.get("llmRows").toString()).isEqualTo("[0]");
+    assertThat(table.get("rows").get(0).get(1).asString()).isEqualTo("**Orders trust a header.**");
+  }
+
+  @Test
   void drawsEachElementAsTheKindTheComposerResolvedWithoutKnowingItsType() {
     // Types the renderer has never heard of: what they are is the composer's to say (ADR 0114).
     EntityId unit = EntityId.parse("service:shop");

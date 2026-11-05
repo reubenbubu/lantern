@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import {
+  llmMarks,
   risksOf,
   compareMarkdown,
   isComponent,
@@ -526,4 +527,49 @@ test('a parent row of risks counts as the risks folded under it, not as one risk
     ],
   };
   assert.deepEqual(risksOf(data), ['One risk', 'First', 'Second']);
+});
+
+test('LLM marks: the system box, prefixes where the badge shows, and found lines to infrastructure (#749)', () => {
+  const data = {
+    elements: {
+      shop: { name: 'Shop', kind: 'system', llm: true },
+      orders: { name: 'orders', kind: 'container', description: 'Takes orders.' },
+      zipkin: { name: 'zipkin', kind: 'external', llm: true, description: 'Found by the LLM: Keeps traces.' },
+      carrier: { name: 'Parcel carrier', kind: 'external', llm: true, description: 'Ships parcels.' },
+    },
+    pages: [
+      {
+        id: 'containers',
+        level: 'container',
+        sections: [
+          {
+            type: 'diagram',
+            id: 'd',
+            relationships: [
+              { from: 'orders', to: 'zipkin', label: 'Exports spans', llm: true },
+              { from: 'orders', to: 'carrier', label: '*Found by the LLM:* Sends parcel tracing updates', llm: true },
+              { from: 'orders', to: 'carrier', label: 'Found by the LLM: Books pickups' },
+            ],
+          },
+        ],
+      },
+      {
+        id: 'risks',
+        level: 'documentation',
+        sections: [
+          { type: 'table', id: 't', rows: [['High', 'Found by the LLM: A risk'], ['Low', 'Other']], llmRows: [0] },
+        ],
+      },
+    ],
+  };
+  const marks = llmMarks(data, ['distributed tracing', 'zipkin', 'loki']);
+  assert.deepEqual(marks.systemMarked, ['Shop']);
+  assert.equal(marks.elements, 3);
+  assert.equal(marks.lines, 2);
+  assert.deepEqual(marks.prefixed, [
+    'element zipkin',
+    'line orders -> Parcel carrier',
+    'risks table row 1',
+  ]);
+  assert.deepEqual(marks.infrastructureLines, ['orders -> zipkin (zipkin)']);
 });
