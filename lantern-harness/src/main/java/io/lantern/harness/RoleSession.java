@@ -60,6 +60,8 @@ public final class RoleSession {
   // batch API (knowledge-build epic, section 10, Run modes): the first alone and interactively, to
   // write the shared prefix with a long lifetime, the rest in batches that read it.
   private volatile BatchCollector batch;
+  // Once the harness packs and the role says how, its items' first requests are joined (#874).
+  private PacketCollector packets;
   private volatile long prefixTokens;
   private volatile double requestsPerItem;
   // Under a budget share, whether each planned item fits, decided in rounds in the group's order,
@@ -537,6 +539,22 @@ public final class RoleSession {
     return batch != null;
   }
 
+  /**
+   * Whether the role's items' first requests are joined into packed requests in this run (#874):
+   * the harness packs, the role says how, and it does not batch.
+   */
+  public synchronized boolean packing() {
+    if (packets == null && batch == null) {
+      Packing.Limits limits = harness.packetLimits();
+      Packing packing = harness.packing(spec.name());
+      if (limits != null && packing != null) {
+        packets = new PacketCollector(client, packing, limits, model.estimateTokenScale());
+        LOG.info("{} joins its items' requests into packets of at most {}", spec.name(), limits);
+      }
+    }
+    return packets != null && batch == null;
+  }
+
   /** Whether the role's requests go through the batch API in this run. */
   public boolean batching() {
     return batch != null;
@@ -956,8 +974,10 @@ public final class RoleSession {
                         : "rejected twice: " + String.join(" ", reasons(again.get(id))),
                     List.of(),
                     // Not stored when the repair was cut off, since a larger limit may let it
-                    // through, or held no readable JSON object, which a new call may (#744).
-                    !second.cutOff() && JsonFaults.first(second.text()) != null),
+                    // through, or held no readable JSON object or TOML document, which a new call
+                    // may
+                    // (#744, #872).
+                    !second.cutOff() && Toml.readable(second.text())),
                 false);
           } else {
             repairedIds.put(id, true);
@@ -1631,7 +1651,7 @@ public final class RoleSession {
   LlmResponse send(LlmClient client, LlmRequest request, long expectedOutputTokens) {
     BatchCollector collector = batch;
     if (collector == null) {
-      return client.call(request);
+      return packing() ? packets.call(request) : client.call(request);
     }
     LlmRequest longLived = request.withLongLivedCache();
     if (prefixSent.compareAndSet(false, true)) {

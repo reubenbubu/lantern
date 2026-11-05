@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
 class SummarizerTest {
 
   private static final Pattern REF =
-      Pattern.compile("^\\[([FES]\\d+)\\]|<code ref=\"(E\\d+)\"", Pattern.MULTILINE);
+      Pattern.compile("^[ \\t]*\\[([FES]\\d+)\\]|^ref = \"(E\\d+)\"", Pattern.MULTILINE);
   private static final Pattern UNIT = Pattern.compile("^summarize \\S+ (\\S+:\\S+)");
 
   private final FakeLlmProvider fake =
@@ -1436,7 +1436,9 @@ class SummarizerTest {
             e ->
                 assertThat(e.getFormattedMessage())
                     .doesNotContain(answer)
-                    .contains(sent.substring(0, 1000) + "... (" + sent.length() + " characters)"));
+                    .contains(
+                        (sent.substring(0, 1000) + "... (" + sent.length() + " characters)")
+                            .replace("\n", "\\n")));
   }
 
   @Test
@@ -1448,9 +1450,7 @@ class SummarizerTest {
     List<LlmMessage> retry = retried().messages();
     assertThat(retry).hasSize(1);
     assertThat(retry.getFirst().text())
-        .contains(
-            "Your answer is not one JSON object with an entry for I1 under \"items\": the answer"
-                + " is empty.");
+        .contains("Your answer is not one TOML document with a table I1: the answer is empty.");
   }
 
   @Test
@@ -1621,8 +1621,8 @@ class SummarizerTest {
     String prompt = fake.sent().getFirst().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
-            "\nIts source code:\n<code ref=\"E1\" repo=\"r\" path=\"src/main/java/p/Order.java\""
-                + " lines=\"1-")
+            "\n[[item.I1.code]]\nref = \"E1\"\nrepo = \"r\"\npath = \"src/main/java/p/Order.java\""
+                + "\nlines = \"1-")
         .contains("\n 1  " + ExcerptsTest.ORDER.lines().findFirst().orElseThrow() + "\n");
     // The fake cites [F1, F2, E1]; the file is cited as the fact it comes from.
     Fact kind = order.facts().stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
@@ -1670,8 +1670,8 @@ class SummarizerTest {
     String prompt = fake.sent().getLast().request().messages().getFirst().text();
     assertThat(prompt)
         .contains(
-            "\nIts facts:\n<facts>\n[F1] readme:shop:README.md claim \"Shop sells books to"
-                + " readers.\" (shop:README.md)\n");
+            "\nfacts = \'\'\'\n@ shop:README.md\nreadme:shop:README.md\n"
+                + "  [F1] claim \"Shop sells books to readers.\"\n");
     // A summary that cites nothing people wrote is inferred.
     assertThat(result.summaries().get(EntityId.parse("module:com.example:shop")))
         .extracting(Summary::purpose, Summary::confidence)
@@ -1971,7 +1971,11 @@ class SummarizerTest {
             .toList();
     assertThat(prompts.stream().filter(p -> p.contains("This is part "))).hasSizeGreaterThan(1);
     assertThat(prompts)
-        .anyMatch(p -> p.contains("\nOf the units it contains, entry points:\n<facts>\n[F201] "));
+        .anyMatch(
+            p ->
+                p.contains(
+                        "\nabout = \"Of the units it contains, entry points\"\nfacts = \'\'\'\n@ ")
+                    && p.contains("[F201] "));
     for (String prompt : prompts) {
       assertThat(Tokens.estimate(Prompt.SYSTEM + prompt)).isLessThanOrEqualTo(4_000);
     }
@@ -2006,8 +2010,8 @@ class SummarizerTest {
     // Each part shows its own facts under the references of the whole unit.
     assertThat(fake.sent().get(1).request().messages().getFirst().text())
         .startsWith(
-            "<items>\n<item id=\"I1\">\nUnit: type Big in package p\nWhat is known about this"
-                + " unit is too long for one request")
+            "<items>\n[item.I1]\nunit = \"type Big in package p\"\nask = \"What is known about"
+                + " this unit is too long for one request")
         .doesNotContain("[F1] ");
     // The merge keeps the citations of the first and the last part.
     assertThat(summary.citedFacts())
@@ -2147,15 +2151,13 @@ class SummarizerTest {
             .map(s -> s.request().messages().getFirst().text())
             .toList();
     assertThat(partPrompts.size()).isGreaterThan(1);
-    assertThat(partPrompts.getLast())
-        .contains("Summaries of the units it contains:\n<summaries>\n[S")
-        .doesNotContain("[S1] ");
+    assertThat(partPrompts.getLast()).contains("\nsummaries = \'\'\'\n[S").doesNotContain("[S1] ");
     assertThat(summary.citedFacts()).contains(summary.inputFacts().getFirst());
     assertThat(summary.citedSummaries()).contains(summary.inputSummaries().getLast());
   }
 
   @Test
-  void aSplitTypeShowsItsSourceFileInOnePartAndKeepsItsCitation() throws Exception {
+  void aSplitTypeShowsItsSourceFileInPartsAndKeepsItsCitation() throws Exception {
     String source = ExcerptsTest.ORDER + "// filler\n".repeat(500);
     List<Fact> facts = new ArrayList<>(orderWithSource(blob(source)).facts());
     TestFacts methods = new TestFacts();
@@ -2177,13 +2179,68 @@ class SummarizerTest {
     List<String> prompts =
         fake.sent().stream().map(s -> s.request().messages().getFirst().text()).toList();
     assertThat(prompts.size()).isGreaterThan(2);
-    assertThat(prompts)
-        .filteredOn(
-            p -> p.contains("\n<code ref=\"E1\" repo=\"r\" path=\"src/main/java/p/Order.java\""))
-        .hasSize(1);
+    // A file larger than a part may show comes in slices of its lines, each shown once (#874).
+    List<String> shown =
+        prompts.stream()
+            .filter(
+                p ->
+                    p.contains(
+                        "\nref = \"E1\"\nrepo = \"r\"\npath = \"src/main/java/p/Order.java\""))
+            .toList();
+    assertThat(shown).isNotEmpty();
+    assertThat(String.join("\n", shown).split("\nlines = \"", -1).length - 1)
+        .isEqualTo(shown.stream().mapToLong(p -> p.split("\nref = \"E1\"", -1).length - 1).sum());
     assertThat(prompts.getLast()).contains("Part 1: ").contains("E1");
     Fact kind = facts.stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
     assertThat(summary.citedFacts()).contains(kind.id());
+  }
+
+  @Test
+  void aVeryLargeClassIsSummarizedInPartsThatEachStayUnderTheCeiling() throws Exception {
+    // A class whose source alone is far over the ceiling, in a model whose window would take it
+    // whole: its file is shown in slices of lines, so no request passes the price tier (#874).
+    String source = ExcerptsTest.ORDER + "  // a line of a very large class\n".repeat(3_000);
+    List<Fact> facts = new ArrayList<>(orderWithSource(blob(source)).facts());
+    SummaryNode order =
+        new SummaryNode(EntityId.parse("type:p.Order"), SummaryLevel.TYPE, facts, List.of());
+    SourceFiles files = TestFacts.files((repo, path) -> Optional.of(source));
+    fake.answering(Answers.epic(request -> citingWhatItSees(request, 0)));
+    long ceiling = 6_000;
+    Harness harness =
+        harness(smallWindowClient(1_000_000))
+            .packingUpTo(new io.lantern.harness.Packing.Limits(ceiling, 1, 0));
+
+    Summary summary =
+        new Summarizer(harness, files).summarize(List.of(order)).summaries().get(order.entity());
+
+    assertThat(summary).isNotNull();
+    List<LlmRequest> sent = fake.sent().stream().map(s -> s.request()).toList();
+    assertThat(sent)
+        .allSatisfy(r -> assertThat(r.estimatedInputTokens()).isLessThanOrEqualTo(ceiling));
+    List<String> slices =
+        sent.stream()
+            .map(r -> r.messages().getFirst().text())
+            .filter(p -> p.contains("\nref = \"E1\"\n"))
+            .toList();
+    assertThat(slices).hasSizeGreaterThan(2);
+    assertThat(slices.getFirst()).contains("\nlines = \"1-");
+    assertThat(slices.get(1)).doesNotContain("\nlines = \"1-");
+  }
+
+  @Test
+  void aCeilingOnInputLeavesNoRoomForThinkingWhichIsNotInput() {
+    SummaryNode big = largeType(1);
+    ModelConfig model = fake.model("m").withThinking(new Thinking(false, 4_000));
+
+    assertThat(Summarizer.promptBudget(big, model, 50_000))
+        .isEqualTo(
+            (long) (50_000 / model.estimateTokenScale())
+                - io.lantern.llm.Tokens.estimate(Prompt.SYSTEM)
+                - SummaryLevel.TYPE.maxOutputTokens() * 3 / 2
+                - 400
+                - 100);
+    assertThat(Summarizer.promptBudget(big, model, Long.MAX_VALUE))
+        .isEqualTo(Summarizer.promptBudget(big, model));
   }
 
   @Test

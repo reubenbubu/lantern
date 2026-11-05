@@ -37,11 +37,11 @@ class FakeLlmConfiguration {
   /** The profile that turns the fake on. */
   static final String PROFILE = "fake-llm";
 
-  private static final Pattern SUBJECT = Pattern.compile("(?m)^Unit: (.+)$");
+  private static final Pattern SUBJECT = Pattern.compile("(?m)^(?:Unit: (.+)|unit = \"(.+)\")$");
 
   /** A reference a summarize request shows, such as {@code [F1]} or {@code ref="E1"}. */
   private static final Pattern SUMMARY_REF =
-      Pattern.compile("\\[([FS][0-9]+)\\]|ref=\"(E[0-9]+)\"|[\\[ ]([FES][0-9]+)[\\],]");
+      Pattern.compile("\\[([FS][0-9]+)\\]|ref ?= ?\"(E[0-9]+)\"|[\\[ ]([FES][0-9]+)[\\],]");
 
   @Bean
   FakeLlmProvider fakeLlmProvider() {
@@ -94,12 +94,44 @@ class FakeLlmConfiguration {
    * one citing its first fact or excerpt; a merge cites the first reference its parts cite.
    */
   static String summarize(LlmRequest request) {
-    String subject = subject(request.messages().getFirst().text());
-    return summarize(
-        request,
-        "{{placeholder: summary of " + subject + " from its parts}}.",
-        "{{placeholder: description of " + subject + " from its facts}}.");
+    if (!request.system().contains("Task: summarise code units.")) {
+      return null;
+    }
+    // A packed request holds several items (#874), each answered from its own table.
+    String prompt = request.messages().getFirst().text();
+    Matcher table = ITEM_TABLE.matcher(prompt);
+    List<Integer> starts = new ArrayList<>();
+    List<String> ids = new ArrayList<>();
+    while (table.find()) {
+      starts.add(table.start());
+      ids.add(table.group(1));
+    }
+    if (ids.size() < 2) {
+      String subject = subject(prompt);
+      return summarize(
+          request,
+          "{{placeholder: summary of " + subject + " from its parts}}.",
+          "{{placeholder: description of " + subject + " from its facts}}.");
+    }
+    StringBuilder answer = new StringBuilder();
+    for (int i = 0; i < ids.size(); i++) {
+      String section =
+          prompt.substring(starts.get(i), i + 1 < ids.size() ? starts.get(i + 1) : prompt.length());
+      String subject = subject(section);
+      answer
+          .append(
+              answer(
+                  ids.get(i),
+                  section,
+                  "{{placeholder: summary of " + subject + " from its parts}}.",
+                  "{{placeholder: description of " + subject + " from its facts}}."))
+          .append('\n');
+    }
+    return answer.toString();
   }
+
+  /** An item's table in a Summarize request. */
+  private static final Pattern ITEM_TABLE = Pattern.compile("(?m)^\\[item\\.(I\\d+)\\]$");
 
   /**
    * A Summarize answer as {@link #summarize(LlmRequest)} gives, with the given sentences, or null
@@ -109,38 +141,61 @@ class FakeLlmConfiguration {
     if (!request.system().contains("Task: summarise code units.")) {
       return null;
     }
-    String prompt = request.messages().getFirst().text();
+    return answer("I1", request.messages().getFirst().text(), fromParts, fromFacts);
+  }
+
+  /** The answer to one item of a Summarize request, as table {@code id}. */
+  private static String answer(String id, String prompt, String fromParts, String fromFacts) {
     List<String> sentences = new ArrayList<>();
-    if (prompt.contains("[S1]")) {
-      sentences.add(sentence(fromParts, "S1"));
+    Matcher child = CHILD_REF.matcher(prompt);
+    if (child.find()) {
+      sentences.add(sentence(id, fromParts, child.group(1)));
     }
+    // The first fact by number, else the first code excerpt or other reference: lean facts are
+    // listed by file and subject (#873), so the first in the text need not be the first fact.
     Matcher ref = SUMMARY_REF.matcher(prompt);
+    String first = null;
     while (ref.find()) {
       String found =
           ref.group(1) != null ? ref.group(1) : ref.group(2) != null ? ref.group(2) : ref.group(3);
-      if (!found.startsWith("S")) {
-        sentences.add(sentence(fromFacts, found));
-        break;
+      if (found.startsWith("S")) {
+        continue;
+      }
+      if (first == null
+          || (found.startsWith("F")
+              && (!first.startsWith("F")
+                  || Integer.parseInt(found.substring(1))
+                      < Integer.parseInt(first.substring(1))))) {
+        first = found;
       }
     }
-    if (sentences.isEmpty()) {
-      return "{\"items\": {\"I1\": {\"omitted\": true}}}";
+    if (first != null) {
+      sentences.add(sentence(id, fromFacts, first));
     }
-    return "{\"items\": {\"I1\": {\"sentences\": [" + String.join(", ", sentences) + "]}}}";
+    // In TOML, as the role asks since #872.
+    if (sentences.isEmpty()) {
+      return "[" + id + "]\nomitted = true\n";
+    }
+    return "[" + id + "]\n" + String.join("", sentences);
   }
+
+  /** A contained summary's reference as an item lists it, at the start of its line. */
+  private static final Pattern CHILD_REF = Pattern.compile("(?m)^\\[(S\\d+)\\]");
 
   /** What the summary prompt says is summarized, such as "type Order in package a.b". */
   private static String subject(String prompt) {
     Matcher unit = SUBJECT.matcher(prompt);
-    return unit.find() ? unit.group(1) : "the unit";
+    return unit.find() ? (unit.group(1) != null ? unit.group(1) : unit.group(2)) : "the unit";
   }
 
-  private static String sentence(String text, String cite) {
-    return "{\"text\": \""
-        + text.replace("\\", "\\\\").replace("\"", "\\\"")
-        + "\", \"cites\": [\""
-        + cite
-        + "\"]}";
+  private static String sentence(String id, String text, String cite) {
+    return "[["
+        + id
+        + ".sentences]]\ntext = "
+        + io.lantern.harness.Toml.basic(text)
+        + "\ncites = ["
+        + io.lantern.harness.Toml.basic(cite)
+        + "]\n";
   }
 
   /**

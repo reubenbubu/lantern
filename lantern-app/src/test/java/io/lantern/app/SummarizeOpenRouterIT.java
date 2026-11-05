@@ -72,11 +72,11 @@ import tools.jackson.databind.node.ObjectNode;
  * names for it (Claude Haiku through OpenRouter in {@code llm-openrouter.properties}), within a
  * cost cap. It writes, per run, every request and answer (a folder {@code lantern.llm.replay-from}
  * can replay for free), what the checks kept and dropped and why, the repairs and re-asks, the
- * tokens by kind, the time and the cost, to {@code
- * ~/workspace/lantern-llm-logs/summarize/<time>-<description>/} (written in {@code current/} while
- * the run goes on, to watch, and moved there when it ends), and each call, as soon as it finishes,
- * as plain text to read in its {@code log/}. It is the measuring stick of the Summarize changes
- * that follow it (#872 to #875).
+ * tokens by kind, the time and the cost, to the checkout's git-ignored {@code
+ * workspace/llm-logs/summarize/<time>-<description>/} (written in {@code current/} while the run
+ * goes on, to watch, and moved there when it ends), and each call, as soon as it finishes, as plain
+ * text to read in its {@code log/}. It is the measuring stick of the Summarize changes that follow
+ * it (#872 to #875).
  *
  * <p>It costs money, so it runs only when asked, never in the full check: when {@code
  * lantern.test.summarize-run} names the documents folder of an analyze run of project-4 (its {@code
@@ -85,10 +85,14 @@ import tools.jackson.databind.node.ObjectNode;
  * the OpenRouter key, and {@code lantern.test.summarize-description} says what the run tests, such
  * as "Baseline: today's format against Haiku through OpenRouter", written at the top of its report,
  * README and logs and into its folder's name. {@code lantern.test.summarize-items} (default 10)
- * says how many classes, and {@code lantern.test.summarize-cap} (default 0.10) the most US dollars
- * it may spend: a call whose worst case would pass it is not made. {@code
- * lantern.test.llm-properties} names another settings file. Commands: the {@code lantern-commands}
- * skill.
+ * says how many classes, or {@code lantern.test.summarize-classes} names a file that lists them
+ * (such as {@code summarize/project-4-hard-classes.txt} in the test resources), and {@code
+ * lantern.test.summarize-cap} (default 0.10) the most US dollars it may spend: a call whose worst
+ * case would pass it is not made. {@code lantern.test.llm-properties} names another settings file.
+ * {@code lantern.test.summarize-packet-items} packs that many types at most into one request
+ * (#874), under {@code lantern.test.summarize-packet-tokens} of input (default 80,000), leaving
+ * {@code lantern.test.summarize-thinking-per-item} output tokens per type for thinking (default
+ * 1,500). Commands: the {@code lantern-commands} skill.
  */
 @EnabledIfSystemProperty(
     named = "lantern.test.summarize-run",
@@ -99,10 +103,11 @@ class SummarizeOpenRouterIT {
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
   /**
-   * Where runs go unless {@code lantern.test.summarize-out} says otherwise: outside the checkout.
+   * Where runs go unless {@code lantern.test.summarize-out} says otherwise: the checkout's own
+   * {@code workspace/}, which git ignores (#878).
    */
   private static final Path DEFAULT_OUT =
-      Path.of(System.getProperty("user.home"), "workspace", "lantern-llm-logs", "summarize");
+      Path.of("..", "workspace", "llm-logs", "summarize").toAbsolutePath().normalize();
 
   /** The folder a run writes into while it goes on. */
   static final String CURRENT = "current";
@@ -162,7 +167,9 @@ class SummarizeOpenRouterIT {
     SummaryTree.fromFacts(summarizable, AnalysisRun.modelTypes(linked))
         .forEach(root -> collectTypes(root, types));
     types.sort(Comparator.comparing(n -> n.entity().toString()));
-    List<SummaryNode> chosen = spread(types, items);
+    String classes = System.getProperty("lantern.test.summarize-classes");
+    List<SummaryNode> chosen =
+        classes == null ? spread(types, items) : listed(types, Path.of(classes));
 
     // The prompts of the checkout, as a run reads them, so an edit there needs no rebuild.
     if (System.getProperty(io.lantern.harness.Prompts.FOLDER_PROPERTY) == null) {
@@ -195,6 +202,17 @@ class SummarizeOpenRouterIT {
     Harness harness =
         new Harness(client, new InMemoryAnswerStore(), RunBudget.NONE, (r, p) -> null, Set.of())
             .batchingAbove(Integer.MAX_VALUE);
+    // Types share requests when asked (#874): at most this many per request, under the input
+    // ceiling, with this much room per type to think.
+    String packetItems = System.getProperty("lantern.test.summarize-packet-items");
+    if (packetItems != null) {
+      harness.packingUpTo(
+          new io.lantern.harness.Packing.Limits(
+              Long.parseLong(System.getProperty("lantern.test.summarize-packet-tokens", "80000")),
+              Integer.parseInt(packetItems),
+              Integer.parseInt(
+                  System.getProperty("lantern.test.summarize-thinking-per-item", "1500"))));
+    }
 
     ListAppender<ILoggingEvent> logged = new ListAppender<>();
     logged.start();
@@ -275,6 +293,25 @@ class SummarizeOpenRouterIT {
       return;
     }
     node.children().forEach(child -> collectTypes(child, types));
+  }
+
+  /**
+   * The classes a list file names, in its order: one class ID per line, such as {@code
+   * type:com.crm.auth.cache.UserPermissionRepository}; blank lines and text after {@code #} are
+   * left out.
+   */
+  static List<SummaryNode> listed(List<SummaryNode> types, Path file) throws IOException {
+    Map<String, SummaryNode> byId = new java.util.HashMap<>();
+    types.forEach(t -> byId.put(t.entity().toString(), t));
+    List<SummaryNode> chosen = new ArrayList<>();
+    for (String line : Files.readAllLines(file)) {
+      String id = line.replaceFirst("#.*", "").strip();
+      if (!id.isEmpty()) {
+        assertThat(byId).as("a class the list names").containsKey(id);
+        chosen.add(byId.get(id));
+      }
+    }
+    return chosen;
   }
 
   /** {@code n} of the nodes, evenly spaced over them; all of them when there are fewer. */
@@ -422,17 +459,18 @@ class SummarizeOpenRouterIT {
       for (Path file : files.filter(f -> f.toString().endsWith(".json")).toList()) {
         String text =
             JSON.readTree(Files.readString(file)).path("response").path("text").asString();
-        int start = text.indexOf('{');
-        if (start < 0) {
-          continue;
-        }
         try {
-          JsonNode answer = JSON.readTree(text.substring(start, text.lastIndexOf('}') + 1));
-          for (JsonNode item : answer.path("items")) {
+          // A JSON answer holds its items under "items"; a TOML answer (#872) as top-level tables.
+          JsonNode items =
+              text.strip().startsWith("{")
+                  ? JSON.readTree(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1))
+                      .path("items")
+                  : io.lantern.harness.Toml.read(text).root();
+          for (JsonNode item : items) {
             sentences += item.path("sentences").size();
           }
         } catch (RuntimeException e) {
-          // An answer that is not one JSON object counts no sentences; the checks rejected it.
+          // An answer that is not one document counts no sentences; the checks rejected it.
         }
       }
     }

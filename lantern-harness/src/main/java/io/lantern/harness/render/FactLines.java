@@ -47,27 +47,41 @@ public final class FactLines {
   public static String line(Fact fact, UnaryOperator<String> claims) {
     StringBuilder line = new StringBuilder();
     line.append(fact.subject()).append(' ').append(fact.predicate()).append(' ');
+    line.append(object(fact, claims));
+    String attributes = attributes(fact);
+    if (!attributes.isEmpty()) {
+      line.append(' ').append(attributes);
+    }
+    line.append(" (").append(place(fact)).append(')');
+    return oneLine(Refs.clean(line.toString()));
+  }
+
+  /**
+   * The fact's object as its line writes it: a string in double quotes, escaped; an entity or other
+   * value as it is.
+   */
+  public static String object(Fact fact, UnaryOperator<String> claims) {
     FactObject object = fact.object();
     String value = object.value();
     if (object.kind() == FactObject.Kind.STRING) {
       if (CLAIM_ID.matcher(value).matches()) {
         value = claims.apply(value);
       }
-      line.append('"').append(value.replace("\\", "\\\\").replace("\"", "\\\"")).append('"');
-    } else {
-      line.append(value);
+      return '"' + value.replace("\\", "\\\\").replace("\"", "\\\"") + '"';
     }
+    return value;
+  }
+
+  /** The fact's attributes as compact JSON with sorted keys, as {@link #shown} gives them. */
+  public static String attributes(Fact fact) {
     ObjectNode attributes = shown(fact.attributes());
-    if (!attributes.isEmpty()) {
-      line.append(' ').append(attributes);
-    }
+    return attributes.isEmpty() ? "" : attributes.toString();
+  }
+
+  /** Where the fact was observed: {@code repo:path}, or the repository alone. */
+  public static String place(Fact fact) {
     Evidence evidence = fact.evidence();
-    line.append(" (").append(evidence.repo());
-    if (evidence.path() != null) {
-      line.append(':').append(evidence.path());
-    }
-    line.append(')');
-    return oneLine(Refs.clean(line.toString()));
+    return evidence.path() == null ? evidence.repo() : evidence.repo() + ":" + evidence.path();
   }
 
   /**

@@ -133,6 +133,7 @@ public final class AnalysisRun {
   private volatile int batchAbove = Harness.BATCH_ABOVE;
   private volatile Map<String, Harness.Calibration> calibrations = Map.of();
   private volatile Map<String, Integer> itemsPerRequest = Map.of();
+  private volatile io.lantern.harness.Packing.Limits packets;
   private volatile boolean judgeWording;
   private volatile boolean supportByWriter = true;
   private final RuleRuns ruleRuns;
@@ -200,6 +201,15 @@ public final class AnalysisRun {
    */
   AnalysisRun itemsPerRequest(Map<String, Integer> itemsPerRequest) {
     this.itemsPerRequest = Map.copyOf(itemsPerRequest);
+    return this;
+  }
+
+  /**
+   * Joins the first requests of the roles that say how, such as Summarize's types, into packed
+   * requests cut at these limits ({@code lantern.harness.packets.*}, #874); null packs none.
+   */
+  AnalysisRun packing(io.lantern.harness.Packing.Limits limits) {
+    this.packets = limits;
     return this;
   }
 
@@ -452,6 +462,9 @@ public final class AnalysisRun {
                   (repo, path) -> snapshotFiles.read(repo, path).map(Fingerprints::gitBlob),
                   secrets)
               .batchingAbove(batchAbove);
+      if (packets != null) {
+        harness.packingUpTo(packets);
+      }
       itemsPerRequest.forEach(harness::itemsPerRequest);
       calibrations.forEach(harness::calibrating);
       calibrations.forEach(

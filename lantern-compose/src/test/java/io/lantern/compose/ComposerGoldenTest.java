@@ -122,12 +122,17 @@ class ComposerGoldenTest {
       request.messages().forEach(message -> prompts.append(message.text()));
     }
     assertMatchesGolden(prompts.toString(), "summary-prompts.txt");
-    // Entity IDs reach the model only in fact lines (and in the code of source files).
-    boolean inCode = false;
+    // Entity IDs reach the model only in facts (and in the code of source files): the multi-line
+    // strings of an item's TOML (#872, #873).
+    String block = null;
     for (String line : prompts.toString().lines().toList()) {
-      if (line.startsWith("<code ") || line.equals("</code>")) {
-        inCode = line.startsWith("<code ");
-      } else if (!inCode && !line.startsWith("[F") && !line.startsWith("##### ")) {
+      if (block != null) {
+        if (line.endsWith(block)) {
+          block = null;
+        }
+      } else if (line.matches("^[a-z]+ = (\'\'\'|\"\"\")$")) {
+        block = line.substring(line.length() - 3);
+      } else if (!line.startsWith("##### ")) {
         assertThat(line)
             .as("a prompt line outside facts")
             .doesNotContainPattern(

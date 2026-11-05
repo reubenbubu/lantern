@@ -138,22 +138,32 @@ class FactSheetTest {
     assertThat(prompt)
         .contains(
             """
-            </facts>
-            Of the units it contains, entry points:
-            <facts>
-            [F%d] method:com.example.orders.OrderController#get0() endpoint "GET /orders/0" \
-            (orders:pom.xml)
-            </facts>
-            Of the units it contains, links:
-            <facts>
-            [F%d] method:com.example.orders.PaymentClient#pay() http-call \
-            "POST http://payments/api/payments" (orders:pom.xml)
-            </facts>
-            Of the units it contains, data stores:
-            <facts>
-            [F%d] type:com.example.orders.OrderRepository READS_TABLE \
-            table:com.example:orders:orders (orders:pom.xml)
-            </facts>
+            names = '''
+            OrderController = com.example.orders.OrderController
+            PaymentClient = com.example.orders.PaymentClient
+            OrderRepository = com.example.orders.OrderRepository
+            '''
+            [[item.I1.contained]]
+            about = "Of the units it contains, entry points"
+            facts = '''
+            @ orders:pom.xml
+            OrderController#get0()
+              [F%d] endpoint "GET /orders/0"
+            '''
+            [[item.I1.contained]]
+            about = "Of the units it contains, links"
+            facts = '''
+            @ orders:pom.xml
+            PaymentClient#pay()
+              [F%d] http-call "POST http://payments/api/payments"
+            '''
+            [[item.I1.contained]]
+            about = "Of the units it contains, data stores"
+            facts = '''
+            @ orders:pom.xml
+            OrderRepository
+              [F%d] READS_TABLE table:com.example:orders:orders
+            '''
             """
                 .formatted(facts + 1, facts + 2, facts + 3));
     assertThat(Summarizer.promptFacts(module))

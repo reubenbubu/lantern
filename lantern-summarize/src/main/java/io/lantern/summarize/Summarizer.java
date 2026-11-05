@@ -19,6 +19,7 @@ import io.lantern.harness.Repair;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
+import io.lantern.harness.render.LeanFacts;
 import io.lantern.harness.verify.CheckInputs;
 import io.lantern.harness.verify.CheckedText;
 import io.lantern.harness.verify.Checks;
@@ -176,6 +177,8 @@ public final class Summarizer {
   public Summarizer(Harness harness, SourceFiles sources) {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.sources = Objects.requireNonNull(sources, "sources");
+    // Types may share requests once the harness packs (#874).
+    harness.packs(TYPES.name(), Packets.INSTANCE);
   }
 
   /**
@@ -522,6 +525,25 @@ public final class Summarizer {
   }
 
   /**
+   * As {@link #promptBudget(SummaryNode, ModelConfig)}, within a ceiling on a request's input, such
+   * as a provider's cheaper price tier (#874), in the model's tokens, which counts input only: the
+   * system prompt and, on a retry, the rejected answer (up to its output limit, its estimate up to
+   * half again) and the retry message; thinking is not sent back. A unit larger than that is
+   * summarized in parts that each stay under it.
+   */
+  static long promptBudget(SummaryNode node, ModelConfig model, long ceiling) {
+    long window = promptBudget(node, model);
+    if (ceiling == Long.MAX_VALUE) {
+      return window;
+    }
+    // The ceiling is in the model's tokens; the budget, in Lantern's estimate of them.
+    long estimated = (long) (ceiling / model.estimateTokenScale());
+    long answer = node.level().maxOutputTokens();
+    return Math.min(
+        window, estimated - Tokens.estimate(Prompt.SYSTEM) - answer * 3 / 2 - REPAIR_TOKENS - 100);
+  }
+
+  /**
    * Splits items into groups, keeping their order, so that each group's size plus the overhead
    * stays within the budget; an item larger than that on its own forms a group by itself.
    */
@@ -664,7 +686,8 @@ public final class Summarizer {
         ModelConfig model = session.model();
         running.put(
             session,
-            session.batching()
+            // A role that batches or packs sends its requests together, so they wait for no slot.
+            session.batching() || session.packing()
                 ? new Semaphore(Integer.MAX_VALUE, true)
                 : lanes.computeIfAbsent(
                     model.provider() + '\u0000' + model.model(),
@@ -853,7 +876,7 @@ public final class Summarizer {
       Inputs inputs = new Inputs(node, excerpts, children);
       String purpose =
           "summarize " + node.level().name().toLowerCase(Locale.ROOT) + " " + node.entity();
-      long budget = promptBudget(node, session(node).model());
+      long budget = promptBudget(node, session(node).model(), harness.promptCeiling());
       String whole =
           Prompt.user(node, inputs.facts, inputs.sheet, inputs.excerpts, inputs.children, null);
       int sentences = maxSentences(node, children.size());
@@ -881,7 +904,7 @@ public final class Summarizer {
                   node,
                   inputs.only(inputs.facts, part),
                   inputs.only(inputs.sheet, part),
-                  inputs.only(inputs.excerpts, part),
+                  inputs.only(inputs.sliced(), part),
                   inputs.only(inputs.children, part),
                   new Prompt.Part(i + 1, parts.size()));
           Set<String> shown = new HashSet<>();
@@ -1071,15 +1094,28 @@ public final class Summarizer {
       if (response.cutOff()) {
         throw rejected("", "It was cut off at the length limit; write shorter sentences.");
       }
-      JsonNode entry = entry(response.text());
-      if (entry == null) {
-        String fault = io.lantern.harness.JsonFaults.of(response.text(), Prompt.ITEM);
+      JsonNode entry;
+      try {
+        entry = entry(response.text());
+      } catch (io.lantern.harness.Toml.Fault fault) {
         throw rejected(
             "",
-            "Your answer is not one JSON object with an entry for "
+            "Your answer is not one TOML document with a table "
                 + Prompt.ITEM
-                + " under \"items\""
-                + (fault == null ? "." : ": " + fault + "."));
+                + ": "
+                + fault.getMessage()
+                + ".");
+      }
+      if (entry == null) {
+        throw rejected(
+            "",
+            "Your answer is not one TOML document with a table "
+                + Prompt.ITEM
+                + "; write it as ["
+                + Prompt.ITEM
+                + "] followed by its [["
+                + Prompt.ITEM
+                + ".sentences]] tables.");
       }
       CheckInputs checks = inputs.checks(allowed);
       // A sentence outside the schema, such as one that cites nothing, or past the count the item
@@ -1130,7 +1166,7 @@ public final class Summarizer {
         if (!noneLeft) {
           all.addAll(schema);
         }
-        throw new Rejected(Pipeline.repairTurn(all));
+        throw new Rejected(Pipeline.repairTurn(all, Prompt.FORMAT));
       }
       if (new ItemAnswer(Prompt.ITEM, entry, List.of(), List.of()).omitted()) {
         return Answer.OMITTED;
@@ -1229,7 +1265,7 @@ public final class Summarizer {
         }
       }
       if (kept.isEmpty()) {
-        throw new Rejected(Pipeline.repairTurn(dropped));
+        throw new Rejected(Pipeline.repairTurn(dropped, Prompt.FORMAT));
       }
       if (first && !firstKept) {
         List<Rejection> lead = new ArrayList<>(dropped);
@@ -1240,7 +1276,7 @@ public final class Summarizer {
                 "Form",
                 "The first sentence was left out, so the others would stand without it; write the"
                     + " whole summary again, opening with what the unit is for."));
-        throw new Rejected(Pipeline.repairTurn(lead));
+        throw new Rejected(Pipeline.repairTurn(lead, Prompt.FORMAT));
       }
       if (!firstKept) {
         // A retried answer that lost its first sentence leads with one written to follow it, which
@@ -1257,7 +1293,7 @@ public final class Summarizer {
                       + "\" would lead the summary, but opens with a pronoun or its kind."));
         }
         if (kept.isEmpty()) {
-          throw new Rejected(Pipeline.repairTurn(dropped));
+          throw new Rejected(Pipeline.repairTurn(dropped, Prompt.FORMAT));
         }
       }
       if (!dropped.isEmpty()) {
@@ -1316,30 +1352,38 @@ public final class Summarizer {
     /** A rejection of the whole answer, as the repair turn sends it. */
     private static Rejected rejected(String field, String reason) {
       return new Rejected(
-          Pipeline.repairTurn(List.of(new Rejection(Prompt.ITEM, field, "Schema", reason))));
+          Pipeline.repairTurn(
+              List.of(new Rejection(Prompt.ITEM, field, "Schema", reason)), Prompt.FORMAT));
     }
 
-    /** The item's entry of an answer envelope, or {@code null} if the answer has none. */
+    /**
+     * The item's entry of an answer, or {@code null} if the answer has none: a TOML document whose
+     * table is the item's (#872), or, from a model that answers in JSON all the same, the JSON
+     * envelope's entry.
+     *
+     * @throws io.lantern.harness.Toml.Fault if the answer is neither, saying why
+     */
     private static JsonNode entry(String text) {
-      // The first complete object; text after it is logged and left out (#744).
-      io.lantern.harness.JsonFaults.First first = io.lantern.harness.JsonFaults.first(text);
-      JsonNode root;
-      if (first != null) {
-        root = first.object();
-        if (!first.rest().isEmpty()) {
-          LOG.info("Left out the text after the answer's JSON object: {}", logged(first.rest()));
-        }
-      } else {
-        try {
-          root = JSON.readTree(stripFence(text));
-        } catch (RuntimeException e) {
-          return null;
+      String body = stripFence(text);
+      if (body.startsWith("{")) {
+        // The first complete object; text after it is logged and left out (#744).
+        io.lantern.harness.JsonFaults.First first = io.lantern.harness.JsonFaults.first(text);
+        if (first != null) {
+          if (!first.rest().isEmpty()) {
+            LOG.info("Left out the text after the answer's JSON object: {}", logged(first.rest()));
+          }
+          JsonNode entry = first.object().path("items").get(Prompt.ITEM);
+          return entry == null || entry.isNull() ? null : entry;
         }
       }
-      if (root == null || !root.isObject()) {
-        return null;
+      io.lantern.harness.Toml.Read read = io.lantern.harness.Toml.read(text);
+      if (!read.before().isEmpty()) {
+        LOG.info("Left out the text before the answer's TOML: {}", logged(read.before()));
       }
-      JsonNode entry = root.path("items").get(Prompt.ITEM);
+      if (!read.after().isEmpty()) {
+        LOG.info("Left out the text after the answer's TOML: {}", logged(read.after()));
+      }
+      JsonNode entry = read.root().get(Prompt.ITEM);
       return entry == null || entry.isNull() ? null : entry;
     }
 
@@ -1403,6 +1447,11 @@ public final class Summarizer {
     final List<Prompt.Item> excerpts;
     final List<Prompt.Item> children;
 
+    /** The source files as the unit's parts show them: a very large one in slices of lines. */
+    private final List<Excerpts.Excerpt> files;
+
+    private List<Prompt.Item> sliced = List.of();
+
     /**
      * The references that can show what a unit is for, as people wrote it: README claims, source
      * files with Javadoc, and parts' summaries whose purpose is evidenced.
@@ -1426,11 +1475,20 @@ public final class Summarizer {
       this.facts = Prompt.facts(node.facts());
       this.sheet = Prompt.sheet(sheet, node.facts().size());
       this.excerpts = Prompt.excerpts(excerpts);
+      this.files = List.copyOf(excerpts);
       this.children = Prompt.children(children);
       this.subject = Prompt.describe(node.level(), node.entity());
       for (List<Prompt.Item> items :
           List.of(this.facts, this.sheet, this.excerpts, this.children)) {
-        items.forEach(item -> texts.put(item.ref(), item.text()));
+        // A fact's text for the checks is its full line, and the line with short class names as
+        // the lean form shows it, so a name the model copied from the prompt is found (#873).
+        items.forEach(
+            item ->
+                texts.put(
+                    item.ref(),
+                    item.fact() == null
+                        ? item.text()
+                        : item.text() + "\n" + LeanFacts.shortNames(item.text())));
       }
       List<Fact> facts = promptFacts(node);
       for (int i = 0; i < facts.size(); i++) {
@@ -1473,7 +1531,6 @@ public final class Summarizer {
     List<List<Prompt.Item>> parts(long budget) {
       List<Prompt.Item> all = new ArrayList<>(facts);
       all.addAll(sheet);
-      all.addAll(excerpts);
       all.addAll(children);
       // The headings of all sections and of the fact sheet's groups and the longest part number,
       // written once.
@@ -1492,7 +1549,20 @@ public final class Summarizer {
                   excerpts.isEmpty() ? List.of() : List.of(new Prompt.Item("E1", "")),
                   children.isEmpty() ? List.of() : List.of(new Prompt.Item("S1", "")),
                   new Prompt.Part(all.size(), all.size())));
+      // A source file larger than a part may show goes in slices of its lines, each in a part of
+      // its own if need be, so no request passes the ceiling.
+      List<Prompt.Item> code = new ArrayList<>();
+      for (int i = 0; i < files.size(); i++) {
+        code.addAll(Prompt.slices("E" + (i + 1), files.get(i), Math.max(1, budget - overhead - 1)));
+      }
+      sliced = code;
+      all.addAll(facts.size() + sheet.size(), code);
       return pack(all, item -> Tokens.estimate(item.rendered()) + 1, overhead, budget);
+    }
+
+    /** The source files' items of the last {@link #parts} split: whole, or in slices. */
+    List<Prompt.Item> sliced() {
+      return sliced;
     }
 
     /** The items of a kind that are in the part. */

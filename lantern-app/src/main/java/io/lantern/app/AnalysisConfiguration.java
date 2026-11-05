@@ -102,7 +102,38 @@ class AnalysisConfiguration {
         .judgingWording(judgeWording)
         .supportJudgedBy(environment.getProperty("lantern.harness.support-judge.model", "writer"))
         .calibrating(calibrations(calibrate, calibrationTrial))
-        .itemsPerRequest(itemsPerRequest(environment::getProperty));
+        .itemsPerRequest(itemsPerRequest(environment::getProperty))
+        .packing(packets(environment::getProperty));
+  }
+
+  /**
+   * How the first requests of the roles that join them are packed (#874): at most {@code
+   * lantern.harness.packets.items} items a request, under {@code
+   * lantern.harness.packets.input-tokens} input tokens of the model, leaving {@code
+   * lantern.harness.packets.thinking-per-item} output tokens an item for thinking; no packing
+   * without {@code items}.
+   */
+  static io.lantern.harness.Packing.Limits packets(
+      java.util.function.Function<String, String> properties) {
+    String items = properties.apply("lantern.harness.packets.items");
+    if (items == null || items.isBlank()) {
+      return null;
+    }
+    return new io.lantern.harness.Packing.Limits(
+        number(properties, "lantern.harness.packets.input-tokens", "90000"),
+        (int) number(properties, "lantern.harness.packets.items", items),
+        (int) number(properties, "lantern.harness.packets.thinking-per-item", "1500"));
+  }
+
+  private static long number(
+      java.util.function.Function<String, String> properties, String key, String otherwise) {
+    String value = properties.apply(key);
+    value = value == null || value.isBlank() ? otherwise : value.strip();
+    try {
+      return Long.parseLong(value);
+    } catch (NumberFormatException e) {
+      throw new IllegalStateException(key + " needs a whole number: " + value, e);
+    }
   }
 
   /**

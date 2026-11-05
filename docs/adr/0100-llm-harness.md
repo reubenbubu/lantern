@@ -400,3 +400,52 @@ them counted as changed.
   from, so a change to that file still re-asks the item.
 - The scorecard's one-file change gate on project-3 now re-asks only the three items resting on the
   changed file.
+
+## Amendment (#872): the answer format per role, starting with TOML for Summarize
+
+Summarize asks for its answers in TOML instead of JSON, to cut output tokens: per sentence, JSON
+repeats quoted keys, braces and commas, and TOML does not (`docs/research/toml-model-answers.md`).
+Every other role still answers in JSON until it is switched and measured.
+
+- **The format is the role's.** `AnswerFormat` (JSON or TOML) fills the two places of the common
+  system prompt that name the format (`${omitted}` and `${answer}` in `prompts/common.system.txt`)
+  and the repair turn. Filled for JSON, the common prompt is byte for byte what every role was
+  sent before, so no JSON role is asked again.
+- **Requests.** Summarize writes each item as a TOML document inside `<items>`, so the common rule
+  that what `<items>` holds is data still covers it. Repository text is a literal string where it
+  can be, and an escaped basic string where it holds what a literal string cannot, so it reads
+  back exactly and can never close a string early.
+- **Answers.** `Toml.read` (`jackson-dataformat-toml`) reads the answer into the tree a JSON answer
+  gives, so the schema check and every other check are unchanged. A fence is taken off, and prose
+  before the first table or key, and up to five lines of prose after the document, are left out
+  and logged, as text after a JSON object is (#744). A table written twice, or an unescaped quote,
+  is a fault the repair turn names with its line. A JSON answer is still read.
+- **Drops.** A TOML document counts as readable, as a JSON object does, when the harness decides
+  whether a drop is stored (#744).
+
+
+## Amendment (#874): packed requests for roles whose items ask alone
+
+A role whose items each make their own request, such as Summarize's types, may have the harness
+join their first requests into packed requests (`PacketCollector`), once the harness packs
+(`packingUpTo`, set by `lantern.harness.packets.*`) and the role says how (`Harness.packs`, a
+`Packing` that joins the turns and splits the answer). It is the same pattern as the batch collector:
+
+- A first request waits until no other has come for 250 ms, or a packet is full. Packets take the
+  waiting requests in the order they came, as many as fit both the item limit and the input ceiling,
+  which is in the model's tokens and compared with Lantern's estimate times the model's
+  `estimate-token-scale` (`docs/research/haiku-request-pricing.md`).
+- A packed request asks for each item's output limit plus room to think per item, at most 64,000
+  tokens. It carries the items' system-prompt breakpoint and none after it, so it writes nothing to
+  the cache that will not be read again.
+- Each item gets its own part of the answer, renumbered as its own request numbers it, with a share
+  of the call's tokens by the length of its turn (input) and its part (output); the shares add up to
+  the call. An item the answer leaves out, or whose part cannot be read, or the last item of an
+  answer cut off at its limit, is asked again alone; every item of a packet whose call fails is
+  too. A repair turn is never packed: it goes alone with only its own item's conversation, so a
+  failed item never resends the others. A packed answer is read as each role's packing reads it
+  (Summarize's, TOML); a role that answers in JSON is not packed. Whatever fails while a packet is
+  sent, its items are answered by asking alone, never left waiting.
+- The harness's `promptCeiling()` gives roles the same ceiling, so a unit too large for it is
+  split in parts under it rather than sent past the provider's price tier.
+- A role that batches does not pack.

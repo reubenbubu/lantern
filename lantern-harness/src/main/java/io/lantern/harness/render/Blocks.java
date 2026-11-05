@@ -88,12 +88,33 @@ public final class Blocks {
         .append('-')
         .append(last)
         .append("\">\n");
+    out.append(numbered(lines, first, width));
+    return out.append("</code>").toString();
+  }
+
+  /**
+   * The code's lines, each after its number right-aligned to the widest, as a code block shows
+   * them, the last line ending with a line break.
+   */
+  public static String numbered(String text, int first) {
+    List<String> lines = Refs.clean(text).lines().toList();
+    int last = first + Math.max(lines.size(), 1) - 1;
+    return numbered(lines, first, String.valueOf(last).length());
+  }
+
+  private static String numbered(List<String> lines, int first, int width) {
+    StringBuilder out = new StringBuilder();
     for (int i = 0; i < lines.size(); i++) {
       String number = String.valueOf(first + i);
       out.append(" ".repeat(width - number.length())).append(number).append("  ");
       out.append(lines.get(i)).append('\n');
     }
-    return out.append("</code>").toString();
+    return out.toString();
+  }
+
+  /** The number of the last line of the code, starting at the given one. */
+  public static int last(String text, int first) {
+    return first + Math.max((int) Refs.clean(text).lines().count(), 1) - 1;
   }
 
   /**
