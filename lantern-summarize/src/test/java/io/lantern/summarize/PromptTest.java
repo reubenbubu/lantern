@@ -24,7 +24,7 @@ class PromptTest {
   private static final String VERSION = "20";
 
   private static final String FINGERPRINT =
-      "fc45f2b3c62631814911d572b6e0373f19cd8daa352cd04e7f259d9b90817fb5";
+      "85b29eb30a42990b7fe7683bf905add9251ea5fe6ac299da54f0bb7ec7d8b58d";
 
   @Test
   void promptVersionChangesWithThePrompt() throws Exception {
@@ -143,7 +143,7 @@ class PromptTest {
             """
             [item.I1]
             unit = "type PriceService in package com.example.shop"
-            ask = "Write 2 to 4 sentences of 10 to 30 words each."
+            ask = "Write 3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little for more)."
             facts = '''
             @ shop:pom.xml
             PriceService
@@ -212,9 +212,9 @@ class PromptTest {
             [item.I1]
             unit = "type PriceService in package com.example.shop"
             ask = "What is known about this unit was too long for one request, so it was \
-            summarised in parts. Merge the summaries of the parts into one summary of 2 to 4 \
-            sentences of 10 to 30 words each. Cite the references the parts cite for what you take \
-            from them."
+            summarised in parts. Merge the summaries of the parts into one summary of 3 to 4 \
+            sentences of 10 to 30 words each (2 when its inputs give too little for more). Cite the \
+            references the parts cite for what you take from them."
             parts = '''
             Part 1: It is an interface. [F1]
             Part 2: It prices. [F2]
@@ -261,10 +261,14 @@ class PromptTest {
       assertThat(level.minSentences()).isPositive().isLessThanOrEqualTo(level.maxSentences());
       // The schema allows six.
       assertThat(level.maxSentences()).isLessThanOrEqualTo(6);
+      // A type is asked one more than the fewest it may have (#874).
       assertThat(Prompt.length(level))
           .isEqualTo(
-              "%d to %d sentences of 10 to 30 words each"
-                  .formatted(level.minSentences(), level.maxSentences()));
+              level == SummaryLevel.TYPE
+                  ? "3 to 4 sentences of 10 to 30 words each (2 when its inputs give too little"
+                      + " for more)"
+                  : "%d to %d sentences of 10 to 30 words each"
+                      .formatted(level.minSentences(), level.maxSentences()));
     }
   }
 

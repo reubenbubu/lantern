@@ -128,6 +128,15 @@ public final class Harness {
     return packetLimits;
   }
 
+  /**
+   * The most input tokens any request of a packing role should take, so it stays in the provider's
+   * cheaper price tier (#874); no limit when the harness does not pack.
+   */
+  public long promptCeiling() {
+    Packing.Limits limits = packetLimits;
+    return limits == null ? Long.MAX_VALUE : limits.inputTokens();
+  }
+
   /** How the named role's requests are joined, or null if they are not. */
   Packing packing(String role) {
     return packings.get(role);

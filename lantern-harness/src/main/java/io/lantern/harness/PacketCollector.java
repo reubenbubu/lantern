@@ -46,16 +46,23 @@ final class PacketCollector {
   private final LlmClient client;
   private final Packing packing;
   private final Packing.Limits limits;
+  private final double tokenScale;
   private final Duration quiet;
   private final List<Pending> pending = new ArrayList<>();
   private long lastAdded;
   private boolean flushing;
 
-  PacketCollector(LlmClient client, Packing packing, Packing.Limits limits) {
-    this(client, packing, limits, QUIET);
+  /**
+   * @param tokenScale how many of the model's tokens one token of Lantern's estimate is, since the
+   *     ceiling is in the model's tokens
+   */
+  PacketCollector(LlmClient client, Packing packing, Packing.Limits limits, double tokenScale) {
+    this(client, packing, limits, tokenScale, QUIET);
   }
 
-  PacketCollector(LlmClient client, Packing packing, Packing.Limits limits, Duration quiet) {
+  PacketCollector(
+      LlmClient client, Packing packing, Packing.Limits limits, double tokenScale, Duration quiet) {
+    this.tokenScale = tokenScale;
     this.client = Objects.requireNonNull(client, "client");
     this.packing = Objects.requireNonNull(packing, "packing");
     this.limits = Objects.requireNonNull(limits, "limits");
@@ -155,8 +162,11 @@ final class PacketCollector {
     return packet;
   }
 
-  /** The estimated input of a packed request of these items: one system prompt, every turn. */
-  private static long inputTokens(List<Pending> packet) {
+  /**
+   * The input of a packed request of these items in the model's tokens, as estimated: one system
+   * prompt, every turn.
+   */
+  private long inputTokens(List<Pending> packet) {
     if (packet.isEmpty()) {
       return 0;
     }
@@ -165,7 +175,7 @@ final class PacketCollector {
     for (Pending p : packet) {
       tokens += Tokens.estimate(p.request().messages().getFirst().text());
     }
-    return tokens;
+    return (long) Math.ceil(tokens * tokenScale);
   }
 
   private void send(List<Pending> packet) {

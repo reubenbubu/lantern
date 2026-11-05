@@ -2157,7 +2157,7 @@ class SummarizerTest {
   }
 
   @Test
-  void aSplitTypeShowsItsSourceFileInOnePartAndKeepsItsCitation() throws Exception {
+  void aSplitTypeShowsItsSourceFileInPartsAndKeepsItsCitation() throws Exception {
     String source = ExcerptsTest.ORDER + "// filler\n".repeat(500);
     List<Fact> facts = new ArrayList<>(orderWithSource(blob(source)).facts());
     TestFacts methods = new TestFacts();
@@ -2179,13 +2179,68 @@ class SummarizerTest {
     List<String> prompts =
         fake.sent().stream().map(s -> s.request().messages().getFirst().text()).toList();
     assertThat(prompts.size()).isGreaterThan(2);
-    assertThat(prompts)
-        .filteredOn(
-            p -> p.contains("\nref = \"E1\"\nrepo = \"r\"\npath = \"src/main/java/p/Order.java\""))
-        .hasSize(1);
+    // A file larger than a part may show comes in slices of its lines, each shown once (#874).
+    List<String> shown =
+        prompts.stream()
+            .filter(
+                p ->
+                    p.contains(
+                        "\nref = \"E1\"\nrepo = \"r\"\npath = \"src/main/java/p/Order.java\""))
+            .toList();
+    assertThat(shown).isNotEmpty();
+    assertThat(String.join("\n", shown).split("\nlines = \"", -1).length - 1)
+        .isEqualTo(shown.stream().mapToLong(p -> p.split("\nref = \"E1\"", -1).length - 1).sum());
     assertThat(prompts.getLast()).contains("Part 1: ").contains("E1");
     Fact kind = facts.stream().filter(f -> f.predicate().equals("kind")).findFirst().get();
     assertThat(summary.citedFacts()).contains(kind.id());
+  }
+
+  @Test
+  void aVeryLargeClassIsSummarizedInPartsThatEachStayUnderTheCeiling() throws Exception {
+    // A class whose source alone is far over the ceiling, in a model whose window would take it
+    // whole: its file is shown in slices of lines, so no request passes the price tier (#874).
+    String source = ExcerptsTest.ORDER + "  // a line of a very large class\n".repeat(3_000);
+    List<Fact> facts = new ArrayList<>(orderWithSource(blob(source)).facts());
+    SummaryNode order =
+        new SummaryNode(EntityId.parse("type:p.Order"), SummaryLevel.TYPE, facts, List.of());
+    SourceFiles files = TestFacts.files((repo, path) -> Optional.of(source));
+    fake.answering(Answers.epic(request -> citingWhatItSees(request, 0)));
+    long ceiling = 6_000;
+    Harness harness =
+        harness(smallWindowClient(1_000_000))
+            .packingUpTo(new io.lantern.harness.Packing.Limits(ceiling, 1, 0));
+
+    Summary summary =
+        new Summarizer(harness, files).summarize(List.of(order)).summaries().get(order.entity());
+
+    assertThat(summary).isNotNull();
+    List<LlmRequest> sent = fake.sent().stream().map(s -> s.request()).toList();
+    assertThat(sent)
+        .allSatisfy(r -> assertThat(r.estimatedInputTokens()).isLessThanOrEqualTo(ceiling));
+    List<String> slices =
+        sent.stream()
+            .map(r -> r.messages().getFirst().text())
+            .filter(p -> p.contains("\nref = \"E1\"\n"))
+            .toList();
+    assertThat(slices).hasSizeGreaterThan(2);
+    assertThat(slices.getFirst()).contains("\nlines = \"1-");
+    assertThat(slices.get(1)).doesNotContain("\nlines = \"1-");
+  }
+
+  @Test
+  void aCeilingOnInputLeavesNoRoomForThinkingWhichIsNotInput() {
+    SummaryNode big = largeType(1);
+    ModelConfig model = fake.model("m").withThinking(new Thinking(false, 4_000));
+
+    assertThat(Summarizer.promptBudget(big, model, 50_000))
+        .isEqualTo(
+            (long) (50_000 / model.estimateTokenScale())
+                - io.lantern.llm.Tokens.estimate(Prompt.SYSTEM)
+                - SummaryLevel.TYPE.maxOutputTokens() * 3 / 2
+                - 400
+                - 100);
+    assertThat(Summarizer.promptBudget(big, model, Long.MAX_VALUE))
+        .isEqualTo(Summarizer.promptBudget(big, model));
   }
 
   @Test

@@ -548,7 +548,7 @@ public final class RoleSession {
       Packing.Limits limits = harness.packetLimits();
       Packing packing = harness.packing(spec.name());
       if (limits != null && packing != null) {
-        packets = new PacketCollector(client, packing, limits);
+        packets = new PacketCollector(client, packing, limits, model.estimateTokenScale());
         LOG.info("{} joins its items' requests into packets of at most {}", spec.name(), limits);
       }
     }

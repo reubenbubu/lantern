@@ -63,6 +63,7 @@ class PacketCollectorTest {
             TestHarness.client(fake),
             LINES,
             new Packing.Limits(10_000, 10, 50),
+            1.0,
             Duration.ofMillis(200));
 
     List<LlmResponse> answers = new ArrayList<>();
@@ -98,6 +99,7 @@ class PacketCollectorTest {
             TestHarness.client(fake),
             LINES,
             new Packing.Limits(10_000, 2, 0),
+            1.0,
             Duration.ofMillis(200));
 
     try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {

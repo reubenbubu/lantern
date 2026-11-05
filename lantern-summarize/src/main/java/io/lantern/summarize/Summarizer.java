@@ -525,6 +525,25 @@ public final class Summarizer {
   }
 
   /**
+   * As {@link #promptBudget(SummaryNode, ModelConfig)}, within a ceiling on a request's input, such
+   * as a provider's cheaper price tier (#874), in the model's tokens, which counts input only: the
+   * system prompt and, on a retry, the rejected answer (up to its output limit, its estimate up to
+   * half again) and the retry message; thinking is not sent back. A unit larger than that is
+   * summarized in parts that each stay under it.
+   */
+  static long promptBudget(SummaryNode node, ModelConfig model, long ceiling) {
+    long window = promptBudget(node, model);
+    if (ceiling == Long.MAX_VALUE) {
+      return window;
+    }
+    // The ceiling is in the model's tokens; the budget, in Lantern's estimate of them.
+    long estimated = (long) (ceiling / model.estimateTokenScale());
+    long answer = node.level().maxOutputTokens();
+    return Math.min(
+        window, estimated - Tokens.estimate(Prompt.SYSTEM) - answer * 3 / 2 - REPAIR_TOKENS - 100);
+  }
+
+  /**
    * Splits items into groups, keeping their order, so that each group's size plus the overhead
    * stays within the budget; an item larger than that on its own forms a group by itself.
    */
@@ -857,7 +876,7 @@ public final class Summarizer {
       Inputs inputs = new Inputs(node, excerpts, children);
       String purpose =
           "summarize " + node.level().name().toLowerCase(Locale.ROOT) + " " + node.entity();
-      long budget = promptBudget(node, session(node).model());
+      long budget = promptBudget(node, session(node).model(), harness.promptCeiling());
       String whole =
           Prompt.user(node, inputs.facts, inputs.sheet, inputs.excerpts, inputs.children, null);
       int sentences = maxSentences(node, children.size());
@@ -885,7 +904,7 @@ public final class Summarizer {
                   node,
                   inputs.only(inputs.facts, part),
                   inputs.only(inputs.sheet, part),
-                  inputs.only(inputs.excerpts, part),
+                  inputs.only(inputs.sliced(), part),
                   inputs.only(inputs.children, part),
                   new Prompt.Part(i + 1, parts.size()));
           Set<String> shown = new HashSet<>();
@@ -1428,6 +1447,11 @@ public final class Summarizer {
     final List<Prompt.Item> excerpts;
     final List<Prompt.Item> children;
 
+    /** The source files as the unit's parts show them: a very large one in slices of lines. */
+    private final List<Excerpts.Excerpt> files;
+
+    private List<Prompt.Item> sliced = List.of();
+
     /**
      * The references that can show what a unit is for, as people wrote it: README claims, source
      * files with Javadoc, and parts' summaries whose purpose is evidenced.
@@ -1451,6 +1475,7 @@ public final class Summarizer {
       this.facts = Prompt.facts(node.facts());
       this.sheet = Prompt.sheet(sheet, node.facts().size());
       this.excerpts = Prompt.excerpts(excerpts);
+      this.files = List.copyOf(excerpts);
       this.children = Prompt.children(children);
       this.subject = Prompt.describe(node.level(), node.entity());
       for (List<Prompt.Item> items :
@@ -1506,7 +1531,6 @@ public final class Summarizer {
     List<List<Prompt.Item>> parts(long budget) {
       List<Prompt.Item> all = new ArrayList<>(facts);
       all.addAll(sheet);
-      all.addAll(excerpts);
       all.addAll(children);
       // The headings of all sections and of the fact sheet's groups and the longest part number,
       // written once.
@@ -1525,7 +1549,20 @@ public final class Summarizer {
                   excerpts.isEmpty() ? List.of() : List.of(new Prompt.Item("E1", "")),
                   children.isEmpty() ? List.of() : List.of(new Prompt.Item("S1", "")),
                   new Prompt.Part(all.size(), all.size())));
+      // A source file larger than a part may show goes in slices of its lines, each in a part of
+      // its own if need be, so no request passes the ceiling.
+      List<Prompt.Item> code = new ArrayList<>();
+      for (int i = 0; i < files.size(); i++) {
+        code.addAll(Prompt.slices("E" + (i + 1), files.get(i), Math.max(1, budget - overhead - 1)));
+      }
+      sliced = code;
+      all.addAll(facts.size() + sheet.size(), code);
       return pack(all, item -> Tokens.estimate(item.rendered()) + 1, overhead, budget);
+    }
+
+    /** The source files' items of the last {@link #parts} split: whole, or in slices. */
+    List<Prompt.Item> sliced() {
+      return sliced;
     }
 
     /** The items of a kind that are in the part. */

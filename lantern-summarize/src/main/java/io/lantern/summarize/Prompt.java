@@ -173,9 +173,42 @@ final class Prompt {
     for (int i = 0; i < excerpts.size(); i++) {
       Excerpts.Excerpt excerpt = excerpts.get(i);
       String ref = "E" + (i + 1);
-      items.add(new Item(ref, code(ref, excerpt.repo(), excerpt.path(), excerpt.code())));
+      items.add(new Item(ref, code(ref, excerpt.repo(), excerpt.path(), excerpt.code(), 1)));
     }
     return items;
+  }
+
+  /**
+   * A source file as one code table, or, when that is more than the most tokens a part may show, as
+   * tables of consecutive line ranges under the same reference, each within it, so a very large
+   * class is summarized in parts that each stay under the request ceiling.
+   */
+  static List<Item> slices(String ref, Excerpts.Excerpt excerpt, long most) {
+    String whole = code(ref, excerpt.repo(), excerpt.path(), excerpt.code(), 1);
+    if (io.lantern.llm.Tokens.estimate(whole) <= most) {
+      return List.of(new Item(ref, whole));
+    }
+    List<Item> slices = new ArrayList<>();
+    List<String> lines = excerpt.code().lines().toList();
+    long overhead =
+        io.lantern.llm.Tokens.estimate(code(ref, excerpt.repo(), excerpt.path(), "", 1));
+    int first = 0;
+    while (first < lines.size()) {
+      int last = first;
+      long used = overhead;
+      while (last < lines.size()) {
+        long line = io.lantern.llm.Tokens.estimate(lines.get(last)) + 2;
+        if (last > first && used + line > most) {
+          break;
+        }
+        used += line;
+        last++;
+      }
+      String slice = String.join("\n", lines.subList(first, last));
+      slices.add(new Item(ref, code(ref, excerpt.repo(), excerpt.path(), slice, first + 1)));
+      first = last;
+    }
+    return slices;
   }
 
   /** The contained units' summaries as prompt items, {@code S1} first. */
@@ -268,6 +301,18 @@ final class Prompt {
 
   /** How many sentences of how many words a summary of the level should have. */
   static String length(SummaryLevel level) {
+    if (level == SummaryLevel.TYPE) {
+      // The model writes towards the low end of a range, the more so when types share a request
+      // (#874): the range asked for starts one higher, and its low end is left for little to say.
+      return (level.minSentences() + 1)
+          + " to "
+          + level.maxSentences()
+          + " sentences of "
+          + ASKED_WORDS
+          + " words each ("
+          + level.minSentences()
+          + " when its inputs give too little for more)";
+    }
     return level.minSentences()
         + " to "
         + level.maxSentences()
@@ -384,7 +429,7 @@ final class Prompt {
   }
 
   /** A source file as a code table: its reference, repository, path, lines and numbered text. */
-  private static String code(String ref, String repo, String path, String code) {
+  private static String code(String ref, String repo, String path, String code, int first) {
     return "[["
         + table()
         + ".code]]\n"
@@ -395,9 +440,9 @@ final class Prompt {
         + "\npath = "
         + Toml.string(FactLines.oneLine(path))
         + "\nlines = "
-        + Toml.string("1-" + Blocks.last(code, 1))
+        + Toml.string(first + "-" + Blocks.last(code, first))
         + "\ntext = "
-        + Toml.string(Blocks.numbered(code, 1))
+        + Toml.string(Blocks.numbered(code, first))
         + "\n";
   }
 
