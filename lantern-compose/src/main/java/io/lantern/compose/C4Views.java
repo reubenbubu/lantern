@@ -369,6 +369,12 @@ final class C4Views {
       }
       if (to.type().equals(Types.GROUP) && edge.intent == null) {
         intent(edge, assembler.groupIntent(to, from + " " + link.relationship()));
+        // A consume line through a RabbitMQ queue folded into its exchange is drawn from the
+        // exchange; the group stored its intent under the queue its members consume from (#765).
+        EntityId queue = Elements.consumedFrom(link.facts().getFirst());
+        if (edge.intent == null && queue != null && !queue.equals(from)) {
+          intent(edge, assembler.groupIntent(to, queue + " " + link.relationship()));
+        }
       }
       // A line drawn between the link's own ends may carry Describe's intent for the whole line.
       if (edge.lineIntent == null && from.equals(link.from()) && to.equals(link.to())) {

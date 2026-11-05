@@ -846,6 +846,16 @@ public final class Elements {
     return folded;
   }
 
+  /**
+   * The queue or topic a consume link reads from, or {@code null} for another link: what a group
+   * stored a consume line's intent under when its queue is folded into an exchange (#765).
+   */
+  public static EntityId consumedFrom(Fact link) {
+    return link.predicate().equals(Types.CONSUMES) && Knowledge.isEntity(link)
+        ? Knowledge.object(link)
+        : null;
+  }
+
   private List<Fact> routesTo(EntityId queue) {
     return knowledge.withPredicate(Types.ROUTES_TO).stream()
         .filter(f -> Knowledge.isEntity(f) && Knowledge.object(f).equals(queue))

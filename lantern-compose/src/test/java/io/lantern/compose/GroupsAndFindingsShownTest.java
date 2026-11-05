@@ -94,6 +94,58 @@ class GroupsAndFindingsShownTest {
   }
 
   @Test
+  void aGroupsIntentShowsOnALineDrawnFromTheExchangeAQueueIsFoldedInto() {
+    String exchange = "exchange:rabbitmq:work";
+    List<Fact> facts =
+        domains(
+            TestFacts.runtime()
+                .relate(
+                    "shop",
+                    "service:com.example:u1",
+                    "PUBLISHES",
+                    exchange,
+                    "{\"protocol\": \"AMQP\"}")
+                .relate("shop", exchange, "ROUTES_TO", QUEUE, "{\"bindingKey\": \"jobs.*\"}")
+                .relate(
+                    "shop", "service:com.example:u0", "CONSUMES", QUEUE, "{\"protocol\": \"AMQP\"}")
+                .relate(
+                    "shop",
+                    "service:com.example:u2",
+                    "CONSUMES",
+                    QUEUE,
+                    "{\"protocol\": \"AMQP\"}"));
+    Fact consume =
+        facts.stream()
+            .filter(f -> f.predicate().equals("CONSUMES"))
+            .filter(f -> f.subject().toString().equals("service:com.example:u0"))
+            .findFirst()
+            .orElseThrow();
+    // Name groups stores the line under the queue its members consume from, which the view folds
+    // into the exchange's line.
+    facts.add(text(FIRST, Types.INTENT, QUEUE + " CONSUMES", "takes the jobs to run", consume));
+
+    Diagram overview = overview(system(facts));
+
+    assertThat(overview.edges())
+        .filteredOn(e -> e.from().toString().equals(exchange) && e.to().toString().equals(FIRST))
+        .singleElement()
+        .satisfies(e -> assertThat(e.label()).isEqualTo("takes the jobs to run"));
+  }
+
+  @Test
+  void aMergeSuggestionCitingAnEarlierAnswerIsListed() {
+    List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
+    Fact answer = responsibility(facts);
+    facts.add(answer);
+    facts.add(merge("group:system/domain/a", "group:system/domain/b", answer.id()));
+
+    assertThat(rows(system(facts)))
+        .containsExactly(
+            "a (not named) and b (not named) may be one area: Both keep the orders."
+                + " Lantern keeps them apart.");
+  }
+
+  @Test
   void theFindingsPageListsEveryStoredMergeSuggestionAndInjectionFinding() {
     List<Fact> facts = new ArrayList<>(TestFacts.shop().list());
     facts.add(
@@ -107,8 +159,11 @@ class GroupsAndFindingsShownTest {
             "fake/m",
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             1));
+    Fact answer = responsibility(facts);
+    facts.add(answer);
     facts.add(merge("group:system/domain/a", "group:system/domain/b"));
-    facts.add(merge("group:system/domain/a", "group:system/domain/c"));
+    // A reason may cite an earlier answer, a stored text (#765).
+    facts.add(merge("group:system/domain/a", "group:system/domain/c", answer.id()));
     long stored =
         facts.stream()
             .filter(f -> f.predicate().equals(Types.FINDING_RAISED))
@@ -206,13 +261,36 @@ class GroupsAndFindingsShownTest {
         1);
   }
 
-  private static Fact merge(String first, String second) {
+  /** A responsibility Describe stored for the shop's app, which a merge reason may cite. */
+  private static Fact responsibility(List<Fact> facts) {
+    Fact basis =
+        facts.stream()
+            .filter(f -> f.subject().toString().equals("service:com.example:app"))
+            .findFirst()
+            .orElseThrow();
+    return LlmFacts.text(
+        io.lantern.summarize.describe.DescribeRole.UNITS,
+        "test/test",
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        EntityId.parse("service:com.example:app"),
+        Types.RESPONSIBILITY,
+        LlmFacts.C4,
+        "Takes and lists the shop's orders.",
+        List.of(basis),
+        LlmFacts.Basis.INFERRED,
+        1);
+  }
+
+  private static Fact merge(String first, String second, String... cited) {
     ObjectNode attributes = FactJson.newObject();
     attributes.put("about", first);
     attributes.put("target", second);
     attributes.put("rule", Findings.NAME + "/" + Findings.GROUP_MERGE);
     attributes.put("reason", "Both keep the orders.");
-    attributes.putArray("facts");
+    var facts = attributes.putArray("facts");
+    for (String id : cited) {
+      facts.add(id);
+    }
     return Fact.create(
         Findings.id(Findings.GROUP_MERGE, first + "/" + second),
         Types.FINDING_RAISED,
@@ -260,7 +338,7 @@ class GroupsAndFindingsShownTest {
             .flatMap(s -> s.blocks().stream())
             .filter(Table.class::isInstance)
             .map(Table.class::cast)
-            .filter(t -> t.title().equals(StoredFindings.TITLE))
+            .filter(t -> StoredFindings.TITLE.equals(t.title()))
             .findFirst()
             .orElseThrow();
     return table.rows().stream()
