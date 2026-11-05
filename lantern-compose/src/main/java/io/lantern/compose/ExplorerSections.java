@@ -167,7 +167,7 @@ final class ExplorerSections {
 
   /** What starts an entry point, in words: the endpoint, the destination or the schedule. */
   private static String entryLabel(Fact fact) {
-    return EntryPoints.of(fact).label();
+    return EntryPoints.label(fact);
   }
 
   /** The repository's top-level README, else its first by path. */

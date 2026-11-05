@@ -248,7 +248,6 @@ public final class Elements {
     }
   }
 
-  /** Whether a WebSocket endpoint speaks STOMP. */
   /**
    * How a unit's link that holds under a profile reads, in place of its default link: "calls",
    * "sends to", ... (#761).
@@ -265,6 +264,7 @@ public final class Elements {
     };
   }
 
+  /** Whether a WebSocket endpoint speaks STOMP. */
   public static boolean isStomp(Fact endpoint) {
     return "stomp".equals(attribute(endpoint, "protocol", ""));
   }

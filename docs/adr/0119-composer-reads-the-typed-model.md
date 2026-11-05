@@ -66,6 +66,11 @@ index. Both are gone:
   `lantern-derive`, so the compiler keeps the composer off them.
 - `COMPOSER_READS_THE_MODEL` now also fails on `Fact.object()` and on any dependency on a stage
   package (`io.lantern.extract`, `link`, `summarize`, `harness`, `llm`, `investigate`), the rule
-  ADR 0093's amendment for #554 handed to this issue. Each branch has a fixture a test rejects.
+  ADR 0093's amendment for #554 handed to this issue. Fixtures for `Fact.object()`, the
+  `Knowledge` import and each stage package (Investigate's through a stand-in package, since it
+  does not exist yet) are rejected by tests.
+- `linksOf(from, interaction)` and `describing(element)` stay public as typed queries: the links of
+  one interaction kind an element has, and what the stage stored about an element. The composer
+  names the interaction it draws, not a fact's predicate it switches on.
 - The output does not change: the fake-model documents of project-0 to project-4 and project-8
   are byte-identical before and after (#761's second PR).

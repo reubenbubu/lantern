@@ -31,7 +31,6 @@ final class ClaimContradictions {
   /** The longest quote of a claim a quality report failure shows, in characters. */
   private static final int SHORT_QUOTE = 160;
 
-  /** How a relationship between entities reads, by predicate; others read as their words. */
   private final ArchitectureModel model;
 
   private final Assembler assembler;

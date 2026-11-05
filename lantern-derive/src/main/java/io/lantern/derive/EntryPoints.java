@@ -74,6 +74,17 @@ public final class EntryPoints {
     return null;
   }
 
+  /**
+   * What a flow's trigger starts on, in words: its entry point's label, else, for a trigger no
+   * entry kind names, its job kind and value.
+   */
+  public static String label(Fact trigger) {
+    EntryPoint entry = of(trigger);
+    return entry != null
+        ? entry.label()
+        : Components.jobKind(trigger) + " (" + trigger.object().value() + ")";
+  }
+
   /** The entry points of the method, in the order the model holds them. */
   public static List<EntryPoint> of(ArchitectureModel model, EntityId method) {
     List<EntryPoint> result = new ArrayList<>();
