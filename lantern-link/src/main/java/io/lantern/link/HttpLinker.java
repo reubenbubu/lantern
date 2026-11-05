@@ -491,11 +491,20 @@ final class HttpLinker {
 
   /** A call's method and path, or its URL when it has no path. */
   private static String request(Call call, ObjectNode attributes) {
+    return request(call.httpMethod(), attributes, call.text());
+  }
+
+  /**
+   * The request attribute of a call link with no endpoint (#811): its method, if any, and its path,
+   * else its URL, else the call's text. Static matching and Resolve's picks both write it, so a
+   * pick is the claim a static match would be (ADR 0105).
+   */
+  static String request(String httpMethod, ObjectNode attributes, String text) {
     String where =
         attributes.hasNonNull("path")
             ? attributes.get("path").asString()
-            : attributes.path("url").asString(call.text());
-    return call.httpMethod() == null ? where : call.httpMethod() + " " + where;
+            : attributes.path("url").asString(text);
+    return httpMethod == null ? where : httpMethod + " " + where;
   }
 
   /** The attributes every HTTP link has: the call's client, method, path and URL, and its code. */

@@ -120,3 +120,11 @@ gateway's routes to that unit, so the two shared one claim and one intent: a per
 read as the sign-in route. The HTTP linker now sets `request` on a call with no endpoint, as the
 frontend linker does: the method and path, or the URL when it has no path. A call that matches an
 endpoint keeps the endpoint as its key and does not set it; routes do not set it either.
+
+Resolve's picks follow the same rule (#811, review of 4 Nov 2026): a pick that cites no endpoint,
+of a unit none of whose endpoints the call matches, sets `request` the same way, so it is the
+claim static matching would write (ADR 0105) and stays apart from the gateway's routes to that
+unit. For a call with a path, the pick's request is the one static matching writes; a call with
+no path, which an open link rarely is, falls back to its URL as written. The request is the path
+as written, so one call written two ways gives two claims: `{id}` and `{userId}` count as
+different text.

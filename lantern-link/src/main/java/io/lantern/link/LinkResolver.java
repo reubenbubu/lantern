@@ -897,13 +897,20 @@ public final class LinkResolver implements LinkRule.OverFacts {
       }
       String path = call == null ? null : call.path();
       if (path != null) {
-        attributes.put("path", path);
+        // An empty path is the root, as static matching writes it.
+        attributes.put("path", path.isEmpty() ? "/" : path);
       }
       String protocol =
           "https".equals(LinkText.parse(urlOf(unresolved.object().value())).scheme())
               ? "HTTPS"
               : "HTTP";
-      if (code != null) {
+      if (code == null) {
+        // With no endpoint, the call's method and path keep the pick a claim of its own, apart
+        // from a gateway's routes to the same unit, as static matching writes it (#811).
+        attributes.put(
+            "request",
+            HttpLinker.request(httpMethod, attributes, urlOf(unresolved.object().value())));
+      } else {
         attributes.put("endpoint", code.object().value());
         String controller = Endpoints.of(code).controller();
         if (controller != null

@@ -355,7 +355,7 @@ When in doubt, an attribute is key. Over-splitting yields two claims for one thi
 | `deployed-in` | `fact` |
 | `claim-contradiction` | `claim`, `contradictedBy` |
 | `RESOLVES_TO` | `resolved`, `exceptDeployments` (no longer given since #590); for address resolution's answers `matched`, `matchedBy`, `factor`, `fact`, `filledBy`, `order`, `candidates`; for a datasource placed (#596) also `database`, `guessed` |
-| Link claims (`INTERACTS_WITH` family) | everything except the channel attributes (`endpoint`, `destination`, `routingKey`, `bindingKey`, `table`, `host`, `key`), `protocol` and `view` |
+| Link claims (`INTERACTS_WITH` family) | everything except the channel attributes (`endpoint`, `request` when there is no endpoint, #810 and #811, `destination`, `routingKey`, `bindingKey`, `table`, `host`, `key`), `protocol` and `view` |
 
 - **Changed by #518, with the owner.** `protocol` is a key of link claims, because C4 draws a line per protocol: a frontend's HTTP calls and its WebSocket to one gateway are two claims. `config-value` keys on `application`, because a config server's repository holds a file per application. An attribute that holds the IDs of the facts a claim comes from is lineage, so descriptive, like `facts`: fact IDs change with the evidence (`deployed-in`'s `fact`, `claim-contradiction`'s `claim` and `contradictedBy`). Until #590 introduced `view`, link-stage types recorded it as `profile`, which was key there (ADR 0090).
 - **LLM claims.** Their key is fixed by the role (section 11). Their text is always descriptive, so a rewording is a new observation of the same claim.
@@ -422,7 +422,7 @@ public interface LinkRule {
 2. **`ValueResolution`** (new, section 7): expressions to literal destinations, addresses and paths, per view.
 3. **`AddressResolution`**: today's `Addresses` and `Deployments` as one rule. `address:` entities get `RESOLVES_TO` a unit, an external system, or `ambiguous` with candidates.
 4. **Protocol matchers**: HTTP, gateway routes, frontend calls, messaging, data stores, Redis, mail and identity. Each emits runtime link claims, `INTERACTS_WITH` subtypes, from unit to target.
-   - Key attributes: the channel (`endpoint`, `destination`, `routingKey`, `table`) and the view.
+   - Key attributes: the channel (`endpoint`, or `request` for a call that matches no endpoint and a frontend's request, #810 and #811; `destination`, `routingKey`, `table`) and the view.
    - The claim ID replaces today's separate `link` attribute as the stable link ID.
    - Lineage lists the claims on both ends.
 5. **`People`**: unchanged in substance.
