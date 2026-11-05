@@ -961,7 +961,7 @@ export function roleCells(roles) {
   if (cn) {
     cell['Investigate connections'] = !cn.measured
       ? why(cn)
-      : `${cn.right}/${cn.right + cn.wrong} right (precision ${percent(cn.precision)}), ${cn.unjudged.length} of ${cn.found} unjudged; ${cn.matched}/${cn.reference} reference connections found`;
+      : `${cn.right}/${cn.right + cn.wrong} right (precision ${percent(cn.precision)}), ${cn.unjudged.length} of ${cn.found} unjudged; ${cn.matched} reference connections drawn by Investigate`;
   }
   const n = roles.nameGroups;
   cell['Name groups'] = !n.measured ? why(n) : `${n.named}/${n.groups} named (${percent(n.coverage)}); judge ${judgedCell(n.judge)}`;

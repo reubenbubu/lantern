@@ -1,7 +1,7 @@
 {
   "set": "project-4",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); d2 (the WebSocket route) became risk r17; the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
+  "status": "Owner spot-check on 5 Nov 2026 (#748): agreed. Every decoy added on 5 Nov 2026 was checked blind by a read-only Opus subagent: all agreed as safe. checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); d2 (the WebSocket route) became risk r17; the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "Auth-Service": "6cb4edae467de8eaddd30ed4f528636e5f053114",
@@ -395,6 +395,83 @@
       "names": [
         "POSTGRES_PASSWORD",
         "RABBITMQ_DEFAULT_PASS"
+      ]
+    },
+    {
+      "id": "d2",
+      "looksLike": "Auth-Service keeps its database, RabbitMQ and Redis passwords and its token signing key in the properties file.",
+      "safeBecause": "Each one is a ${...} placeholder with no default, filled from the environment at deploy time; no literal secret is in the file.",
+      "subjects": [
+        "auth",
+        "auth-db",
+        "redis"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Auth-Service:src/main/resources/application.properties:8-8",
+        "Auth-Service:src/main/resources/application.properties:27-27",
+        "Auth-Service:src/main/resources/application.properties:32-32",
+        "Auth-Service:src/main/resources/application.properties:35-35"
+      ],
+      "names": [
+        "spring.datasource.password=${auth.datasource.password}",
+        "spring.rabbitmq.password=${rabbit.password}",
+        "spring.data.redis.password=${redis.password}",
+        "app.token.signing.key=${auth.token.signing.key}"
+      ]
+    },
+    {
+      "id": "d3",
+      "looksLike": "Main-Service sets its RabbitMQ and database passwords in its YAML configuration.",
+      "safeBecause": "Both values are ${...} placeholders with no default, filled from the environment at deploy time.",
+      "subjects": [
+        "main",
+        "main-db",
+        "x-main-events"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Main-Service:src/main/resources/application.yml:28-28",
+        "Main-Service:src/main/resources/application.yml:43-43"
+      ],
+      "names": [
+        "password: ${rabbit.password}",
+        "password: ${main.datasource.password}"
+      ]
+    },
+    {
+      "id": "d4",
+      "looksLike": "File-Service sets its database and RabbitMQ passwords in its properties file.",
+      "safeBecause": "Both values are ${...} placeholders with no default, filled from the environment at deploy time.",
+      "subjects": [
+        "file",
+        "file-db"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "File-Service:src/main/resources/application.properties:8-8",
+        "File-Service:src/main/resources/application.properties:24-24"
+      ],
+      "names": [
+        "spring.datasource.password=${file.datasource.password}",
+        "spring.rabbitmq.password=${rabbit.password}"
+      ]
+    },
+    {
+      "id": "d5",
+      "looksLike": "Notification-Service keeps its SMTP and RabbitMQ passwords in its properties file.",
+      "safeBecause": "Both values are ${...} placeholders with no default, filled from the environment at deploy time.",
+      "subjects": [
+        "notification"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "Notification-Service:src/main/resources/application.properties:13-13",
+        "Notification-Service:src/main/resources/application.properties:27-27"
+      ],
+      "names": [
+        "spring.mail.password=${smtp.password}",
+        "spring.rabbitmq.password=${rabbit.password}"
       ]
     }
   ]

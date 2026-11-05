@@ -1,7 +1,7 @@
 {
   "set": "project-1",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); there were no disagreements to settle; the owner accepted the result on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
+  "status": "Owner spot-check on 5 Nov 2026 (#748): agreed. Every decoy added on 5 Nov 2026 was checked blind by a read-only Opus subagent: all agreed as safe. checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); there were no disagreements to settle; the owner accepted the result on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "Enterprise-Spring-Microservices-Template": "8f5cb6873691f8b67353c4924fb06f469c2ef4e4"
@@ -408,6 +408,28 @@
       "names": [
         "hasRole('INTERNAL_SERVICE')",
         "block-internal-registration"
+      ]
+    },
+    {
+      "id": "d5",
+      "looksLike": "The services' properties mention ddl-auto=update and set Flyway's baseline-on-migrate, so the schema looks left to Hibernate or silently baselined.",
+      "safeBecause": "Both services run Hibernate with ddl-auto validate and depend on Flyway, which applies the versioned scripts in db/migration; the ddl-auto=update text is only a comment about old dev databases.",
+      "subjects": [
+        "profile",
+        "order",
+        "profile-db",
+        "order-db"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "Enterprise-Spring-Microservices-Template:profile-service/src/main/resources/application.properties:13-20",
+        "Enterprise-Spring-Microservices-Template:order-service/src/main/resources/application.properties:13-20",
+        "Enterprise-Spring-Microservices-Template:profile-service/pom.xml:50-56"
+      ],
+      "names": [
+        "spring.jpa.hibernate.ddl-auto=validate",
+        "Flyway manages the schema now",
+        "spring-boot-starter-flyway"
       ]
     }
   ]
