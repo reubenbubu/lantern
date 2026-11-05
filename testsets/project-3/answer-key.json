@@ -1,7 +1,7 @@
 {
   "set": "project-3",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
+  "status": "Owner spot-check on 5 Nov 2026 (#748): agreed. Every decoy added on 5 Nov 2026 was checked blind by a read-only Opus subagent: all agreed as safe. checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "mediahub-api-gateway": "3ad3447569811e123d06685e2f99e7d5724a3241",
@@ -417,6 +417,64 @@
       "names": [
         "http://media-service/api/v1/media/{id}",
         "/api/v1/users"
+      ]
+    },
+    {
+      "id": "d3",
+      "looksLike": "The web app's proxy file points /api at http://localhost:8080 with secure false, which reads like a development host baked into the frontend.",
+      "safeBecause": "The proxy is wired only into the Angular dev server's development configuration, and the app's services call relative URLs such as /api/v1/media, so no host is built into the bundle.",
+      "subjects": [
+        "frontend",
+        "fe-catalog"
+      ],
+      "category": "environment-baked",
+      "cites": [
+        "mediahub-frontend-ui:proxy.conf.json:1-7",
+        "mediahub-frontend-ui:angular.json:60-71",
+        "mediahub-frontend-ui:src/app/services/media.ts:10-13"
+      ],
+      "names": [
+        "http://localhost:8080",
+        "\"proxyConfig\": \"proxy.conf.json\"",
+        "private apiUrl = '/api/v1/media';"
+      ]
+    },
+    {
+      "id": "d4",
+      "looksLike": "Each service keeps its own copy of the ApiResponse envelope, and subscription-service reads user-service's replies into its copy, so the copies might have drifted.",
+      "safeBecause": "The two copies have the same fields (success, message, data, timestamp) and the same JSON settings, and the Feign client reads the data as Object, so nothing is lost between them.",
+      "subjects": [
+        "subscription",
+        "user",
+        "ss-user-client"
+      ],
+      "category": "shared-type-skew",
+      "cites": [
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/dto/ApiResponse.java:11-21",
+        "mediahub-user-service:src/main/java/com/mediahub/user_service/dto/ApiResponse.java:11-21",
+        "mediahub-subscription-service:src/main/java/com/mediahub/subscription_service/client/UserClient.java:8-12"
+      ],
+      "names": [
+        "@JsonInclude(JsonInclude.Include.NON_NULL)",
+        "private String timestamp;",
+        "ApiResponse<Object> getUserById"
+      ]
+    },
+    {
+      "id": "d5",
+      "looksLike": "The CI workflow logs in to a container registry with a password.",
+      "safeBecause": "The password is the built-in ${{ secrets.GITHUB_TOKEN }}, not a literal, and the workflow narrows the token to contents read and packages write.",
+      "subjects": [
+        "user"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "mediahub-user-service:.github/workflows/ci-cd.yml:9-11",
+        "mediahub-user-service:.github/workflows/ci-cd.yml:51-56"
+      ],
+      "names": [
+        "packages: write",
+        "secrets.GITHUB_TOKEN"
       ]
     }
   ]

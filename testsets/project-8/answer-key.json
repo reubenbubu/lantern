@@ -1,7 +1,7 @@
 {
   "set": "project-8",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); r23 to r25 came from the check; the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
+  "status": "Owner spot-check on 5 Nov 2026 (#748): agreed. Every decoy added on 5 Nov 2026 was checked blind by a read-only Opus subagent: all agreed as safe. checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); r23 to r25 came from the check; the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
     "billing-service": "79446bfa58100fac4150b3389b4aa364bf53d78e",
@@ -623,6 +623,44 @@
       "names": [
         "ddl-auto: validate",
         "flyway"
+      ]
+    },
+    {
+      "id": "d4",
+      "looksLike": "Quartz keeps its jobs in memory, so in a service running more than one replica the shift-rotation job looks like it runs once per replica.",
+      "safeBecause": "Each run takes a Redis lock from the technician:shift-rotation registry and returns when another holder has it, and the rotation recomputes the on-shift flags from the scheduled fire time, so a second run changes nothing.",
+      "subjects": [
+        "technician-service",
+        "technician-shift-rotation"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "technician-service:src/main/resources/application.yml:15-18",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/QuartzConfiguration.java:17-19",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/ShiftRotationJob.java:24-37"
+      ],
+      "names": [
+        "job-store-type: memory",
+        "technician:shift-rotation",
+        "if (!lock.tryLock()) return;"
+      ]
+    },
+    {
+      "id": "d5",
+      "looksLike": "The parts library ships a bare schema.sql with a create table next to JPA, so the schema looks created outside migrations.",
+      "safeBecause": "spring.sql.init.mode is never, so schema.sql never runs; Hibernate only validates and Flyway applies the versioned migrations.",
+      "subjects": [
+        "parts-inventory",
+        "parts-database"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "parts-inventory-lib:src/main/resources/application.yml:10-18",
+        "parts-inventory-lib:src/main/resources/schema.sql:1-5"
+      ],
+      "names": [
+        "mode: never",
+        "create table part_catalog_refresh"
       ]
     }
   ],

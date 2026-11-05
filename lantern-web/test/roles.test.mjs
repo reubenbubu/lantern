@@ -930,9 +930,6 @@ test('Investigate: precision is over every drawn risk, a judgement deciding firs
   assert.equal(before.precision, 2 / 3);
   assert.deepEqual(before.unjudged, ['Any origin allowed', 'Uploads are never scanned']);
 
-  // A broken scorer counting reference entries hit, as before #748, would read 1/2 here.
-  assert.notEqual(before.precision, 1 / 2);
-
   const judgements = {
     findings: [
       { key: 'lead:open-cors/service:files', verdict: 'wrong' },
