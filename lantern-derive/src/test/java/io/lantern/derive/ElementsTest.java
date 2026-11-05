@@ -6,7 +6,13 @@ import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.types.Types;
+import io.lantern.core.vocabulary.AttributeSchema;
+import io.lantern.core.vocabulary.TypeKind;
+import io.lantern.core.vocabulary.Vocabulary;
+import io.lantern.core.vocabulary.VocabularyType;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
@@ -67,5 +73,38 @@ class ElementsTest {
     assertThat(names.name(EntityId.parse("topic:kafka:orders"))).isEqualTo("orders");
     assertThat(List.of(names.name(EntityId.parse("type:g.web.OrderController"))))
         .containsExactly("OrderController");
+  }
+
+  @Test
+  void aTypeUnderAServiceRunsCodeAndItsDataStoreIsADestination() {
+    List<VocabularyType> types = new ArrayList<>(Vocabularies.standard().types());
+    types.add(
+        new VocabularyType(
+            "batch-service",
+            TypeKind.ENTITY,
+            Types.SERVICE,
+            null,
+            null,
+            null,
+            "A test subtype.",
+            new AttributeSchema(Map.of(), Set.of(), false)));
+    Vocabulary vocabulary = new Vocabulary(2, types);
+    EntityId batch = EntityId.parse("batch-service:g:batch");
+    model.add(SHOP, Types.DEPLOYABLE_UNIT, FactObject.string("spring-boot"));
+    model.add(batch, Types.DEPLOYABLE_UNIT, FactObject.string("spring-boot"));
+    ObjectNode call = FactJson.newObject();
+    call.put("protocol", "HTTP");
+    model.add(SHOP, Types.CALLS_HTTP, FactObject.entity(batch), call);
+    ObjectNode jdbc = FactJson.newObject();
+    jdbc.put("protocol", "JDBC");
+    model.add(batch, Types.USES_DATABASE, FactObject.entity(DB), jdbc);
+    Knowledge knowledge = new Knowledge(model.facts);
+
+    Elements elements =
+        new Elements(knowledge, vocabulary, new ElementNames(knowledge, "Shop system"), Set.of());
+
+    assertThat(elements.runsCode(batch)).isTrue();
+    assertThat(Elements.isDestination(vocabulary, batch)).isFalse();
+    assertThat(elements.destinations()).containsExactly(DB);
   }
 }

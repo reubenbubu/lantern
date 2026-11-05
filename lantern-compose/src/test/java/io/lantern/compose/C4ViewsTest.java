@@ -1276,7 +1276,9 @@ class C4ViewsTest {
 
     assertThat(nodes(block(section(document, "containers"), Diagram.class)))
         .anyMatch(n -> n.startsWith("graph-database:") && n.contains("[Neo4j]"));
-    assertThat(qualityChecks(document)).doesNotContain(QualityBar.ONE_LEVEL);
+    assertThat(qualityChecks(document))
+        .doesNotContain(QualityBar.ONE_LEVEL)
+        .noneMatch(c -> c.contains("technology"));
     // Counted as a database: the system context's "Databases" count goes from one to two.
     assertThat(block(section(document, "context"), Metrics.class).items())
         .extracting(i -> i.label() + " " + i.value())
@@ -1301,10 +1303,119 @@ class C4ViewsTest {
                 SNAPSHOT,
                 Derivation.withModel(more.list(), 1));
 
-    List<String> nodes = nodes(block(section(document, "containers"), Diagram.class));
+    Diagram diagram = block(section(document, "containers"), Diagram.class);
+    List<String> nodes = nodes(diagram);
     assertThat(nodes)
         .anyMatch(n -> n.startsWith("payment-gateway:pay.example.com"))
         .noneMatch(n -> n.startsWith("payment-gateway:") && n.contains("in system:"));
-    assertThat(qualityChecks(document)).doesNotContain(QualityBar.ONE_LEVEL);
+    // Drawn as an external system is: the same shape as the fixture's own external system.
+    assertThat(style(diagram, "payment-gateway:pay.example.com"))
+        .isEqualTo(style(diagram, "external-system:pay.example.com"));
+    assertThat(qualityChecks(document))
+        .doesNotContain(QualityBar.ONE_LEVEL)
+        .noneMatch(c -> c.contains("technology"));
+    // Counted as an external system: the context's count goes from one to two.
+    assertThat(block(section(document, "context"), Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("External systems 2");
+  }
+
+  @Test
+  void aTypeUnderAServiceIsDrawnAsAUnitThatUsesItsDatabase() {
+    Vocabulary vocabulary = subtypes("batch-service", Types.SERVICE, "RUNS_BATCH");
+    String batch = "batch-service:com.example:batch";
+    TestFacts more = TestFacts.runtime();
+    more.relate("shop", batch, "CONTAINS", "module:com.example:batch")
+        .attribute("shop", "module:com.example:batch", "packaging", "jar")
+        .attribute("shop", batch, "deployable-unit", "spring-boot", "{}")
+        .attribute("shop", batch, "technology", "Spring Batch 5 / Java 21", "{}")
+        .relate(
+            "shop",
+            batch,
+            "USES_DATABASE",
+            "database:warehouse:5432/batch",
+            "{\"protocol\": \"JDBC\"}")
+        .attribute("shop", "database:warehouse:5432/batch", "technology", "PostgreSQL", "{}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "CALLS_HTTP",
+            batch,
+            "{\"protocol\": \"HTTP\", \"httpMethod\": \"POST\", \"path\": \"/runs\"}");
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(more.list(), 1));
+
+    Diagram diagram = block(section(document, "containers"), Diagram.class);
+    // Drawn as a unit inside the system, with its technology, not as a destination outside it.
+    assertThat(nodes(diagram))
+        .anyMatch(
+            n ->
+                n.startsWith(batch)
+                    && n.contains("[Spring Batch 5 / Java 21]")
+                    && n.contains(" in system:"));
+    assertThat(edges(diagram))
+        .anyMatch(e -> e.startsWith(batch + " -> database:warehouse"))
+        .anyMatch(e -> e.startsWith("service:com.example:app -> " + batch));
+    assertThat(qualityChecks(document))
+        .doesNotContain(QualityBar.ONE_LEVEL)
+        .noneMatch(c -> c.contains("technology"));
+    // Its database counts: the context's "Databases" count goes from one to two.
+    assertThat(block(section(document, "context"), Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains("Databases 2");
+  }
+
+  @Test
+  void aTypeUnderAServiceGetsItsViewFromTheEntryInward() {
+    Vocabulary vocabulary = subtypes("batch-service", Types.SERVICE, "RUNS_BATCH");
+    String batch = "batch-service:com.example:batch";
+    TestFacts many = TestFacts.runtime();
+    many.relate("shop", batch, "CONTAINS", "module:com.example:batch")
+        .attribute("shop", "module:com.example:batch", "packaging", "jar")
+        .attribute("shop", batch, "deployable-unit", "spring-boot", "{}")
+        .attribute("shop", batch, "application-name", "batch", "{}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            "CALLS_HTTP",
+            batch,
+            "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"POST /runs\"}");
+    for (int i = 0; i <= C4Views.MAX_ELEMENTS; i++) {
+      many.relate(
+          "shop",
+          batch,
+          "CALLS_HTTP",
+          "external-system:x" + i + ".example.com",
+          "{\"protocol\": \"HTTPS\", \"httpMethod\": \"GET\", \"path\": \"/\"}");
+    }
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(many.list(), 1));
+
+    // shop-app calls batch, so batch's view comes after shop-app's, as a service's would (worker's
+    // view repeats shop-app's and is left out). How batch is named is #864's.
+    assertThat(section(document, "containers").sections())
+        .extracting(Section::title)
+        .filteredOn(t -> t.startsWith("Requests around"))
+        .satisfiesExactly(
+            t -> assertThat(t).isEqualTo("Requests around shop-app"),
+            t -> assertThat(t).startsWith("Requests around").endsWith("batch"));
+  }
+
+  private static Diagram.Style style(Diagram diagram, String id) {
+    return diagram.nodes().stream()
+        .filter(n -> n.id().toString().equals(id))
+        .findFirst()
+        .orElseThrow()
+        .style();
   }
 }

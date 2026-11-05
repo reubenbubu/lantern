@@ -110,7 +110,7 @@ public final class Elements {
         || vocabulary.isA(type, Types.ACTOR)
         || vocabulary.isA(type, Types.MESSAGE_BROKER)
         || vocabulary.isA(type, Types.INFRASTRUCTURE)
-        || runsCode(id)) {
+        || runsCode(vocabulary, id)) {
       return false;
     }
     C4Level level = vocabulary.c4Level(type).orElse(null);
@@ -189,9 +189,19 @@ public final class Elements {
     return result;
   }
 
-  /** Whether an element is a container that runs code: a deployable unit or a frontend. */
-  public static boolean runsCode(EntityId element) {
-    return element.type().equals(Types.SERVICE) || element.type().equals(Types.FRONTEND);
+  /**
+   * Whether an element is a container that runs code: a deployable unit or a frontend, by its type
+   * or the nearest ancestor that has one, so a type declared under either runs code too (ADR 0120,
+   * amendment for #762).
+   */
+  public static boolean runsCode(Vocabulary vocabulary, EntityId element) {
+    return vocabulary.isA(element.type(), Types.SERVICE)
+        || vocabulary.isA(element.type(), Types.FRONTEND);
+  }
+
+  /** Whether an element is a container that runs code ({@link #runsCode(Vocabulary, EntityId)}). */
+  public boolean runsCode(EntityId element) {
+    return runsCode(vocabulary, element);
   }
 
   /** Every frontend of the model (ADR 0083). */
