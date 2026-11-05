@@ -112,8 +112,8 @@ All were opened with WebFetch and read. Very long pages were read for their rele
 
 ## The owner's decisions (5 Nov 2026), which this note's recommendations follow
 
-- **Many small turns, no tight turn limit.** The point of the rework is to stop sending large files, which forced today's 6-turn limit. Small tool answers keep each turn a small increment on a cached conversation, so turns are cheap: a safety cap of about 100 turns, with the conversation's size and the cost per lead as the guards. Where the recommendation below says "6 exploration turns, then up to 3 answer turns", read: explore until the model answers or a guard is near, then an answer phase.
-- **Small, targeted tool calls one after another.** Every tool answer starts capped at about 1,000 characters, cut to whole lines with a note of what was left out and the narrower call that asks for it. Measurement may tune the figure within small answers; the 100-line window and 4,000-character reads recommended below are overruled.
+- **Many small turns, no tight turn limit.** The point of the rework is to stop sending large files, which forced today's 6-turn limit. Small tool answers keep each turn a small increment on a cached conversation, so turns are cheap: a safety cap of about 100 turns, with the conversation's size and the cost per lead as the guards.
+- **Small, targeted tool calls one after another.** Every tool answer starts capped at about 1,000 characters, cut to whole lines with a note of what was left out and the narrower call that asks for it. Measurement may tune the figure within small answers; SWE-agent's 100-line window does not apply.
 - **Tests on Claude Haiku 5.5 through OpenRouter only**, starting with small budgets raised bit by bit.
 
 ## Evidence from Lantern
@@ -126,23 +126,23 @@ An earlier proof of concept outside the repository (Python, other models, refere
 
 **1. First message.**
 - Put the fixed instructions and tool definitions in `system` and `tools`, the same bytes for every lead. Mark a breakpoint at the end of `system`.
-- The first user message holds only the lead: the claim, the static evidence with file:line, the names of the units involved, and at most a short ranked list of candidate files and symbols. Budget about 1 to 2k tokens. No unrelated system facts.
+- The first user message holds only the lead and the facts about it: the claim, the static evidence with file:line, the names of the units involved. Budget about 1 to 2k tokens. No unrelated system facts.
 - Everything else is looked up with tools.
 
-**2. Tools** (tool-answer sizes as the owner decided, above). Keep about 5 tools, with stable order, stable JSON key order, and `strict: true`. Each description is 3 to 4 sentences.
+**2. Tools.** Keep about 5 tools, with stable order, stable JSON key order, and `strict: true`. Each description is 3 to 4 sentences.
 - `read_lines(path, start, count)`:
-  - returns at most 100 lines or about 4,000 characters, whichever comes first;
+  - returns at most about 1,000 characters, cut to whole lines;
   - each line is prefixed with its number;
   - a header says "lines a-b of N";
   - a footer gives the next call (`start=b+1`).
-  - This follows SWE-agent's 100-line result. Treat the 1,000-character cap from the proof of concept as a value to test against this one, not as settled.
 - `search(pattern, path_glob)`:
   - returns at most 50 hits, each `path:line: text` with the enclosing method or class name;
   - beyond 50, it returns only the count and "narrow the pattern".
 - `find_files(glob)`, capped the same way.
-- `shell(command)`, read-only and run in the sandbox (5 below). Output is capped at about 2,000 characters, with "output truncated: N more lines; use grep or sed -n to narrow".
+- `shell(command)`, read-only and run in the sandbox (5 below). Output is capped at about 1,000 characters, cut to whole lines, with "output truncated: N more lines; use grep or sed -n to narrow".
 - `submit_verdict`, with required fields: lead id, verdict enum, cited ranges (`path`, `start`, `end`), and a short explanation. Ask for an explanation, never for "reasoning" (4).
 - Errors say what to fix and give a valid example.
+- Every tool's answer, searches and file lists included, keeps to the same cap of about 1,000 characters; measurement may tune it within small answers.
 
 **3. Conversation and caching.**
 - Use explicit breakpoints, not top-level ones, so OpenRouter can fall back to Bedrock or Vertex and sticky routing applies:
@@ -151,19 +151,19 @@ An earlier proof of concept outside the repository (Python, other models, refere
   - keep 2 slots spare.
 - Set `session_id` to the run id plus the lead id.
 - Use the 5-minute TTL. It refreshes on every read, and a lead finishes in minutes.
-- Do not clear or summarize. With output caps and at most about 9 turns, the history stays far below the trigger points used in the research. Each clear costs a cache rewrite.
+- Do not clear or summarize: each clear costs a cache rewrite, and with small tool answers a lead's history grows slowly. The size guard (about 60,000 tokens, see Open risks) ends a lead instead. If many leads reach it, measure clearing old tool results first.
 - Log `cache_read_input_tokens`, `cache_creation_input_tokens` and `cost` for every call, and alert when cache reads are 0 after turn 1.
 
-**4. Turns and answers** (turn counts as the owner decided, above).
-- 6 exploration turns, then up to 3 answer turns.
+**4. Turns and answers.**
+- Explore until the model submits or a guard is near: about 100 turns, about 60,000 tokens of conversation, the cost cap per lead. Then up to 3 answer turns.
 - Keep `tool_choice: auto` throughout, so the cache survives and Sonnet 5.5 works.
 - At the start of the answer phase, append a `{"role":"system"}` message: "Exploration is over. Call submit_verdict now with what you have; use verdict unclear if the evidence is insufficient."
 - In the answer phase, any exploration call gets a tool result that refuses it and repeats the instruction.
-- Only on the last answer turn, and only for models flagged as supporting it (Haiku 5.5, not Sonnet 5.5), set `tool_choice: {"type":"tool","name":"submit_verdict"}`. Accept the one cache rewrite.
+- Do not force the call (`tool_choice` `tool`) even on the last answer turn: it breaks the cache, skips thinking and is rejected on Sonnet 5.5 (the design keeps `auto`).
 - If the model answers in plain text, try to parse it as the verdict before recording "no verdict".
 - Put the `<use_parallel_tool_calls>` guidance in the system prompt. Return all results in one user message.
 
-**5. Sandbox.** This takes the place of bubblewrap, which the proof of concept used: Docker is already a dependency.
+**5. Sandbox.** This takes the place of bubblewrap, which the proof of concept used, because Docker is already a dependency. It is a judgement: no source read compares the two for this use; both are used by tools like this one (16, 17, 18).
 - Run the shell in one Docker container per analyze run, using Lantern's existing Docker use:
   - `--network none`, `--read-only`, the checkout mounted `:ro`, `--cap-drop ALL`, `--security-opt no-new-privileges`;
   - a non-root user, pids and memory limits, a small tmpfs;
@@ -183,7 +183,7 @@ An earlier proof of concept outside the repository (Python, other models, refere
 
 ## What it changes
 
-- `docs/design.md`, the Investigate step: what the first message holds, the tool set and its caps, the two-phase turn scheme, and the caching rule (explicit breakpoints, `session_id`).
+- `docs/design.md`, the Investigate step: what the first message holds, the tool set and its caps, the guards in place of a turn limit and the answer phase, and the caching rule (explicit breakpoints, `session_id`).
 - ADR 0100 (LLM harness): breakpoint placement and model capability flags (whether forced tool choice works, mid-conversation system messages); tool definitions must be byte-stable.
 - The sandbox module: a read-only shell container profile.
 - The prompts folder: the Investigate system prompt and tool descriptions. Its prompt version goes up.
@@ -191,9 +191,11 @@ An earlier proof of concept outside the repository (Python, other models, refere
 
 ## Open risks
 
+- How a refutation should be backed: no source read addresses it. Lantern's own rule (cite where the code runs: build and deploy files when the lead is about them) is #894's to settle and measure.
+
 - Whether OpenRouter's Anthropic endpoint passes mid-conversation `system` messages, and `context_management`, unchanged to every provider. It needs a smoke test.
 - Sticky routing fails over uncached. A provider failure makes one lead cost full price.
-- The best caps (1,000 against 4,000 characters, 50 hits) come from SWE-agent's tasks and models. They must be measured on Haiku 5.5.
-- Haiku 5.5's adaptive thinking adds output tokens. Forcing the submit tool skips thinking, which may lower verdict quality on the last turn.
+- The tool-answer cap of about 1,000 characters comes from the proof of concept; SWE-agent's caps come from other tasks and models. Measure on Haiku 5.5, within small answers.
+- Haiku 5.5's adaptive thinking adds output tokens and, kept in the history, grows the conversation: the size guard counts it, and a turn cut off at its output limit must not pass a partial answer.
 - The 100K price tier: a runaway lead could cross it. Stop a lead when its input passes about 60K tokens.
 - Docker exec latency per call. Measure it, and fall back to a Java grep if it dominates.
