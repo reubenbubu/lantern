@@ -73,6 +73,23 @@ public interface PacketRole {
   }
 
   /**
+   * Whether an agent conversation also offers {@code check}, a dry run of {@code submit} with the
+   * same checks that records nothing, so the model can fix an answer before it counts (#892); by
+   * default no.
+   */
+  default boolean offersCheck() {
+    return false;
+  }
+
+  /**
+   * Whether an answer the model writes as text, in the submit tool's form, counts as a submit when
+   * it ends the conversation without calling it; it is then reminded once (#892). By default no.
+   */
+  default boolean textAnswers() {
+    return false;
+  }
+
+  /**
    * Whether an item's entry is kept in part (knowledge-build epic, section 11.2, Modes B and C):
    * when every rejection of a submitted entry is of a field, the rest is accepted at once, and a
    * later submission of the item adds to what was accepted, so the model may submit more than once.

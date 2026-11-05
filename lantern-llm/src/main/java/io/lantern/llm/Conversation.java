@@ -36,7 +36,11 @@ public final class Conversation {
   private final int turnCap;
   private final ConversationLimits limits;
   private long freshInput;
+  private long lastSent;
   private boolean nudged;
+  // From the nudge on, when the limits give answer turns, only the answer tools run (#892).
+  private boolean answering;
+  private int answerTurnsSent;
   private boolean compacted;
   private final String id = UUID.randomUUID().toString();
   private final Clock clock;
@@ -65,7 +69,11 @@ public final class Conversation {
     if (turnCap < 1) {
       throw new IllegalArgumentException("The turn cap must be positive: " + turnCap);
     }
-    this.turnCap = turnCap;
+    // A conversation allowed more tool turns than the default safety cap gets room for them.
+    this.turnCap =
+        limits.toolTurns() == Integer.MAX_VALUE
+            ? turnCap
+            : Math.max(turnCap, limits.toolTurns() + limits.answerTurns() + 2);
     Objects.requireNonNull(request, "request");
     this.first =
         new LlmRequest(
@@ -192,6 +200,11 @@ public final class Conversation {
     while (true) {
       String capped = exempt ? null : capped();
       exempt = false;
+      if (capped != null && !answering && limits.answerTurns() > 0 && turns > 0) {
+        // Reached before the nudge: the model is told now, and gets its turns to answer.
+        startAnswering();
+        capped = null;
+      }
       if (capped != null) {
         end(LlmConversation.Ending.CAPPED, capped);
         throw new ConversationCappedException(capped);
@@ -203,6 +216,9 @@ public final class Conversation {
         throw new LlmException(reason);
       }
       turns++;
+      if (answering) {
+        answerTurnsSent++;
+      }
       LlmResponse response;
       try {
         response = client.call(turnRequest(), new LlmClient.Turn(id, turns, Map.of()));
@@ -216,6 +232,7 @@ public final class Conversation {
       usage = usage.plus(response.usage());
       cost = cost.add(model.pricing().cost(response.usage()));
       freshInput += ConversationLimits.freshEquivalent(response.usage());
+      lastSent = ConversationLimits.sent(response.usage());
       last = response;
       if (!response.wantsTools()) {
         return response;
@@ -224,10 +241,26 @@ public final class Conversation {
       for (LlmToolCall call : response.toolCalls()) {
         toolCalls.merge(call.name(), 1, Integer::sum);
         LlmToolResult result;
-        try {
-          result = tools.run(call);
-        } catch (RuntimeException e) {
-          result = LlmToolResult.error(call, "The tool failed: " + e.getMessage());
+        if (response.cutOff()) {
+          // A call written as the output ran out may be cut short: it is not run (#892).
+          result =
+              LlmToolResult.error(
+                  call,
+                  "Your turn reached its output limit before this call was complete, so it was not"
+                      + " run. Think less and make the call again.");
+        } else if (answering && !limits.answerTools().contains(call.name())) {
+          result =
+              LlmToolResult.error(
+                  call,
+                  "No exploring is left. Give your answer now with what you have found, through "
+                      + String.join(" or ", new java.util.TreeSet<>(limits.answerTools()))
+                      + ".");
+        } else {
+          try {
+            result = tools.run(call);
+          } catch (RuntimeException e) {
+            result = LlmToolResult.error(call, "The tool failed: " + e.getMessage());
+          }
         }
         if (!result.callId().equals(call.id())) {
           result = new LlmToolResult(call.id(), result.content(), result.error());
@@ -240,14 +273,39 @@ public final class Conversation {
       if (!nudged && nearCap()) {
         // Lantern's own words go after the tool results, never inside one.
         nudged = true;
+        answering = limits.answerTurns() > 0;
         note = limits.nudge();
       }
       messages.add(LlmMessage.toolResults(results, note));
     }
   }
 
+  /** The nudge, said after the last tool results when a cap was reached before it. */
+  private void startAnswering() {
+    answering = true;
+    if (!nudged) {
+      nudged = true;
+      LlmMessage results = messages.removeLast();
+      String text =
+          results.text().isEmpty() ? limits.nudge() : results.text() + "\n" + limits.nudge();
+      messages.add(
+          new LlmMessage(
+              results.author(),
+              text,
+              results.toolCalls(),
+              results.toolResults(),
+              results.thinking()));
+    }
+  }
+
   /** Why the next turn may not be sent, or null if it may. */
   private String capped() {
+    if (answering) {
+      // The answer turns are the only cap left once they began.
+      return answerTurnsSent >= limits.answerTurns()
+          ? "Stopped after %d turns to answer".formatted(limits.answerTurns())
+          : null;
+    }
     if (toolTurns > limits.toolTurns()) {
       return "Stopped at the cap of %d tool turns".formatted(limits.toolTurns());
     }
@@ -255,13 +313,17 @@ public final class Conversation {
       return "Stopped at the cap of %d input tokens (fresh-token equivalents)"
           .formatted(limits.inputTokens());
     }
+    if (lastSent >= limits.contextTokens()) {
+      return "Stopped at the cap of %d tokens a turn".formatted(limits.contextTokens());
+    }
     return null;
   }
 
   /** Whether the turn about to be sent passes {@value ConversationLimits#NUDGE_SHARE} of a cap. */
   private boolean nearCap() {
     return toolTurns >= Math.ceil(limits.toolTurns() * ConversationLimits.NUDGE_SHARE)
-        || freshInput >= limits.inputTokens() * ConversationLimits.NUDGE_SHARE;
+        || freshInput >= limits.inputTokens() * ConversationLimits.NUDGE_SHARE
+        || lastSent >= limits.contextTokens() * ConversationLimits.NUDGE_SHARE;
   }
 
   /** The share of the model's context window past which the history is compacted, once. */
