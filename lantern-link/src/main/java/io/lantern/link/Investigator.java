@@ -106,22 +106,9 @@ public final class Investigator {
    */
   static final int LEADS_PER_PACKET = 1;
 
-  /**
-   * The caps of a Mode A conversation (#892): small tool answers keep each turn a small increment
-   * on a cached conversation, so turns are cheap and a safety cap of 100 is enough (the owner's
-   * decision of 5 Nov 2026); the guards are its size, 60,000 tokens a turn, well under Haiku's
-   * 100,000-token price line, and its cost, 200,000 input tokens in fresh-token equivalents. At
-   * three quarters of any cap (75 turns, 45,000 tokens a turn, 150,000 in all) exploring stops: the
-   * model is told to answer, and has 3 turns in which only check and submit run.
-   */
+  /** The caps of a Mode A conversation: 6 tool turns. */
   static final ConversationLimits LEAD_LIMITS =
-      new ConversationLimits(100, 200_000, MAX_OUTPUT_TOKENS)
-          .withContextTokens(60_000)
-          .withAnswerTurns(3, Set.of("submit", "check"))
-          .withNudge(
-              "You are close to what this task allows. Stop exploring: from now on only check and"
-                  + " submit work. Give your answer with what you have found; use the verdict"
-                  + " unclear if it does not settle the lead.");
+      new ConversationLimits(6, 60_000, MAX_OUTPUT_TOKENS);
 
   /** The caps of a Mode B or C conversation: 16 tool turns, 120,000 input tokens. */
   static final ConversationLimits EXPLORE_LIMITS =
@@ -826,7 +813,7 @@ public final class Investigator {
           int size = mode == Mode.A ? session.spec().packetSize() : 1;
           for (int i = 0; i < items.size(); i += size) {
             List<Item> packet = items.subList(i, Math.min(items.size(), i + size));
-            InvestigateRole role = role(mode, group.getKey(), packet);
+            InvestigateRole role = role(mode, group.getKey());
             roles.add(role);
             Supplier<List<FileRead>> read = role::filesRead;
             futures.add(
@@ -856,24 +843,13 @@ public final class Investigator {
       return outcomes;
     }
 
-    private InvestigateRole role(Mode mode, String group, List<Item> packet) {
+    private InvestigateRole role(Mode mode, String group) {
       boolean system = group.equals(EntityId.SYSTEM.toString());
-      boolean leads = mode == Mode.A || mode == Mode.A_ALONE;
-      // A lead's conversation is shown the units and only the links and facts that mention the
-      // lead; it looks up the rest with its tools (#860).
-      List<String> words = leads ? LeadWords.of(packet.stream().map(Item::subject).toList()) : null;
       String context =
           switch (mode) {
-            case A, A_ALONE ->
-                InvestigatePrompt.facts(
-                    LeadWords.about(words, system ? List.of() : model.unitFacts(group)));
+            case A, A_ALONE -> InvestigatePrompt.facts(system ? List.of() : model.unitFacts(group));
             case B, C -> contexts.getOrDefault(group, "");
           };
-      String map =
-          leads
-              ? InvestigatePrompt.systemMap(
-                  List.copyOf(model.units.keySet()), LeadWords.aboutLines(words, model.links), true)
-              : systemMap;
       InvestigateRole.Mode roleMode =
           switch (mode) {
             case A, A_ALONE -> InvestigateRole.Mode.LEADS;
@@ -882,7 +858,7 @@ public final class Investigator {
           };
       return new InvestigateRole(
           roleMode,
-          map,
+          systemMap,
           context,
           graph,
           system ? null : group,

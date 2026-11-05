@@ -84,7 +84,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("9 6686231376754388324b1e9d5c1eb956d84cdbd34247fa79e81108129096d1dc");
+        .isEqualTo("8 ca2dd3e69226bd781e3f2c1d22a4b8adabf518dbd8f860ab7b8a64a5949263a6");
   }
 
   /**
@@ -103,40 +103,5 @@ class InvestigatePromptTest {
     assertThat(InvestigatePrompt.LEADS_TASK).startsWith("Task: check leads.");
     assertThat(InvestigatePrompt.EXPLORE_TASK).startsWith("Task: investigate what static");
     assertThat(InvestigatePrompt.SUBMIT_SCHEMA).isEqualTo(FactJson.parse(InvestigatePrompt.SCHEMA));
-  }
-
-  @Test
-  void aLeadsSystemMapShowsEachLinkOnceWithItsCount() {
-    String map =
-        InvestigatePrompt.systemMap(
-            List.of("service:g:a"),
-            List.of("a -> b [CALLS_HTTP]", "a -> b [CALLS_HTTP]", "a -> c [PUBLISHES]"),
-            true);
-
-    assertThat(map)
-        .contains(
-            "(xN: N links of that kind)", "- a -> b [CALLS_HTTP] x2\n", "- a -> c [PUBLISHES]\n");
-    assertThat(map.split("a -> b", -1)).hasSize(2);
-  }
-
-  @Test
-  void aLeadsAnswerMustNameItsLeadVerdictAndWhatItCites() {
-    // Mode A's submit tool requires them (#892); the other modes keep the shared schema.
-    assertThat(
-            InvestigateRole.LEADS_SCHEMA
-                .path("properties")
-                .path("items")
-                .path("items")
-                .path("required"))
-        .extracting(tools.jackson.databind.JsonNode::asString)
-        .containsExactly("lead", "verdict", "kind", "names", "cites");
-    assertThat(
-            InvestigatePrompt.SUBMIT_SCHEMA
-                .path("properties")
-                .path("items")
-                .path("items")
-                .path("required"))
-        .extracting(tools.jackson.databind.JsonNode::asString)
-        .doesNotContain("lead");
   }
 }
