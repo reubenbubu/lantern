@@ -130,6 +130,54 @@ class UnknownCallersTest {
   }
 
   @Test
+  void aSecondGatewayWhoseRoutesTheLinkerDidNotFollowLeavesNoEndpointOfTheUnitUnreached() {
+    system();
+    call(SHOP, PLACE, BILLING, CHARGE);
+    gatewayToShop();
+    routed(PLACE);
+    unrouted(LIST, "GET /orders/all");
+    EntityId other = EntityId.parse("service:com.example:other-edge");
+    model.add(other, "deployable-unit", FactObject.string("spring-boot"));
+    model.add(UI, Types.CALLS_HTTP, FactObject.entity(other), FactJson.newObject());
+    ObjectNode route = FactJson.newObject();
+    route.put("route", "everything");
+    model.add(other, Types.CALLS_HTTP, FactObject.entity(SHOP), route);
+
+    assertThat(lines()).isEmpty();
+  }
+
+  @Test
+  void theCheckFindsALineCitingAnEndpointBehindFollowedRoutesTheLinkerDidNotRecordAsUnrouted() {
+    system();
+    call(SHOP, PLACE, BILLING, CHARGE);
+    gatewayToShop();
+    unrouted(LIST, "GET /orders/all");
+    Fact place =
+        model.facts.stream()
+            .filter(f -> f.subject().equals(PLACE) && f.predicate().equals(Types.ENDPOINT))
+            .findFirst()
+            .orElseThrow();
+    List<Fact> facts = new java.util.ArrayList<>(Derivation.withModel(model.facts, 1));
+    ObjectNode at = FactJson.newObject();
+    at.putArray("facts").add(place.id());
+    facts.add(
+        Fact.create(
+            UnknownCallers.CALLER,
+            Types.CALLS_UNREACHED,
+            FactObject.entity(SHOP),
+            at,
+            place.origin(),
+            place.evidence(),
+            1.0,
+            place.validity()));
+
+    assertThat(UnknownCallers.violations(new Knowledge(facts)))
+        .singleElement()
+        .asString()
+        .contains("is behind the routes of " + EDGE);
+  }
+
+  @Test
   void theCheckFindsALineCitingAnEndpointAGatewayRoutesTo() {
     system();
     call(SHOP, PLACE, BILLING, CHARGE);

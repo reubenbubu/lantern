@@ -229,7 +229,10 @@ public final class UnknownCallers implements LinkRule.OverFacts {
   /**
    * The gateways and units the linker followed every route between, as {@code "<gateway> <unit>"}:
    * it records an {@code unrouted-endpoint} for each endpoint of the unit the routes do not reach
-   * only then (RouteLinker).
+   * only then (RouteLinker). A pair whose routes reach every endpoint has none and is not in the
+   * set; its route then counts as reaching the whole unit, which every endpoint is. Only HTTP
+   * endpoints are recorded as unrouted, so a WebSocket endpoint behind such routes counts as
+   * reached.
    */
   private static Set<String> followed(Knowledge knowledge) {
     Set<String> result = new HashSet<>();

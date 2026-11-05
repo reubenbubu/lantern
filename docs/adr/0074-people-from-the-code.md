@@ -165,7 +165,9 @@ does not write the linker's types (as `GROUPS` under `CONTAINS`).
   something else reaches it, and the routes reach only the endpoints a `routed-endpoint` names. A
   route the linker did not follow (one whose rewrite it cannot read), which leaves no
   `unrouted-endpoint` for that gateway and unit, still counts as reaching every endpoint of its
-  unit. The check below applies the same rule.
+  unit; so does a route whose gateway reaches every endpoint, which leaves none unrouted. The
+  linker records only HTTP endpoints as unrouted, so a WebSocket endpoint behind a gateway's
+  routes counts as reached. The check below applies the same rule.
 - **STOMP mappings** are not entry points of their own: a client reaches them through the
   WebSocket endpoint it connects to.
 - **Used by a person:** a `person-basis` cites a fact about the method or its class.
