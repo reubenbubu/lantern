@@ -9,11 +9,16 @@ import com.tngtech.archunit.core.importer.ClassFileImporter;
 import io.lantern.app.archfixture.FactReadingRenderer;
 import io.lantern.compose.archfixture.ComposerCallingLlm;
 import io.lantern.compose.archfixture.ComposerCopyingTypeNames;
+import io.lantern.compose.archfixture.ComposerImportingKnowledge;
 import io.lantern.compose.archfixture.ComposerReadingFactFields;
+import io.lantern.compose.archfixture.ComposerReadingFactObjects;
+import io.lantern.compose.archfixture.ComposerReadingTheModel;
+import io.lantern.compose.archfixture.ComposerRunningStages;
 import io.lantern.compose.archfixture.FakeComposer;
 import io.lantern.extract.archfixture.ExtractorCallingLlm;
 import io.lantern.extract.archfixture.ExtractorResolvingPlaceholders;
 import io.lantern.harness.archfixture.FakeHarness;
+import io.lantern.investigate.archfixture.FakeInvestigator;
 import io.lantern.link.archfixture.FakeLinker;
 import io.lantern.link.archfixture.FakeResolver;
 import io.lantern.link.archfixture.InvestigatorReadingADescription;
@@ -158,8 +163,59 @@ class ArchitectureRulesTest {
   }
 
   @Test
+  void aComposerImportingTheFactStoreIsRejected() {
+    JavaClasses classes = new ClassFileImporter().importClasses(ComposerImportingKnowledge.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.COMPOSER_READS_THE_MODEL.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("ComposerImportingKnowledge.order()")
+        .hasMessageContaining("io.lantern.derive.Knowledge");
+  }
+
+  @Test
+  void aComposerReadingAFactsObjectIsRejected() {
+    JavaClasses classes = new ClassFileImporter().importClasses(ComposerReadingFactObjects.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.COMPOSER_READS_THE_MODEL.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("Fact.object()");
+  }
+
+  @Test
+  void aComposerDependingOnAStageIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(
+                ComposerCallingLlm.class,
+                FakeLlmClient.class,
+                FakeHarness.class,
+                FakeRole.class,
+                FakeResolver.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.COMPOSER_READS_THE_MODEL.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("io.lantern.llm.archfixture.FakeLlmClient")
+        .hasMessageContaining("io.lantern.harness.archfixture.FakeHarness")
+        .hasMessageContaining("io.lantern.summarize.archfixture.FakeRole")
+        .hasMessageContaining("io.lantern.link.archfixture.FakeResolver");
+  }
+
+  @Test
+  void aComposerReachingIntoExtractionOrInvestigateIsRejected() {
+    JavaClasses classes =
+        new ClassFileImporter()
+            .importClasses(
+                ComposerRunningStages.class, ExtractorCallingLlm.class, FakeInvestigator.class);
+
+    assertThatThrownBy(() -> ArchitectureRules.COMPOSER_READS_THE_MODEL.check(classes))
+        .isInstanceOf(AssertionError.class)
+        .hasMessageContaining("io.lantern.extract.archfixture.ExtractorCallingLlm")
+        .hasMessageContaining("io.lantern.investigate.archfixture.FakeInvestigator");
+  }
+
+  @Test
   void aComposerReadingOnlyTheModelIsAccepted() {
-    JavaClasses classes = new ClassFileImporter().importClasses(FakeComposer.class);
+    JavaClasses classes = new ClassFileImporter().importClasses(ComposerReadingTheModel.class);
 
     assertThatCode(() -> ArchitectureRules.COMPOSER_READS_THE_MODEL.check(classes))
         .doesNotThrowAnyException();

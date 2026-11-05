@@ -164,9 +164,11 @@ final class ArchitectureRules {
 
   /**
    * The fact attributes and predicate names are read by the model alone: a composer class reads
-   * what the model's typed queries say, never a fact's attributes or predicate, and never the
-   * model's index of facts (knowledge-build epic, section 12; design, Composition reads the model;
-   * #761).
+   * what the model's typed queries say, never a fact's attributes, predicate or object, never the
+   * model's index of facts and never another stage (knowledge-build epic, section 12; design,
+   * Composition reads the model; #554, #761). The model's generic pass-throughs to its index
+   * ({@code about}, {@code attributes}, {@code withPredicate} and the like) are package-private to
+   * lantern-derive, so the compiler keeps the composer off them.
    */
   static final ArchRule COMPOSER_READS_THE_MODEL =
       noClasses()
@@ -176,16 +178,26 @@ final class ArchitectureRules {
           .dependOnClassesThat()
           .haveFullyQualifiedName("io.lantern.derive.Knowledge")
           .orShould()
+          .dependOnClassesThat()
+          .resideInAnyPackage(
+              "io.lantern.extract..",
+              "io.lantern.link..",
+              "io.lantern.summarize..",
+              "io.lantern.harness..",
+              "io.lantern.llm..",
+              "io.lantern.investigate..")
+          .orShould()
           .accessTargetWhere(
               DescribedPredicate.describe(
-                  "Fact.attributes() or Fact.predicate()",
+                  "a fact's fields (Fact.attributes(), predicate() or object())",
                   (com.tngtech.archunit.core.domain.JavaAccess<?> access) ->
                       access.getTargetOwner().isEquivalentTo(io.lantern.core.fact.Fact.class)
-                          && (access.getName().equals("attributes")
-                              || access.getName().equals("predicate"))))
+                          && Set.of("attributes", "predicate", "object")
+                              .contains(access.getName())))
           .because(
-              "the composer reads typed ArchitectureModel queries, not raw facts (knowledge-build"
-                  + " epic, section 12; #761)");
+              "the composer reads typed ArchitectureModel queries, its generated types and the"
+                  + " document model, not raw facts or another stage (knowledge-build epic, section"
+                  + " 12; #554, #761)");
 
   /**
    * The matchers that read where addresses lead from address resolution's claims (#589), by simple

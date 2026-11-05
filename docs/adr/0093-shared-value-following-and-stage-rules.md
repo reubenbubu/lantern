@@ -73,4 +73,4 @@ linker, those whose names start with `Investigat`, and the link stage leaves the
 linker may not depend on Investigate, Investigate may not depend on Describe, and Describe may
 read what Investigate found. Main already obeys this. `ArchitectureRulesTest` shows Investigate
 depending on a Describe role rejected. The rule that the composer depends on no stage package is
-#761's (`COMPOSER_READS_THE_MODEL`).
+part of `COMPOSER_READS_THE_MODEL` since #761 (ADR 0119).

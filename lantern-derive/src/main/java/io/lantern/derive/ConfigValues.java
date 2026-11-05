@@ -20,7 +20,13 @@ public final class ConfigValues {
    * @param profile the Spring profile the value is for, or {@code null} for the default
    * @param profiled whether the fact states a profile at all, even an empty one
    */
-  public record Value(Fact fact, String key, String profile, boolean profiled) {}
+  public record Value(Fact fact, String key, String profile, boolean profiled) {
+
+    /** The value as configured, possibly empty. */
+    public String value() {
+      return fact.object().value();
+    }
+  }
 
   /**
    * The configuration values of the modules, module by module, in the order the model holds them.

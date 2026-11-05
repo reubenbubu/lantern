@@ -75,7 +75,13 @@ public final class UnitInteractions {
       Elements.Line line,
       EntityId from,
       EntityId to,
-      Fact through) {}
+      Fact through) {
+
+    /** For a push to STOMP subscribers, the destination it sends to, as stored. */
+    public String pushedTo() {
+      return fact.object().value();
+    }
+  }
 
   private final Knowledge knowledge;
   private final Elements elements;

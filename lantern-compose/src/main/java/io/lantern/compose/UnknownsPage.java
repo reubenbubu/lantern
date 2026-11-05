@@ -63,7 +63,7 @@ final class UnknownsPage {
           new StringBuilder(content.isEmpty() ? "" : " ")
               .append(assembler.name(fact.subject()))
               .append(": ")
-              .append(fact.object().value());
+              .append(Unknowns.call(fact));
       if (reason != null) {
         text.append(" (").append(reason.replace('-', ' '));
         if (!keys.isEmpty()) {
@@ -107,7 +107,7 @@ final class UnknownsPage {
     for (Unknowns.Caller line : lines) {
       cited.add(line.line());
       cited.addAll(line.entries());
-      List<String> entries = line.entries().stream().map(e -> e.object().value()).toList();
+      List<String> entries = line.entryTexts();
       content.add(
           TextRun.of(" " + assembler.name(line.unit()) + ": " + String.join(", ", entries) + "."));
     }
@@ -265,7 +265,7 @@ final class UnknownsPage {
       // A push reads with its destination, as its flow's step does (#738).
       String detail =
           interaction.kind() == UnitInteractions.Kind.PUSH
-              ? interaction.fact().object().value()
+              ? interaction.pushedTo()
               : details.get(interaction.fact());
       lines.merge(
           end(interaction.unit(), interaction.from())

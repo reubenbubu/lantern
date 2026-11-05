@@ -66,7 +66,18 @@ public final class Unknowns {
   public record NotAsked(String role, EntityId subject, String item, String reason, Fact fact) {}
 
   /** A line of the Unknown caller: the unit, the line's fact and the entry points it cites. */
-  public record Caller(EntityId unit, Fact line, List<Fact> entries) {}
+  public record Caller(EntityId unit, Fact line, List<Fact> entries) {
+
+    /** Each entry point as its fact states it: an endpoint, a destination or a route. */
+    public List<String> entryTexts() {
+      return entries.stream().map(e -> e.object().value()).toList();
+    }
+  }
+
+  /** What an open link's call, send or datasource reads as, as stored. */
+  public static String call(Fact openLink) {
+    return openLink.object().value();
+  }
 
   /** A component of a unit in scope. */
   public record Part(EntityId unit, Elements.Component component) {}

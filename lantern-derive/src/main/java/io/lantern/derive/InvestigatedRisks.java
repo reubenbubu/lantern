@@ -43,7 +43,13 @@ public final class InvestigatedRisks {
       List<String> cites,
       List<Fact> facts,
       List<EntityId> units,
-      String leadKind) {}
+      String leadKind) {
+
+    /** What tells the risk apart from the others: its subject and its value. */
+    public String key() {
+      return fact.subject() + " " + fact.object().value();
+    }
+  }
 
   /**
    * The risks and findings about one of the units, in the order the model holds them: the risks

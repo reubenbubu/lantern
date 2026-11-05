@@ -14,6 +14,7 @@ import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
+import io.lantern.derive.Decisions;
 import io.lantern.derive.DeploymentInstances;
 import io.lantern.derive.Elements;
 import io.lantern.derive.Elements.Line;
@@ -146,16 +147,7 @@ final class C4Views {
           || (externalOnly && !isType(target.type(), Types.EXTERNAL_SYSTEM))) {
         continue;
       }
-      String verb =
-          switch (ArchitectureModel.statement(profiled).predicate()) {
-            case Types.CALLS_HTTP -> "calls";
-            case Types.SENDS_MAIL -> "sends mail through";
-            case Types.USES_IDENTITY_PROVIDER -> "uses as its identity provider";
-            case Types.PUBLISHES -> "sends to";
-            case Types.CONSUMES -> "listens on";
-            case Types.USES_DATABASE -> "connects to";
-            default -> "reads tables of";
-          };
+      String verb = Elements.alternativeVerb(profiled);
       assembler.entity(target);
       content.add(
           TextRun.of(
@@ -964,7 +956,7 @@ final class C4Views {
               null,
               List.of(
                   cell(deployed.environment()),
-                  cell(deployed.container().object().value()),
+                  cell(deployed.name()),
                   cell(image != null ? image : build == null ? null : "built from " + build),
                   cell(
                       product == null ? null : version == null ? product : product + " " + version),
@@ -1131,9 +1123,8 @@ final class C4Views {
    * many it holds as its technology line, citing the facts that make it and hold its members.
    */
   private Diagram.Node groupNode(EntityId group, EntityId parent) {
-    List<Fact> facts = new ArrayList<>(model.about(group));
-    facts.addAll(model.relations(group, Types.GROUPS));
-    int members = model.relations(group, Types.GROUPS).size();
+    List<Fact> facts = model.groupFacts(group);
+    int members = model.groupMembers(group).size();
     String what = group.key().contains("/" + Groups.DOMAIN + "/") ? "container" : "component";
     return node(group, members + " " + what + (members == 1 ? "" : "s"), parent, facts);
   }
@@ -1160,14 +1151,10 @@ final class C4Views {
    * then why the system is built as it is is not known (Quality bar, Architecture Explorer).
    */
   Optional<Block> decisions(String section) {
-    SortedSet<EntityId> decisions = new TreeSet<>(ArchitectureModel.BY_ID);
-    for (Fact fact : model.withPredicate(Types.TITLE)) {
-      EntityId subject = fact.subject();
-      String key = subject.key();
-      if (subject.type().equals(Types.DECISION)
-          && key.contains(":")
-          && repos.contains(key.substring(0, key.indexOf(':')))) {
-        decisions.add(subject);
+    SortedMap<EntityId, Decisions.Decision> decisions = new TreeMap<>(ArchitectureModel.BY_ID);
+    for (Decisions.Decision decision : Decisions.of(model)) {
+      if (repos.contains(decision.repo())) {
+        decisions.putIfAbsent(decision.id(), decision);
       }
     }
     if (decisions.isEmpty()) {
@@ -1192,24 +1179,23 @@ final class C4Views {
               List.of()));
     }
     List<Table.Row> rows = new ArrayList<>();
-    for (EntityId decision : decisions) {
-      assembler.entity(decision);
-      Optional<String> number = model.attribute(decision, Types.DECISION_NUMBER);
+    for (Decisions.Decision decision : decisions.values()) {
+      assembler.entity(decision.id());
       rows.add(
           new Table.Row(
-              decision,
+              decision.id(),
               List.of(
-                  cell(number.map(n -> "ADR " + n).orElse(null)),
-                  cell(assembler.name(decision)),
-                  cell(model.attribute(decision, Types.DECISION_STATUS).orElse(null)),
-                  cell(model.attribute(decision, Types.DECISION_OUTCOME).orElse(null)),
+                  cell(decision.number() == null ? null : "ADR " + decision.number()),
+                  cell(assembler.name(decision.id())),
+                  cell(decision.status()),
+                  cell(decision.outcome()),
                   cell(rationale(decision))),
-              assembler.facts(model.attributes(decision))));
+              assembler.facts(decision.facts())));
     }
     rows.sort(
         (a, b) -> {
-          int x = number(a.entity());
-          int y = number(b.entity());
+          int x = number(decisions.get(a.entity()));
+          int y = number(decisions.get(b.entity()));
           return x != y
               ? Integer.compare(x, y)
               : a.entity().toString().compareTo(b.entity().toString());
@@ -1229,18 +1215,16 @@ final class C4Views {
   }
 
   /** The first paragraph of a decision record's context section, or that it has none. */
-  private String rationale(EntityId decision) {
-    return model
-        .attribute(decision, Types.DECISION_CONTEXT)
+  private static String rationale(Decisions.Decision decision) {
+    return Optional.ofNullable(decision.context())
         .map(String::strip)
         .filter(c -> !c.isEmpty())
         .map(c -> c.split("\\n\\s*\\n", 2)[0].strip().replaceAll("\\s*\\n\\s*", " "))
         .orElse(NOT_RECORDED);
   }
 
-  private int number(EntityId decision) {
-    return model
-        .attribute(decision, Types.DECISION_NUMBER)
+  private static int number(Decisions.Decision decision) {
+    return Optional.ofNullable(decision.number())
         .map(n -> n.matches("[0-9]{1,9}") ? Integer.parseInt(n) : Integer.MAX_VALUE)
         .orElse(Integer.MAX_VALUE);
   }
@@ -1502,8 +1486,7 @@ final class C4Views {
     }
     // Data access, to the databases the unit's datasources point to.
     for (Elements.Component component : components) {
-      String access =
-          model.attribute(Components.id(unit, component.main()), Types.DATA_ACCESS).orElse(null);
+      String access = model.dataAccess(Components.id(unit, component.main())).orElse(null);
       if (access == null || !focus.contains(component.main())) {
         continue;
       }

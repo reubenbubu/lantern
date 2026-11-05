@@ -207,13 +207,171 @@ public final class ArchitectureModel {
     return facts;
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // What the composer reads (#761): typed queries, each for one thing a document shows.
+
+  /** The facts that describe an element, which its box and rows cite. */
+  public List<Fact> describing(EntityId element) {
+    return knowledge.attributes(element);
+  }
+
+  /** Whether any fact is about the entity. */
+  public boolean hasFactsAbout(EntityId id) {
+    return !knowledge.about(id).isEmpty();
+  }
+
+  /** The connections Investigate found to an entity (ADR 0110). */
+  public List<Fact> investigatedTo(EntityId id) {
+    return knowledge.withPredicate(Types.INVESTIGATED_CONNECTION).stream()
+        .filter(f -> isEntity(f) && object(f).equals(id))
+        .toList();
+  }
+
+  /**
+   * Whether only the LLM's facts know the entity: every fact about it comes from the LLM, and no
+   * fact of static analysis or derivation relates anything to it.
+   */
+  public boolean knownOnlyToTheLlm(EntityId id) {
+    if (knowledge.about(id).stream().anyMatch(f -> f.origin().kind() != Origin.Kind.LLM)) {
+      return false;
+    }
+    if (notFromTheLlm == null) {
+      Set<EntityId> objects = new java.util.HashSet<>();
+      for (Origin.Kind kind : Origin.Kind.values()) {
+        if (kind != Origin.Kind.LLM) {
+          knowledge.withOrigin(kind).stream()
+              .filter(ArchitectureModel::isEntity)
+              .forEach(f -> objects.add(object(f)));
+        }
+      }
+      notFromTheLlm = objects;
+    }
+    return !notFromTheLlm.contains(id);
+  }
+
+  /** The entities a fact not from the LLM relates something to, found once. */
+  private Set<EntityId> notFromTheLlm;
+
+  /**
+   * The links of one interaction type from a unit, method or frontend ({@code CALLS_HTTP}, {@code
+   * PUBLISHES}, {@code READS_TABLE}, ...), in the order the model holds them.
+   */
+  public List<Fact> linksOf(EntityId from, String interaction) {
+    return knowledge.relations(from, interaction);
+  }
+
+  /** The libraries a unit bundles, as its {@code BUNDLES} facts. */
+  public List<Fact> bundles(EntityId unit) {
+    return knowledge.relations(unit, Types.BUNDLES);
+  }
+
+  /** The members of a group, as its {@code GROUPS} facts. */
+  public List<Fact> groupMembers(EntityId group) {
+    return knowledge.relations(group, Types.GROUPS);
+  }
+
+  /** The facts that make a group: those about it and those holding its members. */
+  public List<Fact> groupFacts(EntityId group) {
+    List<Fact> facts = new ArrayList<>(knowledge.about(group));
+    facts.addAll(groupMembers(group));
+    return facts;
+  }
+
+  /** The Unknown caller's lines (ADR 0074, amendment for #766). */
+  public List<Fact> unknownCallerLines() {
+    return knowledge.withPredicate(Types.CALLS_UNREACHED);
+  }
+
+  /** The links of a unit Lantern could not link, resolved or not. */
+  public List<Fact> unresolvedLinks(EntityId unit) {
+    return attributes(unit, Types.UNRESOLVED_LINK);
+  }
+
+  /** An element's technology, as stored. */
+  public Optional<String> technology(EntityId element) {
+    return knowledge.attribute(element, Types.TECHNOLOGY);
+  }
+
+  /** How a module is packaged ({@code jar}, {@code pom}, ...), as stored. */
+  public Optional<String> packaging(EntityId module) {
+    return knowledge.attribute(module, Types.PACKAGING);
+  }
+
+  /** The facts saying how a module is packaged. */
+  public List<Fact> packagingFacts(EntityId module) {
+    return attributes(module, Types.PACKAGING);
+  }
+
+  /** How a component accesses its unit's data: reads, writes or both; empty when it does not. */
+  public Optional<String> dataAccess(EntityId component) {
+    return knowledge.attribute(component, Types.DATA_ACCESS);
+  }
+
+  /** The facts saying a type is an application's main class. */
+  public List<Fact> mainClassFacts(EntityId type) {
+    return attributes(type, Types.MAIN_CLASS);
+  }
+
+  /** The build dependencies of a module as stored, in the order the model holds them. */
+  public List<Fact> buildDependencyFacts(EntityId module) {
+    return knowledge.relations(module, Types.BUILD_DEPENDS_ON);
+  }
+
+  /** The build dependencies of modules on other entities, outside test scope. */
+  public List<Fact> moduleBuildDependencies() {
+    return knowledge.withPredicate(Types.BUILD_DEPENDS_ON).stream()
+        .filter(f -> isEntity(f) && f.subject().type().equals(Types.MODULE) && !isTestScope(f))
+        .toList();
+  }
+
+  /** The claims of a repository's READMEs, in the order the model holds them. */
+  public List<Fact> readmeClaims(String repo) {
+    return knowledge.withPredicate(Types.CLAIM).stream()
+        .filter(
+            f ->
+                f.subject().type().equals(Types.README) && f.subject().key().startsWith(repo + ":"))
+        .toList();
+  }
+
+  /**
+   * What the documentation says, by fact ID: the text of each fact read from a README or other
+   * document, of the repository, or of all when it is {@code null}.
+   */
+  public Map<String, String> documentationTexts(String repo) {
+    Map<String, String> texts = new java.util.LinkedHashMap<>();
+    for (Fact fact : knowledge.withOrigin(Origin.Kind.README)) {
+      if (fact.object().kind() == io.lantern.core.fact.FactObject.Kind.STRING
+          && (repo == null || repo.equals(fact.evidence().repo()))) {
+        texts.put(fact.id(), fact.object().value());
+      }
+    }
+    return texts;
+  }
+
+  /**
+   * How a schema is migrated: the fact naming its most specific kind with a file (Flyway, then
+   * Liquibase, then plain SQL, as the SQL extractor names them, ADR 0034), and that kind.
+   */
+  public record Migration(Fact fact, String kind) {}
+
+  private static final List<String> MIGRATION_KINDS = List.of("flyway", "liquibase", "sql");
+
+  /** How the schema is migrated, or empty. */
+  public Optional<Migration> migration(EntityId schema) {
+    return attributes(schema, Types.KIND).stream()
+        .filter(f -> f.evidence().path() != null)
+        .filter(f -> MIGRATION_KINDS.contains(f.object().value()))
+        .min(Comparator.comparingInt((Fact f) -> MIGRATION_KINDS.indexOf(f.object().value())))
+        .map(f -> new Migration(f, f.object().value()));
+  }
+
   /** The facts with the entity as subject. */
-  public List<Fact> about(EntityId subject) {
+  List<Fact> about(EntityId subject) {
     return knowledge.about(subject);
   }
 
   /** The facts with the entity as subject and a value, not an entity, as object. */
-  public List<Fact> attributes(EntityId subject) {
+  List<Fact> attributes(EntityId subject) {
     return knowledge.attributes(subject);
   }
 
@@ -221,29 +379,29 @@ public final class ArchitectureModel {
    * The facts with the entity as subject and one of the predicates, a value rather than an entity
    * as object, in the order the model holds them.
    */
-  public List<Fact> attributes(EntityId subject, Collection<String> predicates) {
+  List<Fact> attributes(EntityId subject, Collection<String> predicates) {
     return knowledge.attributes(subject).stream()
         .filter(f -> predicates.contains(f.predicate()))
         .toList();
   }
 
   /** The value of the first attribute of the entity with the predicate, by fact ID. */
-  public Optional<String> attribute(EntityId subject, String predicate) {
+  Optional<String> attribute(EntityId subject, String predicate) {
     return knowledge.attribute(subject, predicate);
   }
 
   /** The facts of the origin kind, in {@link Knowledge#STABLE} order. */
-  public List<Fact> withOrigin(Origin.Kind kind) {
+  List<Fact> withOrigin(Origin.Kind kind) {
     return knowledge.withOrigin(kind);
   }
 
   /** The facts with the predicate. */
-  public List<Fact> withPredicate(String predicate) {
+  List<Fact> withPredicate(String predicate) {
     return knowledge.withPredicate(predicate);
   }
 
   /** The facts relating the subject to an entity by the predicate. */
-  public List<Fact> relations(EntityId subject, String predicate) {
+  List<Fact> relations(EntityId subject, String predicate) {
     return knowledge.relations(subject, predicate);
   }
 
@@ -636,31 +794,10 @@ public final class ArchitectureModel {
       String title, Text walkthrough, Text preconditions, Text postconditions) {}
 
   /**
-   * What a stored fact says, read apart from its citation: a relation to an entity or a value, and
-   * the view it holds under, if any.
-   *
-   * @param subject what the fact is about
-   * @param predicate the relation or attribute's name
-   * @param entity the entity it relates the subject to, or {@code null} for a value
-   * @param value the value, or {@code null} for an entity
-   * @param view the view the fact holds under, or {@code null} for the default view
-   */
-  public record Statement(
-      EntityId subject, String predicate, EntityId entity, String value, String view) {}
-
-  /** What the stored fact says (see {@link Statement}). */
-  public static Statement statement(Fact fact) {
-    if (isEntity(fact)) {
-      return new Statement(fact.subject(), fact.predicate(), object(fact), null, view(fact));
-    }
-    return new Statement(fact.subject(), fact.predicate(), null, fact.object().value(), view(fact));
-  }
-
-  /**
    * The facts with the entity as subject and the predicate, a value rather than an entity as
    * object, by fact ID.
    */
-  public List<Fact> attributes(EntityId subject, String predicate) {
+  List<Fact> attributes(EntityId subject, String predicate) {
     return knowledge.attributes(subject).stream()
         .filter(f -> f.predicate().equals(predicate))
         .toList();
@@ -677,7 +814,72 @@ public final class ArchitectureModel {
    * @param found what the code shows, if the contradiction says
    */
   public record Contradiction(
-      Fact fact, Fact claim, List<Fact> contradictedBy, String stated, List<String> found) {}
+      Fact fact, Fact claim, List<Fact> contradictedBy, String stated, List<String> found) {
+
+    /** What the claim says, as the README states it. */
+    public String claimed() {
+      return claim.object().value();
+    }
+
+    /** The kind of contradiction, as stored. */
+    public String kind() {
+      return fact.object().value();
+    }
+  }
+
+  /**
+   * How a fact on the code's side reads (#761): its subject, then either a verb and the entity it
+   * relates the subject to, or the rest of the sentence; and the profile it holds under.
+   *
+   * @param subject what the fact is about
+   * @param verb how the subject relates to the entity, or {@code null}
+   * @param entity the entity, or {@code null}
+   * @param rest the rest of the sentence after the subject, when no entity, or {@code null}
+   * @param view the Spring profile it holds under, or {@code null}
+   */
+  public record Reading(EntityId subject, String verb, EntityId entity, String rest, String view) {}
+
+  private static final Map<String, String> VERBS =
+      Map.of(
+          Types.CALLS_HTTP,
+          "calls",
+          Types.SENDS_MAIL,
+          "sends mail through",
+          Types.USES_IDENTITY_PROVIDER,
+          "uses as its identity provider",
+          Types.ACCESSES_DATA_OF,
+          "accesses the data of",
+          Types.USES_DATABASE,
+          "uses",
+          Types.PUBLISHES,
+          "publishes to",
+          Types.CONSUMES,
+          "consumes from",
+          Types.USES_BROKER,
+          "uses");
+
+  /** How the fact reads (see {@link Reading}). */
+  public static Reading reading(Fact fact) {
+    String predicate = fact.predicate();
+    if (isEntity(fact)) {
+      return new Reading(
+          fact.subject(),
+          VERBS.getOrDefault(predicate, words(predicate)),
+          object(fact),
+          null,
+          view(fact));
+    }
+    String value = fact.object().value();
+    String rest =
+        predicate.equals(Types.UNRESOLVED_LINK)
+            ? " makes a call Lantern could not link: " + value
+            : "'s " + words(predicate) + " is " + value;
+    return new Reading(fact.subject(), null, null, rest, view(fact));
+  }
+
+  private static String words(String predicate) {
+    return predicate.toLowerCase(java.util.Locale.ROOT).replace('_', ' ').replace('-', ' ');
+  }
 
   /**
    * The contradictions of the claims in the repositories, each with both sides in the snapshot
