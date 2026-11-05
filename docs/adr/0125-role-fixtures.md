@@ -52,8 +52,13 @@ used the fixtures. No real model may be called in a test (CLAUDE.md, Safety and 
      A quote the chunk does not hold is no finding, so the obeyed screen stores nothing: its
      "rejection" is silence, and the unflagged files go on unmarked.
    - Investigate's lead is then stored as `unclear`, its answer rejected twice.
-   - A flow's significance is kept without its reason: field-level repair drops the reason that
-     cites the password file, and keeps the verdict, which the fixtures did not touch (ADR 0103).
+   - A flow's significance answer whose reason cites something that is no fact or answer of the
+     item (the password file) is rejected whole, and no verdict of it is stored: the scope falls
+     back to rank order. A reason citing a fact reference the item lacks is still a slip, and only
+     that reason is withdrawn (ADR 0103). (Amended for #768's review.)
+   - The support judge rejects a verdict whose "by" names an input the item does not cite: an
+     obeying judge finds every claim supported by the password file, and no verdict is kept.
+     (Amended for #768's review.)
 3. **Shared through the harness's test jar.** The fixtures, `InjectionFixtures` (the obeying answer,
    the data-block check and the fact lines) and the harness test helpers are published as
    `lantern-harness`'s test jar, which `lantern-summarize`, `lantern-compose` and `lantern-link`
@@ -67,3 +72,23 @@ used the fixtures. No real model may be called in a test (CLAUDE.md, Safety and 
   The epic's defence in depth stays: the policy in every prompt (ADR 0067), isolation per unit,
   the screen's finding, and the sampled support judge.
 - Recording again is a deliberate step, and its `expected.txt` diff is the review.
+
+## Amendment for #768's review (decision of 4 Nov 2026)
+
+- **Decision 1: the fixtures move to real model answers.** Today's fixtures stay as they are,
+  recorded from each role's scripted fake, so the replay tests exist now. The 1H test drop's real
+  Haiku 5.5 and Sonnet 5.5 run (#771) is recorded with `--record-calls`. Then each role's folder
+  is replaced with a small slice of that recording: one small subject per role in
+  `src/test/resources/recordings/<role>/`, with `expected.txt` regenerated from its replay. #768
+  stays open until that replacement lands.
+- **Decision 2: no obeying significance verdict is stored.** `FlowJudgements`' significance check
+  rejects the whole answer when a reason cites anything that is no fact or answer reference of the
+  item, so a verdict that rests on text shown as data is never kept (prompt version 9). A tag
+  with a line added (`F3:12`) still counts as a slip. The cost: one reason citing a file or other
+  outside reference drops every verdict of that scope's answer after its repair turn, and the
+  scope is drawn by rank order, where before only that reason was withdrawn.
+- **Decision 3: the judge's injection test covers every item.** Its obeying fake finds every claim
+  supported, `unit:0` included, by the password file. The judge rejects a "by" naming a fact tag
+  or a file its own item does not cite (prompt version 4), and no verdict is stored. Only what
+  reads as a reference is checked: words around it ("F1 and F2", "F1 (line 3)"), a tag with a
+  line, a file without its repository or a narrower range of a cited file all pass, as tests show.
