@@ -1652,6 +1652,12 @@ final class C4Views {
    * it reaches in focus, entry points in order put on one page while it fits; what no entry point
    * reaches goes on the last page. Each page is titled by the scope and its entry points.
    */
+  /**
+   * The components whose lines into a page's focus are left off it: on a page of entry points, the
+   * rest of the components being split, each drawn on its own page with what it calls.
+   */
+  private Set<EntityId> callersElsewhere = Set.of();
+
   /** The ID of a diagram drawn only to measure it, never shown. */
   private static final String TRIAL = "trial";
 
@@ -1666,10 +1672,12 @@ final class C4Views {
       Map<EntityId, EntityId> lift) {
     // Split only after merging lines per pair, so each page draws them merged too.
     perPair = true;
+    callersElsewhere = focus;
     try {
       return pagesByEntryPoint(id, entity, scope, unit, components, title, focus, lift);
     } finally {
       perPair = false;
+      callersElsewhere = Set.of();
     }
   }
 
@@ -1838,6 +1846,7 @@ final class C4Views {
         EntityId to = mainOf.get(ArchitectureModel.object(line));
         if (to == null
             || !(focus.contains(component.main()) || focus.contains(to))
+            || (!focus.contains(component.main()) && callersElsewhere.contains(component.main()))
             || merged(lift, component.main(), to)) {
           continue;
         }

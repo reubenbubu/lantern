@@ -288,11 +288,11 @@ class GroupViewsTest {
     TestFacts many = TestFacts.runtime();
     String pkg = "package:com.example:app:com.example.desk";
     many.relate("shop", "module:com.example:app", "CONTAINS", pkg);
-    // Desks 2k and 2k + 1 share Work k, so each Work is a component of its own.
+    // Every desk calls Work, so Work is a component of its own and on each page.
     int count = 8;
     for (int i = 0; i < count; i++) {
       String controller = "type:com.example.desk.Desk" + i;
-      String service = "type:com.example.desk.Work" + i / 2;
+      String service = "type:com.example.desk.Work";
       many.relate("shop", pkg, "CONTAINS", controller)
           .attribute("shop", controller, "stereotype", "controller", "{\"rest\": true}")
           .relate("shop", controller, "CONTAINS", controller.replace("type:", "method:") + "#get()")
@@ -311,7 +311,7 @@ class GroupViewsTest {
               "CALLS",
               service.replace("type:", "method:") + "#run()");
     }
-    DiagramLimits limits = DiagramLimits.DEFAULT;
+    DiagramLimits limits = limits(4, 2);
     Section components = section(system(many.list(), limits), "components");
     Section app =
         components.sections().stream()
@@ -320,10 +320,14 @@ class GroupViewsTest {
             .orElseThrow();
 
     List<Diagram> pages = diagrams(app);
-    assertThat(pages).hasSizeGreaterThan(1).allMatch(d -> C4Views.fits(d, limits));
+    // The desks' pages fit (the orders area's one entry point reaches more than this small limit).
+    assertThat(pages)
+        .filteredOn(d -> d.title().contains("from Desk"))
+        .hasSizeGreaterThan(1)
+        .allMatch(d -> C4Views.fits(d, limits));
     for (int i = 0; i < count; i++) {
       String controller = "type:com.example.desk.Desk" + i;
-      String service = "type:com.example.desk.Work" + i / 2;
+      String service = "type:com.example.desk.Work";
       assertThat(pages)
           .filteredOn(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(controller)))
           .hasSize(1)
@@ -333,6 +337,14 @@ class GroupViewsTest {
         .filteredOn(p -> p.title().contains("from Desk"))
         .hasSizeGreaterThan(1)
         .allMatch(p -> p.title().startsWith("d (not named): from "));
+    // A page draws only its own entry points, not the others calling what they share.
+    assertThat(app.sections())
+        .filteredOn(p -> p.title().contains("from Desk"))
+        .allSatisfy(
+            p ->
+                assertThat(block(p, Diagram.class).nodes())
+                    .filteredOn(n -> n.label().startsWith("Desk"))
+                    .allMatch(n -> p.title().contains(n.label())));
   }
 
   /** shop-app with three feature folders of controllers, more than one view holds. */
