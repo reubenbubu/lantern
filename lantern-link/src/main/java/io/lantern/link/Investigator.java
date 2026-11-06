@@ -1287,10 +1287,13 @@ public final class Investigator {
       attributes.put("basis", LlmFacts.Basis.INFERRED.jsonName());
     }
 
-    /** The ranges an entry cites as evidence, each with its file's blob; else the fallback. */
+    /**
+     * The ranges an entry cites in the analyzed repositories, each with its file's blob; else the
+     * fallback.
+     */
     private Evidence evidence(JsonNode entry, Evidence fallback) {
       List<Evidence.Location> locations = new ArrayList<>();
-      for (String cite : InvestigateRole.cites(entry)) {
+      for (String cite : inSnapshot(InvestigateRole.cites(entry))) {
         Matcher range = RANGE.matcher(cite);
         if (!range.matches()) {
           continue;
@@ -1341,5 +1344,16 @@ public final class Investigator {
         list.add(value.stringValue().strip());
       }
     }
+  }
+
+  /**
+   * The citations in the snapshot's own repositories. A release a unit bundles ({@code
+   * repo@version}, #910) is read at another commit: an answer may quote and cite it, but a fact's
+   * evidence is the snapshot's own lines (#938).
+   */
+  static List<String> inSnapshot(List<String> cites) {
+    return cites.stream()
+        .filter(c -> !c.substring(0, Math.max(0, c.indexOf(':'))).contains(GraphTools.RELEASE))
+        .toList();
   }
 }

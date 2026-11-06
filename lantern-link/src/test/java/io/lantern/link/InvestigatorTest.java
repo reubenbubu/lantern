@@ -1916,4 +1916,16 @@ class InvestigatorTest {
       INJECTED_PATHS.values().forEach(path -> TEXTS.remove("fs:" + path));
     }
   }
+
+  @Test
+  void aFactsEvidenceKeepsOnlyTheSnapshotsOwnCitations() {
+    // A bundled release's lines may be cited, but are not the snapshot's evidence (#938).
+    assertThat(
+            Investigator.inSnapshot(
+                List.of(
+                    "commons@1.9.4:events/src/main/java/Released.java:5-5",
+                    "orders:src/main/java/Sender.java:10-12")))
+        .containsExactly("orders:src/main/java/Sender.java:10-12");
+    assertThat(Investigator.inSnapshot(List.of("commons@1.9.4:Released.java:5"))).isEmpty();
+  }
 }
