@@ -143,3 +143,9 @@ only a staging overlay in another repository turns on.
 
 An absence is cited as the issue's comment asked: a contract-mismatch answer cites the caller's
 line and the routes that do exist, and the names check passes it (the panels' `skils` lead).
+
+Known limits of the check: a refutation citing only the lead's own settings file passes it (the
+first message showed that file), so the check does not catch a refutation from `angular.json`
+alone; the rule in the instructions has to. And `BUILD_OR_DEPLOY` does not know runtime scripts,
+`nginx.conf` or build files (`pom.xml`, `build.gradle`, `angular.json`), so a refutation resting on
+those alone is sent back once before it stands.
