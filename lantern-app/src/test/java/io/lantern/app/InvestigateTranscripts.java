@@ -124,12 +124,26 @@ final class InvestigateTranscripts {
         .append(", at most ")
         .append(request.path("maxOutputTokens").asString())
         .append(" output tokens a turn.\n\n");
-    boolean anyThinking = last.response().path("thinking").size() > 0;
-    for (JsonNode m : request.path("messages")) {
-      anyThinking |= m.path("thinking").size() > 0;
+    int blocks = 0;
+    int empty = 0;
+    List<JsonNode> turns = new ArrayList<>();
+    request.path("messages").forEach(turns::add);
+    turns.add(last.response());
+    for (JsonNode m : turns) {
+      for (JsonNode t : m.path("thinking")) {
+        blocks++;
+        empty += t.path("text").asString().isEmpty() ? 1 : 0;
+      }
     }
-    if (!anyThinking) {
+    if (blocks == 0) {
       md.append("The provider returned no reasoning in this conversation.\n\n");
+    } else if (empty > 0) {
+      md.append("The provider returned ")
+          .append(
+              empty < blocks
+                  ? empty + " of the " + blocks + " reasoning blocks"
+                  : blocks == 1 ? "the one reasoning block" : "all " + blocks + " reasoning blocks")
+          .append(" of this conversation empty; empty ones are left out below.\n\n");
     }
     md.append("## System prompt\n\n");
     if (request.path("system").isNull()) {
@@ -172,6 +186,9 @@ final class InvestigateTranscripts {
   private static void message(StringBuilder md, int n, String author, JsonNode m) {
     md.append("### ").append(n).append(". ").append(author).append("\n\n");
     for (JsonNode t : m.path("thinking")) {
+      if (t.path("text").asString().isEmpty()) {
+        continue;
+      }
       md.append(t.path("redacted").asBoolean() ? "Reasoning (redacted):\n\n" : "Reasoning:\n\n");
       fenced(md, t.path("text").asString());
     }

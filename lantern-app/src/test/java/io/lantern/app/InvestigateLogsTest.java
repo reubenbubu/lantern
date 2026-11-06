@@ -130,7 +130,10 @@ class InvestigateLogsTest {
         .contains("Text after the results:")
         .contains("The provider returned no reasoning in this conversation.")
         .contains("### 6. Model");
-    assertThat(Files.readString(files.get(PREFIX + LEAD_B))).startsWith("# " + PREFIX + LEAD_B);
+    assertThat(Files.readString(files.get(PREFIX + LEAD_B)))
+        .startsWith("# " + PREFIX + LEAD_B)
+        .contains("The provider returned the one reasoning block of this conversation empty")
+        .doesNotContain("Reasoning:");
 
     // The verdicts against project-8's key.
     ObjectNode score = key.orElseThrow().score(verdicts);
@@ -221,7 +224,12 @@ class InvestigateLogsTest {
                         JSON.readTree("{\"repo\":\"nope\",\"path\":\"a.yml\"}"))),
                 tools("", submit("confirmed", "[\"x:1-2\",\"y:3-4\"]", "call-3")),
                 tools("", submit("refuted", "[\"x:1-2\"]", "call-4")),
-                tools("", submit("refuted", "[\"z:5-5\"]", "call-5"))));
+                new LlmResponse(
+                    "",
+                    LlmResponse.TOOL_USE,
+                    new TokenUsage(10, 200, 3000, 5000),
+                    List.of(submit("refuted", "[\"z:5-5\"]", "call-5")),
+                    List.of(new io.lantern.llm.LlmThinking("", "signature", false)))));
 
     @Override
     public String name() {
