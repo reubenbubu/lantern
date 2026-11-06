@@ -199,9 +199,14 @@ public final class GraphTools implements CodeTools {
 
     /** A file as the tools show it, handing what masking took out of it to the files (#645). */
     String shown(String path, byte[] content) {
+      return shown(path, content, files::masked);
+    }
+
+    /** As {@link #shown(String, byte[])}, the values masking took out going to {@code taken}. */
+    String shown(String path, byte[] content, java.util.function.Consumer<String> taken) {
       String text = masked(path, content, secretKeys);
       if (text != null) {
-        MaskedValues.taken(new String(content, StandardCharsets.UTF_8), text, files::masked);
+        MaskedValues.taken(new String(content, StandardCharsets.UTF_8), text, taken);
       }
       return text;
     }

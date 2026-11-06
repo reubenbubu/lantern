@@ -198,6 +198,27 @@ class ShellToolsTest {
   }
 
   @Test
+  void theErrorOutputIsShownWhenThereIsNoOutput() {
+    assertThat(call("shell", "{\"command\":\"echo denied >&2; exit 2\"}"))
+        .isEqualTo("denied\n[exit status 2]");
+  }
+
+  @Test
+  void everyFolderIsReadableByTheContainersUserWhoeverThatIs() throws IOException {
+    try (java.util.stream.Stream<Path> all = java.nio.file.Files.walk(workspace.root())) {
+      for (Path path : all.toList()) {
+        String others = java.nio.file.Files.isDirectory(path) ? "r-x" : "r--";
+        assertThat(
+                java.nio.file.attribute.PosixFilePermissions.toString(
+                        java.nio.file.Files.getPosixFilePermissions(path))
+                    .substring(6))
+            .as(path.toString())
+            .isEqualTo(others);
+      }
+    }
+  }
+
+  @Test
   void cdPipesLoopsAndSubstitutionRun() {
     assertThat(call("shell", "{\"command\":\"cd gateway && grep -n orders routes.yml | head -1\"}"))
         .isEqualTo("1:- Path=/orders/**");
@@ -207,6 +228,10 @@ class ShellToolsTest {
 
   @Test
   void secretsAreMaskedInEveryTool() {
+    // A masked value goes to the Secrets check only once an answer shows its file.
+    assertThat(masked).isEmpty();
+    call("shell", "{\"command\":\"cat orders/long.txt | head -2\"}");
+    assertThat(masked).isEmpty();
     assertThat(call("shell", "{\"command\":\"cat orders/src/main/resources/application.yml\"}"))
         .doesNotContain("hunter2");
     assertThat(call("find_in_code", "{\"text\":\"password\"}")).doesNotContain("hunter2");
@@ -267,8 +292,43 @@ class ShellToolsTest {
     // A line shown by its text alone, the blank and brace lines of a range counting with it.
     call("shell", "{\"command\":\"sed -n '10,11p' orders/" + file + "\"}");
     assertThat(tools.showed("orders", file, 9, 12)).isTrue();
-    assertThat(tools.filesRead()).extracting(f -> f.path()).containsExactly(file);
-    assertThat(tools.textsShown()).hasSize(1);
+    assertThat(tools.filesRead()).extracting(f -> f.path()).contains(file);
+    // From a folder inside the repository, numbered lines of one of several files named.
+    String config = "src/main/resources/application.yml";
+    call(
+        "shell",
+        "{\"command\":\"cd orders/src/main && nl -ba resources/application.yml | sed -n '4,5p';"
+            + " nl -ba java/o/OrderController.java | sed -n '1,1p'\"}");
+    assertThat(tools.showed("orders", config, 4, 5)).isTrue();
+    assertThat(tools.showed("orders", config, 1, 3)).isFalse();
+    // Lines numbered afresh by cat -n, after going back up with ..
+    call(
+        "shell",
+        "{\"command\":\"cd gateway && cd ../orders && sed -n '1,3p' " + config + " | cat -n\"}");
+    assertThat(tools.showed("orders", config, 1, 3)).isTrue();
+    assertThat(ShellTools.folders("cd orders/src; cd ../..; cd /work/gateway; cd /"))
+        .containsExactly("", "orders/src", "gateway");
     assertThat(Set.of(tools.leadTools().getFirst().name())).containsExactly("shell");
+  }
+
+  @Test
+  void linesAreCreditedHoweverTheCommandGotToTheirFile() {
+    String file = "src/main/java/o/OrderController.java";
+    String config = "src/main/resources/application.yml";
+    // A file named before the command went back up, its path read from where it was named.
+    call(
+        "shell",
+        "{\"command\":\"cd orders/src/main/resources; cat -n application.yml | sed -n '4,5p';"
+            + " cd ../../..; ls\"}");
+    assertThat(tools.showed("orders", config, 4, 5)).isTrue();
+    assertThat(tools.showed("orders", config, 1, 3)).isFalse();
+    // grep's context lines.
+    call("shell", "{\"command\":\"cd orders && grep -n -A2 GetMapping " + file + "\"}");
+    assertThat(tools.showed("orders", file, 5, 7)).isTrue();
+    assertThat(tools.showed("orders", file, 10, 11)).isFalse();
+    // A numbering of the command's own before each line.
+    call("shell", "{\"command\":\"sed -n '30,31p' orders/long.txt | cat -n | sed 's/^/+29 /'\"}");
+    assertThat(tools.showed("orders", "long.txt", 30, 31)).isTrue();
+    assertThat(tools.showed("orders", "long.txt", 29, 29)).isFalse();
   }
 }

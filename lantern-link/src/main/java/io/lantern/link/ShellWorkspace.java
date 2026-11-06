@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -18,12 +20,16 @@ import java.util.stream.Stream;
 /**
  * The code Investigate's shell reads (#893): each repository of the snapshot written at its
  * analysed commit into a folder of its own, every file as the tools show it, its secrets masked
- * (ADR 0054; what masking takes out goes to the harness's Secrets check, #645), and binary files,
- * keys and keystores left out; then the sealed container the shell's commands run in, started over
- * that folder and removed with it when the run ends. Its files are what the tools' answers come
- * from, so the attribution of an answer's lines to files reads them here.
+ * (ADR 0054), and binary files, keys and keystores left out (what masking takes out is kept per
+ * file, and goes to the Secrets check once an answer shows that file, as {@code read_file} did);
+ * then the sealed container the shell's commands run in, started over that folder and removed with
+ * it when the run ends. Its files are what the tools' answers come from, so the attribution of an
+ * answer's lines to files reads them here.
  */
 public final class ShellWorkspace implements AutoCloseable {
+
+  /** Where the container sees the working folder. */
+  static final String WORK = "/work";
 
   /** A command's run in the container. */
   public record Run(String out, String err, int exitCode, boolean timedOut, boolean overCeiling) {}
@@ -46,11 +52,14 @@ public final class ShellWorkspace implements AutoCloseable {
 
   private final Path root;
   private final Set<String> repos;
+  private final Map<String, List<String>> masked;
   private final Container container;
 
-  private ShellWorkspace(Path root, Set<String> repos, Container container) {
+  private ShellWorkspace(
+      Path root, Set<String> repos, Map<String, List<String>> masked, Container container) {
     this.root = root;
     this.repos = repos;
+    this.masked = masked;
     this.container = container;
   }
 
@@ -68,21 +77,34 @@ public final class ShellWorkspace implements AutoCloseable {
       throw new UncheckedIOException("Cannot make a folder for the Investigate shell", e);
     }
     Set<String> written = new TreeSet<>();
+    Map<String, List<String>> masked = new HashMap<>();
     try {
+      // The container's user is not this process's: the folder must be readable by others too.
+      readable(root);
       for (String repo : graph.repos()) {
-        if (write(graph, repo, root.resolve(repo))) {
+        if (write(graph, repo, root.resolve(repo), masked)) {
           written.add(repo);
         }
       }
-      return new ShellWorkspace(root, Set.copyOf(written), starter.start(root, written));
+      return new ShellWorkspace(
+          root, Set.copyOf(written), Map.copyOf(masked), starter.start(root, written));
+    } catch (IOException e) {
+      delete(root);
+      throw new UncheckedIOException("Cannot make " + root + " readable", e);
     } catch (RuntimeException e) {
       delete(root);
       throw e;
     }
   }
 
+  /** The written folder. */
+  Path root() {
+    return root;
+  }
+
   /** Writes one repository's files as the tools show them; whether it has any. */
-  private static boolean write(GraphTools.Graph graph, String repo, Path into) {
+  private static boolean write(
+      GraphTools.Graph graph, String repo, Path into, Map<String, List<String>> masked) {
     List<String> paths = graph.files().paths(repo);
     boolean any = false;
     for (String path : paths) {
@@ -94,7 +116,11 @@ public final class ShellWorkspace implements AutoCloseable {
       if (content.isEmpty()) {
         continue;
       }
-      String text = graph.shown(path, content.get());
+      List<String> taken = new ArrayList<>();
+      String text = graph.shown(path, content.get(), taken::add);
+      if (!taken.isEmpty()) {
+        masked.put(repo + '\u0000' + path, List.copyOf(taken));
+      }
       if (text == null) {
         continue;
       }
@@ -155,6 +181,11 @@ public final class ShellWorkspace implements AutoCloseable {
     } catch (IOException | UncheckedIOException e) {
       return Optional.empty();
     }
+  }
+
+  /** The values masking took out of a file, for the Secrets check once an answer shows it. */
+  List<String> masked(String repo, String path) {
+    return masked.getOrDefault(repo + '\u0000' + path, List.of());
   }
 
   /** Whether the repository holds the file. */

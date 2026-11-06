@@ -73,9 +73,15 @@ final class ShellTools implements CodeTools {
           + " signature, in order: a guide to which lines to read, never something to cite.";
 
   private static final Pattern GREP_LINE = Pattern.compile("^(?:\\./)?([^:\\s]+):(\\d+)[:-](.*)$");
+
+  /** A context line of grep -n: {@code path-12-text}. */
+  private static final Pattern GREP_CONTEXT = Pattern.compile("^(?:\\./)?(\\S+?)-(\\d+)-(.*)$");
+
+  /** What a command may put before a file's line: numbers, signs and spaces. */
+  private static final Pattern NUMBERING = Pattern.compile("[\\s\\d+:|>#.-]*");
+
   private static final Pattern NL_LINE = Pattern.compile("^\\s*(\\d+)(?:\\t|[:-])(.*)$");
-  private static final Pattern CD =
-      Pattern.compile("(?:^|[;&|(]\\s*)cd\\s+(?:/work/)?([^\\s;&|)/]+)");
+  private static final Pattern CD = Pattern.compile("(?:^|[;&|(]\\s*)cd\\s+([^\\s;&|)]+)");
   private static final Pattern TOKEN = Pattern.compile("[A-Za-z0-9_./@-]+");
 
   private final ShellWorkspace workspace;
@@ -376,49 +382,47 @@ final class ShellTools implements CodeTools {
    * text is a line of a file the command or the answer names.
    */
   private synchronized void attribute(String command, List<String> answer) {
-    String cd = null;
-    Matcher m = CD.matcher(command);
-    while (m.find()) {
-      cd = m.group(1);
-    }
+    List<String> cds = folders(command);
     Set<String[]> files = new LinkedHashSet<>();
-    collect(command, cd, files);
+    collect(command, cds, files);
     for (String line : answer) {
-      collect(line, cd, files);
+      collect(line, cds, files);
     }
     List<String[]> named = new ArrayList<>(files);
     for (String line : answer) {
+      String text = line;
       Matcher grep = GREP_LINE.matcher(line);
       if (grep.matches()) {
-        String[] file = resolve(grep.group(1), cd);
+        String[] file = resolve(grep.group(1), cds);
         if (file != null) {
           mark(file[0], file[1], Integer.parseInt(grep.group(2)));
           continue;
         }
       }
+      Matcher context = GREP_CONTEXT.matcher(line);
+      if (context.matches() && credit(resolve(context.group(1), cds), context)) {
+        continue;
+      }
       Matcher nl = NL_LINE.matcher(line);
-      if (nl.matches() && named.size() == 1) {
-        String[] file = named.getFirst();
-        int n = Integer.parseInt(nl.group(1));
-        Optional<List<String>> lines = workspace.lines(file[0], file[1]);
-        if (lines.isPresent()
-            && n >= 1
-            && n <= lines.get().size()
-            && same(lines.get().get(n - 1), nl.group(2))) {
-          mark(file[0], file[1], n);
+      if (nl.matches()) {
+        // A numbered line: shown for each named file that holds this text at that number.
+        boolean found = false;
+        for (String[] file : named) {
+          found |= credit(file, nl);
+        }
+        if (found) {
           continue;
         }
+        text = nl.group(2);
       }
-      String text = line.strip();
+      text = text.strip();
       if (!meaningful(text)) {
         continue;
       }
       for (String[] file : named) {
         List<String> lines = workspace.lines(file[0], file[1]).orElse(List.of());
         for (int i = 0; i < lines.size(); i++) {
-          if (lines.get(i).strip().equals(text)
-              || (text.endsWith("…")
-                  && lines.get(i).strip().startsWith(text.substring(0, text.length() - 1)))) {
+          if (same(lines.get(i), text) || numbered(text, lines.get(i))) {
             mark(file[0], file[1], i + 1);
           }
         }
@@ -426,14 +430,81 @@ final class ShellTools implements CodeTools {
     }
   }
 
-  private void collect(String text, String cd, Set<String[]> files) {
+  /** Marks a line given as its number (group 1) and text (group 2) when the file holds it there. */
+  private boolean credit(String[] file, Matcher numberAndText) {
+    if (file == null) {
+      return false;
+    }
+    int n = Integer.parseInt(numberAndText.group(numberAndText.groupCount() - 1));
+    String text = numberAndText.group(numberAndText.groupCount());
+    Optional<List<String>> lines = workspace.lines(file[0], file[1]);
+    if (lines.isPresent()
+        && n >= 1
+        && n <= lines.get().size()
+        && same(lines.get().get(n - 1), text)) {
+      mark(file[0], file[1], n);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * A shown line that is a file's line behind some numbering of its own, such as {@code +47 1\t}.
+   */
+  private static boolean numbered(String shown, String fileLine) {
+    String line = fileLine.strip();
+    return meaningful(line)
+        && shown.endsWith(line)
+        && NUMBERING.matcher(shown.substring(0, shown.length() - line.length())).matches();
+  }
+
+  /**
+   * The folders a command is in as it runs, relative to the working folder: the working folder
+   * ({@code ""}) and each its {@code cd}s lead to; a {@code cd} out of it is left out.
+   */
+  static List<String> folders(String command) {
+    List<String> seen = new ArrayList<>(List.of(""));
+    List<String> at = new ArrayList<>();
+    boolean outside = false;
+    Matcher m = CD.matcher(command);
+    while (m.find()) {
+      String to = m.group(1).replaceAll("^[\"']|[\"']$", "");
+      if (to.startsWith("/")) {
+        at.clear();
+        outside = !(to + "/").startsWith(ShellWorkspace.WORK + "/");
+        if (outside) {
+          continue;
+        }
+        to = to.substring(ShellWorkspace.WORK.length());
+      }
+      for (String part : to.split("/")) {
+        if (part.isEmpty() || part.equals(".")) {
+          continue;
+        }
+        if (part.equals("..")) {
+          if (!at.isEmpty()) {
+            at.removeLast();
+          }
+        } else {
+          at.add(part);
+        }
+      }
+      String folder = String.join("/", at);
+      if (!outside && !seen.contains(folder)) {
+        seen.add(folder);
+      }
+    }
+    return seen;
+  }
+
+  private void collect(String text, List<String> cds, Set<String[]> files) {
     Matcher token = TOKEN.matcher(text);
     while (token.find() && files.size() < 20) {
       String t = token.group();
       if (!t.contains("/") && !t.contains(".")) {
         continue;
       }
-      String[] file = resolve(t.replaceFirst(":\\d+.*$", ""), cd);
+      String[] file = resolve(t.replaceFirst(":\\d+.*$", ""), cds);
       if (file != null
           && files.stream().noneMatch(f -> f[0].equals(file[0]) && f[1].equals(file[1]))) {
         files.add(file);
@@ -441,15 +512,29 @@ final class ShellTools implements CodeTools {
     }
   }
 
-  /** A path as a command or answer writes it, as a repository and a path in it; or null. */
-  private String[] resolve(String written, String cd) {
-    String p = written.replaceFirst("^/work/", "").replaceFirst("^\\./", "");
-    int slash = p.indexOf('/');
-    if (slash > 0 && workspace.has(p.substring(0, slash), p.substring(slash + 1))) {
-      return new String[] {p.substring(0, slash), p.substring(slash + 1)};
+  /**
+   * A path as a command or answer writes it, as a repository and a path in it; or null. A relative
+   * path is read from each folder the command was in; {@code /work/x} and, from {@code /}, {@code
+   * ./work/x} name the working folder's {@code x}.
+   */
+  private String[] resolve(String written, List<String> cds) {
+    String p = written.replaceFirst("^\\./", "");
+    List<String> tries = new ArrayList<>();
+    if (p.startsWith(ShellWorkspace.WORK + "/")) {
+      tries.add(p.substring(ShellWorkspace.WORK.length() + 1));
+    } else if (!p.startsWith("/")) {
+      for (String cd : cds) {
+        tries.add(cd.isEmpty() ? p : java.nio.file.Path.of(cd, p).normalize().toString());
+      }
+      if (p.startsWith("work/")) {
+        tries.add(p.substring("work/".length()));
+      }
     }
-    if (cd != null && workspace.has(cd, p)) {
-      return new String[] {cd, p};
+    for (String t : tries) {
+      int slash = t.indexOf('/');
+      if (slash > 0 && workspace.has(t.substring(0, slash), t.substring(slash + 1))) {
+        return new String[] {t.substring(0, slash), t.substring(slash + 1)};
+      }
     }
     int colon = p.indexOf(':');
     if (colon > 0 && workspace.has(p.substring(0, colon), p.substring(colon + 1))) {
@@ -472,8 +557,12 @@ final class ShellTools implements CodeTools {
   }
 
   private synchronized void mark(String repo, String path, int line) {
-    shown.computeIfAbsent(repo + '\u0000' + path, k -> new BitSet()).set(line);
     String key = repo + '\u0000' + path;
+    if (!shown.containsKey(key)) {
+      // The file's masked values go to the Secrets check once an answer shows it.
+      workspace.masked(repo, path).forEach(graph.files()::masked);
+    }
+    shown.computeIfAbsent(key, k -> new BitSet()).set(line);
     if (!read.containsKey(key)) {
       graph.fileRead(repo, path).ifPresent(f -> read.put(key, f));
     }

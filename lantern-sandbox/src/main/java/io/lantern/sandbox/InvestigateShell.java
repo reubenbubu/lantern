@@ -39,6 +39,15 @@ public final class InvestigateShell implements AutoCloseable {
   /** How much of a command's standard output, and of its error, is read. */
   public static final int CEILING = 256 * 1024;
 
+  /**
+   * How many commands run at once. Conversations running at the same time share the container and
+   * its process limit; each command takes a few processes, so more wait their turn here.
+   */
+  static final int AT_ONCE = 8;
+
+  /** How many processes the container may hold: room for {@link #AT_ONCE} commands' pipelines. */
+  static final int PROCESSES = 256;
+
   /** The image's repository; its tag is a hash of the Dockerfile. */
   static final String IMAGE = "lantern-investigate-shell";
 
@@ -65,6 +74,7 @@ public final class InvestigateShell implements AutoCloseable {
 
   private final Docker docker;
   private final String name;
+  private final java.util.concurrent.Semaphore turns = new java.util.concurrent.Semaphore(AT_ONCE);
   private final Process lifeline;
   private boolean closed;
 
@@ -107,7 +117,7 @@ public final class InvestigateShell implements AutoCloseable {
             "--security-opt",
             "no-new-privileges",
             "--pids-limit",
-            "64",
+            String.valueOf(PROCESSES),
             "--memory",
             "512m",
             "--memory-swap",
@@ -172,6 +182,20 @@ public final class InvestigateShell implements AutoCloseable {
    */
   public Run run(String command) {
     Objects.requireNonNull(command, "command");
+    try {
+      turns.acquire();
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new SandboxException("Interrupted while waiting to run a command in " + name, e);
+    }
+    try {
+      return runNow(command);
+    } finally {
+      turns.release();
+    }
+  }
+
+  private Run runNow(String command) {
     List<String> args = List.of("exec", name, "sh", "-c", WRAPPER, "sh", command);
     Process process = Docker.start(docker.builder(args));
     CompletableFuture<Read> out = read(process.getInputStream());
