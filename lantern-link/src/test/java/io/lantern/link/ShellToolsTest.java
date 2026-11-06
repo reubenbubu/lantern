@@ -84,6 +84,9 @@ class ShellToolsTest {
             IntStream.rangeClosed(1, 40)
                 .mapToObj(i -> "line " + i + " " + "x".repeat(40))
                 .collect(Collectors.joining("\n", "", "\n")),
+            "src/main/java/o/PartnerClient.java",
+            "package o;\n\npublic class PartnerClient {\n  @Value(\"${partner.api-key:hunter3}\")\n"
+                + "  void setKey(String key) {}\n}\n",
             "wide.txt",
             "w".repeat(300) + "\n"));
     files.put("gateway", Map.of("routes.yml", "- Path=/orders/**\n- Path=/orders/{id}\n"));
@@ -237,6 +240,11 @@ class ShellToolsTest {
     assertThat(call("find_in_code", "{\"text\":\"password\"}")).doesNotContain("hunter2");
     assertThat(call("find_in_code", "{\"text\":\"hunter2\"}")).startsWith("No line");
     assertThat(masked).contains("hunter2");
+    assertThat(
+            call(
+                "outline", "{\"repo\":\"orders\",\"path\":\"src/main/java/o/PartnerClient.java\"}"))
+        .contains("setKey")
+        .doesNotContain("hunter3");
   }
 
   @Test
