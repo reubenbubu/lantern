@@ -212,8 +212,15 @@ final class RepoSections {
       case GLOSSARY ->
           throw new IllegalArgumentException("The glossary is built from the whole document");
     }
-    return new Section(id, kind.title(), kind.levels(), repoId, List.of(), blocks, subsections);
+    // With pages beneath it, the containers section's own page is their overview, not again
+    // "Containers" under the containers level (#931).
+    String title =
+        kind == SectionKind.CONTAINERS && !subsections.isEmpty() ? OVERVIEW : kind.title();
+    return new Section(id, title, kind.levels(), repoId, List.of(), blocks, subsections);
   }
+
+  /** The title of the containers section's page when pages of domains or splits follow it. */
+  static final String OVERVIEW = "Overview";
 
   /** What the model of the scope holds as open or unanswered (#700), built once per document. */
   private Unknowns unknowns() {

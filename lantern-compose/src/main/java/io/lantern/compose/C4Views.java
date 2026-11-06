@@ -103,7 +103,7 @@ final class C4Views {
     return isType(entity.type(), Types.EXTERNAL_SYSTEM);
   }
 
-  /** The name of the domain whose page is being split, which each part's title names. */
+  /** The name of the domain whose page holds a split view, which each view's caption names. */
   private String splitIn;
 
   /** A split page's title, naming the domain it is a part of when one is being split. */
@@ -790,19 +790,15 @@ final class C4Views {
         if (fits(view)) {
           subsections.add(subsection(looseId, NO_DOMAIN, null, view));
         } else {
+          List<Section> parts = new ArrayList<>();
           splitIn = NO_DOMAIN;
           try {
-            split(
-                section,
-                loose,
-                REQUESTS.and(DATA),
-                List.of(REQUESTS, DATA),
-                true,
-                drawn,
-                subsections);
+            split(looseId, loose, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, parts);
           } finally {
             splitIn = null;
           }
+          subsections.add(
+              onePage(looseId, NO_DOMAIN, null, SectionKind.CONTAINERS.levels(), parts));
         }
       }
       if (!folded.isEmpty()) {
@@ -907,15 +903,18 @@ final class C4Views {
             subsections.add(subsection(id, name, domain, view));
             return;
           }
-          // Each page names the domain it is a part of (#764).
+          // Still one page, the domain's, holding a view per concern (#931).
           List<Diagram> drawn = new ArrayList<>();
+          List<Section> parts = new ArrayList<>();
+          // Each view's caption names the domain (#764).
           splitIn = name;
           try {
-            split(id, units, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
-            split(id, units, MESSAGING, List.of(), false, drawn, subsections);
+            split(id, units, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, parts);
+            split(id, units, MESSAGING, List.of(), false, drawn, parts);
           } finally {
             splitIn = null;
           }
+          subsections.add(onePage(id, name, domain, SectionKind.CONTAINERS.levels(), parts));
         });
   }
 
@@ -1089,6 +1088,26 @@ final class C4Views {
                         + (names.size() == 1 ? " it" : " them")
                         + " in full.")),
             List.of()));
+  }
+
+  /**
+   * One page of the parts a view was split into (#931): the menu has one entry per domain, area or
+   * unit, and the page holds each part's views, each a tab of its own, rather than a page each.
+   */
+  private static Section onePage(
+      String id,
+      String title,
+      EntityId entity,
+      java.util.Set<io.lantern.core.document.Level> levels,
+      List<Section> parts) {
+    List<Block> blocks = new ArrayList<>();
+    List<String> facts = new ArrayList<>();
+    for (Section part : parts) {
+      blocks.addAll(part.blocks());
+      facts.addAll(part.facts());
+      part.sections().forEach(s -> blocks.addAll(s.blocks()));
+    }
+    return new Section(id, title, levels, entity, facts, blocks, List.of());
   }
 
   private Section subsection(String id, String title, EntityId entity, Diagram diagram) {
@@ -1554,6 +1573,9 @@ final class C4Views {
         alone = List.of();
       }
       List<Section> areas = new ArrayList<>();
+      // What is in no area, or no view of the unit draws, is on the unit's own page (#931), in
+      // views of its own, not on pages beside its areas.
+      List<Section> extra = new ArrayList<>();
       boolean outsideOff = false;
       List<Elements.Component> outsideOnly = new ArrayList<>();
       Set<EntityId> looseOutside = new java.util.LinkedHashSet<>();
@@ -1676,7 +1698,7 @@ final class C4Views {
           areas = areas(id, unit, components, areaOf);
         } else if (!fits(diagram)) {
           // No area to draw and still too large: split by groups of entry points.
-          areas =
+          extra.addAll(
               byEntryPoint(
                   id,
                   unit,
@@ -1685,7 +1707,7 @@ final class C4Views {
                   components,
                   "Components of " + assembler.name(unit),
                   all,
-                  Map.of());
+                  Map.of()));
           diagram = null;
           outsideOff = false;
         }
@@ -1703,7 +1725,7 @@ final class C4Views {
                 looseOutside,
                 Map.of());
         if (fits(looseView)) {
-          areas.add(
+          extra.add(
               new Section(
                   looseId,
                   NO_AREA,
@@ -1713,7 +1735,7 @@ final class C4Views {
                   List.of(looseView),
                   List.of()));
         } else {
-          areas.addAll(
+          extra.addAll(
               byEntryPoint(
                   looseId, null, NO_AREA, unit, components, looseTitle, looseOutside, Map.of()));
         }
@@ -1734,7 +1756,7 @@ final class C4Views {
                 mains,
                 Map.of());
         if (fits(outsideView)) {
-          areas.add(
+          extra.add(
               new Section(
                   outsideId,
                   outsideTitle,
@@ -1745,7 +1767,7 @@ final class C4Views {
                   List.of()));
         } else {
           // Too many for one page: split by groups of entry points like any other page.
-          areas.addAll(
+          extra.addAll(
               byEntryPoint(
                   outsideId,
                   null,
@@ -1761,7 +1783,7 @@ final class C4Views {
         Set<EntityId> mains = new HashSet<>();
         alone.forEach(c -> mains.add(c.main()));
         String aloneId = assembler.id(id, "unconnected");
-        areas.add(
+        extra.add(
             new Section(
                 aloneId,
                 ALONE,
@@ -1825,6 +1847,10 @@ final class C4Views {
                 List.of()));
       }
       alternativesNote(assembler.id(id, "profiles"), only(unit), false).ifPresent(blocks::add);
+      for (Section part : extra) {
+        blocks.addAll(part.blocks());
+        part.sections().forEach(sub -> blocks.addAll(sub.blocks()));
+      }
       result.add(
           new Section(
               id,
@@ -1901,7 +1927,13 @@ final class C4Views {
           if (!fits(view)) {
             // An area too large for one page is split by groups of entry points (docs/design.md,
             // Readable diagrams), each page naming the area.
-            result.addAll(byEntryPoint(areaId, area, name, unit, components, title, mains, others));
+            result.add(
+                onePage(
+                    areaId,
+                    name,
+                    area,
+                    SectionKind.COMPONENTS.levels(),
+                    byEntryPoint(areaId, area, name, unit, components, title, mains, others)));
             return;
           }
           result.add(
