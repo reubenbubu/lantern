@@ -250,6 +250,12 @@ class GroupsAndFindingsShownTest {
           .attribute("shop", unit, "application-name", "u" + i, "{}")
           .attribute("shop", unit, "technology", "Spring Boot 3.5.0 / Java 21", "{}")
           .relate(
+              "shop",
+              unit,
+              "CALLS_HTTP",
+              "service:com.example:app",
+              "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"GET /u\"}")
+          .relate(
               "shop", i % 2 == 0 ? FIRST : SECOND, "GROUPS", unit, "{\"basis\": \"repository\"}");
     }
     return new ArrayList<>(many.list());

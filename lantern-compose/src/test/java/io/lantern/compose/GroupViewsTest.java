@@ -122,6 +122,36 @@ class GroupViewsTest {
   }
 
   @Test
+  void aContainerNoLineReachesIsOnAPageOfItsOwnAndOnNoOtherContainerView() {
+    // Owner's decision of 6 Nov 2026 on #764: it is not part of what the views show, whether the
+    // whole system fits one view or not.
+    TestFacts many = pair();
+    String lone = "service:com.example:lone";
+    many.attribute("shop", lone, "deployable-unit", "spring-boot", "{}")
+        .attribute("shop", lone, "application-name", "lone", "{}");
+    List<Fact> facts = many.list();
+
+    for (int target : List.of(100, 3)) {
+      Section containers = section(system(facts, limits(target, 2)), "containers");
+
+      assertThat(block(containers, Diagram.class).nodes())
+          .noneMatch(n -> n.id().toString().equals(lone));
+      assertThat(containers.sections())
+          .filteredOn(p -> p.title().equals(C4Views.ALONE))
+          .singleElement()
+          .satisfies(
+              p ->
+                  assertThat(block(p, Diagram.class).nodes())
+                      .extracting(n -> n.id().toString())
+                      .contains(lone)
+                      .doesNotContain(APP, WORKER));
+      assertThat(diagrams(containers))
+          .filteredOn(d -> !d.title().endsWith("with no connections found"))
+          .allSatisfy(d -> assertThat(d.nodes()).noneMatch(n -> n.id().toString().equals(lone)));
+    }
+  }
+
+  @Test
   void aSystemAboveTheThresholdShowsItsDomainsInPlaceOfTheirUnitsThenAPageEach() {
     TestFacts many = TestFacts.runtime();
     String first = "group:system/domain/first";
@@ -139,6 +169,12 @@ class GroupViewsTest {
       many.attribute("shop", unit, "deployable-unit", "spring-boot", "{}")
           .attribute("shop", unit, "application-name", "u" + i, "{}")
           .attribute("shop", unit, "technology", "Spring Boot 3.5.0 / Java 21", "{}")
+          .relate(
+              "shop",
+              unit,
+              "CALLS_HTTP",
+              "service:com.example:app",
+              "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"GET /u\"}")
           .relate(
               "shop", i % 2 == 0 ? first : second, "GROUPS", unit, "{\"basis\": \"repository\"}");
     }

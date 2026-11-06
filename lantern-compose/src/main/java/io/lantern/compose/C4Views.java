@@ -657,11 +657,25 @@ final class C4Views {
       profiles.ifPresent(blocks::add);
       return;
     }
+    // A container no line reaches says nothing on a map of how the parts connect: it is left off
+    // every other container view, and drawn on a page of its own, always (owner's decision of 6 Nov
+    // 2026
+    // on #764).
+    SortedSet<EntityId> alone = new TreeSet<>(entryFirst());
+    shown.stream()
+        .filter(c -> links.stream().noneMatch(l -> l.from().equals(c) || l.to().equals(c)))
+        .forEach(alone::add);
+    if (alone.size() < shown.size()) {
+      shown.removeAll(alone);
+    } else {
+      alone.clear();
+    }
     Diagram whole =
         containerDiagram(assembler.id(section, "diagram"), shown, "Containers", null, true);
     if (fits(whole) || shown.size() == 1) {
       blocks.add(whole);
       profiles.ifPresent(blocks::add);
+      alone(section, alone, subsections);
       return;
     }
     // The coarser level the code proves (owner's decisions (a) and (b) of 4 Nov 2026 on #764):
@@ -701,6 +715,7 @@ final class C4Views {
         // queue as an element, split per unit when it is not readable either.
         split(section, shown, MESSAGING, List.of(), false, drawn, subsections);
       }
+      alone(section, alone, subsections);
       return;
     }
     // No domain and still too large: split by concern, each view drawing every topic and queue.
@@ -726,7 +741,31 @@ final class C4Views {
                   with,
                   first.sections()));
         });
+    alone(section, alone, subsections);
   }
+
+  /** The page of the containers no line reaches, when there are any (#764). */
+  private void alone(String section, SortedSet<EntityId> alone, List<Section> subsections) {
+    if (alone.isEmpty()) {
+      return;
+    }
+    String id = assembler.id(section, "unconnected");
+    subsections.add(
+        subsection(
+            id,
+            ALONE,
+            null,
+            containerDiagram(
+                assembler.id(id, "diagram"),
+                alone,
+                "Containers of " + assembler.name(system) + " with no connections found",
+                null,
+                true,
+                Map.of())));
+  }
+
+  /** The title of the page of the containers no line reaches. */
+  static final String ALONE = "With no connections found";
 
   /**
    * The pages of the container view at domain level (ADR 0117), after its readable overview: one
