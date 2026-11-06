@@ -160,7 +160,7 @@ public final class GraphTools implements CodeTools {
       // A fixed order, whatever order the facts came in, so results do not change between runs.
       sorted.sort(Comparator.comparing((Fact f) -> rendered.get(f.id())).thenComparing(Fact::id));
       this.facts = List.copyOf(sorted);
-      releases(facts);
+      releases(this.facts);
     }
 
     /**
