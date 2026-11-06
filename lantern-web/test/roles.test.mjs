@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import {
   answerKeyIssues,
+  investigateIssues,
   describeRow,
   flowSelectionRow,
   isGenericLabel,
@@ -371,6 +372,39 @@ for (const set of readdirSync(testsets).filter((s) => existsSync(`${testsets}${s
     assert.deepEqual(answerKeyIssues(key, reference), []);
   });
 }
+
+test('the investigate section of an answer key: one entry per lead, a verdict of the list, evidence, a risk only when confirmed', () => {
+  const key = {
+    commits: { web: 'abc' },
+    risks: [{ id: 'r1' }],
+    decoys: [{ id: 'd1' }],
+    investigate: [
+      { lead: 'lead:open-cors/x', kind: 'open-cors', verdict: 'confirmed', why: 'w', evidence: ['web:a.ts:1-3'], risk: 'r1' },
+      { lead: 'lead:open-cors/y', kind: 'open-cors', verdict: 'refuted', why: 'w', evidence: ['web:a.ts:4-4'], decoy: 'd1' },
+      { lead: 'lead:send-before-commit/z', kind: 'send-before-commit', verdict: 'unclear', scored: false, why: 'w', evidence: ['web:a.ts:5-5'] },
+    ],
+  };
+  assert.deepEqual(investigateIssues(key), []);
+  const bad = {
+    ...key,
+    investigate: [
+      { lead: 'lead:open-cors/x', kind: 'contract-mismatch', verdict: 'refuted', why: '', evidence: ['other:a.ts:1-3', 'web:a.ts:9-2'], risk: 'r1' },
+      { lead: 'lead:open-cors/x', kind: 'open-cors', verdict: 'unclear', why: 'w', evidence: [], decoy: 'd9' },
+    ],
+  };
+  assert.deepEqual(investigateIssues(bad), [
+    "investigate[0]: kind contract-mismatch is not its lead's",
+    'investigate[0]: does not say why',
+    'investigate[0]: other:a.ts:1-3 names a repository without a commit',
+    'investigate[0]: web:a.ts:9-2 is not a range of 1 to 40 lines',
+    'investigate[0]: names risk r1 but is not confirmed',
+    'investigate[1]: lead:open-cors/x is keyed twice',
+    'investigate[1]: an unclear verdict must be marked scored: false',
+    'investigate[1]: cites no evidence',
+    'investigate[1]: decoy d9 is not an entry of the key',
+    'investigate[1]: names decoy d9 but is not refuted',
+  ]);
+});
 
 test('Resolve: a failed link is counted apart from not asked, a cached one without a pick is an abstention', () => {
   const key = {

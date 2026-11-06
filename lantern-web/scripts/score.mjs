@@ -1420,7 +1420,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       const issues = [...answerKeyIssues(key, reference), ...answerKeyCodeIssues(key, checkout)];
       for (const issue of issues) console.log(issue);
       console.log(
-        `${issues.length === 0 ? 'ok' : `${issues.length} issues`}: ${(key.resolve ?? []).length} links, ${(key.risks ?? []).length} risks, ${(key.decoys ?? []).length} decoys`,
+        `${issues.length === 0 ? 'ok' : `${issues.length} issues`}: ${(key.resolve ?? []).length} links, ${(key.risks ?? []).length} risks, ${(key.decoys ?? []).length} decoys, ${(key.investigate ?? []).length} leads`,
       );
       if (issues.length > 0) process.exit(1);
     } else if (args[0] === 'paired') {
