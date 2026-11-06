@@ -32,12 +32,14 @@ import tools.jackson.databind.node.ObjectNode;
  * key. A recorded answer that asks for tool calls holds them, so a tool loop replays turn by turn.
  *
  * <p>A {@linkplain #replaying replaying} provider only reads files and fails on a request it has no
- * recording for. A {@linkplain #recording recording} provider sends every request to the real
- * provider and writes the answer; recording costs money and needs the user's go-ahead. A provider
- * {@linkplain #recordingEvery recording every call} replays nothing: it sends every request, so a
- * run behaves exactly as without it, and writes each to a file of its own, a repeat of one request
- * beside the first, for a person to read the run's conversations and a test to replay them. Each
- * file also says which role sent the request and why, outside the key.
+ * recording for; a request it is sent again reads the request's next recording, as {@linkplain
+ * #recordingEvery recording every call} numbered them, and the last once there are no more. A
+ * {@linkplain #recording recording} provider sends every request to the real provider and writes
+ * the answer; recording costs money and needs the user's go-ahead. A provider {@linkplain
+ * #recordingEvery recording every call} replays nothing: it sends every request, so a run behaves
+ * exactly as without it, and writes each to a file of its own, a repeat of one request beside the
+ * first, for a person to read the run's conversations and a test to replay them. Each file also
+ * says which role sent the request and why, outside the key.
  */
 public final class RecordReplayLlmProvider implements LlmProvider {
 
@@ -51,6 +53,9 @@ public final class RecordReplayLlmProvider implements LlmProvider {
   private static final Logger LOG = LoggerFactory.getLogger(RecordReplayLlmProvider.class);
 
   private final boolean every;
+
+  /** How many times a replay has answered each key, so a repeat reads the repeat (#903). */
+  private final java.util.Map<String, Integer> served = new java.util.HashMap<>();
 
   private RecordReplayLlmProvider(
       String name, Path directory, LlmProvider recordFrom, boolean every) {
@@ -121,7 +126,12 @@ public final class RecordReplayLlmProvider implements LlmProvider {
       }
       return response;
     }
-    if (Files.isRegularFile(file)) {
+    if (recordFrom == null) {
+      Path repeat = repeat(hash);
+      if (repeat != null) {
+        return read(repeat);
+      }
+    } else if (Files.isRegularFile(file)) {
       return read(file);
     }
     if (recordFrom != null) {
@@ -232,6 +242,24 @@ public final class RecordReplayLlmProvider implements LlmProvider {
       }
     }
     return array;
+  }
+
+  /**
+   * The recording a replay answers this call of the key with: its n-th call reads the n-th
+   * recording ({@code <key>-n.json}, the first {@code <key>.json}), as a run recording every call
+   * wrote them, and a call past the last recording reads the last again; {@code null} when there is
+   * none.
+   */
+  private synchronized Path repeat(String hash) {
+    int n = served.merge(hash, 1, Integer::sum);
+    for (int k = n; k >= 1; k--) {
+      Path file = directory.resolve(k == 1 ? hash + ".json" : hash + "-" + k + ".json");
+      if (Files.isRegularFile(file)) {
+        return file;
+      }
+    }
+    served.merge(hash, -1, Integer::sum);
+    return null;
   }
 
   /** The first file name of the key that holds no recording yet, claimed for this call. */

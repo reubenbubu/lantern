@@ -15,6 +15,7 @@ import io.lantern.llm.CallLimiter;
 import io.lantern.llm.InMemoryLlmCallLog;
 import io.lantern.llm.LlmCall;
 import io.lantern.llm.LlmClient;
+import io.lantern.llm.LlmConversation;
 import io.lantern.llm.ModelConfig;
 import io.lantern.llm.ModelSettings;
 import io.lantern.llm.RecordReplayLlmProvider;
@@ -64,8 +65,12 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code lantern.test.investigate-limit} takes only its first so many; {@code
  * lantern.test.investigate-cap} (default 0.05) is the most US dollars it may spend. {@code
  * lantern.test.investigate-model} names the model of the settings file Investigate uses (default
- * {@code haiku}); {@code lantern.test.llm-properties} names another settings file. Commands: the
- * {@code lantern-commands} skill.
+ * {@code haiku}); {@code lantern.test.llm-properties} names another settings file. {@code
+ * lantern.test.investigate-replay} names the {@code calls/} folder of an earlier run to answer from
+ * instead of the model, free and without a key; {@code lantern.test.investigate-key} names the
+ * answer key to score the verdicts against (default project-8's, when it holds every chosen lead).
+ * Besides {@code calls/} and {@code log/} it writes {@code live.log} and {@code conversations/}
+ * ({@link #OUTPUTS}). Commands: the {@code lantern-commands} skill.
  */
 @EnabledIfSystemProperty(
     named = "lantern.test.investigate-run",
@@ -92,11 +97,15 @@ class InvestigateOpenRouterIT {
     String description = required("lantern.test.investigate-description");
     Path leadsFile = Path.of(required("lantern.test.investigate-leads"));
     int limit = Integer.parseInt(System.getProperty("lantern.test.investigate-limit", "1000"));
-    BigDecimal cap = new BigDecimal(System.getProperty("lantern.test.investigate-cap", "0.05"));
+    String replay = System.getProperty("lantern.test.investigate-replay", "");
+    // A replay spends nothing; its cap only bounds what the recorded calls are priced at.
+    BigDecimal cap =
+        new BigDecimal(
+            System.getProperty("lantern.test.investigate-cap", replay.isBlank() ? "0.05" : "100"));
     String modelName = System.getProperty("lantern.test.investigate-model", "haiku");
     Path settingsFile =
         Path.of(System.getProperty("lantern.test.llm-properties", DEFAULT_SETTINGS.toString()));
-    String key = System.getenv("ANTHROPIC_API_KEY");
+    String key = replay.isBlank() ? System.getenv("ANTHROPIC_API_KEY") : "replaying";
     assertThat(key).as("ANTHROPIC_API_KEY, the OpenRouter key").isNotBlank();
     Path runs = Path.of(System.getProperty("lantern.test.investigate-out", DEFAULT_OUT.toString()));
     String runName =
@@ -131,21 +140,33 @@ class InvestigateOpenRouterIT {
             settingsFile, key, Map.of("lantern.llm.roles.investigate", modelName));
     ModelSettings models = properties.modelSettings();
     ModelConfig investigateModel = models.forRole(Role.INVESTIGATE);
+    // A replay answers from a recorded run's calls/ and calls no model: free.
     AnthropicProvider anthropic =
-        AnthropicProvider.create(
-            key,
-            properties.anthropic().baseUrl(),
-            properties.batchPoll(),
-            properties.anthropic().onlyProviders());
+        replay.isBlank()
+            ? AnthropicProvider.create(
+                key,
+                properties.anthropic().baseUrl(),
+                properties.batchPoll(),
+                properties.anthropic().onlyProviders())
+            : null;
+    io.lantern.llm.LlmProvider model =
+        anthropic != null
+            ? anthropic
+            : RecordReplayLlmProvider.replaying("anthropic", Path.of(replay));
     InMemoryLlmCallLog log = new InMemoryLlmCallLog();
+    InvestigateLiveLog live =
+        new InvestigateLiveLog(
+            new SummarizeOpenRouterIT.LiveLog(
+                RecordReplayLlmProvider.recordingEvery(model, calls),
+                out.resolve("log"),
+                description + " (" + investigateModel.model() + ")"),
+            out.resolve("live.log"),
+            CONVERSATION,
+            Clock.systemUTC());
     LlmClient client =
         new LlmClient(
             models,
-            List.of(
-                new SummarizeOpenRouterIT.LiveLog(
-                    RecordReplayLlmProvider.recordingEvery(anthropic, calls),
-                    out.resolve("log"),
-                    description + " (" + investigateModel.model() + ")")),
+            List.of(live),
             new BudgetGuard("investigate test", null, cap),
             log,
             Clock.systemUTC(),
@@ -206,22 +227,35 @@ class InvestigateOpenRouterIT {
               + saved
               + ", repositories "
               + reposFolder
+              + (replay.isBlank() ? "" : ", replaying " + replay)
               + ", prompts "
               + io.lantern.harness.Prompts.folder()
-              + ".\n\nlog/ gets one file per call as it finishes; report.md comes at the end.\n");
+              + ".\n\n"
+              + OUTPUTS);
       result =
           new Investigator(harness, files, io.lantern.derive.LeadRules.judges())
               .leads(facts, 1, Set.copyOf(chosen)::contains);
     } catch (RuntimeException e) {
       stopped = e.getClass().getSimpleName() + ": " + e.getMessage();
     } finally {
-      anthropic.close();
+      if (anthropic != null) {
+        anthropic.close();
+      }
     }
     Duration took = Duration.ofNanos(System.nanoTime() - started);
 
     ObjectNode report = report(chosen, result, stopped, took, log.calls(), harness, cap);
     report.put("description", description);
     report.put("model", investigateModel.model());
+    Map<String, String> verdicts = new LinkedHashMap<>();
+    report.path("byLead").forEach(n -> verdicts.put(n.path("lead").asString(), verdict(n)));
+    Optional<InvestigateKeyScore> answerKey = key(chosen);
+    answerKey.ifPresent(k -> report.set("answerKey", k.score(verdicts)));
+    Map<String, LlmConversation.Ending> endings = new LinkedHashMap<>();
+    log.conversations().forEach(c -> endings.put(c.purpose(), c.ending()));
+    live.finish(purpose -> ending(purpose, endings, verdicts, answerKey));
+    InvestigateTranscripts.write(calls, out.resolve("conversations"), live.numbers(), CONVERSATION);
+    guards(report.putObject("guards"), endings, InvestigateTranscripts.read(calls));
     Files.writeString(out.resolve("report.json"), JSON.writeValueAsString(report));
     Files.writeString(out.resolve("report.md"), markdown(report));
     Path done = Files.move(out, runs.resolve(runName));
@@ -233,8 +267,91 @@ class InvestigateOpenRouterIT {
         .isLessThanOrEqualTo(cap.multiply(BigDecimal.TWO));
   }
 
+  /** What a run writes, for its README. */
+  static final String OUTPUTS =
+      """
+      What this run writes:
+
+      - live.log: one block per turn, as the run goes, each line tagged with its conversation's \
+      number: what the model was sent and wrote, its tool calls with the first lines of each \
+      result, and any note Lantern added; an END line per conversation with its verdict and, \
+      with a key, the key's.
+      - conversations/<NN>-<lead>.md: each conversation verbatim and complete (system prompt, \
+      tools, every message as sent and received), written at the end from calls/.
+      - calls/: every request and response, replayable for free (lantern.llm.replay-from).
+      - log/: each call as plain text, the moment it finishes.
+      - report.md and report.json, at the end: each lead's verdict, turns, tokens, tool calls \
+      and cost; with a key, the verdicts against it; the guard and safety-stop counts and the \
+      rejected tool calls by reason.
+      """;
+
   // -----------------------------------------------------------------------------------------------
   // Inputs
+
+  /**
+   * The answer key the verdicts are scored against: {@code lantern.test.investigate-key}, or
+   * project-8's when it holds every chosen lead.
+   */
+  private static Optional<InvestigateKeyScore> key(List<String> chosen) throws IOException {
+    String named = System.getProperty("lantern.test.investigate-key");
+    if (named != null && !named.isBlank()) {
+      return InvestigateKeyScore.read(Path.of(named));
+    }
+    return InvestigateKeyScore.read(PROJECT_8_KEY).filter(k -> k.covers(chosen));
+  }
+
+  private static final Path PROJECT_8_KEY =
+      Path.of("..", "testsets", "project-8", "answer-key.json").toAbsolutePath().normalize();
+
+  private static String verdict(tools.jackson.databind.JsonNode lead) {
+    String word = lead.path("verdict").asString();
+    return word.equals("(none)") ? null : word;
+  }
+
+  /** A conversation's END words: how it ended, its verdict and, with a key, the key's. */
+  static String ending(
+      String purpose,
+      Map<String, LlmConversation.Ending> endings,
+      Map<String, String> verdicts,
+      Optional<InvestigateKeyScore> key) {
+    String named =
+        purpose.startsWith(CONVERSATION) ? purpose.substring(CONVERSATION.length()) : purpose;
+    boolean again = named.endsWith(" (again)");
+    String lead = named.replaceFirst(" \\(again\\)$", "");
+    LlmConversation.Ending ending = endings.get(purpose);
+    String verdict = verdicts.get(lead);
+    StringBuilder words =
+        new StringBuilder(
+            ending == null ? "unended" : ending.name().toLowerCase(java.util.Locale.ROOT));
+    if (again) {
+      words.append(" (the retry)");
+    }
+    words.append(" · ").append(verdict == null ? "no verdict" : verdict);
+    String keyed = key.flatMap(k -> k.verdict(lead)).orElse(null);
+    if (keyed != null) {
+      words.append(" (key: ").append(keyed).append(keyed.equals(verdict) ? " ✓)" : " ✗)");
+    }
+    return words.toString();
+  }
+
+  /**
+   * How many conversations ended on the size guard (a conversation cap), the cost guard (a budget)
+   * or the safety stop (the turn cap), and the rejected tool calls of every conversation by reason.
+   */
+  static void guards(
+      ObjectNode guards,
+      Map<String, LlmConversation.Ending> endings,
+      Map<String, List<InvestigateTranscripts.Recorded>> recorded) {
+    guards.put("sizeGuard", count(endings, LlmConversation.Ending.CAPPED));
+    guards.put("costGuard", count(endings, LlmConversation.Ending.BUDGET));
+    guards.put("safetyStop", count(endings, LlmConversation.Ending.TURN_CAP));
+    guards.set("rejectedToolCalls", JSON.valueToTree(InvestigateTranscripts.rejected(recorded)));
+  }
+
+  private static long count(
+      Map<String, LlmConversation.Ending> endings, LlmConversation.Ending ending) {
+    return endings.values().stream().filter(ending::equals).count();
+  }
 
   private static String required(String property) {
     String value = System.getProperty(property);
@@ -416,6 +533,32 @@ class InvestigateOpenRouterIT {
                     .append(" | ")
                     .append(e.getValue().asString())
                     .append(" |\n"));
+    var guards = report.path("guards");
+    if (!guards.isMissingNode()) {
+      md.append("\n## Guards\n\nConversations ended on the size guard: ")
+          .append(guards.path("sizeGuard").asString())
+          .append(", the cost guard: ")
+          .append(guards.path("costGuard").asString())
+          .append(", the safety stop: ")
+          .append(guards.path("safetyStop").asString())
+          .append(" (each should be 0).\n");
+      if (!guards.path("rejectedToolCalls").isEmpty()) {
+        md.append("\n| Rejected tool calls, by reason | Count |\n| --- | --- |\n");
+        guards
+            .path("rejectedToolCalls")
+            .properties()
+            .forEach(
+                e ->
+                    md.append("| ")
+                        .append(e.getKey().replace("|", "\\|"))
+                        .append(" | ")
+                        .append(e.getValue().asString())
+                        .append(" |\n"));
+      }
+    }
+    if (report.has("answerKey")) {
+      md.append(InvestigateKeyScore.markdown(report.path("answerKey")));
+    }
     md.append("\n## Leads\n\n| Lead | Verdict | Turns | Input | Cache read | Output | Cost |\n")
         .append("| --- | --- | --- | --- | --- | --- | --- |\n");
     for (var lead : report.path("byLead")) {
