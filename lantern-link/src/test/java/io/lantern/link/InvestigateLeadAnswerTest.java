@@ -365,4 +365,62 @@ class InvestigateLeadAnswerTest {
                 .matches())
         .isFalse();
   }
+
+  @Test
+  void aQuotedLineWithUnescapedQuotesIsRepairedAndReadAsWritten() {
+    String written =
+        """
+        verdict = "confirmed"
+        title = "Payment endpoint has no role check"
+        finding = "PaymentController.pay answers POST /api/payments with no role check at all here."
+        consequence = "Any caller with a valid token can record a payment against any issued invoice."
+        impact = "high"
+        confidence = "high"
+
+        [[evidence]]
+        lines = "shop:src/Pay.java:10-12"
+        quote = "@PostMapping("/payments") public Receipt pay(@RequestBody Request request) {"
+        shows = ["pay"]
+
+        [[evidence]]
+        lines = "shop:src/Refund.java:15-15"
+        quote = '@PreAuthorize("hasRole(''BILLING_CLERK'')")'
+        shows = ["BILLING_CLERK"]
+        """;
+
+    JsonNode entry = answer.read(toml(written));
+
+    assertThat(entry.path("evidence").get(0).path("quote").asString())
+        .isEqualTo(
+            "@PostMapping(\"/payments\") public Receipt pay(@RequestBody Request request) {");
+    assertThat(entry.path("evidence").get(1).path("quote").asString())
+        .isEqualTo("@PreAuthorize(\"hasRole('BILLING_CLERK')\")");
+    assertThat(answer.holdsAnswer(written)).isTrue();
+  }
+
+  @Test
+  void anAnswerThatParsesIsReadUnchangedAndOneBrokenOtherwiseGetsTheParsersFault() {
+    String escaped =
+        "verdict = \"refuted\"\n\n[[evidence]]\nlines = \"shop:a.java:1-1\"\n"
+            + "quote = \"say(\\\"hi\\\")\"\nshows = []\n";
+    assertThat(
+            InvestigateLeadAnswer.parse(escaped).path("evidence").get(0).path("quote").asString())
+        .isEqualTo("say(\"hi\")");
+    String listed =
+        "verdict = \"refuted\"\nevidence = []\n\n[[evidence]]\nlines = \"shop:a.java:1-1\"\nquote = \"x\"\n";
+    assertThat(InvestigateLeadAnswer.parse(listed).path("evidence")).hasSize(1);
+    String around =
+        "verdict = \"refuted\"\r\nimpact = \"high\" # was \"medium\"\r\nreason = \"\"\r\n"
+            + "[[evidence]]\r\nlines = \"shop:a.java:1-1\"\r\n"
+            + "quote = \"@PreAuthorize(\"hasRole('X')\") void a(String s) { s.equals(\"x\"); }\"\r\n";
+    JsonNode read = InvestigateLeadAnswer.parse(around);
+    assertThat(read.path("impact").asString()).isEqualTo("high");
+    assertThat(read.path("reason").asString()).isEmpty();
+    assertThat(read.path("evidence").get(0).path("quote").asString())
+        .isEqualTo("@PreAuthorize(\"hasRole('X')\") void a(String s) { s.equals(\"x\"); }");
+    String multiline = "verdict = \"refuted\"\nreason = \"\"\"\nsays \"x\"\n\"\"\"\n";
+    assertThat(InvestigateLeadAnswer.repaired(multiline)).isEqualTo(multiline);
+    assertThatThrownBy(() -> answer.read(toml("verdict = \"refuted\"\n[[evidence]\nlines = 1")))
+        .hasMessageStartingWith("The answer is not TOML");
+  }
 }

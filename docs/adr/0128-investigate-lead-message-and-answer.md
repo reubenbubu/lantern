@@ -149,3 +149,16 @@ first message showed that file), so the check does not catch a refutation from `
 alone; the rule in the instructions has to. And `BUILD_OR_DEPLOY` does not know runtime scripts,
 `nginx.conf` or build files (`pom.xml`, `build.gradle`, `angular.json`), so a refutation resting on
 those alone is sent back once before it stands.
+
+## Amendment (#922): an answer's TOML repaired where its meaning is plain
+
+A quoted line of code holds quotes, and the model often left them unescaped
+(`quote = "@PreAuthorize("hasRole('BILLING_CLERK')")"`) or listed the evidence twice
+(`evidence = []` and then `[[evidence]]` tables); either answer was not TOML and was sent back, and
+three ended the lead unclear (on project-8, a right "confirmed" on the payment endpoint). An answer
+that does not parse is now read again repaired (`InvestigateLeadAnswer.parse`): a one-line string
+whose value holds quotes of its own kind has them escaped (a single-quoted one with a doubled quote,
+as SQL writes one, becomes a basic string), and an empty list is dropped where tables of its name
+follow. Lines inside a multi-line string are left alone, and an answer that parses as written is
+read unchanged; if the repair does not parse either, the parser's first fault goes back. All 19
+answers of the 6 Nov 2026 panel runs that were sent back as not TOML read with the repair.
