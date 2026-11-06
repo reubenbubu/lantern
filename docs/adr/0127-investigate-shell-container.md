@@ -12,7 +12,7 @@ Investigate's conversations read code through `read_file`, which fetched whole f
 - `shell` runs one command with `sh -c` in `/work`, which holds one folder per repository.
 - `find_in_code` is a fixed `grep -rnFI` in the same container. Each hit is given as `repo:path:line: text`, with the Java declaration around it.
 - `outline` lists a Java file's declarations with their lines (`JavaOutline`, brought back from #900 with its tests).
-- No answer is refused for its size. Each line is cut at 160 characters and the answer at about 1,000 characters, to whole lines. A footer names the exact call for the rest: the command with `| sed -n 'FROM,TOp'` (a command of several parts, a `;`, `&&`, `||` or a comment, run as `sh -c '…'` first, so the pipe takes its whole output), or `find_in_code` narrowed to the repository with the most hits. An outline may run to 24,000 characters.
+- No answer is refused for its size. Each line is cut at 160 characters and the answer at about 1,000 characters, to whole lines (1,500 since #915, below). A footer names the exact call for the rest: the command with `| sed -n 'FROM,TOp'` (a command of several parts, a `;`, `&&`, `||` or a comment, run as `sh -c '…'` first, so the pipe takes its whole output), or `find_in_code` narrowed to the repository with the most hits. An outline may run to 24,000 characters.
 
 **The container** (`InvestigateShell`, image `lantern-sandbox/src/main/resources/io/lantern/sandbox/investigate-shell/Dockerfile`):
 - **Image.** Alpine pinned by digest, with coreutils, findutils, grep, ripgrep, sed, gawk, jq, libxml2-utils, tree, diffutils and file, plus mikefarah's yq v4.44.6 checked against its published SHA-256. It has no package manager and no git, and the busybox applets that reach a network or edit in place are unlinked; busybox itself stays, as it is the shell, so `busybox wget` still runs, and with no network it reaches nothing (tested). Lantern builds it the first time it is needed, tagged by a hash of the Dockerfile, and reuses it after.
@@ -41,3 +41,25 @@ Investigate's conversations read code through `read_file`, which fetched whole f
 - A line shown only by its text can be credited to a file that merely holds the same line. That is the price of not parsing commands. The answer check (#892) moves to quoted evidence checked exactly.
 
 Containment is tested against the real container (`InvestigateShellIT`).
+
+## Amendment (#915): answers cut at 1,500 characters, and the model told so
+
+Each tool answer was cut at about 1,000 characters, so the model read a file in several calls: with
+the lean first message of ADR 0128, turns a lead rose from 5.9 to 8.2. A tool answer is now cut at
+about 1,500 characters (`ShellTools.CHARS`), and Mode A's instructions say so: "A tool answer
+longer than 1,500 characters is cut and you need another call for the rest, so ask for only the
+lines you need: a line range, a grep with -n, a head." A test keeps the sentence and the number
+the same.
+
+Measured on the Investigate test's 78-lead panels (project-1 to project-4 and project-8), Haiku 5.5
+through OpenRouter, 6 Nov 2026, after the masking change of #912:
+
+| Cut | Cost a lead | Turns a lead | project-8 right per key | its plaintext-secret leads |
+| --- | --- | --- | --- | --- |
+| 1,000 (the runs for #914) | $0.0036 | 8.2 | 43 of 54 | 19 of 23 |
+| 1,500, stated in the instructions | $0.0029 | 6.7 | 43 of 54 | 19 of 23 |
+| 3,000, stated in the instructions | $0.0032 | 6.2 | 41 of 54 | 18 of 23 |
+
+Before #912, larger cuts lost plaintext-secret leads (7 to 12 wrong against 4): the model met a
+masked value sooner and answered unclear. A 3,000 cut saves turns but each turn carries more, so it
+costs more than 1,500. Investigate's prompt version is 11.
