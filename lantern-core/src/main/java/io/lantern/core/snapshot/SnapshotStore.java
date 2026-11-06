@@ -201,18 +201,25 @@ public class SnapshotStore {
   }
 
   /**
-   * The latest snapshot of a system whose analysis stored its facts: one with a repository marked
-   * analyzed (see {@link #markAnalyzed}), if any (#926).
+   * Marks the snapshot's analysis run as finished, its documents written (#926), so {@link
+   * #latestCompleted} takes it. Marking it again keeps the first time.
    */
-  public Optional<Snapshot> latestAnalyzed(String system) {
+  public void markCompleted(long snapshot) {
+    jdbc.sql("UPDATE snapshots SET completed_at = now() WHERE number = :n AND completed_at IS NULL")
+        .param("n", snapshot)
+        .update();
+  }
+
+  /**
+   * The latest snapshot of a system whose analysis run finished (see {@link #markCompleted}), if
+   * any (#926); a run stopped part way is passed over.
+   */
+  public Optional<Snapshot> latestCompleted(String system) {
     return jdbc.sql(
             """
-            SELECT n.number, n.vocabulary_revision, n.tool_version, n.created_at
-            FROM snapshots n
-            WHERE n.system = :system
-              AND EXISTS (SELECT 1 FROM snapshot_repositories s
-                          WHERE s.snapshot = n.number AND s.analyzed)
-            ORDER BY n.number DESC LIMIT 1
+            SELECT number, vocabulary_revision, tool_version, created_at FROM snapshots
+            WHERE system = :system AND completed_at IS NOT NULL
+            ORDER BY number DESC LIMIT 1
             """)
         .param("system", Objects.requireNonNull(system, "system"))
         .query(SnapshotStore::mapHeader)

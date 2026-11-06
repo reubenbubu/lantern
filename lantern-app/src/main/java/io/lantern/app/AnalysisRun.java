@@ -739,6 +739,8 @@ public final class AnalysisRun {
       LOG.info(
           "Wrote {}", ExtractedFacts.write(out, ExtractedFacts.LINKED_FILE, stored.linkerFacts()));
       LOG.info("Wrote {}", ExtractedFacts.write(out, ExtractedFacts.LLM_FILE, heldLlmFacts));
+      // Finished: render takes this snapshot from now on (#926).
+      snapshots.markCompleted(snapshot.number());
       return new Result(
           system,
           systemTitle,
@@ -1154,13 +1156,13 @@ public final class AnalysisRun {
    *
    * @param system the system's name
    * @param number the snapshot's number, or {@code null} for the system's latest snapshot whose
-   *     analysis stored its facts
+   *     analysis run finished
    * @throws IllegalArgumentException if there is no such snapshot of the system
    */
   public List<Rendered> render(String system, Long number) {
     Snapshot snapshot =
         (number == null
-                ? snapshots.latestAnalyzed(system)
+                ? snapshots.latestCompleted(system)
                 : snapshots
                     .find(number)
                     .filter(found -> snapshots.system(number).filter(system::equals).isPresent()))
@@ -1168,7 +1170,7 @@ public final class AnalysisRun {
                 () ->
                     new IllegalArgumentException(
                         number == null
-                            ? "There is no analyzed snapshot of the system " + system
+                            ? "There is no finished analysis of the system " + system
                             : "Snapshot " + number + " is not a snapshot of the system " + system));
     List<Fact> complete = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
     List<Rendered> documents =

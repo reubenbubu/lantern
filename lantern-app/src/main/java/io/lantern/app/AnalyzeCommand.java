@@ -31,8 +31,8 @@ import org.springframework.boot.ExitCodeGenerator;
  * <p>Usage: {@code remove --system=<name> <repo>...}.
  *
  * <p>Usage: {@code render --system=<name> [--snapshot=<number>]}: writes the system's documents
- * again from what the store holds for the snapshot, by default the latest one whose analysis stored
- * its facts, with no build and no LLM call (#926).
+ * again from what the store holds for the snapshot, by default the latest one whose analysis run
+ * finished, with no build and no LLM call (#926).
  */
 final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
 

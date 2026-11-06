@@ -172,23 +172,26 @@ class SnapshotStoreIT {
   }
 
   @Test
-  void findsTheSystemsLatestAnalyzedSnapshotAndWhatItAnalyzed() throws Exception {
+  void findsTheSystemsLatestFinishedSnapshotAndWhatItAnalyzed() throws Exception {
     String a = register("a");
     String b = register("b");
     String system = system(a, b);
-    assertThat(snapshots.latestAnalyzed(system)).isEmpty();
+    assertThat(snapshots.latestCompleted(system)).isEmpty();
     Snapshot both =
         snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD, b, "HEAD"));
     analyzed(both, a, b);
+    snapshots.markCompleted(both.number());
     Snapshot onlyA = snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD));
     analyzed(onlyA, a);
-    // A run that stopped before storing its facts is not the latest analyzed one.
-    snapshots.createCarryingForward(system, Map.of(b, RepoRegistry.HEAD));
+    snapshots.markCompleted(onlyA.number());
+    snapshots.markCompleted(onlyA.number());
+    // A run stopped after storing its facts, before its documents, is not the latest finished one.
+    analyzed(snapshots.createCarryingForward(system, Map.of(b, RepoRegistry.HEAD)), b);
 
-    assertThat(snapshots.latestAnalyzed(system)).map(Snapshot::number).contains(onlyA.number());
+    assertThat(snapshots.latestCompleted(system)).map(Snapshot::number).contains(onlyA.number());
     assertThat(snapshots.analyzedIn(onlyA.number())).containsExactly(a);
     assertThat(snapshots.analyzedIn(both.number())).containsExactly(a, b);
-    assertThat(snapshots.latestAnalyzed("no-such-system")).isEmpty();
+    assertThat(snapshots.latestCompleted("no-such-system")).isEmpty();
   }
 
   @Test

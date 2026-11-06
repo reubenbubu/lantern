@@ -64,3 +64,11 @@ such a commit even though its facts were still those of the commit analyzed befo
   analyze; resuming or discarding such a snapshot is left to resumable jobs (#56).
 
 ## Amendment (#369): "every other repository that an earlier snapshot analyzed" and "Removing a repository from the system is not supported yet" are replaced by ADR 0071: repositories are carried forward within one named system, and `remove` takes one out.
+
+## Amendment (#926): a snapshot records when its run finished
+
+`snapshots.completed_at` is set when the analysis run has written its documents (migration V27); a
+run stopped part way leaves it empty, even where it already marked repositories analyzed. `render`
+writes a system's documents again from its latest snapshot with `completed_at` set, or from the one
+named. Snapshots taken before V27 that marked a repository analyzed count as finished at their
+creation.

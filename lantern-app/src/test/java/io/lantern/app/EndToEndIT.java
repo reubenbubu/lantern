@@ -401,7 +401,7 @@ class EndToEndIT {
     none.run(new DefaultApplicationArguments("render", "--system=no-such-system"));
     assertThat(none.getExitCode()).isEqualTo(1);
     assertThat(unknown.toString(StandardCharsets.UTF_8))
-        .contains("no analyzed snapshot of the system no-such-system");
+        .contains("no finished analysis of the system no-such-system");
   }
 
   /**
