@@ -1,6 +1,5 @@
 package io.lantern.link;
 
-import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactJson;
 import io.lantern.harness.Prompts;
 import io.lantern.harness.render.Blocks;
@@ -24,13 +23,16 @@ import tools.jackson.databind.node.ObjectNode;
 final class InvestigatePrompt {
 
   /** The prompt's version, part of every answer's cache key and the version of the facts. */
-  static final String VERSION = "12";
+  static final String VERSION = "13";
 
   /** Block 2's instructions of Mode A, checking leads, as the epic writes them. */
   static final String LEADS_TASK = resource("investigate-leads.task.txt");
 
-  /** Block 2's instructions of Modes B and C, exploring, as the epic writes them. */
+  /** The instructions of Modes B and C, exploring a unit or the system (#904). */
   static final String EXPLORE_TASK = resource("investigate-explore.task.txt");
+
+  /** The system prompt of Modes B and C (#904). */
+  static final String EXPLORE_SYSTEM = Prompts.text("investigate-explore.system.txt").strip();
 
   /** The submit schema of every mode, as the epic writes it. */
   static final String SCHEMA = resource("investigate.schema.json");
@@ -57,39 +59,6 @@ final class InvestigatePrompt {
   static final int MAX_FACTS = 150;
 
   private InvestigatePrompt() {}
-
-  /** Block 2 of Modes B and C; Mode A has its own instructions and no schema (#892). */
-  static String role() {
-    return EXPLORE_TASK + SCHEMA_HEADING + SCHEMA;
-  }
-
-  /** Facts as fact lines without references, sorted, at most {@link #MAX_FACTS}, in a block. */
-  static String facts(List<Fact> facts) {
-    List<String> lines = new ArrayList<>(facts.stream().map(FactLines::line).distinct().toList());
-    lines.sort(String::compareTo);
-    return Blocks.tagged("facts", lines.subList(0, Math.min(MAX_FACTS, lines.size())));
-  }
-
-  /** A deployable unit as a Mode B item. */
-  static String unit(String unit, List<String> repos) {
-    return "The deployable unit "
-        + unit
-        + (repos.isEmpty() ? "." : ", its code in " + String.join(", ", repos) + ".")
-        + " Its facts, links, open links, summaries and the risks already checked are above.";
-  }
-
-  /** The system as the Mode C item. */
-  static String system(List<String> repos) {
-    return "The whole system: every deployable unit and link in the map above, its code in "
-        + String.join(", ", repos)
-        + ". The risks already found in its units are above; look for risks and connections"
-        + " across units.";
-  }
-
-  /** The answers block: one line each. */
-  static String answers(List<String> lines) {
-    return Blocks.tagged("answers", lines.stream().map(FactLines::oneLine).toList());
-  }
 
   /** The system map, block 3: the deployable units, then the links static analysis found. */
   static String systemMap(List<String> units, List<String> links) {

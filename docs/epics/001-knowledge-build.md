@@ -885,7 +885,7 @@ The catalog is data (`vocabulary/leads.json` plus one derive rule per kind). New
 
 **Role instructions, Mode A.** Replaced by the amendment for #902 below: since #860 and #892 a lead's conversation has instructions of its own, `prompts/investigate-leads.system.txt` and `prompts/investigate-leads.task.txt`, its question per kind of lead in `prompts/investigate-questions.toml`, and its answer is TOML through the `answer` tool, not this section's submit schema.
 
-**Role instructions, Modes B and C** (block 2):
+**Role instructions, Modes B and C** (block 2), as first planned. Replaced by the amendment for #902 below: since #904 a unit's and the system's conversations have instructions of their own, `prompts/investigate-explore.system.txt` and `prompts/investigate-explore.task.txt`; their first message is TOML holding the unit (or every unit) and what is already known, and they answer in TOML through the `answer` tool, as a lead does.
 
 ```text
 Task: investigate what static analysis missed. You are given one deployable unit (or the whole system), with its facts, its components and links, the links static analysis could not resolve, and the risks already checked. Use the tools to read its code and configuration.

@@ -19,7 +19,6 @@ import io.lantern.harness.Prompts;
 import io.lantern.harness.RoleSession;
 import io.lantern.harness.RoleSpec;
 import io.lantern.harness.RunMode;
-import io.lantern.harness.checks.CommonPrompt;
 import io.lantern.llm.Capability;
 import io.lantern.llm.ConversationLimits;
 import io.lantern.llm.ModelConfig;
@@ -119,9 +118,14 @@ public final class Investigator {
               "Give your answer now with what you have found.")
           .withTurnGuard(60_000, InvestigateLeadAnswer.NAME, 100);
 
-  /** The caps of a Mode B or C conversation: 16 tool turns, 120,000 input tokens. */
+  /**
+   * The caps of a Mode B or C conversation: a lead's, with the guard on one turn at half a lead's
+   * (#904). A unit's conversation has no one question to settle, so without it the model reads on
+   * for 40 turns or more, at about $0.03 a unit on project-8. What a turn sends grows with every
+   * tool answer, so the nudge to answer comes at 19,500 tokens a turn, about 15 turns in.
+   */
   static final ConversationLimits EXPLORE_LIMITS =
-      new ConversationLimits(16, 120_000, MAX_OUTPUT_TOKENS);
+      LEAD_LIMITS.withTurnGuard(26_000, InvestigateLeadAnswer.NAME, 100);
 
   /** Mode A as the harness runs it. */
   public static final RoleSpec LEADS =
@@ -148,9 +152,8 @@ public final class Investigator {
               Role.INVESTIGATE,
               Prompts.version(
                   InvestigatePrompt.VERSION,
-                  "common.system.txt",
-                  "investigate-explore.task.txt",
-                  "investigate.schema.json"),
+                  "investigate-explore.system.txt",
+                  "investigate-explore.task.txt"),
               NAME,
               RunMode.INTERACTIVE,
               3_000)
@@ -165,9 +168,8 @@ public final class Investigator {
               Role.INVESTIGATE,
               Prompts.version(
                   InvestigatePrompt.VERSION,
-                  "common.system.txt",
-                  "investigate-explore.task.txt",
-                  "investigate.schema.json"),
+                  "investigate-explore.system.txt",
+                  "investigate-explore.task.txt"),
               NAME,
               RunMode.INTERACTIVE,
               3_000)
@@ -254,6 +256,14 @@ public final class Investigator {
    */
   public Result leads(Collection<Fact> all, long snapshot, Predicate<String> chosen) {
     return investigate(all, snapshot, chosen, false);
+  }
+
+  /**
+   * The leads {@code chosen} keeps, then every unit and the system explored (Modes B and C), as a
+   * run does: how the Investigate test measures Modes B and C on a set (#904).
+   */
+  public Result explore(Collection<Fact> all, long snapshot, Predicate<String> chosen) {
+    return investigate(all, snapshot, chosen, true);
   }
 
   private Result investigate(
@@ -630,6 +640,9 @@ public final class Investigator {
             line += ": " + entry.path("title").asString("");
             risk(entry, lead, InvestigateRole.Mode.LEADS, null, fp);
           }
+          if (!verdict.equals("confirmed")) {
+            line += ": " + InvestigateLeadMessage.shortNames(lead.trigger());
+          }
           answered(lead, line);
         }
         case OMITTED -> unclear(lead, "not answered", fp);
@@ -647,7 +660,7 @@ public final class Investigator {
 
     private void unclear(Lead lead, String reason, String fp) {
       facts.add(verdictFact(lead, "unclear", FactJson.newObject(), reason, fp));
-      answered(lead, lead.id() + " unclear");
+      answered(lead, lead.id() + " unclear: " + InvestigateLeadMessage.shortNames(lead.trigger()));
     }
 
     /**
@@ -709,7 +722,7 @@ public final class Investigator {
 
     void units() {
       RoleSession session =
-          harness.session(UNITS.withTools(tools.apply(graph).exploreTools(), EXPLORE_LIMITS));
+          harness.session(UNITS.withTools(tools.apply(graph).leadTools(), EXPLORE_LIMITS));
       Map<String, List<Item>> byUnit = new TreeMap<>();
       for (String unit : model.units.keySet()) {
         if (notInvestigated.contains(unit)) {
@@ -719,26 +732,28 @@ public final class Investigator {
         model.index.of(Types.UNRESOLVED_LINK).stream()
             .filter(f -> f.subject().toString().equals(unit))
             .forEach(shown::add);
-        shown.addAll(model.summaries(unit));
         List<String> checked = new ArrayList<>(answers.getOrDefault(unit, List.of()));
         checked.addAll(touched.getOrDefault(unit, List.of()));
         List<FingerprintInput> inputs = new ArrayList<>();
         shown.forEach(f -> inputs.add(FingerprintInput.of(f)));
+        // The summaries are shown on their own, not among the facts (#904).
+        model.summaries(unit).forEach(f -> inputs.add(FingerprintInput.of(f)));
         // From the leads' verdicts this run (#722).
         inputs.add(
             FingerprintInput.answer(
                 Fingerprints.sha256(String.join("\n", checked)), List.of(LEADS.name())));
-        String context =
-            InvestigatePrompt.facts(shown)
-                + (checked.isEmpty() ? "" : "\n" + InvestigatePrompt.answers(checked));
         Item item =
             new Item(
                 unit,
                 unit,
                 List.copyOf(new LinkedHashSet<>(inputs)),
-                InvestigatePrompt.unit(
-                    unit, List.copyOf(model.repos.getOrDefault(unit, Set.of()))));
-        contexts.put(unit, context);
+                InvestigateExploreMessage.unit(
+                    unit,
+                    model.repos.getOrDefault(unit, Set.of()),
+                    model.units.keySet(),
+                    model.summaries(unit),
+                    shown,
+                    checked));
         byUnit.put(unit, List.of(item));
       }
       if (byUnit.isEmpty()) {
@@ -753,15 +768,24 @@ public final class Investigator {
 
     void system() {
       RoleSession session =
-          harness.session(SYSTEM_ROLE.withTools(tools.apply(graph).exploreTools(), EXPLORE_LIMITS));
+          harness.session(SYSTEM_ROLE.withTools(tools.apply(graph).leadTools(), EXPLORE_LIMITS));
       List<String> risks = new ArrayList<>();
       // Every unit's accepted risks: its confirmed leads and the risks exploring it found.
       answers.forEach(
           (unit, lines) ->
               lines.stream()
                   .filter(line -> line.startsWith("risk: ") || line.contains(" confirmed: "))
-                  .forEach(line -> risks.add(unit + ": " + line)));
-      String context = InvestigatePrompt.answers(risks);
+                  .forEach(
+                      line -> {
+                        // As "<verdict>: <unit>: <title>", the lead's ID left out.
+                        String[] known = InvestigateExploreMessage.known(line);
+                        risks.add(
+                            (known[0].equals("found") ? "risk" : "lead " + known[0])
+                                + ": "
+                                + unit
+                                + ": "
+                                + known[1]);
+                      }));
       List<FingerprintInput> inputs = new ArrayList<>();
       // The map and the risks come from the units' pass (#722).
       inputs.add(FingerprintInput.answer(Fingerprints.sha256(systemMap), List.of(UNITS.name())));
@@ -769,14 +793,19 @@ public final class Investigator {
           FingerprintInput.answer(
               Fingerprints.sha256(String.join("\n", risks)), List.of(UNITS.name())));
       String subject = EntityId.SYSTEM.toString();
-      Item item = new Item(subject, subject, inputs, InvestigatePrompt.system(model.allRepos()));
-      contexts.put(subject, context);
+      Map<String, List<Fact>> summaries = new TreeMap<>();
+      model.units.keySet().forEach(unit -> summaries.put(unit, model.summaries(unit)));
+      Item item =
+          new Item(
+              subject,
+              subject,
+              inputs,
+              InvestigateExploreMessage.system(
+                  model.allRepos(), model.repos, summaries, model.links, risks));
       session.plan(List.of(item), prefix(false));
       Map<String, Outcome> outcomes = ask(session, Map.of(subject, List.of(item)), Mode.C);
       proposals(null, outcomes.get(subject), InvestigateRole.Mode.SYSTEM);
     }
-
-    private final Map<String, String> contexts = new ConcurrentHashMap<>();
 
     private void proposals(String unit, Outcome outcome, InvestigateRole.Mode mode) {
       String subject = unit == null ? EntityId.SYSTEM.toString() : unit;
@@ -856,7 +885,7 @@ public final class Investigator {
       String context =
           switch (mode) {
             case A -> ""; // a lead's first message holds what it needs (#860)
-            case B, C -> contexts.getOrDefault(group, "");
+            case B, C -> ""; // the first message holds what it needs (#904)
           };
       InvestigateRole.Mode roleMode =
           switch (mode) {
@@ -879,7 +908,7 @@ public final class Investigator {
     private long prefix(boolean leads) {
       return leads
           ? Tokens.estimate(InvestigatePrompt.LEADS_SYSTEM + InvestigatePrompt.LEADS_TASK)
-          : Tokens.estimate(CommonPrompt.SYSTEM + InvestigatePrompt.role() + systemMap);
+          : Tokens.estimate(InvestigatePrompt.EXPLORE_SYSTEM + InvestigatePrompt.EXPLORE_TASK);
     }
 
     // --- Storing -----------------------------------------------------------------------------

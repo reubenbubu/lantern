@@ -238,21 +238,29 @@ class InvestigateOpenRouterIT {
               + io.lantern.harness.Prompts.folder()
               + ".\n\n"
               + OUTPUTS);
-      result =
+      // With lantern.test.investigate-explore, every unit and the system are explored after the
+      // leads (Modes B and C), as a run does (#904).
+      boolean explore = Boolean.getBoolean("lantern.test.investigate-explore");
+      Investigator investigator =
           new Investigator(
-                  harness,
-                  files,
-                  // The tools Investigate reads code with: the shell's in its container (#893),
-                  // unless the run asks for the graph's.
-                  "graph".equals(System.getProperty("lantern.test.investigate-tools"))
-                      ? null
-                      : (root, written) ->
-                          AnalysisRun.shellContainer(
-                              io.lantern.sandbox.InvestigateShell.start(
-                                  io.lantern.sandbox.SandboxSettings.defaults(
-                                      Path.of(System.getProperty("java.io.tmpdir"), "builds")),
-                                  root)))
-              .leads(facts, 1, Set.copyOf(chosen)::contains);
+              harness,
+              files,
+              // The tools Investigate reads code with: the shell's in its container (#893),
+              // unless the run asks for the graph's.
+              "graph".equals(System.getProperty("lantern.test.investigate-tools"))
+                  ? null
+                  : (root, written) ->
+                      AnalysisRun.shellContainer(
+                          io.lantern.sandbox.InvestigateShell.start(
+                              io.lantern.sandbox.SandboxSettings.defaults(
+                                  Path.of(System.getProperty("java.io.tmpdir"), "builds")),
+                              root)));
+      result =
+          explore
+              ? investigator.explore(facts, 1, Set.copyOf(chosen)::contains)
+              : investigator.leads(facts, 1, Set.copyOf(chosen)::contains);
+      // Every fact it records, for scoring the risks and connections Modes B and C keep.
+      ExtractedFacts.write(out, "investigated.jsonl.gz", result.facts());
     } catch (RuntimeException e) {
       stopped = e.getClass().getSimpleName() + ": " + e.getMessage();
     } finally {

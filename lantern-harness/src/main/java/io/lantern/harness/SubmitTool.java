@@ -228,6 +228,9 @@ final class SubmitTool implements ToolBox {
       raw = entry.toString();
       ItemAnswer answer = role.read(id, item, entry);
       List<Rejection> found = role.pipeline().check(answer, inputs.apply(0));
+      if (role.partial() && !Entries.whole(found)) {
+        return partAnswered(id, item, answer, found, raw);
+      }
       if (found.isEmpty()) {
         accepted.put(id, answer);
         if (answers > 1) {
@@ -248,6 +251,36 @@ final class SubmitTool implements ToolBox {
       dropped.add(id);
       finished = true;
     }
+    return single.failed(problems, answers, single.attempts());
+  }
+
+  /**
+   * A partial role's single answer (#904): the parts no check rejected are kept, added to what an
+   * earlier answer kept; with none rejected, or at the last attempt, the conversation is settled
+   * with what was kept, even nothing; else the rejected parts go back by field.
+   */
+  private String partAnswered(
+      String id, Item item, ItemAnswer answer, List<Rejection> found, String raw) {
+    ItemAnswer earlier = accepted.get(id);
+    JsonNode kept = Entries.without(answer.raw(), found);
+    if (earlier != null && earlier.raw() != null && earlier.raw().isObject()) {
+      kept = Entries.overlay((ObjectNode) earlier.raw(), kept);
+    }
+    accepted.put(id, role.read(id, item, kept));
+    if (found.isEmpty()) {
+      if (answers > 1) {
+        repaired.add(id);
+      }
+      finished = true;
+      return single.passed();
+    }
+    sink.rejected(item.subject(), answers, raw, RoleSession.reasons(found));
+    failedOnce.add(id);
+    if (answers >= single.attempts()) {
+      finished = true;
+    }
+    List<String> problems = new ArrayList<>();
+    found.forEach(r -> problems.add(r.field() + ": " + r.reason()));
     return single.failed(problems, answers, single.attempts());
   }
 
