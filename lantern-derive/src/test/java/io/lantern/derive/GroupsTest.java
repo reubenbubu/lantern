@@ -199,6 +199,45 @@ class GroupsTest {
   }
 
   @Test
+  void theOnlyEntryPointOfAFeatureFolderJoinsTheAreaItCallsMost() {
+    // An area of one is not stored, so its member is placed like any other (#764).
+    unit(BILLING, BILLING_MODULE, "billing");
+    controller("io.acme.billing.invoice", "InvoiceController", "GET /invoices");
+    controller("io.acme.billing.invoice", "InvoiceEvents", "GET /invoices/events");
+    controller("io.acme.billing.payment", "PaymentController", "POST /payments");
+    controller("io.acme.billing.payment", "RefundController", "POST /refunds");
+    controller("io.acme.billing.collections", "DunningController", "GET /dunning");
+    controller("io.acme.billing.collections", "CollectionsController", "GET /collections");
+    EntityId lone = controller("io.acme.billing.reminders", "ReminderController", "GET /reminders");
+    link(lone, component("io.acme.billing.payment.PaymentController"));
+
+    Map<String, Set<String>> areas = areas(BILLING);
+
+    assertThat(areas)
+        .containsOnlyKeys(area("pkg-collections"), area("pkg-invoice"), area("pkg-payment"));
+    assertThat(areas.get(area("pkg-payment"))).contains(lone.toString());
+  }
+
+  @Test
+  void anAreaOfOneThatRule3GrowsIsKeptAndOneThatStaysOneIsNot() {
+    // Areas are judged by their size after rule 3, not before (#764).
+    unit(BILLING, BILLING_MODULE, "billing");
+    EntityId orders = controller("io.acme.billing.web", "OrderController", "GET /orders");
+    EntityId payments = controller("io.acme.billing.web", "PaymentController", "GET /payments");
+    controller("io.acme.billing.web", "InvoiceController", "GET /invoices");
+    EntityId orderListener = controller("io.acme.billing.messaging", "OrderListener", null);
+    EntityId paymentListener = controller("io.acme.billing.messaging", "PaymentListener", null);
+    link(orderListener, orders.toString());
+    link(paymentListener, payments.toString());
+
+    Map<String, Set<String>> areas = areas(BILLING);
+
+    assertThat(areas)
+        .containsOnlyKeys(area("path-orders"), area("path-payments"))
+        .containsEntry(area("path-orders"), Set.of(orders.toString(), orderListener.toString()));
+  }
+
+  @Test
   void aComponentLinkedOnlyToOneJoinedByCallsJoinsInALaterRound() {
     unit(BILLING, BILLING_MODULE, "billing");
     controller("io.acme.billing.web", "OrderController", "GET /orders");
@@ -287,6 +326,17 @@ class GroupsTest {
   }
 
   @Test
+  void unitsNoSignalGroupsStayUngroupedHoweverCloselyTheyWork() {
+    // #764 dropped grouping by coupling; what no code signal groups is left to #919.
+    EntityId orders = unitNamed("orders");
+    EntityId stock = unitNamed("stock");
+    calls(orders, stock);
+    calls(stock, orders);
+
+    assertThat(domains()).isEmpty();
+  }
+
+  @Test
   void linesBetweenGroupsAreOnePerOrderedPairAndProtocol() {
     EntityId a = EntityId.parse("group:system/domain/db-a");
     EntityId b = EntityId.parse("group:system/domain/db-b");
@@ -362,6 +412,18 @@ class GroupsTest {
 
   private void link(EntityId from, String to) {
     model.add(from, Types.COMPONENT_LINK, EntityId.parse(to));
+  }
+
+  private EntityId unitNamed(String name) {
+    EntityId unit = EntityId.parse("service:io.acme:" + name);
+    model.add(unit, "deployable-unit", FactObject.string("spring-boot"));
+    return unit;
+  }
+
+  private void calls(EntityId from, EntityId to) {
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("protocol", "HTTP");
+    model.add(from, Types.CALLS_HTTP, FactObject.entity(to), attributes);
   }
 
   private void uses(EntityId unit, String database, String protocol) {

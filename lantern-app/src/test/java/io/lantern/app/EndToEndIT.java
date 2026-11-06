@@ -1051,7 +1051,7 @@ class EndToEndIT {
                 .filter(r -> r.role().startsWith("investigate-"))
                 .mapToLong(io.lantern.harness.RoleRecord::calls)
                 .sum());
-    // The model checks (ADR 0101) make the rest.
+    // The model checks (ADR 0101) and Name groups make the rest.
     assertThat(calls)
         .isEqualTo(
             run.summariesGenerated()
@@ -1060,7 +1060,9 @@ class EndToEndIT {
                 + investigateCalls
                 + byRole.getOrDefault(Role.JUDGE, 0L)
                 + judgedOnWriters
-                + byRole.getOrDefault(Role.SCREEN, 0L));
+                + byRole.getOrDefault(Role.SCREEN, 0L)
+                // Name groups names the groups a set has, when it has any.
+                + byRole.getOrDefault(Role.NAME_GROUPS, 0L));
   }
 
   /** What two runs over the same commits did. */

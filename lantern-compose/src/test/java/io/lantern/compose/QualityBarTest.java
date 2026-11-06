@@ -337,7 +337,8 @@ class QualityBarTest {
     assertThat(failed(document, QualityBar.ONE_LEVEL))
         .containsExactly("d: It also shows com.example (package).");
     assertThat(failed(document, QualityBar.elements(DiagramLimits.DEFAULT)))
-        .containsExactly("d: It shows 51 elements.");
+        .containsExactly(
+            "d: It shows " + (DiagramLimits.DEFAULT.mostElements() + 1) + " elements.");
     // What a box or line lacks is asked of the model, not of the diagram (UnknownsTest).
     assertThat(failed(document, QualityBar.TECHNOLOGY)).isEmpty();
     assertThat(failed(document, QualityBar.LABELLED))
@@ -394,13 +395,14 @@ class QualityBarTest {
             edges,
             List.of());
     Document document = document("c4-model-sequence-diagrams", "a", section("s", "S", diagram));
-    DiagramLimits loose = new DiagramLimits(2, 0, 3, 0.8, 5);
-    DiagramLimits tight = new DiagramLimits(1, 0, 3, 0.8, 5);
+    DiagramLimits loose = new DiagramLimits(2, 0, 3, 0.8, 5, 2);
+    DiagramLimits tight = new DiagramLimits(1, 0, 3, 0.8, 5, 2);
 
     assertThat(sizeFailures(document, DiagramLimits.DEFAULT))
         .containsExactly(
-            "Size: at most 50 elements and 2 lines per element: It draws 5 lines between 2"
-                + " elements.");
+            "Size: at most "
+                + DiagramLimits.DEFAULT.mostElements()
+                + " elements and 2 lines per element: It draws 5 lines between 2 elements.");
     assertThat(sizeFailures(document, loose)).isEmpty();
     assertThat(sizeFailures(document, tight))
         .containsExactly("Size: at most 1 elements and 3 lines per element: It shows 2 elements.");

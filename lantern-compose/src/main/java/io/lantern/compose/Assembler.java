@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -120,7 +121,8 @@ final class Assembler {
       facts.addAll(investigatedTo(id));
     }
     entities.put(
-        id, new DocumentEntity(id, name(id), parent, List.of(), facts(facts), kind(id), tag(id)));
+        id,
+        new DocumentEntity(id, name(id), parent, List.of(), facts(facts), kind(id), groupTag(id)));
     adding.remove(id);
     if (described.contains(id)
             && (model.summary(summarized(id)).isPresent() || responsibility(id) != null)
@@ -740,6 +742,57 @@ final class Assembler {
     }
     String words = type.replace('-', ' ');
     return words.substring(0, 1).toUpperCase(Locale.ROOT) + words.substring(1);
+  }
+
+  /**
+   * The groups a box says it belongs to (#764): each unit of a domain, and each component's main
+   * type of a feature area, that holds at least the limits' smallest group; empty until {@link
+   * #groups} is called.
+   */
+  private Map<EntityId, EntityId> groupOf = Map.of();
+
+  /**
+   * Names, on each box of a group's member, the group it belongs to, as the views draw no frame
+   * around a group's members (owner's decision of 5 Nov 2026 on #764; #897). Called before any
+   * entity is added.
+   *
+   * @param smallestGroup the fewest members a group holds to be named
+   */
+  void groups(int smallestGroup) {
+    Map<EntityId, EntityId> result = new HashMap<>();
+    for (String kind : List.of(Groups.DOMAIN, Groups.FEATURE_AREA)) {
+      for (Groups.Group group : Groups.of(model, kind)) {
+        if (group.members().size() < smallestGroup) {
+          continue;
+        }
+        for (EntityId member : group.members()) {
+          result.putIfAbsent(boxOf(member), group.id());
+        }
+      }
+    }
+    groupOf = result;
+  }
+
+  /** The box a group member is drawn as: a component by its main type, else itself. */
+  private static EntityId boxOf(EntityId member) {
+    if (member.type().equals(Types.COMPONENT)) {
+      int anchor = member.key().indexOf("/" + Types.TYPE + ":");
+      if (anchor >= 0) {
+        return EntityId.parse(member.key().substring(anchor + 1));
+      }
+    }
+    return member;
+  }
+
+  /** The entity's {@link #tag}, followed by the group it belongs to, if any. */
+  private String groupTag(EntityId id) {
+    String tag = tag(id);
+    EntityId group = groupOf.get(id);
+    if (group == null) {
+      return tag;
+    }
+    String what = tag != null ? tag : id.type().equals(Types.TYPE) ? "Component" : "Container";
+    return what + " · " + name(group);
   }
 
   /** The types {@link #tag} names no type for. */

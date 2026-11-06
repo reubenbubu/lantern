@@ -28,6 +28,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -87,6 +88,28 @@ final class C4Views {
    * without (ADR 0117).
    */
   private List<Line> drawing;
+
+  /**
+   * Whether the diagram being drawn merges the lines between two elements into one, whatever they
+   * carry: the first step when a view at its coarsest level still does not fit (owner's decision
+   * (b) of 4 Nov 2026 on #764). Otherwise each ordered pair draws one line per relationship.
+   */
+  private boolean perPair;
+
+  /** Whether the view being drawn leaves the systems outside off (#764). */
+  private boolean withoutOutside;
+
+  private boolean outside(EntityId entity) {
+    return isType(entity.type(), Types.EXTERNAL_SYSTEM);
+  }
+
+  /** The name of the domain whose page is being split, which each part's title names. */
+  private String splitIn;
+
+  /** A split page's title, naming the domain it is a part of when one is being split. */
+  private String splitTitle(String title) {
+    return splitIn == null ? title : splitIn + ": " + title.toLowerCase(Locale.ROOT);
+  }
 
   /** Each profile-only link that replaces a default one under its profile, with that default. */
   private final Map<Fact, Fact> alternatives;
@@ -393,8 +416,55 @@ final class C4Views {
                 edge.always ? List.of() : List.copyOf(edge.profiles),
                 assembler.facts(edge.facts)));
       }
-      return result;
+      return perPair ? merged(result) : result;
     }
+  }
+
+  /**
+   * One line per ordered pair of elements: the first line's relationship, each label and each
+   * technology once, the profiles only if every line it merges holds only under some, and every
+   * fact cited.
+   */
+  static List<Diagram.Edge> merged(List<Diagram.Edge> edges) {
+    Map<String, List<Diagram.Edge>> byPair = new java.util.LinkedHashMap<>();
+    for (Diagram.Edge edge : edges) {
+      byPair.computeIfAbsent(edge.from() + " " + edge.to(), k -> new ArrayList<>()).add(edge);
+    }
+    List<Diagram.Edge> result = new ArrayList<>();
+    for (List<Diagram.Edge> pair : byPair.values()) {
+      Diagram.Edge first = pair.getFirst();
+      if (pair.size() == 1) {
+        result.add(first);
+        continue;
+      }
+      Set<String> labels = new LinkedHashSet<>();
+      Set<String> technologies = new LinkedHashSet<>();
+      Set<String> profiles = new LinkedHashSet<>();
+      Set<String> facts = new LinkedHashSet<>();
+      boolean always = false;
+      for (Diagram.Edge edge : pair) {
+        if (edge.label() != null) {
+          labels.add(edge.label());
+        }
+        if (edge.technology() != null) {
+          technologies.add(edge.technology());
+        }
+        always |= edge.profiles().isEmpty();
+        profiles.addAll(edge.profiles());
+        facts.addAll(edge.facts());
+      }
+      result.add(
+          new Diagram.Edge(
+              first.id(),
+              first.from(),
+              first.to(),
+              labels.isEmpty() ? null : String.join("; ", labels),
+              technologies.isEmpty() ? null : String.join(", ", technologies),
+              first.relationship(),
+              always ? List.of() : List.copyOf(profiles),
+              List.copyOf(facts)));
+    }
+    return result;
   }
 
   // System context.
@@ -577,6 +647,26 @@ final class C4Views {
    * @param subsections receives one subsection per view when the diagram is split
    */
   void containers(String section, List<Block> blocks, List<Section> subsections) {
+    try {
+      drawContainers(section, blocks, subsections);
+    } finally {
+      plainDrawing();
+    }
+  }
+
+  /**
+   * Back to drawing every line as it is: the switches the fallback steps set while drawing a view
+   * never carry over to the next view, whatever ends the view.
+   */
+  private void plainDrawing() {
+    perPair = false;
+    withoutOutside = false;
+    callersElsewhere = Set.of();
+    splitIn = null;
+    drawing = links;
+  }
+
+  private void drawContainers(String section, List<Block> blocks, List<Section> subsections) {
     SortedSet<EntityId> shown = new TreeSet<>(entryFirst());
     shown.addAll(units);
     shown.addAll(frontends);
@@ -594,51 +684,139 @@ final class C4Views {
       profiles.ifPresent(blocks::add);
       return;
     }
+    // A container no line reaches says nothing on a map of how the parts connect: it is left off
+    // every other container view, and drawn on a page of its own, always (owner's decision of 6 Nov
+    // 2026
+    // on #764).
+    SortedSet<EntityId> alone = new TreeSet<>(entryFirst());
+    shown.stream()
+        .filter(c -> links.stream().noneMatch(l -> l.from().equals(c) || l.to().equals(c)))
+        .forEach(alone::add);
+    if (alone.size() < shown.size()) {
+      shown.removeAll(alone);
+    } else {
+      alone.clear();
+    }
     Diagram whole =
         containerDiagram(assembler.id(section, "diagram"), shown, "Containers", null, true);
     if (fits(whole) || shown.size() == 1) {
       blocks.add(whole);
       profiles.ifPresent(blocks::add);
+      alone(section, alone, subsections);
       return;
     }
-    // Detail folded away before the view is split (docs/design.md, Readable diagrams): topics and
-    // queues between one sender and one receiver become "via" labels, as C4 allows.
+    // The coarser level the code proves (owner's decisions (a) and (b) of 4 Nov 2026 on #764):
+    // each domain one box standing for its units, with a page per domain. A view still too large
+    // there, or with no domains, merges its lines per pair, then folds topics and queues between
+    // one sender and one receiver into "via" labels.
+    Map<EntityId, EntityId> domainOf = domainOf(shown);
+    String id = assembler.id(section, "diagram");
+    String byDomain = "Containers of " + assembler.name(system) + ", by domain";
+    String title = domainOf.isEmpty() ? "Containers of " + assembler.name(system) : byDomain;
+    Map<EntityId, EntityId> lifted = inner(domainOf);
+    Diagram coarsest = containerDiagram(id, shown, title, null, true, lifted);
     SortedSet<EntityId> folded = new TreeSet<>(ArchitectureModel.BY_ID);
-    drawing = foldTopics(folded);
-    Optional<Callout> foldNote = foldNote(assembler.id(section, "folded"), folded);
-    if (!folded.isEmpty()) {
-      whole = containerDiagram(assembler.id(section, "diagram"), shown, "Containers", null, true);
-      if (fits(whole)) {
-        blocks.add(whole);
-        foldNote.ifPresent(blocks::add);
-        profiles.ifPresent(blocks::add);
+    boolean outsideOff = false;
+    if (!fits(coarsest) && !domainOf.isEmpty()) {
+      // A map of the domains still too large leaves the systems outside off: the context view and
+      // each domain's page draw them (owner's decision of 6 Nov 2026 on #764).
+      withoutOutside = true;
+      Diagram inside = containerDiagram(id, shown, title, null, true, lifted);
+      outsideOff = inside.nodes().size() < coarsest.nodes().size();
+      coarsest = inside;
+    }
+    if (!fits(coarsest)) {
+      perPair = true;
+      coarsest = containerDiagram(id, shown, title, null, true, lifted);
+      if (!fits(coarsest)) {
+        drawing = foldTopics(folded);
+        coarsest = containerDiagram(id, shown, title, null, true, lifted);
+      }
+    }
+    boolean fitted = fits(coarsest);
+    // The units in no domain whose lines to the systems outside the map leaves off: no domain's
+    // page draws them, so a page of their own does (#764).
+    SortedSet<EntityId> loose = new TreeSet<>(entryFirst());
+    if (outsideOff) {
+      for (EntityId unit : shown) {
+        if (!domainOf.containsKey(unit)
+            && links.stream()
+                .anyMatch(
+                    l ->
+                        l.from().equals(unit) && outside(l.to())
+                            || l.to().equals(unit) && outside(l.from()))) {
+          loose.add(unit);
+        }
+      }
+    }
+    if (!domainOf.isEmpty() || fitted) {
+      blocks.add(coarsest);
+      if (outsideOff) {
+        blocks.add(
+            new Callout(
+                assembler.id(section, "outside"),
+                Callout.Variant.NOTE,
+                null,
+                null,
+                List.of(
+                    TextRun.of(
+                        "The systems outside are left off this map to keep it readable; the"
+                            + " system context view and each domain's page"
+                            + (loose.isEmpty() ? "" : " and the page of the units in no domain")
+                            + " draw them.")),
+                List.of()));
+      }
+      foldNote(assembler.id(section, "folded"), folded).ifPresent(blocks::add);
+      profiles.ifPresent(blocks::add);
+      perPair = false;
+      withoutOutside = false;
+      drawing = links;
+      List<Diagram> drawn = new ArrayList<>(List.of(coarsest));
+      if (!domainOf.isEmpty()) {
+        // The overview at domain level is the smallest the code proves; each domain's page draws
+        // its units in full, split by concern where it still does not fit.
+        domains(section, shown, domainOf, subsections);
+      }
+      if (!loose.isEmpty()) {
+        String looseId = assembler.id(section, "no-domain");
+        Diagram view =
+            containerDiagram(
+                assembler.id(looseId, "diagram"),
+                loose,
+                "Containers of " + assembler.name(system) + " in no domain",
+                null,
+                true,
+                domainOf);
+        if (fits(view)) {
+          subsections.add(subsection(looseId, NO_DOMAIN, null, view));
+        } else {
+          splitIn = NO_DOMAIN;
+          try {
+            split(
+                section,
+                loose,
+                REQUESTS.and(DATA),
+                List.of(REQUESTS, DATA),
+                true,
+                drawn,
+                subsections);
+          } finally {
+            splitIn = null;
+          }
+        }
+      }
+      if (!folded.isEmpty()) {
         // The detail folded away stays one page away: the messaging view draws every topic and
         // queue as an element, split per unit when it is not readable either.
-        drawing = links;
-        List<Diagram> drawn = new ArrayList<>(List.of(whole));
         split(section, shown, MESSAGING, List.of(), false, drawn, subsections);
-        return;
       }
+      alone(section, alone, subsections);
+      return;
     }
-    // Folding was not enough: the views below draw every topic and queue, by domain or concern.
+    // No domain and still too large: split by concern, each view drawing every topic and queue.
+    perPair = false;
+    withoutOutside = false;
     drawing = links;
-    Map<EntityId, EntityId> domainOf = domainOf(shown);
-    if (!domainOf.isEmpty()) {
-      Diagram byDomain =
-          containerDiagram(
-              assembler.id(section, "diagram"),
-              shown,
-              "Containers of " + assembler.name(system) + ", by domain",
-              null,
-              true,
-              domainOf);
-      if (fits(byDomain)) {
-        blocks.add(byDomain);
-        domains(section, shown, domainOf, subsections);
-        profiles.ifPresent(blocks::add);
-        return;
-      }
-    }
     List<Diagram> drawn = new ArrayList<>();
     split(section, shown, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
     split(section, shown, MESSAGING, List.of(), false, drawn, subsections);
@@ -659,7 +837,39 @@ final class C4Views {
                   with,
                   first.sections()));
         });
+    alone(section, alone, subsections);
   }
+
+  /** The page of the containers no line reaches, when there are any (#764). */
+  private void alone(String section, SortedSet<EntityId> alone, List<Section> subsections) {
+    if (alone.isEmpty()) {
+      return;
+    }
+    String id = assembler.id(section, "unconnected");
+    subsections.add(
+        subsection(
+            id,
+            ALONE,
+            null,
+            containerDiagram(
+                assembler.id(id, "diagram"),
+                alone,
+                "Containers of " + assembler.name(system) + " with no connections found",
+                null,
+                true,
+                Map.of())));
+  }
+
+  /**
+   * The title of the page of the units in no domain, when a map of domains leaves the outside off.
+   */
+  static final String NO_DOMAIN = "In no domain";
+
+  /** The title of the page of the components in no feature area that reach outside the unit. */
+  static final String NO_AREA = "In no feature area";
+
+  /** The title of the page of the containers no line reaches. */
+  static final String ALONE = "With no connections found";
 
   /**
    * The pages of the container view at domain level (ADR 0117), after its readable overview: one
@@ -697,9 +907,15 @@ final class C4Views {
             subsections.add(subsection(id, name, domain, view));
             return;
           }
+          // Each page names the domain it is a part of (#764).
           List<Diagram> drawn = new ArrayList<>();
-          split(id, units, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
-          split(id, units, MESSAGING, List.of(), false, drawn, subsections);
+          splitIn = name;
+          try {
+            split(id, units, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
+            split(id, units, MESSAGING, List.of(), false, drawn, subsections);
+          } finally {
+            splitIn = null;
+          }
         });
   }
 
@@ -727,7 +943,7 @@ final class C4Views {
     }
     if (fits(view)) {
       drawn.add(view);
-      subsections.add(subsection(id, concern.title, null, view));
+      subsections.add(subsection(id, splitTitle(concern.title), null, view));
       return;
     }
     if (!parts.isEmpty()) {
@@ -766,7 +982,8 @@ final class C4Views {
       }
       drawn.add(around);
       subsections.add(
-          subsection(unitId, concern.title + " around " + assembler.name(unit), unit, around));
+          subsection(
+              unitId, splitTitle(concern.title + " around " + assembler.name(unit)), unit, around));
     }
   }
 
@@ -984,10 +1201,11 @@ final class C4Views {
   private Diagram containerDiagram(
       String id, SortedSet<EntityId> shown, String title, Concern concern, boolean everyContainer) {
     String scope = concern == null ? "" : ": " + concern.title.toLowerCase(Locale.ROOT);
+    String in = splitIn == null ? "" : " in " + splitIn;
     return containerDiagram(
         id,
         shown,
-        title + " of " + assembler.name(system) + scope,
+        title + " of " + assembler.name(system) + in + scope,
         concern,
         everyContainer,
         Map.of());
@@ -1018,7 +1236,8 @@ final class C4Views {
       EntityId to = lift.getOrDefault(link.to(), link.to());
       if ((concern == null || concern.relationships.contains(link.relationship()))
           && (shown.contains(link.from()) || shown.contains(link.to()))
-          && !merged(lift, link.from(), link.to())) {
+          && !merged(lift, link.from(), link.to())
+          && !(withoutOutside && (outside(link.from()) || outside(link.to())))) {
         container(nodes, from);
         container(nodes, to);
         edges.add(from, to, link);
@@ -1126,19 +1345,57 @@ final class C4Views {
 
   /**
    * The system's domains the scope draws (#535; ADR 0117): each unit in scope that a stored domain
-   * holds with another unit in scope, with that domain. A domain holding one unit in scope stands
-   * for nothing and is left out.
+   * holds with enough other units in scope, the limits' smallest group, with that domain. A smaller
+   * domain stands for nothing and is left out.
    */
   private Map<EntityId, EntityId> domainOf(Set<EntityId> shown) {
     Map<EntityId, EntityId> result = new HashMap<>();
     for (Groups.Group domain : Groups.of(model, Groups.DOMAIN)) {
       List<EntityId> inScope = domain.members().stream().filter(shown::contains).toList();
-      if (inScope.size() >= 2) {
+      if (inScope.size() >= limits.smallestGroup()) {
         inScope.forEach(m -> result.putIfAbsent(m, domain.id()));
       }
     }
     return result;
   }
+
+  /**
+   * The groups each unit is drawn as, with each data store, topic, queue or exchange that only the
+   * units of one group use drawn as that group too: a group's own detail, which its page shows
+   * (#764).
+   */
+  private Map<EntityId, EntityId> inner(Map<EntityId, EntityId> groupOf) {
+    if (groupOf.isEmpty()) {
+      return groupOf;
+    }
+    Map<EntityId, Set<EntityId>> users = new TreeMap<>(ArchitectureModel.BY_ID);
+    for (Line link : drawing) {
+      if (link.relationship().equals(Types.ROUTES_TO)) {
+        continue;
+      }
+      for (EntityId[] ends :
+          List.of(
+              new EntityId[] {link.from(), link.to()}, new EntityId[] {link.to(), link.from()})) {
+        if (STORES.contains(ends[0].type())) {
+          users
+              .computeIfAbsent(ends[0], e -> new HashSet<>())
+              .add(groupOf.getOrDefault(ends[1], ends[1]));
+        }
+      }
+    }
+    Map<EntityId, EntityId> result = new HashMap<>(groupOf);
+    users.forEach(
+        (store, by) -> {
+          if (by.size() == 1 && by.iterator().next().type().equals(Types.GROUP)) {
+            result.put(store, by.iterator().next());
+          }
+        });
+    return result;
+  }
+
+  /** What a group's own detail can be. */
+  private static final Set<String> STORES =
+      Set.of(Types.DATABASE, Types.TOPIC, Types.QUEUE, Types.EXCHANGE);
 
   /**
    * The decision records of the scope's repositories, oldest number first, each with its rationale
@@ -1238,11 +1495,20 @@ final class C4Views {
    * unit) as a component of its own, and the containers they call or are called by.
    */
   List<Section> components(String section) {
+    try {
+      return drawComponents(section);
+    } finally {
+      plainDrawing();
+    }
+  }
+
+  private List<Section> drawComponents(String section) {
     List<Section> result = new ArrayList<>();
     // From the entry inward, as the container pages.
     SortedSet<EntityId> ordered = new TreeSet<>(entryFirst());
     ordered.addAll(units);
     for (EntityId unit : ordered) {
+      plainDrawing();
       List<Elements.Component> components = elements.components(unit);
       if (components.size() < 2) {
         continue;
@@ -1258,22 +1524,306 @@ final class C4Views {
               "Components of " + assembler.name(unit),
               all,
               Map.of());
+      // A component no line reaches is on a page of its own and on no other view of the unit
+      // (owner's decision of 6 Nov 2026 on #764, as for containers).
+      Set<EntityId> lined = new HashSet<>();
+      diagram
+          .edges()
+          .forEach(
+              e -> {
+                lined.add(e.from());
+                lined.add(e.to());
+              });
+      // An entry point is reached from outside the unit, whether or not the code shows from where.
+      components.stream().filter(Elements.Component::entryPoint).forEach(c -> lined.add(c.main()));
+      List<Elements.Component> alone =
+          components.stream().filter(c -> !lined.contains(c.main())).toList();
+      if (!alone.isEmpty() && alone.size() < components.size()) {
+        components = components.stream().filter(c -> lined.contains(c.main())).toList();
+        all.clear();
+        components.forEach(c -> all.add(c.main()));
+        diagram =
+            componentDiagram(
+                assembler.id(id, "diagram"),
+                unit,
+                components,
+                "Components of " + assembler.name(unit),
+                all,
+                Map.of());
+      } else {
+        alone = List.of();
+      }
       List<Section> areas = new ArrayList<>();
+      boolean outsideOff = false;
+      List<Elements.Component> outsideOnly = new ArrayList<>();
+      Set<EntityId> looseOutside = new java.util.LinkedHashSet<>();
+      Set<EntityId> overview = new java.util.LinkedHashSet<>(all);
+      Set<EntityId> crossOff = new HashSet<>();
       if (!fits(diagram)) {
+        // The coarser level the code proves, each feature area one box with a page of its own;
+        // a view still too large there, or with no areas, merges its lines per pair (owner's
+        // decisions (a) and (b) of 4 Nov 2026 on #764).
         Map<EntityId, EntityId> areaOf = areaOf(unit, components);
-        if (!areaOf.isEmpty()) {
+        String title =
+            "Components of " + assembler.name(unit) + (areaOf.isEmpty() ? "" : ", by feature area");
+        diagram =
+            componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
+        if (!fits(diagram) && !areaOf.isEmpty()) {
+          // What the unit's components reach outside it is left off, as on a map of domains;
+          // each area's page draws it (owner's decision of 6 Nov 2026 on #764). With no areas
+          // there is no such page, so the view is split instead.
+          Diagram full = diagram;
+          withoutOutside = true;
+          Diagram inside =
+              componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
+          outsideOff = inside.nodes().size() < diagram.nodes().size();
+          // What cuts across the areas (an aspect, a bundled library's class) is left off too,
+          // with a note; each area's page draws it (owner's decision of 6 Nov 2026 on #764).
+          for (Elements.Component component : components) {
+            if (component.crossCutting() && !areaOf.containsKey(component.main())) {
+              crossOff.add(component.main());
+            }
+          }
+          if (!crossOff.isEmpty() && crossOff.size() < overview.size()) {
+            overview.removeAll(crossOff);
+            // Its lines are left off with it, so it is not drawn as a neighbour.
+            callersElsewhere = crossOff;
+            inside =
+                componentDiagram(
+                    assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
+          } else {
+            crossOff.clear();
+          }
+          diagram = inside;
+          // A component whose every line goes outside is left with none here: it is not part of
+          // what this view shows, and is drawn on a page of its own with its lines (owner's
+          // decision of 6 Nov 2026 on #764, as for what no line reaches).
+          Set<EntityId> inView = new HashSet<>();
+          inside
+              .edges()
+              .forEach(
+                  e -> {
+                    inView.add(e.from());
+                    inView.add(e.to());
+                  });
+          for (Elements.Component component : components) {
+            if (!areaOf.containsKey(component.main())
+                && !inView.contains(component.main())
+                && !crossOff.contains(component.main())) {
+              outsideOnly.add(component);
+            }
+          }
+          // A component in no area that stays here has its lines outside left off with no area page
+          // to draw them, so a page of its own does, as for a unit in no domain (#764).
+          Set<EntityId> mainsHere = new HashSet<>();
+          components.forEach(c -> mainsHere.add(c.main()));
+          for (Elements.Component component : components) {
+            EntityId main = component.main();
+            if (areaOf.containsKey(main) || outsideOnly.contains(component)) {
+              continue;
+            }
+            // Outside is what is neither a component of the unit nor one of its feature areas.
+            java.util.function.Predicate<EntityId> beyond =
+                end -> !mainsHere.contains(end) && !end.type().equals(Types.GROUP);
+            boolean outside =
+                full.edges().stream()
+                    .anyMatch(
+                        e ->
+                            (e.from().equals(main) && beyond.test(e.to()))
+                                || (e.to().equals(main) && beyond.test(e.from())));
+            if (outside) {
+              looseOutside.add(main);
+            }
+          }
+          // A feature area with no line here is off it too; its own page draws it.
+          Set<EntityId> unlinedAreas = new HashSet<>();
+          for (Elements.Component component : components) {
+            EntityId area = areaOf.get(component.main());
+            if (area != null && !inView.contains(area)) {
+              unlinedAreas.add(area);
+            }
+          }
+          if (!unlinedAreas.isEmpty()
+              && unlinedAreas.size() < new HashSet<>(areaOf.values()).size()) {
+            for (Elements.Component component : components) {
+              if (unlinedAreas.contains(areaOf.get(component.main()))) {
+                overview.remove(component.main());
+              }
+            }
+            diagram =
+                componentDiagram(
+                    assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
+          }
+          if (!outsideOnly.isEmpty() && outsideOnly.size() < components.size()) {
+            outsideOnly.forEach(c -> overview.remove(c.main()));
+            diagram =
+                componentDiagram(
+                    assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
+          } else {
+            outsideOnly.clear();
+          }
+        }
+        if (!fits(diagram)) {
+          perPair = true;
           diagram =
               componentDiagram(
-                  assembler.id(id, "diagram"),
+                  assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
+          perPair = false;
+        }
+        withoutOutside = false;
+        callersElsewhere = Set.of();
+        if (!areaOf.isEmpty()) {
+          areas = areas(id, unit, components, areaOf);
+        } else if (!fits(diagram)) {
+          // No area to draw and still too large: split by groups of entry points.
+          areas =
+              byEntryPoint(
+                  id,
+                  unit,
+                  assembler.name(unit),
                   unit,
                   components,
-                  "Components of " + assembler.name(unit) + ", by feature area",
+                  "Components of " + assembler.name(unit),
                   all,
-                  areaOf);
-          areas = areas(id, unit, components, areaOf);
+                  Map.of());
+          diagram = null;
+          outsideOff = false;
         }
       }
-      List<Block> blocks = new ArrayList<>(List.of(diagram));
+      if (!looseOutside.isEmpty() && outsideOff && diagram != null) {
+        String looseId = assembler.id(id, "no-area");
+        String looseTitle =
+            "Components of " + assembler.name(unit) + " " + NO_AREA.toLowerCase(Locale.ROOT);
+        Diagram looseView =
+            componentDiagram(
+                assembler.id(looseId, "diagram"),
+                unit,
+                components,
+                looseTitle,
+                looseOutside,
+                Map.of());
+        if (fits(looseView)) {
+          areas.add(
+              new Section(
+                  looseId,
+                  NO_AREA,
+                  SectionKind.COMPONENTS.levels(),
+                  null,
+                  List.of(),
+                  List.of(looseView),
+                  List.of()));
+        } else {
+          areas.addAll(
+              byEntryPoint(
+                  looseId, null, NO_AREA, unit, components, looseTitle, looseOutside, Map.of()));
+        }
+      }
+      if (!outsideOnly.isEmpty()) {
+        Set<EntityId> mains = new HashSet<>();
+        outsideOnly.forEach(c -> mains.add(c.main()));
+        String outsideId = assembler.id(id, "outside-only");
+        String outsideTitle = "Connected to no feature area";
+        String outsideDiagramTitle =
+            "Components of " + assembler.name(unit) + " connected to no feature area";
+        Diagram outsideView =
+            componentDiagram(
+                assembler.id(outsideId, "diagram"),
+                unit,
+                components,
+                outsideDiagramTitle,
+                mains,
+                Map.of());
+        if (fits(outsideView)) {
+          areas.add(
+              new Section(
+                  outsideId,
+                  outsideTitle,
+                  SectionKind.COMPONENTS.levels(),
+                  null,
+                  List.of(),
+                  List.of(outsideView),
+                  List.of()));
+        } else {
+          // Too many for one page: split by groups of entry points like any other page.
+          areas.addAll(
+              byEntryPoint(
+                  outsideId,
+                  null,
+                  outsideTitle,
+                  unit,
+                  components,
+                  outsideDiagramTitle,
+                  mains,
+                  Map.of()));
+        }
+      }
+      if (!alone.isEmpty()) {
+        Set<EntityId> mains = new HashSet<>();
+        alone.forEach(c -> mains.add(c.main()));
+        String aloneId = assembler.id(id, "unconnected");
+        areas.add(
+            new Section(
+                aloneId,
+                ALONE,
+                SectionKind.COMPONENTS.levels(),
+                null,
+                List.of(),
+                List.of(
+                    componentDiagram(
+                        assembler.id(aloneId, "diagram"),
+                        unit,
+                        alone,
+                        "Components of " + assembler.name(unit) + " with no connections found",
+                        mains,
+                        Map.of())),
+                List.of()));
+      }
+      List<Block> blocks = new ArrayList<>();
+      if (diagram != null) {
+        blocks.add(diagram);
+      }
+      if (outsideOff) {
+        blocks.add(
+            new Callout(
+                assembler.id(id, "outside"),
+                Callout.Variant.NOTE,
+                null,
+                null,
+                List.of(
+                    TextRun.of(
+                        "What these components reach outside "
+                            + assembler.name(unit)
+                            + " is left off this view to keep it readable; each area's page"
+                            + " draws it"
+                            + (looseOutside.isEmpty()
+                                ? "."
+                                : ", and the page " + NO_AREA + " draws it for the rest."))),
+                List.of()));
+      }
+      if (!crossOff.isEmpty()) {
+        List<String> names = new ArrayList<>();
+        components.forEach(
+            c -> {
+              if (crossOff.contains(c.main())) {
+                names.add(elements.componentName(c));
+              }
+            });
+        blocks.add(
+            new Callout(
+                assembler.id(id, "cross-cutting"),
+                Callout.Variant.NOTE,
+                null,
+                null,
+                List.of(
+                    TextRun.of(
+                        ScopeFlows.list(names)
+                            + (names.size() == 1 ? " cuts" : " cut")
+                            + " across the feature areas and "
+                            + (names.size() == 1 ? "is" : "are")
+                            + " left off this view to keep it readable; each area's page draws"
+                            + " where it applies.")),
+                List.of()));
+      }
       alternativesNote(assembler.id(id, "profiles"), only(unit), false).ifPresent(blocks::add);
       result.add(
           new Section(
@@ -1306,6 +1856,10 @@ final class C4Views {
         result.put(component.main(), area);
       }
     }
+    // An area with fewer of the view's components than the smallest group stands for nothing.
+    Map<EntityId, Long> sizes = new HashMap<>();
+    result.values().forEach(a -> sizes.merge(a, 1L, Long::sum));
+    result.values().removeIf(a -> sizes.get(a) < limits.smallestGroup());
     return result;
   }
 
@@ -1332,14 +1886,24 @@ final class C4Views {
           others.keySet().removeAll(mains);
           String areaId = assembler.id(id, area.toString());
           String name = assembler.name(area);
+          String title = "Components of " + assembler.name(unit) + " in " + name;
           Diagram view =
               componentDiagram(
-                  assembler.id(areaId, "diagram"),
-                  unit,
-                  components,
-                  "Components of " + assembler.name(unit) + " in " + name,
-                  mains,
-                  others);
+                  assembler.id(areaId, "diagram"), unit, components, title, mains, others);
+          if (!fits(view)) {
+            // Too large: its lines merged per pair first (docs/design.md, Readable diagrams).
+            perPair = true;
+            view =
+                componentDiagram(
+                    assembler.id(areaId, "diagram"), unit, components, title, mains, others);
+            perPair = false;
+          }
+          if (!fits(view)) {
+            // An area too large for one page is split by groups of entry points (docs/design.md,
+            // Readable diagrams), each page naming the area.
+            result.addAll(byEntryPoint(areaId, area, name, unit, components, title, mains, others));
+            return;
+          }
           result.add(
               new Section(
                   areaId,
@@ -1351,6 +1915,268 @@ final class C4Views {
                   List.of()));
         });
     return result;
+  }
+
+  /**
+   * The pages of components too many for one view (#764; docs/design.md, Readable diagrams): each
+   * entry point in focus (or, with none, each component nothing in focus calls) with the components
+   * it reaches in focus, entry points in order put on one page while it fits; what no entry point
+   * reaches goes on the last page. Each page is titled by the scope and its entry points.
+   */
+  /**
+   * The components whose lines to or from a page's focus are left off it: on the pages of a split,
+   * the rest of the components being split, each drawn on a page of its own.
+   */
+  private Set<EntityId> callersElsewhere = Set.of();
+
+  /** The ID of a diagram drawn only to measure it, never shown. */
+  private static final String TRIAL = "trial";
+
+  private List<Section> byEntryPoint(
+      String id,
+      EntityId entity,
+      String scope,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Set<EntityId> focus,
+      Map<EntityId, EntityId> lift) {
+    // Split only after merging lines per pair, so each page draws them merged too.
+    perPair = true;
+    callersElsewhere = focus;
+    try {
+      return pagesByEntryPoint(id, entity, scope, unit, components, title, focus, lift);
+    } finally {
+      perPair = false;
+      callersElsewhere = Set.of();
+    }
+  }
+
+  private List<Section> pagesByEntryPoint(
+      String id,
+      EntityId entity,
+      String scope,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Set<EntityId> focus,
+      Map<EntityId, EntityId> lift) {
+    // The calls between the components in focus, each drawn as itself.
+    Diagram flat = componentDiagram(TRIAL, unit, components, title, focus, Map.of());
+    Map<EntityId, Set<EntityId>> calls = new HashMap<>();
+    Set<EntityId> called = new HashSet<>();
+    for (Diagram.Edge edge : flat.edges()) {
+      if (focus.contains(edge.from()) && focus.contains(edge.to())) {
+        calls
+            .computeIfAbsent(edge.from(), f -> new java.util.TreeSet<>(ArchitectureModel.BY_ID))
+            .add(edge.to());
+        called.add(edge.to());
+      }
+    }
+    List<EntityId> inOrder = new ArrayList<>();
+    components.forEach(
+        c -> {
+          if (focus.contains(c.main())) {
+            inOrder.add(c.main());
+          }
+        });
+    List<EntityId> entries =
+        components.stream()
+            .filter(c -> focus.contains(c.main()) && c.entryPoint())
+            .map(Elements.Component::main)
+            .toList();
+    if (entries.isEmpty()) {
+      entries = inOrder.stream().filter(c -> !called.contains(c)).toList();
+    }
+    if (entries.isEmpty()) {
+      entries = inOrder;
+    }
+    List<Set<EntityId>> pages = new ArrayList<>();
+    List<List<EntityId>> pageEntries = new ArrayList<>();
+    // The pages of what no entry point reaches, by index.
+    Set<Integer> restOnly = new HashSet<>();
+    Set<EntityId> current = new java.util.LinkedHashSet<>();
+    List<EntityId> currentEntries = new ArrayList<>();
+    for (EntityId entry : entries) {
+      Set<EntityId> reach = new java.util.LinkedHashSet<>();
+      Deque<EntityId> todo = new ArrayDeque<>(List.of(entry));
+      while (!todo.isEmpty()) {
+        EntityId next = todo.pop();
+        if (reach.add(next)) {
+          todo.addAll(calls.getOrDefault(next, Set.of()));
+        }
+      }
+      Set<EntityId> together = new java.util.LinkedHashSet<>(current);
+      together.addAll(reach);
+      if (current.isEmpty()
+          || fits(componentDiagram(TRIAL, unit, components, title, together, lift))) {
+        current = together;
+        currentEntries.add(entry);
+      } else {
+        pages.add(current);
+        pageEntries.add(currentEntries);
+        current = reach;
+        currentEntries = new ArrayList<>(List.of(entry));
+      }
+    }
+    Set<EntityId> left = new java.util.LinkedHashSet<>(inOrder);
+    pages.forEach(left::removeAll);
+    left.removeAll(current);
+    pages.add(current);
+    pageEntries.add(currentEntries);
+    // What no entry point reaches goes on pages of its own, as many as fit, each component with
+    // what it calls, as an entry point's page has, so every line between two of them is drawn on
+    // some page and no split drops one (#764 review).
+    Set<EntityId> rest = new java.util.LinkedHashSet<>();
+    List<EntityId> restHeads = new ArrayList<>();
+    Set<EntityId> restPlaced = new HashSet<>();
+    for (EntityId component : left) {
+      if (restPlaced.contains(component)) {
+        continue;
+      }
+      Set<EntityId> reach = new java.util.LinkedHashSet<>();
+      Deque<EntityId> todo = new ArrayDeque<>(List.of(component));
+      while (!todo.isEmpty()) {
+        EntityId next = todo.pop();
+        if (reach.add(next)) {
+          todo.addAll(calls.getOrDefault(next, Set.of()));
+        }
+      }
+      Set<EntityId> together = new java.util.LinkedHashSet<>(rest);
+      together.addAll(reach);
+      if (rest.isEmpty()
+          || fits(componentDiagram(TRIAL, unit, components, title, together, lift))) {
+        rest = together;
+        restHeads.add(component);
+      } else {
+        pages.add(rest);
+        pageEntries.add(List.copyOf(restHeads));
+        restOnly.add(pages.size() - 1);
+        rest = reach;
+        restHeads = new ArrayList<>(List.of(component));
+      }
+      reach.stream().filter(left::contains).forEach(restPlaced::add);
+    }
+    if (!rest.isEmpty()) {
+      pages.add(rest);
+      pageEntries.add(List.copyOf(restHeads));
+      restOnly.add(pages.size() - 1);
+    }
+    // A page still too large for its one entry point goes one step down per page (#764): the
+    // entry point with what it calls directly, then each of those that calls further, the same way.
+    List<String> headings = new ArrayList<>();
+    List<Set<EntityId>> drawn = new ArrayList<>();
+    Set<EntityId> visited = new HashSet<>();
+    for (int i = 0; i < pages.size(); i++) {
+      if (restOnly.contains(i)) {
+        if (pageEntries.get(i).size() == 1
+            && !fits(componentDiagram(TRIAL, unit, components, title, pages.get(i), lift))) {
+          stepDown(
+              pageEntries.get(i).getFirst(),
+              false,
+              calls,
+              visited,
+              unit,
+              components,
+              title,
+              lift,
+              headings,
+              drawn);
+          continue;
+        }
+        headings.add("called by no entry point");
+        drawn.add(pages.get(i));
+        continue;
+      }
+      String from =
+          "from " + ScopeFlows.list(pageEntries.get(i).stream().map(assembler::name).toList());
+      if (pageEntries.get(i).size() == 1
+          && !fits(componentDiagram(TRIAL, unit, components, title, pages.get(i), lift))) {
+        stepDown(
+            pageEntries.get(i).getFirst(),
+            true,
+            calls,
+            visited,
+            unit,
+            components,
+            title,
+            lift,
+            headings,
+            drawn);
+        continue;
+      }
+      headings.add(from);
+      drawn.add(pages.get(i));
+    }
+    List<Section> result = new ArrayList<>();
+    for (int i = 0; i < drawn.size(); i++) {
+      String from = headings.get(i);
+      String pageId = assembler.id(id, "part-" + (i + 1));
+      result.add(
+          new Section(
+              pageId,
+              scope + ": " + from,
+              SectionKind.COMPONENTS.levels(),
+              entity,
+              List.of(),
+              List.of(
+                  componentDiagram(
+                      assembler.id(pageId, "diagram"),
+                      unit,
+                      components,
+                      title + ", " + from,
+                      drawn.get(i),
+                      lift)),
+              List.of()));
+    }
+    return result;
+  }
+
+  /**
+   * The pages of one component and what it calls directly, as many as it takes to fit, then the
+   * same for each of those that calls further, each component a page of its own at most once.
+   */
+  private void stepDown(
+      EntityId root,
+      boolean entry,
+      Map<EntityId, Set<EntityId>> calls,
+      Set<EntityId> visited,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Map<EntityId, EntityId> lift,
+      List<String> headings,
+      List<Set<EntityId>> drawn) {
+    if (!visited.add(root)) {
+      return;
+    }
+    Set<EntityId> direct = calls.getOrDefault(root, Set.of());
+    List<Set<EntityId>> parts = new ArrayList<>();
+    Set<EntityId> current = new java.util.LinkedHashSet<>(List.of(root));
+    for (EntityId callee : direct) {
+      Set<EntityId> together = new java.util.LinkedHashSet<>(current);
+      together.add(callee);
+      if (current.size() == 1
+          || fits(componentDiagram(TRIAL, unit, components, title, together, lift))) {
+        current = together;
+      } else {
+        parts.add(current);
+        current = new java.util.LinkedHashSet<>(List.of(root, callee));
+      }
+    }
+    parts.add(current);
+    String heading =
+        entry ? "from " + assembler.name(root) : "what " + assembler.name(root) + " calls";
+    for (int i = 0; i < parts.size(); i++) {
+      headings.add(
+          parts.size() == 1 ? heading : heading + " (" + (i + 1) + " of " + parts.size() + ")");
+      drawn.add(parts.get(i));
+    }
+    for (EntityId callee : direct) {
+      if (!calls.getOrDefault(callee, Set.of()).isEmpty()) {
+        stepDown(callee, false, calls, visited, unit, components, title, lift, headings, drawn);
+      }
+    }
   }
 
   /**
@@ -1422,6 +2248,8 @@ final class C4Views {
         EntityId to = mainOf.get(ArchitectureModel.object(line));
         if (to == null
             || !(focus.contains(component.main()) || focus.contains(to))
+            || (!focus.contains(component.main()) && callersElsewhere.contains(component.main()))
+            || (!focus.contains(to) && callersElsewhere.contains(to))
             || merged(lift, component.main(), to)) {
           continue;
         }
@@ -1457,7 +2285,7 @@ final class C4Views {
       }
     }
     // Lines to and from other containers, at the code on this unit's end.
-    for (Line link : links) {
+    for (Line link : withoutOutside ? List.<Line>of() : links) {
       if (link.from().equals(unit)) {
         for (Fact fact : link.facts()) {
           EntityId from = codeEnds.get("source " + fact.id());
@@ -1482,7 +2310,7 @@ final class C4Views {
     // Data access, to the databases the unit's datasources point to.
     for (Elements.Component component : components) {
       String access = model.dataAccess(Components.id(unit, component.main())).orElse(null);
-      if (access == null || !focus.contains(component.main())) {
+      if (access == null || !focus.contains(component.main()) || withoutOutside) {
         continue;
       }
       for (Line link : links) {

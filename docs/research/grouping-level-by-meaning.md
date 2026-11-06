@@ -79,7 +79,7 @@ Lantern can draw a container or component view at several grouping levels that t
 
 | Option | Gains | Costs |
 | --- | --- | --- |
-| **A. Code-proven levels only** (current plan: packages, feature areas, domains, merged small groups) | Every group has a name and a reason a reader can check. This is what ACDC does with its named patterns. | A few fixed levels; there may be no level between two of them. |
+| **A. Code-proven levels only** (current plan: packages, feature areas, domains) | Every group has a name and a reason a reader can check. This is what ACDC does with its named patterns. | A few fixed levels; there may be no level between two of them. |
 | **B. Graph clustering** (Bunch, Leiden with a resolution profile) | Any level of detail; stable ranges show natural levels. | Groups without names or meaning. Accuracy is low (Lutellier). Louvain can split communities. |
 | **C. A plus B as a check** | A cohesion score per proposed group points out groups that mean little. | One more computation. |
 
@@ -155,6 +155,8 @@ A group drawn as a single box is a change of abstraction level. It must say so (
 - **Feature areas by nested resource (#634).** A deeper resource path, such as `work-orders/warranty-claims`, is a code-proven, named grouping, so it fits option A as one more candidate level between "feature areas" and "none". It adds a level; it does not change how a level is chosen.
 
 ## What it changes in the quality bar
+
+Superseded in part on 5 Nov 2026 (#764): the owner dropped the soft targets below, so the only size number is the measured limit of #836 (`docs/research/diagram-element-limit.md`, 8 plus a tolerance of 2), and lines between two boxes merge only while a view is over it. The rest stands.
 
 The size rule becomes a soft target with a warning:
 - overview about 10 to 20 boxes, warn above 25;

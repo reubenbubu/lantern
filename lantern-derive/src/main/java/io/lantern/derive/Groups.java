@@ -54,7 +54,28 @@ public final class Groups implements LinkRule.OverFacts {
   public static final String NAME = "groups";
 
   /** Raised whenever the groups it gives for the same facts change. */
-  public static final String VERSION = "1";
+  public static final String VERSION = "4";
+
+  /** The file of the diagram defaults (setting {@code lantern.diagrams}), beside this class. */
+  public static final String DIAGRAM_DEFAULTS = "diagram-limits.properties";
+
+  /** A default of the diagram settings, from {@value #DIAGRAM_DEFAULTS}. */
+  public static String diagramDefault(String name) {
+    java.util.Properties defaults = new java.util.Properties();
+    try (java.io.InputStream in = Groups.class.getResourceAsStream(DIAGRAM_DEFAULTS)) {
+      if (in == null) {
+        throw new IllegalStateException(DIAGRAM_DEFAULTS + " is missing beside " + Groups.class);
+      }
+      defaults.load(in);
+    } catch (java.io.IOException e) {
+      throw new java.io.UncheckedIOException(e);
+    }
+    String value = defaults.getProperty("lantern.diagrams." + name);
+    if (value == null) {
+      throw new IllegalStateException(DIAGRAM_DEFAULTS + " has no lantern.diagrams." + name);
+    }
+    return value.strip();
+  }
 
   public static final String FEATURE_AREA = "feature-area";
   public static final String DOMAIN = "domain";
@@ -275,10 +296,18 @@ public final class Groups implements LinkRule.OverFacts {
     if (!byFeatureFolder(knowledge, components, areas, placed)) {
       byResourcePath(knowledge, components, areas, placed);
     }
-    if (areas.isEmpty()) {
-      return areas;
+    Set<EntityId> own = ownCode(knowledge, unit);
+    if (!areas.isEmpty()) {
+      byCallsOrTables(knowledge, components, areas, placed, own);
+      // An area still of one once rule 3 has run stands for nothing and is not stored; its member
+      // is placed like any other component no rule placed, by rule 3 again (#764).
+      if (areas.values().removeIf(area -> area.members.size() < 2)) {
+        placed.keySet().removeIf(member -> !areas.containsKey(placed.get(member)));
+        if (!areas.isEmpty()) {
+          byCallsOrTables(knowledge, components, areas, placed, own);
+        }
+      }
     }
-    byCallsOrTables(knowledge, components, areas, placed, ownCode(knowledge, unit));
     return areas;
   }
 
@@ -294,7 +323,7 @@ public final class Groups implements LinkRule.OverFacts {
   }
 
   /** The classes of the unit's own modules, without the libraries it bundles. */
-  private static Set<EntityId> ownCode(Knowledge knowledge, EntityId unit) {
+  static Set<EntityId> ownCode(Knowledge knowledge, EntityId unit) {
     Set<EntityId> own = new HashSet<>();
     for (EntityId module : knowledge.parts(unit, Types.MODULE)) {
       own.addAll(knowledge.typesWithin(module));

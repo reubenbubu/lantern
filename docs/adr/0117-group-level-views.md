@@ -109,3 +109,67 @@ the target is fine, and above target plus tolerance what can be merged is merged
   merges by the limit once approved.
 - The measurement and the recommended value are in `docs/research/diagram-element-limit.md`;
   `lantern-web/scripts/diagram-limit.mjs` reruns it with one command and gives the same numbers.
+
+## Amendment (#764): the limit picks the level; then merge, fold, split
+
+On 5 Nov 2026 the owner set how the level is chosen, superseding the judgement and soft targets of
+the amendment for #764 above: the soft targets are dropped, and the measured limit of #836
+(`lantern.diagrams`, target 8 and tolerance 2, approved on #836) is the only size number.
+
+- Levels: none, feature areas (component views), domains (container views). A group needs at
+  least `lantern.diagrams.smallest-group` members of the view (2 by default) to be a candidate.
+- A view that fits the limit shows every member; each box's tag names its group ("Service ·
+  Orders"). No frame is drawn, since the template draws one boundary per diagram (#897).
+- Over the limit, each group becomes one box with a page of its own. While the view is still over
+  it: lines between two boxes merge into one (labels and technologies kept, a profile only if every
+  merged line had one), then topics become "via" labels, then the view is split: an overview plus a
+  page per group, or by concern where there are no groups.
+- Every threshold is a default in `lantern-compose/src/main/resources/io/lantern/compose/diagram-limits.properties`,
+  read by `DiagramLimits.DEFAULT`, with no copy in code; the app's `lantern.diagrams` settings
+  override each one.
+
+## Amendment (#764): what no line reaches, and the outside left off
+
+On 6 Nov 2026 the owner settled what a view does when its groups still do not fit:
+
+- **No pockets.** Grouping by coupling what no code signal groups was built and dropped on the
+  same day: a pocket was named after its central member, so adding one unit could rename it, which
+  ADR 0099 forbids. What the signals leave ungrouped is left to a late LLM step that groups it by
+  meaning (#919; `docs/research/grouping-services-into-pockets.md` keeps the research). The limits'
+  defaults moved to `lantern-derive/src/main/resources/io/lantern/derive/diagram-limits.properties`,
+  read by the composer through `DiagramLimits.DEFAULT`. A container may appear on more than one
+  page.
+- **What no line reaches** is never drawn with the rest: a container with no line, or a component
+  that is not an entry point and has no line, is drawn only on a page of its own, always ("like a
+  family picture where the neighbour photobombs it").
+- **The outside is left off** a map of domains (or an area overview) still over the limit, with a
+  note; the context view and each group's page draw it.
+- **Split pages name their group**: a domain's page split by concern is titled with the domain,
+  and an area's page still over the limit (after merging its lines) is split by groups of entry
+  points, each with what it reaches in the area, packed in order onto pages that fit. A unit with
+  no areas still over the limit is split the same way.
+- **One step down per page** (6 Nov): an entry point whose own page does not fit shows what it
+  calls directly, then each of those that calls further gets a page the same way. A page of entry
+  points draws none of the other components being split that call what it shares. The rule reads
+  only who calls whom, never what kind of class a component is (the owner rejected a box for
+  repository classes as fitted to one test set).
+- **What only the outside reaches** (6 Nov): on a component overview that leaves the outside off,
+  a component or area left with no line is taken off it; components go on a page "Connected to no
+  feature area", split by entry point when too large, and an area keeps its own page.
+- **What no group holds keeps its outside** (6 Nov review): a unit in no domain on a map that
+  leaves the outside off is drawn again on a page "In no domain" with what it reaches outside, and a
+  component in no area on an overview that does the same on a page "In no feature area"; both stay
+  on the overview, where their other lines are. Components no entry point reaches have pages titled
+  "called by no entry point". A unit with no area still over the limit is split by entry point with
+  its outside drawn. A view still over the limit after all of this is drawn as it is, with the
+  scorer's warning; there is no further step.
+- **What cuts across the areas** (6 Nov): aspects and bundled library classes are left off that
+  overview with a note naming them; each area's page draws them.
+- **An area of one** is judged after rule 3 has grown it; one still of one is dropped and its
+  member placed again (found on project-8, where single-controller feature folders left their
+  controllers floating).
+- **Found while doing this:** project-8's workorder-service fails its build by design, and calls
+  to methods inherited from Spring Data are then lost, so two of its parts lose their lines (#908).
+- Describing a domain is left to an LLM step the owner will add.
+- **Evidence runs on Haiku 5.5 only** (owner, 6 Nov, for cost): the views' grouping is decided by
+  code; the model only names groups and words lines.
