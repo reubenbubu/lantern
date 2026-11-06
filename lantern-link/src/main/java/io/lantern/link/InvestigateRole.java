@@ -683,6 +683,21 @@ final class InvestigateRole implements PacketRole {
                     + "."));
         return;
       }
+      try {
+        io.lantern.core.fact.EntityId.parse(to);
+      } catch (IllegalArgumentException e) {
+        // A new system's name is its ID's key, which holds no space (#904).
+        found.add(
+            reject(
+                item,
+                field,
+                "A new system's ID has no spaces: write "
+                    + to
+                    + " as "
+                    + to.strip().replaceAll("\\s+", "-").toLowerCase(Locale.ROOT)
+                    + "."));
+        return;
+      }
       if (!entry.path("interaction").isString() || !entry.path("description").isString()) {
         found.add(reject(item, field, "A connection needs its interaction and description."));
       }

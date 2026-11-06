@@ -1399,6 +1399,24 @@ class InvestigatorTest {
   }
 
   @Test
+  void aNewSystemNamedWithSpacesIsSentBackWithItsIdWritten() {
+    // As Haiku wrote one on project-8; stored, it would stop the run (#904).
+    headerLead();
+    String spaced =
+        """
+        {"kind": "connection", "from": "service:g:files", "to": "external-system:Object Store",
+         "interaction": "http", "description": "Stores uploaded files",
+         "names": ["s3.example.com"], "cites": ["fs:src/main/java/f/StorageClient.java:3-3"]}""";
+    FakeLlmProvider fake = submitting(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? spaced : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.INVESTIGATED_CONNECTION)).isEmpty();
+    assertThat(secondTurn(fake))
+        .contains("write external-system:Object Store as external-system:object-store");
+  }
+
+  @Test
   void aConnectionToTracingLoggingOrConfigInfrastructureIsRejected() {
     headerLead();
     String tracing =

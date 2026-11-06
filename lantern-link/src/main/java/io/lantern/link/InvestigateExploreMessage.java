@@ -25,7 +25,8 @@ final class InvestigateExploreMessage {
 
   private static final String NEW_ENDS =
       "A connection ends at a unit or element by its ID, or at a system no ID names as"
-          + " external-system:<name> or database:<name>.";
+          + " external-system:<name> or database:<name>, the name without spaces, such as"
+          + " external-system:legacy-parts-soap.";
 
   private static final String ALREADY_KNOWN =
       "Each [[known]] below is a lead already checked or a risk already found; do not report it"

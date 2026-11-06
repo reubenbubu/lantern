@@ -107,7 +107,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("13 6276af18fefdeb526abc4d2e02f3d279bc0916a3ce1a47c7249cc04b861aee96");
+        .isEqualTo("13 a369553b0b3b7b0ebd80cdf2f10f177b08c938e6bc983d50803d1958f15d3242");
   }
 
   /** Mode A is told the cut of a tool answer, the same number the tools cut at (#915). */

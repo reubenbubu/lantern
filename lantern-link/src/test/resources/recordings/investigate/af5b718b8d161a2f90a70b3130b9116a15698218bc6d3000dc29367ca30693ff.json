@@ -1,7 +1,7 @@
 {
   "about" : {
     "role" : "INVESTIGATE",
-    "purpose" : "investigate-units conversation: service:g:gateway"
+    "purpose" : "investigate-units conversation: service:g:files"
   },
   "request" : {
     "provider" : "fake",
@@ -10,7 +10,7 @@
     "cacheSystem" : false,
     "messages" : [ {
       "author" : "USER",
-      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed in the deployable unit service:g:gateway, reading its code.\"\nrepositories = [\"gw\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>.\"\n\n[unit]\nid = \"service:g:gateway\"\nfacts = [\n  \"gateway contains gateway.\",\n  \"gateway deployable unit spring-boot.\",\n]\n"
+      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed in the deployable unit service:g:files, reading its code.\"\nrepositories = [\"fs\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>, the name without spaces, such as external-system:legacy-parts-soap.\"\nalready_known = \"Each [[known]] below is a lead already checked or a risk already found; do not report it again, nor a link the facts already state.\"\n\n[unit]\nid = \"service:g:files\"\nfacts = [\n  \"files contains files.\",\n  \"files deployable unit spring-boot.\",\n]\n\n[[known]]\nverdict = \"confirmed\"\nwhat = \"Files trust the caller's user header\"\n"
     } ],
     "maxOutputTokens" : 4000,
     "cacheBreaks" : [ {
@@ -96,13 +96,29 @@
     } ]
   },
   "response" : {
-    "text" : "Done.",
-    "stopReason" : "end_turn",
+    "text" : "",
+    "stopReason" : "tool_use",
     "usage" : {
-      "input" : 564,
-      "output" : 2,
-      "cacheWrite" : 999,
+      "input" : 1635,
+      "output" : 175,
+      "cacheWrite" : 0,
       "cacheRead" : 0
-    }
+    },
+    "toolCalls" : [ {
+      "id" : "r0",
+      "name" : "read_file",
+      "input" : {
+        "repo" : "fs",
+        "path" : "src/main/java/f/StorageClient.java",
+        "from" : 3,
+        "to" : 3
+      }
+    }, {
+      "id" : "s1",
+      "name" : "answer",
+      "input" : {
+        "toml" : "[[risk]]\ntitle = \"Every file goes to one fixed bucket\"\nfinding = \"The storage client posts every uploaded file to the one bucket written in its code, https://s3.example.com/bucket, whatever user the file belongs to.\"\nconsequence = \"Files of every user share one bucket, so a mistake in one user's access rules exposes the others' files.\"\nimpact = \"medium\"\nconfidence = \"low\"\n\n[[risk.evidence]]\nlines = \"fs:src/main/java/f/StorageClient.java:3-3\"\nquote = \"String bucket = restClient.post().uri(\\\"https://s3.example.com/bucket\\\");\"\nshows = [\"restClient\", \"bucket\"]\n\n"
+      }
+    } ]
   }
 }

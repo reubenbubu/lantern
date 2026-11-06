@@ -73,7 +73,7 @@ class InvestigateExploreMessageTest {
             what = "Find the risks and connections static analysis missed in the deployable unit service:shop:orders, reading its code."
             repositories = ["shop"]
             units = ["service:shop:billing", "service:shop:orders"]
-            ends = "A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>."
+            ends = "A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>, the name without spaces, such as external-system:legacy-parts-soap."
             already_known = "Each [[known]] below is a lead already checked or a risk already found; do not report it again, nor a link the facts already state."
 
             [unit]

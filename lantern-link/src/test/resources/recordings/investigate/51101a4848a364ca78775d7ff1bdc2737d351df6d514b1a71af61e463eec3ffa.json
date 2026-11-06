@@ -10,7 +10,7 @@
     "cacheSystem" : false,
     "messages" : [ {
       "author" : "USER",
-      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed in the deployable unit service:g:gateway, reading its code.\"\nrepositories = [\"gw\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>.\"\n\n[unit]\nid = \"service:g:gateway\"\nfacts = [\n  \"gateway contains gateway.\",\n  \"gateway deployable unit spring-boot.\",\n]\n"
+      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed in the deployable unit service:g:gateway, reading its code.\"\nrepositories = [\"gw\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>, the name without spaces, such as external-system:legacy-parts-soap.\"\n\n[unit]\nid = \"service:g:gateway\"\nfacts = [\n  \"gateway contains gateway.\",\n  \"gateway deployable unit spring-boot.\",\n]\n"
     }, {
       "author" : "ASSISTANT",
       "text" : "Done."
@@ -105,7 +105,7 @@
     "text" : "Done.",
     "stopReason" : "end_turn",
     "usage" : {
-      "input" : 575,
+      "input" : 592,
       "output" : 2,
       "cacheWrite" : 999,
       "cacheRead" : 0
