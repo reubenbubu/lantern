@@ -69,7 +69,11 @@ class InvestigatePromptTest {
             + " "
             + InvestigateLeadAnswer.ATTEMPTS
             + " "
-            + InvestigateLeadAnswer.MAX_EVIDENCE;
+            + InvestigateLeadAnswer.MAX_EVIDENCE
+            + " "
+            + ShellTools.CHARS
+            + " "
+            + ShellTools.WIDTH;
     String fingerprint =
         HexFormat.of()
             .formatHex(
@@ -78,7 +82,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("10 8e7740329d64cdf53c530890d738af56dd3a9e6ecca0bbdd2e72c8c43c51da6c");
+        .isEqualTo("11 710d292efb749ce20b9bd6a27974af4ad1284beb71a29d6ec46d4fc0f3978f6e");
   }
 
   /**
@@ -86,6 +90,16 @@ class InvestigatePromptTest {
    * (knowledge-build epic, section 11.2); Mode A's own instructions live only in the prompt files
    * (#892).
    */
+  @Test
+  void theLeadInstructionsStateTheCutOfAToolAnswer() {
+    assertThat(InvestigatePrompt.LEADS_TASK)
+        .contains(
+            "A tool answer longer than "
+                + java.text.NumberFormat.getIntegerInstance(java.util.Locale.ENGLISH)
+                    .format(ShellTools.CHARS)
+                + " characters is cut");
+  }
+
   @Test
   void theInvestigatePromptIsTheEpics() throws Exception {
     String epic = Files.readString(Path.of("../docs/epics/001-knowledge-build.md"));

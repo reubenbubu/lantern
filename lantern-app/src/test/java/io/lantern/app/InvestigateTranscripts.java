@@ -25,6 +25,8 @@ import tools.jackson.databind.json.JsonMapper;
 final class InvestigateTranscripts {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
+  private static final tools.jackson.databind.ObjectWriter PRETTY =
+      JSON.writerWithDefaultPrettyPrinter();
   private static final Pattern BACKTICKS = Pattern.compile("`+");
 
   private InvestigateTranscripts() {}
@@ -186,9 +188,8 @@ final class InvestigateTranscripts {
     for (JsonNode tool : request.path("tools")) {
       md.append("### ").append(tool.path("name").asString()).append("\n\n");
       fenced(md, tool.path("description").asString());
-      md.append("Schema: ");
-      inline(md, JSON.writeValueAsString(tool.path("inputSchema")));
-      md.append("\n\n");
+      md.append("Schema:\n\n");
+      fenced(md, "json", PRETTY.writeValueAsString(tool.path("inputSchema")));
     }
     md.append("## Messages\n\n");
     int n = 0;
@@ -244,16 +245,28 @@ final class InvestigateTranscripts {
       inline(md, call.path("id").asString());
       md.append(" ");
       inline(md, call.path("name").asString());
-      md.append(": ");
-      inline(md, JSON.writeValueAsString(call.path("input")));
-      md.append("\n\n");
+      md.append(":\n\n");
+      fenced(md, "json", PRETTY.writeValueAsString(call.path("input")));
+      // A field of several lines (the answer's TOML) again as written, as JSON shows it on one
+      // line.
+      for (Map.Entry<String, JsonNode> field : call.path("input").properties()) {
+        String value = field.getValue().isString() ? field.getValue().asString() : "";
+        if (value.contains("\n")) {
+          md.append("Its ").append(field.getKey()).append(", as written:\n\n");
+          fenced(md, field.getKey().equals("toml") ? "toml" : "text", value);
+        }
+      }
     }
   }
 
   /** A payload in a fence longer than any run of backticks inside it, so it shows as it is. */
   static void fenced(StringBuilder md, String text) {
+    fenced(md, "text", text);
+  }
+
+  private static void fenced(StringBuilder md, String language, String text) {
     String fence = "`".repeat(Math.max(3, longestBackticks(text) + 1));
-    md.append(fence).append("text\n").append(text);
+    md.append(fence).append(language).append("\n").append(text);
     if (!text.endsWith("\n")) {
       md.append('\n');
     }
