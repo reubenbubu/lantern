@@ -386,4 +386,65 @@ class GroupByMeaningTest {
     assertThat(domains.values().stream().mapToInt(Set::size).sum()).isEqualTo(11);
     assertThat(domains.values()).noneSatisfy(m -> assertThat(m).contains("service:io.acme:s12"));
   }
+
+  @Test
+  void aKeptMemberTheCodeNowGroupsLeavesItsEarlierGroup() {
+    List<Fact> facts = facts();
+    FakeLlmProvider fake = new FakeLlmProvider().answering(answering(GOOD));
+    GroupByMeaning.Result first = new GroupByMeaning(harness(fake), 8, 2).group(facts, 2);
+    // The code now puts PaymentTaken in the invoices area itself.
+    String taken = component("messaging", "PaymentTaken");
+    Fact invoices =
+        facts.stream()
+            .filter(
+                f -> f.predicate().equals(Types.GROUPS) && f.subject().toString().equals(INVOICES))
+            .findFirst()
+            .orElseThrow();
+    List<Fact> later = new ArrayList<>(first.replacing(facts));
+    later.add(
+        Fact.create(
+            invoices.subject(),
+            Types.GROUPS,
+            io.lantern.core.fact.FactObject.entity(EntityId.parse(taken)),
+            invoices.attributes(),
+            invoices.origin(),
+            invoices.evidence(),
+            invoices.confidence(),
+            invoices.validity()));
+
+    List<Fact> kept = GroupByMeaning.kept(new Knowledge(later), 3);
+
+    // It is in one area only, the code's, and the area it was in, left with one member, is gone.
+    assertThat(kept).noneSatisfy(f -> assertThat(f.object().value().toString()).isEqualTo(taken));
+    assertThat(kept)
+        .noneSatisfy(f -> assertThat(f.subject().toString()).isEqualTo(area("llm-payments")));
+  }
+
+  @Test
+  void aNewGroupOfOnePartIsSentBack() {
+    String alone =
+        GOOD.replace("[\"{PaymentTaken}\", \"{PaymentRefunded}\"]", "[\"{PaymentTaken}\"]");
+    FakeLlmProvider fake = new FakeLlmProvider().answering(answering(alone));
+
+    GroupByMeaning.Result result = new GroupByMeaning(harness(fake), 8, 2).group(facts(), 2);
+
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(fake.sent().get(1).request().messages().getLast().text())
+        .contains("Area payments is new and holds 1 part without a group");
+    assertThat(result.facts()).isEmpty();
+  }
+
+  @Test
+  void twoNewGroupsWithOneKeyAreSentBack() {
+    String twice =
+        GOOD.replace(
+            "\"key\": \"path-orders\", \"extends\": \"path-orders\"", "\"key\": \"payments\"");
+    FakeLlmProvider fake = new FakeLlmProvider().answering(answering(twice));
+
+    GroupByMeaning.Result result = new GroupByMeaning(harness(fake), 8, 2).group(facts(), 2);
+
+    assertThat(fake.sent().get(1).request().messages().getLast().text())
+        .contains("Area payments is given twice");
+    assertThat(result.facts()).isEmpty();
+  }
 }

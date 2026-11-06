@@ -39,7 +39,8 @@ lines, numeric ids, and a too-large area split by code, not by the model.
    queues and topics follow the units that use them by code (C4Views), and an area too large for
    one page is split into pages by code (ADR 0117, amendment for #764).
 4. **Checks.** Beside the standard ones, every member and service is a part listed, every member a
-   part without a group, of the group's own scope, placed once; an extended group exists; a new key
+   part without a group, of the group's own scope, placed once; an extended group exists; a new group holds at least 2 such parts and its key, given once, is a new
+   one (a key an existing group has extends it); a new key
    is kebab-case; domains only when asked and at most the target in all, and then every container
    something connects to in one (the first real run left two out, "no connection appears", since
    the request shows no links, and their stores and queues crowded the overview). A failed answer is asked
@@ -47,7 +48,8 @@ lines, numeric ids, and a too-large area split by code, not by the model.
 5. **Stored and kept.** Its groups are stored as the code's are: `group-of` and `GROUPS` facts of
    basis `meaning` (a value added to the groups' vocabulary), a new group's key
    `<scope>/<area|domain>/llm-<key>`, of origin llm `group-by-meaning`. Each run writes its earlier
-   groups again from that snapshot: a member that no longer exists is dropped, and a group it formed
+   groups again from that snapshot: a member that no longer exists, or that the code now puts in a
+   group of the same kind, is dropped, and a group it formed
    left with fewer than 2 members is dropped, which frees them. The step reads the groups it kept as
    fixed, so it asks only of what is still loose, and the same answer is never asked twice.
 6. **Model and budget.** The reasoning tier (Sonnet in counted runs), with thinking, in the budget

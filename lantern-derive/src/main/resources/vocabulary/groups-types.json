@@ -33,7 +33,7 @@
       "type": "object",
       "properties": {
         "basis": { "type": "string", "enum": ["feature-folder", "resource-path", "calls", "tables", "database", "gateway-route", "repository", "maven-group", "meaning"], "description": "How it joined: by the group's signal, or, for a component no signal placed, by the calls between it and the group's components or the tables they share; or meaning, placed by the grouping role (#919)." },
-        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it joined by." }, "model": { "type": "string", "description": "For a member placed by meaning, the model that placed it, as provider/model (ADR 0124)." }, "answer": { "type": "string", "description": "For a group of basis meaning, the stored answer it comes from, by its fingerprint (ADR 0124)." }
+        "facts": { "type": "array", "items": { "type": "string" }, "description": "The facts it joined by." }, "model": { "type": "string", "description": "For a member placed by meaning, the model that placed it, as provider/model (ADR 0124)." }, "answer": { "type": "string", "description": "For a member placed by meaning, the stored answer it comes from, by its fingerprint (ADR 0124)." }
       },
       "required": ["basis"],
       "additionalProperties": false

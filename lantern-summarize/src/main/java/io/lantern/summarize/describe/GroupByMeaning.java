@@ -300,8 +300,22 @@ public final class GroupByMeaning {
         formed.put(fact.subject(), fact);
       }
     }
+    // What the code now groups, by kind: a kept member never stands in two groups of one kind.
+    Map<EntityId, String> kindOf = new HashMap<>();
+    knowledge
+        .withPredicate(Types.GROUP_OF)
+        .forEach(f -> kindOf.putIfAbsent(f.subject(), f.object().value().toString()));
+    Set<String> codeGrouped = new HashSet<>();
     for (Fact fact : knowledge.withPredicate(Types.GROUPS)) {
-      if (own(fact) && groups.contains(fact.subject()) && exists.contains(Knowledge.object(fact))) {
+      if (!own(fact) && kindOf.containsKey(fact.subject())) {
+        codeGrouped.add(kindOf.get(fact.subject()) + " " + Knowledge.object(fact));
+      }
+    }
+    for (Fact fact : knowledge.withPredicate(Types.GROUPS)) {
+      if (own(fact)
+          && groups.contains(fact.subject())
+          && exists.contains(Knowledge.object(fact))
+          && !codeGrouped.contains(kindOf.get(fact.subject()) + " " + Knowledge.object(fact))) {
         members.computeIfAbsent(fact.subject(), g -> new ArrayList<>()).add(fact);
       }
     }
@@ -847,15 +861,16 @@ public final class GroupByMeaning {
         problems.add("Domains are not asked; answer them as an empty list.");
       }
       int newDomains = 0;
+      Set<String> newKeys = new HashSet<>();
       for (JsonNode domain : domains) {
         String extended = domain.path("extends").asString("");
         Map<String, EntityId> existing = asked.groups().getOrDefault(Groups.SYSTEM, Map.of());
         if (!extended.isEmpty() && !existing.containsKey(extended)) {
           problems.add(
               "Domain " + label(domain) + " extends " + extended + ", which is no domain.");
-        } else if (extended.isEmpty()) {
+        } else if (extended.isEmpty()
+            && isNew(domain, Groups.SYSTEM, "Domain", newKeys, problems)) {
           newDomains++;
-          keyProblem(domain).ifPresent(problems::add);
         }
         members(domain, Groups.SYSTEM, "domain " + label(domain), placedIn, problems);
       }
@@ -913,13 +928,50 @@ public final class GroupByMeaning {
                   + service
                   + ".");
         } else if (extended.isEmpty()) {
-          keyProblem(area).ifPresent(problems::add);
+          isNew(area, scope, "Area", newKeys, problems);
         }
         members(area, scope, "area " + label(area), placedIn, problems);
       }
       List<Rejection> found = new ArrayList<>();
       problems.forEach(p -> found.add(new Rejection(answer.item(), "", name(), p)));
       return found;
+    }
+
+    /**
+     * Whether a group without {@code extends} is a new one, and its problems: a key that is no
+     * kebab-case name, the key of another new group of its scope, or fewer than 2 parts it may
+     * hold. One whose key is an existing group's extends that group.
+     */
+    private boolean isNew(
+        JsonNode group, String scope, String what, Set<String> newKeys, List<String> problems) {
+      String key = group.path("key").asString("");
+      Map<String, EntityId> existing = asked.groups().getOrDefault(scope, Map.of());
+      if (existing.containsKey(key) || existing.containsKey(SIGNAL + key)) {
+        return false;
+      }
+      keyProblem(group).ifPresent(problems::add);
+      if (!newKeys.add(scope + " " + key)) {
+        problems.add(what + " " + key + " is given twice; make it one group.");
+      }
+      int holds = 0;
+      for (JsonNode member : group.path("members")) {
+        Part part = asked.parts().get(clean(member.asString("")));
+        if (part != null && part.loose() && scope.equals(scopeOf(part))) {
+          holds++;
+        }
+      }
+      if (holds < 2) {
+        problems.add(
+            what
+                + " "
+                + key
+                + " is new and holds "
+                + holds
+                + " part"
+                + (holds == 1 ? "" : "s")
+                + " without a group; a new group holds at least 2, else extend an existing one.");
+      }
+      return true;
     }
 
     private void members(
