@@ -58,11 +58,10 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <ul>
  *   <li><b>Mode A</b> checks the leads derivation stored ({@code lead-trigger} facts, #524): each
- *       lead is an item showing why it fired, what to judge, its facts and the code they were read
- *       from; a unit's leads go four to a conversation, with {@code read_file}, {@code
- *       find_in_code} and {@code facts_about}, at most 6 tool turns. Each gets a verdict,
- *       confirmed, refuted or unclear; a lead left unanswered is asked again alone, once, and is
- *       unclear if it is unanswered again.
+ *       lead is a conversation of its own, its first message the lead's question and evidence in
+ *       TOML ({@link LeadMessage}), its answer TOML through the {@code answer} tool ({@link
+ *       LeadAnswer}), within {@link #LEAD_LIMITS} (ADR 0128). Each gets a verdict, confirmed,
+ *       refuted or unclear; a lead left unanswered is unclear.
  *   <li><b>Mode B</b> explores each deployable unit, after its leads, for what no lead covers: one
  *       conversation each, with every read tool, at most 16 tool turns and 120,000 input tokens.
  *   <li><b>Mode C</b> explores the whole system, after every unit, for risks and connections across

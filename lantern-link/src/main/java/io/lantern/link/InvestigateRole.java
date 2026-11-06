@@ -302,11 +302,8 @@ final class InvestigateRole implements PacketRole {
   public String submitDescription() {
     return "Submit what you found: {\"items\": [...]}, each entry as the answer schema in your"
         + " instructions says. The result says which entries were accepted and why the others"
-        + " were rejected; submit corrected ones again, or leave them out."
-        + (mode == Mode.LEADS
-            ? " Give every item its lead, the item's ID."
-            : " Your proposals are numbered P1, P2, ... in the order you submit them, across"
-                + " submissions.");
+        + " were rejected; submit corrected ones again, or leave them out. Your proposals are"
+        + " numbered P1, P2, ... in the order you submit them, across submissions.";
   }
 
   @Override
@@ -360,7 +357,10 @@ final class InvestigateRole implements PacketRole {
     List<Check> checks = new ArrayList<>(Checks.STANDARD);
     checks.add(new Proposals(this));
     if (mode == Mode.LEADS) {
-      // Each piece quotes a line Lantern checks exactly, in place of what was shown (#892).
+      // Each piece quotes a line Lantern checks exactly, in place of what was shown, and its names
+      // are checked in its own range, which says more than the coverage check on all ranges at
+      // once and would only repeat its problems (#892).
+      checks.removeIf(check -> check instanceof Checks.Coverage);
       checks.add(new LeadAnswer.Quotes());
       return new Pipeline(checks);
     }

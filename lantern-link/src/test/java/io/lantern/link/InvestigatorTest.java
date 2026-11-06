@@ -641,6 +641,37 @@ class InvestigatorTest {
   }
 
   @Test
+  void aFindingNamingWhatItsEvidenceDoesNotShowIsSentBackOnce() {
+    headerLead();
+    String unshown =
+        CONFIRMED.replace(
+            "stores the file under that user without checking it.",
+            "stores the file under that user without asking AuthService.");
+    FakeLlmProvider fake =
+        submitting(
+            r -> !leads(r) ? null : turn(r) == 1 ? unshown : turn(r) == 2 ? CONFIRMED : null);
+
+    Investigator.Result result = investigate(fake);
+
+    // The names check stays: the coverage check, which only repeated the quotes check, does not.
+    String reply =
+        fake.sent().stream()
+            .map(c -> c.request())
+            .filter(r -> leads(r) && turn(r) == 2)
+            .findFirst()
+            .orElseThrow()
+            .messages()
+            .getLast()
+            .toolResults()
+            .getLast()
+            .content();
+    assertThat(reply)
+        .contains("finding: Names AuthService, which none of its citations show.")
+        .doesNotContain("Declares the name");
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
+  }
+
+  @Test
   void aVerdictMiscitedThreeTimesEndsTheConversationAndTheLeadIsUnclear() {
     headerLead();
     FakeLlmProvider fake = submitting(r -> leads(r) ? MISCITED : null);

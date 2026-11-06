@@ -16,8 +16,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /**
- * Investigate's Coverage and contradicting Conflict through its own pipeline (#769): a verdict or
- * proposal declaring a name its cited lines do not hold, and a claim against a static one.
+ * Investigate's Coverage, quotes and contradicting Conflict through its own pipeline (#769, #892):
+ * a verdict or proposal declaring a name its cited lines do not hold, and a claim against a static
+ * one.
  */
 class InvestigateRoleChecksTest {
 
@@ -54,18 +55,18 @@ class InvestigateRoleChecksTest {
   }
 
   @Test
-  void aVerdictDeclaringANameItsCitedLinesDoNotHoldIsRejectedByCoverage() {
+  void aVerdictIsNotCheckedByCoverageWhichTheQuotesCheckReplaces() {
+    // For a lead, the quotes check says it of the piece; coverage would only repeat it (#892).
     List<Rejection> found =
         checked(
             role(InvestigateRole.Mode.LEADS),
-            "{\"verdict\": \"confirmed\", \"names\": [\"X-User-Id\"], \"cites\": [\"fs:F.java:3-4\"]}");
+            "{\"verdict\": \"refuted\", \"kind\": \"risk\", \"names\": [\"X-User-Id\"],"
+                + " \"cites\": [\"fs:F.java:3-4\"], \"evidence\": [{\"lines\": \"fs:F.java:3-4\","
+                + " \"quote\": \"store(user);\", \"shows\": [\"X-User-Id\"]}]}");
 
-    assertThat(found)
-        .anyMatch(
-            r ->
-                r.check().equals("Coverage")
-                    && r.reason()
-                        .equals("Declares the name X-User-Id, which its cited lines do not hold."));
+    // Coverage runs whatever the file (it said this of the same entry before #892); the quotes
+    // check's own problems are LeadAnswerTest's.
+    assertThat(found).isNotEmpty().noneMatch(r -> r.check().equals("Coverage"));
   }
 
   @Test
