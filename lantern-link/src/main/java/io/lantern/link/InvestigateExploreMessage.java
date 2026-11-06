@@ -141,8 +141,13 @@ final class InvestigateExploreMessage {
   }
 
   private static void known(StringBuilder out, List<String> known) {
-    for (String line : new LinkedHashSet<>(known)) {
+    // Two leads of one kind can read alike once their IDs are left out: each is shown once.
+    Set<List<String>> shown = new LinkedHashSet<>();
+    for (String line : known) {
       String[] parts = known(line);
+      if (!shown.add(List.of(parts))) {
+        continue;
+      }
       out.append("\n[[known]]\n");
       out.append("verdict = ").append(Toml.string(parts[0])).append('\n');
       out.append("what = ").append(Toml.string(parts[1])).append('\n');

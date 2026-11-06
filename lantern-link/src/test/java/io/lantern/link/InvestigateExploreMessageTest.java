@@ -64,6 +64,7 @@ class InvestigateExploreMessageTest {
             List.of(
                 "lead:identity-from-request/" + ORDERS + " confirmed: Orders trust the user header",
                 "lead:open-cors/" + ORDERS + " refuted: CorsConfig allows every origin",
+                "lead:open-cors/" + ORDERS + "/2 refuted: CorsConfig allows every origin",
                 "risk: Orders are sent before they commit"));
 
     assertThat(message)
