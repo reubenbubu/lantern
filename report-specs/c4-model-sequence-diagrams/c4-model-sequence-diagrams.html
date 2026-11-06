@@ -115,6 +115,14 @@ body.sb-collapsed .sidebar{transform:translateX(-100%)}
 .nav-sec,.nav-sub{display:block;padding:5px 10px;border-radius:7px;font-size:13px;color:var(--muted);position:relative;transition:.15s}
 .nav-sec:hover,.nav-sub:hover{color:var(--text);background:var(--surface-2)}
 .nav-sub{font-weight:600;color:var(--text-2);margin-top:6px;font-size:12.5px}
+.nav-node>.nav-row{display:flex;align-items:center}
+.nav-node>.nav-row>.nav-sec{flex:1;min-width:0}
+.nav-twisty{flex:none;width:22px;height:22px;display:grid;place-items:center;border:0;background:none;color:var(--faint);cursor:pointer;border-radius:6px}
+.nav-twisty:hover{color:var(--text);background:var(--surface-2)}
+.nav-twisty svg{width:12px;height:12px;transition:transform .2s}
+.nav-node.open>.nav-row>.nav-twisty svg{transform:rotate(90deg)}
+.nav-kids{display:none;margin:0 0 2px 10px;padding-left:8px;border-left:1px solid var(--border)}
+.nav-node.open>.nav-kids{display:block}
 .nav-sub+.nav-sec{margin-top:0}
 .nav-sec.active,.nav-top.active,.nav-seq.active,.nav-doc.active{color:var(--accent);background:var(--accent-soft)}
 .nav-sec.active::before{content:'';position:absolute;left:-11px;top:6px;bottom:6px;width:2px;border-radius:2px;background:var(--accent)}
@@ -4475,6 +4483,10 @@ function linkFor(id, key){
     const f = Object.keys(DIAGRAMS).find(k => k !== key && DIAGRAMS[k]._focus === id && !DIAGRAMS[k].boundary);
     if (f){ const p = PAGE[pageOf(f)]; return {href:'#/' + f, tip:'Open its system context', sub:`${LEVEL[p.level].badge} · ${p.title}`, drill:false, ctx:true}; }
   }
+  // The page about the element, such as a domain's or a feature area's, which no diagram has as its
+  // boundary (#931).
+  const about = PAGES.find(p => p.element === id && p.level !== 'documentation' && p.id !== pageOf(key || ''));
+  if (about) return {href:'#/' + about.id, tip:'Zoom in', sub:`${LEVEL[about.level].badge} · ${about.title}`, drill:true};
   const d = Object.keys(DIAGRAMS).find(k => k !== key && DIAGRAMS[k].boundary?.id === id);
   if (d){ const p = PAGE[pageOf(d)]; return {href:'#/' + d, tip:'Zoom in', sub:`${LEVEL[p.level].badge} · ${p.title}`, drill:true}; }
   const c = CATALOGUE[id];
@@ -4482,10 +4494,11 @@ function linkFor(id, key){
   return null;
 }
 
-/* Every deeper diagram scoped to this element (e.g. a system's container pages), in page order. */
+/* Every deeper diagram scoped to this element (e.g. a system's container pages, a unit's feature
+   areas), in page order; not the page about the element itself, which a click on the box opens (#931). */
 function drillTargets(id, key){
   const seen = new Set();
-  return Object.keys(DIAGRAMS).filter(k => k !== key && DIAGRAMS[k].boundary?.id === id && pageOf(k) !== pageOf(key || '') && !seen.has(pageOf(k)) && seen.add(pageOf(k)))
+  return Object.keys(DIAGRAMS).filter(k => k !== key && DIAGRAMS[k].boundary?.id === id && pageOf(k) !== pageOf(key || '') && PAGE[pageOf(k)].element !== id && !seen.has(pageOf(k)) && seen.add(pageOf(k)))
     .map(k => ({key:k, href:'#/' + k, title:PAGE[pageOf(k)].title, level:LEVEL[PAGE[pageOf(k)].level]}));
 }
 /* An element with two or more deeper diagrams gets a row of pills, one per diagram. */
@@ -6082,14 +6095,45 @@ function renderHome(){
 /* ==========================================================================
    SIDEBAR — one entry per page, grouped by level (a level with one page is a single link)
    ========================================================================== */
-const NAV_ORDER = ['home', ...LEVELS.flatMap(l => pagesOf(l.id).map(p => p.id))];
+/* The sidebar's tree (#931): each page under the page it names as its parent, when the document has
+   that page; every other page at the top of its level, in document order. */
+function pageTree(pages){
+  const ids = new Set(pages.map(p => p.id)), kids = {}, roots = {};
+  for (const p of pages){
+    if (p.parent && p.parent !== p.id && ids.has(p.parent)) (kids[p.parent] ||= []).push(p.id);
+    else (roots[p.level] ||= []).push(p.id);
+  }
+  return {roots, kids};
+}
+const TREE = pageTree(PAGES);
+/* A page's ancestors in the tree, nearest first. */
+function ancestorsOf(id){
+  const out = [], seen = new Set([id]);
+  for (let at = PAGE[id]?.parent; at && PAGE[at] && !seen.has(at); at = PAGE[at].parent){ out.push(at); seen.add(at); }
+  return out;
+}
+/* The page at the top of a page's branch, whose level the sidebar lists it under. */
+const topOf = id => [id, ...ancestorsOf(id)].pop();
+/* Pages in reading order: each page, then the pages beneath it. */
+function treeOrder(ids, seen = new Set()){
+  return ids.flatMap(id => seen.has(id) ? [] : (seen.add(id), [id, ...treeOrder(TREE.kids[id] || [], seen)]));
+}
+const NAV_ORDER = ['home', ...LEVELS.flatMap(l => treeOrder(TREE.roots[l.id] || []))];
+function navItem(id, seen = new Set()){
+  const p = PAGE[id]; seen.add(id);
+  const kids = (TREE.kids[id] || []).filter(k => !seen.has(k));
+  const link = `<a class="nav-sec" href="#/${id}" data-page="${id}" title="${esc(p.title)}">${esc(p.title)}</a>`;
+  if (!kids.length) return link;
+  return `<div class="nav-node" data-node="${id}"><div class="nav-row">${link}<button class="nav-twisty" aria-label="Show what ${esc(p.title)} holds" aria-expanded="false">${ICON.chev}</button></div>
+    <div class="nav-kids">${kids.map(k => navItem(k, seen)).join('')}</div></div>`;
+}
 function buildNav(){
-  const c4 = C4_LEVELS.filter(l => pagesOf(l.id).length).map(l => {
-    const ps = pagesOf(l.id);
-    if (ps.length === 1) return `<a class="nav-solo" href="#/${ps[0].id}" data-page="${ps[0].id}" data-level="${l.id}" title="${esc(ps[0].title)}"><span class="lvl">${l.badge}</span><span class="nav-solo-t">${esc(l.label)}<small>${esc(ps[0].title)}</small></span></a>`;
+  const c4 = C4_LEVELS.filter(l => (TREE.roots[l.id] || []).length).map(l => {
+    const ps = TREE.roots[l.id].map(id => PAGE[id]);
+    if (ps.length === 1 && !(TREE.kids[ps[0].id] || []).length) return `<a class="nav-solo" href="#/${ps[0].id}" data-page="${ps[0].id}" data-level="${l.id}" title="${esc(ps[0].title)}"><span class="lvl">${l.badge}</span><span class="nav-solo-t">${esc(l.label)}<small>${esc(ps[0].title)}</small></span></a>`;
     return `<div class="nav-group open" data-group="${l.id}">
       <button class="nav-ghead" aria-expanded="true"><span class="lvl">${l.badge}</span>${esc(l.label)}<em class="nav-count">${ps.length}</em>${ICON.chev}</button>
-      <div class="nav-gbody"><div><div class="inner">${ps.map(p => `<a class="nav-sec" href="#/${p.id}" data-page="${p.id}">${esc(p.title)}</a>`).join('')}</div></div></div></div>`;
+      <div class="nav-gbody"><div><div class="inner">${ps.map(p => navItem(p.id)).join('')}</div></div></div></div>`;
   }).join('');
   const seqs = pagesOf('sequence'), docs = pagesOf('documentation');
   $('#nav').innerHTML = `
@@ -6101,10 +6145,18 @@ function buildNav(){
   $$('.nav-ghead').forEach(b => b.addEventListener('click', () => {
     const g = b.parentElement; g.classList.toggle('open'); b.setAttribute('aria-expanded', g.classList.contains('open'));
   }));
+  document.querySelectorAll('.nav-twisty').forEach(b => b.addEventListener('click', e => {
+    e.preventDefault(); const n = b.closest('.nav-node'); n.classList.toggle('open'); b.setAttribute('aria-expanded', n.classList.contains('open'));
+  }));
 }
 function setActivePage(v){
   $$('#nav [data-page]').forEach(a => a.classList.toggle('active', a.dataset.page === v));
-  const lv = PAGE[v]?.level;
+  // The page and every page above it show what they hold (#931).
+  for (const id of [v, ...ancestorsOf(v)]){
+    const n = document.querySelector(`.nav-node[data-node="${id}"]`);
+    if (n){ n.classList.add('open'); n.querySelector('.nav-twisty')?.setAttribute('aria-expanded', 'true'); }
+  }
+  const lv = PAGE[topOf(v)]?.level;
   $$('.nav-group').forEach(g => g.classList.toggle('current', g.dataset.group === lv));
   const g = $(`.nav-group[data-group="${lv}"]`); if (g && !g.classList.contains('open')) g.classList.add('open');
   const a = $(`#nav [data-page="${v}"]`);
@@ -6125,7 +6177,7 @@ $('#navFilter').addEventListener('input', e => {
    ========================================================================== */
 function buildTopbar(v){
   const p = PAGE[v];
-  const crumbs = p ? [LEVEL[p.level].label, p.title] : ['Index'];
+  const crumbs = p ? [LEVEL[PAGE[topOf(v)].level].label, ...ancestorsOf(v).reverse().map(a => PAGE[a].title), p.title] : ['Index'];
   $('#crumbs').innerHTML = crumbs.map((c,i,a) => i === a.length-1 ? `<b>${esc(c)}</b>` : `<span>${esc(c)}</span>${ICON.crumb}`).join('');
   const secs = $$('#content [data-sec]');
   $('#tabs').innerHTML = secs.length > 1 ? secs.map(s => `<a href="#/${v}/${s.id}" data-tab="${s.id}">${esc(s.dataset.label)}</a>`).join('') : '';
