@@ -164,7 +164,7 @@ final class InvestigateRole implements PacketRole {
   private final String systemMap;
   private final String context;
   private final GraphTools.Graph graph;
-  private final GraphTools tools;
+  private final CodeTools tools;
   private final String unit;
   private final Set<String> units;
   private final Function<String, Boolean> element;
@@ -190,6 +190,7 @@ final class InvestigateRole implements PacketRole {
       String systemMap,
       String context,
       GraphTools.Graph graph,
+      CodeTools tools,
       String unit,
       Set<String> units,
       Function<String, Boolean> element,
@@ -198,7 +199,7 @@ final class InvestigateRole implements PacketRole {
     this.systemMap = systemMap;
     this.context = context;
     this.graph = graph;
-    this.tools = graph.tools();
+    this.tools = tools;
     this.unit = unit;
     this.units = Set.copyOf(units);
     this.element = element;
@@ -237,14 +238,12 @@ final class InvestigateRole implements PacketRole {
     return new ToolBox() {
       @Override
       public List<LlmTool> tools() {
-        return mode == Mode.LEADS
-            ? tools.tools().stream().filter(t -> LEAD_TOOLS.contains(t.name())).toList()
-            : tools.exploreTools();
+        return mode == Mode.LEADS ? tools.leadTools() : tools.exploreTools();
       }
 
       @Override
       public LlmToolResult run(LlmToolCall call) {
-        if (mode == Mode.LEADS && !LEAD_TOOLS.contains(call.name())) {
+        if (tools().stream().noneMatch(t -> t.name().equals(call.name()))) {
           return LlmToolResult.error(call, "This task offers no tool " + call.name() + ".");
         }
         return tools.run(call);
@@ -253,7 +252,7 @@ final class InvestigateRole implements PacketRole {
   }
 
   /** The conversation's tools, for the files they read and showed. */
-  GraphTools tools() {
+  CodeTools tools() {
     return tools;
   }
 

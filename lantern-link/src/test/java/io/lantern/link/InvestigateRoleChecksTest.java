@@ -37,7 +37,15 @@ class InvestigateRoleChecksTest {
                     ? Optional.of(CODE.getBytes(StandardCharsets.UTF_8))
                     : Optional.empty());
     return new InvestigateRole(
-        mode, "", "", graph, "service:g:files", Set.of("service:g:files"), e -> false, Set.of());
+        mode,
+        "",
+        "",
+        graph,
+        graph.tools(),
+        "service:g:files",
+        Set.of("service:g:files"),
+        e -> false,
+        Set.of());
   }
 
   private static List<Rejection> checked(InvestigateRole role, String entry) {

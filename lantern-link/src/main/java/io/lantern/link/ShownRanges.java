@@ -14,8 +14,9 @@ import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Every file range an answer cites is one the conversation was shown: lines {@code read_file} read,
- * a line {@code find_in_code} found, or an excerpt of the request (#715). A range the model never
+ * Every file range an answer cites is one the conversation was shown: lines a tool showed (the
+ * graph's {@code read_file} and {@code find_in_code}, or the shell's tools, #893), or an excerpt of
+ * the request (#715). A range the model never
  * saw is rejected with a reason naming it, so a citation always traces to what the model was shown
  * ({@code docs/quality-bar.md}).
  */
@@ -24,14 +25,15 @@ final class ShownRanges implements Check {
   /** A file range as an answer cites it, {@code repo:path:from-to}, or one line. */
   static final Pattern RANGE = Pattern.compile("^([^:\\s]+):([^:\\s]+):(\\d+)(?:-(\\d+))?$");
 
-  private final Supplier<GraphTools> tools;
+  private final Supplier<? extends CodeTools> tools;
   private final Function<JsonNode, Map<String, List<String>>> cites;
 
   /**
    * @param tools the tools of the conversation being checked
    * @param cites an answer's cites, by the field a rejection names
    */
-  ShownRanges(Supplier<GraphTools> tools, Function<JsonNode, Map<String, List<String>>> cites) {
+  ShownRanges(
+      Supplier<? extends CodeTools> tools, Function<JsonNode, Map<String, List<String>>> cites) {
     this.tools = tools;
     this.cites = cites;
   }
@@ -46,7 +48,7 @@ final class ShownRanges implements Check {
     if (answer.omitted() || answer.raw() == null) {
       return List.of();
     }
-    GraphTools shown = tools.get();
+    CodeTools shown = tools.get();
     List<Rejection> found = new ArrayList<>();
     for (Map.Entry<String, List<String>> field : cites.apply(answer.raw()).entrySet()) {
       for (String cite : field.getValue()) {
@@ -64,8 +66,11 @@ final class ShownRanges implements Check {
                   name(),
                   "Cites "
                       + cite
-                      + ", lines this conversation was not shown; cite only lines read_file"
-                      + " showed, lines find_in_code found or an excerpt of the request."));
+                      + ", lines this conversation was not shown; "
+                      + (shown instanceof ShellTools
+                          ? "cite only lines a tool showed you, or an excerpt of the request."
+                          : "cite only lines read_file showed, lines find_in_code found or an"
+                              + " excerpt of the request.")));
         }
       }
     }
