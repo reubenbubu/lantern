@@ -231,6 +231,94 @@ class ShellToolsTest {
   }
 
   @Test
+  void aReleaseAUnitBundlesIsWrittenBesideTheAnalysedOneAndMasked() {
+    // The gateway bundles orders 1.9.4, a tag of the orders repository, so the shell holds it as
+    // orders@1.9.4 beside orders at its analysed commit, masked the same way (#910).
+    Map<String, Map<String, String>> withRelease = new LinkedHashMap<>(files);
+    withRelease.put(
+        "orders@1.9.4",
+        Map.of(
+            "src/main/java/o/Order.java",
+            "package o;\n\npublic record Order(String customerId) {}\n",
+            "src/main/resources/application.yml",
+            "spring:\n  datasource:\n    password: oldsecret\n"));
+    List<Fact> facts = new ArrayList<>();
+    for (String repo : files.keySet()) {
+      facts.add(
+          Fact.create(
+              EntityId.parse("module:g:" + repo),
+              "application-name",
+              FactObject.string(repo),
+              FactJson.newObject(),
+              new Origin(Origin.Kind.STATIC, "test", "1"),
+              Evidence.of(repo, "pom.xml", null, null),
+              1.0,
+              Validity.from(1)));
+    }
+    for (String version : List.of("1.9.4", "2.0.0", "${orders.version}")) {
+      facts.add(
+          Fact.create(
+              EntityId.parse("module:g:gateway"),
+              io.lantern.core.types.Types.BUILD_DEPENDS_ON,
+              FactObject.entity(EntityId.parse("module:g:orders")),
+              FactJson.newObject().put("version", version),
+              new Origin(Origin.Kind.STATIC, "test", "1"),
+              Evidence.of("gateway", "pom.xml", null, null),
+              1.0,
+              Validity.from(1)));
+    }
+    List<String> maskedHere = new ArrayList<>();
+    GraphTools.RepoFiles repoFiles =
+        new GraphTools.RepoFiles() {
+          @Override
+          public Optional<byte[]> read(String repo, String path) {
+            return Optional.ofNullable(withRelease.getOrDefault(repo, Map.of()).get(path))
+                .map(t -> t.getBytes(StandardCharsets.UTF_8));
+          }
+
+          @Override
+          public List<String> paths(String repo) {
+            return List.copyOf(withRelease.getOrDefault(repo, Map.of()).keySet());
+          }
+
+          @Override
+          public boolean release(String repo, String version) {
+            // 2.0.0 is the analysed commit's tag, so it is no other release.
+            return withRelease.containsKey(repo + GraphTools.RELEASE + version);
+          }
+
+          @Override
+          public void masked(String value) {
+            maskedHere.add(value);
+          }
+        };
+    GraphTools.Graph graph = new GraphTools.Graph(facts, repoFiles);
+    assertThat(graph.releases()).isEqualTo(Map.of("orders", java.util.Set.of("orders@1.9.4")));
+    try (ShellWorkspace shell = ShellWorkspace.open(graph, (root, repos) -> new HostShell(root))) {
+      ShellTools releaseTools = new ShellTools(shell, graph);
+      assertThat(
+              releaseTools
+                  .run(new LlmToolCall("c1", "shell", JSON.readTree("{\"command\":\"ls\"}")))
+                  .content())
+          .isEqualTo("gateway\norders\norders@1.9.4");
+      assertThat(
+              releaseTools
+                  .run(
+                      new LlmToolCall(
+                          "c2",
+                          "shell",
+                          JSON.readTree(
+                              "{\"command\":\"cat orders@1.9.4/src/main/resources/application.yml"
+                                  + " orders@1.9.4/src/main/java/o/Order.java\"}")))
+                  .content())
+          .contains("customerId")
+          .doesNotContain("oldsecret");
+      assertThat(graph.lines("orders@1.9.4", "src/main/java/o/Order.java").orElseThrow())
+          .contains("public record Order(String customerId) {}");
+    }
+  }
+
+  @Test
   void secretsAreMaskedInEveryTool() {
     // A masked value goes to the Secrets check only once an answer shows its file.
     assertThat(masked).isEmpty();

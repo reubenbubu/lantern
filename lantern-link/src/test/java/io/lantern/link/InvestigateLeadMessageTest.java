@@ -426,6 +426,7 @@ class InvestigateLeadMessageTest {
         lead,
         InvestigateLeadMessage.questions(),
         repos,
+        Map.of(),
         entity -> Optional.ofNullable(DECLARED.get(entity)),
         (repo, path) ->
             Optional.ofNullable(FILES.get(path)).map(text -> List.of(text.split("\n", -1))),

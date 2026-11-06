@@ -275,6 +275,7 @@ public final class Investigator {
       return new Result(List.of(), 0, 0, 0, List.of());
     }
     GraphTools.Graph graph = new GraphTools.Graph(facts, files);
+    model.releases.putAll(graph.releases());
     ModelConfig config = harness.model(Role.INVESTIGATE);
     String modelName = config.provider() + "/" + config.model();
     Validity validity = Validity.from(snapshot);
@@ -335,6 +336,7 @@ public final class Investigator {
   public static Map<String, String> firstMessages(List<Fact> facts, GraphTools.RepoFiles files) {
     Model model = new Model(facts);
     GraphTools.Graph graph = new GraphTools.Graph(facts, files);
+    model.releases.putAll(graph.releases());
     Map<String, String> messages = new LinkedHashMap<>();
     for (Lead lead : model.leads) {
       messages.put(lead.id(), InvestigateLeadMessage.of(lead, model, graph::lines));
@@ -369,6 +371,10 @@ public final class Investigator {
   static final class Model {
     final Map<String, LinkIndex.Unit> units = new TreeMap<>();
     final Map<String, Set<String>> repos = new TreeMap<>();
+
+    /** Each repository's releases units bundle, as {@code repo@version} (#910); set by the run. */
+    final Map<String, Set<String>> releases = new TreeMap<>();
+
     final Map<String, List<Fact>> about = new LinkedHashMap<>();
     final List<String> links = new ArrayList<>();
     final Set<String> linked = new LinkedHashSet<>();

@@ -180,35 +180,7 @@ class InvestigateOpenRouterIT {
     }
     Set<String> secrets = ConcurrentHashMap.newKeySet();
     GitSourceFiles sources = new GitSourceFiles(name -> Optional.ofNullable(repos.get(name)));
-    GraphTools.RepoFiles files =
-        new GraphTools.RepoFiles() {
-          @Override
-          public void masked(String value) {
-            secrets.add(value);
-          }
-
-          @Override
-          public Optional<byte[]> read(String repo, String path) {
-            return Optional.ofNullable(commits.get(repo))
-                .flatMap(commit -> sources.read(repo, commit, path));
-          }
-
-          @Override
-          public List<String> paths(String repo) {
-            String commit = commits.get(repo);
-            return commit == null ? List.of() : sources.paths(repo, commit);
-          }
-
-          @Override
-          public List<GraphTools.Hit> find(String repo, String text, int max) {
-            String commit = commits.get(repo);
-            return commit == null
-                ? List.of()
-                : sources.grep(repo, commit, text, max).stream()
-                    .map(match -> new GraphTools.Hit(match.path(), match.line()))
-                    .toList();
-          }
-        };
+    GraphTools.RepoFiles files = new SnapshotRepoFiles(commits, sources, secrets::add);
     Harness harness =
         new Harness(client, new InMemoryAnswerStore(), RunBudget.NONE, (r, p) -> null, secrets)
             .batchingAbove(Integer.MAX_VALUE);

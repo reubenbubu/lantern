@@ -43,6 +43,20 @@ class GitSourceFilesTest {
     };
     git(commit);
     first = git("rev-parse", "HEAD");
+    // Tags for the releases a unit may bundle: plain, annotated with a v, and two with a prefix.
+    git("tag", "1.9.4");
+    git(
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@lantern.invalid",
+        "tag",
+        "-a",
+        "v2.1.0",
+        "-m",
+        "Release 2.1.0");
+    git("tag", "commons-3.0.0");
+    git("tag", "release/4.0.0");
     // The working tree now differs from the commit; reads are at the commit asked for.
     Files.writeString(repo.resolve("A.java"), "class A { int changed; }\n");
     files = new GitSourceFiles(name -> name.equals("r") ? Optional.of(repo) : Optional.empty());
@@ -64,6 +78,18 @@ class GitSourceFilesTest {
     assertThat(files.grep("r", first, "changed", 30)).isEmpty();
     assertThat(files.grep("other", first, "class A", 30)).isEmpty();
     assertThat(files.grep("r", first, "class A", 0)).hasSizeLessThanOrEqualTo(1);
+  }
+
+  @Test
+  void findsTheCommitOfTheTagThatNamesAReleaseVersion() {
+    // An annotated tag gives the commit it points at, not its own object (#910).
+    assertThat(files.tagged("r", "1.9.4")).contains(first);
+    assertThat(files.tagged("r", "2.1.0")).contains(first);
+    assertThat(files.tagged("r", "3.0.0")).contains(first);
+    assertThat(files.tagged("r", "4.0.0")).contains(first);
+    assertThat(files.tagged("r", "9.9.9")).isEmpty();
+    assertThat(files.tagged("r", "-p")).isEmpty();
+    assertThat(files.tagged("other", "1.9.4")).isEmpty();
   }
 
   @Test

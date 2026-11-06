@@ -116,6 +116,57 @@ public final class GitSourceFiles implements SourceFiles {
     }
   }
 
+  /**
+   * The commit of the tag that names a release version, for the Investigate shell's copy of a
+   * release a unit bundles (#910): the tag {@code 1.9.4} or {@code v1.9.4}, else one that ends with
+   * it after a separator ({@code commons-1.9.4}, {@code release/v1.9.4}); empty if none does or git
+   * fails. Two tags that end with it and point at different commits name no one release.
+   */
+  public Optional<String> tagged(String repo, String version) {
+    Optional<Path> dir = directories.apply(repo);
+    if (dir.isEmpty() || version.isBlank() || version.startsWith("-")) {
+      return Optional.empty();
+    }
+    Git.Result result;
+    try {
+      result =
+          Git.run(
+              dir.get(),
+              "for-each-ref",
+              "--format=%(refname:short)%00%(objectname)%00%(*objectname)",
+              "refs/tags");
+    } catch (RuntimeException e) {
+      LOG.warn("Cannot list the tags of {}", repo, e);
+      return Optional.empty();
+    }
+    if (result.exitCode() != 0) {
+      return Optional.empty();
+    }
+    java.util.Map<String, String> commits = new java.util.LinkedHashMap<>();
+    for (String line : result.out().split("\n")) {
+      String[] parts = line.split("\u0000", -1);
+      if (parts.length == 3 && !parts[0].isBlank()) {
+        // An annotated tag's own object is the tag; the commit it points at is the peeled one.
+        commits.put(parts[0], parts[2].isBlank() ? parts[1] : parts[2]);
+      }
+    }
+    for (String exact : java.util.List.of(version, "v" + version)) {
+      if (commits.containsKey(exact)) {
+        return Optional.of(commits.get(exact));
+      }
+    }
+    java.util.Set<String> ending = new java.util.TreeSet<>();
+    commits.forEach(
+        (tag, commit) -> {
+          for (String sep : java.util.List.of("-", "/", "_")) {
+            if (tag.endsWith(sep + version) || tag.endsWith(sep + "v" + version)) {
+              ending.add(commit);
+            }
+          }
+        });
+    return ending.size() == 1 ? Optional.of(ending.iterator().next()) : Optional.empty();
+  }
+
   /** A line of a file at a commit that holds a text. */
   public record Match(String path, int line) {}
 
