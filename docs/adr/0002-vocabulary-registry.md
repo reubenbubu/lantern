@@ -44,7 +44,9 @@ choices.
   declare new optional attributes, and descriptions, C4 level and presentation may change.
   Declaring a new attribute on a type that allows undeclared ones constrains values that were
   accepted before (and so for its open descendants); this is still treated as additive, because
-  declaring attributes is how the vocabulary grows. Since #90 an existing type may also get another
+  declaring attributes is how the vocabulary grows. Allowing more values of an attribute (a new
+  value of an enum) is additive too, and allowing fewer is not (owner, 6 Nov 2026 on #764;
+  `AttributeSchema.Property.acceptsAtLeast`). Since #90 an existing type may also get another
   parent, or none, as a normal new revision (it was refused before). The type keeps its name, so no
   alias is needed. The new parent must exist, be of the same kind and not create a cycle, and no
   type, the ones below it included, may accept less than before through the new parents, so stored

@@ -127,3 +127,25 @@ the amendment for #764 above: the soft targets are dropped, and the measured lim
 - Every threshold is a default in `lantern-compose/src/main/resources/io/lantern/compose/diagram-limits.properties`,
   read by `DiagramLimits.DEFAULT`, with no copy in code; the app's `lantern.diagrams` settings
   override each one.
+
+## Amendment (#764): pockets, what no line reaches, and the outside left off
+
+On 6 Nov 2026 the owner settled what a view does when its groups still do not fit:
+
+- **Pockets.** The units no domain signal groups are grouped by coupling into pockets, at most
+  `lantern.diagrams.pocket-size` members (4 by default), stored by the derive stage like domains,
+  so the naming role names them (`docs/research/grouping-services-into-pockets.md`; the rule is in
+  `docs/design.md`, Groups). The same rule groups the components the feature-area rules leave. A
+  container may appear on more than one page. The limits' defaults moved to
+  `lantern-derive/src/main/resources/io/lantern/derive/diagram-limits.properties`, since the
+  derive stage reads the pocket size; the composer reads the same file.
+- **What no line reaches** is never drawn with the rest: a container with no line, or a component
+  that is not an entry point and has no line, is drawn only on a page of its own, always ("like a
+  family picture where the neighbour photobombs it").
+- **The outside is left off** a map of domains (or an area overview) still over the limit, with a
+  note; the context view and each group's page draw it.
+- **Split pages name their group**: a domain's page split by concern is titled with the domain,
+  and an area's page still over the limit (after merging its lines) is split by groups of entry
+  points, each with what it reaches in the area, packed in order onto pages that fit. A unit with
+  no areas still over the limit is split the same way.
+- Describing a domain or pocket is left to an LLM step the owner will add.
