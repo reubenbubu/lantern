@@ -228,7 +228,62 @@ class GroupViewsTest {
   }
 
   @Test
+  void aComponentViewStillTooLargeLeavesWhatItsComponentsReachOutsideOffAndItsAreasPagesDrawIt() {
+    // Owner's decision of 6 Nov 2026 on #764, as for a map of domains.
+    Section components = section(system(manyComponents().list(), limits(5, 2)), "components");
+    Section app =
+        components.sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    Diagram overview = block(app, Diagram.class);
+
+    assertThat(overview.nodes())
+        .extracting(n -> n.id().type())
+        .isSubsetOf("service", "group", "type")
+        .filteredOn("service"::equals)
+        .hasSize(1);
+    assertThat(app.blocks())
+        .filteredOn(Callout.class::isInstance)
+        .anyMatch(c -> text(((Callout) c).content()).startsWith("What these components reach"));
+    assertThat(diagrams(app))
+        .anyMatch(
+            d ->
+                d.nodes().stream()
+                    .anyMatch(n -> n.id().toString().equals("external-system:pay.example.com")));
+  }
+
+  @Test
   void aUnitWithTooManyComponentsShowsItsFeatureAreasThenAPageEach() {
+    TestFacts many = manyComponents();
+    List<String> features = List.of("orders", "billing", "parts");
+    Section components = section(system(many.list()), "components");
+
+    Section app =
+        components.sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+    Diagram overview = block(app, Diagram.class);
+    assertThat(overview.title()).isEqualTo("Components of shop-app, by feature area");
+    assertThat(overview.nodes()).anyMatch(n -> n.id().type().equals("group"));
+    assertThat(C4Views.fits(overview, DiagramLimits.DEFAULT)).isTrue();
+    // The three feature folders, and a pocket of the components they leave that work together
+    // (#764).
+    assertThat(app.sections()).hasSize(features.size() + 1);
+    assertThat(app.sections())
+        .extracting(p -> p.entity().toString())
+        .containsOnlyOnce("group:service:com.example:app/area/pocket-JpaOrders");
+    assertThat(app.sections())
+        .allSatisfy(
+            area ->
+                assertThat(C4Views.fits(block(area, Diagram.class), DiagramLimits.DEFAULT))
+                    .isTrue());
+  }
+
+  /** shop-app with three feature folders of controllers, more than one view holds. */
+  private static TestFacts manyComponents() {
     TestFacts many = TestFacts.runtime();
     String module = "module:com.example:app";
     List<String> features = List.of("orders", "billing", "parts");
@@ -245,23 +300,7 @@ class GroupViewsTest {
       }
     }
 
-    Section components = section(system(many.list()), "components");
-
-    Section app =
-        components.sections().stream()
-            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
-            .findFirst()
-            .orElseThrow();
-    Diagram overview = block(app, Diagram.class);
-    assertThat(overview.title()).isEqualTo("Components of shop-app, by feature area");
-    assertThat(overview.nodes()).anyMatch(n -> n.id().type().equals("group"));
-    assertThat(C4Views.fits(overview, DiagramLimits.DEFAULT)).isTrue();
-    assertThat(app.sections()).hasSize(features.size());
-    assertThat(app.sections())
-        .allSatisfy(
-            area ->
-                assertThat(C4Views.fits(block(area, Diagram.class), DiagramLimits.DEFAULT))
-                    .isTrue());
+    return many;
   }
 
   /** app and worker in one domain; app publishes a topic only worker consumes. */

@@ -948,7 +948,8 @@ public final class Elements {
    * A component: a group of types behind one role, named after its main type, the entry point or
    * bean it is built around.
    */
-  public record Component(EntityId main, SortedSet<EntityId> types, String technology) {}
+  public record Component(
+      EntityId main, SortedSet<EntityId> types, String technology, boolean entryPoint) {}
 
   /**
    * The unit's stored components (#523): the routes its gateway config defines, then its entry
@@ -976,7 +977,11 @@ public final class Elements {
       SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
       knowledge.relations(component, Types.HAS_MEMBER).forEach(f -> types.add(Knowledge.object(f)));
       String role = attribute(part, "role", "");
-      Component found = new Component(main, types, attribute(part, "technology", null));
+      // An entry point (a controller, listener, job, filter or routes) is reached from outside the
+      // unit, whether or not the code shows from where.
+      Component found =
+          new Component(
+              main, types, attribute(part, "technology", null), !role.equals(Components.SHARED));
       switch (role) {
         case Components.CONFIG_ROUTES_ROLE -> routes.add(found);
         case Components.SHARED -> shared.add(found);

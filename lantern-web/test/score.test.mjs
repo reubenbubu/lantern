@@ -627,3 +627,28 @@ test("a reference, which carries no limits, is judged by those of the report sco
   assert.ok(score(tight, reference, aliases).referenceChecks.includes('diagram-size'));
   assert.ok(!score(report, reference, aliases).referenceChecks.includes('diagram-size'));
 });
+
+test('the context view is not judged by the diagram limits; a container view is (#764)', () => {
+  const view = (id) => ({
+    type: 'diagram',
+    id,
+    relationships: [
+      { from: 'a', to: 'b', label: 'Calls', technology: 'HTTP' },
+      { from: 'b', to: 'c', label: 'Calls', technology: 'HTTP' },
+    ],
+  });
+  const data = {
+    document: { readable: { target: 1, tolerance: 0, linesPerElement: 2 } },
+    elements: {
+      a: { kind: 'container', name: 'a' },
+      b: { kind: 'container', name: 'b' },
+      c: { kind: 'container', name: 'c' },
+    },
+    pages: [
+      { id: 'context', level: 'context', title: 'System context', sections: [view('ctx')] },
+      { id: 'containers', level: 'container', title: 'Containers', sections: [view('cnt')] },
+    ],
+  };
+  const size = Object.fromEntries(qualityChecks(data).map((c) => [c.id, c]))['diagram-size'];
+  assert.deepEqual(size.failures, ['Containers / cnt (3 elements)']);
+});

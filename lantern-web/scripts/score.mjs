@@ -568,8 +568,9 @@ export function qualityChecks(data, limits = diagramLimits(data)) {
     // Boundaries, the system and what others are drawn in, are not counted, as the composer does.
     const inside = new Set([...ids].map((id) => data.elements[id]?.parent).filter(Boolean));
     const drawn = [...ids].filter((id) => data.elements[id]?.kind !== 'system' && !inside.has(id));
-    if (!limits) {
-      // not judged without the report's limits
+    if (!limits || page.level === 'context') {
+      // Not judged without the report's limits; the context view has no limit (docs/design.md,
+      // Readable diagrams).
     } else if (drawn.length > limits.elements) {
       failures['diagram-size'].push(`${where} (${drawn.length} elements)`);
     } else if (section.relationships.length > limits.linesPerElement * drawn.length) {

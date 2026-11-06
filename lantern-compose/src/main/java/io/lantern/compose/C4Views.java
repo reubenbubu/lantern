@@ -1439,7 +1439,37 @@ final class C4Views {
               "Components of " + assembler.name(unit),
               all,
               Map.of());
+      // A component no line reaches is on a page of its own and on no other view of the unit
+      // (owner's decision of 6 Nov 2026 on #764, as for containers).
+      Set<EntityId> lined = new HashSet<>();
+      diagram
+          .edges()
+          .forEach(
+              e -> {
+                lined.add(e.from());
+                lined.add(e.to());
+              });
+      // An entry point is reached from outside the unit, whether or not the code shows from where.
+      components.stream().filter(Elements.Component::entryPoint).forEach(c -> lined.add(c.main()));
+      List<Elements.Component> alone =
+          components.stream().filter(c -> !lined.contains(c.main())).toList();
+      if (!alone.isEmpty() && alone.size() < components.size()) {
+        components = components.stream().filter(c -> lined.contains(c.main())).toList();
+        all.clear();
+        components.forEach(c -> all.add(c.main()));
+        diagram =
+            componentDiagram(
+                assembler.id(id, "diagram"),
+                unit,
+                components,
+                "Components of " + assembler.name(unit),
+                all,
+                Map.of());
+      } else {
+        alone = List.of();
+      }
       List<Section> areas = new ArrayList<>();
+      boolean outsideOff = false;
       if (!fits(diagram)) {
         // The coarser level the code proves, each feature area one box with a page of its own;
         // a view still too large there, or with no areas, merges its lines per pair (owner's
@@ -1450,16 +1480,62 @@ final class C4Views {
         diagram =
             componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
         if (!fits(diagram)) {
+          // What the unit's components reach outside it is left off, as on a map of domains;
+          // each area's page draws it (owner's decision of 6 Nov 2026 on #764).
+          withoutOutside = true;
+          Diagram inside =
+              componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
+          outsideOff = inside.nodes().size() < diagram.nodes().size();
+          diagram = inside;
+        }
+        if (!fits(diagram)) {
           perPair = true;
           diagram =
               componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
           perPair = false;
         }
+        withoutOutside = false;
         if (!areaOf.isEmpty()) {
           areas = areas(id, unit, components, areaOf);
         }
       }
+      if (!alone.isEmpty()) {
+        Set<EntityId> mains = new HashSet<>();
+        alone.forEach(c -> mains.add(c.main()));
+        String aloneId = assembler.id(id, "unconnected");
+        areas.add(
+            new Section(
+                aloneId,
+                ALONE,
+                SectionKind.COMPONENTS.levels(),
+                null,
+                List.of(),
+                List.of(
+                    componentDiagram(
+                        assembler.id(aloneId, "diagram"),
+                        unit,
+                        alone,
+                        "Components of " + assembler.name(unit) + " with no connections found",
+                        mains,
+                        Map.of())),
+                List.of()));
+      }
       List<Block> blocks = new ArrayList<>(List.of(diagram));
+      if (outsideOff) {
+        blocks.add(
+            new Callout(
+                assembler.id(id, "outside"),
+                Callout.Variant.NOTE,
+                null,
+                null,
+                List.of(
+                    TextRun.of(
+                        "What these components reach outside "
+                            + assembler.name(unit)
+                            + " is left off this view to keep it readable; each area's page"
+                            + " draws it.")),
+                List.of()));
+      }
       alternativesNote(assembler.id(id, "profiles"), only(unit), false).ifPresent(blocks::add);
       result.add(
           new Section(
@@ -1647,7 +1723,7 @@ final class C4Views {
       }
     }
     // Lines to and from other containers, at the code on this unit's end.
-    for (Line link : links) {
+    for (Line link : withoutOutside ? List.<Line>of() : links) {
       if (link.from().equals(unit)) {
         for (Fact fact : link.facts()) {
           EntityId from = codeEnds.get("source " + fact.id());
@@ -1672,7 +1748,7 @@ final class C4Views {
     // Data access, to the databases the unit's datasources point to.
     for (Elements.Component component : components) {
       String access = model.dataAccess(Components.id(unit, component.main())).orElse(null);
-      if (access == null || !focus.contains(component.main())) {
+      if (access == null || !focus.contains(component.main()) || withoutOutside) {
         continue;
       }
       for (Line link : links) {

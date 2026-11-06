@@ -211,7 +211,12 @@ public final class Groups implements LinkRule.OverFacts {
     SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
     knowledge.withPredicate(Types.DEPLOYABLE_UNIT).forEach(f -> units.add(f.subject()));
     for (EntityId unit : units) {
-      write(featureAreas(knowledge, unit), FEATURE_AREA, unit.toString(), validity, derived);
+      write(
+          featureAreas(knowledge, unit, pocketSize),
+          FEATURE_AREA,
+          unit.toString(),
+          validity,
+          derived);
     }
     write(domains(knowledge, units, units, pocketSize), DOMAIN, SYSTEM, validity, derived);
     return Derivation.merged(derived);
@@ -322,18 +327,60 @@ public final class Groups implements LinkRule.OverFacts {
     return components;
   }
 
-  static SortedMap<String, Forming> featureAreas(Knowledge knowledge, EntityId unit) {
+  static SortedMap<String, Forming> featureAreas(
+      Knowledge knowledge, EntityId unit, int pocketSize) {
     List<Component> components = components(knowledge, unit);
     SortedMap<String, Forming> areas = new TreeMap<>();
     Map<EntityId, String> placed = new HashMap<>();
     if (!byFeatureFolder(knowledge, components, areas, placed)) {
       byResourcePath(knowledge, components, areas, placed);
     }
-    if (areas.isEmpty()) {
-      return areas;
+    Set<EntityId> own = ownCode(knowledge, unit);
+    if (!areas.isEmpty()) {
+      byCallsOrTables(knowledge, components, areas, placed, own);
     }
-    byCallsOrTables(knowledge, components, areas, placed, ownCode(knowledge, unit));
+    byCoupling(knowledge, components, areas, placed, own, pocketSize);
     return areas;
+  }
+
+  /**
+   * Rule 4 (#764; docs/research/grouping-services-into-pockets.md): pockets of the components the
+   * rules before left, by the lines between them ({@link Pockets}), aspects and library classes
+   * left out as for rule 3. Each pocket's signal is its central component's type's simple name.
+   */
+  private static void byCoupling(
+      Knowledge knowledge,
+      List<Component> components,
+      SortedMap<String, Forming> areas,
+      Map<EntityId, String> placed,
+      Set<EntityId> own,
+      int pocketSize) {
+    Set<EntityId> loose = new TreeSet<>(Knowledge.BY_ID);
+    for (Component component : components) {
+      if (!placed.containsKey(component.id()) && !crossCutting(component, own)) {
+        loose.add(component.id());
+      }
+    }
+    List<Pockets.Edge> edges = new ArrayList<>();
+    for (EntityId component : loose) {
+      for (Fact link : knowledge.relations(component, Types.COMPONENT_LINK)) {
+        EntityId other = Knowledge.object(link);
+        if (loose.contains(other) && !"code-end".equals(attribute(link, "kind", ""))) {
+          edges.add(
+              new Pockets.Edge(
+                  component, other, attribute(link, "kind", "calls"), Pockets.CALL, List.of(link)));
+        }
+      }
+    }
+    for (Pockets.Pocket pocket : Pockets.of(loose, edges, pocketSize)) {
+      String key = pocket.central().key();
+      String type = key.substring(key.lastIndexOf('/') + 1);
+      String signal = "pocket-" + type.substring(type.lastIndexOf('.') + 1);
+      Forming forming = new Forming(signal, COUPLING);
+      pocket.members().forEach((member, facts) -> forming.join(member, COUPLING, facts));
+      areas.put(signal, forming);
+      pocket.members().keySet().forEach(m -> placed.put(m, signal));
+    }
   }
 
   /**
