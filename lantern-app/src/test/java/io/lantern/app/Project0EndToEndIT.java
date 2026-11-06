@@ -1298,7 +1298,9 @@ class Project0EndToEndIT {
             new TreeMap<>(
                 Map.of(
                     "component", 29L,
-                    "container", 4L,
+                    // And two domains (#764): storefront, payments and fulfilment share the shop
+                    // database, and catalog forms a pocket with the units that call it.
+                    "container", 6L,
                     "database", 2L,
                     "external", 2L,
                     // The Unknown caller (#766).
@@ -1311,10 +1313,27 @@ class Project0EndToEndIT {
         .containsExactly(
             "context",
             "containers",
-            // From the entry inward (#270): the units nothing calls, then payments.
+            // The map of the two domains is the overview; each domain's page is split by concern
+            // (#764).
+            "containers-group-system-domain-pocket-catalog-service-requests-and-data",
+            "containers-group-system-domain-pocket-catalog-service-messaging",
+            "containers-group-system-domain-db-shop-db-5432-2fshop-requests-and-data",
+            "containers-group-system-domain-db-shop-db-5432-2fshop-messaging",
+            // From the entry inward (#270): the units nothing calls, then payments. Each has no
+            // feature area and is too large for one view, so it is split by groups of entry
+            // points, what no entry point reaches on a page of its own (#764).
             "components-service-com-acme-shop-fulfilment",
+            "components-service-com-acme-shop-fulfilment-part-1",
+            "components-service-com-acme-shop-fulfilment-part-2",
+            "components-service-com-acme-shop-fulfilment-unconnected",
             "components-service-com-acme-shop-storefront-app",
+            "components-service-com-acme-shop-storefront-app-part-1",
+            "components-service-com-acme-shop-storefront-app-part-2",
+            "components-service-com-acme-shop-storefront-app-part-3",
             "components-service-com-acme-shop-payments",
+            "components-service-com-acme-shop-payments-part-1",
+            "components-service-com-acme-shop-payments-part-2",
+            "components-service-com-acme-shop-payments-part-3",
             "sequences-storefront-ordercontroller-place",
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
@@ -1325,16 +1344,34 @@ class Project0EndToEndIT {
             "decisions",
             "deployment",
             "glossary");
-    assertThat(data.get("pages").get(8).get("level").asString()).isEqualTo("documentation");
-    assertThat(data.get("pages").get(9).get("level").asString()).isEqualTo("documentation");
+    assertThat(data.get("pages").get(pages.indexOf("findings")).get("level").asString())
+        .isEqualTo("documentation");
+    assertThat(data.get("pages").get(pages.indexOf("decisions")).get("level").asString())
+        .isEqualTo("documentation");
     // The glossary explains every acronym, and the legend draws every boundary and arrowhead.
     assertThat(data.toString())
         .doesNotContain("Acronyms are explained in the glossary")
         .doesNotContain("A legend for every shape");
-    JsonNode containers = data.get("pages").get(1).get("sections").get(0);
+    // The container views' lines, the map's and its domains' pages' (#764).
+    StringBuilder containerLines = new StringBuilder();
+    StringBuilder containerPages = new StringBuilder();
+    data.get("pages")
+        .forEach(
+            page -> {
+              if (page.get("id").asString().startsWith("containers")) {
+                containerPages.append(page);
+                page.get("sections")
+                    .forEach(
+                        section -> {
+                          if (section.has("relationships")) {
+                            containerLines.append(section.get("relationships"));
+                          }
+                        });
+              }
+            });
     // The Unknown caller (#766): storefront's POST /api/orders and payments' order lookup are
     // reached by nothing in project-0 and used by no person.
-    assertThat(containers.get("relationships").toString())
+    assertThat(containerLines.toString())
         .contains(
             "{\"from\":\"actor-unknown-caller\",\"to\":\"service-com-acme-shop-payments\","
                 + "\"label\":\"Calls GET /api/orders/{orderId}\",\"technology\":\"HTTP\"}")
@@ -1347,7 +1384,7 @@ class Project0EndToEndIT {
     assertThat(data.get("pages").get(pages.indexOf("decisions")).toString())
         .contains("payments: GET /api/orders/{orderId}. storefront: POST /api/orders.");
     assertThat(data.toString()).doesNotContain("Every Unknown caller line points to");
-    assertThat(containers.get("relationships").toString())
+    assertThat(containerLines.toString())
         // HTTP-1: Feign by client name, with the endpoint and protocol.
         .contains(
             "{\"from\":\"service-com-acme-shop-storefront-app\","
@@ -1362,7 +1399,7 @@ class Project0EndToEndIT {
             "{\"from\":\"exchange-rabbitmq-shop-orders\",\"to\":\"service-com-acme-shop-payments\","
                 + "\"label\":\"Delivers order.*, refund.#\","
                 + "\"technology\":\"AMQP · payments.order-events, payments.refunds\"}");
-    assertThat(data.get("pages").get(1).toString())
+    assertThat(containerPages.toString())
         .contains(
             "Under the Spring profile local, storefront connects to shop on localhost instead of"
                 + " shop on shop-db.")
@@ -1375,7 +1412,9 @@ class Project0EndToEndIT {
     // frame of its profile, and the calls to the catalog and shop databases through Spring Data's
     // inherited methods (#176). The stock check runs ProductController.find again, as the code
     // does, and storefront's reads and writes of its order are one step (#272).
-    assertThat(steps(data.get("pages").get(5)))
+    assertThat(
+            steps(
+                data.get("pages").get(pages.indexOf("sequences-storefront-ordercontroller-place"))))
         .containsExactly(
             "note all: Starts when storefront receives POST /api/orders"
                 + " (OrderController.place).",
@@ -1421,14 +1460,17 @@ class Project0EndToEndIT {
                 + " Calls OrderRepository.findById, OrderRepository.save [JDBC]");
     // Looking up an order reads it through Spring Data's inherited findById (#176). A request
     // comes before a schedule (ADR 0047, amendment for #272).
-    assertThat(steps(data.get("pages").get(6)))
+    assertThat(
+            steps(
+                data.get("pages").get(pages.indexOf("sequences-storefront-ordercontroller-order"))))
         .containsExactly(
             "note all: Starts when storefront receives GET /api/orders/{id}"
                 + " (OrderController.order).",
             "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.findById [JDBC]");
     // FLOW-2: the nightly settlement (ENTRY-1) reads and writes the shared shop database (DB-2),
     // one of its tables storefront's (DB-5), in one step.
-    assertThat(steps(data.get("pages").get(7)))
+    assertThat(
+            steps(data.get("pages").get(pages.indexOf("sequences-payments-settlementjob-settle"))))
         .containsExactly(
             "note all: Starts when the schedule cron 0 0 2 * * * fires in payments"
                 + " (SettlementJob.settle).",
