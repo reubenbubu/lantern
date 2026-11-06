@@ -295,8 +295,15 @@ answer is a `submit` entry naming its item, read ADR 0128.
 
 Modes B and C now run as Mode A does since ADR 0128, so Investigate has one design:
 
-- *Tools and turns.* The lead's tools in the same container, and the lead's limits: no tight turn
-  limit, a guard on the size of one turn, a safety stop at 100 turns.
+- *Tools and turns.* The lead's tools in the same container, and the lead's limits but one: no
+  tight turn limit and a safety stop at 100 turns, with the guard on the size of one turn at 26,000
+  tokens instead of 60,000. A unit's conversation has no one question to settle, so with a lead's
+  guard Haiku read on for 30 to 40 turns, at about $0.03 a unit on project-8; at 26,000 it is told
+  to answer at 19,500, about 15 turns in, and the unit and system conversations cost $0.086 on the
+  project-8 panel against $0.107 before, finding as many of the reference's risks (7 of 18
+  against 6). The guard now counts a turn as the provider counted the one before it, scaled to
+  what was added: by characters alone (four a token) it counted numbered code at less than half
+  its size, so the guard never fired.
 - *Instructions.* Their own, `prompts/investigate-explore.system.txt` and
   `prompts/investigate-explore.task.txt`, without the common system prompt or a JSON schema. The
   epic's text for Modes B and C (section 11.2) is no longer sent.
