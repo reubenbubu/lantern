@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 
 /** A lead's answer through the {@code answer} tool, as TOML, and its quotes check (#892). */
-class LeadAnswerTest {
+class InvestigateLeadAnswerTest {
 
   private static final String PATH = "orders/src/main/java/shop/orders/OrderController.java";
   private static final String CONFIG = "orders/src/main/resources/application.yml";
@@ -39,7 +39,7 @@ class LeadAnswerTest {
 
   private static final CheckInputs INPUTS =
       new CheckInputs(
-          LeadAnswer.ENTRY_SCHEMA,
+          InvestigateLeadAnswer.ENTRY_SCHEMA,
           Map.of(),
           Set.of(),
           true,
@@ -64,14 +64,15 @@ class LeadAnswerTest {
       """
           .formatted(PATH);
 
-  private final LeadAnswer answer = new LeadAnswer();
+  private final InvestigateLeadAnswer answer = new InvestigateLeadAnswer();
 
   private static JsonNode toml(String text) {
     return FactJson.newObject().put("toml", text);
   }
 
   private List<Rejection> quotes(JsonNode entry) {
-    return new LeadAnswer.Quotes().check(new ItemAnswer("I1", entry, List.of(), List.of()), INPUTS);
+    return new InvestigateLeadAnswer.Quotes()
+        .check(new ItemAnswer("I1", entry, List.of(), List.of()), INPUTS);
   }
 
   @Test
@@ -184,7 +185,7 @@ class LeadAnswerTest {
     String where = "orders/src/main/java/shop/RefundService.java";
     java.util.function.Predicate<String> shown =
         name ->
-            LeadAnswer.Quotes.holds(
+            InvestigateLeadAnswer.Quotes.holds(
                 name,
                 text.toLowerCase().replaceAll("[^\\p{L}\\p{N}]", ""),
                 where.toLowerCase().replaceAll("[^\\p{L}\\p{N}]", ""));

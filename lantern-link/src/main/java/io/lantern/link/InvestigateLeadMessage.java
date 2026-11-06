@@ -3,6 +3,7 @@ package io.lantern.link;
 import io.lantern.core.fact.Evidence;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.types.Types;
 import io.lantern.harness.Prompts;
 import io.lantern.harness.Toml;
 import io.lantern.harness.render.Refs;
@@ -30,7 +31,7 @@ import tools.jackson.databind.JsonNode;
  * sentence each with short names ({@code [[evidence]]}); and where to start, when the kind says
  * ({@code [start]}). No list of every unit, no system map, no facts unrelated to the lead.
  */
-final class LeadMessage {
+final class InvestigateLeadMessage {
 
   /** The most a first message may hold; a test fails on any fake-model run's message above it. */
   static final int MAX_CHARS = 6_000;
@@ -56,7 +57,12 @@ final class LeadMessage {
 
   /** The predicates of a send, whose objects name what a lead's code sends. */
   private static final Set<String> SENDS =
-      Set.of("message-send", "http-call", "PUBLISHES", "SENDS_MESSAGES_TO", "CALLS_HTTP");
+      Set.of(
+          Types.MESSAGE_SEND,
+          Types.HTTP_CALL,
+          Types.PUBLISHES,
+          Types.SENDS_MESSAGES_TO,
+          Types.CALLS_HTTP);
 
   /** The prompt file with each kind's question. */
   static final String QUESTIONS = "investigate-questions.toml";
@@ -72,7 +78,7 @@ final class LeadMessage {
     }
   }
 
-  private LeadMessage() {}
+  private InvestigateLeadMessage() {}
 
   private static volatile Map<String, Question> questions;
 
@@ -153,7 +159,7 @@ final class LeadMessage {
       Set<String> unitRepos) {
     String kind = lead.kind();
     String scope = scope(lead, known);
-    if (kind.equals("contract-mismatch") && scope.startsWith("frontend:")) {
+    if (kind.equals("contract-mismatch") && scope.startsWith(Types.FRONTEND + ":")) {
       kind = "contract-mismatch-frontend";
     }
     Question q = questions.get(kind);
@@ -175,11 +181,13 @@ final class LeadMessage {
     if (template == null) {
       return null;
     }
-    List<String> code = lead.code().stream().map(LeadMessage::shortName).distinct().toList();
+    List<String> code =
+        lead.code().stream().map(InvestigateLeadMessage::shortName).distinct().toList();
     String units =
         lead.units().isEmpty()
             ? "the system"
-            : words(lead.units().stream().map(LeadMessage::shortName).distinct().toList());
+            : words(
+                lead.units().stream().map(InvestigateLeadMessage::shortName).distinct().toList());
     String detail = detail(lead, scope);
     List<String> sent = new ArrayList<>();
     for (Fact fact : lead.facts()) {
@@ -188,7 +196,7 @@ final class LeadMessage {
           && fact.object().value() != null) {
         String to = shortNames(fact.object().value());
         sent.add(
-            fact.predicate().equals("http-call") || fact.predicate().equals("CALLS_HTTP")
+            fact.predicate().equals(Types.HTTP_CALL) || fact.predicate().equals(Types.CALLS_HTTP)
                 ? "a request to " + to
                 : "a message to " + to);
       }
@@ -219,9 +227,9 @@ final class LeadMessage {
       add(pieces, FOUND, at);
     }
     for (String entity : lead.code()) {
-      if (!(entity.startsWith("method:")
-          || entity.startsWith("type:")
-          || entity.startsWith("field:"))) {
+      if (!(entity.startsWith(Types.METHOD + ":")
+          || entity.startsWith(Types.TYPE + ":")
+          || entity.startsWith(Types.FIELD + ":"))) {
         continue; // a whole unit or module: its lines say nothing of the lead
       }
       declared.apply(entity).ifPresent(at -> add(pieces, POINTS_AT + shortName(entity), at));
@@ -397,7 +405,7 @@ final class LeadMessage {
       return frontend.group(1);
     }
     int slash = rest.indexOf('/');
-    return slash < 0 || rest.startsWith("database:") ? rest : rest.substring(0, slash);
+    return slash < 0 || rest.startsWith(Types.DATABASE + ":") ? rest : rest.substring(0, slash);
   }
 
   /** What the lead's ID names after its scope: a header, a request, a setting, a type. */
@@ -426,12 +434,12 @@ final class LeadMessage {
     String kind = colon < 0 ? "" : entity.substring(0, colon);
     String rest = colon < 0 ? entity : entity.substring(colon + 1);
     return switch (kind) {
-      case "service", "module", "library" -> rest.substring(rest.lastIndexOf(':') + 1);
-      case "frontend" -> rest.substring(rest.lastIndexOf('/') + 1);
-      case "method", "field" -> member(rest);
-      case "type" -> rest.substring(rest.lastIndexOf('.') + 1);
+      case Types.SERVICE, Types.MODULE, Types.LIBRARY -> rest.substring(rest.lastIndexOf(':') + 1);
+      case Types.FRONTEND -> rest.substring(rest.lastIndexOf('/') + 1);
+      case Types.METHOD, Types.FIELD -> member(rest);
+      case Types.TYPE -> rest.substring(rest.lastIndexOf('.') + 1);
       case "header" -> rest;
-      case "deployment-instance" -> deployment(rest);
+      case Types.DEPLOYMENT_INSTANCE -> deployment(rest);
       default -> rest;
     };
   }
@@ -477,25 +485,25 @@ final class LeadMessage {
 
   private static final Map<String, String> VERBS =
       Map.ofEntries(
-          Map.entry("http-call", "calls"),
-          Map.entry("message-send", "sends to"),
-          Map.entry("CALLS_HTTP", "calls over HTTP"),
-          Map.entry("SENDS_MESSAGES_TO", "sends messages to"),
-          Map.entry("PUBLISHES", "publishes to"),
-          Map.entry("CONSUMES", "consumes from"),
-          Map.entry("endpoint", "answers"),
-          Map.entry("version-skew", "is bundled at different versions; the latest is"),
-          Map.entry("RUNS", "runs"),
-          Map.entry("USES_DATABASE", "uses the database"),
-          Map.entry("USES_IDENTITY_PROVIDER", "uses the identity provider"),
-          Map.entry("USES_BROKER", "uses the broker"),
-          Map.entry("shared-secret", "shares the secret"),
-          Map.entry("unrouted-endpoint", "has no route for"),
-          Map.entry("reads-request-value", "reads the request value"),
-          Map.entry("config-value", "sets"),
-          Map.entry("deployed-in", "is deployed in"),
-          Map.entry("RESOLVES_TO", "resolves to"),
-          Map.entry("transactional", "runs in a transaction, propagation"));
+          Map.entry(Types.HTTP_CALL, "calls"),
+          Map.entry(Types.MESSAGE_SEND, "sends to"),
+          Map.entry(Types.CALLS_HTTP, "calls over HTTP"),
+          Map.entry(Types.SENDS_MESSAGES_TO, "sends messages to"),
+          Map.entry(Types.PUBLISHES, "publishes to"),
+          Map.entry(Types.CONSUMES, "consumes from"),
+          Map.entry(Types.ENDPOINT, "answers"),
+          Map.entry(Types.VERSION_SKEW, "is bundled at different versions; the latest is"),
+          Map.entry(Types.RUNS, "runs"),
+          Map.entry(Types.USES_DATABASE, "uses the database"),
+          Map.entry(Types.USES_IDENTITY_PROVIDER, "uses the identity provider"),
+          Map.entry(Types.USES_BROKER, "uses the broker"),
+          Map.entry(Types.SHARED_SECRET, "shares the secret"),
+          Map.entry(Types.UNROUTED_ENDPOINT, "has no route for"),
+          Map.entry(Types.READS_REQUEST_VALUE, "reads the request value"),
+          Map.entry(Types.CONFIG_VALUE, "sets"),
+          Map.entry(Types.DEPLOYED_IN, "is deployed in"),
+          Map.entry(Types.RESOLVES_TO, "resolves to"),
+          Map.entry(Types.TRANSACTIONAL, "runs in a transaction, propagation"));
 
   /** A fact as one short sentence: who, what, the details that tell it apart, short names. */
   static String sentence(Fact fact) {
@@ -525,7 +533,8 @@ final class LeadMessage {
 
   /** The details of a fact a reader needs to tell it apart, in words; no internal fields. */
   private static List<String> details(Fact fact, String object) {
-    JsonNode attributes = fact.attributes();
+    // Shown as a prompt line shows a fact's attributes, in words; nothing is decided by them.
+    JsonNode attributes = Claims.json(fact);
     List<String> details = new ArrayList<>();
     if (attributes == null || !attributes.isObject()) {
       return details;
@@ -562,8 +571,8 @@ final class LeadMessage {
     if (attributes.path("target").isString()) {
       details.add("it would go to " + shortName(attributes.get("target").asString()));
     }
-    if (attributes.path("endpoint").isString()) {
-      details.add("answered by " + shortName(attributes.get("endpoint").asString()));
+    if (attributes.path(Types.ENDPOINT).isString()) {
+      details.add("answered by " + shortName(attributes.get(Types.ENDPOINT).asString()));
     }
     return List.copyOf(new LinkedHashSet<>(details));
   }

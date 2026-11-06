@@ -15,7 +15,7 @@ Investigate's conversation: *The first message*, *The answer*, *Turns*).
 
 ## Decision
 
-**The first message** (`LeadMessage`) is TOML, built from the lead alone:
+**The first message** (`InvestigateLeadMessage`) is TOML, built from the lead alone:
 
 - `[task]`: `question`, written for the lead's kind from `prompts/investigate-questions.toml`
   (one table a kind, and `contract-mismatch-frontend` for a frontend's call through the gateway),
@@ -47,7 +47,7 @@ example), 2,550 characters in all, in place of the common system prompt, Mode A'
 answer schema (5,176 characters before, and `submit`'s schema again among the tools). The
 contract's phrases stay word for word.
 
-**The answer** (`LeadAnswer`, the harness's `SingleAnswer`): one `answer` tool whose input is one
+**The answer** (`InvestigateLeadAnswer`, the harness's `SingleAnswer`): one `answer` tool whose input is one
 string field, `toml`. The provider requires a JSON input schema per tool, so the wrapper is JSON;
 nothing in it is. The TOML holds `verdict`, a confirmed lead's `title`, `finding`, `consequence`,
 `impact` and `confidence`, an unclear one's optional `reason`, and up to 8 `[[evidence]]` pieces,

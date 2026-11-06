@@ -284,7 +284,9 @@ final class InvestigateRole implements PacketRole {
   @Override
   public CheckInputs inputs(List<Item> packet, List<String> ids) {
     return new CheckInputs(
-        mode == Mode.LEADS ? LeadAnswer.ENTRY_SCHEMA : InvestigatePrompt.PROPOSALS_SCHEMA,
+        mode == Mode.LEADS
+            ? InvestigateLeadAnswer.ENTRY_SCHEMA
+            : InvestigatePrompt.PROPOSALS_SCHEMA,
         Map.of(),
         Set.of(),
         true,
@@ -311,7 +313,7 @@ final class InvestigateRole implements PacketRole {
     return mode == Mode.LEADS ? ANSWER : null;
   }
 
-  private static final LeadAnswer ANSWER = new LeadAnswer();
+  private static final InvestigateLeadAnswer ANSWER = new InvestigateLeadAnswer();
 
   @Override
   public boolean partial() {
@@ -361,7 +363,7 @@ final class InvestigateRole implements PacketRole {
       // are checked in its own range, which says more than the coverage check on all ranges at
       // once and would only repeat its problems (#892).
       checks.removeIf(check -> check instanceof Checks.Coverage);
-      checks.add(new LeadAnswer.Quotes());
+      checks.add(new InvestigateLeadAnswer.Quotes());
       return new Pipeline(checks);
     }
     checks.add(new ShownRanges(() -> tools, this::citesByField));

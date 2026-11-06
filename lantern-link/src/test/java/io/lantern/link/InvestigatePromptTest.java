@@ -28,13 +28,14 @@ class InvestigatePromptTest {
             + "\n--\n"
             + InvestigatePrompt.LEADS_TASK
             + "\n--\n"
-            + io.lantern.harness.Prompts.text(LeadMessage.QUESTIONS)
+            + io.lantern.harness.Prompts.text(InvestigateLeadMessage.QUESTIONS)
             + "\n--\n"
-            + LeadAnswer.DESCRIPTION
+            + InvestigateLeadAnswer.DESCRIPTION
             + "\n--\n"
-            + LeadAnswer.REMINDER
+            + InvestigateLeadAnswer.REMINDER
             + "\n--\n"
-            + new LeadAnswer().failed(List.of("a problem"), 1, LeadAnswer.ATTEMPTS)
+            + new InvestigateLeadAnswer()
+                .failed(List.of("a problem"), 1, InvestigateLeadAnswer.ATTEMPTS)
             + "\n--\n"
             + InvestigatePrompt.role()
             + "\n--\n"
@@ -56,19 +57,19 @@ class InvestigatePromptTest {
             + " "
             + InvestigatePrompt.MAX_FACTS
             + " "
-            + LeadMessage.MAX_CHARS
+            + InvestigateLeadMessage.MAX_CHARS
             + " "
-            + LeadMessage.MAX_WHAT
+            + InvestigateLeadMessage.MAX_WHAT
             + " "
-            + LeadMessage.MAX_EVIDENCE
+            + InvestigateLeadMessage.MAX_EVIDENCE
             + " "
-            + LeadMessage.METHOD_LINES
+            + InvestigateLeadMessage.METHOD_LINES
             + " "
-            + LeadMessage.AROUND
+            + InvestigateLeadMessage.AROUND
             + " "
-            + LeadAnswer.ATTEMPTS
+            + InvestigateLeadAnswer.ATTEMPTS
             + " "
-            + LeadAnswer.MAX_EVIDENCE;
+            + InvestigateLeadAnswer.MAX_EVIDENCE;
     String fingerprint =
         HexFormat.of()
             .formatHex(

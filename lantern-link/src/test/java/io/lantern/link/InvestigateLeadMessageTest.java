@@ -31,7 +31,7 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code -Dlantern.test.golden.write=true} the golden files are written from the messages instead,
  * to be read before they are committed.
  */
-class LeadMessageTest {
+class InvestigateLeadMessageTest {
 
   private static final Path GOLDEN = Path.of("src/test/resources/lead-messages");
 
@@ -422,9 +422,9 @@ class LeadMessageTest {
     Map<String, Set<String>> repos =
         Map.of(ORDERS, Set.of(REPO), BILLING, Set.of(REPO), GATEWAY, Set.of(REPO));
     Set<String> known = Set.of(ORDERS, BILLING, GATEWAY, WEB, "database:redis");
-    return LeadMessage.of(
+    return InvestigateLeadMessage.of(
         lead,
-        LeadMessage.questions(),
+        InvestigateLeadMessage.questions(),
         repos,
         entity -> Optional.ofNullable(DECLARED.get(entity)),
         (repo, path) ->
@@ -448,12 +448,12 @@ class LeadMessageTest {
 
     Toml.read(message);
     assertThat(message).isEqualTo(Files.readString(golden));
-    assertThat(message.length()).isLessThanOrEqualTo(LeadMessage.MAX_CHARS);
+    assertThat(message.length()).isLessThanOrEqualTo(InvestigateLeadMessage.MAX_CHARS);
   }
 
   @Test
   void everyKindOfTheQuestionFileHasAGoldenMessage() {
-    Set<String> asked = LeadMessage.questions().keySet();
+    Set<String> asked = InvestigateLeadMessage.questions().keySet();
     assertThat(leads().keySet()).containsExactlyInAnyOrderElementsOf(asked);
   }
 
@@ -467,7 +467,7 @@ class LeadMessageTest {
   void noFactSentenceHoldsAnInternalFieldNameOrAFullEntityId() {
     for (Investigator.Lead lead : leads().values()) {
       for (Fact fact : lead.facts()) {
-        String sentence = LeadMessage.sentence(fact);
+        String sentence = InvestigateLeadMessage.sentence(fact);
         assertThat(sentence).as("the sentence of %s", fact).doesNotContainPattern(FULL_ID);
         assertThat(sentence)
             .doesNotContain(fact.predicate().contains("-") ? fact.predicate() : "\0");
@@ -503,7 +503,7 @@ class LeadMessageTest {
     String message = message(big);
 
     Toml.read(message);
-    assertThat(message.length()).isLessThanOrEqualTo(LeadMessage.MAX_CHARS);
+    assertThat(message.length()).isLessThanOrEqualTo(InvestigateLeadMessage.MAX_CHARS);
     assertThat(message).contains("X-User-Id").contains("8    Order place(");
   }
 }

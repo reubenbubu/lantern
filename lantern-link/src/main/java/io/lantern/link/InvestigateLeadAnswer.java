@@ -27,7 +27,7 @@ import tools.jackson.databind.node.ObjectNode;
  * checks each piece against the files as the model saw them. Three answers in all; the reply is
  * TOML.
  */
-final class LeadAnswer implements SingleAnswer {
+final class InvestigateLeadAnswer implements SingleAnswer {
 
   /** The tool's name. */
   static final String NAME = "answer";

@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Every lead's first message on the test sets (#860): built from a fake-model run's facts and the
  * repositories at the commits they are checked out at, each reads back as TOML and holds at most
- * {@code LeadMessage.MAX_CHARS} characters. The messages are written to {@code
+ * {@code InvestigateLeadMessage.MAX_CHARS} characters. The messages are written to {@code
  * target/first-messages/<set>/} for reading. Sets whose run or repositories are not here are left
  * out; with none, the test is skipped.
  *

@@ -59,9 +59,9 @@ import tools.jackson.databind.node.ObjectNode;
  * <ul>
  *   <li><b>Mode A</b> checks the leads derivation stored ({@code lead-trigger} facts, #524): each
  *       lead is a conversation of its own, its first message the lead's question and evidence in
- *       TOML ({@link LeadMessage}), its answer TOML through the {@code answer} tool ({@link
- *       LeadAnswer}), within {@link #LEAD_LIMITS} (ADR 0128). Each gets a verdict, confirmed,
- *       refuted or unclear; a lead left unanswered is unclear.
+ *       TOML ({@link InvestigateLeadMessage}), its answer TOML through the {@code answer} tool
+ *       ({@link InvestigateLeadAnswer}), within {@link #LEAD_LIMITS} (ADR 0128). Each gets a
+ *       verdict, confirmed, refuted or unclear; a lead left unanswered is unclear.
  *   <li><b>Mode B</b> explores each deployable unit, after its leads, for what no lead covers: one
  *       conversation each, with every read tool, at most 16 tool turns and 120,000 input tokens.
  *   <li><b>Mode C</b> explores the whole system, after every unit, for risks and connections across
@@ -117,7 +117,7 @@ public final class Investigator {
               400_000,
               MAX_OUTPUT_TOKENS,
               "Give your answer now with what you have found.")
-          .withTurnGuard(60_000, LeadAnswer.NAME, 100);
+          .withTurnGuard(60_000, InvestigateLeadAnswer.NAME, 100);
 
   /** The caps of a Mode B or C conversation: 16 tool turns, 120,000 input tokens. */
   static final ConversationLimits EXPLORE_LIMITS =
@@ -132,7 +132,7 @@ public final class Investigator {
                   InvestigatePrompt.VERSION,
                   "investigate-leads.system.txt",
                   "investigate-leads.task.txt",
-                  LeadMessage.QUESTIONS),
+                  InvestigateLeadMessage.QUESTIONS),
               NAME,
               RunMode.INTERACTIVE,
               1_500)
@@ -327,7 +327,7 @@ public final class Investigator {
     GraphTools.Graph graph = new GraphTools.Graph(facts, files);
     Map<String, String> messages = new LinkedHashMap<>();
     for (Lead lead : model.leads) {
-      messages.put(lead.id(), LeadMessage.of(lead, model, graph::lines));
+      messages.put(lead.id(), InvestigateLeadMessage.of(lead, model, graph::lines));
     }
     return messages;
   }
@@ -702,7 +702,7 @@ public final class Investigator {
           lead.id(),
           lead.unit(),
           List.copyOf(new LinkedHashSet<>(inputs)),
-          LeadMessage.of(lead, model, graph::lines));
+          InvestigateLeadMessage.of(lead, model, graph::lines));
     }
 
     // --- Modes B and C -----------------------------------------------------------------------

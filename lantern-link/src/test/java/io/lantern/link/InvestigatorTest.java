@@ -245,7 +245,7 @@ class InvestigatorTest {
   private static LlmToolCall answer(LlmRequest request, String item) {
     return new LlmToolCall(
         "a" + turn(request),
-        LeadAnswer.NAME,
+        InvestigateLeadAnswer.NAME,
         FactJson.newObject().put("toml", toml(FactJson.parse(item))));
   }
 
@@ -701,7 +701,8 @@ class InvestigatorTest {
     List<LlmRequest> sent =
         fake.sent().stream().map(c -> c.request()).filter(InvestigatorTest::leads).toList();
     assertThat(sent).hasSize(2);
-    assertThat(sent.getLast().messages().getLast().text()).isEqualTo(LeadAnswer.REMINDER);
+    assertThat(sent.getLast().messages().getLast().text())
+        .isEqualTo(InvestigateLeadAnswer.REMINDER);
     assertThat(of(result, Types.LEAD_VERDICT).getFirst().object().value()).isEqualTo("unclear");
     assertThat(harness.records())
         .filteredOn(r -> r.role().equals("investigate-leads"))
