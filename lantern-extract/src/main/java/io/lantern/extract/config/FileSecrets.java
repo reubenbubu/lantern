@@ -19,8 +19,6 @@ public final class FileSecrets {
       Pattern.compile(
           "^(\\s*(?:-\\s+)?(?:export\\s+)?[\"']?)([A-Za-z0-9_.\\-\\[\\]]+)([\"']?\\s*[:=]\\s*)(.+)$");
 
-  private static final Pattern ONLY_PLACEHOLDERS = Pattern.compile("[\"']?(\\$\\{[^}:]+})+[\"']?");
-
   /** File names and extensions of keys and keystores, which are never shown. */
   private static final Pattern KEY_FILE =
       Pattern.compile(
@@ -96,13 +94,18 @@ public final class FileSecrets {
         if (value.matches("[|>][-+0-9]*")) {
           blockIndent = indent;
           shown = line;
-        } else if (ONLY_PLACEHOLDERS.matcher(value).matches()) {
-          shown = line;
         } else {
-          shown = kv.group(1) + kv.group(2) + kv.group(3) + "******";
+          // A placeholder's name says where the value comes from; only what is written is masked.
+          String kept = SecretPlaceholders.kept(value);
+          shown = kv.group(1) + kv.group(2) + kv.group(3) + (kept == null ? "******" : kept);
         }
       } else {
-        shown = xmlMasked(UrlCredentials.withoutCredentials(line), secretKeys);
+        // The default of a placeholder named as a secret is masked under any key, as in code.
+        shown =
+            xmlMasked(
+                UrlCredentials.withoutCredentials(
+                    SourceSecrets.placeholderDefaultsMasked(line, secretKeys)),
+                secretKeys);
       }
       out.append(shown).append('\n');
     }

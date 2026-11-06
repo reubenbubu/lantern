@@ -125,8 +125,13 @@ public final class SourceSecrets {
     if (content.isBlank() || ONLY_PLACEHOLDERS.matcher(content.strip()).matches()) {
       return content;
     }
-    if (secretNamed(source, code, index, known) || PRIVATE_KEY.matcher(content).find()) {
+    if (PRIVATE_KEY.matcher(content).find()) {
       return mask(content);
+    }
+    if (secretNamed(source, code, index, known)) {
+      // A placeholder's name is kept, on a one-line literal, so line numbers hold.
+      String kept = content.contains("\n") ? null : SecretPlaceholders.kept(content);
+      return kept != null ? kept : mask(content);
     }
     return cleaned(content, known);
   }
@@ -304,7 +309,7 @@ public final class SourceSecrets {
    * ${db.password:changeme}} becomes {@code ${db.password:******}}. Other placeholders' defaults
    * are looked at in turn.
    */
-  private static String placeholderDefaultsMasked(String content, Set<String> known) {
+  static String placeholderDefaultsMasked(String content, Set<String> known) {
     StringBuilder out = new StringBuilder();
     int i = 0;
     while (i < content.length()) {
@@ -333,7 +338,9 @@ public final class SourceSecrets {
       if (colon < 0) {
         out.append(content, open, close + 1);
       } else if (isSecretName(content.substring(open + 2, colon), known)) {
-        out.append(content, open, colon + 1).append(ConfigExtractor.MASK).append('}');
+        // The shell's ${NAME:-default}, :? and := keep their sign.
+        int sign = colon + 1 < close && "-?=".indexOf(content.charAt(colon + 1)) >= 0 ? 2 : 1;
+        out.append(content, open, colon + sign).append(ConfigExtractor.MASK).append('}');
       } else {
         out.append(content, open, colon + 1)
             .append(placeholderDefaultsMasked(content.substring(colon + 1, close), known))
