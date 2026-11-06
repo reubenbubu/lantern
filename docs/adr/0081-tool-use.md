@@ -64,7 +64,7 @@ cap guard cost.
   shown with its secrets masked, its line breaks kept: source in Java, Kotlin, Groovy, Gradle or
   Scala as summaries show Java (ADR 0054); in any other file, each secret key's value
   (`ConfigExtractor.isSecret`, after an optional `export`; a value of placeholders only is kept),
-  including the lines of a YAML block scalar under it, secret XML elements and attributes and
+  including the lines of a YAML block scalar or a multi-line plain scalar under it and the continuation lines of a value ending in a backslash (#917), secret XML elements and attributes and
   `name=... value=...` pairs, and credentials in URLs (`UrlCredentials`); a private key's body in
   every file. Keys and keystores (`.pem`, `.key`, `.p12`, `.jks`, `id_rsa`, ...) and binary files
   are not shown. A path outside the repository or an unknown repository is an error result. The facts and files are prepared once per run (`GraphTools.Graph`) and each
