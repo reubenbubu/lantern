@@ -409,6 +409,15 @@ class InvestigateLeadAnswerTest {
     String listed =
         "verdict = \"refuted\"\nevidence = []\n\n[[evidence]]\nlines = \"shop:a.java:1-1\"\nquote = \"x\"\n";
     assertThat(InvestigateLeadAnswer.parse(listed).path("evidence")).hasSize(1);
+    String around =
+        "verdict = \"refuted\"\r\nimpact = \"high\" # was \"medium\"\r\nreason = \"\"\r\n"
+            + "[[evidence]]\r\nlines = \"shop:a.java:1-1\"\r\n"
+            + "quote = \"@PreAuthorize(\"hasRole('X')\") void a(String s) { s.equals(\"x\"); }\"\r\n";
+    JsonNode read = InvestigateLeadAnswer.parse(around);
+    assertThat(read.path("impact").asString()).isEqualTo("high");
+    assertThat(read.path("reason").asString()).isEmpty();
+    assertThat(read.path("evidence").get(0).path("quote").asString())
+        .isEqualTo("@PreAuthorize(\"hasRole('X')\") void a(String s) { s.equals(\"x\"); }");
     String multiline = "verdict = \"refuted\"\nreason = \"\"\"\nsays \"x\"\n\"\"\"\n";
     assertThat(InvestigateLeadAnswer.repaired(multiline)).isEqualTo(multiline);
     assertThatThrownBy(() -> answer.read(toml("verdict = \"refuted\"\n[[evidence]\nlines = 1")))

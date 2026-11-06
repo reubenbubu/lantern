@@ -206,9 +206,10 @@ final class InvestigateLeadAnswer implements SingleAnswer {
       Pattern.compile("^(\\s*[A-Za-z0-9_-]+\\s*=\\s*)'(.*)'\\s*$");
 
   /**
-   * The answer's TOML read; if it does not parse, read again with its one-line strings repaired, as
-   * a quoted line of code often holds quotes the model left unescaped (#922); if that fails too,
-   * the parser's first fault goes back.
+   * The answer's TOML read; if it does not parse, read again repaired ({@link #repaired}): a quoted
+   * line of code often holds quotes the model left unescaped, and the model sometimes writes an
+   * empty list before the tables of its name (#922); if that fails too, the parser's first fault
+   * goes back.
    */
   static JsonNode parse(String text) {
     try {
@@ -243,7 +244,7 @@ final class InvestigateLeadAnswer implements SingleAnswer {
         continue;
       }
       int fences = count(line, "\"\"\"") + count(line, "'''");
-      if (!inMultiline && fences == 0) {
+      if (!inMultiline && fences == 0 && !parses(line)) {
         Matcher basic = BASIC_LINE.matcher(line);
         Matcher literal = LITERAL_LINE.matcher(line);
         if (basic.matches()) {
@@ -261,6 +262,16 @@ final class InvestigateLeadAnswer implements SingleAnswer {
     }
     out.setLength(out.length() - 1);
     return out.toString();
+  }
+
+  /** Whether one line is valid TOML on its own, so the repair leaves it as written. */
+  private static boolean parses(String line) {
+    try {
+      Toml.read(line.endsWith("\r") ? line.substring(0, line.length() - 1) : line);
+      return true;
+    } catch (Toml.Fault e) {
+      return false;
+    }
   }
 
   /** A basic string's value with each quote not already escaped escaped. */
