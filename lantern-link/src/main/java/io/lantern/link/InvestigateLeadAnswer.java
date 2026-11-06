@@ -100,11 +100,7 @@ final class InvestigateLeadAnswer implements SingleAnswer {
         throw new IllegalArgumentException(
             "The answer is empty: give its TOML in the answer tool's toml field.");
       }
-      try {
-        root = Toml.read(text).root();
-      } catch (Toml.Fault e) {
-        throw new IllegalArgumentException("The answer is not TOML: " + e.getMessage());
-      }
+      root = parse(text);
     }
     if (!root.isObject()) {
       throw new IllegalArgumentException("The answer is not a TOML table with a verdict.");
@@ -197,14 +193,106 @@ final class InvestigateLeadAnswer implements SingleAnswer {
     return entry;
   }
 
+  /** A one-line basic string: {@code key = "..."}, the value from its first quote to its last. */
+  private static final Pattern BASIC_LINE =
+      Pattern.compile("^(\\s*[A-Za-z0-9_-]+\\s*=\\s*)\"(.*)\"\\s*$");
+
+  /** An empty list: {@code evidence = []}. */
+  private static final Pattern EMPTY_LIST =
+      Pattern.compile("^\\s*([A-Za-z0-9_-]+)\\s*=\\s*\\[\\s*]\\s*$");
+
+  /** A one-line literal string: {@code key = '...'}. */
+  private static final Pattern LITERAL_LINE =
+      Pattern.compile("^(\\s*[A-Za-z0-9_-]+\\s*=\\s*)'(.*)'\\s*$");
+
+  /**
+   * The answer's TOML read; if it does not parse, read again with its one-line strings repaired, as
+   * a quoted line of code often holds quotes the model left unescaped (#922); if that fails too,
+   * the parser's first fault goes back.
+   */
+  static JsonNode parse(String text) {
+    try {
+      return Toml.read(text).root();
+    } catch (Toml.Fault first) {
+      String repaired = repaired(text);
+      if (!repaired.equals(text)) {
+        try {
+          return Toml.read(repaired).root();
+        } catch (Toml.Fault ignored) {
+          // the answer is broken some other way: say what the parser found first
+        }
+      }
+      throw new IllegalArgumentException("The answer is not TOML: " + first.getMessage());
+    }
+  }
+
+  /**
+   * Each one-line string whose value holds a quote of its own kind written as a basic string with
+   * that quote escaped: {@code quote = "a("b")"} as {@code quote = "a(\\"b\\")"}, and {@code quote
+   * = 'a(''b'')'} (a doubled quote, as SQL writes one) as {@code quote = "a('b')"}. Lines inside a
+   * multi-line string are left as they are.
+   */
+  static String repaired(String text) {
+    StringBuilder out = new StringBuilder();
+    boolean inMultiline = false;
+    for (String line : text.split("\n", -1)) {
+      String shown = line;
+      Matcher empty = EMPTY_LIST.matcher(line);
+      if (!inMultiline && empty.matches() && text.contains("[[" + empty.group(1) + "]]")) {
+        // evidence = [] and then [[evidence]] tables: the tables are the answer's.
+        continue;
+      }
+      int fences = count(line, "\"\"\"") + count(line, "'''");
+      if (!inMultiline && fences == 0) {
+        Matcher basic = BASIC_LINE.matcher(line);
+        Matcher literal = LITERAL_LINE.matcher(line);
+        if (basic.matches()) {
+          shown = basic.group(1) + "\"" + escaped(basic.group(2)) + "\"";
+        } else if (literal.matches() && literal.group(2).contains("'")) {
+          String value = literal.group(2).replace("''", "'");
+          shown =
+              literal.group(1) + "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+        }
+      }
+      if (fences % 2 == 1) {
+        inMultiline = !inMultiline;
+      }
+      out.append(shown).append('\n');
+    }
+    out.setLength(out.length() - 1);
+    return out.toString();
+  }
+
+  /** A basic string's value with each quote not already escaped escaped. */
+  private static String escaped(String value) {
+    StringBuilder out = new StringBuilder();
+    int backslashes = 0;
+    for (char c : value.toCharArray()) {
+      if (c == '"' && backslashes % 2 == 0) {
+        out.append('\\');
+      }
+      out.append(c);
+      backslashes = c == '\\' ? backslashes + 1 : 0;
+    }
+    return out.toString();
+  }
+
+  private static int count(String text, String part) {
+    int n = 0;
+    for (int i = text.indexOf(part); i >= 0; i = text.indexOf(part, i + part.length())) {
+      n++;
+    }
+    return n;
+  }
+
   @Override
   public boolean holdsAnswer(String text) {
     if (text == null || !text.contains("verdict")) {
       return false;
     }
     try {
-      return Toml.read(text).root().has("verdict");
-    } catch (Toml.Fault e) {
+      return parse(text).has("verdict");
+    } catch (IllegalArgumentException e) {
       return false;
     }
   }
