@@ -36,6 +36,11 @@ public final class Conversation {
   private final int turnCap;
   private final ConversationLimits limits;
   private long freshInput;
+  // What the last turn sent, as the provider counted it and as estimated from its characters: the
+  // ratio corrects the estimate of the next turn, which counts four characters a token where
+  // numbered code runs nearer two (#904).
+  private long lastSent;
+  private long lastEstimated;
   private boolean nudged;
   private boolean compacted;
   private final String id = UUID.randomUUID().toString();
@@ -207,7 +212,9 @@ public final class Conversation {
       turns++;
       LlmResponse response;
       try {
-        response = client.call(turnRequest(), new LlmClient.Turn(id, turns, Map.of()));
+        LlmRequest request = turnRequest();
+        lastEstimated = request.estimatedInputTokens();
+        response = client.call(request, new LlmClient.Turn(id, turns, Map.of()));
       } catch (BudgetExceededException e) {
         end(LlmConversation.Ending.BUDGET, e.getMessage());
         throw e;
@@ -218,6 +225,8 @@ public final class Conversation {
       usage = usage.plus(response.usage());
       cost = cost.add(model.pricing().cost(response.usage()));
       freshInput += ConversationLimits.freshEquivalent(response.usage());
+      TokenUsage sent = response.usage();
+      lastSent = sent.input() + sent.cacheRead() + sent.cacheWritten();
       last = response;
       if (!response.wantsTools()) {
         return response;
@@ -269,11 +278,19 @@ public final class Conversation {
     return null;
   }
 
-  /** What the next turn would send, estimated, when one turn's input is guarded. */
+  /**
+   * What the next turn would send, estimated, when one turn's input is guarded: its characters'
+   * estimate scaled by what the provider counted for the last turn against that turn's estimate,
+   * once a turn has been counted (#904).
+   */
   private long nextTurnInput() {
-    return limits.turnInputTokens() == Long.MAX_VALUE
-        ? 0
-        : first.withMessages(messages).estimatedInputTokens();
+    if (limits.turnInputTokens() == Long.MAX_VALUE) {
+      return 0;
+    }
+    long estimate = first.withMessages(messages).estimatedInputTokens();
+    return lastSent > 0 && lastEstimated > 0
+        ? Math.round(estimate * ((double) lastSent / lastEstimated))
+        : estimate;
   }
 
   /** Whether the turn about to be sent passes {@value ConversationLimits#NUDGE_SHARE} of a cap. */

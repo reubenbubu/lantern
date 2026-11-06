@@ -276,6 +276,48 @@ class ConversationTest {
   }
 
   @Test
+  void theTurnGuardCountsTurnsAsTheProviderDidNotByCharactersAlone() {
+    // A provider that counts twice the characters' estimate, as Haiku does numbered code (#904):
+    // the guard of 3,000 then stops after one read, where by characters alone it would allow two.
+    fake.callingTools(r -> List.of(call("r" + r.messages().size(), "read")));
+    LlmProvider doubling =
+        new LlmProvider() {
+          @Override
+          public String name() {
+            return fake.name();
+          }
+
+          @Override
+          public LlmResponse complete(String model, LlmRequest request) {
+            LlmResponse r = fake.complete(model, request);
+            TokenUsage u = r.usage();
+            return new LlmResponse(
+                r.text(),
+                r.stopReason(),
+                new TokenUsage(u.input() * 2, u.output(), u.cacheWrite() * 2, u.cacheRead() * 2),
+                r.toolCalls(),
+                r.thinking(),
+                r.servedBy());
+          }
+        };
+    ConversationLimits limits =
+        new ConversationLimits(Integer.MAX_VALUE, Long.MAX_VALUE, 1_000, NOTE)
+            .withTurnGuard(3_000, "answer", 100);
+    LlmClient client =
+        new LlmClient(
+            ModelSettings.single(fake.model("m")),
+            List.of(doubling),
+            BudgetGuard.unlimited("run"),
+            log,
+            clock);
+
+    assertThatThrownBy(() -> client.converse(request(), new Pages(), limits).answer())
+        .isInstanceOf(ConversationCappedException.class)
+        .hasMessageContaining("guard of 3000 input tokens a turn");
+    assertThat(fake.sent()).hasSize(2);
+  }
+
+  @Test
   void aTurnOverTheGuardIsNotSent() {
     fake.callingTools(r -> List.of(call("r" + r.messages().size(), "read")));
     ConversationLimits limits =
