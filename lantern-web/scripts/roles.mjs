@@ -1447,6 +1447,54 @@ export function answerKeyIssues(key, reference) {
       issues.push(`${where}: has no answer`);
     }
   }
+  return [...issues, ...investigateIssues(key)];
+}
+
+/** The verdicts an entry of the key's investigate section may give (#891). */
+const VERDICTS = ['confirmed', 'refuted', 'unclear'];
+
+/**
+ * What is wrong with the form of the key's investigate section (#891): one entry per lead ID, its
+ * kind the lead's, a verdict of the list with why, evidence citing repo:path:start-end in a
+ * repository with a commit, a risk only on a confirmed lead and a decoy only on a refuted one, each
+ * an entry of the key, and an unclear verdict marked as not scored.
+ */
+export function investigateIssues(key) {
+  const issues = [];
+  const risks = new Set((key.risks ?? []).map((r) => r.id));
+  const decoys = new Set((key.decoys ?? []).map((d) => d.id));
+  const seen = new Set();
+  (key.investigate ?? []).forEach((entry, i) => {
+    const where = `investigate[${i}]`;
+    const lead = String(entry.lead ?? '');
+    if (!lead.startsWith('lead:')) issues.push(`${where}: ${lead} is not a lead ID`);
+    else if (entry.kind !== lead.slice('lead:'.length).split('/')[0]) {
+      issues.push(`${where}: kind ${entry.kind} is not its lead's`);
+    }
+    if (seen.has(lead)) issues.push(`${where}: ${lead} is keyed twice`);
+    seen.add(lead);
+    if (!VERDICTS.includes(entry.verdict)) issues.push(`${where}: verdict ${entry.verdict} is not one of ${VERDICTS.join(', ')}`);
+    if (!entry.why) issues.push(`${where}: does not say why`);
+    if (entry.verdict === 'unclear' && entry.scored !== false) issues.push(`${where}: an unclear verdict must be marked scored: false`);
+    const evidence = entry.evidence ?? [];
+    if (evidence.length === 0) issues.push(`${where}: cites no evidence`);
+    for (const cite of evidence) {
+      const m = String(cite).match(CITE);
+      if (!m) issues.push(`${where}: ${cite} is not repo:path:start-end`);
+      else if (!(m[1] in (key.commits ?? {}))) issues.push(`${where}: ${cite} names a repository without a commit`);
+      else if (Number(m[3]) < 1 || Number(m[4]) < Number(m[3]) || Number(m[4]) - Number(m[3]) >= 40) {
+        issues.push(`${where}: ${cite} is not a range of 1 to 40 lines`);
+      }
+    }
+    if (entry.risk !== undefined) {
+      if (!risks.has(entry.risk)) issues.push(`${where}: risk ${entry.risk} is not an entry of the key`);
+      if (entry.verdict !== 'confirmed') issues.push(`${where}: names risk ${entry.risk} but is not confirmed`);
+    }
+    if (entry.decoy !== undefined) {
+      if (!decoys.has(entry.decoy)) issues.push(`${where}: decoy ${entry.decoy} is not an entry of the key`);
+      if (entry.verdict !== 'refuted') issues.push(`${where}: names decoy ${entry.decoy} but is not refuted`);
+    }
+  });
   return issues;
 }
 
@@ -1499,5 +1547,16 @@ export function answerKeyCodeIssues(key, checkout) {
       issues.push(`${where}: none of ${JSON.stringify(entry.names)} is in its cited lines`);
     }
   }
+  // The investigate section's evidence: each cited file exists at its repository's commit and
+  // holds the cited lines (#891).
+  (key.investigate ?? []).forEach((entry, i) => {
+    for (const cite of entry.evidence ?? []) {
+      const m = String(cite).match(CITE);
+      if (!m || !(m[1] in (key.commits ?? {}))) continue;
+      const lines = show(m[1], m[2]);
+      if (lines === null) issues.push(`investigate[${i}]: ${cite}: no such file at ${m[1]}@${key.commits[m[1]]}`);
+      else if (Number(m[4]) > lines.length) issues.push(`investigate[${i}]: ${cite}: the file has ${lines.length} lines`);
+    }
+  });
   return issues;
 }

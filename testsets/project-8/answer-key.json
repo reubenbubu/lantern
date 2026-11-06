@@ -1,24 +1,24 @@
 {
   "set": "project-8",
   "preparedBy": "the agent (Claude Code), for #667: read from the code at these commits and from the set's reference; nothing taken from a model's answers in a run",
-  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); r23 to r25 came from the check; the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right",
+  "status": "checked blind by an Opus subagent on 3 Nov 2026 under the rule of 3 Nov (CLAUDE.md); the owner settled every disagreement as recommended on #737 (https://github.com/reubenbubu/lantern/issues/737#issuecomment-6613630082); r23 to r25 came from the check; the owner spot-checked the agreed entries listed on #737 on 3 Nov 2026 and found them right; the investigate section (52 leads), risks r26 to r29 and decoys d4 to d11 (lantern#891, 6 Nov 2026) were checked blind by an Opus subagent on 6 Nov 2026: it agreed on 44 of 52 leads and 10 of 12 claims; the refund lead was settled confirmed as it found, the d10 wording and the portal CORS case (which needed CORS applied, CSRF off for /graphql and a SameSite=None cookie to be real) were fixed in the set; for the shared JWT secret (r1), the reschedule mismatch (r4) and the forwarded identity headers (r7), which happened in no deployment, the owner chose on 6 Nov 2026 to make them real in the set; a second blind check of the changed entries agreed on all of them; the owner's spot check of about 10 agreed entries is pending",
   "how": "Open links: listed from the static unresolved-link facts of a fake-model run; each target read from the calling code, its configuration and the receivers' bindings or routes. Risks: one per row of the reference's risks table, in its order; subjects are reference element IDs and the category one of the list in docs/adr/0072-scoring-harness.md (amendment for #667). Decoys: code that looks like a risk of a category and is safe, with why. Code search helped by a read-only agent; every citation checked against git by score.mjs check-key, and the entries reviewed by the agent preparing the key.",
   "commits": {
-    "billing-service": "79446bfa58100fac4150b3389b4aa364bf53d78e",
-    "customer-portal-bff": "57389cce13def3a48839f9fbaec967d6a41e5f49",
+    "billing-service": "d8591f13dc50da85957d2574beaa854ee0b3f9e9",
+    "customer-portal-bff": "8326f89c78ec154f6c4884a508c794ee5cd57d64",
     "edge-gateway": "13612bcddfc322bbd12846a55682630a4a8efaec",
-    "fleetcare-commons": "1c1cccfaae06ab3bbed9571630f9514a1cf8c6a4",
-    "fleetcare-deploy": "673dc5f2692425af1f57586d09378dcd269040a4",
+    "fleetcare-commons": "c6dd31470e221472aa02751c0d9cbf6801419873",
+    "fleetcare-deploy": "2a845ac8555ac92db31cc2a5e14b40be3686c549",
     "fleetcare-parent": "08831db0fad0df9b873ff83eb65a282ee70f7250",
-    "fleetcare-web": "8fdbce7c6615f4d3ae06f2307456bcafb6a838d1",
-    "notification-service": "49aa150b9dc7a7c4f73ef995cd82d0af169e53e0",
+    "fleetcare-web": "f6aa40f97f3b504a49f87a9cb8d75fd67052b4ab",
+    "notification-service": "68c186541300534ff8d5ad9873f23f6eb4b56db3",
     "parts-inventory": "6315de02727dc40f5de7bf11a4beecca3bb1c1a7",
-    "parts-inventory-lib": "563b9a9cf4c87b46a0c38d258081124dc1365d10",
+    "parts-inventory-lib": "5caeadfcf9627a5e98c439f4f2074a0d7cd7b914",
     "platform-config": "18b5202dbd5725896f9ec7c476f6e362d50c052f",
     "platform-discovery": "2045e8bf6455b97d7c283bfaabd4d166725dfe27",
-    "technician-service": "d24180e34ede76534aff446a4f7ea76b9fae8c5c",
+    "technician-service": "cc47f6ff6a0e5f906821bb868b8bd5d404d0253e",
     "telematics-ingest": "3675f543435472ccbb97137603f1b607b3fbda78",
-    "workorder-service": "9d25c3d01dcc9e752e3bd6ed4fc5c838640c933d"
+    "workorder-service": "75c776fed9b21604b2a510de1e1702b8a1cf52a0"
   },
   "resolve": [
     {
@@ -94,7 +94,7 @@
   "risks": [
     {
       "id": "r1",
-      "reference": "Workorder and billing both verify HMAC JWTs with the same secret placeholder under the internal profile; the secret",
+      "reference": "Workorder and billing both verify HMAC JWTs with the same secret placeholder under the internal profile, which the Kustomize prod overlay turns on for both and sets no `FLEET_JWT_SECRET`; the committed placeholder is then the key both accept tokens signed with.",
       "subjects": [
         "workorder-service",
         "billing-service"
@@ -103,12 +103,14 @@
       "cites": [
         "workorder-service:src/main/java/io/fleetcare/workorder/config/InternalTokenConfiguration.java:12-17",
         "billing-service:src/main/resources/application.yml:52-54",
-        "workorder-service:src/main/resources/application.yml:39-41"
+        "workorder-service:src/main/resources/application.yml:39-41",
+        "fleetcare-deploy:kustomize/overlays/prod/kustomization.yaml:16-37"
       ],
       "names": [
         "shared-secret",
         "InternalTokenConfiguration",
-        "FLEET_JWT_SECRET"
+        "FLEET_JWT_SECRET",
+        "prod,internal"
       ],
       "how": "Both services build an HMAC JWT decoder from the same shared-secret property, defaulted to a placeholder value in config."
     },
@@ -150,7 +152,7 @@
     },
     {
       "id": "r4",
-      "reference": "The work-order Feign client declares GET for `/api/technicians/{id}/shifts/{shiftId}/reschedule`, while",
+      "reference": "The work-order Feign client declares GET for `/api/technicians/{id}/shifts/{shiftId}/reschedule`, while technician-service serves that operation only as POST; scheduling an appointment that starts after the known shift ends calls it, so that scheduling fails.",
       "subjects": [
         "workorder-service",
         "technician-service"
@@ -158,11 +160,13 @@
       "category": "contract-mismatch",
       "cites": [
         "workorder-service:src/main/java/io/fleetcare/workorder/integration/TechnicianShiftClient.java:12-14",
-        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianController.java:49-50"
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianController.java:49-50",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/dispatch/WorkOrderSchedulingService.java:40-43"
       ],
       "names": [
         "readRescheduledShift",
-        "reschedule"
+        "reschedule",
+        "readRescheduledShift"
       ],
       "how": "Feign client uses GET for the reschedule path that technician-service maps only as POST."
     },
@@ -205,7 +209,7 @@
     },
     {
       "id": "r7",
-      "reference": "Work-order binds identity headers",
+      "reference": "Work-order binds identity headers. The priority endpoint checks only the forwarded role and records the forwarded user ID, so any signed-in user can change a work order's priority under another name.",
       "subjects": [
         "workorder-service",
         "edge-gateway"
@@ -213,13 +217,15 @@
       "category": "identity-from-request",
       "cites": [
         "workorder-service:src/main/java/io/fleetcare/workorder/security/ForwardedIdentityFilter.java:15-20",
-        "edge-gateway:src/main/java/io/fleetcare/gateway/security/IdentityHeadersFilter.java:16-23"
+        "edge-gateway:src/main/java/io/fleetcare/gateway/security/IdentityHeadersFilter.java:16-23",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/dispatch/WorkOrderPriorityController.java:24-33"
       ],
       "names": [
         "X-User-Id",
         "X-Roles",
         "headers.add",
-        "getHeader"
+        "getHeader",
+        "RequiresFleetRole"
       ],
       "how": "Work-order binds X-User-Id and X-Roles from the request with getHeader, which returns the first value, while the gateway adds (not replaces) those headers, so a client's own values win through the gateway too."
     },
@@ -569,6 +575,84 @@
         "accounting"
       ],
       "how": "The component's constructor needs two properties that no configuration file of the set defines, so the context fails to start without an outside value."
+    },
+    {
+      "id": "r26",
+      "reference": "The customer portal allows credentialed cross-origin requests to `/graphql` from any origin, applies that rule in its security chain, exempts `/graphql` from CSRF protection and sends its session cookie with SameSite=None, so another website can run portal queries and mutations as the signed-in customer.",
+      "subjects": [
+        "customer-portal-bff"
+      ],
+      "category": "open-cors",
+      "cites": [
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/BrowserAccessConfiguration.java:11-15",
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/PortalSecurityConfiguration.java:12-21",
+        "customer-portal-bff:src/main/resources/application.yml:48-49"
+      ],
+      "names": [
+        "allowedOriginPatterns",
+        "ignoringRequestMatchers",
+        "same-site: none"
+      ],
+      "how": "The /graphql CORS mapping allows the origin pattern * with credentials."
+    },
+    {
+      "id": "r27",
+      "reference": "The staging overlay starts notification-service with the staging profile, whose `ddl-auto: create-drop` drops its tables at shutdown, so delivery records are lost on every restart.",
+      "subjects": [
+        "notification-service",
+        "notification-database"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "notification-service:src/main/resources/application-staging.yml:1-4",
+        "fleetcare-deploy:kustomize/overlays/staging/kustomization.yaml:16-26"
+      ],
+      "names": [
+        "create-drop",
+        "SPRING_PROFILES_ACTIVE"
+      ],
+      "how": "Staging activates a profile whose Hibernate setting creates the schema at start and drops it at shutdown."
+    },
+    {
+      "id": "r28",
+      "reference": "The billing production profile, which the billing image always runs, holds the live PayGrid request-signing key as a literal; it signs every charge and refund request.",
+      "subjects": [
+        "billing-service",
+        "paygrid"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "billing-service:src/main/resources/application-prod.yml:7-9",
+        "billing-service:Dockerfile:5-5",
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PayGridRequestSigner.java:21-33"
+      ],
+      "names": [
+        "request-signing-key",
+        "SPRING_PROFILES_ACTIVE=prod",
+        "PayGridRequestSigner"
+      ],
+      "how": "A literal key in the profile every deployed billing runs, used to sign outgoing PayGrid requests."
+    },
+    {
+      "id": "r29",
+      "reference": "Work-order (Commons 2.1.0) sends `VehicleReleased` with `accountId`; notification bundles Commons 1.9.4, where the field is `customerId`, so it reads no customer and cannot send the pickup notice.",
+      "subjects": [
+        "workorder-service",
+        "notification-service"
+      ],
+      "category": "shared-type-skew",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/VehicleCustodyNotices.java:22-25",
+        "notification-service:src/main/java/io/fleetcare/notification/delivery/VehicleCustodyListener.java:23-28",
+        "notification-service:pom.xml:6-6",
+        "workorder-service:pom.xml:6-6"
+      ],
+      "names": [
+        "VehicleReleased",
+        "customerId",
+        "fleetcare-commons.version"
+      ],
+      "how": "The shared message type renamed a field between the Commons versions the sender and the receiver bundle."
     }
   ],
   "decoys": [
@@ -624,7 +708,717 @@
         "ddl-auto: validate",
         "flyway"
       ]
+    },
+    {
+      "id": "d4",
+      "looksLike": "A CORS policy lets every origin call parts inventory.",
+      "safeBecause": "The open policy covers one GET that returns only whether a part number is in stock, without credentials; nothing private or state-changing is reachable from another origin.",
+      "subjects": [
+        "parts-inventory"
+      ],
+      "category": "open-cors",
+      "cites": [
+        "parts-inventory-lib:src/main/java/io/fleetcare/parts/inventory/PublicAvailabilityController.java:11-22"
+      ],
+      "names": [
+        "@CrossOrigin",
+        "allowCredentials = \"false\""
+      ]
+    },
+    {
+      "id": "d5",
+      "looksLike": "Notification lets Hibernate update its schema.",
+      "safeBecause": "ddl-auto update is only the default: the image always starts with the prod profile, which sets validate, and the deployment's database init script creates the delivery_record table. Only local runs from source use update.",
+      "subjects": [
+        "notification-service"
+      ],
+      "category": "schema-unmanaged",
+      "cites": [
+        "notification-service:src/main/resources/application.yml:57-57",
+        "notification-service:Dockerfile:5-5",
+        "notification-service:src/main/resources/application-prod.yml:9-9",
+        "fleetcare-deploy:postgres-init/01-databases.sql:7-14",
+        "fleetcare-deploy:docker-compose.local.yml:11-13"
+      ],
+      "names": [
+        "ddl-auto: validate",
+        "SPRING_PROFILES_ACTIVE=prod"
+      ]
+    },
+    {
+      "id": "d6",
+      "looksLike": "Technician-service takes the caller's tenant from a request header.",
+      "safeBecause": "The roster export reads X-Tenant-Id but refuses the request with 403 unless it equals the tenant_id claim of the validated token, so a caller cannot choose another tenant.",
+      "subjects": [
+        "technician-service"
+      ],
+      "category": "identity-from-request",
+      "cites": [
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianRosterExportController.java:22-29"
+      ],
+      "names": [
+        "tenant_id",
+        "FORBIDDEN"
+      ]
+    },
+    {
+      "id": "d7",
+      "looksLike": "The portal calls a technician path that no technician controller declares.",
+      "safeBecause": "technician-service serves the path with a functional route that streams availability events, and the portal reads it as an event stream and takes the first event.",
+      "subjects": [
+        "customer-portal-bff",
+        "technician-service"
+      ],
+      "category": "contract-mismatch",
+      "cites": [
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/client/TechnicianAvailabilityWebClient.java:18-22",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianRoutes.java:12-12",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/AvailabilityHandler.java:15-20"
+      ],
+      "names": [
+        "availability/events",
+        "TEXT_EVENT_STREAM"
+      ]
+    },
+    {
+      "id": "d8",
+      "looksLike": "A PayGrid API key is committed in billing's configuration.",
+      "safeBecause": "The literal key sits in the local profile, which only the developer Compose override activates, and points at the local PayGrid mock; deployed runs take the key from PAYGRID_API_KEY.",
+      "subjects": [
+        "billing-service"
+      ],
+      "category": "plaintext-secret",
+      "cites": [
+        "billing-service:src/main/resources/application-local.yml:1-2",
+        "billing-service:src/main/resources/application-local.yml:8-8",
+        "fleetcare-deploy:docker-compose.local.yml:7-9",
+        "billing-service:src/main/resources/application.yml:73-73"
+      ],
+      "names": [
+        "api-key",
+        "mock-paygrid"
+      ]
+    },
+    {
+      "id": "d9",
+      "looksLike": "Work-order keeps STOMP subscriptions in each instance's memory while it runs two instances.",
+      "safeBecause": "Each work-order instance binds its own temporary queue to a fanout exchange and relays every bay change to its local simple broker, so a board connected to any instance gets every change.",
+      "subjects": [
+        "workorder-service"
+      ],
+      "category": "single-instance",
+      "cites": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/board/WorkshopBoardBroadcaster.java:46-56",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/board/WorkshopBoardWebSocketConfiguration.java:13-16"
+      ],
+      "names": [
+        "ExchangeTypes.FANOUT",
+        "relay"
+      ]
+    },
+    {
+      "id": "d10",
+      "looksLike": "VehicleReceived is passed between units that bundle different Commons versions.",
+      "safeBecause": "VehicleReceived has the same fields in Commons 1.9.4 and 2.1.0, so notification reads what work-order sends.",
+      "subjects": [
+        "workorder-service",
+        "notification-service"
+      ],
+      "category": "shared-type-skew",
+      "cites": [
+        "fleetcare-commons:commons-events/src/main/java/io/fleetcare/commons/events/VehicleReceived.java:5-5",
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/VehicleCustodyNotices.java:17-20",
+        "notification-service:src/main/java/io/fleetcare/notification/delivery/VehicleCustodyListener.java:16-21"
+      ],
+      "names": [
+        "VehicleReceived",
+        "accountId"
+      ]
+    },
+    {
+      "id": "d11",
+      "looksLike": "The yard board's environment file points at localhost.",
+      "safeBecause": "environment.ts holds localhost, but the app overwrites it at start from runtime-config.json, which the image's entrypoint script writes at every container start (default /api).",
+      "subjects": [
+        "yard-web-app"
+      ],
+      "category": "environment-baked",
+      "cites": [
+        "fleetcare-web:yard-angular/src/main.ts:6-9",
+        "fleetcare-web:yard-runtime-config.sh:4-4",
+        "fleetcare-web:Dockerfile.yard:11-11"
+      ],
+      "names": [
+        "runtime-config.json",
+        "Object.assign"
+      ]
     }
   ],
-  "source": "lantern-test-fleetcare@c21cda1007321aaaefc96d4b47b08afaa096f5ee (testsets/project-8/pins.txt); its setup.sh makes the repositories at the commits above"
+  "source": "lantern-test-fleetcare@940eb2eab73694c5a341844793bfdbc610565c33 (testsets/project-8/pins.txt); its setup.sh makes the repositories at the commits above",
+  "investigate": [
+    {
+      "lead": "lead:contract-mismatch/frontend:fleetcare-web/staff-angular/GET%20/api/staff/operations/summary",
+      "kind": "contract-mismatch",
+      "verdict": "confirmed",
+      "why": "The staff app calls GET /api/staff/operations/summary; the gateway's routes cover only customer and work-order paths, so the call reaches no service.",
+      "evidence": [
+        "fleetcare-web:staff-angular/src/staff-operations.service.ts:10-14",
+        "edge-gateway:src/main/resources/application.yml:13-29"
+      ],
+      "risk": "r10"
+    },
+    {
+      "lead": "lead:contract-mismatch/service:io.fleetcare:customer-portal-bff/GET%20/api/technicians/{id}/availability/events",
+      "kind": "contract-mismatch",
+      "verdict": "refuted",
+      "why": "technician-service serves the path with a functional route that streams availability events, and the portal reads it as an event stream and takes the first event.",
+      "evidence": [
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/client/TechnicianAvailabilityWebClient.java:18-22",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianRoutes.java:12-12",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/AvailabilityHandler.java:15-20"
+      ],
+      "decoy": "d7"
+    },
+    {
+      "lead": "lead:contract-mismatch/service:io.fleetcare:edge-gateway/GET%20/api/technicians/{id}/skils",
+      "kind": "contract-mismatch",
+      "verdict": "confirmed",
+      "why": "The gateway's fleet overview calls /api/technicians/{id}/skils; technician-service serves /skills, so the call gets no endpoint.",
+      "evidence": [
+        "edge-gateway:src/main/java/io/fleetcare/gateway/routing/FleetOverviewController.java:25-25",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianController.java:36-36"
+      ],
+      "risk": "r2"
+    },
+    {
+      "lead": "lead:contract-mismatch/service:io.fleetcare:workorder-service/GET%20/api/technicians/{id}/shifts/{shiftId}/reschedule",
+      "kind": "contract-mismatch",
+      "verdict": "confirmed",
+      "why": "The Feign client sends GET to the reschedule path, which technician-service serves only as POST; scheduling calls it when the appointment starts after the known shift ends, so that scheduling fails with 405.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/integration/TechnicianShiftClient.java:12-14",
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianController.java:49-50",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/dispatch/WorkOrderSchedulingService.java:40-43"
+      ],
+      "risk": "r4"
+    },
+    {
+      "lead": "lead:environment-baked/frontend:fleetcare-web/staff-angular/apiBaseUrl",
+      "kind": "environment-baked",
+      "verdict": "confirmed",
+      "why": "environment.ts sets apiBaseUrl to http://localhost:8088/api; angular.json has no file replacement and the staff image runs a plain npm run build, so the deployed app calls localhost.",
+      "evidence": [
+        "fleetcare-web:staff-angular/src/environments/environment.ts:3-3",
+        "fleetcare-web:staff-angular/angular.json:1-1",
+        "fleetcare-web:Dockerfile.staff:6-6"
+      ]
+    },
+    {
+      "lead": "lead:environment-baked/frontend:fleetcare-web/staff-angular/webSocketBaseUrl",
+      "kind": "environment-baked",
+      "verdict": "confirmed",
+      "why": "environment.ts sets webSocketBaseUrl to ws://localhost:8088 and the event client connects to it; no build replaces the file, and the staff image runs a plain npm run build.",
+      "evidence": [
+        "fleetcare-web:staff-angular/src/environments/environment.ts:4-4",
+        "fleetcare-web:staff-angular/src/work-order-events.service.ts:7-7",
+        "fleetcare-web:staff-angular/angular.json:1-1",
+        "fleetcare-web:Dockerfile.staff:6-6"
+      ]
+    },
+    {
+      "lead": "lead:environment-baked/frontend:fleetcare-web/yard-angular/apiBaseUrl",
+      "kind": "environment-baked",
+      "verdict": "refuted",
+      "why": "environment.ts holds localhost, but the app overwrites it at start from runtime-config.json, which the image's entrypoint script writes at every container start (default /api).",
+      "evidence": [
+        "fleetcare-web:yard-angular/src/main.ts:6-9",
+        "fleetcare-web:yard-runtime-config.sh:4-4",
+        "fleetcare-web:Dockerfile.yard:11-11"
+      ],
+      "decoy": "d11"
+    },
+    {
+      "lead": "lead:identity-from-request/service:io.fleetcare:technician-service/header:X-Tenant-Id",
+      "kind": "identity-from-request",
+      "verdict": "refuted",
+      "why": "The roster export reads X-Tenant-Id but refuses the request with 403 unless it equals the tenant_id claim of the validated token, so a caller cannot choose another tenant.",
+      "evidence": [
+        "technician-service:src/main/java/io/fleetcare/technician/adapter/inbound/TechnicianRosterExportController.java:22-29"
+      ],
+      "decoy": "d6"
+    },
+    {
+      "lead": "lead:identity-from-request/service:io.fleetcare:workorder-service/header:X-Roles",
+      "kind": "identity-from-request",
+      "verdict": "confirmed",
+      "why": "Work-order binds X-Roles with getHeader, the first value, and the gateway adds its own value with headers.add instead of replacing a client-sent copy. The priority endpoint checks only that forwarded role, so any signed-in user who sends X-Roles: DISPATCHER can change a work order's priority.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/security/ForwardedIdentityFilter.java:15-20",
+        "edge-gateway:src/main/java/io/fleetcare/gateway/security/IdentityHeadersFilter.java:16-23",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/dispatch/WorkOrderPriorityController.java:24-33"
+      ],
+      "risk": "r7"
+    },
+    {
+      "lead": "lead:identity-from-request/service:io.fleetcare:workorder-service/header:X-User-Id",
+      "kind": "identity-from-request",
+      "verdict": "confirmed",
+      "why": "Work-order binds X-User-Id with getHeader, the first value, and the gateway adds rather than replaces it; the priority endpoint records that forwarded user ID as who made the change, so a caller can record changes under another user's name.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/security/ForwardedIdentityFilter.java:15-20",
+        "edge-gateway:src/main/java/io/fleetcare/gateway/security/IdentityHeadersFilter.java:16-23",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/dispatch/WorkOrderPriorityController.java:24-33"
+      ],
+      "risk": "r7"
+    },
+    {
+      "lead": "lead:open-cors/method:io.fleetcare.portal.BrowserAccessConfiguration#addCorsMappings(org.springframework.web.servlet.config.annotation.CorsRegistry)//graphql",
+      "kind": "open-cors",
+      "verdict": "confirmed",
+      "why": "The portal's /graphql mapping allows every origin pattern with credentials, its security chain applies those CORS rules and exempts /graphql from CSRF, and its session cookie is SameSite=None, so any website a signed-in customer visits can run GraphQL queries and mutations as that customer.",
+      "evidence": [
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/BrowserAccessConfiguration.java:11-15",
+        "customer-portal-bff:src/main/java/io/fleetcare/portal/PortalSecurityConfiguration.java:12-21",
+        "customer-portal-bff:src/main/resources/application.yml:48-49"
+      ],
+      "risk": "r26"
+    },
+    {
+      "lead": "lead:open-cors/type:io.fleetcare.parts.inventory.PublicAvailabilityController/cross-origin",
+      "kind": "open-cors",
+      "verdict": "refuted",
+      "why": "The open policy covers one GET that returns only whether a part number is in stock, without credentials; nothing private or state-changing is reachable from another origin.",
+      "evidence": [
+        "parts-inventory-lib:src/main/java/io/fleetcare/parts/inventory/PublicAvailabilityController.java:11-22"
+      ],
+      "decoy": "d4"
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:billing-service/accounting.sftp.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "billing-service:src/main/resources/application.yml:42-42",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:billing-service/billing.paygrid.request-signing-key@prod",
+      "kind": "plaintext-secret",
+      "verdict": "confirmed",
+      "why": "The prod profile commits PayGrid's live request-signing key as a literal, the billing image always runs prod, and the key signs every charge and refund request, so anyone with the repository can sign requests as FleetCare.",
+      "evidence": [
+        "billing-service:src/main/resources/application-prod.yml:7-9",
+        "billing-service:Dockerfile:5-5",
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PayGridRequestSigner.java:21-33"
+      ],
+      "risk": "r28"
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:billing-service/fleetcare.identity.admin-password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "billing-service:src/main/resources/application.yml:58-58",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:billing-service/fleetcare.jwt.shared-secret",
+      "kind": "plaintext-secret",
+      "verdict": "confirmed",
+      "why": "Under the internal profile both services build their JWT decoder from fleetcare.jwt.shared-secret, whose fallback is a committed placeholder; the Kustomize prod overlay turns on prod,internal for both and sets no FLEET_JWT_SECRET, so anyone with the repository can sign tokens both accept.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/config/InternalTokenConfiguration.java:12-17",
+        "billing-service:src/main/java/io/fleetcare/billing/config/InternalTokenConfiguration.java:12-16",
+        "workorder-service:src/main/resources/application.yml:39-41",
+        "billing-service:src/main/resources/application.yml:52-54",
+        "fleetcare-deploy:kustomize/overlays/prod/kustomization.yaml:16-37"
+      ],
+      "risk": "r1"
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:billing-service/paygrid.api-key@local",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The literal key sits in the local profile, which only the developer Compose override activates, and points at the local PayGrid mock; deployed runs take the key from PAYGRID_API_KEY.",
+      "evidence": [
+        "billing-service:src/main/resources/application-local.yml:1-2",
+        "billing-service:src/main/resources/application-local.yml:8-8",
+        "fleetcare-deploy:docker-compose.local.yml:7-9",
+        "billing-service:src/main/resources/application.yml:73-73"
+      ],
+      "decoy": "d8"
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:billing-service/spring.artemis.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "billing-service:src/main/resources/application.yml:20-20",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:billing-service/spring.rabbitmq.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "billing-service:src/main/resources/application.yml:25-25",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:customer-portal-bff/spring.security.oauth2.client.registration.fleetcare.client-secret",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "customer-portal-bff:src/main/resources/application.yml:22-22",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:notification-service/fleetcare.notifications.from-address",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "from-address is the sender e-mail address of notifications (noreply@fleetcare.example), not a secret; holding it allows nothing.",
+      "evidence": [
+        "notification-service:src/main/resources/application.yml:36-36"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:notification-service/spring.mail.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "notification-service:src/main/resources/application.yml:13-13",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:notification-service/spring.rabbitmq.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "notification-service:src/main/resources/application.yml:28-28",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:notification-service/textnow.api-key",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "notification-service:src/main/resources/application.yml:32-32",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:parts-inventory-lib/partshub.api-key",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "parts-inventory-lib:src/main/resources/application.yml:23-23",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:parts-inventory-lib/spring.datasource.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "parts-inventory-lib:src/main/resources/application.yml:9-9",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:technician-service/spring.liquibase.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "technician-service:src/main/resources/application.yml:13-13",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:technician-service/spring.r2dbc.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "technician-service:src/main/resources/application.yml:9-9",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:telematics-ingest/fleetcare.archive.access-key",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "telematics-ingest:src/main/resources/application.yml:38-38",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:telematics-ingest/fleetcare.archive.secret-key",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "telematics-ingest:src/main/resources/application.yml:39-39",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:workorder-service/fleetcare.jwt.shared-secret",
+      "kind": "plaintext-secret",
+      "verdict": "confirmed",
+      "why": "Under the internal profile both services build their JWT decoder from fleetcare.jwt.shared-secret, whose fallback is a committed placeholder; the Kustomize prod overlay turns on prod,internal for both and sets no FLEET_JWT_SECRET, so anyone with the repository can sign tokens both accept.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/config/InternalTokenConfiguration.java:12-17",
+        "billing-service:src/main/java/io/fleetcare/billing/config/InternalTokenConfiguration.java:12-16",
+        "workorder-service:src/main/resources/application.yml:39-41",
+        "billing-service:src/main/resources/application.yml:52-54",
+        "fleetcare-deploy:kustomize/overlays/prod/kustomization.yaml:16-37"
+      ],
+      "risk": "r1"
+    },
+    {
+      "lead": "lead:plaintext-secret/module:io.fleetcare:workorder-service/spring.rabbitmq.password",
+      "kind": "plaintext-secret",
+      "verdict": "refuted",
+      "why": "The committed value is only the fallback of an environment variable, a marked placeholder ('changeme-not-a-real-...') that no server, broker or provider in the set accepts; Compose always passes the variable. Holding it allows nothing.",
+      "evidence": [
+        "workorder-service:src/main/resources/application.yml:25-25",
+        "fleetcare-deploy:helm/fleetcare/templates/application-deployments.yaml:19-25"
+      ]
+    },
+    {
+      "lead": "lead:plaintext-secret/shared/fleetcare.jwt.shared-secret",
+      "kind": "plaintext-secret",
+      "verdict": "confirmed",
+      "why": "Under the internal profile both services build their JWT decoder from fleetcare.jwt.shared-secret, whose fallback is a committed placeholder; the Kustomize prod overlay turns on prod,internal for both and sets no FLEET_JWT_SECRET, so anyone with the repository can sign tokens both accept.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/config/InternalTokenConfiguration.java:12-17",
+        "billing-service:src/main/java/io/fleetcare/billing/config/InternalTokenConfiguration.java:12-16",
+        "workorder-service:src/main/resources/application.yml:39-41",
+        "billing-service:src/main/resources/application.yml:52-54",
+        "fleetcare-deploy:kustomize/overlays/prod/kustomization.yaml:16-37"
+      ],
+      "risk": "r1"
+    },
+    {
+      "lead": "lead:schema-unmanaged/module:io.fleetcare:notification-service/default",
+      "kind": "schema-unmanaged",
+      "verdict": "refuted",
+      "why": "ddl-auto update is only the default: the image always starts with the prod profile, which sets validate, and the deployment's database init script creates the delivery_record table. Only local runs from source use update.",
+      "evidence": [
+        "notification-service:src/main/resources/application.yml:57-57",
+        "notification-service:Dockerfile:5-5",
+        "notification-service:src/main/resources/application-prod.yml:9-9",
+        "fleetcare-deploy:postgres-init/01-databases.sql:7-14",
+        "fleetcare-deploy:docker-compose.local.yml:11-13"
+      ],
+      "decoy": "d5"
+    },
+    {
+      "lead": "lead:schema-unmanaged/module:io.fleetcare:notification-service/staging",
+      "kind": "schema-unmanaged",
+      "verdict": "confirmed",
+      "why": "The staging overlay starts notification with the staging profile, which sets ddl-auto create-drop: Hibernate drops the tables when the service stops, so every restart loses the delivery records.",
+      "evidence": [
+        "notification-service:src/main/resources/application-staging.yml:4-4",
+        "fleetcare-deploy:kustomize/overlays/staging/kustomization.yaml:16-26"
+      ],
+      "risk": "r27"
+    },
+    {
+      "lead": "lead:send-before-commit/service:io.fleetcare:billing-service/method:io.fleetcare.billing.payment.PayGridClient#charge(io.fleetcare.billing.payment.PaymentRequest)",
+      "kind": "send-before-commit",
+      "verdict": "confirmed",
+      "why": "pay charges PayGrid (line 38) before it inserts the payment and updates the invoice, and throws if the invoice changed meanwhile (44-45); the rollback leaves a charge with no payment record.",
+      "evidence": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PaymentService.java:32-46"
+      ],
+      "risk": "r5"
+    },
+    {
+      "lead": "lead:send-before-commit/service:io.fleetcare:billing-service/method:io.fleetcare.billing.payment.PayGridClient#refund(java.lang.String,io.fleetcare.billing.payment.PayGridClient$RefundRequest)",
+      "kind": "send-before-commit",
+      "verdict": "confirmed",
+      "why": "refund asks PayGrid to refund inside the transaction before it records the refund; when parseStatus rejects the provider's state, or the insert or commit fails, the refund is made but not recorded, and amountReserved no longer counts it, so a new request can refund again.",
+      "evidence": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/RefundService.java:33-54",
+        "billing-service:src/main/java/io/fleetcare/billing/payment/RefundService.java:68-75"
+      ]
+    },
+    {
+      "lead": "lead:send-before-commit/service:io.fleetcare:billing-service/method:io.fleetcare.billing.payment.PaymentService#pay(io.fleetcare.billing.payment.PaymentRequest)",
+      "kind": "send-before-commit",
+      "verdict": "confirmed",
+      "why": "pay is @Transactional and publishes to RabbitMQ and JMS before it returns, so consumers can see a payment the transaction later rolls back.",
+      "evidence": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PaymentService.java:32-52"
+      ],
+      "risk": "r5"
+    },
+    {
+      "lead": "lead:send-before-commit/service:io.fleetcare:parts-inventory-app/method:io.fleetcare.parts.supplier.PartsHubClient#catalogItem(java.lang.String,java.lang.String)",
+      "kind": "send-before-commit",
+      "verdict": "refuted",
+      "why": "catalogItem is a GET that reads the supplier's catalogue; nothing at the supplier changes, so sending it before the commit has no effect anyone can act on.",
+      "evidence": [
+        "parts-inventory-lib:src/main/java/io/fleetcare/parts/supplier/PartsHubClient.java:13-14",
+        "parts-inventory-lib:src/main/java/io/fleetcare/parts/supplier/SupplierOrderingService.java:42-42"
+      ]
+    },
+    {
+      "lead": "lead:send-before-commit/service:io.fleetcare:parts-inventory-app/method:io.fleetcare.parts.supplier.PartsHubClient#createReplenishment(java.util.Map,java.lang.String)",
+      "kind": "send-before-commit",
+      "verdict": "confirmed",
+      "why": "reorderIfNeeded places the supplier order inside the transaction with a fresh random request id; if the transaction then rolls back (parseExpectedAt throws on a bad timestamp), the local order is gone and the next run orders again under a new id.",
+      "evidence": [
+        "parts-inventory-lib:src/main/java/io/fleetcare/parts/supplier/SupplierOrderingService.java:27-55",
+        "parts-inventory-lib:src/main/java/io/fleetcare/parts/supplier/SupplierOrderingService.java:69-75"
+      ]
+    },
+    {
+      "lead": "lead:send-before-commit/service:io.fleetcare:workorder-service/method:io.fleetcare.workorder.feature.telemetry.VehicleCommandPublisher#requestDiagnosticSnapshot(java.lang.String,java.lang.String)",
+      "kind": "send-before-commit",
+      "verdict": "refuted",
+      "why": "The alert listener sends the diagnostic command to Kafka before it saves the work order in its transaction, but the command asks the vehicle for a snapshot and needs none of that data; a rollback only means the redelivered alert asks again.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/TelematicsAlertListener.java:26-44"
+      ]
+    },
+    {
+      "lead": "lead:send-before-commit/service:io.fleetcare:workorder-service/method:io.fleetcare.workorder.integration.TechnicianShiftClient#getShift(java.lang.String)",
+      "kind": "send-before-commit",
+      "verdict": "refuted",
+      "why": "getShift is a GET that reads a technician's shift to check availability; it changes nothing in technician-service, so nothing can act on uncommitted data.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/integration/TechnicianShiftClient.java:9-10",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/dispatch/DispatchService.java:44-45"
+      ]
+    },
+    {
+      "lead": "lead:shared-type-skew/library:com.github.fleetcare.fleetcare-commons:commons-events/io.fleetcare.commons.events.VehicleReceived",
+      "kind": "shared-type-skew",
+      "verdict": "refuted",
+      "why": "VehicleReceived has the same fields in Commons 1.9.4 and 2.1.0, so notification reads what work-order sends.",
+      "evidence": [
+        "fleetcare-commons:commons-events/src/main/java/io/fleetcare/commons/events/VehicleReceived.java:5-5",
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/VehicleCustodyNotices.java:17-20",
+        "notification-service:src/main/java/io/fleetcare/notification/delivery/VehicleCustodyListener.java:16-21"
+      ],
+      "decoy": "d10"
+    },
+    {
+      "lead": "lead:shared-type-skew/library:com.github.fleetcare.fleetcare-commons:commons-events/io.fleetcare.commons.events.VehicleReleased",
+      "kind": "shared-type-skew",
+      "verdict": "confirmed",
+      "why": "Work-order (Commons 2.1.0) sends VehicleReleased with accountId; notification bundles 1.9.4, where the field is customerId, so it reads null and the pickup notice to the customer fails.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/messaging/VehicleCustodyNotices.java:22-25",
+        "notification-service:src/main/java/io/fleetcare/notification/delivery/VehicleCustodyListener.java:23-28",
+        "notification-service:pom.xml:6-6",
+        "workorder-service:pom.xml:6-6"
+      ],
+      "risk": "r29"
+    },
+    {
+      "lead": "lead:single-instance/database:localhost:6379/redis",
+      "kind": "single-instance",
+      "verdict": "confirmed",
+      "why": "The Helm chart runs every stateful workload, this one included, as a StatefulSet with replicas 1 in every environment; when it fails, the units using it stop.",
+      "evidence": [
+        "fleetcare-deploy:helm/fleetcare/templates/infrastructure-statefulsets.yaml:1-11",
+        "fleetcare-deploy:helm/fleetcare/values.yaml:23-26"
+      ],
+      "risk": "r13"
+    },
+    {
+      "lead": "lead:single-instance/external-system:keycloak",
+      "kind": "single-instance",
+      "verdict": "confirmed",
+      "why": "The Helm chart runs every stateful workload, this one included, as a StatefulSet with replicas 1 in every environment; when it fails, the units using it stop.",
+      "evidence": [
+        "fleetcare-deploy:helm/fleetcare/templates/infrastructure-statefulsets.yaml:1-11",
+        "fleetcare-deploy:helm/fleetcare/values.yaml:23-26"
+      ],
+      "risk": "r13"
+    },
+    {
+      "lead": "lead:single-instance/service:io.fleetcare:notification-service/stomp-simple-broker",
+      "kind": "single-instance",
+      "verdict": "confirmed",
+      "why": "notification-service uses Spring's in-memory simple broker and production runs two replicas, so a push sent on one replica never reaches clients connected to the other.",
+      "evidence": [
+        "notification-service:src/main/java/io/fleetcare/notification/push/PushWebSocketConfiguration.java:18-18",
+        "fleetcare-deploy:helm/fleetcare/values-prod.yaml:1-1"
+      ]
+    },
+    {
+      "lead": "lead:single-instance/service:io.fleetcare:workorder-service/stomp-simple-broker",
+      "kind": "single-instance",
+      "verdict": "refuted",
+      "why": "Each work-order instance binds its own temporary queue to a fanout exchange and relays every bay change to its local simple broker, so a board connected to any instance gets every change.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/board/WorkshopBoardBroadcaster.java:46-56",
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/board/WorkshopBoardWebSocketConfiguration.java:13-16"
+      ],
+      "decoy": "d9"
+    },
+    {
+      "lead": "lead:weak-access-check/service:io.fleetcare:billing-service/method:io.fleetcare.billing.payment.PaymentController#pay(io.fleetcare.billing.payment.PaymentRequest)",
+      "kind": "weak-access-check",
+      "verdict": "confirmed",
+      "why": "POST /api/payments has no role check, and billing never enables method security (no @EnableMethodSecurity), so any authenticated caller can charge any invoice.",
+      "evidence": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PaymentController.java:18-20",
+        "billing-service:src/main/java/io/fleetcare/billing/BillingApplication.java:8-11"
+      ]
+    },
+    {
+      "lead": "lead:weak-access-check/service:io.fleetcare:billing-service/method:io.fleetcare.billing.payment.PaymentController#reconcile(java.lang.String)",
+      "kind": "weak-access-check",
+      "verdict": "refuted",
+      "why": "POST /api/payments/{id}/reconcile only reads the payment and returns a fixed 'queued' answer; it changes nothing, so the missing role check lets no caller do more than read.",
+      "evidence": [
+        "billing-service:src/main/java/io/fleetcare/billing/payment/PaymentController.java:22-25"
+      ]
+    },
+    {
+      "lead": "lead:weak-access-check/service:io.fleetcare:workorder-service/method:io.fleetcare.workorder.feature.telemetry.TelemetryController#requestSnapshot(java.lang.String,java.lang.String)",
+      "kind": "weak-access-check",
+      "verdict": "confirmed",
+      "why": "POST /api/vehicles/{vin}/diagnostics has no role check while work-order's other writes require one; the security chain only requires authentication, so any signed-in user can command any vehicle.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/telemetry/TelemetryController.java:13-17",
+        "workorder-service:src/main/java/io/fleetcare/workorder/config/FleetSecurityConfiguration.java:33-38"
+      ]
+    },
+    {
+      "lead": "lead:weak-access-check/service:io.fleetcare:workorder-service/method:io.fleetcare.workorder.feature.vehicle.VehicleMaintenanceController#schedule(java.lang.String,io.fleetcare.workorder.feature.vehicle.VehicleMaintenanceController$MaintenanceRequest)",
+      "kind": "weak-access-check",
+      "verdict": "confirmed",
+      "why": "POST /api/vehicles/{vin}/maintenance creates a work order for the customer id in the body with no role check; the security chain only requires authentication.",
+      "evidence": [
+        "workorder-service:src/main/java/io/fleetcare/workorder/feature/vehicle/VehicleMaintenanceController.java:20-24",
+        "workorder-service:src/main/java/io/fleetcare/workorder/config/FleetSecurityConfiguration.java:33-38"
+      ]
+    }
+  ]
 }
