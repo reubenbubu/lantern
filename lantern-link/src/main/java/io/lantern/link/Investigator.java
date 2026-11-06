@@ -732,11 +732,12 @@ public final class Investigator {
         model.index.of(Types.UNRESOLVED_LINK).stream()
             .filter(f -> f.subject().toString().equals(unit))
             .forEach(shown::add);
-        shown.addAll(model.summaries(unit));
         List<String> checked = new ArrayList<>(answers.getOrDefault(unit, List.of()));
         checked.addAll(touched.getOrDefault(unit, List.of()));
         List<FingerprintInput> inputs = new ArrayList<>();
         shown.forEach(f -> inputs.add(FingerprintInput.of(f)));
+        // The summaries are shown on their own, not among the facts (#904).
+        model.summaries(unit).forEach(f -> inputs.add(FingerprintInput.of(f)));
         // From the leads' verdicts this run (#722).
         inputs.add(
             FingerprintInput.answer(

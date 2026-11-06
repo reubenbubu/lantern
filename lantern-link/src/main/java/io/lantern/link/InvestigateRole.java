@@ -580,17 +580,6 @@ final class InvestigateRole implements PacketRole {
       if (!entry.isObject()) {
         return;
       }
-      if (role.mode != Mode.LEADS
-          && field.startsWith(InvestigatePrompt.PROPOSALS + ".P")
-          && Integer.parseInt(field.substring(InvestigatePrompt.PROPOSALS.length() + 2))
-              > MAX_PROPOSALS) {
-        found.add(
-            reject(
-                item,
-                field,
-                "A conversation keeps at most " + MAX_PROPOSALS + " proposals; this one is over."));
-        return;
-      }
       String kind = entry.path("kind").asString("");
       if (role.mode == Mode.LEADS) {
         String verdict = entry.path("verdict").asString("");
@@ -687,15 +676,14 @@ final class InvestigateRole implements PacketRole {
         io.lantern.core.fact.EntityId.parse(to);
       } catch (IllegalArgumentException e) {
         // A new system's name is its ID's key, which holds no space (#904).
+        String written = to.strip().replaceAll("\\s+", "-").toLowerCase(Locale.ROOT);
         found.add(
             reject(
                 item,
                 field,
-                "A new system's ID has no spaces: write "
-                    + to
-                    + " as "
-                    + to.strip().replaceAll("\\s+", "-").toLowerCase(Locale.ROOT)
-                    + "."));
+                written.endsWith(":") || written.equals(to)
+                    ? to + " is no ID: give the system's name after the colon, without spaces."
+                    : "A new system's ID has no spaces: write " + to + " as " + written + "."));
         return;
       }
       if (!entry.path("interaction").isString() || !entry.path("description").isString()) {
@@ -767,17 +755,44 @@ final class InvestigateRole implements PacketRole {
       return "Proposals";
     }
 
+    /**
+     * A proposal the answer could not read is rejected with what to fix, and nothing else is said
+     * of it; any other rejection is made its proposal's, the evidence piece it was about, if any,
+     * kept at the start of its reason ({@code evidence 1: ...}).
+     */
     @Override
     public List<Rejection> check(ItemAnswer answer, CheckInputs inputs) {
       List<Rejection> found = new ArrayList<>();
+      Set<String> unreadable = new java.util.HashSet<>();
+      if (answer.raw() != null) {
+        for (var proposal : answer.raw().path(InvestigatePrompt.PROPOSALS).properties()) {
+          JsonNode reason = proposal.getValue().path(InvestigateExploreAnswer.UNREADABLE);
+          if (reason.isString()) {
+            String field = InvestigatePrompt.PROPOSALS + "." + proposal.getKey();
+            unreadable.add(field);
+            found.add(new Rejection(answer.item(), field, "Answer", reason.asString()));
+          }
+        }
+      }
       for (Check check : checks) {
         for (Rejection rejection : check.check(answer, inputs)) {
           Matcher proposal = PROPOSAL.matcher(rejection.field());
+          if (!proposal.find()) {
+            found.add(rejection);
+            continue;
+          }
+          if (unreadable.contains(proposal.group(1))) {
+            continue;
+          }
+          String piece = rejection.field().substring(proposal.end()).replaceFirst("^\\.", "");
           found.add(
-              proposal.find()
-                  ? new Rejection(
-                      rejection.item(), proposal.group(1), rejection.check(), rejection.reason())
-                  : rejection);
+              new Rejection(
+                  rejection.item(),
+                  proposal.group(1),
+                  rejection.check(),
+                  piece.startsWith("evidence")
+                      ? piece + ": " + rejection.reason()
+                      : rejection.reason()));
         }
       }
       return found;

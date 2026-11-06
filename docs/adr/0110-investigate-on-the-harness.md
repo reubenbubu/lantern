@@ -321,9 +321,12 @@ Modes B and C now run as Mode A does since ADR 0128, so Investigate has one desi
   names, as a lead's are (ADR 0128); coverage and the rule that a cited line was shown no longer
   apply to them. A rejection of any part rejects that proposal only: the others are kept, and the
   reply names the rejected ones by kind and title, not by their number, which the model never saw.
-  The model may answer three times; each answer adds what passes to what was kept, and an answer
-  with nothing rejected, or the third, ends the conversation. An answer with no table says nothing
-  was found.
+  A table that cannot be read (no evidence, a malformed range, more than 10 in one answer) is
+  rejected alone in the same way. The model may answer three times; each answer adds what passes
+  to what was kept, and an answer with nothing rejected, or the third, ends the conversation. The
+  numbers run on across the answers, so the cap of `MAX_PROPOSALS` is on what is kept, not on a
+  number. An answer with no table says nothing was found; one whose tables are named otherwise
+  (`[[risks]]`) is sent back whole, told nothing was recorded.
 - *Harness.* A role whose entries may be kept in part (`partial()`) can now take a single answer:
   the parts no check rejected are kept and merged with earlier ones (`SubmitTool`).
 

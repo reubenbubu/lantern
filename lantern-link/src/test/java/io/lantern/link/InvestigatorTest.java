@@ -880,7 +880,8 @@ class InvestigatorTest {
     Investigator.Result result = investigate(fake);
 
     assertThat(secondTurn(fake))
-        .contains("risk \\\"Uploads have no size limit\\\": the quote is not a line of fs:")
+        .contains(
+            "risk \\\"Uploads have no size limit\\\": evidence 1: the quote is not a line of fs:")
         .contains("answers_left = 2");
     assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
   }
@@ -1338,6 +1339,33 @@ class InvestigatorTest {
     assertThat(found.object().value()).isEqualTo("external-system:s3");
     assertThat(found.attributes().path("mode").asString()).isEqualTo("unit");
     assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+  }
+
+  @Test
+  void anEntryWithoutEvidenceIsSentBackAndTheOthersOfItsAnswerAreKept() {
+    // One unreadable table rejects only itself (#904, review of #927).
+    headerLead();
+    String connection =
+        """
+        {"kind": "connection", "from": "service:g:files", "to": "external-system:s3",
+         "interaction": "http", "description": "Stores uploaded files",
+         "names": ["s3.example.com"], "cites": ["fs:src/main/java/f/StorageClient.java:3-3"]}""";
+    String uncited =
+        """
+        {"kind": "risk", "title": "Uploads have no size limit",
+         "finding": "upload accepts any file of any size and keeps it whole in memory before writing it to the disk.", "consequence": "A caller can fill the disk or the memory of the service with one large upload and stop it serving others.",
+         "impact": "medium", "confidence": "low", "names": ["MultipartFile"], "cites": []}""";
+    FakeLlmProvider fake =
+        submitting(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? connection + "," + uncited : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.INVESTIGATED_CONNECTION)).hasSize(1);
+    assertThat(secondTurn(fake))
+        .startsWith("recorded = \"in part")
+        .contains(
+            "risk \\\"Uploads have no size limit\\\": give at least one [[risk.evidence]] piece.")
+        .doesNotContain("connection to");
   }
 
   @Test

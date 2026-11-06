@@ -99,12 +99,41 @@ class InvestigateExploreAnswerTest {
   }
 
   @Test
-  void anEntryWithoutEvidenceIsRefusedByItsTitle() {
+  void anEntryWithoutEvidenceIsMarkedForTheRoleToRejectAndTheOthersAreRead() {
     String bare = RISK.substring(0, RISK.indexOf("[[risk.evidence]]"));
 
-    assertThatThrownBy(() -> read(new InvestigateExploreAnswer(), bare))
-        .hasMessageContaining(
-            "risk \"Uploads have no size limit\": give at least one [[risk.evidence]] piece.");
+    JsonNode proposals =
+        read(new InvestigateExploreAnswer(), bare + "\n" + CONNECTION)
+            .path(InvestigatePrompt.PROPOSALS);
+
+    assertThat(proposals.path("P1").path(InvestigateExploreAnswer.UNREADABLE).asString())
+        .isEqualTo("give at least one [[risk.evidence]] piece.");
+    assertThat(proposals.path("P2").has(InvestigateExploreAnswer.UNREADABLE)).isFalse();
+  }
+
+  @Test
+  void aMisspelledTableIsNoAnswerOfNothingFoundAndNothingIsSaidRecorded() {
+    InvestigateExploreAnswer answer = new InvestigateExploreAnswer();
+
+    assertThatThrownBy(() -> read(answer, RISK.replace("[[risk", "[[risks")))
+        .hasMessageContaining("The answer has risks but no [[risk]] or [[connection]] table");
+    assertThat(answer.failed(List.of("x"), 1, InvestigateExploreAnswer.ATTEMPTS))
+        .startsWith("recorded = false");
+  }
+
+  @Test
+  void entriesPastTheMostOneAnswerGivesAreMarkedOver() {
+    StringBuilder eleven = new StringBuilder();
+    for (int i = 0; i < 11; i++) {
+      eleven.append(RISK).append('\n');
+    }
+
+    JsonNode proposals =
+        read(new InvestigateExploreAnswer(), eleven.toString()).path(InvestigatePrompt.PROPOSALS);
+
+    assertThat(proposals.path("P10").has(InvestigateExploreAnswer.UNREADABLE)).isFalse();
+    assertThat(proposals.path("P11").path(InvestigateExploreAnswer.UNREADABLE).asString())
+        .contains("at most 10");
   }
 
   @Test

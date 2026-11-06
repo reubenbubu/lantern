@@ -55,8 +55,15 @@ final class InvestigateExploreAnswer implements SingleAnswer {
     return TOOL;
   }
 
+  /** The field of a proposal that could not be read, with what to fix; the role rejects it. */
+  static final String UNREADABLE = "unreadable";
+
+  // Whether the last answer could not be read at all, so nothing of it was recorded.
+  private boolean unread;
+
   @Override
   public synchronized JsonNode read(JsonNode input) {
+    unread = true;
     String text =
         input == null ? "" : input.isString() ? input.asString() : input.path("toml").asString("");
     JsonNode root =
@@ -67,18 +74,22 @@ final class InvestigateExploreAnswer implements SingleAnswer {
       throw new IllegalArgumentException(
           "The answer is not a TOML table of [[risk]] and [[connection]] entries.");
     }
+    if (!root.has("risk") && !root.has("connection") && !root.isEmpty()) {
+      // A misspelled table, such as [[risks]], is no answer of nothing found (#904).
+      List<String> keys = new ArrayList<>();
+      root.propertyNames().forEach(keys::add);
+      throw new IllegalArgumentException(
+          "The answer has "
+              + String.join(", ", keys)
+              + " but no [[risk]] or [[connection]] table; write each as [[risk]] or"
+              + " [[connection]], or give no table if you found nothing.");
+    }
     ObjectNode entry = FactJson.newObject();
     ObjectNode proposed = entry.putObject(InvestigatePrompt.PROPOSALS);
-    List<String> problems = new ArrayList<>();
-    tables(root.path("risk"), "risk", RISK_FIELDS, proposed, problems);
-    tables(root.path("connection"), "connection", CONNECTION_FIELDS, proposed, problems);
-    if (proposed.size() > InvestigateRole.MAX_PROPOSALS) {
-      problems.add(
-          "Give at most " + InvestigateRole.MAX_PROPOSALS + " risks and connections in all.");
-    }
-    if (!problems.isEmpty()) {
-      throw new IllegalArgumentException(String.join(" ", problems));
-    }
+    int[] inAnswer = {0};
+    tables(root.path("risk"), "risk", RISK_FIELDS, proposed, inAnswer);
+    tables(root.path("connection"), "connection", CONNECTION_FIELDS, proposed, inAnswer);
+    unread = false;
     return entry;
   }
 
@@ -87,12 +98,13 @@ final class InvestigateExploreAnswer implements SingleAnswer {
     return text.lines().map(String::strip).allMatch(line -> line.isEmpty() || line.startsWith("#"));
   }
 
+  /**
+   * Reads one kind's tables as proposals. A table that cannot be read, or one past the most an
+   * answer gives, is a proposal marked {@link #UNREADABLE} with what to fix, which the role rejects
+   * on its own, so the others of the answer are still kept (#904).
+   */
   private void tables(
-      JsonNode tables,
-      String kind,
-      Set<String> fields,
-      ObjectNode proposed,
-      List<String> problems) {
+      JsonNode tables, String kind, Set<String> fields, ObjectNode proposed, int[] inAnswer) {
     if (tables.isMissingNode()) {
       return;
     }
@@ -102,7 +114,12 @@ final class InvestigateExploreAnswer implements SingleAnswer {
       tables = one;
     }
     if (!tables.isArray()) {
-      problems.add(kind + ": give each as a [[" + kind + "]] table.");
+      String key = "P" + (++proposals);
+      labels.put(InvestigatePrompt.PROPOSALS + "." + key, kind);
+      proposed
+          .putObject(key)
+          .put("kind", kind)
+          .put(UNREADABLE, "give each " + kind + " as a [[" + kind + "]] table.");
       return;
     }
     for (JsonNode table : tables) {
@@ -121,17 +138,22 @@ final class InvestigateExploreAnswer implements SingleAnswer {
         ArrayNode list = proposal.putArray("units");
         units.forEach(u -> list.add(u.asString("").strip()));
       }
+      if (++inAnswer[0] > InvestigateRole.MAX_PROPOSALS) {
+        proposal.put(
+            UNREADABLE,
+            "an answer gives at most "
+                + InvestigateRole.MAX_PROPOSALS
+                + " risks and connections; this one is over.");
+        continue;
+      }
       try {
         InvestigateLeadAnswer.evidence(table.path("evidence"), proposal);
       } catch (IllegalArgumentException e) {
-        problems.add(kind + " " + label(table) + ": " + e.getMessage());
-        proposed.remove(key);
+        proposal.put(UNREADABLE, e.getMessage());
         continue;
       }
       if (proposal.path("evidence").isEmpty()) {
-        problems.add(
-            kind + " " + label(table) + ": give at least one [[" + kind + ".evidence]] piece.");
-        proposed.remove(key);
+        proposal.put(UNREADABLE, "give at least one [[" + kind + ".evidence]] piece.");
       }
     }
   }
@@ -152,7 +174,10 @@ final class InvestigateExploreAnswer implements SingleAnswer {
   @Override
   public String failed(List<String> problems, int attempt, int attempts) {
     StringBuilder out =
-        new StringBuilder("recorded = \"in part: the entries below were not recorded\"\n");
+        new StringBuilder(
+            unread
+                ? "recorded = false\n"
+                : "recorded = \"in part: the entries below were not recorded\"\n");
     out.append("problems = [\n");
     for (String problem : problems) {
       out.append("  ").append(io.lantern.harness.Toml.string(named(problem))).append(",\n");

@@ -87,6 +87,18 @@ class InvestigateRoleChecksTest {
   }
 
   @Test
+  void aProposalNumberedPastTheCapIsNotRejectedForItsNumber() {
+    // Numbers run on across a conversation's answers; the store keeps at most the cap (#927).
+    List<Rejection> found =
+        checked(
+            role(InvestigateRole.Mode.UNIT),
+            "{\"proposals\": {\"P11\": {\"kind\": \"risk\", \"names\": [\"upload\"],"
+                + " \"cites\": [\"fs:F.java:3-3\"]}}}");
+
+    assertThat(found).noneMatch(r -> r.reason().contains("at most"));
+  }
+
+  @Test
   void aClaimContradictingAStaticClaimIsRejectedByConflict() {
     InvestigateRole role = role(InvestigateRole.Mode.UNIT);
     CheckInputs inputs = role.inputs(List.of(), List.of("I1"));
