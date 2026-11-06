@@ -103,7 +103,7 @@ Answers sent back: 27 on main, 57 here, most for a name a piece shows and its ra
 A first panel that compared names exactly sent back 65 for names such as a class cited from its
 own file, so names are compared as above; a line written as `repo:path:12` is read as `12-12`
 since, which three answers on project-8 were sent back for. Turns rose because each tool answer is
-cut at about 1,000 characters (ADR 0127) and the model pages through a file in several calls.
+cut at about 1,000 characters (ADR 0127; 1,500 since #915) and the model pages through a file in several calls.
 
 ## Consequences
 

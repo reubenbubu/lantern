@@ -85,11 +85,7 @@ class InvestigatePromptTest {
         .isEqualTo("11 710d292efb749ce20b9bd6a27974af4ad1284beb71a29d6ec46d4fc0f3978f6e");
   }
 
-  /**
-   * Modes B and C's instructions and the submit schema are the epic's, character for character
-   * (knowledge-build epic, section 11.2); Mode A's own instructions live only in the prompt files
-   * (#892).
-   */
+  /** Mode A is told the cut of a tool answer, the same number the tools cut at (#915). */
   @Test
   void theLeadInstructionsStateTheCutOfAToolAnswer() {
     assertThat(InvestigatePrompt.LEADS_TASK)
@@ -100,6 +96,11 @@ class InvestigatePromptTest {
                 + " characters is cut");
   }
 
+  /**
+   * Modes B and C's instructions and the submit schema are the epic's, character for character
+   * (knowledge-build epic, section 11.2); Mode A's own instructions live only in the prompt files
+   * (#892).
+   */
   @Test
   void theInvestigatePromptIsTheEpics() throws Exception {
     String epic = Files.readString(Path.of("../docs/epics/001-knowledge-build.md"));
