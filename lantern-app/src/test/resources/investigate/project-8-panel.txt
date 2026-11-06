@@ -12,9 +12,11 @@ lead:identity-from-request/service:io.fleetcare:workorder-service/header:X-User-
 lead:open-cors/method:io.fleetcare.portal.BrowserAccessConfiguration#addCorsMappings(org.springframework.web.servlet.config.annotation.CorsRegistry)//graphql
 lead:open-cors/type:io.fleetcare.parts.inventory.PublicAvailabilityController/cross-origin
 lead:plaintext-secret/module:io.fleetcare:billing-service/accounting.sftp.password
+lead:plaintext-secret/module:io.fleetcare:billing-service/billing.paygrid.request-signing-key@local
 lead:plaintext-secret/module:io.fleetcare:billing-service/billing.paygrid.request-signing-key@prod
 lead:plaintext-secret/module:io.fleetcare:billing-service/fleetcare.identity.admin-password
 lead:plaintext-secret/module:io.fleetcare:billing-service/fleetcare.jwt.shared-secret
+lead:plaintext-secret/module:io.fleetcare:billing-service/paygrid.api-key
 lead:plaintext-secret/module:io.fleetcare:billing-service/paygrid.api-key@local
 lead:plaintext-secret/module:io.fleetcare:billing-service/spring.artemis.password
 lead:plaintext-secret/module:io.fleetcare:billing-service/spring.rabbitmq.password

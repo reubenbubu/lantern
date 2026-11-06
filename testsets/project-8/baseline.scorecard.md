@@ -1,23 +1,23 @@
 # Scorecard: project-8
 
-- Report: `workspace/scores/k891-final/project-8/_system.c4.html` (project-8)
-- Reference: `~/workspace/lantern-test-projects/project-8/expected/reference/reference.c4.json`
-- Run: 0 LLM calls, 0 tokens, $0
-  - SUMMARIZE: fake/fake-model (0 calls, $0)
-  - SUMMARIZE_TYPES: fake/fake-model (0 calls, $0)
-  - RESOLVE: fake/fake-model (0 calls, $0)
-  - INVESTIGATE: fake/fake-model (0 calls, $0)
-  - INFER_INTENT: fake/fake-model (0 calls, $0)
-  - DESCRIBE_ELEMENTS: fake/fake-model (0 calls, $0)
-  - NAME_GROUPS: fake/fake-model (0 calls, $0)
+- Report: `/home/reuben/workspace/lantern/.claude/worktrees/feature-891/workspace/scores/k891-r2/project-8/_system.c4.html` (project-8)
+- Reference: `/tmp/claude-1000/-home-reuben-workspace-lantern--claude-worktrees-bridge-cse-017Z29iQpJ67CHFeDsbnrWSp/d09c26cf-21a9-568a-89eb-473a7b60105f/scratchpad/feature-891-project8-investigate-key/sets/project-8/expected/reference/reference.c4.json`
+- Run: 509 LLM calls, 2743462 tokens, $0
+  - SUMMARIZE: fake/fake-model (81 calls, $0)
+  - SUMMARIZE_TYPES: fake/fake-model (213 calls, $0)
+  - RESOLVE: fake/fake-model (4 calls, $0); 2 conversations, 4 turns (at most 2), tool calls: submit 2; ended: ANSWERED 2
+  - INVESTIGATE: fake/fake-model (120 calls, $0); 120 conversations, 120 turns (at most 1), tool calls: none; ended: ANSWERED 120
+  - INFER_INTENT: fake/fake-model (20 calls, $0)
+  - DESCRIBE_ELEMENTS: fake/fake-model (7 calls, $0)
+  - NAME_GROUPS: fake/fake-model (9 calls, $0)
   - PROPOSE_RULES: fake/fake-model (0 calls, $0)
-  - FLOW_SIGNIFICANCE: fake/fake-model (0 calls, $0)
-  - COMPOSE: fake/fake-model (0 calls, $0)
+  - FLOW_SIGNIFICANCE: fake/fake-model (10 calls, $0)
+  - COMPOSE: fake/fake-model (20 calls, $0)
   - TRANSLATE: fake/fake-model (0 calls, $0)
   - JUDGE: fake/fake-model (0 calls, $0)
-  - SCREEN: fake/fake-model (0 calls, $0)
+  - SCREEN: fake/fake-model (25 calls, $0)
   - WORDING_JUDGE: fake/fake-model (0 calls, $0)
-- Support judge: describe-element 3 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; describe-unit 89 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; flow-narrative 2 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; name-groups 27 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; summarize 9 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; summarize-type 26 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording
+- Support judge: describe-element 3 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; describe-unit 20 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; flow-narrative 2 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; name-groups 27 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; summarize 10 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording; summarize-type 26 supported, 0 partly, 0 unsupported, 0 asked again, 0 in plain wording
 
 ## Counts
 
@@ -30,28 +30,28 @@
 | People | 4/5 (80%) | 4/7 (57%) | 4/4 (100%) |
 | Container connections | 28/84 (33%) | 28/59 (47%) | same |
 | Flows | 2/9 (22%) | 2/7 (29%) | same |
-| Risks | 0/29 (0%) | 0/0 | same |
+| Risks | 0/36 (0%) | 0/0 | same |
 | Decisions | 3/6 (50%) | 3/5 (60%) | same |
 | Glossary terms | 5/14 (36%) | 5/19 (26%) | same |
 
 Connections by protocol (matched/reference, report): person 0/1, 0; HTTP 7/15, 21; other 0/8, 0; data store 6/13, 10; messaging 15/46, 28; email 0/1, 0.
-Components (report/reference): 115/117; Staff web app 0/3, Customer web app 0/2, Yard board web app 0/0, Edge gateway 4/3, Customer portal BFF 3/3, Platform discovery 0/0, Platform config 0/0, Work order service 50/48, Technician service 8/10, Parts inventory 7/7, Telematics ingest 5/7, Billing service 26/26, Notification service 12/8, Fleet audit 0/0, Keycloak 0/0, PostgreSQL server 0/0.
+Components (report/reference): 114/117; Staff web app 0/3, Customer web app 0/2, Yard board web app 0/0, Edge gateway 4/3, Customer portal BFF 3/3, Platform discovery 0/0, Platform config 0/0, Work order service 50/48, Technician service 8/10, Parts inventory 7/7, Telematics ingest 5/7, Billing service 26/26, Notification service 11/8, Fleet audit 0/0, Keycloak 0/0, PostgreSQL server 0/0.
 
 ## Rows per role
 
 | Role | Result |
 | --- | --- |
 | Resolve | 3 links: coverage 0%, accuracy -, penalized 33% (p = 3), over-abstention 100%; 0 not asked |
-| Describe | elements 171/175 (98%); model: 349/349 interactions a view can draw with their own intent (100%), 0 generic, 0 don't know, 0 not asked; penalized 100% (p = 1); drawn: 307/319 lines with their own intent (96%), 6 generic (0 of them on a line whose link has a stored intent); steps 23 drawn, 23 intended, 23 own, 0 fallback; judge not measured (the run did not judge wording (score-testsets.sh --judge-wording)) |
+| Describe | elements 170/174 (98%); model: 349/349 interactions a view can draw with their own intent (100%), 0 generic, 0 don't know, 0 not asked; penalized 100% (p = 1); drawn: 307/319 lines with their own intent (96%), 6 generic (0 of them on a line whose link has a stored intent); steps 23 drawn, 23 intended, 23 own, 0 fallback; judge not measured (the run did not judge wording (score-testsets.sh --judge-wording)) |
 | Flows | 0/9 recall (0%), 0/7 precision (0%) |
 | Flow selection | rank fallback: 3/3 reference flows chosen (100%), 2/7 chosen flows in the reference (29%), penalized 100% (p = 1); 52 candidates, 6 reference flows not among them; 0 overlapping drawn flows |
-| Investigate | 0/29 recall (0%), 0/0 drawn risks right (precision -), 0 of 0 drawn unjudged; decoys flagged 0/11, TPR − FPR 0% |
+| Investigate | 0/36 recall (0%), 0/0 drawn risks right (precision -), 0 of 0 drawn unjudged; decoys flagged 0/12, TPR − FPR 0% |
 | Repeated risks | none |
-| Fixed checks worded | 0/0 right (precision -), 0 of 0 unjudged; 0/29 reference risks |
+| Fixed checks worded | 0/0 right (precision -), 0 of 0 unjudged; 0/36 reference risks |
 | Investigate connections | 0/0 right (precision -), 0 of 0 unjudged; 0/82 reference connections found |
 | Name groups | 18/18 named (100%); judge not measured (the run did not judge wording (score-testsets.sh --judge-wording)) |
 | Purpose | key fact judge not measured (the run did not judge wording (score-testsets.sh --judge-wording)) |
-| Harness | $0, 0 calls, tokens in 0 / out 0 / cache read 0 / cache write 0; cache hit rate 100% of 780 items; warm not measured (no warm rerun given (--warm <run.json>)); one-file change not measured (no one-file change run given (--change <run.json>)) |
+| Harness | $0, 509 calls, tokens in 918443 / out 29593 / cache read 1259536 / cache write 533857; cache hit rate 0% of 784 items; warm not measured (no warm rerun given (--warm <run.json>)); one-file change not measured (no one-file change run given (--change <run.json>)) |
 
 Describe's model coverage by kind of interaction: of the interactions a view can draw, how many have no intent of their own (generic, don't know, not asked), most first.
 
@@ -84,7 +84,7 @@ Answer key: `/home/reuben/workspace/lantern/.claude/worktrees/feature-891/testse
 - People: Fleet coordinator
 - Container connections: Fleet coordinator -> Customer portal BFF; Staff web app -> Edge gateway; Staff web app -> Keycloak; Customer web app -> Customer portal BFF; Customer web app -> Keycloak; Edge gateway -> Keycloak; Customer portal BFF -> Keycloak; Work order service -> Keycloak; Work order service -> fleet.workorder.events; Technician service -> technician; Parts inventory -> parts; Parts inventory -> Elasticsearch; Parts inventory -> PartsHub; Parts inventory -> Legacy parts endpoint; Notification service -> fleet.workorder.events; Telematics ingest -> MongoDB; Telematics ingest -> MinIO object store; fleet.workorder.events -> notification.payment.events; fleet.workorder.events -> workorder.payment.audit; notification.payment.events -> Notification service; Billing service -> workorder; Billing service -> PayGrid; billing.dead.letters -> notification.payment.declined; notification.payment.declined -> Notification service; Billing service -> Keycloak; Notification service -> billing.dead.letters; fleet.workorder.events -> notification.workorder.created; fleet.workorder.events -> notification.workorder.completed; fleet.workorder.events -> notification.workorder.cancelled; fleet.workorder.events -> notification.maintenance.reminders; notification.maintenance.reminders -> Notification service; notification.payment.events -> fleet.dead.letters; notification.workorder.created -> Notification service; notification.workorder.completed -> Notification service; notification.workorder.cancelled -> Notification service; Notification service -> fleet.dead.letters; fleet.dead.letters -> notification.failed; notification.failed -> Notification service; Notification service -> SMTP relay; Notification service -> TextNow; notification.commands -> notification.commands; notification.commands -> Notification service; notification.broadcast -> notification.broadcast.all; notification.broadcast.all -> Notification service; notification.headers -> notification.priority; notification.priority -> Notification service; Billing service -> Fleet registry API; Billing service -> Accounting SFTP; Billing service -> Accounting partner status API; Yard board web app -> Edge gateway; Notification service -> notification; fleet.workorder.custody -> notification.vehicle.received; fleet.workorder.custody -> notification.vehicle.released; notification.vehicle.received -> Notification service; notification.vehicle.released -> Notification service; workorder.board -> Work order service
 - Flows: Book a repair (POST /graphql); Reserve a part for a work order (POST /api/work-orders/{}/parts); Issue an invoice and submit payment (POST /api/invoices); Run accounting reconciliation (POST /api/reconciliation/runs); Handle an unavailable payment provider (POST /api/payments); Staff user signs in (GET /realms/fleetcare/protocol/openid-connect/auth); Subscribe to staff updates (stomp)
-- Risks: Shared JWT signing secret; Technician lookup path mismatch; BFF availability parameter mismatch; Shift update method mismatch; Payment publication and database commit; Role substring matching; Forwarded identity trust; Billing dependency and image lifecycle; Shared-library version skew; Unmatched staff summary route; Potential duplicate vehicle-history route mapping; Compose credentials; Stateful replica count; Reconciliation work-order window; Billing reads work-order database; Payment audit listener; Read-model payload mismatch; Customer booking GraphQL field mismatch; Staff WebSocket authentication; Customer booking authentication; Test coverage; Production logging; Notification role checks not enforced; Billing default database; Billing start-up settings; Portal GraphQL open to every origin; Staging drops the notification schema; Committed PayGrid signing key; Vehicle release message skew
+- Risks: Shared JWT signing secret; Technician lookup path mismatch; BFF availability parameter mismatch; Shift update method mismatch; Payment publication and database commit; Role substring matching; Forwarded identity trust; Billing dependency and image lifecycle; Shared-library version skew; Unmatched staff summary route; Potential duplicate vehicle-history route mapping; Compose credentials; Stateful replica count; Reconciliation work-order window; Billing reads work-order database; Payment audit listener; Read-model payload mismatch; Customer booking GraphQL field mismatch; Staff WebSocket authentication; Customer booking authentication; Test coverage; Production logging; Notification role checks not enforced; Billing default database; Billing start-up settings; Portal GraphQL open to every origin; Staging drops the notification schema; Committed PayGrid signing key; Vehicle release message skew; Staff app API address baked in; Refund sent before it is recorded; Supplier order sent before commit; Notification STOMP broker per instance; Payment endpoint without role check; Diagnostic snapshot without role check; Maintenance booking without role check
 - Decisions: Use Kafka for vehicle telemetry streams; Use JobRunr for SLA checks; Temporarily share work-order data for reconciliation
 - Glossary terms: Work order (WO); VIN; DTC; RMA; ETA; BFF; JWT; gRPC; SFTP
 
@@ -111,8 +111,8 @@ Each size rule of `prompts/<role>.contract.json`, too short and too long apart. 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | describe-elements | responsibility | words | 6 to 22 | 5 to 25 | 34 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
 | describe-elements | responsibility | sentences | 1 to 1 | 1 to 2 (measured) | 34 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
-| describe-units | responsibility | words | 10 to 22 | 8 to 25 | 127 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
-| describe-units | responsibility | sentences | 1 to 1 | 1 to 2 (measured) | 127 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
+| describe-units | responsibility | words | 10 to 22 | 8 to 25 | 126 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
+| describe-units | responsibility | sentences | 1 to 1 | 1 to 2 (measured) | 126 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
 | describe-units | intent | words | 4 to 7 | 3 to 8 | 293 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
 | flow-narrative | title | words | 3 to 5 | 3 to 8 | 19 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
 | name-groups | name | words | 1 to 3 | 1 to 4 | 18 | 100% | 0% | 0% | 0, 0 | 0, 0 | 0, 0 |
