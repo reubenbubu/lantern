@@ -54,7 +54,7 @@ public final class Groups implements LinkRule.OverFacts {
   public static final String NAME = "groups";
 
   /** Raised whenever the groups it gives for the same facts change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The basis of a pocket of units that work closely together (#764). */
   public static final String COUPLING = "coupling";
@@ -335,6 +335,10 @@ public final class Groups implements LinkRule.OverFacts {
     if (!byFeatureFolder(knowledge, components, areas, placed)) {
       byResourcePath(knowledge, components, areas, placed);
     }
+    // An area of one stands for nothing and is not stored; its member goes on to the next rules
+    // like any other component no rule placed (#764).
+    areas.values().removeIf(area -> area.members.size() < 2);
+    placed.keySet().removeIf(member -> !areas.containsKey(placed.get(member)));
     Set<EntityId> own = ownCode(knowledge, unit);
     if (!areas.isEmpty()) {
       byCallsOrTables(knowledge, components, areas, placed, own);

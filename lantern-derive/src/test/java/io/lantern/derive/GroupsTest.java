@@ -199,6 +199,26 @@ class GroupsTest {
   }
 
   @Test
+  void theOnlyEntryPointOfAFeatureFolderJoinsTheAreaItCallsMost() {
+    // An area of one is not stored, so its member is placed like any other (#764).
+    unit(BILLING, BILLING_MODULE, "billing");
+    controller("io.acme.billing.invoice", "InvoiceController", "GET /invoices");
+    controller("io.acme.billing.invoice", "InvoiceEvents", "GET /invoices/events");
+    controller("io.acme.billing.payment", "PaymentController", "POST /payments");
+    controller("io.acme.billing.payment", "RefundController", "POST /refunds");
+    controller("io.acme.billing.collections", "DunningController", "GET /dunning");
+    controller("io.acme.billing.collections", "CollectionsController", "GET /collections");
+    EntityId lone = controller("io.acme.billing.reminders", "ReminderController", "GET /reminders");
+    link(lone, component("io.acme.billing.payment.PaymentController"));
+
+    Map<String, Set<String>> areas = areas(BILLING);
+
+    assertThat(areas)
+        .containsOnlyKeys(area("pkg-collections"), area("pkg-invoice"), area("pkg-payment"));
+    assertThat(areas.get(area("pkg-payment"))).contains(lone.toString());
+  }
+
+  @Test
   void aComponentLinkedOnlyToOneJoinedByCallsJoinsInALaterRound() {
     unit(BILLING, BILLING_MODULE, "billing");
     controller("io.acme.billing.web", "OrderController", "GET /orders");
