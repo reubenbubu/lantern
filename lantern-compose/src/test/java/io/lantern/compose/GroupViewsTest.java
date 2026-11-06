@@ -347,6 +347,76 @@ class GroupViewsTest {
                     .allMatch(n -> p.title().contains(n.label())));
   }
 
+  @Test
+  void anEntryPointThatAloneReachesTooMuchGoesOneStepDownPerPage() {
+    // Owner's decision of 6 Nov 2026 on #764: what it calls directly, then each of those that
+    // calls further on a page of its own; no kind of class is treated apart.
+    TestFacts many = TestFacts.runtime();
+    String pkg = "package:com.example:app:com.example.desk";
+    many.relate("shop", "module:com.example:app", "CONTAINS", pkg);
+    for (String entry : List.of("Big", "Small")) {
+      String type = "type:com.example.desk." + entry;
+      many.relate("shop", pkg, "CONTAINS", type)
+          .attribute("shop", type, "stereotype", "controller", "{\"rest\": true}")
+          .relate("shop", type, "CONTAINS", method(type, "get"))
+          .attribute("shop", method(type, "get"), "endpoint", "GET /d/" + entry, "{}");
+    }
+    for (int i = 1; i <= 5; i++) {
+      String service = bean(many, pkg, "S" + i);
+      many.relate(
+              "shop", method("type:com.example.desk.Big", "get"), "CALLS", method(service, "run"))
+          .relate(
+              "shop",
+              method("type:com.example.desk.Small", "get"),
+              "CALLS",
+              method(service, "run"));
+    }
+    for (int i = 1; i <= 3; i++) {
+      String deeper = bean(many, pkg, "T" + i);
+      // Called by S1 and S2, so each is a component of its own, not a part of either.
+      many.relate("shop", method("type:com.example.desk.S1", "run"), "CALLS", method(deeper, "run"))
+          .relate(
+              "shop", method("type:com.example.desk.S2", "run"), "CALLS", method(deeper, "run"));
+    }
+    DiagramLimits limits = limits(4, 2);
+    Section app =
+        section(system(many.list(), limits), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    List<Section> desk =
+        app.sections().stream().filter(p -> p.title().startsWith("d (not named): ")).toList();
+    assertThat(desk)
+        .allSatisfy(p -> assertThat(C4Views.fits(block(p, Diagram.class), limits)).isTrue());
+    assertThat(desk)
+        .extracting(Section::title)
+        .contains(
+            "d (not named): from Big (1 of 2)",
+            "d (not named): from Big (2 of 2)",
+            "d (not named): what S1 calls",
+            "d (not named): what S2 calls");
+    Section deeper =
+        desk.stream().filter(p -> p.title().endsWith("what S1 calls")).findFirst().orElseThrow();
+    assertThat(block(deeper, Diagram.class).nodes())
+        .extracting(Diagram.Node::label)
+        .contains("S1", "T1", "T2", "T3")
+        .doesNotContain("Big", "Small");
+  }
+
+  private static String method(String type, String name) {
+    return type.replace("type:", "method:") + "#" + name + "()";
+  }
+
+  private static String bean(TestFacts facts, String pkg, String name) {
+    String type = "type:com.example.desk." + name;
+    facts
+        .relate("shop", pkg, "CONTAINS", type)
+        .attribute("shop", type, "stereotype", "service", "{}")
+        .relate("shop", type, "CONTAINS", method(type, "run"));
+    return type;
+  }
+
   /** shop-app with three feature folders of controllers, more than one view holds. */
   private static TestFacts manyComponents() {
     TestFacts many = TestFacts.runtime();

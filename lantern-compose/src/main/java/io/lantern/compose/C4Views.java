@@ -1653,8 +1653,8 @@ final class C4Views {
    * reaches goes on the last page. Each page is titled by the scope and its entry points.
    */
   /**
-   * The components whose lines into a page's focus are left off it: on a page of entry points, the
-   * rest of the components being split, each drawn on its own page with what it calls.
+   * The components whose lines to or from a page's focus are left off it: on the pages of a split,
+   * the rest of the components being split, each drawn on a page of its own.
    */
   private Set<EntityId> callersElsewhere = Set.of();
 
@@ -1752,10 +1752,35 @@ final class C4Views {
     current.addAll(left);
     pages.add(current);
     pageEntries.add(currentEntries);
-    List<Section> result = new ArrayList<>();
+    // A page still too large for its one entry point goes one step down per page (#764): the
+    // entry point with what it calls directly, then each of those that calls further, the same way.
+    List<String> headings = new ArrayList<>();
+    List<Set<EntityId>> drawn = new ArrayList<>();
+    Set<EntityId> visited = new HashSet<>();
     for (int i = 0; i < pages.size(); i++) {
       String from =
           "from " + ScopeFlows.list(pageEntries.get(i).stream().map(assembler::name).toList());
+      if (pageEntries.get(i).size() == 1
+          && !fits(componentDiagram(TRIAL, unit, components, title, pages.get(i), lift))) {
+        stepDown(
+            pageEntries.get(i).getFirst(),
+            true,
+            calls,
+            visited,
+            unit,
+            components,
+            title,
+            lift,
+            headings,
+            drawn);
+        continue;
+      }
+      headings.add(from);
+      drawn.add(pages.get(i));
+    }
+    List<Section> result = new ArrayList<>();
+    for (int i = 0; i < drawn.size(); i++) {
+      String from = headings.get(i);
       String pageId = assembler.id(id, "part-" + (i + 1));
       result.add(
           new Section(
@@ -1770,11 +1795,58 @@ final class C4Views {
                       unit,
                       components,
                       title + ", " + from,
-                      pages.get(i),
+                      drawn.get(i),
                       lift)),
               List.of()));
     }
     return result;
+  }
+
+  /**
+   * The pages of one component and what it calls directly, as many as it takes to fit, then the
+   * same for each of those that calls further, each component a page of its own at most once.
+   */
+  private void stepDown(
+      EntityId root,
+      boolean entry,
+      Map<EntityId, Set<EntityId>> calls,
+      Set<EntityId> visited,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Map<EntityId, EntityId> lift,
+      List<String> headings,
+      List<Set<EntityId>> drawn) {
+    if (!visited.add(root)) {
+      return;
+    }
+    Set<EntityId> direct = calls.getOrDefault(root, Set.of());
+    List<Set<EntityId>> parts = new ArrayList<>();
+    Set<EntityId> current = new java.util.LinkedHashSet<>(List.of(root));
+    for (EntityId callee : direct) {
+      Set<EntityId> together = new java.util.LinkedHashSet<>(current);
+      together.add(callee);
+      if (current.size() == 1
+          || fits(componentDiagram(TRIAL, unit, components, title, together, lift))) {
+        current = together;
+      } else {
+        parts.add(current);
+        current = new java.util.LinkedHashSet<>(List.of(root, callee));
+      }
+    }
+    parts.add(current);
+    String heading =
+        entry ? "from " + assembler.name(root) : "what " + assembler.name(root) + " calls";
+    for (int i = 0; i < parts.size(); i++) {
+      headings.add(
+          parts.size() == 1 ? heading : heading + " (" + (i + 1) + " of " + parts.size() + ")");
+      drawn.add(parts.get(i));
+    }
+    for (EntityId callee : direct) {
+      if (!calls.getOrDefault(callee, Set.of()).isEmpty()) {
+        stepDown(callee, false, calls, visited, unit, components, title, lift, headings, drawn);
+      }
+    }
   }
 
   /**
@@ -1847,6 +1919,7 @@ final class C4Views {
         if (to == null
             || !(focus.contains(component.main()) || focus.contains(to))
             || (!focus.contains(component.main()) && callersElsewhere.contains(component.main()))
+            || (!focus.contains(to) && callersElsewhere.contains(to))
             || merged(lift, component.main(), to)) {
           continue;
         }
