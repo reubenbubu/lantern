@@ -10,7 +10,7 @@
     "cacheSystem" : false,
     "messages" : [ {
       "author" : "USER",
-      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed across the deployable units of the whole system, reading their code: what one unit does that another relies on.\"\nrepositories = [\"fs\", \"gw\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>.\"\n\n[[unit]]\nid = \"service:g:files\"\nrepositories = [\"fs\"]\n\n[[unit]]\nid = \"service:g:gateway\"\nrepositories = [\"gw\"]\n\n[[known]]\nverdict = \"confirmed\"\nwhat = \"service:g:files: Files trust the caller's user header\"\n\n[[known]]\nverdict = \"found\"\nwhat = \"service:g:files: Every file goes to one fixed bucket\"\n"
+      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed across the deployable units of the whole system, reading their code: what one unit does that another relies on.\"\nrepositories = [\"fs\", \"gw\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>.\"\nalready_known = \"Each [[known]] below is a lead already checked or a risk already found; do not report it again, nor a link the facts already state.\"\n\n[[unit]]\nid = \"service:g:files\"\nrepositories = [\"fs\"]\n\n[[unit]]\nid = \"service:g:gateway\"\nrepositories = [\"gw\"]\n\n[[known]]\nverdict = \"confirmed\"\nwhat = \"service:g:files: Files trust the caller's user header\"\n\n[[known]]\nverdict = \"found\"\nwhat = \"service:g:files: Every file goes to one fixed bucket\"\n"
     } ],
     "maxOutputTokens" : 4000,
     "cacheBreaks" : [ {
@@ -99,7 +99,7 @@
     "text" : "",
     "stopReason" : "tool_use",
     "usage" : {
-      "input" : 1623,
+      "input" : 1660,
       "output" : 173,
       "cacheWrite" : 0,
       "cacheRead" : 0

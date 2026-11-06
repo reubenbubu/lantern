@@ -10,7 +10,7 @@
     "cacheSystem" : false,
     "messages" : [ {
       "author" : "USER",
-      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed in the deployable unit service:g:files, reading its code.\"\nrepositories = [\"fs\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>.\"\n\n[unit]\nid = \"service:g:files\"\nfacts = [\n  \"files contains files.\",\n  \"files deployable unit spring-boot.\",\n]\n\n[[known]]\nverdict = \"confirmed\"\nwhat = \"Files trust the caller's user header\"\n"
+      "text" : "[task]\nwhat = \"Find the risks and connections static analysis missed in the deployable unit service:g:files, reading its code.\"\nrepositories = [\"fs\"]\nunits = [\"service:g:files\", \"service:g:gateway\"]\nends = \"A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>.\"\nalready_known = \"Each [[known]] below is a lead already checked or a risk already found; do not report it again, nor a link the facts already state.\"\n\n[unit]\nid = \"service:g:files\"\nfacts = [\n  \"files contains files.\",\n  \"files deployable unit spring-boot.\",\n]\n\n[[known]]\nverdict = \"confirmed\"\nwhat = \"Files trust the caller's user header\"\n"
     } ],
     "maxOutputTokens" : 4000,
     "cacheBreaks" : [ {
@@ -99,7 +99,7 @@
     "text" : "",
     "stopReason" : "tool_use",
     "usage" : {
-      "input" : 1580,
+      "input" : 1618,
       "output" : 175,
       "cacheWrite" : 0,
       "cacheRead" : 0

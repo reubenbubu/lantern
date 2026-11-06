@@ -118,8 +118,14 @@ public final class Investigator {
               "Give your answer now with what you have found.")
           .withTurnGuard(60_000, InvestigateLeadAnswer.NAME, 100);
 
-  /** The caps of a Mode B or C conversation: a lead's (#904). */
-  static final ConversationLimits EXPLORE_LIMITS = LEAD_LIMITS;
+  /**
+   * The caps of a Mode B or C conversation: a lead's, with the guard on one turn at half a lead's
+   * (#904). A unit's conversation has no one question to settle, so without it the model reads on
+   * for 40 turns or more, at about $0.03 a unit on project-8. What a turn sends grows with every
+   * tool answer, so the nudge to answer comes at 22,500 tokens a turn, about 15 turns in.
+   */
+  static final ConversationLimits EXPLORE_LIMITS =
+      LEAD_LIMITS.withTurnGuard(30_000, InvestigateLeadAnswer.NAME, 100);
 
   /** Mode A as the harness runs it. */
   public static final RoleSpec LEADS =

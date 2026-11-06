@@ -62,7 +62,7 @@ final class InvestigateExploreAnswer implements SingleAnswer {
     JsonNode root =
         input != null && input.isObject() && (input.has("risk") || input.has("connection"))
             ? input
-            : text.isBlank() ? FactJson.newObject() : InvestigateLeadAnswer.parse(text);
+            : nothing(text) ? FactJson.newObject() : InvestigateLeadAnswer.parse(text);
     if (!root.isObject()) {
       throw new IllegalArgumentException(
           "The answer is not a TOML table of [[risk]] and [[connection]] entries.");
@@ -80,6 +80,11 @@ final class InvestigateExploreAnswer implements SingleAnswer {
       throw new IllegalArgumentException(String.join(" ", problems));
     }
     return entry;
+  }
+
+  /** Whether an answer holds nothing but blank lines and comments: nothing found. */
+  static boolean nothing(String text) {
+    return text.lines().map(String::strip).allMatch(line -> line.isEmpty() || line.startsWith("#"));
   }
 
   private void tables(

@@ -76,6 +76,17 @@ class InvestigateExploreAnswerTest {
   }
 
   @Test
+  void anAnswerOfCommentsAloneSaysNothingWasFound() {
+    // As Haiku wrote it on project-8: a comment saying why, and no table.
+    assertThat(
+            read(
+                    new InvestigateExploreAnswer(),
+                    "# No risks or connections found.\n# The unit only starts the application.\n")
+                .path(InvestigatePrompt.PROPOSALS))
+        .isEmpty();
+  }
+
+  @Test
   void anEntryWithoutEvidenceIsRefusedByItsTitle() {
     String bare = RISK.substring(0, RISK.indexOf("[[risk.evidence]]"));
 
