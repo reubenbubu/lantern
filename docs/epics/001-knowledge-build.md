@@ -464,7 +464,7 @@ The architecture model is computed once per snapshot and stored, before any LLM 
 
 ### Grouping
 
-A large system or service is drawn at a higher level by bundling related elements into groups. Membership comes from the code; the LLM only names the groups (11.8); people may later pin, rename, merge or split them through annotations (Phase 3). An LLM never decides membership, because a guessed grouping is both unverifiable and unstable across commits.
+A large system or service is drawn at a higher level by bundling related elements into groups. Membership comes from the code first; what the code leaves ungrouped a late LLM step groups by meaning, checked by code and stored so it stays stable across commits (#919, owner's direction of 6 Nov 2026; ADR 0129); the LLM names every group (11.8); people may later pin, rename, merge or split them through annotations (Phase 3).
 
 **Components first.** Before any grouping, components follow the bar's rule (`docs/quality-bar.md`, Components come from how the code is used): each entry point anchors one component, and the classes only it reaches (its services, repositories, policies) are inside it, not drawn beside it. Classes several entry points share form a shared component. Domain, DTO, mapper, configuration and util classes are left out. This is #271, and a shared component holds the classes reached only through it (#637). On FleetCare, #271 took workorder-service from 47 boxes to 52 and billing-service from 32 to 31, and #637 then to 46 and 26, which is what FleetCare's reference draws by the same rule (48 and 26 components, besides its area boxes). The estimates first written here, about 25 and 16, were made before the reference and were wrong.
 
@@ -488,7 +488,7 @@ A large system or service is drawn at a higher level by bundling related element
 - **Stable keys.** A key comes from its signal, never from its membership, so adding an endpoint or a unit to an existing group does not rename it.
 - **Lines.** Lines between groups are aggregated: one line per ordered pair (source group or ungrouped element, target group or ungrouped element) and protocol, standing for the member lines. They follow wholly from the stored groups and member lines, so a view computes them when it needs them rather than storing a second copy (#615, as Glean's on-demand derived predicates). Lines inside one group are not aggregated.
 - **Levels.** The groupings above are the candidate levels of a view, from fine to coarse: none, feature areas, domains (a group smaller than the setting's smallest group is no candidate). The finest level whose boxes fit the measured limit of `lantern.diagrams` is the one drawn, so the level changes only when the view's own members or lines do; each box names its group, and no frame is drawn (`docs/design.md`, Readable diagrams; owner's decisions of 4 and 5 Nov 2026 on #764 and #836).
-- **What the signals leave.** It stays ungrouped. #764 tried pockets by coupling and dropped them, as a pocket's name came from its central member; the owner chose instead a late LLM step that groups it by meaning (#919, 6 Nov 2026). Clustering by coupling (#537) stays in Later.
+- **What the signals leave.** Where a view would hold more than the limits, the grouping role groups it by meaning after Describe, membership only, its groups stored and kept (#919; ADR 0129; `docs/design.md`, Groups). #764 tried pockets by coupling and dropped them, as a pocket's name came from its central member. Clustering by coupling (#537) stays in Later.
 
 ### What stays in composition
 

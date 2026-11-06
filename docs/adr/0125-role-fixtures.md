@@ -21,7 +21,7 @@ used the fixtures. No real model may be called in a test (CLAUDE.md, Safety and 
    `-Dlantern.test.rerecord=true` it records again and rewrites `expected.txt`, from the fake,
    never a real model; a person reads the new lines before committing them.
    - The folders: `injection-screen`, `support-judge` (`lantern-harness`); `summarize` (types,
-     modules and repositories), `name-groups` (`lantern-summarize`); `describer` (`lantern-compose`;
+     modules and repositories), `name-groups`, `group-by-meaning` (`lantern-summarize`; the latter added for #919); `describer` (`lantern-compose`;
      one run asks Describe's units and elements, both flow roles and Purpose, and each role's test
      checks its own lines); `resolve-tools` and `investigate` (`lantern-link`; one run asks
      Investigate's leads, units and system).
@@ -37,7 +37,8 @@ used the fixtures. No real model may be called in a test (CLAUDE.md, Safety and 
      through one class whose comment holds them, so each Summarize role is shown every fixture;
    - as text on the facts they show: Describe's elements and the flow roles, which see no file or
      README (a comment on a fact, as a string in the code could carry);
-   - as a sentence an earlier role wrote: Name groups, which sees only facts and Describe's words;
+   - as a sentence an earlier role wrote: Name groups and the grouping role, which see only facts and
+     Describe's words;
    - as cited fact lines: the support judge.
 
    `Blocks.outsideData` finds any occurrence of the fixtures' "AI assistant" outside the data
