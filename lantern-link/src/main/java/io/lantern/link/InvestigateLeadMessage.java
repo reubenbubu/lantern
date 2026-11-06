@@ -94,7 +94,14 @@ final class InvestigateLeadMessage {
     if (q == null) {
       q = questions = questions();
     }
-    return of(lead, q, model.repos, entity -> declared(model, entity), lines, model.about.keySet());
+    return of(
+        lead,
+        q,
+        model.repos,
+        model.releases,
+        entity -> declared(model, entity),
+        lines,
+        model.about.keySet());
   }
 
   /** Where an entity is declared: the first of its facts with lines. */
@@ -129,6 +136,7 @@ final class InvestigateLeadMessage {
    * The first message of a lead.
    *
    * @param repos the repositories the lead's units live in, by unit
+   * @param releases each repository's releases units bundle, as {@code repo@version} (#910)
    * @param declared where an entity the lead points at is declared, if known
    * @param lines a file's lines as the tools show them, masked
    */
@@ -136,6 +144,7 @@ final class InvestigateLeadMessage {
       Investigator.Lead lead,
       Map<String, Question> questions,
       Map<String, Set<String>> repos,
+      Map<String, Set<String>> releases,
       Function<String, Optional<Evidence.Location>> declared,
       BiFunction<String, String, Optional<List<String>>> lines,
       Set<String> known) {
@@ -143,6 +152,9 @@ final class InvestigateLeadMessage {
     Set<String> repositories = new TreeSet<>();
     lead.units().forEach(u -> repositories.addAll(repos.getOrDefault(u, Set.of())));
     pieces.stream().filter(Piece::code).forEach(p -> repositories.add(p.repo()));
+    // Each release a unit bundles of a repository listed, as a folder of its own (#910).
+    new ArrayList<>(repositories)
+        .forEach(r -> repositories.addAll(releases.getOrDefault(r, Set.of())));
     Set<String> unitRepos = new TreeSet<>();
     lead.units().forEach(u -> unitRepos.addAll(repos.getOrDefault(u, Set.of())));
     Question question = question(lead, questions, known, unitRepos);

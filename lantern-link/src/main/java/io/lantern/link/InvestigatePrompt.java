@@ -23,7 +23,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class InvestigatePrompt {
 
   /** The prompt's version, part of every answer's cache key and the version of the facts. */
-  static final String VERSION = "13";
+  static final String VERSION = "14";
 
   /** Block 2's instructions of Mode A, checking leads, as the epic writes them. */
   static final String LEADS_TASK = resource("investigate-leads.task.txt");

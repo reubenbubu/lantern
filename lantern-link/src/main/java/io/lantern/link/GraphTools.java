@@ -3,6 +3,7 @@ package io.lantern.link;
 import io.lantern.core.fact.EntityId;
 import io.lantern.core.fact.Fact;
 import io.lantern.core.fact.FactObject;
+import io.lantern.core.types.Types;
 import io.lantern.extract.config.ConfigExtractor;
 import io.lantern.extract.config.FileSecrets;
 import io.lantern.extract.config.MaskedValues;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -86,7 +88,20 @@ public final class GraphTools implements CodeTools {
     default List<String> paths(String repo) {
       return List.of();
     }
+
+    /**
+     * Whether a release of a repository can be read as {@code repo@version}: a tag names the
+     * version and is not the analysed commit, so the Investigate shell can hold the release a unit
+     * bundles beside the analysed one (#910); none by default. {@link #read}, {@link #paths} and
+     * {@link #find} read such a name at the tag's commit.
+     */
+    default boolean release(String repo, String version) {
+      return false;
+    }
   }
+
+  /** What separates a repository from the version of one of its releases: {@code repo@1.9.4}. */
+  public static final String RELEASE = "@";
 
   /** A line of a file that holds a text {@code find_in_code} looked for. */
   public record Hit(String path, int line) {}
@@ -125,6 +140,7 @@ public final class GraphTools implements CodeTools {
     private final Set<String> repos = new TreeSet<>();
     private final RepoFiles files;
     private final Set<String> secretKeys;
+    private final Map<String, Set<String>> releases = new TreeMap<>();
 
     /**
      * @param facts the facts that hold in the snapshot
@@ -144,6 +160,45 @@ public final class GraphTools implements CodeTools {
       // A fixed order, whatever order the facts came in, so results do not change between runs.
       sorted.sort(Comparator.comparing((Fact f) -> rendered.get(f.id())).thenComparing(Fact::id));
       this.facts = List.copyOf(sorted);
+      releases(this.facts);
+    }
+
+    /**
+     * The releases units bundle of a repository of the set at another version than the analysed
+     * one, each a repository of its own named {@code repo@version} (#910): a build dependency on a
+     * module, with the version it bundles, whose repository has a tag for that version.
+     */
+    private void releases(List<Fact> facts) {
+      Map<String, String> moduleRepos = new HashMap<>();
+      for (Fact fact : facts) {
+        if (fact.subject().type().equals(Types.MODULE)) {
+          moduleRepos.putIfAbsent(fact.subject().toString(), fact.evidence().repo());
+        }
+      }
+      Set<String> asked = new java.util.HashSet<>();
+      for (Fact fact : facts) {
+        if (!fact.predicate().equals(Types.BUILD_DEPENDS_ON)
+            || fact.object() == null
+            || fact.object().kind() != FactObject.Kind.ENTITY) {
+          continue;
+        }
+        String repo = moduleRepos.get(fact.object().value());
+        String version = Claims.json(fact).path("version").asString("").strip();
+        if (repo == null
+            || !version.matches("[A-Za-z0-9][A-Za-z0-9._+-]*")
+            || !asked.add(repo + RELEASE + version)) {
+          continue;
+        }
+        if (files.release(repo, version)) {
+          releases.computeIfAbsent(repo, r -> new TreeSet<>()).add(repo + RELEASE + version);
+          repos.add(repo + RELEASE + version);
+        }
+      }
+    }
+
+    /** Each repository's releases units bundle, as {@code repo@version}, by repository (#910). */
+    public Map<String, Set<String>> releases() {
+      return Collections.unmodifiableMap(releases);
     }
 
     /** New tools for one conversation, with references of their own, from {@code F1}. */

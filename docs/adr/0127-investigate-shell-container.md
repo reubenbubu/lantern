@@ -63,3 +63,31 @@ through OpenRouter, 6 Nov 2026, after the masking change of #912:
 Before #912, larger cuts lost plaintext-secret leads (7 to 12 wrong against 4): the model met a
 masked value sooner and answered unclear. A 3,000 cut saves turns but each turn carries more, so it
 costs more than 1,500. Investigate's prompt version is 11.
+
+## Amendment (#910): the releases units bundle
+
+A lead about a type shared through a library at different versions (shared-type-skew) is settled
+only by comparing the type in each version the units bundle. The analysed commit holds one version,
+so on #893's run both project-8 leads of this kind came back unclear.
+
+The shell's folder now also holds, for each repository of the set that units depend on at another
+version than the analysed one, that release, as a folder of its own named `repo@version`:
+
+- *Which releases.* A unit's build dependency on a module, with the version it bundles
+  (`BUILD_DEPENDS_ON` and its `version`), names the module's repository and the version. A version
+  that is not a plain version string, such as an unresolved `${...}`, is skipped.
+- *Where they come from.* The release is read at the commit of the tag that names the version:
+  `1.9.4` or `v1.9.4`, else one tag that ends with it after `-`, `/` or `_`
+  (`commons-1.9.4`, `release/v1.9.4`). An annotated tag gives the commit it points at. A tag at
+  the analysed commit is the analysed copy, so no folder is written for it; nor is one for a
+  version no tag names, or for a library not in the set.
+- *How they are read.* Every tool and check reads `repo@version` as a repository: the shell's
+  folder, `find_in_code`, the quotes check and the answer cache's blobs. Its files are masked like
+  every other file. A lead's first message lists the releases of every repository it lists; a
+  lead whose list does not name the library sees its releases only through `ls` in the shell.
+- *The question* for shared-type-skew says the versions in use are folders named like
+  `library@1.9.4`; Investigate's prompt version rises to 14.
+
+On the project-8 panel both shared-type-skew leads now match the key (VehicleReleased confirmed,
+citing `customerId` in 1.9.4 and `accountId` in 2.1.0; VehicleReceived refuted). Over all 54 leads
+the run scored 44, as #904's baseline did, against 23 on #893's run.

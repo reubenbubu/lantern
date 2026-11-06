@@ -429,36 +429,7 @@ public final class AnalysisRun {
       // filled as the files are shown, and read live by the harness's Secrets check (#645).
       Set<String> secrets = java.util.concurrent.ConcurrentHashMap.newKeySet();
       GraphTools.RepoFiles snapshotFiles =
-          new GraphTools.RepoFiles() {
-            @Override
-            public void masked(String value) {
-              secrets.add(value);
-            }
-
-            @Override
-            public Optional<byte[]> read(String repo, String path) {
-              return Optional.ofNullable(snapshot.commits().get(repo))
-                  .flatMap(commit -> snapshotSources.read(repo, commit, path));
-            }
-
-            // The Investigate shell's copy of each repository at the snapshot's commit (#893).
-            @Override
-            public List<String> paths(String repo) {
-              String commit = snapshot.commits().get(repo);
-              return commit == null ? List.of() : snapshotSources.paths(repo, commit);
-            }
-
-            // find_in_code searches each repository at the snapshot's commit (ADR 0105).
-            @Override
-            public List<GraphTools.Hit> find(String repo, String text, int max) {
-              String commit = snapshot.commits().get(repo);
-              return commit == null
-                  ? List.of()
-                  : snapshotSources.grep(repo, commit, text, max).stream()
-                      .map(match -> new GraphTools.Hit(match.path(), match.line()))
-                      .toList();
-            }
-          };
+          new SnapshotRepoFiles(snapshot.commits(), snapshotSources, secrets::add);
       // Every LLM role of the run goes through one harness: one answer cache, one budget, one
       // record (ADR 0100). A cached answer that read files holds while they keep their blobs.
       Harness harness =
