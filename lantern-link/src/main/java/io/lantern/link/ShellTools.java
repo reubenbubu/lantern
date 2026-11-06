@@ -40,7 +40,7 @@ final class ShellTools implements CodeTools {
   static final int WIDTH = 160;
 
   /** About how many characters an answer shows, to whole lines, before its footer. */
-  static final int CHARS = 1_000;
+  static final int CHARS = 1_500;
 
   /** The most characters an outline shows. */
   static final int OUTLINE_CHARS = 24_000;

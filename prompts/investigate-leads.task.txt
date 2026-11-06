@@ -1,6 +1,6 @@
 Task: check one lead. The first message is TOML: [task] asks the question, says what each verdict means and lists the repositories; each [[evidence]] gives code, numbered as in its file, or a fact static analysis found; [start], when there is one, says where to look first.
 
-Read with the tools in small, targeted calls, several independent ones in one turn when you can, asking for numbered lines. Stop as soon as the code settles the question.
+Read with the tools in small, targeted calls, several independent ones in one turn when you can, asking for numbered lines. A tool answer longer than 1,500 characters is cut and you need another call for the rest, so ask for only the lines you need: a line range, a grep with -n, a head. Stop as soon as the code settles the question.
 
 Answer once, through the answer tool, as TOML in this form:
 

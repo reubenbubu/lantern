@@ -332,7 +332,7 @@ class InvestigateLogsTest {
     out.add(request.path("system").asString());
     for (JsonNode tool : request.path("tools")) {
       out.add(tool.path("description").asString());
-      out.add(JSON.writeValueAsString(tool.path("inputSchema")));
+      out.add(JSON.writerWithDefaultPrettyPrinter().writeValueAsString(tool.path("inputSchema")));
     }
     List<JsonNode> messages = new ArrayList<>();
     request.path("messages").forEach(messages::add);
@@ -342,7 +342,11 @@ class InvestigateLogsTest {
       if (!m.path("text").asString().isEmpty()) {
         out.add(m.path("text").asString());
       }
-      m.path("toolCalls").forEach(c -> out.add(JSON.writeValueAsString(c.path("input"))));
+      m.path("toolCalls")
+          .forEach(
+              c ->
+                  out.add(
+                      JSON.writerWithDefaultPrettyPrinter().writeValueAsString(c.path("input"))));
     }
     return out;
   }
