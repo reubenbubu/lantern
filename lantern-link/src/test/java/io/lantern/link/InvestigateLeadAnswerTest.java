@@ -283,4 +283,86 @@ class InvestigateLeadAnswerTest {
     assertThat(answer.holdsAnswer("title = \"No verdict here\"")).isFalse();
     assertThat(answer.holdsAnswer(null)).isFalse();
   }
+
+  @Test
+  void aRefutedVerdictWithNoEvidenceIsSentBack() {
+    assertThatThrownBy(() -> answer.read(toml("verdict = \"refuted\"")))
+        .hasMessage("evidence: a refuted verdict needs at least one [[evidence]] piece.");
+  }
+
+  private static final String SUBJECT = "lead:plaintext-secret/module:shop:orders/db.password";
+  private static final String MESSAGE =
+      "[task]\nquestion = \"q\"\n\n[[evidence]]\nwhat = \"w\"\nwhere = \"shop:" + CONFIG + "\"\n";
+
+  private static JsonNode refuted(String lines) {
+    return new InvestigateLeadAnswer()
+        .read(
+            toml(
+                """
+                verdict = "refuted"
+
+                [[evidence]]
+                lines = "%s"
+                quote = "x"
+                """
+                    .formatted(lines)));
+  }
+
+  private static List<Rejection> built(
+      JsonNode entry, String subject, java.util.Set<String> warned) {
+    InvestigateLeadAnswer.Shown shown = InvestigateLeadAnswer.Shown.of(subject, MESSAGE);
+    return new InvestigateLeadAnswer.BuiltAndDeployed(id -> shown, warned)
+        .check(new ItemAnswer("I1", entry, List.of(), List.of()), INPUTS);
+  }
+
+  @Test
+  void aRefutedSettingsLeadCitingNoBuildOrDeployFileIsSentBackOnceAndThenStands() {
+    java.util.Set<String> warned = new java.util.HashSet<>();
+    JsonNode code = refuted("shop:" + PATH + ":4-7");
+
+    assertThat(built(code, SUBJECT, warned))
+        .singleElement()
+        .satisfies(
+            r -> {
+              assertThat(r.field()).isEqualTo("verdict");
+              assertThat(r.reason()).isEqualTo(InvestigateLeadAnswer.BuiltAndDeployed.REASON);
+            });
+    assertThat(built(code, SUBJECT, warned)).isEmpty();
+  }
+
+  @Test
+  void aRefutedSettingsLeadCitingADeployFileOrItsOwnFileStands() {
+    for (String path :
+        List.of(
+            "orders/Dockerfile",
+            "docker-compose.prod.yml",
+            ".github/workflows/build.yml",
+            "deploy/helm/orders/values-prod.yaml",
+            "k8s/orders/deployment.yaml",
+            "charts/orders/Chart.yaml")) {
+      assertThat(built(refuted("shop:" + path + ":1-3"), SUBJECT, new java.util.HashSet<>()))
+          .as(path)
+          .isEmpty();
+    }
+    assertThat(built(refuted("shop:" + CONFIG + ":3-3"), SUBJECT, new java.util.HashSet<>()))
+        .as("the file the lead points at")
+        .isEmpty();
+  }
+
+  @Test
+  void otherKindsAndOtherVerdictsAreNotHeldToTheBuild() {
+    JsonNode code = refuted("shop:" + PATH + ":4-7");
+    assertThat(
+            built(
+                code,
+                "lead:identity-from-request/service:shop:orders/x",
+                new java.util.HashSet<>()))
+        .isEmpty();
+    assertThat(built(answer.read(toml(CONFIRMED)), SUBJECT, new java.util.HashSet<>())).isEmpty();
+    assertThat(
+            InvestigateLeadAnswer.BUILD_OR_DEPLOY
+                .matcher("orders/src/main/resources/application.yml")
+                .matches())
+        .isFalse();
+  }
 }
