@@ -621,6 +621,41 @@ class GroupViewsTest {
         .doesNotContain("Big", "Small");
   }
 
+  @Test
+  void everyLineBetweenTwoComponentsOfASplitAreaIsDrawnOnSomePage() {
+    // #764 review: a shared service of an area that no entry point of the area reaches is paged
+    // with what it calls, so its line to a service an entry point reaches is drawn.
+    TestFacts many = manyComponents();
+    String s = "type:com.example.orders.Stock";
+    String s2 = "type:com.example.orders.Restock";
+    for (String type : List.of(s, s2)) {
+      many.relate("shop", "package:com.example:app:com.example.orders", "CONTAINS", type)
+          .attribute("shop", type, "stereotype", "service", "{}")
+          .relate("shop", type, "CONTAINS", method(type, "run"));
+    }
+    // Stock is shared by two of orders' controllers; Restock by billing's and parts', and calls
+    // Stock.
+    many.relate("shop", "method:com.example.orders.C0#get()", "CALLS", method(s, "run"))
+        .relate("shop", "method:com.example.orders.C1#get()", "CALLS", method(s, "run"))
+        .relate("shop", "method:com.example.billing.C0#get()", "CALLS", method(s2, "run"))
+        .relate("shop", "method:com.example.parts.C0#get()", "CALLS", method(s2, "run"))
+        .relate("shop", method(s2, "run"), "CALLS", method(s, "run"));
+    Section app =
+        section(system(many.list(), limits(4, 2)), "components").sections().stream()
+            .filter(x -> x.entity() != null && x.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(app.sections())
+        .extracting(Section::title)
+        .anyMatch(x -> x.startsWith("orders (not named): "));
+    assertThat(diagrams(app))
+        .anyMatch(
+            d ->
+                d.edges().stream()
+                    .anyMatch(e -> e.from().toString().equals(s2) && e.to().toString().equals(s)));
+  }
+
   private static String method(String type, String name) {
     return type.replace("type:", "method:") + "#" + name + "()";
   }

@@ -1619,17 +1619,18 @@ final class C4Views {
           components.forEach(c -> mainsHere.add(c.main()));
           for (Elements.Component component : components) {
             EntityId main = component.main();
-            if (areaOf.containsKey(main)
-                || crossOff.contains(main)
-                || outsideOnly.contains(component)) {
+            if (areaOf.containsKey(main) || outsideOnly.contains(component)) {
               continue;
             }
+            // Outside is what is neither a component of the unit nor one of its feature areas.
+            java.util.function.Predicate<EntityId> beyond =
+                end -> !mainsHere.contains(end) && !end.type().equals(Types.GROUP);
             boolean outside =
                 full.edges().stream()
                     .anyMatch(
                         e ->
-                            (e.from().equals(main) && !mainsHere.contains(e.to()))
-                                || (e.to().equals(main) && !mainsHere.contains(e.from())));
+                            (e.from().equals(main) && beyond.test(e.to()))
+                                || (e.to().equals(main) && beyond.test(e.from())));
             if (outside) {
               looseOutside.add(main);
             }
@@ -1793,7 +1794,10 @@ final class C4Views {
                         "What these components reach outside "
                             + assembler.name(unit)
                             + " is left off this view to keep it readable; each area's page"
-                            + " draws it.")),
+                            + " draws it"
+                            + (looseOutside.isEmpty()
+                                ? "."
+                                : ", and the page " + NO_AREA + " draws it for the rest."))),
                 List.of()));
       }
       if (!crossOff.isEmpty()) {
@@ -1989,6 +1993,8 @@ final class C4Views {
     }
     List<Set<EntityId>> pages = new ArrayList<>();
     List<List<EntityId>> pageEntries = new ArrayList<>();
+    // The pages of what no entry point reaches, by index.
+    Set<Integer> restOnly = new HashSet<>();
     Set<EntityId> current = new java.util.LinkedHashSet<>();
     List<EntityId> currentEntries = new ArrayList<>();
     for (EntityId entry : entries) {
@@ -2018,23 +2024,43 @@ final class C4Views {
     left.removeAll(current);
     pages.add(current);
     pageEntries.add(currentEntries);
-    // What no entry point reaches goes on pages of its own, as many as fit, so no split drops it.
+    // What no entry point reaches goes on pages of its own, as many as fit, each component with
+    // what it calls, as an entry point's page has, so every line between two of them is drawn on
+    // some page and no split drops one (#764 review).
     Set<EntityId> rest = new java.util.LinkedHashSet<>();
+    List<EntityId> restHeads = new ArrayList<>();
+    Set<EntityId> restPlaced = new HashSet<>();
     for (EntityId component : left) {
+      if (restPlaced.contains(component)) {
+        continue;
+      }
+      Set<EntityId> reach = new java.util.LinkedHashSet<>();
+      Deque<EntityId> todo = new ArrayDeque<>(List.of(component));
+      while (!todo.isEmpty()) {
+        EntityId next = todo.pop();
+        if (reach.add(next)) {
+          todo.addAll(calls.getOrDefault(next, Set.of()));
+        }
+      }
       Set<EntityId> together = new java.util.LinkedHashSet<>(rest);
-      together.add(component);
+      together.addAll(reach);
       if (rest.isEmpty()
           || fits(componentDiagram(TRIAL, unit, components, title, together, lift))) {
         rest = together;
+        restHeads.add(component);
       } else {
         pages.add(rest);
-        pageEntries.add(List.of());
-        rest = new java.util.LinkedHashSet<>(List.of(component));
+        pageEntries.add(List.copyOf(restHeads));
+        restOnly.add(pages.size() - 1);
+        rest = reach;
+        restHeads = new ArrayList<>(List.of(component));
       }
+      reach.stream().filter(left::contains).forEach(restPlaced::add);
     }
     if (!rest.isEmpty()) {
       pages.add(rest);
-      pageEntries.add(List.of());
+      pageEntries.add(List.copyOf(restHeads));
+      restOnly.add(pages.size() - 1);
     }
     // A page still too large for its one entry point goes one step down per page (#764): the
     // entry point with what it calls directly, then each of those that calls further, the same way.
@@ -2042,7 +2068,22 @@ final class C4Views {
     List<Set<EntityId>> drawn = new ArrayList<>();
     Set<EntityId> visited = new HashSet<>();
     for (int i = 0; i < pages.size(); i++) {
-      if (pageEntries.get(i).isEmpty()) {
+      if (restOnly.contains(i)) {
+        if (pageEntries.get(i).size() == 1
+            && !fits(componentDiagram(TRIAL, unit, components, title, pages.get(i), lift))) {
+          stepDown(
+              pageEntries.get(i).getFirst(),
+              false,
+              calls,
+              visited,
+              unit,
+              components,
+              title,
+              lift,
+              headings,
+              drawn);
+          continue;
+        }
         headings.add("called by no entry point");
         drawn.add(pages.get(i));
         continue;

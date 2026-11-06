@@ -1061,7 +1061,7 @@ class EndToEndIT {
                 + byRole.getOrDefault(Role.JUDGE, 0L)
                 + judgedOnWriters
                 + byRole.getOrDefault(Role.SCREEN, 0L)
-                // Name groups names the groups a set has (project-0 has a domain, #764).
+                // Name groups names the groups a set has, when it has any.
                 + byRole.getOrDefault(Role.NAME_GROUPS, 0L));
   }
 

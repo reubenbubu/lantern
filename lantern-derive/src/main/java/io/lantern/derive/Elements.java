@@ -983,13 +983,14 @@ public final class Elements {
       knowledge.relations(component, Types.HAS_MEMBER).forEach(f -> types.add(Knowledge.object(f)));
       String role = attribute(part, "role", "");
       // An entry point (a controller, listener, job, filter or routes) is reached from outside the
-      // unit, whether or not the code shows from where.
+      // unit, whether or not the code shows from where; an aspect is not one: it is run around
+      // what it advises (#764 review).
       Component found =
           new Component(
               main,
               types,
               attribute(part, "technology", null),
-              !role.equals(Components.SHARED),
+              !role.equals(Components.SHARED) && !role.equals(Components.ASPECT_ROLE),
               // Cut across the unit's areas, as Groups judges it: an aspect, or a class of a
               // library the unit bundles (#638).
               role.equals(Components.ASPECT_ROLE)
