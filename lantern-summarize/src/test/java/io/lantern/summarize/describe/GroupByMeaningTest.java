@@ -377,9 +377,7 @@ class GroupByMeaningTest {
 
     assertThat(fake.sent()).hasSize(2);
     String prompt = fake.sent().getFirst().request().messages().getFirst().text();
-    assertThat(prompt)
-        .contains("Domains are asked")
-        .contains("s12 | - | (nothing connects to it)");
+    assertThat(prompt).contains("Domains are asked").contains("s12 | - | (nothing connects to it)");
     assertThat(fake.sent().get(1).request().messages().getLast().text())
         .contains("joins a domain")
         .contains(ref(fake.sent().getFirst().request(), "s11") + " joins none");
