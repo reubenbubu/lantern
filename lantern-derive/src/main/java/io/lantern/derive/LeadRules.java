@@ -41,26 +41,6 @@ public final class LeadRules {
         new SchemaUnmanaged());
   }
 
-  /**
-   * What the model judges for each kind of lead, by kind, in the catalog's order ({@code
-   * leads.json}): Investigate shows it with each lead it asks about.
-   */
-  public static Map<String, String> judges() {
-    try (java.io.InputStream in = LeadRules.class.getResourceAsStream("/leads.json")) {
-      if (in == null) {
-        throw new IllegalStateException("Missing resource /leads.json");
-      }
-      Map<String, String> judges = new java.util.LinkedHashMap<>();
-      for (tools.jackson.databind.JsonNode kind :
-          tools.jackson.databind.json.JsonMapper.builder().build().readTree(in)) {
-        judges.put(kind.path("kind").asString(), kind.path("judge").asString());
-      }
-      return java.util.Collections.unmodifiableMap(judges);
-    } catch (java.io.IOException e) {
-      throw new java.io.UncheckedIOException("Cannot read /leads.json", e);
-    }
-  }
-
   private static final String HTTP_METHOD = "httpMethod";
 
   // --- identity-from-request -------------------------------------------------------------------

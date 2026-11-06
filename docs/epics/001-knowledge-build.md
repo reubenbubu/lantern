@@ -883,17 +883,7 @@ The catalog is data (`vocabulary/leads.json` plus one derive rule per kind). New
 - **Context.** Block 3 (the system map), plus every unit's accepted risks as one line each, so it does not repeat them.
 - **Limits.** Same tools and caps as Mode B.
 
-**Role instructions, Mode A** (block 2):
-
-```text
-Task: check leads. Static analysis flagged each item in <items> as a possible risk, and shows the code it points at. For each item, read the code (use the tools to read further when the excerpt does not settle it) and decide:
-- "confirmed": the code shows the risk as described, on at least one path a caller can take;
-- "refuted": the code shows the risk cannot happen (for example, the header is removed or verified on every path that reaches the unit, or the send happens after commit), and you can cite where;
-- "unclear": the code you can read does not settle it.
-For a confirmed item, write the risk: a title of 5 to 7 words; the finding, what the code does, in one or two sentences of 20 to 60 words; the consequence, what can happen because of it, in one or two sentences of 22 to 60 words; its impact (high, medium or low) by what an attacker or a failure could do to data or availability; and your confidence (high, medium or low). For every verdict, give the identifiers your verdict rests on, exactly as the code writes them, and cite the ranges that show them. The two must match: list in names only identifiers that appear, character for character, inside the lines you cite, and make every cited range contain at least one of them. A class or method name is on its declaration line, so cite that line too or leave the name out. The finding and the consequence name only what your cited lines show. Do not name a tool, file or technology the code you cite does not show, not even to say it is missing.
-Cite each range as repo:path:from-to, using the repository, path and line numbers the <code> blocks and tool results show; cite nothing else. The repository is the name before the first colon, exactly as the <code> blocks and find_in_code show it (in shell output, the first folder of the path), such as Shop:orders-service/src/main/java/Orders.java:3-9; a service's folder inside the repository belongs to the path, not the repository. Call submit once with every item, each with its lead id and a verdict.
-Before you call submit, check each item: every name appears in one of its cited ranges, every range holds one of its names, and the title has 5 to 7 words.
-```
+**Role instructions, Mode A.** Replaced by the amendment for #902 below: since #860 and #892 a lead's conversation has instructions of its own, `prompts/investigate-leads.system.txt` and `prompts/investigate-leads.task.txt`, its question per kind of lead in `prompts/investigate-questions.toml`, and its answer is TOML through the `answer` tool, not this section's submit schema.
 
 **Role instructions, Modes B and C** (block 2):
 

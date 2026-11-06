@@ -6,7 +6,7 @@
 # verdict means for it, and `hint`, when there is one, where to start.
 
 [identity-from-request]
-question = "{units} reads the request header {detail} and takes it as who the caller is or what they may do ({code}). Can a caller set that header themselves, or is it removed or verified on every path before the request reaches {units}?"
+question = "The code of {units} reads the request header {detail} and takes it as who the caller is or what they may do ({code}). Can a caller set that header themselves, or is it removed or verified on every path before the request reaches {units}?"
 verdicts = "confirmed: on some path a caller's own value of the header reaches this code. refuted: every path removes or verifies it first, and you can show where. unclear: the code does not settle it."
 hint = "Look at what sits in front of {units}: a gateway's filters and routes, or a filter of {units} itself."
 

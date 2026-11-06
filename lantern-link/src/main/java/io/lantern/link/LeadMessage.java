@@ -47,6 +47,8 @@ final class LeadMessage {
   /** What the lead's own evidence shows, until a fact or its code says more. */
   private static final String FOUND = "Where static analysis found it";
 
+  private static final String POINTS_AT = "The code it points at: ";
+
   /** The predicates of a send, whose objects name what a lead's code sends. */
   private static final Set<String> SENDS =
       Set.of("message-send", "http-call", "PUBLISHES", "SENDS_MESSAGES_TO", "CALLS_HTTP");
@@ -215,9 +217,7 @@ final class LeadMessage {
           || entity.startsWith("field:"))) {
         continue; // a whole unit or module: its lines say nothing of the lead
       }
-      declared
-          .apply(entity)
-          .ifPresent(at -> add(pieces, "The code it points at: " + shortName(entity), at));
+      declared.apply(entity).ifPresent(at -> add(pieces, POINTS_AT + shortName(entity), at));
     }
     for (Fact fact : lead.facts()) {
       String sentence = sentence(fact);
@@ -249,7 +249,9 @@ final class LeadMessage {
         String joined =
             p.what().contains(stripPeriod(what))
                 ? p.what()
-                : p.what().equals(FOUND) ? what : stripPeriod(p.what()) + "; " + what;
+                : p.what().equals(FOUND) || namedBy(p.what(), what)
+                    ? what
+                    : stripPeriod(p.what()) + "; " + what;
         pieces.set(
             i,
             new Piece(
@@ -258,6 +260,12 @@ final class LeadMessage {
       }
     }
     pieces.add(new Piece(what, at.repo(), at.path(), from, to, null));
+  }
+
+  /** Whether a label that only names the code is said again, more fully, by a fact's sentence. */
+  private static boolean namedBy(String label, String sentence) {
+    return label.startsWith(POINTS_AT)
+        && sentence.startsWith(label.substring(POINTS_AT.length()) + " ");
   }
 
   private static String write(

@@ -241,13 +241,12 @@ public final class Conversation {
       }
       messages.add(LlmMessage.assistant(response));
       toolTurns++; // the turn these results go back in is a tool turn
-      String note = "";
+      messages.add(LlmMessage.toolResults(results, ""));
       if (!nudged && nearCap()) {
         // Lantern's own words go after the tool results, never inside one.
         nudged = true;
-        note = limits.nudge();
+        messages.set(messages.size() - 1, LlmMessage.toolResults(results, limits.nudge()));
       }
-      messages.add(LlmMessage.toolResults(results, note));
       if (tools.finished()) {
         // The tools settled the conversation: their results stand, and no turn follows.
         return response;

@@ -223,9 +223,19 @@ final class InvestigateRole implements PacketRole {
     tools.supplied(systemMap);
     tools.supplied(context);
     packet.forEach(item -> tools.supplied(item.rendering()));
+    if (mode == Mode.LEADS) {
+      // One lead, its first message the lead's own TOML: no item wrapper, no system map (#860).
+      return new PromptLayout(
+          InvestigatePrompt.LEADS_SYSTEM,
+          InvestigatePrompt.LEADS_TASK,
+          "",
+          "",
+          false,
+          packet.getFirst().rendering());
+    }
     return new PromptLayout(
         CommonPrompt.SYSTEM,
-        InvestigatePrompt.role(mode == Mode.LEADS),
+        InvestigatePrompt.role(),
         systemMap,
         context,
         false,
@@ -274,7 +284,7 @@ final class InvestigateRole implements PacketRole {
   @Override
   public CheckInputs inputs(List<Item> packet, List<String> ids) {
     return new CheckInputs(
-        mode == Mode.LEADS ? InvestigatePrompt.LEAD_SCHEMA : InvestigatePrompt.PROPOSALS_SCHEMA,
+        mode == Mode.LEADS ? LeadAnswer.ENTRY_SCHEMA : InvestigatePrompt.PROPOSALS_SCHEMA,
         Map.of(),
         Set.of(),
         true,
@@ -298,6 +308,13 @@ final class InvestigateRole implements PacketRole {
             : " Your proposals are numbered P1, P2, ... in the order you submit them, across"
                 + " submissions.");
   }
+
+  @Override
+  public io.lantern.harness.SingleAnswer singleAnswer() {
+    return mode == Mode.LEADS ? ANSWER : null;
+  }
+
+  private static final LeadAnswer ANSWER = new LeadAnswer();
 
   @Override
   public boolean partial() {
@@ -342,10 +359,12 @@ final class InvestigateRole implements PacketRole {
   public Pipeline pipeline() {
     List<Check> checks = new ArrayList<>(Checks.STANDARD);
     checks.add(new Proposals(this));
-    checks.add(new ShownRanges(() -> tools, this::citesByField));
     if (mode == Mode.LEADS) {
+      // Each piece quotes a line Lantern checks exactly, in place of what was shown (#892).
+      checks.add(new LeadAnswer.Quotes());
       return new Pipeline(checks);
     }
+    checks.add(new ShownRanges(() -> tools, this::citesByField));
     // A rejection of any part of a proposal rejects the proposal: it is kept or dropped whole.
     return new Pipeline(List.of(new ByProposal(checks)));
   }

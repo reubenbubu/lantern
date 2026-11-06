@@ -106,9 +106,19 @@ public final class Investigator {
    */
   static final int LEADS_PER_PACKET = 1;
 
-  /** The caps of a Mode A conversation: 6 tool turns. */
+  /**
+   * The caps of a Mode A conversation (#892): no limit on tool turns; a guard of 60,000 input
+   * tokens on one turn, well under Haiku 5.5's price line of 100,000, with a note at three quarters
+   * of it after which only the answer runs; a cost guard of 400,000 fresh-token equivalents over
+   * the conversation; a safety stop at 100 turns.
+   */
   static final ConversationLimits LEAD_LIMITS =
-      new ConversationLimits(6, 60_000, MAX_OUTPUT_TOKENS);
+      new ConversationLimits(
+              Integer.MAX_VALUE,
+              400_000,
+              MAX_OUTPUT_TOKENS,
+              "Give your answer now with what you have found.")
+          .withTurnGuard(60_000, LeadAnswer.NAME, 100);
 
   /** The caps of a Mode B or C conversation: 16 tool turns, 120,000 input tokens. */
   static final ConversationLimits EXPLORE_LIMITS =
@@ -121,9 +131,9 @@ public final class Investigator {
               Role.INVESTIGATE,
               Prompts.version(
                   InvestigatePrompt.VERSION,
-                  "common.system.txt",
+                  "investigate-leads.system.txt",
                   "investigate-leads.task.txt",
-                  "investigate.schema.json"),
+                  LeadMessage.QUESTIONS),
               NAME,
               RunMode.INTERACTIVE,
               1_500)
@@ -201,16 +211,13 @@ public final class Investigator {
   private final Harness harness;
   private final GraphTools.RepoFiles files;
   private final ShellWorkspace.Starter shell;
-  private final Map<String, String> judges;
 
   /**
    * @param harness the LLM harness
    * @param files the snapshot's files, which the tools read and the citations are checked against
-   * @param judges what the model judges for each kind of lead (lantern-derive's {@code
-   *     LeadRules.judges()})
    */
-  public Investigator(Harness harness, GraphTools.RepoFiles files, Map<String, String> judges) {
-    this(harness, files, judges, null);
+  public Investigator(Harness harness, GraphTools.RepoFiles files) {
+    this(harness, files, null);
   }
 
   /**
@@ -218,14 +225,9 @@ public final class Investigator {
    * and a Java outline (#893), the container started by {@code shell} over the snapshot's files,
    * once a run, and removed when the run ends; with no shell, with the graph's tools.
    */
-  public Investigator(
-      Harness harness,
-      GraphTools.RepoFiles files,
-      Map<String, String> judges,
-      ShellWorkspace.Starter shell) {
+  public Investigator(Harness harness, GraphTools.RepoFiles files, ShellWorkspace.Starter shell) {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.files = Objects.requireNonNull(files, "files");
-    this.judges = Map.copyOf(judges);
     this.shell = shell;
   }
 
@@ -589,39 +591,19 @@ public final class Investigator {
       Map<String, Lead> bySubject = new LinkedHashMap<>();
       Map<String, List<Item>> byUnit = new TreeMap<>();
       for (Lead lead : model.leads) {
-        Item item = item(lead, false);
+        Item item = item(lead);
         bySubject.put(item.subject(), lead);
         byUnit.computeIfAbsent(lead.unit(), u -> new ArrayList<>()).add(item);
       }
       List<Item> all = byUnit.values().stream().flatMap(List::stream).toList();
       session.plan(all, prefix(true));
+      // One lead a conversation, answered in it or not at all: its three answers are its
+      // attempts, so a lead is not asked again in a second conversation (#892).
       Map<String, Outcome> outcomes = ask(session, byUnit, Mode.A);
-      // A lead left unanswered is asked again alone, once.
-      Map<String, List<Item>> again = new TreeMap<>();
-      Set<String> retrying = new LinkedHashSet<>();
       for (Map.Entry<String, Lead> e : bySubject.entrySet()) {
-        Outcome outcome = outcomes.get(e.getKey());
-        if (outcome != null && unanswered(outcome)) {
-          Item retry = item(e.getValue(), true);
-          again.computeIfAbsent(e.getValue().unit(), k -> new ArrayList<>()).add(retry);
-          retrying.add(e.getKey());
-        }
-      }
-      Map<String, Outcome> retried = Map.of();
-      if (!again.isEmpty()) {
-        // Each retry is a new item, planned like the first, so the run's record counts it once.
-        session.plan(again.values().stream().flatMap(List::stream).toList(), prefix(true));
-        retried = ask(session, again, Mode.A_ALONE);
-      }
-      for (Map.Entry<String, Lead> e : bySubject.entrySet()) {
-        Lead lead = e.getValue();
         Outcome outcome = outcomes.get(e.getKey());
         count(outcome);
-        if (retrying.contains(e.getKey())) {
-          outcome = retried.get(retryKey(e.getKey()));
-          count(outcome);
-        }
-        verdict(lead, outcome);
+        verdict(e.getValue(), outcome);
       }
     }
 
@@ -709,38 +691,19 @@ public final class Investigator {
       return fact.withLineage(List.of(lead.claim()));
     }
 
-    /** A lead as an item; asked again alone, it has an input of its own, so it is asked anew. */
-    private Item item(Lead lead, boolean again) {
+    /**
+     * A lead as an item: its first message (#860). Its question comes from the prompt files, which
+     * the role's prompt version covers, so a changed question asks the lead anew.
+     */
+    private Item item(Lead lead) {
       List<FingerprintInput> inputs = new ArrayList<>();
       inputs.add(FingerprintInput.of(lead.fact()));
       lead.facts().forEach(f -> inputs.add(FingerprintInput.of(f)));
-      // What it asks the model to judge: a changed judge text asks the lead anew.
-      inputs.add(
-          FingerprintInput.answer(
-              Fingerprints.sha256(Objects.requireNonNullElse(judges.get(lead.kind()), "")),
-              List.of("lead-catalog")));
-      if (again) {
-        inputs.add(FingerprintInput.answer(Fingerprints.sha256("asked again alone")));
-      }
-      String text =
-          InvestigatePrompt.lead(
-              lead.id(),
-              lead.kind(),
-              lead.trigger(),
-              judges.get(lead.kind()),
-              lead.units(),
-              lead.code(),
-              lead.facts(),
-              graph::lines);
       return new Item(
-          again ? retryKey(lead.id()) : lead.id(),
+          lead.id(),
           lead.unit(),
           List.copyOf(new LinkedHashSet<>(inputs)),
-          text);
-    }
-
-    private String retryKey(String subject) {
-      return subject + " (again)";
+          LeadMessage.of(lead, model, graph::lines));
     }
 
     // --- Modes B and C -----------------------------------------------------------------------
@@ -855,10 +818,10 @@ public final class Investigator {
         for (Map.Entry<String, List<Item>> group : groups.entrySet()) {
           List<Item> items = new ArrayList<>(group.getValue());
           items.sort(java.util.Comparator.comparing(session::sampleFingerprint));
-          // Mode A's packets are its role's size (a calibration's, ADR 0112); B and C ask one.
-          int size = mode == Mode.A ? session.spec().packetSize() : 1;
-          for (int i = 0; i < items.size(); i += size) {
-            List<Item> packet = items.subList(i, Math.min(items.size(), i + size));
+          // One item a conversation: a lead answers through its own answer tool (#892), whatever
+          // size a setting or a calibration gives the role; B and C explore one subject each.
+          for (int i = 0; i < items.size(); i++) {
+            List<Item> packet = items.subList(i, i + 1);
             InvestigateRole role = role(mode, group.getKey());
             roles.add(role);
             Supplier<List<FileRead>> read = role::filesRead;
@@ -893,12 +856,12 @@ public final class Investigator {
       boolean system = group.equals(EntityId.SYSTEM.toString());
       String context =
           switch (mode) {
-            case A, A_ALONE -> InvestigatePrompt.facts(system ? List.of() : model.unitFacts(group));
+            case A -> ""; // a lead's first message holds what it needs (#860)
             case B, C -> contexts.getOrDefault(group, "");
           };
       InvestigateRole.Mode roleMode =
           switch (mode) {
-            case A, A_ALONE -> InvestigateRole.Mode.LEADS;
+            case A -> InvestigateRole.Mode.LEADS;
             case B -> InvestigateRole.Mode.UNIT;
             case C -> InvestigateRole.Mode.SYSTEM;
           };
@@ -915,7 +878,9 @@ public final class Investigator {
     }
 
     private long prefix(boolean leads) {
-      return Tokens.estimate(CommonPrompt.SYSTEM + InvestigatePrompt.role(leads) + systemMap);
+      return leads
+          ? Tokens.estimate(InvestigatePrompt.LEADS_SYSTEM + InvestigatePrompt.LEADS_TASK)
+          : Tokens.estimate(CommonPrompt.SYSTEM + InvestigatePrompt.role() + systemMap);
     }
 
     // --- Storing -----------------------------------------------------------------------------
@@ -1319,10 +1284,9 @@ public final class Investigator {
     }
   }
 
-  /** The modes as asked: Mode A, its leads asked again alone, and Modes B and C. */
+  /** The modes as asked. */
   private enum Mode {
     A,
-    A_ALONE,
     B,
     C
   }

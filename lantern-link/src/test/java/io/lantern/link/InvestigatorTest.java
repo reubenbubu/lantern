@@ -184,7 +184,7 @@ class InvestigatorTest {
   // A model that answers through submit
 
   private static boolean leads(LlmRequest r) {
-    return r.system().contains("Task: check leads.");
+    return r.system().contains("Task: check one lead.");
   }
 
   private static boolean unit(LlmRequest r, String unit) {
@@ -213,6 +213,9 @@ class InvestigatorTest {
               if (answer == null) {
                 return List.of();
               }
+              if (leads(r)) {
+                return List.of(answer(r, answer));
+              }
               List<LlmToolCall> calls = new ArrayList<>(reads(answer));
               calls.add(submit(r, answer));
               return calls;
@@ -226,9 +229,85 @@ class InvestigatorTest {
         .callingTools(
             r -> {
               String answer = items.apply(r);
-              return answer == null ? List.of() : List.of(submit(r, answer));
+              return answer == null
+                  ? List.of()
+                  : List.of(leads(r) ? answer(r, answer) : submit(r, answer));
             })
         .answering("Done.");
+  }
+
+  /**
+   * A lead's answer through the {@code answer} tool (#892): the JSON item written as the TOML the
+   * instructions ask for, each cited range a piece of evidence quoting the range's first line that
+   * holds one of its names (else its first line) and showing the names the range holds; a name no
+   * range holds goes on the first piece, so the quotes check sees it.
+   */
+  private static LlmToolCall answer(LlmRequest request, String item) {
+    return new LlmToolCall(
+        "a" + turn(request),
+        LeadAnswer.NAME,
+        FactJson.newObject().put("toml", toml(FactJson.parse(item))));
+  }
+
+  static String toml(tools.jackson.databind.JsonNode item) {
+    StringBuilder out = new StringBuilder();
+    for (String field :
+        List.of("verdict", "title", "finding", "consequence", "impact", "confidence", "reason")) {
+      if (item.path(field).isString()) {
+        out.append(field)
+            .append(" = ")
+            .append(io.lantern.harness.Toml.string(item.path(field).asString()))
+            .append('\n');
+      }
+    }
+    List<String> names = new ArrayList<>();
+    item.path("names").forEach(n -> names.add(n.asString()));
+    List<String> left = new ArrayList<>(names);
+    List<String[]> pieces = new ArrayList<>();
+    for (tools.jackson.databind.JsonNode cite : item.path("cites")) {
+      java.util.regex.Matcher m =
+          java.util.regex.Pattern.compile("^([^:]+):(.+):(\\d+)(?:-(\\d+))?$")
+              .matcher(cite.asString());
+      if (!m.matches()) {
+        continue;
+      }
+      int from = Integer.parseInt(m.group(3));
+      int to = m.group(4) == null ? from : Integer.parseInt(m.group(4));
+      String[] file = TEXTS.getOrDefault(m.group(1) + ":" + m.group(2), "").split("\n", -1);
+      List<String> range = new ArrayList<>();
+      for (int i = from; i <= to && i <= file.length; i++) {
+        range.add(file[i - 1]);
+      }
+      String text = String.join("\n", range);
+      List<String> shows = names.stream().filter(text::contains).toList();
+      left.removeAll(shows);
+      String quote =
+          range.stream()
+              .filter(l -> shows.stream().anyMatch(l::contains))
+              .findFirst()
+              .orElse(range.stream().filter(l -> !l.isBlank()).findFirst().orElse(""))
+              .strip();
+      pieces.add(
+          new String[] {
+            m.group(1) + ":" + m.group(2) + ":" + from + "-" + to, quote, String.join("\t", shows)
+          });
+    }
+    for (int i = 0; i < pieces.size(); i++) {
+      List<String> shows =
+          new ArrayList<>(
+              pieces.get(i)[2].isEmpty() ? List.of() : List.of(pieces.get(i)[2].split("\t")));
+      if (i == 0) {
+        shows.addAll(left);
+      }
+      out.append("\n[[evidence]]\nlines = ")
+          .append(io.lantern.harness.Toml.string(pieces.get(i)[0]))
+          .append("\nquote = ")
+          .append(io.lantern.harness.Toml.string(pieces.get(i)[1]))
+          .append("\nshows = [")
+          .append(String.join(", ", shows.stream().map(io.lantern.harness.Toml::string).toList()))
+          .append("]\n");
+    }
+    return out.toString();
   }
 
   /** The file ranges an answer cites, as quoted strings: {@code "repo:path:from-to"}. */
@@ -309,13 +388,7 @@ class InvestigatorTest {
     if (harnessCalibration != null) {
       harness.calibrating("investigate-leads", harnessCalibration);
     }
-    return new Investigator(
-            harness,
-            FILES,
-            Map.of(
-                "identity-from-request", "Whether anything verifies it.",
-                "plaintext-secret", "Whether the secret is kept in the code."))
-        .investigate(facts, 1);
+    return new Investigator(harness, FILES).investigate(facts, 1);
   }
 
   private Investigator.Result investigate(FakeLlmProvider fake) {
@@ -338,7 +411,7 @@ class InvestigatorTest {
   // Cases
 
   @Test
-  void aLeadIsShownWithWhatToJudgeItsFactsAndTheCodeItPointsAt() {
+  void aLeadIsShownAsTomlWithItsQuestionAndTheCodeItPointsAt() {
     headerLead();
     FakeLlmProvider fake = submitting(r -> null);
 
@@ -351,15 +424,22 @@ class InvestigatorTest {
             .findFirst()
             .orElseThrow();
     String user = request.messages().getFirst().text();
-    assertThat(request.system()).contains(InvestigatePrompt.LEADS_TASK, InvestigatePrompt.SCHEMA);
+    // Its own instructions, without the JSON rules and schema of the other modes (#892).
+    assertThat(request.system())
+        .contains(InvestigatePrompt.LEADS_SYSTEM, InvestigatePrompt.LEADS_TASK)
+        .doesNotContain(InvestigatePrompt.SCHEMA);
+    // TOML naming the header, the unit and the method by short names, the code numbered (#860).
+    io.lantern.harness.Toml.read(user);
     assertThat(user)
-        .contains("Lead lead:identity-from-request/service:g:files/header:X-User-Id")
-        .contains("What to judge: Whether anything verifies it.")
-        .contains("<code repo=\"fs\" path=\"" + CONTROLLER + "\" lines=\"3-9\">")
+        .startsWith("[task]\nquestion = \"The code of files reads the request header X-User-Id")
+        .contains("(FileController.upload)")
+        .contains("repositories = [\"fs\"]")
+        .contains("where = \"fs:" + CONTROLLER + "\"")
         .contains("6    String upload(@RequestHeader(\"X-User-Id\")")
-        .contains("- " + FILES_UNIT);
+        .contains("[start]")
+        .doesNotContain("lead:", "service:g:", "method:", "reads-request-value");
     assertThat(request.tools().stream().map(t -> t.name()).toList())
-        .containsExactlyInAnyOrder("facts_about", "read_file", "find_in_code", "submit");
+        .containsExactlyInAnyOrder("facts_about", "read_file", "find_in_code", "answer");
   }
 
   @Test
@@ -373,9 +453,7 @@ class InvestigatorTest {
             RunBudget.NONE,
             (repo, path) -> FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
             Set.of());
-    Investigator investigator =
-        new Investigator(
-            harness, FILES, Map.of("identity-from-request", "Whether anything verifies it."));
+    Investigator investigator = new Investigator(harness, FILES);
 
     // A lead not chosen is not asked; no unit or the system is explored (#890).
     Investigator.Result none = investigator.leads(facts, 1, lead -> false);
@@ -439,10 +517,7 @@ class InvestigatorTest {
                   (repo, path) ->
                       FILES.read(repo, path).map(io.lantern.harness.Fingerprints::gitBlob),
                   Set.of()),
-              FILES,
-              Map.of(
-                  "identity-from-request", "Whether anything verifies it.",
-                  "plaintext-secret", "Whether the secret is kept in the code."))
+              FILES)
           .investigate(run.getValue(), 1);
     }
 
@@ -559,59 +634,62 @@ class InvestigatorTest {
             .findFirst()
             .orElseThrow();
     assertThat(second.messages().getLast().toolResults().getLast().content())
-        .contains("rejected")
+        .contains("recorded = false")
+        .contains("answers_left = 2")
         .contains("X-User-Id");
     assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
   }
 
   @Test
-  void aVerdictMiscitedTwiceIsDroppedAndTheLeadUnclear() {
+  void aVerdictMiscitedThreeTimesEndsTheConversationAndTheLeadIsUnclear() {
     headerLead();
-    FakeLlmProvider fake = submitting(r -> leads(r) && turn(r) <= 2 ? MISCITED : null);
+    FakeLlmProvider fake = submitting(r -> leads(r) ? MISCITED : null);
 
     Investigator.Result result = investigate(fake);
 
+    // The third failed answer ends it: no fourth turn, nothing recorded (#892).
+    List<LlmRequest> sent =
+        fake.sent().stream().map(c -> c.request()).filter(InvestigatorTest::leads).toList();
+    assertThat(sent).hasSize(3);
+    assertThat(sent.getLast().messages().getLast().toolResults().getLast().content())
+        .contains("answers_left = 1");
     assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
     Fact verdict = of(result, Types.LEAD_VERDICT).getFirst();
     assertThat(verdict.object().value()).isEqualTo("unclear");
-    assertThat(verdict.attributes().path("reason").asString()).contains("rejected twice");
   }
 
   @Test
-  void anUnansweredLeadIsAskedAgainAloneOnceThenUnclear() {
+  void anUnansweredLeadIsRemindedOnceAndIsNotAskedAgainAlone() {
     headerLead();
     FakeLlmProvider fake = submitting(r -> null);
 
     Investigator.Result result = investigate(fake);
 
-    long leadConversations =
-        fake.sent().stream().map(c -> c.request()).filter(r -> leads(r) && turn(r) == 1).count();
-    assertThat(leadConversations).isEqualTo(2);
+    // One conversation: the model's text answer holds no verdict, so it is reminded once, then
+    // the lead is unclear; no second conversation asks it alone (#892).
+    List<LlmRequest> sent =
+        fake.sent().stream().map(c -> c.request()).filter(InvestigatorTest::leads).toList();
+    assertThat(sent).hasSize(2);
+    assertThat(sent.getLast().messages().getLast().text()).isEqualTo(LeadAnswer.REMINDER);
     assertThat(of(result, Types.LEAD_VERDICT).getFirst().object().value()).isEqualTo("unclear");
-    // The lead asked again is an item planned of its own, so the record counts each once.
     assertThat(harness.records())
         .filteredOn(r -> r.role().equals("investigate-leads"))
         .singleElement()
-        .satisfies(
-            r -> {
-              assertThat(r.planned()).isEqualTo(2);
-              assertThat(r.settled()).isEqualTo(2);
-            });
+        .satisfies(r -> assertThat(r.planned()).isEqualTo(1));
   }
 
   @Test
-  void aLeadNamedByItsIdRatherThanItsItemIdIsStillAnswered() {
-    Fact lead = headerLead();
+  void aVerdictGivenAsTextIsReadAsIfSentThroughTheTool() {
+    headerLead();
     FakeLlmProvider fake =
-        submitting(
-            r ->
-                leads(r) && turn(r) == 1
-                    ? CONFIRMED.replace("\"I1\"", "\"" + lead.subject() + "\"")
-                    : null);
+        new FakeLlmProvider()
+            .callingTools(r -> List.of())
+            .answering(r -> leads(r) ? toml(FactJson.parse(CONFIRMED)) : "Done.");
 
     Investigator.Result result = investigate(fake);
 
     assertThat(of(result, Types.LEAD_VERDICT).getFirst().object().value()).isEqualTo("confirmed");
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
   }
 
   @Test
@@ -893,7 +971,7 @@ class InvestigatorTest {
             r ->
                 !leads(r) || turn(r) != 1
                     ? null
-                    : r.messages().getFirst().text().contains("header:X-Org-Id")
+                    : r.messages().getFirst().text().contains("X-Org-Id")
                         ? CONFIRMED_ORG
                         : CONFIRMED);
 
@@ -927,7 +1005,7 @@ class InvestigatorTest {
             r ->
                 !leads(r) || turn(r) != 1
                     ? null
-                    : r.messages().getFirst().text().contains("header:X-Org-Id")
+                    : r.messages().getFirst().text().contains("X-Org-Id")
                         ? CONFIRMED_ORG
                         : CONFIRMED);
 
@@ -970,7 +1048,7 @@ class InvestigatorTest {
                 turn(r) != 1
                     ? null
                     : leads(r)
-                        ? r.messages().getFirst().text().contains(GATEWAY_UNIT + "/header")
+                        ? r.messages().getFirst().text().contains("gateway and files")
                             ? confirmed
                             : null
                         : unit(r, FILES_UNIT) ? overlapping : null);
@@ -980,41 +1058,6 @@ class InvestigatorTest {
     assertThat(of(result, Types.INVESTIGATED_RISK))
         .singleElement()
         .satisfies(r -> assertThat(r.subject().toString()).isEqualTo(GATEWAY_UNIT));
-  }
-
-  @Test
-  void aRiskFoundExploringThatCitesTheLinesOfARiskWhoseLeadNamesItsUnitIsNotASecondRisk() {
-    // The lead names the gateway and files, but its answer names the gateway alone.
-    Fact lead = headerLead();
-    ObjectNode attributes = (ObjectNode) lead.attributes().deepCopy();
-    attributes.putArray("units").add(GATEWAY_UNIT).add(FILES_UNIT);
-    add(
-        "lead-identity-from-request",
-        "lead:identity-from-request/" + GATEWAY_UNIT + "/header:X-User-Id",
-        Types.LEAD_TRIGGER,
-        FactObject.string("identity-from-request"),
-        attributes.toString(),
-        "fs",
-        CONTROLLER,
-        6);
-    String confirmed =
-        CONFIRMED.replace(
-            "\"units\": [\"service:g:files\"]", "\"units\": [\"" + GATEWAY_UNIT + "\"]");
-    String overlapping = uploadRisk("fs:" + CONTROLLER + ":6-6");
-    FakeLlmProvider fake =
-        submitting(
-            r ->
-                turn(r) != 1
-                    ? null
-                    : leads(r)
-                        ? r.messages().getFirst().text().contains(GATEWAY_UNIT + "/header")
-                            ? confirmed
-                            : null
-                        : unit(r, FILES_UNIT) ? overlapping : null);
-
-    Investigator.Result result = investigate(fake);
-
-    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
   }
 
   @Test
@@ -1031,9 +1074,7 @@ class InvestigatorTest {
             r ->
                 !leads(r) || turn(r) != 1
                     ? null
-                    : r.messages().getFirst().text().contains("header:X-Org-Id")
-                        ? CONFIRMED_ORG
-                        : low);
+                    : r.messages().getFirst().text().contains("X-Org-Id") ? CONFIRMED_ORG : low);
 
     Fact risk = of(investigate(fake), Types.INVESTIGATED_RISK).stream().collect(onlyOne());
 
@@ -1091,7 +1132,9 @@ class InvestigatorTest {
             r ->
                 !leads(r) || turn(r) != 1
                     ? null
-                    : r.messages().getFirst().text().contains("/storage") ? storage : CONFIRMED);
+                    : r.messages().getFirst().text().contains("StorageClient")
+                        ? storage
+                        : CONFIRMED);
 
     Investigator.Result result = investigate(fake);
 
@@ -1373,34 +1416,23 @@ class InvestigatorTest {
   }
 
   @Test
-  void aCalibrationAsksTheLeadsAtItsSize() {
+  void aCalibrationStillAsksOneLeadAConversation() {
     headerLead();
     headerLead("plaintext-secret");
-    FakeLlmProvider usual = submitting(r -> null);
-    investigate(usual);
-
     FakeLlmProvider fake = submitting(r -> null);
     harnessCalibration = new io.lantern.harness.Harness.Calibration(2, "1");
     investigate(fake);
     harnessCalibration = null;
 
-    // One lead in the first request at the usual size; both under a calibration at 2 (ADR 0112).
-    java.util.function.Function<FakeLlmProvider, String> first =
-        f ->
-            f.sent().stream()
+    // Each lead answers through its own answer tool, so a packet size never joins two (#892).
+    assertThat(
+            fake.sent().stream()
                 .map(s -> s.request())
-                .filter(r -> leads(r) && turn(r) == 1)
-                .findFirst()
-                .orElseThrow()
-                .messages()
-                .getFirst()
-                .text();
-    assertThat(first.apply(usual)).contains("<item id=\"I1\">").doesNotContain("<item id=\"I2\">");
-    assertThat(first.apply(fake)).contains("<item id=\"I1\">").contains("<item id=\"I2\">");
-    assertThat(harness.records())
-        .filteredOn(r -> r.toJson().path("role").asString().equals("investigate-leads"))
-        .singleElement()
-        .satisfies(r -> assertThat(r.toJson().path("packetSize").asInt()).isEqualTo(2));
+                .filter(r -> leads(r) && r.messages().size() == 1)
+                .map(r -> r.messages().getFirst().text())
+                .toList())
+        .hasSize(2)
+        .allSatisfy(t -> assertThat(t.split("\\[task\\]", -1)).hasSize(2));
   }
 
   @Test
