@@ -299,6 +299,54 @@ class GroupViewsTest {
   }
 
   @Test
+  void anAspectAcrossTheAreasIsOffTheOverviewThatLeavesTheOutsideOffWithANoteAndOnTheirPages() {
+    // Owner's decision of 6 Nov 2026 on #764.
+    TestFacts many = manyComponents();
+    String aspect = "type:com.example.security.Guard";
+    many.relate(
+            "shop",
+            "module:com.example:app",
+            "CONTAINS",
+            "package:com.example:app:com.example.security")
+        .relate("shop", "package:com.example:app:com.example.security", "CONTAINS", aspect)
+        .attribute("shop", aspect, "stereotype", "component")
+        .attribute(
+            "shop",
+            aspect,
+            "aspect",
+            "aspect",
+            "{\"advice\":[\"before\"],\"pointcuts\":[\"execution(* *(..))\"]}");
+    for (String feature : List.of("orders", "billing")) {
+      many.relate(
+          "shop",
+          aspect,
+          "ADVISES",
+          "method:com.example." + feature + ".C0#get()",
+          "{\"advice\":\"method:x.A#check()\",\"kind\":\"before\",\"pointcut\":\"p\"}");
+    }
+    Section app =
+        section(system(many.list(), limits(5, 2)), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(block(app, Diagram.class).nodes())
+        .extracting(n -> n.id().toString())
+        .doesNotContain(aspect);
+    assertThat(app.blocks())
+        .filteredOn(Callout.class::isInstance)
+        .anyMatch(
+            c -> text(((Callout) c).content()).startsWith("Guard cuts across the feature areas"));
+    assertThat(app.sections())
+        .filteredOn(p -> p.entity() != null && p.entity().toString().endsWith("/area/pkg-orders"))
+        .allSatisfy(
+            p ->
+                assertThat(diagrams(p))
+                    .anyMatch(
+                        d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(aspect))));
+  }
+
+  @Test
   void aUnitWithTooManyComponentsShowsItsFeatureAreasThenAPageEach() {
     TestFacts many = manyComponents();
     List<String> features = List.of("orders", "billing", "parts");

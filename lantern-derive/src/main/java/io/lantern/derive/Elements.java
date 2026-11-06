@@ -949,7 +949,11 @@ public final class Elements {
    * bean it is built around.
    */
   public record Component(
-      EntityId main, SortedSet<EntityId> types, String technology, boolean entryPoint) {}
+      EntityId main,
+      SortedSet<EntityId> types,
+      String technology,
+      boolean entryPoint,
+      boolean crossCutting) {}
 
   /**
    * The unit's stored components (#523): the routes its gateway config defines, then its entry
@@ -959,6 +963,7 @@ public final class Elements {
     List<Component> routes = new ArrayList<>();
     List<Component> entries = new ArrayList<>();
     List<Component> shared = new ArrayList<>();
+    Set<EntityId> own = Groups.ownCode(knowledge, unit);
     for (Fact part : knowledge.withPredicate(Types.PART_OF)) {
       if (!part.subject().type().equals(Types.COMPONENT)
           || !Knowledge.isEntity(part)
@@ -981,7 +986,14 @@ public final class Elements {
       // unit, whether or not the code shows from where.
       Component found =
           new Component(
-              main, types, attribute(part, "technology", null), !role.equals(Components.SHARED));
+              main,
+              types,
+              attribute(part, "technology", null),
+              !role.equals(Components.SHARED),
+              // Cut across the unit's areas, as Groups judges it: an aspect, or a class of a
+              // library the unit bundles (#638).
+              role.equals(Components.ASPECT_ROLE)
+                  || main.type().equals(Types.TYPE) && !own.contains(main));
       switch (role) {
         case Components.CONFIG_ROUTES_ROLE -> routes.add(found);
         case Components.SHARED -> shared.add(found);

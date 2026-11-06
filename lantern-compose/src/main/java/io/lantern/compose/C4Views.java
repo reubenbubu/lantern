@@ -1472,6 +1472,7 @@ final class C4Views {
       boolean outsideOff = false;
       List<Elements.Component> outsideOnly = new ArrayList<>();
       Set<EntityId> overview = new java.util.LinkedHashSet<>(all);
+      Set<EntityId> crossOff = new HashSet<>();
       if (!fits(diagram)) {
         // The coarser level the code proves, each feature area one box with a page of its own;
         // a view still too large there, or with no areas, merges its lines per pair (owner's
@@ -1488,6 +1489,23 @@ final class C4Views {
           Diagram inside =
               componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
           outsideOff = inside.nodes().size() < diagram.nodes().size();
+          // What cuts across the areas (an aspect, a bundled library's class) is left off too,
+          // with a note; each area's page draws it (owner's decision of 6 Nov 2026 on #764).
+          for (Elements.Component component : components) {
+            if (component.crossCutting() && !areaOf.containsKey(component.main())) {
+              crossOff.add(component.main());
+            }
+          }
+          if (!crossOff.isEmpty() && crossOff.size() < overview.size()) {
+            overview.removeAll(crossOff);
+            // Its lines are left off with it, so it is not drawn as a neighbour.
+            callersElsewhere = crossOff;
+            inside =
+                componentDiagram(
+                    assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
+          } else {
+            crossOff.clear();
+          }
           diagram = inside;
           // A component whose every line goes outside is left with none here: it is not part of
           // what this view shows, and is drawn on a page of its own with its lines (owner's
@@ -1541,6 +1559,7 @@ final class C4Views {
           perPair = false;
         }
         withoutOutside = false;
+        callersElsewhere = Set.of();
         if (!areaOf.isEmpty()) {
           areas = areas(id, unit, components, areaOf);
         } else if (!fits(diagram)) {
@@ -1618,6 +1637,30 @@ final class C4Views {
                             + assembler.name(unit)
                             + " is left off this view to keep it readable; each area's page"
                             + " draws it.")),
+                List.of()));
+      }
+      if (!crossOff.isEmpty()) {
+        List<String> names = new ArrayList<>();
+        components.forEach(
+            c -> {
+              if (crossOff.contains(c.main())) {
+                names.add(elements.componentName(c));
+              }
+            });
+        blocks.add(
+            new Callout(
+                assembler.id(id, "cross-cutting"),
+                Callout.Variant.NOTE,
+                null,
+                null,
+                List.of(
+                    TextRun.of(
+                        ScopeFlows.list(names)
+                            + (names.size() == 1 ? " cuts" : " cut")
+                            + " across the feature areas and "
+                            + (names.size() == 1 ? "is" : "are")
+                            + " left off this view to keep it readable; each area's page draws"
+                            + " where it applies.")),
                 List.of()));
       }
       alternativesNote(assembler.id(id, "profiles"), only(unit), false).ifPresent(blocks::add);

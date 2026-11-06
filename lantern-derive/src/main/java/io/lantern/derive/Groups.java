@@ -403,7 +403,7 @@ public final class Groups implements LinkRule.OverFacts {
   }
 
   /** The classes of the unit's own modules, without the libraries it bundles. */
-  private static Set<EntityId> ownCode(Knowledge knowledge, EntityId unit) {
+  static Set<EntityId> ownCode(Knowledge knowledge, EntityId unit) {
     Set<EntityId> own = new HashSet<>();
     for (EntityId module : knowledge.parts(unit, Types.MODULE)) {
       own.addAll(knowledge.typesWithin(module));
