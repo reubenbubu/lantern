@@ -1062,7 +1062,9 @@ class EndToEndIT {
                 + judgedOnWriters
                 + byRole.getOrDefault(Role.SCREEN, 0L)
                 // Name groups names the groups a set has, when it has any.
-                + byRole.getOrDefault(Role.NAME_GROUPS, 0L));
+                + byRole.getOrDefault(Role.NAME_GROUPS, 0L)
+                // The grouping role, when a view holds more than the limits (#919).
+                + byRole.getOrDefault(Role.GROUP_BY_MEANING, 0L));
   }
 
   /** What two runs over the same commits did. */

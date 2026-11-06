@@ -497,3 +497,14 @@ and not by eye (`llmMarks` in `lantern-web/scripts/score.mjs`):
   `infrastructure` list, matched as whole words as the check does, which should be none.
 
 Connection precision, which the issue also judges, is the existing container-connection row.
+
+## Amendment (#919): the grouping row
+
+The scorecard gains a Grouping row: how far the feature areas the run stored, the code's and the
+grouping role's (ADR 0129), agree with those the reference names in its components'
+`properties.area`, pair by pair over the components of each unit the report matches
+(`docs/research/llm-grouping-by-meaning.md`, Scoring). A component in no stored area stands alone.
+It shows the precision and recall of the pairs, the components scored, those in no area and those
+placed by meaning. It reads the groups from `linked.jsonl.gz` and `llm.jsonl.gz`, since a document
+names a box's group only by its display name, and it is not measured where the reference names no
+area (project-1 to project-4 today).

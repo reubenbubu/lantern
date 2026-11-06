@@ -19,6 +19,11 @@ public enum Role {
    */
   DESCRIBE_ELEMENTS(Tier.HIGH_VOLUME),
   NAME_GROUPS(Tier.HIGH_VOLUME),
+  /**
+   * Grouping by meaning what the code signals left ungrouped (#919, ADR 0129): a judgement over the
+   * whole system, on the reasoning tier.
+   */
+  GROUP_BY_MEANING(Tier.REASONING),
   PROPOSE_RULES(Tier.REASONING),
   /**
    * Choosing which traced flows are worth drawing for a scope (knowledge-build epic, section 11.5):

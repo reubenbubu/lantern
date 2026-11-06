@@ -101,8 +101,10 @@ them is in the design.
 Size is measured, not guessed. A container or component view holds at most a measured number of
 boxes, the limit Lantern's diagram layout still draws legibly at page width (8 plus 2 by default,
 owner's decision of 5 Nov 2026; `docs/research/diagram-element-limit.md`), and the limit is a
-setting, so it can be tuned. 7 ± 2 is no target. A view over the limit is drawn at a coarser grouping
-the code proves (grouping by meaning what the code leaves ungrouped is #919); still over it, what
+setting, so it can be tuned. 7 ± 2 is no target. A view over the limit is drawn at a coarser grouping:
+the groups the code proves, and, for what the code leaves ungrouped, groups by business meaning a
+model proposes and code checks ([Microsoft](https://learn.microsoft.com/en-us/azure/architecture/microservices/model/domain-analysis);
+`docs/research/llm-grouping-by-meaning.md`); still over it, what
 lies outside is left off
 with a note, its lines between two boxes merge into one, then queues and topics between two boxes
 become "via" labels, then it is split by question into an overview and a view per group ([Brown](https://dev.to/simonbrown/diagramming-distributed-architectures-with-the-c4-model-51cm);

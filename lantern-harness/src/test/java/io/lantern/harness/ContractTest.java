@@ -50,6 +50,7 @@ class ContractTest {
             "flow-significance",
             "flow-narrative",
             "name-groups",
+            "group-by-meaning",
             "resolve",
             "investigate",
             "support-judge",

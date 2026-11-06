@@ -174,6 +174,25 @@ class FakeLlmConfigurationTest {
   }
 
   @Test
+  void theGroupingRoleGroupsNothingSoTheCodesGroupsStandAlone() {
+    // The fake knows the role by how its task starts, which the prompt still says (#919).
+    assertThat(io.lantern.harness.Prompts.text("group-by-meaning.task.txt"))
+        .startsWith(FakeLlmConfiguration.GROUP_BY_MEANING_TASK);
+
+    assertThat(
+            fake.complete(
+                    "fake-model",
+                    LlmRequest.of(
+                        Role.GROUP_BY_MEANING,
+                        "test",
+                        "Rules.\n\n" + FakeLlmConfiguration.GROUP_BY_MEANING_TASK + " More.",
+                        "<items>\n<item id=\"I1\">\nContainers: ...\n</item>\n</items>",
+                        500))
+                .text())
+        .isEqualTo("{\"items\": {\"I1\": {\"domains\": [], \"areas\": [], \"left_out\": []}}}");
+  }
+
+  @Test
   void describeGetsAPlaceholderForEveryUnitComponentInteractionAndElement() {
     String units =
         """

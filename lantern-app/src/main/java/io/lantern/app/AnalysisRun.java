@@ -623,6 +623,15 @@ public final class AnalysisRun {
         // findings (knowledge-build epic, section 11.8; ADR 0107).
         List<Fact> withTexts = new ArrayList<>(systemFacts);
         llmFacts.values().forEach(withTexts::addAll);
+        // The grouping role groups by meaning what the code signals left ungrouped where a view
+        // would hold too much, from what Describe wrote, keeping its earlier groups (#919; ADR
+        // 0129). Name groups then names its groups with the others.
+        io.lantern.summarize.describe.GroupByMeaning.Result grouped =
+            new io.lantern.summarize.describe.GroupByMeaning(
+                    harness, c4Renderer.limits().target(), c4Renderer.limits().tolerance())
+                .group(withTexts, snapshot.number());
+        recordLlmFacts(snapshot, grouped.byOrigin());
+        withTexts = grouped.replacing(withTexts);
         NameGroups.Result named = new NameGroups(harness).name(withTexts, snapshot.number());
         recordLlmFacts(snapshot, named.byOrigin());
         if (!named.unknown().isEmpty()) {
@@ -971,7 +980,10 @@ public final class AnalysisRun {
                     || io.lantern.harness.LlmFacts.isText(f)
                     || f.origin().equals(io.lantern.derive.Findings.SCREEN_ORIGIN)
                     || f.origin().kind() == Origin.Kind.LLM
-                        && f.origin().name().equals(io.lantern.link.Investigator.NAME))
+                        && (f.origin().name().equals(io.lantern.link.Investigator.NAME)
+                            || f.origin()
+                                .name()
+                                .equals(io.lantern.summarize.describe.GroupByMeaning.NAME)))
         .toList();
   }
 

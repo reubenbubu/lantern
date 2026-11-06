@@ -1166,6 +1166,95 @@ export function nameGroupsRow(run) {
   };
 }
 
+/**
+ * The feature areas the run stored (#919): for each report component, as the component documents
+ * draw it (its main type's id), the area holding it, from the derived groups (`linked.jsonl.gz`) and
+ * the grouping role's (`llm.jsonl.gz`); a component in no area is absent. A member's GROUPS fact
+ * counts only while its group's `group-of` fact is stored.
+ */
+export function storedAreas(linked, llm) {
+  const facts = [...(linked ?? []), ...(llm ?? [])];
+  const areas = new Set(
+    facts.filter((f) => f.predicate === 'group-of' && f.object?.value === 'feature-area').map((f) => f.subject),
+  );
+  const areaOf = new Map();
+  const basisOf = new Map();
+  for (const f of facts) {
+    if (f.predicate !== 'GROUPS' || !areas.has(f.subject)) continue;
+    const member = String(f.object?.value ?? '');
+    const anchor = member.indexOf('/type:');
+    if (!member.startsWith('component:') || anchor < 0) continue;
+    const id = reportId(member.slice(anchor + 1));
+    if (!areaOf.has(id)) {
+      areaOf.set(id, f.subject);
+      basisOf.set(id, f.attributes?.basis ?? null);
+    }
+  }
+  return { areaOf, basisOf };
+}
+
+/**
+ * Grouping (#919; docs/research/llm-grouping-by-meaning.md, Scoring): how far the stored feature
+ * areas agree with the ones the reference names, pair by pair. For each unit whose reference
+ * components name an area (`properties.area`), every two of its components the report matches are a
+ * pair; a pair in one stored area and in one reference area agrees. A component in no stored area is
+ * alone. Precision is the share of pairs stored together that the reference puts together; recall
+ * the share of the reference's pairs stored together. Also: the components scored, those in no area,
+ * and those the grouping role placed.
+ *
+ * @param matched each report element's reference id, as the scorecard matches them
+ */
+export function groupingRow(reference, matched, linked, llm) {
+  if (!linked) return notMeasured('no linked.jsonl.gz beside the run');
+  const refArea = new Map();
+  for (const [id, e] of Object.entries(reference.elements ?? {})) {
+    const area = e.properties?.area;
+    if (e.kind === 'component' && e.tag !== 'Feature area' && area) refArea.set(id, `${e.parent} ${area}`);
+  }
+  if (refArea.size === 0) return notMeasured('the reference names no feature areas');
+  const { areaOf, basisOf } = storedAreas(linked, llm);
+  const byUnit = new Map();
+  for (const [reportElement, refId] of matched) {
+    if (!refArea.has(refId)) continue;
+    const unit = reference.elements[refId].parent;
+    if (!byUnit.has(unit)) byUnit.set(unit, new Map());
+    byUnit.get(unit).set(refId, areaOf.get(reportElement) ?? `alone ${reportElement}`);
+  }
+  let together = 0;
+  let agreed = 0;
+  let referencePairs = 0;
+  let components = 0;
+  let loose = 0;
+  let byMeaning = 0;
+  for (const [, ours] of byUnit) {
+    const ids = [...ours.keys()].sort();
+    components += ids.length;
+    loose += ids.filter((id) => ours.get(id).startsWith('alone ')).length;
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) {
+        const same = ours.get(ids[i]) === ours.get(ids[j]);
+        const sameRef = refArea.get(ids[i]) === refArea.get(ids[j]);
+        together += same ? 1 : 0;
+        referencePairs += sameRef ? 1 : 0;
+        agreed += same && sameRef ? 1 : 0;
+      }
+    }
+  }
+  for (const [reportElement, refId] of matched) {
+    if (refArea.has(refId) && basisOf.get(reportElement) === 'meaning') byMeaning++;
+  }
+  return {
+    measured: true,
+    units: byUnit.size,
+    components,
+    loose,
+    byMeaning,
+    pairs: { together, agreed, reference: referencePairs },
+    precision: ratio(agreed, together),
+    recall: ratio(agreed, referencePairs),
+  };
+}
+
 /** A run record's totals over its roles' harness records. */
 function totals(run) {
   const t = { calls: 0, costUsd: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, planned: 0, cached: 0 };

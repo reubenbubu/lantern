@@ -43,6 +43,7 @@ import {
   unusedVerdicts,
   itemPairs,
   nameGroupsRow,
+  groupingRow,
   notMeasured,
   pairedDifference,
   readAnswerKey,
@@ -941,6 +942,7 @@ function roleRows(report, reference, matched, repFlows, inputs, spell = normaliz
       judgements,
     ),
     unusedVerdicts: unusedVerdicts(judgements, llm),
+    grouping: groupingRow(reference, matched, linked, llm),
     nameGroups: withJudge(nameGroupsRow(run), judged.nameGroups),
     purpose: judged.purpose,
     harness: harnessRow(run, warm, change, inputs.changeFile ?? null),
@@ -1060,6 +1062,12 @@ export function roleCells(roles) {
     cell['Investigate connections'] = !cn.measured
       ? why(cn)
       : `${cn.right}/${cn.right + cn.wrong} right (precision ${percent(cn.precision)}), ${cn.unjudged.length} of ${cn.found} unjudged; ${cn.matched}/${cn.reference} reference connections found`;
+  }
+  const g = roles.grouping;
+  if (g) {
+    cell.Grouping = !g.measured
+      ? why(g)
+      : `feature areas against the reference's, pair by pair: precision ${g.pairs.agreed}/${g.pairs.together} (${percent(g.precision)}), recall ${g.pairs.agreed}/${g.pairs.reference} (${percent(g.recall)}); ${g.components} components of ${g.units} units, ${g.loose} in no area, ${g.byMeaning} placed by meaning`;
   }
   const n = roles.nameGroups;
   cell['Name groups'] = !n.measured ? why(n) : `${n.named}/${n.groups} named (${percent(n.coverage)}); judge ${judgedCell(n.judge)}`;

@@ -1,0 +1,13 @@
+{"type": "object", "required": ["items"], "properties": {"items": {"type": "object", "additionalProperties": {
+  "type": "object", "required": ["domains", "areas", "left_out"], "additionalProperties": false,
+  "properties": {
+    "domains": {"type": "array", "items": {"type": "object", "required": ["key", "reason", "members"], "additionalProperties": false, "properties": {
+      "key": {"type": "string", "maxLength": 40}, "extends": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+      "reason": {"type": "object", "required": ["text", "cites"], "additionalProperties": false, "properties": {"text": {"type": "string", "maxLength": 300}, "cites": {"type": "array", "items": {"type": "string"}}}},
+      "members": {"type": "array", "items": {"type": "string"}}}}},
+    "areas": {"type": "array", "items": {"type": "object", "required": ["service", "key", "reason", "members"], "additionalProperties": false, "properties": {
+      "service": {"type": "string"}, "key": {"type": "string", "maxLength": 40}, "extends": {"oneOf": [{"type": "string"}, {"type": "null"}]},
+      "reason": {"type": "object", "required": ["text", "cites"], "additionalProperties": false, "properties": {"text": {"type": "string", "maxLength": 300}, "cites": {"type": "array", "items": {"type": "string"}}}},
+      "members": {"type": "array", "items": {"type": "string"}}}}},
+    "left_out": {"type": "array", "items": {"type": "object", "required": ["member", "why"], "additionalProperties": false, "properties": {
+      "member": {"type": "string"}, "why": {"type": "string", "maxLength": 200}}}}}}}}}

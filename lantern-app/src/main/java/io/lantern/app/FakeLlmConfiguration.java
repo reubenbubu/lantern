@@ -64,6 +64,10 @@ class FakeLlmConfiguration {
               if (named != null) {
                 return named;
               }
+              // It groups nothing by meaning, so the code's groups stand alone (#919).
+              if (request.system().contains(GROUP_BY_MEANING_TASK)) {
+                return "{\"items\": {\"I1\": {\"domains\": [], \"areas\": [], \"left_out\": []}}}";
+              }
               String flows = flows(request);
               if (flows != null) {
                 return flows;
@@ -421,6 +425,10 @@ class FakeLlmConfiguration {
     }
     return "{\"items\": {" + String.join(", ", entries) + "}}";
   }
+
+  /** How the grouping role's task starts (#919). */
+  static final String GROUP_BY_MEANING_TASK =
+      "Task: group by meaning what the code left ungrouped.";
 
   /** How the purpose and key-fact role's task starts. */
   static final String PURPOSE_TASK = "Task: say what the system is for and what matters most";
