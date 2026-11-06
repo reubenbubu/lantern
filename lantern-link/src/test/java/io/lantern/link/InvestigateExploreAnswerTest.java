@@ -70,6 +70,18 @@ class InvestigateExploreAnswerTest {
   }
 
   @Test
+  void aRangeWrittenAsTheShellShowsItsPathIsReadWithItsFirstFolderAsTheRepository() {
+    // As Haiku wrote them on project-8, the shell's paths starting at the repository (#904).
+    JsonNode entry =
+        read(
+            new InvestigateExploreAnswer(),
+            RISK.replace("lines = \"fs:F.java:6\"", "lines = \"fs/src/F.java:6-8\""));
+
+    assertThat(entry.path(InvestigatePrompt.PROPOSALS).path("P1").path("cites").get(0).asString())
+        .isEqualTo("fs:src/F.java:6-8");
+  }
+
+  @Test
   void anAnswerWithNoTableSaysNothingWasFound() {
     assertThat(read(new InvestigateExploreAnswer(), "").path(InvestigatePrompt.PROPOSALS))
         .isEmpty();

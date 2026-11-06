@@ -55,6 +55,13 @@ final class InvestigateLeadAnswer implements SingleAnswer {
   /** One line, as {@code repo:path:12}. */
   private static final Pattern ONE_LINE = Pattern.compile("^[^:]+:.+:(\\d+)$");
 
+  /**
+   * A range written as the shell shows paths, the repository its first folder: {@code
+   * repo/path:12-30} or {@code repo/path:12}.
+   */
+  private static final Pattern SHELL_PATH =
+      Pattern.compile("^(?:\\./)?([^:/\\s]+)/([^:]+):(\\d+(?:-\\d+)?)$");
+
   private static final LlmTool TOOL =
       new LlmTool(
           NAME,
@@ -164,6 +171,11 @@ final class InvestigateLeadAnswer implements SingleAnswer {
       for (JsonNode piece : evidence) {
         n++;
         String lines = piece.path("lines").asString("").strip();
+        Matcher shell = SHELL_PATH.matcher(lines);
+        if (shell.matches()) {
+          // The shell's paths start at the repository's folder (#904).
+          lines = shell.group(1) + ":" + shell.group(2) + ":" + shell.group(3);
+        }
         Matcher single = ONE_LINE.matcher(lines);
         if (single.matches()) {
           lines = lines + "-" + single.group(1); // one line, as repo:path:12, is 12-12
