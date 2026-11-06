@@ -58,6 +58,8 @@ class InvestigatePromptTest {
             + " "
             + LeadMessage.MAX_CHARS
             + " "
+            + LeadMessage.MAX_WHAT
+            + " "
             + LeadMessage.MAX_EVIDENCE
             + " "
             + LeadMessage.METHOD_LINES
@@ -75,7 +77,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("10 2c7c1805bb2c45f0e0d6a6fd22939e6a18416fcdd743dde9fc88a7a4c74baf6b");
+        .isEqualTo("10 391f490cc10da50a4f0b2a4414b155ef9c7ca20c5cc786c2acb98b12f0271ccd");
   }
 
   /**

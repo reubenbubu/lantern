@@ -192,7 +192,14 @@ final class LeadAnswer implements SingleAnswer {
 
   @Override
   public boolean holdsAnswer(String text) {
-    return text != null && text.contains("verdict") && Toml.readable(text);
+    if (text == null || !text.contains("verdict")) {
+      return false;
+    }
+    try {
+      return Toml.read(text).root().has("verdict");
+    } catch (Toml.Fault e) {
+      return false;
+    }
   }
 
   @Override

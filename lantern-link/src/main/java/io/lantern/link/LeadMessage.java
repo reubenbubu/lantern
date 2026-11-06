@@ -49,6 +49,11 @@ final class LeadMessage {
 
   private static final String POINTS_AT = "The code it points at: ";
 
+  /** The longest a piece's label grows by joining the facts on its lines. */
+  static final int MAX_WHAT = 400;
+
+  private static final String MORE = "; and more facts on these lines.";
+
   /** The predicates of a send, whose objects name what a lead's code sends. */
   private static final Set<String> SENDS =
       Set.of("message-send", "http-call", "PUBLISHES", "SENDS_MESSAGES_TO", "CALLS_HTTP");
@@ -174,14 +179,18 @@ final class LeadMessage {
     String units =
         lead.units().isEmpty()
             ? "the system"
-            : String.join(" and ", lead.units().stream().map(LeadMessage::shortName).toList());
+            : words(lead.units().stream().map(LeadMessage::shortName).distinct().toList());
     String detail = detail(lead, scope);
     List<String> sent = new ArrayList<>();
     for (Fact fact : lead.facts()) {
       if (SENDS.contains(fact.predicate())
           && fact.object() != null
           && fact.object().value() != null) {
-        sent.add(shortNames(fact.object().value()));
+        String to = shortNames(fact.object().value());
+        sent.add(
+            fact.predicate().equals("http-call") || fact.predicate().equals("CALLS_HTTP")
+                ? "a request to " + to
+                : "a message to " + to);
       }
     }
     return template
@@ -246,6 +255,21 @@ final class LeadMessage {
           && p.path().equals(at.path())
           && from <= p.to() + METHOD_LINES
           && to >= p.from() - METHOD_LINES) {
+        if (p.what().endsWith(MORE)) {
+          return;
+        }
+        if (p.what().length() + what.length() > MAX_WHAT) {
+          pieces.set(
+              i,
+              new Piece(
+                  stripPeriod(p.what()) + MORE,
+                  p.repo(),
+                  p.path(),
+                  Math.min(p.from(), from),
+                  Math.max(p.to(), to),
+                  null));
+          return;
+        }
         String joined =
             p.what().contains(stripPeriod(what))
                 ? p.what()
@@ -282,11 +306,11 @@ final class LeadMessage {
         .append("]\n");
     for (Piece piece : pieces) {
       out.append("\n[[evidence]]\n");
-      out.append("what = ").append(Toml.string(piece.what())).append('\n');
       if (!piece.code()) {
         out.append("fact = ").append(Toml.string(piece.fact())).append('\n');
         continue;
       }
+      out.append("what = ").append(Toml.string(piece.what())).append('\n');
       out.append("where = ").append(Toml.string(piece.repo() + ":" + piece.path())).append('\n');
       String code = code(piece, lines);
       if (!code.isEmpty()) {
@@ -352,6 +376,10 @@ final class LeadMessage {
   private static final Pattern CLASS =
       Pattern.compile("(?<![\\w.$])(?:[a-z_][\\w]*\\.)+([A-Z][\\w$]*)");
 
+  /** A Maven group and artifact, as {@code com.example:orders}: written as the artifact. */
+  private static final Pattern COORDINATE =
+      Pattern.compile("(?<![\\w.:/-])[a-z][\\w-]*(?:\\.[\\w-]+)+:([A-Za-z][\\w.-]*)");
+
   /**
    * The lead's scope: the entity its ID names after its kind, the longest start of the rest that is
    * a subject of the facts, else by its form.
@@ -405,8 +433,22 @@ final class LeadMessage {
       case "method", "field" -> member(rest);
       case "type" -> rest.substring(rest.lastIndexOf('.') + 1);
       case "header" -> rest;
+      case "deployment-instance" -> deployment(rest);
       default -> rest;
     };
+  }
+
+  /**
+   * A deployment's instance, as {@code compose:default/redis}: "the compose deployment (default)",
+   * since what it runs is the sentence's object.
+   */
+  private static String deployment(String rest) {
+    int slash = rest.lastIndexOf('/');
+    String where = slash < 0 ? rest : rest.substring(0, slash);
+    int colon = where.indexOf(':');
+    return colon < 0
+        ? "the " + where + " deployment"
+        : "the " + where.substring(0, colon) + " deployment (" + where.substring(colon + 1) + ")";
   }
 
   private static String member(String rest) {
@@ -431,7 +473,8 @@ final class LeadMessage {
         METHOD
             .matcher(out)
             .replaceAll(m -> Matcher.quoteReplacement(m.group(1) + "." + m.group(2)));
-    return CLASS.matcher(out).replaceAll(m -> Matcher.quoteReplacement(m.group(1)));
+    out = CLASS.matcher(out).replaceAll(m -> Matcher.quoteReplacement(m.group(1)));
+    return COORDINATE.matcher(out).replaceAll(m -> Matcher.quoteReplacement(m.group(1)));
   }
 
   private static final Map<String, String> VERBS =
@@ -453,7 +496,8 @@ final class LeadMessage {
           Map.entry("reads-request-value", "reads the request value"),
           Map.entry("config-value", "sets"),
           Map.entry("deployed-in", "is deployed in"),
-          Map.entry("RESOLVES_TO", "resolves to"));
+          Map.entry("RESOLVES_TO", "resolves to"),
+          Map.entry("transactional", "runs in a transaction, propagation"));
 
   /** A fact as one short sentence: who, what, the details that tell it apart, short names. */
   static String sentence(Fact fact) {
@@ -532,6 +576,13 @@ final class LeadMessage {
       return t;
     }
     return t.endsWith(".") || t.endsWith("?") ? t : t + ".";
+  }
+
+  /** Names as a reader lists them: "a", "a and b", "a, b and c". */
+  static String words(List<String> names) {
+    return names.size() <= 1
+        ? String.join("", names)
+        : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.getLast();
   }
 
   private static String stripPeriod(String text) {

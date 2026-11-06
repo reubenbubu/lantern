@@ -1,0 +1,18 @@
+[task]
+question = "The frontend web calls http://localhost:8080, written as apiUrl in its production environment. Does the deployed app call that address because the build bakes it in, or is it replaced when the app is built or started?"
+verdicts = "confirmed: the deployed app calls the local or private address. refuted: the build or the start replaces it, and you can show where. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "web sets apiUrl (in production)."
+where = "shop:web/src/environments/environment.prod.ts"
+code = """
+1  export const environment = {
+2    production: true,
+3    apiUrl: 'http://localhost:8080'
+4  };
+5  
+"""
+
+[start]
+hint = "Look at the app's build configuration, its Dockerfile and what its container runs at start."

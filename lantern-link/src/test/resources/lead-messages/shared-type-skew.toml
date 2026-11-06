@@ -1,0 +1,14 @@
+[task]
+question = "orders and billing share the type OrderPlaced from a library, but bundle different versions of that library. Does one side send or read it with fields the other side's version does not have, so data is lost or misread?"
+verdicts = "confirmed: the versions in use differ in a field one side writes and the other reads. refuted: the fields both sides use are the same in the versions in use, and you can show them. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "The code it points at: OrderPlaced"
+where = "shop:events/src/main/java/shop/events/OrderPlaced.java"
+code = """
+3  public record OrderPlaced(long orderId, String currency) {}
+"""
+
+[[evidence]]
+fact = "events is bundled at different versions; the latest is 1.4.0 (versions in use: billing 1.2.0, orders 1.4.0)."

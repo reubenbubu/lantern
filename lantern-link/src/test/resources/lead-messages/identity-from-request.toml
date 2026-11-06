@@ -1,0 +1,17 @@
+[task]
+question = "The code of orders reads the request header X-User-Id and takes it as who the caller is or what they may do (OrderController.place). Can a caller set that header themselves, or is it removed or verified on every path before the request reaches orders?"
+verdicts = "confirmed: on some path a caller's own value of the header reaches this code. refuted: every path removes or verifies it first, and you can show where. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "OrderController.place reads the request value X-User-Id."
+where = "shop:orders/src/main/java/shop/orders/OrderController.java"
+code = """
+7    @PostMapping
+8    Order place(@RequestHeader("X-User-Id") String userId, @RequestBody Order order) {
+9      return service.place(userId, order);
+10    }
+"""
+
+[start]
+hint = "Look at what sits in front of orders: a gateway's filters and routes, or a filter of orders itself."

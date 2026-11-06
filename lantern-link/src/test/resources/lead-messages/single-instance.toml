@@ -1,0 +1,17 @@
+[task]
+question = "redis runs as one instance in every deployment, and 2 units use it. Is there only one of it in every deployment, so that when it stops what depends on it stops too, or so that state held there is lost or split between instances?"
+verdicts = "confirmed: a deployment runs one instance and something a user depends on stops or loses state with it. refuted: deployments run several instances, or the state is shared, and you can show where. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "orders uses the database redis; the compose deployment (default) runs redis."
+where = "shop:compose.yaml"
+code = """
+1  services:
+2    redis:
+3      image: redis:7
+4    orders:
+5      build: orders
+6      depends_on: [redis]
+7  
+"""

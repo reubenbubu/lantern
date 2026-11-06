@@ -1,0 +1,13 @@
+[task]
+question = "billing calls GET /invoices/{id} on orders, and static analysis found no endpoint of orders that matches it. Does orders answer this call as billing sends it: its method, path and parameters?"
+verdicts = "confirmed: no endpoint answers the call as sent. refuted: an endpoint answers it, and you can show the call and the endpoint. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "OrdersClient.invoice calls orders (GET /invoices/{id})."
+where = "shop:billing/src/main/java/shop/billing/OrdersClient.java"
+code = """
+4    Invoice invoice(long id) {
+5      return rest.get().uri("http://orders/invoices/{id}", id).retrieve().body(Invoice.class);
+6    }
+"""
