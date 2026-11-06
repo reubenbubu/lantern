@@ -33,6 +33,36 @@ class AnalyzeCommandTest {
     assertThat(AnalyzeCommand.requested("--debug")).isFalse();
     assertThat(AnalyzeCommand.requested("repo", "analyze")).isFalse();
     assertThat(AnalyzeCommand.requested("--system=s", "remove", "repo")).isTrue();
+    assertThat(AnalyzeCommand.requested("render", "--system=s")).isTrue();
+  }
+
+  @Test
+  void rendersTheNamedSystemsSnapshotAndRefusesAnythingElse() {
+    AnalysisRun run = mock(AnalysisRun.class);
+    when(run.render("crm", 7L))
+        .thenReturn(List.of(new AnalysisRun.Rendered(null, Path.of("/w/crm/7/_system.c4.html"))));
+    ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+    AnalyzeCommand command =
+        new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
+
+    command.run(new DefaultApplicationArguments("render", "--system=crm", "--snapshot=7"));
+
+    assertThat(command.getExitCode()).isZero();
+    assertThat(bytes.toString(StandardCharsets.UTF_8))
+        .contains("Documents of crm:")
+        .contains("/w/crm/7/_system.c4.html");
+    for (String[] wrong :
+        List.of(
+            new String[] {"render"},
+            new String[] {"render", "--system=crm", "repo"},
+            new String[] {"render", "--system=crm", "--snapshot=last"})) {
+      ByteArrayOutputStream refused = new ByteArrayOutputStream();
+      AnalyzeCommand refusing =
+          new AnalyzeCommand(run, new PrintStream(refused, true, StandardCharsets.UTF_8));
+      refusing.run(new DefaultApplicationArguments(wrong));
+      assertThat(refusing.getExitCode()).as(String.join(" ", wrong)).isEqualTo(1);
+      assertThat(refused.toString(StandardCharsets.UTF_8)).startsWith("Rendering failed: ");
+    }
   }
 
   @Test

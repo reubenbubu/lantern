@@ -29,6 +29,10 @@ import org.springframework.boot.ExitCodeGenerator;
  * blank one clears it.
  *
  * <p>Usage: {@code remove --system=<name> <repo>...}.
+ *
+ * <p>Usage: {@code render --system=<name> [--snapshot=<number>]}: writes the system's documents
+ * again from what the store holds for the snapshot, by default the latest one whose analysis stored
+ * its facts, with no build and no LLM call (#926).
  */
 final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
 
@@ -37,6 +41,12 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
 
   /** The first argument that selects the command removing repositories from a system. */
   static final String REMOVE = "remove";
+
+  /** The first argument that selects the command writing a system's documents again (#926). */
+  static final String RENDER = "render";
+
+  /** The option naming the snapshot {@code render} writes the documents of. */
+  static final String SNAPSHOT = "snapshot";
 
   /** The option naming the system. */
   static final String SYSTEM = "system";
@@ -66,7 +76,7 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
   static boolean requested(String... args) {
     for (String arg : args) {
       if (!arg.startsWith("--")) {
-        return arg.equals(NAME) || arg.equals(REMOVE);
+        return arg.equals(NAME) || arg.equals(REMOVE) || arg.equals(RENDER);
       }
     }
     return false;
@@ -156,10 +166,18 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
   @Override
   public void run(ApplicationArguments args) {
     List<String> words = args.getNonOptionArgs();
-    if (words.isEmpty() || !(words.getFirst().equals(NAME) || words.getFirst().equals(REMOVE))) {
+    if (words.isEmpty()
+        || !(words.getFirst().equals(NAME)
+            || words.getFirst().equals(REMOVE)
+            || words.getFirst().equals(RENDER))) {
       return;
     }
     try {
+      if (words.getFirst().equals(RENDER)) {
+        render(option(args, SYSTEM), option(args, SNAPSHOT), words.subList(1, words.size()));
+        exitCode = 0;
+        return;
+      }
       if (words.getFirst().equals(REMOVE)) {
         remove(option(args, SYSTEM), words.subList(1, words.size()));
         exitCode = 0;
@@ -173,13 +191,18 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
       exitCode = 0;
     } catch (LlmNotConfiguredException | IllegalArgumentException e) {
       // A mistake in the settings or arguments; the message says what to fix.
-      out.println("The analysis failed: " + e.getMessage());
+      out.println(failed(words) + ": " + e.getMessage());
       exitCode = 1;
     } catch (RuntimeException e) {
-      LOG.error("The analysis failed", e);
-      out.println("The analysis failed: " + e.getMessage());
+      LOG.error(failed(words), e);
+      out.println(failed(words) + ": " + e.getMessage());
       exitCode = 1;
     }
+  }
+
+  /** What failed, by the command the words select. */
+  private static String failed(List<String> words) {
+    return words.getFirst().equals(RENDER) ? "Rendering failed" : "The analysis failed";
   }
 
   private void remove(String system, List<String> repos) {
@@ -188,6 +211,22 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     }
     run.remove(system, repos);
     out.println("Removed from " + system + ": " + String.join(", ", repos));
+  }
+
+  private void render(String system, String snapshot, List<String> rest) {
+    if (system == null || !rest.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Usage: " + RENDER + " --" + SYSTEM + "=<name> [--" + SNAPSHOT + "=<number>]");
+    }
+    Long number;
+    try {
+      number = snapshot == null ? null : Long.valueOf(snapshot);
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("--" + SNAPSHOT + " must be a number, got " + snapshot);
+    }
+    List<AnalysisRun.Rendered> documents = run.render(system, number);
+    out.println("Documents of " + system + ":");
+    documents.forEach(d -> out.println("  " + d.file()));
   }
 
   private void report(AnalysisRun.Result result) {

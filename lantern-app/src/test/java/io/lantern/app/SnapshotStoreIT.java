@@ -172,6 +172,26 @@ class SnapshotStoreIT {
   }
 
   @Test
+  void findsTheSystemsLatestAnalyzedSnapshotAndWhatItAnalyzed() throws Exception {
+    String a = register("a");
+    String b = register("b");
+    String system = system(a, b);
+    assertThat(snapshots.latestAnalyzed(system)).isEmpty();
+    Snapshot both =
+        snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD, b, "HEAD"));
+    analyzed(both, a, b);
+    Snapshot onlyA = snapshots.createCarryingForward(system, Map.of(a, RepoRegistry.HEAD));
+    analyzed(onlyA, a);
+    // A run that stopped before storing its facts is not the latest analyzed one.
+    snapshots.createCarryingForward(system, Map.of(b, RepoRegistry.HEAD));
+
+    assertThat(snapshots.latestAnalyzed(system)).map(Snapshot::number).contains(onlyA.number());
+    assertThat(snapshots.analyzedIn(onlyA.number())).containsExactly(a);
+    assertThat(snapshots.analyzedIn(both.number())).containsExactly(a, b);
+    assertThat(snapshots.latestAnalyzed("no-such-system")).isEmpty();
+  }
+
+  @Test
   void carriesForwardOnlyTheSystemsRepositories() throws Exception {
     String a = register("a");
     String b = register("b");

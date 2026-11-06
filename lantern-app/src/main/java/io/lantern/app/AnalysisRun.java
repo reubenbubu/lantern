@@ -684,41 +684,9 @@ public final class AnalysisRun {
       // the run kept in memory.
       List<Fact> complete = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
       List<Fact> composed = repositoryFacts(complete, registered.keySet());
-
-      String systemTitle =
-          systems
-              .title(system)
-              .orElseGet(
-                  () ->
-                      SystemTitle.derive(
-                          system,
-                          snapshot.commits().keySet(),
-                          readmeHeadings(snapshot, registered)));
-      List<Rendered> documents = new ArrayList<>();
-      // Composed with the diagram limits the report is rendered with, so the template and the
-      // scorer judge its views by the same ones (#836).
-      Composer composer =
-          new Composer(toolVersion, io.lantern.derive.Vocabularies.standard(), c4Renderer.limits());
+      String systemTitle = systemTitle(system, snapshot, registered);
+      List<Rendered> documents = compose(system, snapshot, registered.keySet(), complete);
       Path out = documentsDirectory.resolve(system).resolve(Long.toString(snapshot.number()));
-      for (String name : registered.keySet()) {
-        for (ViewDefinition view : views(name)) {
-          Document document = composer.compose(view, snapshot, composed, systemTitle);
-          documents.add(new Rendered(document, write(out, view.id(), document)));
-        }
-      }
-      // The system's report shows every repository of the snapshot, carried forward ones too, and
-      // is titled by the system's title, a stored view's title included.
-      ViewDefinition storedView = view(ViewDefinition.c4System(SYSTEM_C4, systemTitle, C4_REPORT));
-      ViewDefinition systemView =
-          new ViewDefinition(
-              storedView.id(),
-              systemTitle,
-              storedView.scope(),
-              storedView.audience(),
-              storedView.template(),
-              storedView.sections());
-      Document document = composer.compose(systemView, snapshot, complete, systemTitle);
-      documents.add(new Rendered(document, write(out, systemView.id(), document)));
       documents.forEach(d -> LOG.info("Wrote {}", d.file()));
       // Every fact of origin llm that holds in the snapshot, which the scorer's rows per role read
       // (ADR 0072): resolved links, texts, judgements, verdicts and risks.
@@ -1125,6 +1093,88 @@ public final class AnalysisRun {
                     .flatMap(repo -> SystemTitle.readmeHeading(repo.path(), commit))
                     .ifPresent(heading -> headings.put(name, heading)));
     return headings;
+  }
+
+  /**
+   * The system's title: the one stored for it, else the one {@link SystemTitle} derives from its
+   * repositories' names and README headings (ADR 0071).
+   */
+  private String systemTitle(String system, Snapshot snapshot, Map<String, Repo> registered) {
+    return systems
+        .title(system)
+        .orElseGet(
+            () ->
+                SystemTitle.derive(
+                    system, snapshot.commits().keySet(), readmeHeadings(snapshot, registered)));
+  }
+
+  /**
+   * Composes and writes the snapshot's documents from the facts that hold in it: each named
+   * repository's views and the system's report, in the snapshot's folder of the system.
+   *
+   * @param repos the repositories whose own views are written
+   * @param complete every fact that holds in the snapshot
+   */
+  private List<Rendered> compose(
+      String system, Snapshot snapshot, Set<String> repos, List<Fact> complete) {
+    String systemTitle = systemTitle(system, snapshot, Map.of());
+    List<Fact> composed = repositoryFacts(complete, repos);
+    List<Rendered> documents = new ArrayList<>();
+    // Composed with the diagram limits the report is rendered with, so the template and the
+    // scorer judge its views by the same ones (#836).
+    Composer composer =
+        new Composer(toolVersion, io.lantern.derive.Vocabularies.standard(), c4Renderer.limits());
+    Path out = documentsDirectory.resolve(system).resolve(Long.toString(snapshot.number()));
+    for (String name : repos) {
+      for (ViewDefinition view : views(name)) {
+        Document document = composer.compose(view, snapshot, composed, systemTitle);
+        documents.add(new Rendered(document, write(out, view.id(), document)));
+      }
+    }
+    // The system's report shows every repository of the snapshot, carried forward ones too, and
+    // is titled by the system's title, a stored view's title included.
+    ViewDefinition storedView = view(ViewDefinition.c4System(SYSTEM_C4, systemTitle, C4_REPORT));
+    ViewDefinition systemView =
+        new ViewDefinition(
+            storedView.id(),
+            systemTitle,
+            storedView.scope(),
+            storedView.audience(),
+            storedView.template(),
+            storedView.sections());
+    Document document = composer.compose(systemView, snapshot, complete, systemTitle);
+    documents.add(new Rendered(document, write(out, systemView.id(), document)));
+    return documents;
+  }
+
+  /**
+   * Writes a system's documents again from what the store holds for one of its snapshots (#926), as
+   * the analysis that took it wrote them: no build, no extraction and no LLM call. The documents go
+   * to the snapshot's folder, over the ones written before.
+   *
+   * @param system the system's name
+   * @param number the snapshot's number, or {@code null} for the system's latest snapshot whose
+   *     analysis stored its facts
+   * @throws IllegalArgumentException if there is no such snapshot of the system
+   */
+  public List<Rendered> render(String system, Long number) {
+    Snapshot snapshot =
+        (number == null
+                ? snapshots.latestAnalyzed(system)
+                : snapshots
+                    .find(number)
+                    .filter(found -> snapshots.system(number).filter(system::equals).isPresent()))
+            .orElseThrow(
+                () ->
+                    new IllegalArgumentException(
+                        number == null
+                            ? "There is no analyzed snapshot of the system " + system
+                            : "Snapshot " + number + " is not a snapshot of the system " + system));
+    List<Fact> complete = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
+    List<Rendered> documents =
+        compose(system, snapshot, snapshots.analyzedIn(snapshot.number()), complete);
+    documents.forEach(d -> LOG.info("Wrote {}", d.file()));
+    return documents;
   }
 
   /**

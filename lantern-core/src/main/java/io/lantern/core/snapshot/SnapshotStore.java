@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -197,6 +198,35 @@ public class SnapshotStore {
         .query(SnapshotStore::mapHeader)
         .optional()
         .map(this::withCommits);
+  }
+
+  /**
+   * The latest snapshot of a system whose analysis stored its facts: one with a repository marked
+   * analyzed (see {@link #markAnalyzed}), if any (#926).
+   */
+  public Optional<Snapshot> latestAnalyzed(String system) {
+    return jdbc.sql(
+            """
+            SELECT n.number, n.vocabulary_revision, n.tool_version, n.created_at
+            FROM snapshots n
+            WHERE n.system = :system
+              AND EXISTS (SELECT 1 FROM snapshot_repositories s
+                          WHERE s.snapshot = n.number AND s.analyzed)
+            ORDER BY n.number DESC LIMIT 1
+            """)
+        .param("system", Objects.requireNonNull(system, "system"))
+        .query(SnapshotStore::mapHeader)
+        .optional()
+        .map(this::withCommits);
+  }
+
+  /** The repositories the snapshot's analysis analyzed, not those it carried forward (#926). */
+  public Set<String> analyzedIn(long number) {
+    return new TreeSet<>(
+        jdbc.sql("SELECT repository FROM snapshot_repositories WHERE snapshot = :n AND analyzed")
+            .param("n", number)
+            .query(String.class)
+            .list());
   }
 
   /** A snapshot row without its commits. */
