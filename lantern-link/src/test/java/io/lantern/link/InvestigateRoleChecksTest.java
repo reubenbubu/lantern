@@ -70,20 +70,20 @@ class InvestigateRoleChecksTest {
   }
 
   @Test
-  void aProposalCitingARangeThatHoldsNoneOfItsNamesIsRejectedByCoverage() {
+  void aUnitsProposalIsNotCheckedByCoverageWhichTheQuotesCheckReplacesAndIsRejectedWhole() {
+    // A unit's proposal is checked piece by piece as a lead's answer is (#904); the quotes check's
+    // own problems are LeadAnswerTest's. Any rejection rejects the whole proposal.
     List<Rejection> found =
         checked(
             role(InvestigateRole.Mode.UNIT),
             "{\"proposals\": {\"P1\": {\"kind\": \"risk\", \"names\": [\"upload\"],"
-                + " \"cites\": [\"fs:F.java:3-3\", \"fs:F.java:1-1\"]}}}");
+                + " \"cites\": [\"fs:F.java:1-1\"], \"evidence\": [{\"lines\":"
+                + " \"fs:F.java:1-1\", \"quote\": \"package f;\", \"shows\": [\"upload\"]}]}}}");
 
     assertThat(found)
-        .anyMatch(
-            r ->
-                r.check().equals("Coverage")
-                    && r.field().equals("proposals.P1")
-                    && r.reason()
-                        .contains("fs:F.java:1-1, which holds none of its declared names"));
+        .isNotEmpty()
+        .noneMatch(r -> r.check().equals("Coverage"))
+        .allMatch(r -> r.field().equals("proposals.P1"));
   }
 
   @Test

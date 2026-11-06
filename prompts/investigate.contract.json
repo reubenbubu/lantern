@@ -117,7 +117,7 @@
         0,
         10
       ],
-      "stated": "at most 10 things",
+      "stated": "at most 10 entries in all",
       "note": "The schema allows 12; the check keeps the first 10.",
       "accepted": [
         0,

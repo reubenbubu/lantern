@@ -6,8 +6,6 @@ import io.lantern.harness.FileRead;
 import io.lantern.harness.Item;
 import io.lantern.harness.PacketRole;
 import io.lantern.harness.PromptLayout;
-import io.lantern.harness.checks.CommonPrompt;
-import io.lantern.harness.render.Blocks;
 import io.lantern.harness.verify.Check;
 import io.lantern.harness.verify.CheckInputs;
 import io.lantern.harness.verify.CheckedText;
@@ -241,13 +239,14 @@ final class InvestigateRole implements PacketRole {
           false,
           packet.getFirst().rendering());
     }
+    // A unit or the system, its first message its own TOML, as a lead's (#904).
     return new PromptLayout(
-        CommonPrompt.SYSTEM,
-        InvestigatePrompt.role(),
-        systemMap,
-        context,
+        InvestigatePrompt.EXPLORE_SYSTEM,
+        InvestigatePrompt.EXPLORE_TASK,
+        "",
+        "",
         false,
-        Blocks.items(ids, packet.stream().map(Item::rendering).toList()));
+        packet.getFirst().rendering());
   }
 
   /** The mode's tools, which the harness offers the conversation. */
@@ -255,7 +254,7 @@ final class InvestigateRole implements PacketRole {
     return new ToolBox() {
       @Override
       public List<LlmTool> tools() {
-        return mode == Mode.LEADS ? tools.leadTools() : tools.exploreTools();
+        return tools.leadTools(); // every mode reads with the same tools (#904)
       }
 
       @Override
@@ -318,8 +317,11 @@ final class InvestigateRole implements PacketRole {
 
   @Override
   public io.lantern.harness.SingleAnswer singleAnswer() {
-    return mode == Mode.LEADS ? ANSWER : null;
+    return mode == Mode.LEADS ? ANSWER : explored;
   }
+
+  // A unit's or the system's answer, its proposals numbered on across the conversation (#904).
+  private final InvestigateExploreAnswer explored = new InvestigateExploreAnswer();
 
   private static final InvestigateLeadAnswer ANSWER = new InvestigateLeadAnswer();
 
@@ -375,7 +377,9 @@ final class InvestigateRole implements PacketRole {
       checks.add(new InvestigateLeadAnswer.BuiltAndDeployed(shownById::get, sentBackForTheBuild));
       return new Pipeline(checks);
     }
-    checks.add(new ShownRanges(() -> tools, this::citesByField));
+    // Each proposal's pieces quote lines Lantern checks exactly, as a lead's do (#904).
+    checks.removeIf(check -> check instanceof Checks.Coverage);
+    checks.add(new InvestigateLeadAnswer.Quotes());
     // A rejection of any part of a proposal rejects the proposal: it is kept or dropped whole.
     return new Pipeline(List.of(new ByProposal(checks)));
   }

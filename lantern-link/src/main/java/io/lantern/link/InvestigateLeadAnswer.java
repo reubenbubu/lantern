@@ -124,15 +124,37 @@ final class InvestigateLeadAnswer implements SingleAnswer {
         entry.put(field, value.asString().strip());
       }
     }
-    JsonNode evidence = root.path("evidence");
+    evidence(root.path("evidence"), entry);
+    ArrayNode pieces = (ArrayNode) entry.path("evidence");
+    if (pieces.isEmpty() && !verdict.equals("unclear")) {
+      throw new IllegalArgumentException(
+          "evidence: a " + verdict + " verdict needs at least one [[evidence]] piece.");
+    }
+    if (pieces.isEmpty() && !entry.has("reason")) {
+      throw new IllegalArgumentException(
+          "An unclear verdict needs evidence or a reason = \"what the code does not show\".");
+    }
+    return entry;
+  }
+
+  /**
+   * An answer's evidence pieces read into {@code target}: each as {@code lines}, {@code quote} and
+   * {@code shows} under {@code evidence}, their ranges as {@code cites} and all their names as
+   * {@code names}, the fields the role's checks verify; a lead's and an exploring answer's alike
+   * (#904).
+   *
+   * @throws IllegalArgumentException with every problem of the pieces, said in words
+   */
+  static void evidence(JsonNode given, ObjectNode target) {
+    JsonNode evidence = given;
     if (evidence.isObject()) {
       ArrayNode one = FactJson.newObject().putArray("e");
       one.add(evidence);
       evidence = one;
     }
     List<String> problems = new ArrayList<>();
-    ArrayNode pieces = entry.putArray("evidence");
-    ArrayNode cites = entry.putArray("cites");
+    ArrayNode pieces = target.putArray("evidence");
+    ArrayNode cites = target.putArray("cites");
     Set<String> names = new LinkedHashSet<>();
     if (evidence.isArray()) {
       if (evidence.size() > MAX_EVIDENCE) {
@@ -180,17 +202,8 @@ final class InvestigateLeadAnswer implements SingleAnswer {
     if (!problems.isEmpty()) {
       throw new IllegalArgumentException(String.join(" ", problems));
     }
-    if (pieces.isEmpty() && !verdict.equals("unclear")) {
-      throw new IllegalArgumentException(
-          "evidence: a " + verdict + " verdict needs at least one [[evidence]] piece.");
-    }
-    if (pieces.isEmpty() && !entry.has("reason")) {
-      throw new IllegalArgumentException(
-          "An unclear verdict needs evidence or a reason = \"what the code does not show\".");
-    }
-    ArrayNode list = entry.putArray("names");
+    ArrayNode list = target.putArray("names");
     names.forEach(list::add);
-    return entry;
   }
 
   /** A one-line basic string: {@code key = "..."}, the value from its first quote to its last. */
@@ -454,6 +467,30 @@ final class InvestigateLeadAnswer implements SingleAnswer {
       if (entry == null) {
         return found;
       }
+      // A unit's or the system's answer holds one proposal a risk or connection, each with its own
+      // evidence (#904); a lead's answer is one entry.
+      JsonNode proposals = entry.path(InvestigatePrompt.PROPOSALS);
+      if (proposals.isObject()) {
+        for (var proposal : proposals.properties()) {
+          check(
+              answer,
+              proposal.getValue(),
+              InvestigatePrompt.PROPOSALS + "." + proposal.getKey() + ".",
+              inputs,
+              found);
+        }
+      } else {
+        check(answer, entry, "", inputs, found);
+      }
+      return found;
+    }
+
+    private void check(
+        ItemAnswer answer,
+        JsonNode entry,
+        String prefix,
+        CheckInputs inputs,
+        List<Rejection> found) {
       int n = 0;
       for (JsonNode piece : entry.path("evidence")) {
         n++;
@@ -475,6 +512,7 @@ final class InvestigateLeadAnswer implements SingleAnswer {
           found.add(
               reject(
                   answer,
+                  prefix,
                   n,
                   "the quote shows nothing; copy one line of "
                       + m.group()
@@ -483,6 +521,7 @@ final class InvestigateLeadAnswer implements SingleAnswer {
           found.add(
               reject(
                   answer,
+                  prefix,
                   n,
                   "the quote is not a line of "
                       + m.group()
@@ -496,6 +535,7 @@ final class InvestigateLeadAnswer implements SingleAnswer {
             found.add(
                 reject(
                     answer,
+                    prefix,
                     n,
                     "\""
                         + name.asString("")
@@ -506,7 +546,6 @@ final class InvestigateLeadAnswer implements SingleAnswer {
           }
         }
       }
-      return found;
     }
 
     /**
@@ -550,8 +589,8 @@ final class InvestigateLeadAnswer implements SingleAnswer {
       return text.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
-    private static Rejection reject(ItemAnswer answer, int piece, String reason) {
-      return new Rejection(answer.item(), "evidence " + piece, "quotes", reason);
+    private static Rejection reject(ItemAnswer answer, String prefix, int piece, String reason) {
+      return new Rejection(answer.item(), prefix + "evidence " + piece, "quotes", reason);
     }
 
     /** The line of the range most like the quote, to show what it reads. */

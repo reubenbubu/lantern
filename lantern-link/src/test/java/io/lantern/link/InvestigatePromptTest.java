@@ -37,15 +37,34 @@ class InvestigatePromptTest {
             + new InvestigateLeadAnswer()
                 .failed(List.of("a problem"), 1, InvestigateLeadAnswer.ATTEMPTS)
             + "\n--\n"
-            + InvestigatePrompt.role()
+            + InvestigatePrompt.EXPLORE_SYSTEM
             + "\n--\n"
-            + InvestigatePrompt.unit("service:g:a", List.of("fs"))
+            + InvestigatePrompt.EXPLORE_TASK
             + "\n--\n"
-            + InvestigatePrompt.system(List.of("fs"))
+            + InvestigateExploreAnswer.DESCRIPTION
             + "\n--\n"
-            + InvestigatePrompt.answers(List.of("a risk"))
+            + new InvestigateExploreAnswer()
+                .failed(List.of("a problem"), 1, InvestigateExploreAnswer.ATTEMPTS)
             + "\n--\n"
-            + InvestigatePrompt.systemMap(List.of("service:g:a"), List.of("a -> b [CALLS_HTTP]"))
+            + InvestigateExploreMessage.unit(
+                "service:g:a",
+                java.util.Set.of("fs"),
+                java.util.Set.of("service:g:a"),
+                List.of(),
+                List.of(),
+                List.of("lead:x confirmed: A risk", "risk: Another risk"))
+            + "\n--\n"
+            + InvestigateExploreMessage.system(
+                List.of("fs"),
+                java.util.Map.of("service:g:a", java.util.Set.of("fs")),
+                java.util.Map.of(),
+                List.of("a -> b [CALLS_HTTP]"),
+                List.of("risk: service:g:a: A risk"))
+            + "\n--\n"
+            + InvestigateExploreMessage.MAX_SUMMARY
+            + " "
+            + InvestigateExploreAnswer.ATTEMPTS
+            + " "
             + "\n--\n"
             + Investigator.MAX_OUTPUT_TOKENS
             + " "
@@ -88,7 +107,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("12 465aca6e42ffca140d6dcded55fc7eae0713e67a943099b5eedacb5348533170");
+        .isEqualTo("13 a47d95cb6b3419553abf952c5fe4537f2eb6b0eac96f2ae03b83d8f2372637a6");
   }
 
   /** Mode A is told the cut of a tool answer, the same number the tools cut at (#915). */
@@ -103,9 +122,9 @@ class InvestigatePromptTest {
   }
 
   /**
-   * Modes B and C's instructions and the submit schema are the epic's, character for character
-   * (knowledge-build epic, section 11.2); Mode A's own instructions live only in the prompt files
-   * (#892).
+   * The submit schema is the epic's, character for character (knowledge-build epic, section 11.2);
+   * the instructions of every mode live only in the prompt files, Mode A's since #892, Modes B and
+   * C's since #904.
    */
   @Test
   void theInvestigatePromptIsTheEpics() throws Exception {
@@ -114,10 +133,11 @@ class InvestigatePromptTest {
 
     assertThat(section)
         .doesNotContain(InvestigatePrompt.LEADS_TASK)
-        .contains("```text\n" + InvestigatePrompt.EXPLORE_TASK + "\n```")
+        .doesNotContain(InvestigatePrompt.EXPLORE_TASK)
+        .contains("prompts/investigate-explore.task.txt")
         .contains("```json\n" + InvestigatePrompt.SCHEMA + "\n```");
     assertThat(InvestigatePrompt.LEADS_TASK).startsWith("Task: check one lead.");
-    assertThat(InvestigatePrompt.EXPLORE_TASK).startsWith("Task: investigate what static");
+    assertThat(InvestigatePrompt.EXPLORE_TASK).startsWith("Task: find what static analysis missed");
     assertThat(InvestigatePrompt.SUBMIT_SCHEMA).isEqualTo(FactJson.parse(InvestigatePrompt.SCHEMA));
   }
 }

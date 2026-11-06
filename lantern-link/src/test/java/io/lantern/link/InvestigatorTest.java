@@ -188,17 +188,57 @@ class InvestigatorTest {
   }
 
   private static boolean unit(LlmRequest r, String unit) {
-    return !leads(r)
-        && r.messages().getFirst().text().contains("The deployable unit " + unit + ",");
+    return !leads(r) && r.messages().getFirst().text().contains("[unit]\nid = \"" + unit + "\"");
   }
 
   private static int turn(LlmRequest request) {
     return (request.messages().size() + 1) / 2;
   }
 
+  /**
+   * A unit's or the system's answer through the {@code answer} tool (#904): each JSON item, comma
+   * separated, written as a {@code [[risk]]} or {@code [[connection]]} table with its evidence.
+   */
   private static LlmToolCall submit(LlmRequest request, String items) {
+    StringBuilder out = new StringBuilder();
+    for (tools.jackson.databind.JsonNode item : FactJson.parse("[" + items + "]")) {
+      out.append(explored(item)).append('\n');
+    }
     return new LlmToolCall(
-        "s" + turn(request), "submit", FactJson.parse("{\"items\": [" + items + "]}"));
+        "s" + turn(request),
+        InvestigateLeadAnswer.NAME,
+        FactJson.newObject().put("toml", out.toString()));
+  }
+
+  /** One explored entry as the TOML the explore instructions ask for. */
+  static String explored(tools.jackson.databind.JsonNode item) {
+    String kind = item.path("kind").asString("risk");
+    StringBuilder out = new StringBuilder("[[" + kind + "]]\n");
+    for (String field :
+        List.of(
+            "title",
+            "finding",
+            "consequence",
+            "impact",
+            "confidence",
+            "from",
+            "to",
+            "interaction",
+            "description",
+            "technology")) {
+      if (item.path(field).isString()) {
+        out.append(field)
+            .append(" = ")
+            .append(io.lantern.harness.Toml.string(item.path(field).asString()))
+            .append('\n');
+      }
+    }
+    if (item.path("units").isArray()) {
+      List<String> units = new ArrayList<>();
+      item.path("units").forEach(u -> units.add(io.lantern.harness.Toml.string(u.asString())));
+      out.append("units = [").append(String.join(", ", units)).append("]\n");
+    }
+    return out + evidence(item, "[[" + kind + ".evidence]]");
   }
 
   /**
@@ -251,6 +291,12 @@ class InvestigatorTest {
 
   static String toml(tools.jackson.databind.JsonNode item) {
     StringBuilder out = new StringBuilder();
+    out.append(fields(item));
+    return out + evidence(item, "[[evidence]]");
+  }
+
+  private static String fields(tools.jackson.databind.JsonNode item) {
+    StringBuilder out = new StringBuilder();
     for (String field :
         List.of("verdict", "title", "finding", "consequence", "impact", "confidence", "reason")) {
       if (item.path(field).isString()) {
@@ -260,6 +306,12 @@ class InvestigatorTest {
             .append('\n');
       }
     }
+    return out.toString();
+  }
+
+  /** The item's cited ranges as evidence tables under the given header. */
+  private static String evidence(tools.jackson.databind.JsonNode item, String header) {
+    StringBuilder out = new StringBuilder();
     List<String> names = new ArrayList<>();
     item.path("names").forEach(n -> names.add(n.asString()));
     List<String> left = new ArrayList<>(names);
@@ -299,7 +351,9 @@ class InvestigatorTest {
       if (i == 0) {
         shows.addAll(left);
       }
-      out.append("\n[[evidence]]\nlines = ")
+      out.append("\n")
+          .append(header)
+          .append("\nlines = ")
           .append(io.lantern.harness.Toml.string(pieces.get(i)[0]))
           .append("\nquote = ")
           .append(io.lantern.harness.Toml.string(pieces.get(i)[1]))
@@ -760,7 +814,8 @@ class InvestigatorTest {
             .filter(r -> unit(r, FILES_UNIT) && turn(r) == 2)
             .findFirst()
             .orElseThrow();
-    assertThat(second.messages().getLast().toolResults().getLast().content()).contains("cites");
+    assertThat(second.messages().getLast().toolResults().getLast().content())
+        .contains("give at least one [[risk.evidence]] piece");
     assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
   }
 
@@ -787,51 +842,47 @@ class InvestigatorTest {
   }
 
   @Test
-  void aRiskCitingLinesNoToolShowedIsSentBack() {
-    // A cited range must be one the tools showed or an excerpt of the request gave (#715).
+  void aRiskQuotingLinesItDidNotReadIsKept() {
+    // As a lead's (#892), each piece quotes a line Lantern checks exactly, in place of what the
+    // conversation was shown (#904).
     headerLead();
     String risk = uploadRisk("fs:" + CONTROLLER + ":6-6");
     FakeLlmProvider fake = submittingUnread(r -> unit(r, FILES_UNIT) && turn(r) == 1 ? risk : null);
 
     Investigator.Result result = investigate(fake);
 
-    assertThat(secondTurn(fake))
-        .contains("Cites fs:" + CONTROLLER + ":6-6, lines this conversation was not shown");
-    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+    assertThat(of(result, Types.INVESTIGATED_RISK)).hasSize(1);
   }
 
   @Test
-  void aRangeInAThirdRepositoryCountsOnlyIfTheConversationReadIt() {
-    // The gateway's repository is neither the files unit's nor shown in its request: a range
-    // there holds only once read_file showed it (#715).
+  void aRiskWhoseQuoteIsNotInItsRangeIsSentBackByItsTitle() {
     headerLead();
-    String risk =
-        uploadRisk("fs:" + CONTROLLER + ":6-6", "gw:" + GATEWAY_CONFIG + ":1-2")
-            .replace(
-                "\"names\": [\"MultipartFile\"]", "\"names\": [\"MultipartFile\", \"lb://files\"]");
-    FakeLlmProvider readingOnlyItsOwn =
+    String risk = uploadRisk("fs:" + CONTROLLER + ":6-6");
+    FakeLlmProvider fake =
         new FakeLlmProvider()
             .callingTools(
-                r ->
-                    unit(r, FILES_UNIT) && turn(r) == 1
-                        ? List.of(
-                            new LlmToolCall(
-                                "r1",
-                                "read_file",
-                                FactJson.parse(
-                                    "{\"repo\":\"fs\",\"path\":\""
-                                        + CONTROLLER
-                                        + "\",\"from\":6,\"to\":6}")),
-                            submit(r, risk))
-                        : List.of())
+                r -> {
+                  if (!(unit(r, FILES_UNIT) && turn(r) == 1)) {
+                    return List.of();
+                  }
+                  LlmToolCall call = submit(r, risk);
+                  String toml =
+                      call.input()
+                          .path("toml")
+                          .asString()
+                          .replaceFirst("quote = \"[^\"]*\"", "quote = \"no such line\"");
+                  return List.of(
+                      new LlmToolCall(
+                          call.id(), call.name(), FactJson.newObject().put("toml", toml)));
+                })
             .answering("Done.");
 
-    Investigator.Result unread = investigate(readingOnlyItsOwn);
+    Investigator.Result result = investigate(fake);
 
-    assertThat(secondTurn(readingOnlyItsOwn))
-        .contains("Cites gw:" + GATEWAY_CONFIG + ":1-2, lines this conversation was not shown")
-        .doesNotContain("Cites fs:");
-    assertThat(of(unread, Types.INVESTIGATED_RISK)).isEmpty();
+    assertThat(secondTurn(fake))
+        .contains("risk \\\"Uploads have no size limit\\\": the quote is not a line of fs:")
+        .contains("answers_left = 2");
+    assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
   }
 
   @Test
@@ -876,7 +927,7 @@ class InvestigatorTest {
             r ->
                 turn(r) == 1
                         && (unit(r, FILES_UNIT)
-                            || r.messages().getFirst().text().contains("The whole system"))
+                            || r.messages().getFirst().text().contains("units of the whole system"))
                     ? unnamed
                     : null);
 
@@ -893,7 +944,9 @@ class InvestigatorTest {
         fake.sent().stream()
             .map(c -> c.request())
             .filter(
-                r -> r.messages().getFirst().text().contains("The whole system") && turn(r) == 2)
+                r ->
+                    r.messages().getFirst().text().contains("units of the whole system")
+                        && turn(r) == 2)
             .findFirst()
             .orElseThrow();
     assertThat(system.messages().getLast().toolResults().getLast().content())
@@ -1276,14 +1329,49 @@ class InvestigatorTest {
             .findFirst()
             .orElseThrow();
     assertThat(second.messages().getLast().toolResults().getLast().content())
-        .contains("accepted in part")
-        .contains("proposals.P2")
+        .contains("in part")
+        .contains("risk \\\"Uploads have no size limit\\\"")
+        .doesNotContain("proposals.P")
         .contains("not a deployable unit");
     Fact found = of(result, Types.INVESTIGATED_CONNECTION).getFirst();
     assertThat(found.subject().toString()).isEqualTo(FILES_UNIT);
     assertThat(found.object().value()).isEqualTo("external-system:s3");
     assertThat(found.attributes().path("mode").asString()).isEqualTo("unit");
     assertThat(of(result, Types.INVESTIGATED_RISK)).isEmpty();
+  }
+
+  @Test
+  void aCorrectedSecondAnswerAddsToWhatTheFirstKept() {
+    // A partial answer keeps what held; the next answer adds its corrected entries (#904).
+    headerLead();
+    String connection =
+        """
+        {"kind": "connection", "from": "service:g:files", "to": "external-system:s3",
+         "interaction": "http", "description": "Stores uploaded files",
+         "names": ["s3.example.com"], "cites": ["fs:src/main/java/f/StorageClient.java:3-3"]}""";
+    String risk =
+        """
+        {"kind": "risk", "title": "Uploads have no size limit",
+         "finding": "upload accepts any file of any size and keeps it whole in memory before writing it to the disk.", "consequence": "A caller can fill the disk or the memory of the service with one large upload and stop it serving others.",
+         "impact": "medium", "confidence": "low", "units": ["%s"],
+         "names": ["MultipartFile"], "cites": ["fs:src/main/java/f/FileController.java:6-6"]}""";
+    FakeLlmProvider fake =
+        submitting(
+            r ->
+                !unit(r, FILES_UNIT)
+                    ? null
+                    : turn(r) == 1
+                        ? connection + "," + risk.formatted("service:g:nowhere")
+                        : turn(r) == 2 ? risk.formatted(FILES_UNIT) : null);
+
+    Investigator.Result result = investigate(fake);
+
+    assertThat(of(result, Types.INVESTIGATED_CONNECTION)).hasSize(1);
+    assertThat(of(result, Types.INVESTIGATED_RISK))
+        .extracting(f -> f.attributes().path("title").asString())
+        .contains("Uploads have no size limit");
+    // The second answer passed whole, so the conversation ended there.
+    assertThat(fake.sent().stream().filter(c -> unit(c.request(), FILES_UNIT))).hasSize(2);
   }
 
   @Test
@@ -1412,20 +1500,22 @@ class InvestigatorTest {
             .map(c -> c.request())
             .filter(r -> !leads(r))
             .map(r -> r.system() + "\n" + r.messages().getFirst().text())
-            .filter(t -> t.contains("The deployable unit " + GATEWAY_UNIT))
+            .filter(t -> t.contains("[unit]\nid = \"" + GATEWAY_UNIT + "\""))
             .findFirst()
             .orElseThrow();
     assertThat(gateway)
-        .contains("<answers>")
-        .contains("lead:identity-from-request/" + GATEWAY_UNIT);
+        .contains(
+            "[[known]]\nverdict = \"confirmed\"\nwhat = \"Files trust the caller's user header\"");
     // The system conversation sees the lead once, under its first unit.
     String system =
         fake.sent().stream()
             .map(c -> c.request().messages().getFirst().text())
-            .filter(t -> t.contains("The whole system"))
+            .filter(t -> t.contains("units of the whole system"))
             .findFirst()
             .orElseThrow();
-    assertThat(system).doesNotContain(GATEWAY_UNIT + ": lead:identity-from-request");
+    assertThat(system)
+        .contains(FILES_UNIT + ": Files trust the caller's user header")
+        .doesNotContain(GATEWAY_UNIT + ": Files trust the caller's user header");
   }
 
   @Test
@@ -1438,13 +1528,12 @@ class InvestigatorTest {
     LlmRequest system =
         fake.sent().stream()
             .map(c -> c.request())
-            .filter(r -> r.messages().getFirst().text().contains("The whole system"))
+            .filter(r -> r.messages().getFirst().text().contains("units of the whole system"))
             .findFirst()
             .orElseThrow();
     assertThat(system.messages().getFirst().text())
-        .contains("<answers>")
-        .contains(FILES_UNIT + ": lead:identity-from-request")
-        .contains("Files trust the caller's user header");
+        .contains("[[known]]\nverdict = \"confirmed\"")
+        .contains(FILES_UNIT + ": Files trust the caller's user header");
   }
 
   @Test
@@ -1540,7 +1629,10 @@ class InvestigatorTest {
                                 ? FILES_UNIT
                                 : unit(r, GATEWAY_UNIT)
                                     ? GATEWAY_UNIT
-                                    : r.messages().getFirst().text().contains("The whole system")
+                                    : r.messages()
+                                            .getFirst()
+                                            .text()
+                                            .contains("units of the whole system")
                                         ? "system"
                                         : "other"))
         .containsExactly("leads", FILES_UNIT, "system");
@@ -1629,7 +1721,7 @@ class InvestigatorTest {
       java.nio.file.Path.of("src/test/resources/recordings/investigate");
 
   private static boolean system(LlmRequest r) {
-    return r.messages().getFirst().text().contains("The whole system");
+    return r.messages().getFirst().text().contains("units of the whole system");
   }
 
   /**
