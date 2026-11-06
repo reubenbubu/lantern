@@ -19,8 +19,6 @@ public final class FileSecrets {
       Pattern.compile(
           "^(\\s*(?:-\\s+)?(?:export\\s+)?[\"']?)([A-Za-z0-9_.\\-\\[\\]]+)([\"']?\\s*[:=]\\s*)(.+)$");
 
-  private static final Pattern ONLY_PLACEHOLDERS = Pattern.compile("[\"']?(\\$\\{[^}:]+})+[\"']?");
-
   /** File names and extensions of keys and keystores, which are never shown. */
   private static final Pattern KEY_FILE =
       Pattern.compile(
@@ -79,12 +77,17 @@ public final class FileSecrets {
     }
     StringBuilder out = new StringBuilder();
     int blockIndent = -1;
-    for (String line : text.split("\n", -1)) {
+    for (String whole : text.split("\n", -1)) {
+      // A Windows line ends in \r, which the patterns must not see, or no key would match.
+      String end = whole.endsWith("\r") ? "\r" : "";
+      String line = whole.substring(0, whole.length() - end.length());
       int indent = indent(line);
       if (blockIndent >= 0) {
         // The lines of a block scalar under a secret key (password: |) are its value.
         if (line.isBlank() || indent > blockIndent) {
-          out.append(line.isBlank() ? line : " ".repeat(indent) + "******").append('\n');
+          out.append(line.isBlank() ? line : " ".repeat(indent) + "******")
+              .append(end)
+              .append('\n');
           continue;
         }
         blockIndent = -1;
@@ -96,15 +99,20 @@ public final class FileSecrets {
         if (value.matches("[|>][-+0-9]*")) {
           blockIndent = indent;
           shown = line;
-        } else if (ONLY_PLACEHOLDERS.matcher(value).matches()) {
-          shown = line;
         } else {
-          shown = kv.group(1) + kv.group(2) + kv.group(3) + "******";
+          // A placeholder's name says where the value comes from; only what is written is masked.
+          String kept = SecretPlaceholders.kept(value);
+          shown = kv.group(1) + kv.group(2) + kv.group(3) + (kept == null ? "******" : kept);
         }
       } else {
-        shown = xmlMasked(UrlCredentials.withoutCredentials(line), secretKeys);
+        // The default of a placeholder named as a secret is masked under any key, as in code.
+        shown =
+            xmlMasked(
+                UrlCredentials.withoutCredentials(
+                    SourceSecrets.placeholderDefaultsMasked(line, secretKeys)),
+                secretKeys);
       }
-      out.append(shown).append('\n');
+      out.append(shown).append(end).append('\n');
     }
     out.setLength(out.length() - 1);
     return out.toString();
