@@ -28,4 +28,12 @@ public interface ToolBox {
 
   /** Runs one call. */
   LlmToolResult run(LlmToolCall call);
+
+  /**
+   * Whether the calls run so far settled the conversation (an answer recorded, or the last one
+   * refused): its results are kept and no further turn is sent.
+   */
+  default boolean finished() {
+    return false;
+  }
 }

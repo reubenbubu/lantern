@@ -280,3 +280,13 @@ showed both the badge and that prefix.
 - **Scored.** The scorecard's "LLM marks" section lists the focus system boxes that carry the badge,
   the badged elements, lines and risk rows that still open with "Found by the LLM:", and the badged
   lines to infrastructure the contract names; each should list none (ADR 0072, amendment for #749).
+
+## Amendment (#860, #892): a lead's own message, instructions and answer
+
+Mode A's item, instructions, answer and limits are now ADR 0128's: a TOML first message built from
+the lead alone, its question per kind from `prompts/investigate-questions.toml` (the catalog's
+judge texts are gone), its own short instructions, and one `answer` tool taking TOML, checked by
+its quotes. One lead a conversation, whatever a setting or a calibration says (the amendment for
+#529 no longer applies), and a lead left unanswered is not asked again alone. Where this ADR says a
+lead's item shows what to judge, its unit's facts and the code around each fact, or that a lead's
+answer is a `submit` entry naming its item, read ADR 0128.

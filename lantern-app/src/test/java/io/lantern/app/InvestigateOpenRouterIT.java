@@ -242,7 +242,6 @@ class InvestigateOpenRouterIT {
           new Investigator(
                   harness,
                   files,
-                  io.lantern.derive.LeadRules.judges(),
                   // The tools Investigate reads code with: the shell's in its container (#893),
                   // unless the run asks for the graph's.
                   "graph".equals(System.getProperty("lantern.test.investigate-tools"))

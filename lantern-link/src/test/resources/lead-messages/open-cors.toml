@@ -1,0 +1,14 @@
+[task]
+question = "CorsConfig.addCorsMappings lets any origin call /** with any method. Can a website of another origin use it to read something private or to change data, or does the policy open only what is public?"
+verdicts = "confirmed: another origin can reach something private or state-changing. refuted: only public, read-only answers are opened, and you can show it. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "The code it points at: CorsConfig.addCorsMappings"
+where = "shop:orders/src/main/java/shop/orders/CorsConfig.java"
+code = """
+5    @Override
+6    public void addCorsMappings(CorsRegistry registry) {
+7      registry.addMapping("/**").allowedOrigins("*").allowedMethods("*");
+8    }
+"""

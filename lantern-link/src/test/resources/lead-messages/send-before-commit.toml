@@ -1,0 +1,20 @@
+[task]
+question = "A database transaction runs through OrderService.place, and the code sends a message to orders before the transaction commits. Can the receiver act on data that is not committed yet, or that is rolled back, with an effect someone can see?"
+verdicts = "confirmed: the send happens before the commit and a rollback or early read leaves a visible effect. refuted: the send happens after the commit, or it changes nothing a rollback would leave wrong (a read, say), and you can show where. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "OrderService.place sends to orders (routing key order.placed); OrderService.place runs in a transaction, propagation REQUIRED."
+where = "shop:orders/src/main/java/shop/orders/OrderService.java"
+code = """
+6    @Transactional
+7    Order place(String userId, Order order) {
+8      Order saved = orders.save(order.ownedBy(userId));
+9      rabbit.convertAndSend("orders", "order.placed", new OrderPlaced(saved.id()));
+10      stock.reserve(saved);
+11      return saved;
+12    }
+"""
+
+[start]
+hint = "Start at the method that holds the transaction, and follow what it does after the send."

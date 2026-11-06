@@ -200,6 +200,116 @@ class ConversationTest {
     assertThat(log.conversations().getFirst().toolCalls()).isEqualTo(Map.of("lookup", 3));
   }
 
+  /** Reads a page of 4,000 characters (about 1,000 tokens) with "read"; "answer" settles it. */
+  private static final class Pages implements ToolBox {
+
+    final List<String> ran = new ArrayList<>();
+    boolean answered;
+
+    @Override
+    public List<LlmTool> tools() {
+      ObjectNode schema = JSON.createObjectNode().put("type", "object");
+      return List.of(
+          new LlmTool("read", "Reads a page.", schema),
+          new LlmTool("answer", "Gives the answer.", schema));
+    }
+
+    @Override
+    public LlmToolResult run(LlmToolCall call) {
+      ran.add(call.name());
+      if (call.name().equals("answer")) {
+        answered = true;
+        return LlmToolResult.of(call, "recorded = true");
+      }
+      return LlmToolResult.of(call, "r".repeat(4_000));
+    }
+
+    @Override
+    public boolean finished() {
+      return answered;
+    }
+  }
+
+  private static LlmToolCall call(String id, String name) {
+    return new LlmToolCall(id, name, JSON.createObjectNode());
+  }
+
+  private static final String NOTE = "Give your answer now with what you have found.";
+
+  @Test
+  void aToolThatSettlesTheConversationEndsItWithNoFurtherTurn() {
+    fake.callingTools(r -> List.of(call("a" + r.messages().size(), "answer")));
+    Pages pages = new Pages();
+    Conversation conversation =
+        client(fake.model("m"), BudgetGuard.unlimited("run"))
+            .converse(request(), pages, ConversationLimits.NONE);
+
+    conversation.answer();
+
+    assertThat(fake.sent()).hasSize(1);
+    assertThat(pages.ran).containsExactly("answer");
+  }
+
+  @Test
+  void theNoteComesOnceAtThreeQuartersOfTheTurnGuardAndOnlyTheAnswerToolRunsAfterIt() {
+    // Each read adds about 1,000 tokens: past 2,700 (three quarters of 3,600) after the third.
+    fake.callingTools(
+        r ->
+            NOTE.equals(r.messages().getLast().text())
+                ? List.of(call("late", "read"), call("a", "answer"))
+                : List.of(call("r" + r.messages().size(), "read")));
+    Pages pages = new Pages();
+    ConversationLimits limits =
+        new ConversationLimits(Integer.MAX_VALUE, Long.MAX_VALUE, 1_000, NOTE)
+            .withTurnGuard(3_600, "answer", 100);
+    Conversation conversation =
+        client(fake.model("m"), BudgetGuard.unlimited("run")).converse(request(), pages, limits);
+
+    conversation.answer();
+
+    List<LlmRequest> sent = fake.sent().stream().map(FakeLlmProvider.Sent::request).toList();
+    assertThat(sent).hasSize(4);
+    assertThat(sent.getLast().messages().stream().filter(m -> NOTE.equals(m.text()))).hasSize(1);
+    // The read asked with the answer after the note is not run; it is told the note instead.
+    assertThat(pages.ran).containsExactly("read", "read", "read", "answer");
+    assertThat(pages.answered).isTrue();
+  }
+
+  @Test
+  void aTurnOverTheGuardIsNotSent() {
+    fake.callingTools(r -> List.of(call("r" + r.messages().size(), "read")));
+    ConversationLimits limits =
+        new ConversationLimits(Integer.MAX_VALUE, Long.MAX_VALUE, 1_000, NOTE)
+            .withTurnGuard(1_500, "answer", 100);
+    Conversation conversation =
+        client(fake.model("m"), BudgetGuard.unlimited("run"))
+            .converse(request(), new Pages(), limits);
+
+    assertThatThrownBy(conversation::answer)
+        .isInstanceOf(ConversationCappedException.class)
+        .hasMessageContaining("guard of 1500 input tokens a turn");
+
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(log.conversations().getFirst().ending()).isEqualTo(LlmConversation.Ending.CAPPED);
+  }
+
+  @Test
+  void theLimitsSafetyStopReplacesTheTurnCap() {
+    fake.callingTools(r -> List.of(lookup("t" + r.messages().size(), "x")));
+    ConversationLimits limits =
+        new ConversationLimits(Integer.MAX_VALUE, Long.MAX_VALUE, 1_000, NOTE)
+            .withTurnGuard(Long.MAX_VALUE, null, 2);
+    Conversation conversation =
+        client(fake.model("m"), BudgetGuard.unlimited("run"))
+            .converse(request(), new Words(), limits);
+
+    assertThatThrownBy(conversation::answer)
+        .isInstanceOf(LlmException.class)
+        .hasMessageContaining("2 turns");
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(log.conversations().getFirst().ending()).isEqualTo(LlmConversation.Ending.TURN_CAP);
+  }
+
   @Test
   void aModelWithoutToolUseIsRefusedBeforeSending() {
     ModelConfig plain =

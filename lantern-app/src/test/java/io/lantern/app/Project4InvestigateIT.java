@@ -113,14 +113,18 @@ class Project4InvestigateIT {
   // ---------------------------------------------------------------------------------------------
   // The scripted model
 
-  private static final Pattern ITEM =
-      Pattern.compile("<item id=\"(I[0-9]+)\">\n(.*?)\n</item>", Pattern.DOTALL);
-  private static final Pattern KIND =
-      Pattern.compile("^Lead \\S+, of kind (\\S+)\\.$", Pattern.MULTILINE);
-  private static final Pattern CODE =
-      Pattern.compile(
-          "<code repo=\"([^\"]+)\" path=\"([^\"]+)\" lines=\"(\\d+)-(\\d+)\">\n(.*?)</code>",
-          Pattern.DOTALL);
+  /**
+   * How the first message's question opens for each kind in {@link #CONFIRMED}
+   * (prompts/investigate-questions.toml), since the message names the kind no other way (#860).
+   */
+  private static final Map<String, String> QUESTIONS =
+      Map.of(
+          "identity-from-request", "question = \"The code of ",
+          "send-before-commit", "question = \"A database transaction runs through ");
+
+  /** A numbered line of a piece of code in the first message. */
+  private static final Pattern CODE_LINE = Pattern.compile("^(\\d+)  (.*)$");
+
   private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{3,}");
   private static final Set<String> NOT_NAMES =
       Set.of(
@@ -144,10 +148,10 @@ class Project4InvestigateIT {
           "value");
 
   /**
-   * A model that, in a lead conversation's first turn, submits a verdict for every item: confirmed
-   * for the kinds in {@link #CONFIRMED}, unclear for the others, each citing the first code excerpt
-   * the item shows and naming an identifier of its first line; every other request is answered as
-   * {@link Project0EndToEndIT}'s fake answers it.
+   * A model that, in a lead conversation's first turn, answers its lead through the answer tool:
+   * confirmed for the kinds in {@link #CONFIRMED}, unclear for the others, each citing the first
+   * code the message shows, quoting its first line that holds an identifier and naming it; every
+   * other request is answered as {@link Project0EndToEndIT}'s fake answers it.
    */
   static FakeLlmProvider scripted() {
     LlmProvider others = new Project0EndToEndIT.Fake().fakeLlmProvider();
@@ -168,29 +172,33 @@ class Project4InvestigateIT {
   static final List<String> ASKED = java.util.Collections.synchronizedList(new ArrayList<>());
 
   private static List<LlmToolCall> verdicts(LlmRequest request) {
-    if (!request.system().contains("Task: check leads.") || request.messages().size() != 1) {
+    if (!request.system().contains("Task: check one lead.") || request.messages().size() != 1) {
       return List.of();
     }
-    ASKED.add(request.messages().getFirst().text());
-    List<String> entries = new ArrayList<>();
-    Matcher item = ITEM.matcher(request.messages().getFirst().text());
-    while (item.find()) {
-      String text = item.group(2);
-      Matcher kind = KIND.matcher(text);
-      Matcher code = CODE.matcher(text);
-      if (!kind.find() || !code.find()) {
+    String text = request.messages().getFirst().text();
+    ASKED.add(text);
+    boolean confirmed = QUESTIONS.values().stream().anyMatch(text::contains);
+    JsonNode message = io.lantern.harness.Toml.read(text).root();
+    for (JsonNode piece : message.path("evidence")) {
+      if (!piece.path("code").isString()) {
         continue;
       }
-      int from = Integer.parseInt(code.group(3));
-      int to = Math.min(Integer.parseInt(code.group(4)), from + 39);
+      List<String[]> lines = new ArrayList<>();
+      for (String line : piece.get("code").asString().split("\n")) {
+        Matcher numbered = CODE_LINE.matcher(line);
+        if (numbered.matches()) {
+          lines.add(new String[] {numbered.group(1), numbered.group(2)});
+        }
+      }
       String name = null;
-      for (String line : code.group(5).lines().toList()) {
-        String source = line.replaceFirst("^\\s*\\d+  ", "");
-        Matcher identifier = IDENTIFIER.matcher(source);
+      String quote = null;
+      for (String[] line : lines) {
+        Matcher identifier = IDENTIFIER.matcher(line[1]);
         while (name == null && identifier.find()) {
           String lower = identifier.group().toLowerCase(Locale.ROOT);
           if (!NOT_NAMES.contains(lower) && !javax.lang.model.SourceVersion.isKeyword(lower)) {
             name = identifier.group();
+            quote = line[1].strip();
           }
         }
         if (name != null) {
@@ -200,31 +208,32 @@ class Project4InvestigateIT {
       if (name == null) {
         continue;
       }
-      String cite = code.group(1) + ":" + code.group(2) + ":" + from + "-" + to;
-      boolean confirmed = CONFIRMED.contains(kind.group(1));
-      entries.add(
-          "{\"lead\": \""
-              + item.group(1)
-              + "\", \"verdict\": \""
+      int from = Integer.parseInt(lines.getFirst()[0]);
+      int to = Math.min(Integer.parseInt(lines.getLast()[0]), from + 39);
+      String toml =
+          "verdict = \""
               + (confirmed ? "confirmed" : "unclear")
-              + "\", \"kind\": \"risk\","
+              + "\"\n"
               + (confirmed
-                  ? " \"title\": \"Confirmed by the scripted model\", \"finding\": \"The code"
-                      + " shown does what the lead says, on a path a caller can take.\","
-                      + " \"consequence\": \"A caller or a failure can act on it.\","
-                      + " \"impact\": \"high\", \"confidence\": \"medium\","
-                  : "")
-              + " \"names\": [\""
-              + name
-              + "\"], \"cites\": [\""
-              + cite
-              + "\"]}");
+                  ? "title = \"Confirmed by the scripted model here\"\n"
+                      + "finding = \"The code shown does what the lead says, on a path a caller can"
+                      + " take, and nothing on that path stops it.\"\n"
+                      + "consequence = \"A caller or a failure can act on it, and the system then"
+                      + " does what the lead warns of.\"\n"
+                      + "impact = \"high\"\nconfidence = \"medium\"\n"
+                  : "reason = \"The scripted model judges only the kinds it confirms.\"\n")
+              + "\n[[evidence]]\nlines = "
+              + io.lantern.harness.Toml.string(
+                  piece.path("where").asString() + ":" + from + "-" + to)
+              + "\nquote = "
+              + io.lantern.harness.Toml.string(quote)
+              + "\nshows = ["
+              + io.lantern.harness.Toml.string(name)
+              + "]\n";
+      return List.of(
+          new LlmToolCall("scripted-answer", "answer", JSON.createObjectNode().put("toml", toml)));
     }
-    return List.of(
-        new LlmToolCall(
-            "scripted-submit",
-            "submit",
-            JSON.readTree("{\"items\": [" + String.join(", ", entries) + "]}")));
+    return List.of();
   }
 
   // ---------------------------------------------------------------------------------------------

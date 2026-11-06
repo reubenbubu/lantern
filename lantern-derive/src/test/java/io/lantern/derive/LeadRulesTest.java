@@ -44,6 +44,22 @@ class LeadRulesTest {
   }
 
   @Test
+  void everyKindHasAQuestionForInvestigateToAsk() {
+    // What the model judges for a kind lives in Investigate's question file (#860).
+    JsonNode questions =
+        io.lantern.harness.Toml.read(io.lantern.harness.Prompts.text("investigate-questions.toml"))
+            .root();
+    for (LeadRule rule : LeadRules.all()) {
+      assertThat(questions.path(rule.kind()).path("question").asString(""))
+          .as("the question of %s", rule.kind())
+          .isNotBlank();
+      assertThat(questions.path(rule.kind()).path("verdicts").asString(""))
+          .as("the verdicts of %s", rule.kind())
+          .isNotBlank();
+    }
+  }
+
+  @Test
   void anIdentityHeaderReadByAUnitIsOneLeadCitingEveryRead() {
     shop();
     Fact first = model.add(GET, "reads-request-value", FactObject.string("X-User-Id"), header());

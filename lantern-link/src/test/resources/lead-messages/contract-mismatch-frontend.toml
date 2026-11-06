@@ -1,0 +1,18 @@
+[task]
+question = "web sends POST /api/orders through gateway, the gateway in front of the services, and static analysis found no gateway route for it. Does the request reach a service that answers it?"
+verdicts = "confirmed: on some path it reaches no service that answers it. refuted: a route sends it to a service that answers it, and you can show the route and the endpoint. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "web calls POST /api/orders."
+where = "shop:web/src/app/orders.service.ts"
+code = """
+2  export class OrdersService {
+3    place(order: Order) {
+4      return this.http.post(`${environment.apiUrl}/api/orders`, order);
+5    }
+6  }
+"""
+
+[start]
+hint = "The gateway's routes are in its configuration, in shop: search there for the path's first segments."

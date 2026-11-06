@@ -1,0 +1,56 @@
+# The question each kind of lead asks (#860), filled from the lead: {units} the units it is
+# about, {detail} what its ID names (a header, a request, a setting, a type), {code} the code it
+# points at, {sends} what that code sends and to where, {caller} who makes a call, {unitRepos} the
+# repositories of the units, {trigger} why static analysis flagged it. Each names every
+# side the lead involves and ends with the question the verdict answers; `verdicts` says what each
+# verdict means for it, and `hint`, when there is one, where to start.
+
+[identity-from-request]
+question = "The code of {units} reads the request header {detail} and takes it as who the caller is or what they may do ({code}). Can a caller set that header themselves, or is it removed or verified on every path before the request reaches {units}?"
+verdicts = "confirmed: on some path a caller's own value of the header reaches this code. refuted: every path removes or verifies it first, and you can show where. unclear: the code does not settle it."
+hint = "Look at what sits in front of {units}: a gateway's filters and routes, or a filter of {units} itself."
+
+[send-before-commit]
+question = "A database transaction runs through {code}, and the code sends {sends} before the transaction commits. Can the receiver act on data that is not committed yet, or that is rolled back, with an effect someone can see?"
+verdicts = "confirmed: the send happens before the commit and a rollback or early read leaves a visible effect. refuted: the send happens after the commit, or it changes nothing a rollback would leave wrong (a read, say), and you can show where. unclear: the code does not settle it."
+hint = "Start at the method that holds the transaction, and follow what it does after the send."
+
+[contract-mismatch]
+question = "{caller} calls {detail} on {units}, and static analysis found no endpoint of {units} that matches it. Does {units} answer this call as {caller} sends it: its method, path and parameters?"
+verdicts = "confirmed: no endpoint answers the call as sent. refuted: an endpoint answers it, and you can show the call and the endpoint. unclear: the code does not settle it."
+
+[contract-mismatch-frontend]
+question = "{caller} sends {detail} through {units}, the gateway in front of the services, and static analysis found no gateway route for it. Does the request reach a service that answers it?"
+verdicts = "confirmed: on some path it reaches no service that answers it. refuted: a route sends it to a service that answers it, and you can show the route and the endpoint. unclear: the code does not settle it."
+hint = "The gateway's routes are in its configuration, in {unitRepos}: search there for the path's first segments."
+
+[weak-access-check]
+question = "{trigger}. The endpoint's code: {code}. Can a caller who should not be allowed use it, or does a check elsewhere (a filter, a security configuration, the method's own code) stop them?"
+verdicts = "confirmed: a caller without the right role or membership can use it on some path. refuted: a check stops them on every path, and you can show it. unclear: the code does not settle it."
+
+[shared-type-skew]
+question = "{units} share the type {detail} from a library, but bundle different versions of that library. Does one side send or read it with fields the other side's version does not have, so data is lost or misread?"
+verdicts = "confirmed: the versions in use differ in a field one side writes and the other reads. refuted: the fields both sides use are the same in the versions in use, and you can show them. unclear: the code does not settle it."
+
+[single-instance]
+question = "{trigger}. Is there only one of it in every deployment, so that when it stops what depends on it stops too, or so that state held there is lost or split between instances?"
+verdicts = "confirmed: a deployment runs one instance and something a user depends on stops or loses state with it. refuted: deployments run several instances, or the state is shared, and you can show where. unclear: the code does not settle it."
+
+[plaintext-secret]
+question = "The setting {detail} of {units} holds a secret, and a value for it is written in a file of the repository. Is a value a deployed system uses committed there, or only a placeholder, an empty default or a local developer value?"
+verdicts = "confirmed: a deployed run uses the committed value, so whoever reads the repository can use it. refuted: deployed runs take the value from elsewhere (an environment variable, a secret store), and you can show where. unclear: the code does not settle it."
+hint = "Compare the file's profiles with what the deployment files (Compose, Helm, Kustomize) set."
+
+[environment-baked]
+question = "{trigger}. Does the deployed app call that address because the build bakes it in, or is it replaced when the app is built or started?"
+verdicts = "confirmed: the deployed app calls the local or private address. refuted: the build or the start replaces it, and you can show where. unclear: the code does not settle it."
+hint = "Look at the app's build configuration, its Dockerfile and what its container runs at start."
+
+[open-cors]
+question = "{trigger}. Can a website of another origin use it to read something private or to change data, or does the policy open only what is public?"
+verdicts = "confirmed: another origin can reach something private or state-changing. refuted: only public, read-only answers are opened, and you can show it. unclear: the code does not settle it."
+
+[schema-unmanaged]
+question = "{trigger}. Does a deployed run let Hibernate change the schema of a database that holds data, or do the deployed profiles validate it or turn this off?"
+verdicts = "confirmed: a deployed run changes the schema itself. refuted: deployed runs only validate it, or never run with this setting, and you can show where. unclear: the code does not settle it."
+hint = "Compare the profiles' settings with the profiles the deployment files and the image turn on."

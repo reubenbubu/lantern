@@ -65,7 +65,7 @@ public final class Conversation {
     if (turnCap < 1) {
       throw new IllegalArgumentException("The turn cap must be positive: " + turnCap);
     }
-    this.turnCap = turnCap;
+    this.turnCap = limits.safetyTurns() > 0 ? limits.safetyTurns() : turnCap;
     Objects.requireNonNull(request, "request");
     this.first =
         new LlmRequest(
@@ -105,9 +105,11 @@ public final class Conversation {
   }
 
   /**
-   * Sends the request and runs the tool loop until the model answers.
+   * Sends the request and runs the tool loop until the model answers, or the tools say the
+   * conversation is settled ({@link ToolBox#finished}).
    *
-   * @return the model's answer, which asks for no tools; it may be cut off
+   * @return the model's answer, which asks for no tools unless the tools settled the conversation;
+   *     it may be cut off
    * @throws LlmException if a turn fails or is refused, or the turn cap is reached; the
    *     conversation has then ended
    */
@@ -225,7 +227,10 @@ public final class Conversation {
         toolCalls.merge(call.name(), 1, Integer::sum);
         LlmToolResult result;
         try {
-          result = tools.run(call);
+          result =
+              nudged && limits.onlyTool() != null && !call.name().equals(limits.onlyTool())
+                  ? LlmToolResult.error(call, limits.nudge())
+                  : tools.run(call);
         } catch (RuntimeException e) {
           result = LlmToolResult.error(call, "The tool failed: " + e.getMessage());
         }
@@ -236,13 +241,16 @@ public final class Conversation {
       }
       messages.add(LlmMessage.assistant(response));
       toolTurns++; // the turn these results go back in is a tool turn
-      String note = "";
+      messages.add(LlmMessage.toolResults(results, ""));
       if (!nudged && nearCap()) {
         // Lantern's own words go after the tool results, never inside one.
         nudged = true;
-        note = limits.nudge();
+        messages.set(messages.size() - 1, LlmMessage.toolResults(results, limits.nudge()));
       }
-      messages.add(LlmMessage.toolResults(results, note));
+      if (tools.finished()) {
+        // The tools settled the conversation: their results stand, and no turn follows.
+        return response;
+      }
     }
   }
 
@@ -255,13 +263,24 @@ public final class Conversation {
       return "Stopped at the cap of %d input tokens (fresh-token equivalents)"
           .formatted(limits.inputTokens());
     }
+    if (nextTurnInput() >= limits.turnInputTokens()) {
+      return "Stopped at the guard of %d input tokens a turn".formatted(limits.turnInputTokens());
+    }
     return null;
+  }
+
+  /** What the next turn would send, estimated, when one turn's input is guarded. */
+  private long nextTurnInput() {
+    return limits.turnInputTokens() == Long.MAX_VALUE
+        ? 0
+        : first.withMessages(messages).estimatedInputTokens();
   }
 
   /** Whether the turn about to be sent passes {@value ConversationLimits#NUDGE_SHARE} of a cap. */
   private boolean nearCap() {
     return toolTurns >= Math.ceil(limits.toolTurns() * ConversationLimits.NUDGE_SHARE)
-        || freshInput >= limits.inputTokens() * ConversationLimits.NUDGE_SHARE;
+        || freshInput >= limits.inputTokens() * ConversationLimits.NUDGE_SHARE
+        || nextTurnInput() >= limits.turnInputTokens() * ConversationLimits.NUDGE_SHARE;
   }
 
   /** The share of the model's context window past which the history is compacted, once. */

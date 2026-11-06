@@ -42,6 +42,9 @@ final class SubmitTool implements ToolBox {
   private final Set<String> dropped = new LinkedHashSet<>();
   private final Set<String> repaired = new LinkedHashSet<>();
   private final Set<String> rejectedBefore = new LinkedHashSet<>();
+  private final SingleAnswer single;
+  private int answers;
+  private boolean finished;
 
   /**
    * @param inputs what the checks compare the answer of the packet's item at an index with, asked
@@ -60,6 +63,10 @@ final class SubmitTool implements ToolBox {
     this.ids = List.copyOf(ids);
     this.role = role;
     this.inputs = inputs;
+    this.single = role.singleAnswer();
+    if (single != null && packet.size() != 1) {
+      throw new IllegalArgumentException("A single answer answers one item a conversation");
+    }
   }
 
   /** The tool's definition: its input is the answer envelope. */
@@ -84,6 +91,10 @@ final class SubmitTool implements ToolBox {
   @Override
   public List<LlmTool> tools() {
     List<LlmTool> all = new ArrayList<>(tools.tools());
+    if (single != null) {
+      all.add(single.tool());
+      return all;
+    }
     JsonNode schema = role.submitSchema();
     LlmTool submit = schema == null ? definition() : definition(schema);
     String description = role.submitDescription();
@@ -93,6 +104,11 @@ final class SubmitTool implements ToolBox {
 
   @Override
   public synchronized LlmToolResult run(LlmToolCall call) {
+    if (single != null) {
+      return call.name().equals(single.tool().name())
+          ? LlmToolResult.of(call, answer(call.input()))
+          : tools.run(call);
+    }
     if (!call.name().equals(NAME)) {
       return tools.run(call);
     }
@@ -189,6 +205,55 @@ final class SubmitTool implements ToolBox {
     }
     verdicts.put(id, text.append(" Submit corrected ones again, or leave them out.").toString());
     return true;
+  }
+
+  /**
+   * Reads and checks one answer of a single-answer conversation, through the tool or as the text
+   * the model wrote: what passes is recorded and settles the conversation, as does the last failed
+   * attempt.
+   *
+   * @return the reply to the model
+   */
+  synchronized String answer(JsonNode input) {
+    if (finished) {
+      return single.passed();
+    }
+    answers++;
+    String id = ids.getFirst();
+    Item item = packet.getFirst();
+    List<String> problems = new ArrayList<>();
+    String raw = input == null ? "" : input.toString();
+    try {
+      JsonNode entry = single.read(input);
+      raw = entry.toString();
+      ItemAnswer answer = role.read(id, item, entry);
+      List<Rejection> found = role.pipeline().check(answer, inputs.apply(0));
+      if (found.isEmpty()) {
+        accepted.put(id, answer);
+        if (answers > 1) {
+          repaired.add(id);
+        }
+        finished = true;
+        return single.passed();
+      }
+      found.forEach(
+          r -> problems.add(r.field().isEmpty() ? r.reason() : r.field() + ": " + r.reason()));
+      sink.rejected(item.subject(), answers, raw, RoleSession.reasons(found));
+    } catch (IllegalArgumentException e) {
+      problems.add(e.getMessage());
+      sink.rejected(item.subject(), answers, raw, List.of(e.getMessage()));
+    }
+    failedOnce.add(id);
+    if (answers >= single.attempts()) {
+      dropped.add(id);
+      finished = true;
+    }
+    return single.failed(problems, answers, single.attempts());
+  }
+
+  @Override
+  public synchronized boolean finished() {
+    return finished;
   }
 
   /** Whether the item was submitted wrongly twice. */

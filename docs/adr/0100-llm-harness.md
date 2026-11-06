@@ -449,3 +449,15 @@ join their first requests into packed requests (`PacketCollector`), once the har
 - The harness's `promptCeiling()` gives roles the same ceiling, so a unit too large for it is
   split in parts under it rather than sent past the provider's price tier.
 - A role that batches does not pack.
+
+## Amendment (#892): a single answer instead of `submit`
+
+A role may answer each item through a tool of its own instead of `submit` (`PacketRole.singleAnswer`,
+a `SingleAnswer`): one item a conversation; the tool's input is read into the item's entry and
+checked by the role's pipeline at once; a pass records it and ends the conversation, with no
+further turn (`ToolBox.finished`); a failure is answered with its problems, each "field: reason",
+in the role's own form, and the last of its attempts drops the item. A text answer the role
+recognises counts as given; a turn with neither gets the role's reminder once. The conversation's
+limits may guard one turn's input, name the one tool that still runs after the nudge, and set the
+safety stop (`ConversationLimits.withTurnGuard`). Investigate's leads are the first such role
+(ADR 0128).

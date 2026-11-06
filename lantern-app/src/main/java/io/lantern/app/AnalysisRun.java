@@ -572,7 +572,6 @@ public final class AnalysisRun {
             new io.lantern.link.Investigator(
                     harness,
                     snapshotFiles,
-                    io.lantern.derive.LeadRules.judges(),
                     (root, written) -> shellContainer(sandbox.investigateShell(root)))
                 .investigate(
                     facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),

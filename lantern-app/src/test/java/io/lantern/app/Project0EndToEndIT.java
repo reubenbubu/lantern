@@ -379,65 +379,61 @@ class Project0EndToEndIT {
   }
 
   /** A lead item of Investigate's first turn: its ID and its text. */
-  private static final java.util.regex.Pattern LEAD_ITEM =
-      java.util.regex.Pattern.compile(
-          "<item id=\"(I[0-9]+)\">\n(Lead [^\n]*, of kind plaintext-secret\\..*?)\n</item>",
-          java.util.regex.Pattern.DOTALL);
-
-  private static final java.util.regex.Pattern LEAD_UNIT =
-      java.util.regex.Pattern.compile("Units: ([^,\\s]+?)(?:,|\\.?\\n)");
-
-  private static final java.util.regex.Pattern EXCERPT =
-      java.util.regex.Pattern.compile(
-          "<code repo=\"([^\"]+)\" path=\"([^\"]+)\" lines=\"(\\d+)-(\\d+)\">\n(.*?)</code>",
-          java.util.regex.Pattern.DOTALL);
+  /** A numbered line of a piece of code in a lead's first message: its number, then its text. */
+  private static final java.util.regex.Pattern CODE_LINE =
+      java.util.regex.Pattern.compile("^(\\d+)  (.*)$");
 
   /**
    * Investigate's first turn on a plaintext-secret lead, which only {@link
-   * #aSecretOnACitedLineReachesNoPrompt} plants: it reads the line holding the secret's key and
-   * confirms the lead with a risk citing that line, so the support judge, which judges every risk,
-   * is shown it (#751). Nothing for any other request.
+   * #aSecretOnACitedLineReachesNoPrompt} plants: it finds the line holding the secret's key in the
+   * lead's first message (TOML, #860) and confirms the lead through the answer tool with evidence
+   * quoting that line (#892), so the support judge, which judges every risk, is shown it (#751).
+   * Nothing for any other request.
    */
   static List<io.lantern.llm.LlmToolCall> plaintextSecretConfirmed(
       io.lantern.llm.LlmRequest request) {
-    if (request.role() != Role.INVESTIGATE || request.messages().size() != 1) {
+    if (request.role() != Role.INVESTIGATE
+        || request.messages().size() != 1
+        || !request.system().contains("Task: check one lead.")) {
       return List.of();
     }
-    java.util.regex.Matcher lead = LEAD_ITEM.matcher(request.messages().getFirst().text());
-    if (!lead.find()) {
+    JsonNode message;
+    try {
+      message = io.lantern.harness.Toml.read(request.messages().getFirst().text()).root();
+    } catch (io.lantern.harness.Toml.Fault e) {
       return List.of();
     }
-    java.util.regex.Matcher unit = LEAD_UNIT.matcher(lead.group(2));
-    java.util.regex.Matcher code = EXCERPT.matcher(lead.group(2));
-    if (!unit.find()) {
-      return List.of();
-    }
-    while (code.find()) {
-      String[] lines = code.group(5).split("\n");
-      for (int i = 0; i < lines.length; i++) {
-        if (!lines[i].contains(PLANTED_KEY)) {
+    for (JsonNode piece : message.path("evidence")) {
+      if (!piece.path("code").isString()) {
+        continue;
+      }
+      for (String text : piece.get("code").asString().split("\n")) {
+        java.util.regex.Matcher line = CODE_LINE.matcher(text);
+        if (!line.matches() || !line.group(2).contains(PLANTED_KEY)) {
           continue;
         }
-        int line = Integer.parseInt(code.group(3)) + i;
-        String cite = code.group(1) + ":" + code.group(2) + ":" + line + "-" + line;
-        String risk =
+        String lines = piece.path("where").asString() + ":" + line.group(1) + "-" + line.group(1);
+        String answer =
             """
-            {"lead": "%s", "verdict": "confirmed", "kind": "risk",
-             "title": "The webhook secret is written in plain text",
-             "finding": "The payments config writes the webhook secret as a literal value, so anyone who can read the repository can read the secret.",
-             "consequence": "Anyone with read access to the repository can sign webhook calls as the payment provider and have payments accept them.",
-             "impact": "high", "confidence": "high", "units": ["%s"],
-             "names": ["%s"], "cites": ["%s"]}"""
-                .formatted(lead.group(1), unit.group(1).strip(), PLANTED_KEY, cite);
+            verdict = "confirmed"
+            title = "The webhook secret is in plain text"
+            finding = "The payments config writes the webhook secret as a literal value, so anyone who can read the repository can read the secret."
+            consequence = "Anyone with read access to the repository can sign webhook calls as the payment provider and have payments accept them."
+            impact = "high"
+            confidence = "high"
+
+            [[evidence]]
+            lines = %s
+            quote = %s
+            shows = [%s]
+            """
+                .formatted(
+                    io.lantern.harness.Toml.string(lines),
+                    io.lantern.harness.Toml.string(line.group(2).strip()),
+                    io.lantern.harness.Toml.string(PLANTED_KEY));
         return List.of(
             new io.lantern.llm.LlmToolCall(
-                "read",
-                "read_file",
-                JSON.readTree(
-                    "{\"repo\":\"%s\",\"path\":\"%s\",\"from\":%d,\"to\":%d}"
-                        .formatted(code.group(1), code.group(2), line, line))),
-            new io.lantern.llm.LlmToolCall(
-                "submit", "submit", JSON.readTree("{\"items\": [" + risk + "]}")));
+                "answer", "answer", JSON.createObjectNode().put("toml", answer)));
       }
     }
     return List.of();
@@ -935,11 +931,10 @@ class Project0EndToEndIT {
           "flow-significance fulfilment",
           "flow-significance payments",
           "flow-significance storefront",
-          // Investigate (ADR 0110): the lead the changed path raises, asked twice since the fake
-          // model answers nothing, and the two units that show the changed facts; not the system,
-          // whose map and accepted risks stay the same.
+          // Investigate (ADR 0110): the lead the changed path raises, asked once (ADR 0128), and
+          // the two units that show the changed facts; not the system, whose map and accepted
+          // risks stay the same.
           "investigate-leads lead:contract-mismatch/service:com.acme.shop:storefront-app/POST%20/api/payments",
-          "investigate-leads lead:contract-mismatch/service:com.acme.shop:storefront-app/POST%20/api/payments (again)",
           "investigate-units service:com.acme.shop:payments",
           "investigate-units service:com.acme.shop:storefront-app");
 

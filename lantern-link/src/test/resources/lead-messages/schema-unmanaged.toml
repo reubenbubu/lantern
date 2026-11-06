@@ -1,0 +1,17 @@
+[task]
+question = "orders sets spring.jpa.hibernate.ddl-auto to update in its default profile. Does a deployed run let Hibernate change the schema of a database that holds data, or do the deployed profiles validate it or turn this off?"
+verdicts = "confirmed: a deployed run changes the schema itself. refuted: deployed runs only validate it, or never run with this setting, and you can show where. unclear: the code does not settle it."
+repositories = ["shop"]
+
+[[evidence]]
+what = "orders sets spring.jpa.hibernate.ddl-auto (in the default profile)."
+where = "shop:orders/src/main/resources/application.yml"
+code = """
+6    jpa:
+7      hibernate:
+8        ddl-auto: update
+9  
+"""
+
+[start]
+hint = "Compare the profiles' settings with the profiles the deployment files and the image turn on."

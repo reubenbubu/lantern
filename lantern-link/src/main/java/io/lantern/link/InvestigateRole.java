@@ -223,9 +223,19 @@ final class InvestigateRole implements PacketRole {
     tools.supplied(systemMap);
     tools.supplied(context);
     packet.forEach(item -> tools.supplied(item.rendering()));
+    if (mode == Mode.LEADS) {
+      // One lead, its first message the lead's own TOML: no item wrapper, no system map (#860).
+      return new PromptLayout(
+          InvestigatePrompt.LEADS_SYSTEM,
+          InvestigatePrompt.LEADS_TASK,
+          "",
+          "",
+          false,
+          packet.getFirst().rendering());
+    }
     return new PromptLayout(
         CommonPrompt.SYSTEM,
-        InvestigatePrompt.role(mode == Mode.LEADS),
+        InvestigatePrompt.role(),
         systemMap,
         context,
         false,
@@ -274,7 +284,9 @@ final class InvestigateRole implements PacketRole {
   @Override
   public CheckInputs inputs(List<Item> packet, List<String> ids) {
     return new CheckInputs(
-        mode == Mode.LEADS ? InvestigatePrompt.LEAD_SCHEMA : InvestigatePrompt.PROPOSALS_SCHEMA,
+        mode == Mode.LEADS
+            ? InvestigateLeadAnswer.ENTRY_SCHEMA
+            : InvestigatePrompt.PROPOSALS_SCHEMA,
         Map.of(),
         Set.of(),
         true,
@@ -292,12 +304,16 @@ final class InvestigateRole implements PacketRole {
   public String submitDescription() {
     return "Submit what you found: {\"items\": [...]}, each entry as the answer schema in your"
         + " instructions says. The result says which entries were accepted and why the others"
-        + " were rejected; submit corrected ones again, or leave them out."
-        + (mode == Mode.LEADS
-            ? " Give every item its lead, the item's ID."
-            : " Your proposals are numbered P1, P2, ... in the order you submit them, across"
-                + " submissions.");
+        + " were rejected; submit corrected ones again, or leave them out. Your proposals are"
+        + " numbered P1, P2, ... in the order you submit them, across submissions.";
   }
+
+  @Override
+  public io.lantern.harness.SingleAnswer singleAnswer() {
+    return mode == Mode.LEADS ? ANSWER : null;
+  }
+
+  private static final InvestigateLeadAnswer ANSWER = new InvestigateLeadAnswer();
 
   @Override
   public boolean partial() {
@@ -342,10 +358,15 @@ final class InvestigateRole implements PacketRole {
   public Pipeline pipeline() {
     List<Check> checks = new ArrayList<>(Checks.STANDARD);
     checks.add(new Proposals(this));
-    checks.add(new ShownRanges(() -> tools, this::citesByField));
     if (mode == Mode.LEADS) {
+      // Each piece quotes a line Lantern checks exactly, in place of what was shown, and its names
+      // are checked in its own range, which says more than the coverage check on all ranges at
+      // once and would only repeat its problems (#892).
+      checks.removeIf(check -> check instanceof Checks.Coverage);
+      checks.add(new InvestigateLeadAnswer.Quotes());
       return new Pipeline(checks);
     }
+    checks.add(new ShownRanges(() -> tools, this::citesByField));
     // A rejection of any part of a proposal rejects the proposal: it is kept or dropped whole.
     return new Pipeline(List.of(new ByProposal(checks)));
   }
