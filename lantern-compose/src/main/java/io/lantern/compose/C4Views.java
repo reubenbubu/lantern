@@ -1470,6 +1470,8 @@ final class C4Views {
       }
       List<Section> areas = new ArrayList<>();
       boolean outsideOff = false;
+      List<Elements.Component> outsideOnly = new ArrayList<>();
+      Set<EntityId> overview = new java.util.LinkedHashSet<>(all);
       if (!fits(diagram)) {
         // The coarser level the code proves, each feature area one box with a page of its own;
         // a view still too large there, or with no areas, merges its lines per pair (owner's
@@ -1487,11 +1489,36 @@ final class C4Views {
               componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
           outsideOff = inside.nodes().size() < diagram.nodes().size();
           diagram = inside;
+          // A component whose every line goes outside is left with none here: it is not part of
+          // what this view shows, and is drawn on a page of its own with its lines (owner's
+          // decision of 6 Nov 2026 on #764, as for what no line reaches).
+          Set<EntityId> inView = new HashSet<>();
+          inside
+              .edges()
+              .forEach(
+                  e -> {
+                    inView.add(e.from());
+                    inView.add(e.to());
+                  });
+          for (Elements.Component component : components) {
+            if (!areaOf.containsKey(component.main()) && !inView.contains(component.main())) {
+              outsideOnly.add(component);
+            }
+          }
+          if (!outsideOnly.isEmpty() && outsideOnly.size() < components.size()) {
+            outsideOnly.forEach(c -> overview.remove(c.main()));
+            diagram =
+                componentDiagram(
+                    assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
+          } else {
+            outsideOnly.clear();
+          }
         }
         if (!fits(diagram)) {
           perPair = true;
           diagram =
-              componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
+              componentDiagram(
+                  assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
           perPair = false;
         }
         withoutOutside = false;
@@ -1512,6 +1539,27 @@ final class C4Views {
           diagram = null;
           outsideOff = false;
         }
+      }
+      if (!outsideOnly.isEmpty()) {
+        Set<EntityId> mains = new HashSet<>();
+        outsideOnly.forEach(c -> mains.add(c.main()));
+        String outsideId = assembler.id(id, "outside-only");
+        areas.add(
+            new Section(
+                outsideId,
+                "Reached only from outside " + assembler.name(unit),
+                SectionKind.COMPONENTS.levels(),
+                null,
+                List.of(),
+                List.of(
+                    componentDiagram(
+                        assembler.id(outsideId, "diagram"),
+                        unit,
+                        components,
+                        "Components of " + assembler.name(unit) + " reached only from outside it",
+                        mains,
+                        Map.of())),
+                List.of()));
       }
       if (!alone.isEmpty()) {
         Set<EntityId> mains = new HashSet<>();

@@ -255,6 +255,37 @@ class GroupViewsTest {
   }
 
   @Test
+  void aComponentWithLinesOnlyOutsideIsOffTheOverviewThatLeavesTheOutsideOffAndOnAPageOfItsOwn() {
+    // Owner's decision of 6 Nov 2026 on #764: with the outside left off, it is not part of what
+    // the overview shows.
+    TestFacts many = manyComponents();
+    String ops = "package:com.example:app:com.example.ops";
+    String job = "type:com.example.ops.Sampler";
+    many.relate("shop", "module:com.example:app", "CONTAINS", ops)
+        .relate("shop", ops, "CONTAINS", job)
+        .relate("shop", job, "CONTAINS", "method:com.example.ops.Sampler#sample()")
+        .attribute(
+            "shop", "method:com.example.ops.Sampler#sample()", "scheduled", "0 * * * * *", "{}");
+    Section app =
+        section(system(many.list(), limits(5, 2)), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(block(app, Diagram.class).nodes())
+        .extracting(n -> n.id().toString())
+        .doesNotContain(job);
+    Section outside =
+        app.sections().stream()
+            .filter(p -> p.title().equals("Reached only from outside shop-app"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(block(outside, Diagram.class).nodes())
+        .extracting(n -> n.id().toString())
+        .contains(job);
+  }
+
+  @Test
   void aUnitWithTooManyComponentsShowsItsFeatureAreasThenAPageEach() {
     TestFacts many = manyComponents();
     List<String> features = List.of("orders", "billing", "parts");
