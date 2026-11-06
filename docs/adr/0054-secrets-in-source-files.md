@@ -64,6 +64,12 @@ as a secret, each placeholder keeps its name and only what is written is masked:
 - Under a key not named as a secret, a placeholder named as one has its default masked, in config
   as already in code (`other: ${A_TOKEN:-******}`).
 
-The masked-values list (ADR 0110, amendment for #645) is taken from the difference of the file and
-its masked text, so it holds each masked default as before. On project-8, nine secret lines of three
+- A line ending in a Windows `\r` is masked as any other; before, no key matched on such a line,
+  so its secret was shown.
+
+The name rule is for config, `.env` and Compose files; in Java, a literal of placeholders without
+defaults is kept as before, since Spring reads no default after a hyphen. The shell's `:+` keeps its
+sign too. The masked-values list (ADR 0110, amendment for #645) is taken from the difference of the
+file and its masked text, one span a line: a single default is now listed on its own, and a line
+with several masks lists the span from the first to the last. On project-8, nine secret lines of three
 services now show their variable (`password: ${RABBITMQ_PASSWORD:******}`).

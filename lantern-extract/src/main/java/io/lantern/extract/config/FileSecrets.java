@@ -77,12 +77,17 @@ public final class FileSecrets {
     }
     StringBuilder out = new StringBuilder();
     int blockIndent = -1;
-    for (String line : text.split("\n", -1)) {
+    for (String whole : text.split("\n", -1)) {
+      // A Windows line ends in \r, which the patterns must not see, or no key would match.
+      String end = whole.endsWith("\r") ? "\r" : "";
+      String line = whole.substring(0, whole.length() - end.length());
       int indent = indent(line);
       if (blockIndent >= 0) {
         // The lines of a block scalar under a secret key (password: |) are its value.
         if (line.isBlank() || indent > blockIndent) {
-          out.append(line.isBlank() ? line : " ".repeat(indent) + "******").append('\n');
+          out.append(line.isBlank() ? line : " ".repeat(indent) + "******")
+              .append(end)
+              .append('\n');
           continue;
         }
         blockIndent = -1;
@@ -107,7 +112,7 @@ public final class FileSecrets {
                     SourceSecrets.placeholderDefaultsMasked(line, secretKeys)),
                 secretKeys);
       }
-      out.append(shown).append('\n');
+      out.append(shown).append(end).append('\n');
     }
     out.setLength(out.length() - 1);
     return out.toString();

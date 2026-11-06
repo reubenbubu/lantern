@@ -339,7 +339,7 @@ public final class SourceSecrets {
         out.append(content, open, close + 1);
       } else if (isSecretName(content.substring(open + 2, colon), known)) {
         // The shell's ${NAME:-default}, :? and := keep their sign.
-        int sign = colon + 1 < close && "-?=".indexOf(content.charAt(colon + 1)) >= 0 ? 2 : 1;
+        int sign = colon + 1 < close && "-?=+".indexOf(content.charAt(colon + 1)) >= 0 ? 2 : 1;
         out.append(content, open, colon + sign).append(ConfigExtractor.MASK).append('}');
       } else {
         out.append(content, open, colon + 1)

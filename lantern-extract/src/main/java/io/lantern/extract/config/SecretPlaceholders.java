@@ -74,7 +74,7 @@ final class SecretPlaceholders {
       return "${" + name + "}";
     }
     int end = separator + 1;
-    if (end < inner.length() && "-?=".indexOf(inner.charAt(end)) >= 0) {
+    if (end < inner.length() && "-?=+".indexOf(inner.charAt(end)) >= 0) {
       end++;
     }
     String fallback = inner.substring(end);

@@ -44,6 +44,8 @@ class FileSecretsTest {
         // A shell default without a colon is never read as a name
         ".env | DB_PASSWORD=${DB-hunter2} | DB_PASSWORD=******",
         "application.properties | app.secret=${UNCLOSED:hunter2 | app.secret=******",
+        "application.properties | app.secret=${A:pa}ss} | app.secret=${A:******}******",
+        ".env | API_KEY=${API_KEY:+set-value} | API_KEY=${API_KEY:+******}",
       })
   void aPlaceholderKeepsItsNameAndOnlyWhatIsWrittenIsMasked(
       String path, String line, String shown) {
@@ -71,6 +73,14 @@ class FileSecretsTest {
     List<String> values = new ArrayList<>();
     MaskedValues.taken(text, shown, values::add);
     assertThat(values).contains("hunter2-very-secret", "another-secret-42", "token-value-99");
+  }
+
+  @Test
+  void aWindowsLineIsMaskedAsAnyOtherAndKeepsItsEnd() {
+    assertThat(masked("application.properties", "a=1\r\npassword=hunter2\r\nb=2\r\n"))
+        .isEqualTo("a=1\r\npassword=******\r\nb=2\r\n");
+    assertThat(masked(".env", "DB_PASSWORD=${DB_PASSWORD:hunter2}\r\n"))
+        .isEqualTo("DB_PASSWORD=${DB_PASSWORD:******}\r\n");
   }
 
   @Test
