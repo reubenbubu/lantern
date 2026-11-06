@@ -392,9 +392,16 @@ class EndToEndIT {
           .isEqualTo(file.getValue());
     }
     // An earlier snapshot by its number, and a system nothing was stored for.
-    assertThat(run.render("shop", twice.first().snapshot().number()))
+    assertThat(run.render("shop", twice.first().snapshot().number(), false))
         .extracting(d -> d.file().getParent())
         .containsOnly(twice.first().documents().getFirst().file().getParent());
+    // Only the system's report, and no snapshot of another system or none.
+    assertThat(run.render("shop", null, true))
+        .extracting(d -> d.file().getFileName().toString())
+        .containsExactly("_system.c4.html");
+    assertThatThrownBy(() -> run.render("shop", 999_999L, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("is not a snapshot of the system shop");
     ByteArrayOutputStream unknown = new ByteArrayOutputStream();
     AnalyzeCommand none =
         new AnalyzeCommand(run, new PrintStream(unknown, true, StandardCharsets.UTF_8));

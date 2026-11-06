@@ -30,9 +30,10 @@ import org.springframework.boot.ExitCodeGenerator;
  *
  * <p>Usage: {@code remove --system=<name> <repo>...}.
  *
- * <p>Usage: {@code render --system=<name> [--snapshot=<number>]}: writes the system's documents
- * again from what the store holds for the snapshot, by default the latest one whose analysis run
- * finished, with no build and no LLM call (#926).
+ * <p>Usage: {@code render --system=<name> [--snapshot=<number>] [--report-only]}: writes the
+ * system's documents (with {@code --report-only}, only its report) again from what the store holds
+ * for the snapshot, by default the latest one whose analysis run finished, with no build and no LLM
+ * call (#926).
  */
 final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
 
@@ -47,6 +48,9 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
 
   /** The option naming the snapshot {@code render} writes the documents of. */
   static final String SNAPSHOT = "snapshot";
+
+  /** The option of {@code render} writing only the system's report. */
+  static final String REPORT_ONLY = "report-only";
 
   /** The option naming the system. */
   static final String SYSTEM = "system";
@@ -174,7 +178,11 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     }
     try {
       if (words.getFirst().equals(RENDER)) {
-        render(option(args, SYSTEM), option(args, SNAPSHOT), words.subList(1, words.size()));
+        render(
+            option(args, SYSTEM),
+            option(args, SNAPSHOT),
+            args.containsOption(REPORT_ONLY),
+            words.subList(1, words.size()));
         exitCode = 0;
         return;
       }
@@ -213,10 +221,18 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     out.println("Removed from " + system + ": " + String.join(", ", repos));
   }
 
-  private void render(String system, String snapshot, List<String> rest) {
+  private void render(String system, String snapshot, boolean reportOnly, List<String> rest) {
     if (system == null || !rest.isEmpty()) {
       throw new IllegalArgumentException(
-          "Usage: " + RENDER + " --" + SYSTEM + "=<name> [--" + SNAPSHOT + "=<number>]");
+          "Usage: "
+              + RENDER
+              + " --"
+              + SYSTEM
+              + "=<name> [--"
+              + SNAPSHOT
+              + "=<number>] [--"
+              + REPORT_ONLY
+              + "]");
     }
     Long number;
     try {
@@ -224,7 +240,7 @@ final class AnalyzeCommand implements ApplicationRunner, ExitCodeGenerator {
     } catch (NumberFormatException e) {
       throw new IllegalArgumentException("--" + SNAPSHOT + " must be a number, got " + snapshot);
     }
-    List<AnalysisRun.Rendered> documents = run.render(system, number);
+    List<AnalysisRun.Rendered> documents = run.render(system, number, reportOnly);
     out.println("Documents of " + system + ":");
     documents.forEach(d -> out.println("  " + d.file()));
   }

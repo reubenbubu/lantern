@@ -1152,14 +1152,25 @@ public final class AnalysisRun {
   /**
    * Writes a system's documents again from what the store holds for one of its snapshots (#926), as
    * the analysis that took it wrote them: no build, no extraction and no LLM call. The documents go
-   * to the snapshot's folder, over the ones written before.
+   * to the snapshot's folder, over the ones written before. Holds the analysis lock, so no run
+   * writes the same folder meanwhile. Without a stored title, the system's title is derived from
+   * the repositories' README headings at their commits, as the run derived it, so a repository
+   * whose clone is gone may change it.
    *
    * @param system the system's name
    * @param number the snapshot's number, or {@code null} for the system's latest snapshot whose
    *     analysis run finished
+   * @param reportOnly whether to write only the system's report, not each repository's documents,
+   *     which take most of the time on a large system
    * @throws IllegalArgumentException if there is no such snapshot of the system
    */
-  public List<Rendered> render(String system, Long number) {
+  public List<Rendered> render(String system, Long number, boolean reportOnly) {
+    try (AnalysisLock.Held held = lock.acquire()) {
+      return renderHeld(system, number, reportOnly);
+    }
+  }
+
+  private List<Rendered> renderHeld(String system, Long number, boolean reportOnly) {
     Snapshot snapshot =
         (number == null
                 ? snapshots.latestCompleted(system)
@@ -1174,7 +1185,11 @@ public final class AnalysisRun {
                             : "Snapshot " + number + " is not a snapshot of the system " + system));
     List<Fact> complete = facts.findValidAt(snapshot.number(), snapshot.commits().keySet());
     List<Rendered> documents =
-        compose(system, snapshot, snapshots.analyzedIn(snapshot.number()), complete);
+        compose(
+            system,
+            snapshot,
+            reportOnly ? Set.of() : snapshots.analyzedIn(snapshot.number()),
+            complete);
     documents.forEach(d -> LOG.info("Wrote {}", d.file()));
     return documents;
   }

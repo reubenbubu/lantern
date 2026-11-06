@@ -39,13 +39,14 @@ class AnalyzeCommandTest {
   @Test
   void rendersTheNamedSystemsSnapshotAndRefusesAnythingElse() {
     AnalysisRun run = mock(AnalysisRun.class);
-    when(run.render("crm", 7L))
+    when(run.render("crm", 7L, true))
         .thenReturn(List.of(new AnalysisRun.Rendered(null, Path.of("/w/crm/7/_system.c4.html"))));
     ByteArrayOutputStream bytes = new ByteArrayOutputStream();
     AnalyzeCommand command =
         new AnalyzeCommand(run, new PrintStream(bytes, true, StandardCharsets.UTF_8));
 
-    command.run(new DefaultApplicationArguments("render", "--system=crm", "--snapshot=7"));
+    command.run(
+        new DefaultApplicationArguments("render", "--system=crm", "--snapshot=7", "--report-only"));
 
     assertThat(command.getExitCode()).isZero();
     assertThat(bytes.toString(StandardCharsets.UTF_8))
