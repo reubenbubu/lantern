@@ -219,6 +219,25 @@ class GroupsTest {
   }
 
   @Test
+  void anAreaOfOneThatRule3GrowsIsKeptAndOneThatStaysOneIsNot() {
+    // Areas are judged by their size after rule 3, not before (#764).
+    unit(BILLING, BILLING_MODULE, "billing");
+    EntityId orders = controller("io.acme.billing.web", "OrderController", "GET /orders");
+    EntityId payments = controller("io.acme.billing.web", "PaymentController", "GET /payments");
+    controller("io.acme.billing.web", "InvoiceController", "GET /invoices");
+    EntityId orderListener = controller("io.acme.billing.messaging", "OrderListener", null);
+    EntityId paymentListener = controller("io.acme.billing.messaging", "PaymentListener", null);
+    link(orderListener, orders.toString());
+    link(paymentListener, payments.toString());
+
+    Map<String, Set<String>> areas = areas(BILLING);
+
+    assertThat(areas)
+        .containsOnlyKeys(area("path-orders"), area("path-payments"))
+        .containsEntry(area("path-orders"), Set.of(orders.toString(), orderListener.toString()));
+  }
+
+  @Test
   void aComponentLinkedOnlyToOneJoinedByCallsJoinsInALaterRound() {
     unit(BILLING, BILLING_MODULE, "billing");
     controller("io.acme.billing.web", "OrderController", "GET /orders");
