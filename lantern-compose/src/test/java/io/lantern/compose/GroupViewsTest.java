@@ -265,7 +265,13 @@ class GroupViewsTest {
         .relate("shop", ops, "CONTAINS", job)
         .relate("shop", job, "CONTAINS", "method:com.example.ops.Sampler#sample()")
         .attribute(
-            "shop", "method:com.example.ops.Sampler#sample()", "scheduled", "0 * * * * *", "{}");
+            "shop", "method:com.example.ops.Sampler#sample()", "scheduled", "0 * * * * *", "{}")
+        // Billing calls orders, so both have a line; parts has none.
+        .relate(
+            "shop",
+            "method:com.example.billing.C0#get()",
+            "CALLS",
+            "method:com.example.orders.C0#get()");
     Section app =
         section(system(many.list(), limits(5, 2)), "components").sections().stream()
             .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
@@ -283,6 +289,13 @@ class GroupViewsTest {
     assertThat(block(outside, Diagram.class).nodes())
         .extracting(n -> n.id().toString())
         .contains(job);
+    // So is a feature area with no line on it; its own page draws it.
+    String parts = "group:service:com.example:app/area/pkg-parts";
+    assertThat(block(app, Diagram.class).nodes())
+        .extracting(n -> n.id().toString())
+        .doesNotContain(parts);
+    assertThat(app.sections())
+        .anyMatch(p -> p.entity() != null && p.entity().toString().equals(parts));
   }
 
   @Test

@@ -1505,6 +1505,25 @@ final class C4Views {
               outsideOnly.add(component);
             }
           }
+          // A feature area with no line here is off it too; its own page draws it.
+          Set<EntityId> unlinedAreas = new HashSet<>();
+          for (Elements.Component component : components) {
+            EntityId area = areaOf.get(component.main());
+            if (area != null && !inView.contains(area)) {
+              unlinedAreas.add(area);
+            }
+          }
+          if (!unlinedAreas.isEmpty()
+              && unlinedAreas.size() < new HashSet<>(areaOf.values()).size()) {
+            for (Elements.Component component : components) {
+              if (unlinedAreas.contains(areaOf.get(component.main()))) {
+                overview.remove(component.main());
+              }
+            }
+            diagram =
+                componentDiagram(
+                    assembler.id(id, "diagram"), unit, components, title, overview, areaOf);
+          }
           if (!outsideOnly.isEmpty() && outsideOnly.size() < components.size()) {
             outsideOnly.forEach(c -> overview.remove(c.main()));
             diagram =
