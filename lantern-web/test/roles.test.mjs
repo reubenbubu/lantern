@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import {
   answerKeyIssues,
+  groupingRow,
   investigateIssues,
   describeRow,
   flowSelectionRow,
@@ -1206,3 +1207,54 @@ test('Investigate spread: two runs of one set, apart in points (#748)', () => {
   assert.equal(sp.precisionSpread, 20);
   assert.equal(investigateSpread(card(0.5, 0.8), { scores: { roles: {} } }).measured, false);
 });
+
+// groupingRow (#919), its fixtures in a block of their own.
+{
+  const reference = {
+    elements: {
+      u1: { kind: 'container', name: 'orders' },
+      a: { kind: 'component', parent: 'u1', name: 'A', properties: { area: 'ordering' } },
+      b: { kind: 'component', parent: 'u1', name: 'B', properties: { area: 'ordering' } },
+      c: { kind: 'component', parent: 'u1', name: 'C', properties: { area: 'billing' } },
+      x: { kind: 'component', parent: 'u1', name: 'Ordering', tag: 'Feature area', properties: { area: 'ordering' } },
+    },
+  };
+  const matched = new Map([
+    ['type-p-a', 'a'],
+    ['type-p-b', 'b'],
+    ['type-p-c', 'c'],
+  ]);
+  const groupOf = (group) => ({ subject: group, predicate: 'group-of', object: { value: 'feature-area' } });
+  const holds = (group, type, basis) => ({
+    subject: group,
+    predicate: 'GROUPS',
+    object: { value: `component:service:x:orders/type:p.${type}` },
+    attributes: { basis },
+  });
+  const code = [groupOf('g1'), holds('g1', 'a', 'feature-folder'), holds('g1', 'b', 'feature-folder')];
+
+  test('groupingRow agrees pair by pair, a component in no area standing alone', () => {
+    const row = groupingRow(reference, matched, code, []);
+    assert.equal(row.measured, true);
+    assert.deepEqual(row.pairs, { together: 1, agreed: 1, reference: 1 });
+    assert.equal(row.components, 3);
+    assert.equal(row.loose, 1);
+    assert.equal(row.byMeaning, 0);
+  });
+
+  test('groupingRow counts what the grouping role placed, and a wrong placement lowers precision', () => {
+    const row = groupingRow(reference, matched, code, [holds('g1', 'c', 'meaning')]);
+    assert.deepEqual(row.pairs, { together: 3, agreed: 1, reference: 1 });
+    assert.equal(row.loose, 0);
+    assert.equal(row.byMeaning, 1);
+  });
+
+  test('groupingRow ignores a member of a group whose kind is not stored', () => {
+    const row = groupingRow(reference, matched, [holds('g9', 'a', 'meaning'), holds('g9', 'b', 'meaning')], []);
+    assert.equal(row.loose, 3);
+  });
+
+  test('groupingRow is not measured where the reference names no area', () => {
+    assert.equal(groupingRow({ elements: { a: { kind: 'component' } } }, matched, code, []).measured, false);
+  });
+}
