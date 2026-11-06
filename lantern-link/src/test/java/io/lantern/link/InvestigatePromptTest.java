@@ -71,6 +71,12 @@ class InvestigatePromptTest {
             + " "
             + InvestigateLeadAnswer.MAX_EVIDENCE
             + " "
+            + InvestigateLeadAnswer.BuiltAndDeployed.REASON
+            + " "
+            + new java.util.TreeSet<>(InvestigateLeadAnswer.BUILT_KINDS)
+            + " "
+            + InvestigateLeadAnswer.BUILD_OR_DEPLOY.pattern()
+            + " "
             + ShellTools.CHARS
             + " "
             + ShellTools.WIDTH;
@@ -82,7 +88,7 @@ class InvestigatePromptTest {
 
     assertThat(InvestigatePrompt.VERSION + " " + fingerprint)
         .as("The prompt changed: raise InvestigatePrompt.VERSION and update this fingerprint")
-        .isEqualTo("11 710d292efb749ce20b9bd6a27974af4ad1284beb71a29d6ec46d4fc0f3978f6e");
+        .isEqualTo("12 465aca6e42ffca140d6dcded55fc7eae0713e67a943099b5eedacb5348533170");
   }
 
   /** Mode A is told the cut of a tool answer, the same number the tools cut at (#915). */

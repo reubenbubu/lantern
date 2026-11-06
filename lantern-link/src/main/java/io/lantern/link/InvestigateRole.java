@@ -172,6 +172,11 @@ final class InvestigateRole implements PacketRole {
   private int proposals;
   // A lead's ID by its subject, so an entry naming its lead by either is placed under its item.
   private final Map<String, String> idsBySubject = new LinkedHashMap<>();
+  // What each lead's first message showed, by its item's ID, for the refutation check (#894).
+  private final Map<String, InvestigateLeadAnswer.Shown> shownById =
+      new java.util.concurrent.ConcurrentHashMap<>();
+  private final Set<String> sentBackForTheBuild =
+      java.util.concurrent.ConcurrentHashMap.newKeySet();
 
   /**
    * @param mode the conversation's mode
@@ -218,6 +223,9 @@ final class InvestigateRole implements PacketRole {
   public synchronized PromptLayout layout(List<Item> packet, List<String> ids) {
     for (int i = 0; i < packet.size() && i < ids.size(); i++) {
       idsBySubject.put(packet.get(i).subject(), ids.get(i));
+      shownById.put(
+          ids.get(i),
+          InvestigateLeadAnswer.Shown.of(packet.get(i).subject(), packet.get(i).rendering()));
     }
     // A range of an excerpt the request gives counts as shown, as one a tool read does (#715).
     tools.supplied(systemMap);
@@ -364,6 +372,7 @@ final class InvestigateRole implements PacketRole {
       // once and would only repeat its problems (#892).
       checks.removeIf(check -> check instanceof Checks.Coverage);
       checks.add(new InvestigateLeadAnswer.Quotes());
+      checks.add(new InvestigateLeadAnswer.BuiltAndDeployed(shownById::get, sentBackForTheBuild));
       return new Pipeline(checks);
     }
     checks.add(new ShownRanges(() -> tools, this::citesByField));

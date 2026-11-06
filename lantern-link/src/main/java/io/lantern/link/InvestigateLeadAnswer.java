@@ -241,6 +241,101 @@ final class InvestigateLeadAnswer implements SingleAnswer {
 
   // ---------------------------------------------------------------------------------------------
 
+  /** What the first message showed of a lead: its kind and the files its evidence is in. */
+  record Shown(String kind, Set<String> files) {
+
+    private static final Pattern WHERE = Pattern.compile("(?m)^where = \"([^\"]+)\"$");
+
+    /** From a lead's subject ({@code lead:<kind>/...}) and its first message. */
+    static Shown of(String subject, String message) {
+      String prefix = io.lantern.core.types.Types.LEAD + ":";
+      String kind =
+          subject.startsWith(prefix) && subject.indexOf('/') > prefix.length()
+              ? subject.substring(prefix.length(), subject.indexOf('/'))
+              : "";
+      Set<String> files = new java.util.LinkedHashSet<>();
+      Matcher where = WHERE.matcher(message);
+      while (where.find()) {
+        files.add(where.group(1));
+      }
+      return new Shown(kind, Set.copyOf(files));
+    }
+  }
+
+  /** The kinds whose risk lies in settings or the build, refuted only after looking at both. */
+  static final Set<String> BUILT_KINDS =
+      Set.of(
+          "environment-baked",
+          "plaintext-secret",
+          "schema-unmanaged",
+          "open-cors",
+          "single-instance");
+
+  /** A file that says how a unit is built or deployed. */
+  static final Pattern BUILD_OR_DEPLOY =
+      Pattern.compile(
+          "(?i)(^|.*/)(Dockerfile[^/]*|[^/]*\\.dockerfile|Containerfile|docker-compose[^/]*|compose[^/]*\\.ya?ml"
+              + "|Chart\\.ya?ml|values[^/]*\\.ya?ml|Jenkinsfile|\\.gitlab-ci\\.ya?ml|azure-pipelines\\.ya?ml"
+              + "|skaffold\\.ya?ml|kustomization\\.ya?ml|Procfile|fly\\.toml|app\\.ya?ml)$"
+              + "|(?i)(^|.*/)(\\.github/workflows|\\.circleci|ci|\\.ci|deploy|deployment|deployments|k8s"
+              + "|kubernetes|helm|charts|manifests|infra|ops|openshift)/.*\\.(ya?ml|json|tpl)$");
+
+  /**
+   * A refuted lead of a settings or build kind whose evidence cites no file that builds or deploys
+   * a unit, nor any file its first message showed, sent back once so the model looks at how the
+   * unit is built and deployed; a second such answer stands, since the rule cannot foresee every
+   * correct refutation (#894).
+   */
+  static final class BuiltAndDeployed implements Check {
+
+    static final String REASON =
+        "a refuted verdict on this kind needs evidence of how the unit is built or deployed: look"
+            + " at its Dockerfile, CI workflow, compose, Helm or Kubernetes files and cite the lines"
+            + " that stop the risk; if nothing there settles it, the verdict is unclear.";
+
+    private final java.util.function.Function<String, Shown> shown;
+    private final Set<String> warned;
+
+    /**
+     * @param shown what each lead's first message showed, by its item's ID
+     * @param warned the items already sent back for this, kept by the role, as each check of an
+     *     answer builds its pipeline anew
+     */
+    BuiltAndDeployed(java.util.function.Function<String, Shown> shown, Set<String> warned) {
+      this.shown = shown;
+      this.warned = warned;
+    }
+
+    @Override
+    public String name() {
+      return "built-and-deployed";
+    }
+
+    @Override
+    public List<Rejection> check(ItemAnswer answer, CheckInputs inputs) {
+      JsonNode entry = answer.raw();
+      Shown lead = shown.apply(answer.item());
+      if (entry == null
+          || lead == null
+          || !entry.path("verdict").asString("").equals("refuted")
+          || !BUILT_KINDS.contains(lead.kind())) {
+        return List.of();
+      }
+      for (JsonNode piece : entry.path("evidence")) {
+        Matcher m = RANGE.matcher(piece.path("lines").asString(""));
+        if (m.matches()
+            && (BUILD_OR_DEPLOY.matcher(m.group(2)).matches()
+                || lead.files().contains(m.group(1) + ":" + m.group(2)))) {
+          return List.of();
+        }
+      }
+      if (!warned.add(answer.item())) {
+        return List.of();
+      }
+      return List.of(new Rejection(answer.item(), "verdict", "built-and-deployed", REASON));
+    }
+  }
+
   /**
    * Each evidence piece checked against the files as the model saw them, masked (#892): its quote
    * is one line of its range, character for character, spaces at either end aside; and each name it
