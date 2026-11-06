@@ -51,7 +51,7 @@ contract's phrases stay word for word.
 string field, `toml`. The provider requires a JSON input schema per tool, so the wrapper is JSON;
 nothing in it is. The TOML holds `verdict`, a confirmed lead's `title`, `finding`, `consequence`,
 `impact` and `confidence`, an unclear one's optional `reason`, and up to 8 `[[evidence]]` pieces,
-each `lines` (`repo:path:from-to`), `quote` (one line of the range) and `shows` (the names in the
+each `lines` (`repo:path:from-to`, or `repo:path:12` for one line), `quote` (one line of the range) and `shows` (the names in the
 range its text uses).
 
 - It is read into the entry the role's checks verify (its ranges as `cites`, every piece's names as
@@ -85,8 +85,24 @@ second turn read 2,501 tokens from the cache, so the cached start is above the m
 
 ## Evidence
 
-On the Investigate test's panels, Haiku 5.5 through OpenRouter, against the runs for #893 on the
-same leads (`main`). Filled in by the PR for #860 and #892.
+On the Investigate test's panels (78 leads of project-1 to project-4 and project-8), Haiku 5.5
+through OpenRouter, 6 Nov 2026, against the runs for #893 on the same leads (`main`):
+
+| Measure | main | this ADR |
+| --- | --- | --- |
+| First turn on project-4, mean tokens (system, tools and message) | 21,074 | 2,650 |
+| First message on the test sets, mean characters | 29,500 (median) | 1,200 to 2,800 by set, at most 6,000 |
+| Leads with a verdict | 75 of 78 | 76 of 78 |
+| Cost a lead | $0.0045 | $0.0036 (80%) |
+| Turns a lead | 5.9 | 8.2 |
+| Conversations ended on a guard or the safety stop | 14 | 0 |
+| project-8 verdicts agreeing with its answer key | 23 of 54 | 43 of 54 |
+
+Answers sent back: 27 on main, 57 here, most for a name a piece shows and its range does not hold.
+A first panel that compared names exactly sent back 65 for names such as a class cited from its
+own file, so names are compared as above; a line written as `repo:path:12` is read as `12-12`
+since, which three answers on project-8 were sent back for. Turns rose because each tool answer is
+cut at about 1,000 characters (ADR 0127) and the model pages through a file in several calls.
 
 ## Consequences
 

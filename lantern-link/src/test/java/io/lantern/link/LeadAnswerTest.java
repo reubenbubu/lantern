@@ -104,7 +104,7 @@ class LeadAnswerTest {
         .hasMessageStartingWith("The answer is not TOML");
     assertThatThrownBy(() -> answer.read(toml("verdict = \"maybe\"")))
         .hasMessage("verdict: give confirmed, refuted or unclear, as verdict = \"confirmed\".");
-    assertThatThrownBy(() -> answer.read(toml(CONFIRMED.replace(":4-7\"", ":4\""))))
+    assertThatThrownBy(() -> answer.read(toml(CONFIRMED.replace(":4-7\"", ":four\""))))
         .hasMessageContaining(
             "evidence 1: lines must be repo:path:from-to, such as Shop:src/Orders.java:12-30.");
     assertThatThrownBy(
@@ -116,6 +116,14 @@ class LeadAnswerTest {
     String nine = ("\n[[evidence]]\nlines = \"shop:" + PATH + ":5-5\"\nquote = \"x\"\n").repeat(9);
     assertThatThrownBy(() -> answer.read(toml("verdict = \"refuted\"\n" + nine)))
         .hasMessageContaining("evidence: give at most 8 pieces.");
+  }
+
+  @Test
+  void oneLineWrittenWithoutItsEndIsThatLine() {
+    JsonNode entry = answer.read(toml(CONFIRMED.replace(":4-7\"", ":5\"")));
+
+    assertThat(entry.path("cites").get(0).asString()).isEqualTo("shop:" + PATH + ":5-5");
+    assertThat(quotes(entry)).isEmpty();
   }
 
   @Test

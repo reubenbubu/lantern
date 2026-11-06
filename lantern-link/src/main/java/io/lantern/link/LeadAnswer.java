@@ -52,6 +52,9 @@ final class LeadAnswer implements SingleAnswer {
 
   private static final Pattern RANGE = Pattern.compile("^([^:]+):(.+):(\\d+)-(\\d+)$");
 
+  /** One line, as {@code repo:path:12}. */
+  private static final Pattern ONE_LINE = Pattern.compile("^[^:]+:.+:(\\d+)$");
+
   private static final LlmTool TOOL =
       new LlmTool(
           NAME,
@@ -143,6 +146,10 @@ final class LeadAnswer implements SingleAnswer {
       for (JsonNode piece : evidence) {
         n++;
         String lines = piece.path("lines").asString("").strip();
+        Matcher single = ONE_LINE.matcher(lines);
+        if (single.matches()) {
+          lines = lines + "-" + single.group(1); // one line, as repo:path:12, is 12-12
+        }
         if (!RANGE.matcher(lines).matches()) {
           problems.add(
               "evidence "
