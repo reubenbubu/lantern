@@ -40,15 +40,36 @@ public final class MaskedValues {
       line(original, shown, sink);
       return;
     }
+    // A value written over several lines is also handed whole: the parts its continuation lines,
+    // masked to nothing but ******, took out, joined to the part of the line above (#917).
+    String joined = null;
     for (int i = 0; i < before.length; i++) {
-      if (!before[i].equals(after[i])) {
-        line(before[i], after[i], sink);
+      if (before[i].equals(after[i])) {
+        // A blank line inside a YAML value folds into it; any other line ends the value.
+        if (!before[i].isBlank()) {
+          joined = null;
+        }
+        continue;
+      }
+      String taken = line(before[i], after[i], sink);
+      if (taken == null) {
+        joined = null;
+      } else if (joined != null && after[i].strip().equals("******")) {
+        boolean backslash = joined.endsWith("\\");
+        joined =
+            backslash ? joined.substring(0, joined.length() - 1) + taken : joined + " " + taken;
+        sink.accept(joined.strip());
+      } else {
+        joined = taken;
       }
     }
   }
 
-  /** The part of a line between what it shares with its shown line at the start and the end. */
-  private static void line(String before, String after, Consumer<String> sink) {
+  /**
+   * The part of a line between what it shares with its shown line at the start and the end, handed
+   * to the sink; {@code null} when there is none.
+   */
+  private static String line(String before, String after, Consumer<String> sink) {
     int start = 0;
     int max = Math.min(before.length(), after.length());
     while (start < max && before.charAt(start) == after.charAt(start)) {
@@ -61,7 +82,7 @@ public final class MaskedValues {
     }
     String taken = before.substring(start, before.length() - end).strip();
     if (taken.isEmpty()) {
-      return;
+      return null;
     }
     sink.accept(taken);
     // A URL masked for its credentials holds a password that may be repeated alone, even when the
@@ -70,5 +91,6 @@ public final class MaskedValues {
     while (password.find()) {
       sink.accept(password.group(1));
     }
+    return taken;
   }
 }

@@ -95,4 +95,40 @@ class FileSecretsTest {
         .contains("password = \"******\"")
         .doesNotContain("dev-secret-123", "hunter2");
   }
+
+  // ~ stands for a line break.
+  @ParameterizedTest(name = "{0}")
+  @CsvSource(
+      delimiter = '|',
+      value = {
+        // A properties value continued with a trailing backslash
+        "application.properties | db.password=abc\\~    def\\~  ghi~name=orders"
+            + " | db.password=******~    ******~  ******~name=orders | abcdefghi",
+        // An even number of backslashes ends the value
+        "application.properties | db.password=abc\\\\~name=orders"
+            + " | db.password=******~name=orders | ",
+        // .env goes on the same way
+        ".env | API_KEY=abc\\~def~PORT=80 | API_KEY=******~******~PORT=80 | abcdef",
+        // A YAML plain scalar over the more-indented lines below its key
+        "application.yml | spring:~  password: abc~    def~~    ghi~  user: orders"
+            + " | spring:~  password: ******~    ******~~    ******~  user: orders"
+            + " | abc def ghi",
+        // In a list, the next key of the item is at the key's column, not part of its value
+        "application.yml | items:~- password: abc~  user: orders~- name: x"
+            + " | items:~- password: ******~  user: orders~- name: x | ",
+      })
+  void aSecretWrittenOverSeveralLinesIsMaskedOnEveryLine(
+      String path, String text, String shown, String whole) {
+    String original = text.replace("~", "\n");
+    String expected = shown.replace("~", "\n");
+    String result = masked(path, original);
+    assertThat(result).isEqualTo(expected);
+    assertThat(result.split("\n", -1)).hasSameSizeAs(original.split("\n", -1));
+    assertThat(result).doesNotContain("abc", "def", "ghi");
+    List<String> values = new ArrayList<>();
+    MaskedValues.taken(original, result, values::add);
+    if (whole != null) {
+      assertThat(values).contains(whole);
+    }
+  }
 }

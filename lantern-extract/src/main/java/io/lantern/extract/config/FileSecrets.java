@@ -28,6 +28,9 @@ public final class FileSecrets {
   private static final Pattern CODE_FILE =
       Pattern.compile("(?i).*\\.(java|kt|kts|groovy|gradle|scala)$");
 
+  /** YAML files, where a plain scalar goes on over the more-indented lines below it. */
+  private static final Pattern YAML_FILE = Pattern.compile("(?i).*\\.ya?ml$");
+
   /** A private key's body, between its PEM lines. */
   private static final Pattern PEM =
       Pattern.compile(
@@ -75,17 +78,30 @@ public final class FileSecrets {
     if (CODE_FILE.matcher(path).matches()) {
       return SourceSecrets.scrub(text, secretKeys);
     }
+    boolean yaml = YAML_FILE.matcher(path).matches();
     StringBuilder out = new StringBuilder();
+    // The column a secret's key starts at, while the more-indented lines below it are its value.
     int blockIndent = -1;
+    // Whether the line before was a secret's line ending in a continuation backslash.
+    boolean continued = false;
     for (String whole : text.split("\n", -1)) {
       // A Windows line ends in \r, which the patterns must not see, or no key would match.
       String end = whole.endsWith("\r") ? "\r" : "";
       String line = whole.substring(0, whole.length() - end.length());
       int indent = indent(line);
+      if (continued) {
+        // A properties or .env value goes on while its line ends in an odd number of backslashes.
+        continued = !line.isBlank() && continues(line);
+        out.append(line.isBlank() ? line : line.substring(0, indent) + "******")
+            .append(end)
+            .append('\n');
+        continue;
+      }
       if (blockIndent >= 0) {
-        // The lines of a block scalar under a secret key (password: |) are its value.
+        // The lines of a block scalar (password: |) or of a plain scalar written over several
+        // lines, under a secret key, are its value: those more indented than the key.
         if (line.isBlank() || indent > blockIndent) {
-          out.append(line.isBlank() ? line : " ".repeat(indent) + "******")
+          out.append(line.isBlank() ? line : line.substring(0, indent) + "******")
               .append(end)
               .append('\n');
           continue;
@@ -96,13 +112,19 @@ public final class FileSecrets {
       String shown;
       if (kv.matches() && ConfigExtractor.isSecret(kv.group(2), secretKeys)) {
         String value = kv.group(4).strip();
+        int keyColumn = kv.group(1).length();
         if (value.matches("[|>][-+0-9]*")) {
-          blockIndent = indent;
+          blockIndent = keyColumn;
           shown = line;
         } else {
           // A placeholder's name says where the value comes from; only what is written is masked.
           String kept = SecretPlaceholders.kept(value);
           shown = kv.group(1) + kv.group(2) + kv.group(3) + (kept == null ? "******" : kept);
+          if (yaml) {
+            blockIndent = keyColumn;
+          } else {
+            continued = continues(line);
+          }
         }
       } else {
         // The default of a placeholder named as a secret is masked under any key, as in code.
@@ -116,6 +138,15 @@ public final class FileSecrets {
     }
     out.setLength(out.length() - 1);
     return out.toString();
+  }
+
+  /** Whether a properties or .env line goes on below: it ends in an odd number of backslashes. */
+  private static boolean continues(String line) {
+    int backslashes = 0;
+    for (int i = line.length() - 1; i >= 0 && line.charAt(i) == '\\'; i--) {
+      backslashes++;
+    }
+    return backslashes % 2 == 1;
   }
 
   private static int indent(String line) {
