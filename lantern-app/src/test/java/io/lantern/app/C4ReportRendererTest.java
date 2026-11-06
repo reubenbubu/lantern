@@ -547,6 +547,98 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void nestsAUnitsPageUnderItsDomainsAndAnAreasPageUnderItsUnits() {
+    // The menu is a tree (#931): a domain's page, then its units' pages, then their areas'.
+    EntityId system = EntityId.parse("system:shop");
+    EntityId domain = EntityId.parse("group:system/domain/sales");
+    EntityId unit = EntityId.parse("service:orders");
+    EntityId loose = EntityId.parse("service:gateway");
+    EntityId area = EntityId.parse("group:service:orders/area/checkout");
+    EntityId a = EntityId.parse("type:orders.A");
+    EntityId b = EntityId.parse("type:orders.B");
+    Diagram containers =
+        new Diagram(
+            "containers.diagram",
+            Diagram.Kind.C4_CONTAINER,
+            null,
+            List.of(node(system), node(domain, system), node(loose, system)),
+            List.of(),
+            List.of());
+    Diagram domainView =
+        new Diagram(
+            "domain.diagram",
+            Diagram.Kind.C4_CONTAINER,
+            null,
+            List.of(node(system), node(unit, system)),
+            List.of(),
+            List.of());
+    Diagram unitView =
+        new Diagram(
+            "orders.diagram",
+            Diagram.Kind.C4_COMPONENT,
+            null,
+            List.of(node(unit), node(a, unit), node(b, unit)),
+            List.of(),
+            List.of());
+    Diagram areaView =
+        new Diagram(
+            "checkout.diagram",
+            Diagram.Kind.C4_COMPONENT,
+            null,
+            List.of(node(unit), node(a, unit)),
+            List.of(),
+            List.of());
+    Diagram looseView =
+        new Diagram(
+            "gateway.diagram",
+            Diagram.Kind.C4_COMPONENT,
+            null,
+            List.of(node(loose), node(EntityId.parse("type:gw.R"), loose)),
+            List.of(),
+            List.of());
+    Document document =
+        document(
+            List.of(
+                entity(system),
+                entity(domain),
+                new DocumentEntity(unit, "orders", null, List.of(), List.of(), null, null, domain),
+                entity(loose),
+                new DocumentEntity(area, "checkout", unit, List.of(), List.of(), null, null),
+                new DocumentEntity(a, "A", null, List.of(), List.of(), null, null, area),
+                entity(b),
+                entity(EntityId.parse("type:gw.R"))),
+            section(
+                "containers",
+                null,
+                List.of(containers),
+                List.of(section("sales", domain, List.of(domainView), List.of()))),
+            section(
+                "components",
+                null,
+                List.of(),
+                List.of(
+                    section(
+                        "orders",
+                        unit,
+                        List.of(unitView),
+                        List.of(section("checkout", area, List.of(areaView), List.of()))),
+                    section("gateway", loose, List.of(looseView), List.of()))));
+
+    JsonNode pages = C4ReportRenderer.toJson(document).data().get("pages");
+    Map<String, String> parents = new java.util.TreeMap<>();
+    pages.forEach(
+        p ->
+            parents.put(p.get("id").asString(), p.has("parent") ? p.get("parent").asString() : ""));
+
+    assertThat(parents)
+        .containsEntry("containers", "")
+        .containsEntry("sales", "")
+        .containsEntry("orders", "sales")
+        .containsEntry("checkout", "orders")
+        .containsEntry("gateway", "");
+  }
+
+  @Test
   void refusesTwoLanternIdsThatBecomeTheSameId() {
     EntityId dotted = EntityId.parse("service:orders.api");
     EntityId dashed = EntityId.parse("service:orders-api");

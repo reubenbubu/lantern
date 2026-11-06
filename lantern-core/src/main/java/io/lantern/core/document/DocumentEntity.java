@@ -28,7 +28,8 @@ public record DocumentEntity(
     List<Inline> description,
     List<String> facts,
     Kind kind,
-    String tag) {
+    String tag,
+    EntityId group) {
 
   public DocumentEntity {
     Objects.requireNonNull(id, "id");
@@ -39,12 +40,27 @@ public record DocumentEntity(
     description = Checks.list(description, "entity description");
     facts = Checks.factIds(facts, "entity facts");
     Checks.optionalText(tag, "entity tag");
+    if (id.equals(group)) {
+      throw new IllegalArgumentException("Entity " + id + " cannot be its own group");
+    }
+  }
+
+  /** An entity in no domain or feature area. */
+  public DocumentEntity(
+      EntityId id,
+      String name,
+      EntityId parent,
+      List<Inline> description,
+      List<String> facts,
+      Kind kind,
+      String tag) {
+    this(id, name, parent, description, facts, kind, tag, null);
   }
 
   /** An entity whose kind follows from the level it is shown at, with no tag. */
   public DocumentEntity(
       EntityId id, String name, EntityId parent, List<Inline> description, List<String> facts) {
-    this(id, name, parent, description, facts, null, null);
+    this(id, name, parent, description, facts, null, null, null);
   }
 
   /** What an entity's type makes it, whatever diagram shows it. */
