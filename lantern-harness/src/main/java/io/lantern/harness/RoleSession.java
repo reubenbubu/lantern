@@ -31,6 +31,7 @@ import java.util.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 /**
  * One role's work in a run (knowledge-build epic, section 10). For each item it looks the
@@ -1196,7 +1197,28 @@ public final class RoleSession {
     LlmException failure = null;
     boolean capped = false;
     try {
-      conversation.answer();
+      io.lantern.llm.LlmResponse response = conversation.answer();
+      SingleAnswer single = role.singleAnswer();
+      if (single != null) {
+        // An answer written as text is read as if given through the tool; a turn with neither
+        // gets one reminder (#892).
+        boolean reminded = false;
+        while (!submit.finished()) {
+          String text = response.text();
+          if (text != null && single.holdsAnswer(text)) {
+            String reply = submit.answer(JsonNodeFactory.instance.stringNode(text));
+            if (submit.finished()) {
+              break;
+            }
+            response = conversation.reply(reply, request.purpose());
+          } else if (!reminded) {
+            reminded = true;
+            response = conversation.reply(single.reminder(), request.purpose());
+          } else {
+            break;
+          }
+        }
+      }
       conversation.end(io.lantern.llm.LlmConversation.Ending.ANSWERED);
     } catch (io.lantern.llm.ConversationCappedException e) {
       capped = true;

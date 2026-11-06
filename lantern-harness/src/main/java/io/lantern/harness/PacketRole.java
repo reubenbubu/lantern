@@ -110,4 +110,12 @@ public interface PacketRole {
   default List<String> askedFields(Item item) {
     return List.of();
   }
+
+  /**
+   * The one answer tool this role's conversations answer through (#892), or null for {@code
+   * submit}. A role with one answers one item a conversation.
+   */
+  default SingleAnswer singleAnswer() {
+    return null;
+  }
 }
