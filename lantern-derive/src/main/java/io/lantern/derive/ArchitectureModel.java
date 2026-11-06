@@ -15,7 +15,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import tools.jackson.databind.JsonNode;
 
@@ -405,6 +407,35 @@ public final class ArchitectureModel {
   /** The facts of the origin kind, in {@link Knowledge#STABLE} order. */
   List<Fact> withOrigin(Origin.Kind kind) {
     return knowledge.withOrigin(kind);
+  }
+
+  /**
+   * The types whose endpoints a gateway routes requests to in a unit (#931), with the routed
+   * endpoint facts that say so: a route's link to the unit names no method at the unit's end when
+   * the gateway rewrites the path, but each endpoint it reaches is stored on the gateway.
+   */
+  public SortedMap<EntityId, List<Fact>> routedTypes(EntityId gateway, EntityId unit) {
+    SortedMap<EntityId, List<Fact>> result = new TreeMap<>(BY_ID);
+    for (Fact fact : knowledge.attributes(gateway)) {
+      if (!fact.predicate().equals(Types.ROUTED_ENDPOINT)) {
+        continue;
+      }
+      JsonNode target = fact.attributes().get("target");
+      JsonNode endpoint = fact.attributes().get("endpoint");
+      if (target == null || endpoint == null || !unit.toString().equals(target.asString())) {
+        continue;
+      }
+      EntityId method;
+      try {
+        method = EntityId.parse(endpoint.asString());
+      } catch (IllegalArgumentException e) {
+        continue;
+      }
+      result
+          .computeIfAbsent(Components.ownerType(knowledge, method), t -> new ArrayList<>())
+          .add(fact);
+    }
+    return result;
   }
 
   /** The facts with the predicate. */

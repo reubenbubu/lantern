@@ -773,6 +773,49 @@ class GroupViewsTest {
   }
 
   @Test
+  void aGatewaysRouteLandsOnTheControllerItRoutesTo() {
+    // #931: a unit whose caller is a gateway shows it calling the controller its routes reach,
+    // though the gateway's link names no method at the unit's end.
+    String gateway = "service:com.example:gateway";
+    TestFacts routed = TestFacts.runtime();
+    routed
+        .relate("base", gateway, "CONTAINS", "module:com.example:gateway")
+        .attribute("base", "module:com.example:gateway", "packaging", "jar")
+        .attribute("base", gateway, "deployable-unit", "spring-boot", "{}")
+        .relate(
+            "base",
+            gateway,
+            "CALLS_HTTP",
+            APP,
+            "{\"protocol\": \"HTTP\", \"paths\": [\"/api/orders/**\"], \"route\": \"orders\","
+                + " \"matchedBy\": \"service-name\"}")
+        // The gateway strips the prefix, so only its routed endpoint says which controller it is.
+        .attribute(
+            "base",
+            gateway,
+            "routed-endpoint",
+            "GET /api/orders",
+            "{\"target\": \""
+                + APP
+                + "\", \"endpoint\": \"method:com.example.web.Controller#list()\","
+                + " \"served\": \"GET /orders\"}");
+    Section app =
+        section(system(routed.list()), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(diagrams(app))
+        .anyMatch(
+            d ->
+                d.edges().stream()
+                    .anyMatch(
+                        e ->
+                            e.from().toString().equals(gateway)
+                                && e.to().toString().equals("type:com.example.web.Controller")));
+  }
+
+  @Test
   void eachUnitsBoxNamesTheDomainItBelongsTo() {
     // No frame is drawn around a domain's units (owner's decision of 5 Nov 2026 on #764; #897).
     List<Fact> facts = pair().list();
@@ -780,6 +823,10 @@ class GroupViewsTest {
     assertThat(entity(system(facts, limits(100, 2)), APP).tag())
         .isEqualTo("Service · pair (not named)");
     assertThat(entity(system(facts, limits(100, 3)), APP).tag()).isEqualTo("Service");
+    // And the document says which, so the report nests its page under the domain's (#931).
+    assertThat(entity(system(facts, limits(100, 2)), APP).group())
+        .hasToString("group:system/domain/pair");
+    assertThat(entity(system(facts, limits(100, 3)), APP).group()).isNull();
   }
 
   @Test

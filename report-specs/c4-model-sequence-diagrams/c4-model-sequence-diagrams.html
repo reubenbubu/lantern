@@ -167,8 +167,8 @@ body.sb-collapsed .main{margin-left:0}
   border-bottom:1px solid var(--border)}
 .open-sb{display:none}
 body.sb-collapsed .open-sb{display:grid}
-.crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-width:0;flex:0 1 auto;max-width:34%}
-.crumbs span{white-space:nowrap}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);min-width:0;flex:0 1 auto;max-width:34%;overflow:hidden}
+.crumbs span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:2.5em;flex:0 1 auto}
 .tabs{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:2px;overflow-x:auto;scrollbar-width:none;padding:0 4px;
   mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 14px),transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 14px,#000 calc(100% - 14px),transparent)}
 .tabs::-webkit-scrollbar{display:none}

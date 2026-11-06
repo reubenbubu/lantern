@@ -2327,14 +2327,30 @@ final class C4Views {
           }
         }
       } else if (link.to().equals(unit)) {
+        boolean placed = false;
         for (Fact fact : link.facts()) {
           String side = fact.subject().equals(unit) ? "source" : "target";
           EntityId to = codeEnds.get(side + " " + fact.id());
+          if (to != null) {
+            placed = true;
+          }
           if (to != null
               && focus.contains(to)
               && link.relationship().equals(Types.CONSUMES) == fact.subject().equals(unit)) {
             container(nodes, link.from());
             edges.add(link.from(), shown.apply(to), link.to(to));
+          }
+        }
+        if (!placed && link.relationship().equals(Types.CALLS_HTTP)) {
+          // A gateway's route names no method at this end: it lands on the components whose
+          // endpoints the gateway routes to (#931), so the unit's page shows who calls it.
+          for (Map.Entry<EntityId, List<Fact>> routed :
+              model.routedTypes(link.from(), unit).entrySet()) {
+            EntityId to = componentOfType(components, routed.getKey());
+            if (to != null && focus.contains(to)) {
+              container(nodes, link.from());
+              edges.add(link.from(), shown.apply(to), link.to(to));
+            }
           }
         }
       }
@@ -2364,6 +2380,16 @@ final class C4Views {
         List.copyOf(nodes.values()),
         edges.build(assembler, true),
         List.of());
+  }
+
+  /** The main type of the component that holds the type, or null. */
+  private static EntityId componentOfType(List<Elements.Component> components, EntityId type) {
+    for (Elements.Component component : components) {
+      if (component.main().equals(type) || component.types().contains(type)) {
+        return component.main();
+      }
+    }
+    return null;
   }
 
   /** Whether lifting made a line's two ends one: a line inside a group the view draws. */

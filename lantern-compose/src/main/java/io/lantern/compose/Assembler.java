@@ -680,7 +680,8 @@ final class Assembler {
               description,
               entity.facts(),
               entity.kind(),
-              entity.tag()));
+              entity.tag(),
+              entity.group()));
     }
     return List.copyOf(entities.values());
   }
