@@ -138,7 +138,7 @@ class GroupByMeaningTest {
   /** The answer for the one item, its references filled in by the parts' names in braces. */
   private static Function<LlmRequest, String> answering(String entry) {
     return request -> {
-      Matcher names = Pattern.compile("\\{([A-Za-z]+)}").matcher(entry);
+      Matcher names = Pattern.compile("\\{([A-Za-z0-9]+)}").matcher(entry);
       StringBuilder filled = new StringBuilder();
       while (names.find()) {
         names.appendReplacement(filled, ref(request, names.group(1)));
@@ -324,5 +324,68 @@ class GroupByMeaningTest {
 
     io.lantern.harness.InjectionFixtures.shownAsData(obeying);
     assertThat(result.facts()).isEmpty();
+  }
+
+  /** Twelve services, each calling the next up to s11; s12 nothing connects to. */
+  private static List<Fact> services() {
+    TestFacts facts = new TestFacts();
+    for (int i = 1; i <= 12; i++) {
+      facts.attribute("s" + i, "service:io.acme:s" + i, "deployable-unit", "spring-boot");
+    }
+    for (int i = 1; i < 11; i++) {
+      facts.relate(
+          "s" + i,
+          "service:io.acme:s" + i,
+          Types.CALLS_HTTP,
+          "service:io.acme:s" + (i + 1),
+          "{\"protocol\": \"HTTP\"}");
+    }
+    return facts.list();
+  }
+
+  private static String domain(String... members) {
+    List<String> refs = new ArrayList<>();
+    for (String m : members) {
+      refs.add("\"{" + m + "}\"");
+    }
+    return "{\"key\": \"d-"
+        + members[0]
+        + "\", \"reason\": {\"text\": \"They take part in the same work for the same customers every day.\", \"cites\": ["
+        + refs.getFirst()
+        + "]}, \"members\": ["
+        + String.join(", ", refs)
+        + "]}";
+  }
+
+  @Test
+  void everyContainerSomethingConnectsToJoinsADomainAndOneNothingConnectsToMayStayOut() {
+    String leavesOut =
+        "{\"domains\": ["
+            + domain("s1", "s2", "s3", "s4", "s5")
+            + ", "
+            + domain("s6", "s7", "s8", "s9", "s10")
+            + "], \"areas\": [], \"left_out\": []}";
+    String complete = leavesOut.replace("\"{s10}\"]}", "\"{s10}\", \"{s11}\"]}");
+    java.util.concurrent.atomic.AtomicInteger asked =
+        new java.util.concurrent.atomic.AtomicInteger();
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                r -> answering(asked.getAndIncrement() == 0 ? leavesOut : complete).apply(r));
+
+    GroupByMeaning.Result result = new GroupByMeaning(harness(fake), 8, 2).group(services(), 2);
+
+    assertThat(fake.sent()).hasSize(2);
+    String prompt = fake.sent().getFirst().request().messages().getFirst().text();
+    assertThat(prompt)
+        .contains("Domains are asked")
+        .contains("s12 | - | (nothing connects to it)");
+    assertThat(fake.sent().get(1).request().messages().getLast().text())
+        .contains("joins a domain")
+        .contains(ref(fake.sent().getFirst().request(), "s11") + " joins none");
+    Map<String, Set<String>> domains = groups(result.replacing(services()), Groups.DOMAIN);
+    assertThat(domains).hasSize(2);
+    assertThat(domains.values().stream().mapToInt(Set::size).sum()).isEqualTo(11);
+    assertThat(domains.values()).noneSatisfy(m -> assertThat(m).contains("service:io.acme:s12"));
   }
 }

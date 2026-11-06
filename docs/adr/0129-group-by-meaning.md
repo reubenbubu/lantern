@@ -40,7 +40,9 @@ lines, numeric ids, and a too-large area split by code, not by the model.
    one page is split into pages by code (ADR 0117, amendment for #764).
 4. **Checks.** Beside the standard ones, every member and service is a part listed, every member a
    part without a group, of the group's own scope, placed once; an extended group exists; a new key
-   is kebab-case; domains only when asked and at most the target in all. A failed answer is asked
+   is kebab-case; domains only when asked and at most the target in all, and then every container
+   something connects to in one (the first real run left two out, "no connection appears", since
+   the request shows no links, and their stores and queues crowded the overview). A failed answer is asked
    once more with what failed, then nothing is grouped: the views fall back to page splits.
 5. **Stored and kept.** Its groups are stored as the code's are: `group-of` and `GROUPS` facts of
    basis `meaning` (a value added to the groups' vocabulary), a new group's key

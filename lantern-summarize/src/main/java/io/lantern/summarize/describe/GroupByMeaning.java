@@ -185,8 +185,15 @@ public final class GroupByMeaning {
     }
   }
 
-  /** A part the item lists, by its reference. */
-  record Part(EntityId id, String name, EntityId container, EntityId group) {
+  /**
+   * A part the item lists, by its reference.
+   *
+   * @param container the unit a component is part of, or null for a container
+   * @param group the group the code or an earlier answer gave it, or null
+   * @param connected whether a link names it, from or to; a container nothing connects to is drawn
+   *     on a page of its own and need not join a domain
+   */
+  record Part(EntityId id, String name, EntityId container, EntityId group, boolean connected) {
 
     boolean loose() {
       return group == null;
@@ -404,7 +411,7 @@ public final class GroupByMeaning {
       String token = refs.add('E', container.toString(), container, line);
       tokens.put(container, token);
       byName.putIfAbsent(name, token);
-      parts.put(ref(token), new Part(container, name, null, group));
+      parts.put(ref(token), new Part(container, name, null, group, connected.contains(container)));
       text.append('[').append(token).append("] ").append(line).append('\n');
     }
     if (domains) {
@@ -441,7 +448,7 @@ public final class GroupByMeaning {
         tokens.put(id, token);
         component.types().forEach(t -> tokens.putIfAbsent(t, token));
         byName.putIfAbsent(name, token);
-        parts.put(ref(token), new Part(id, name, unit, group));
+        parts.put(ref(token), new Part(id, name, unit, group, true));
         text.append('[').append(token).append("] ").append(line).append('\n');
       }
     }
@@ -851,6 +858,30 @@ public final class GroupByMeaning {
           keyProblem(domain).ifPresent(problems::add);
         }
         members(domain, Groups.SYSTEM, "domain " + label(domain), placedIn, problems);
+      }
+      if (asked.domains()) {
+        // Every container something connects to joins a domain: one left out would stand beside
+        // the domains with all it uses.
+        List<String> outside = new ArrayList<>();
+        asked
+            .parts()
+            .forEach(
+                (ref, part) -> {
+                  if (part.container() == null
+                      && part.loose()
+                      && part.connected()
+                      && !placedIn.containsKey(ref)) {
+                    outside.add(ref);
+                  }
+                });
+        if (!outside.isEmpty()) {
+          problems.add(
+              "Every container not marked \"nothing connects to it\" joins a domain; "
+                  + String.join(", ", outside)
+                  + " "
+                  + (outside.size() == 1 ? "joins" : "join")
+                  + " none.");
+        }
       }
       int existingDomains = asked.groups().getOrDefault(Groups.SYSTEM, Map.of()).size();
       if (asked.domains() && existingDomains + newDomains > target) {
