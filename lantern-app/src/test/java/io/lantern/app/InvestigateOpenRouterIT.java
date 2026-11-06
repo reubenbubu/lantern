@@ -194,6 +194,12 @@ class InvestigateOpenRouterIT {
           }
 
           @Override
+          public List<String> paths(String repo) {
+            String commit = commits.get(repo);
+            return commit == null ? List.of() : sources.paths(repo, commit);
+          }
+
+          @Override
           public List<GraphTools.Hit> find(String repo, String text, int max) {
             String commit = commits.get(repo);
             return commit == null
@@ -233,7 +239,20 @@ class InvestigateOpenRouterIT {
               + ".\n\n"
               + OUTPUTS);
       result =
-          new Investigator(harness, files, io.lantern.derive.LeadRules.judges())
+          new Investigator(
+                  harness,
+                  files,
+                  io.lantern.derive.LeadRules.judges(),
+                  // The tools Investigate reads code with: the shell's in its container (#893),
+                  // unless the run asks for the graph's.
+                  "graph".equals(System.getProperty("lantern.test.investigate-tools"))
+                      ? null
+                      : (root, written) ->
+                          AnalysisRun.shellContainer(
+                              io.lantern.sandbox.InvestigateShell.start(
+                                  io.lantern.sandbox.SandboxSettings.defaults(
+                                      Path.of(System.getProperty("java.io.tmpdir"), "builds")),
+                                  root)))
               .leads(facts, 1, Set.copyOf(chosen)::contains);
     } catch (RuntimeException e) {
       stopped = e.getClass().getSimpleName() + ": " + e.getMessage();

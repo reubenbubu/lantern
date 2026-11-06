@@ -200,6 +200,7 @@ public final class Investigator {
 
   private final Harness harness;
   private final GraphTools.RepoFiles files;
+  private final ShellWorkspace.Starter shell;
   private final Map<String, String> judges;
 
   /**
@@ -209,9 +210,23 @@ public final class Investigator {
    *     LeadRules.judges()})
    */
   public Investigator(Harness harness, GraphTools.RepoFiles files, Map<String, String> judges) {
+    this(harness, files, judges, null);
+  }
+
+  /**
+   * An Investigator whose conversations read code with a shell in a sealed container, a code search
+   * and a Java outline (#893), the container started by {@code shell} over the snapshot's files,
+   * once a run, and removed when the run ends; with no shell, with the graph's tools.
+   */
+  public Investigator(
+      Harness harness,
+      GraphTools.RepoFiles files,
+      Map<String, String> judges,
+      ShellWorkspace.Starter shell) {
     this.harness = Objects.requireNonNull(harness, "harness");
     this.files = Objects.requireNonNull(files, "files");
     this.judges = Map.copyOf(judges);
+    this.shell = shell;
   }
 
   /**
@@ -252,13 +267,25 @@ public final class Investigator {
     ModelConfig config = harness.model(Role.INVESTIGATE);
     String modelName = config.provider() + "/" + config.model();
     Validity validity = Validity.from(snapshot);
-    Run run = new Run(model, graph, modelName, validity);
     if (!config.supports(Capability.TOOL_USE)) {
+      Run run = new Run(model, graph, GraphTools.Graph::tools, modelName, validity);
       String reason = "the model cannot use tools, which Investigate answers through";
       model.units.keySet().forEach(unit -> run.notInvestigated(unit, reason));
       run.notInvestigated(EntityId.SYSTEM.toString(), reason);
       return run.result();
     }
+    if (shell == null) {
+      return investigate(
+          new Run(model, graph, GraphTools.Graph::tools, modelName, validity), explore);
+    }
+    // One container a run, over the snapshot's files as the tools show them, removed at its end.
+    try (ShellWorkspace workspace = ShellWorkspace.open(graph, shell)) {
+      return investigate(
+          new Run(model, graph, g -> new ShellTools(workspace, g), modelName, validity), explore);
+    }
+  }
+
+  private static Result investigate(Run run, boolean explore) {
     run.leads();
     if (explore) {
       run.units();
@@ -457,6 +484,10 @@ public final class Investigator {
   private final class Run {
     private final Model model;
     private final GraphTools.Graph graph;
+
+    /** New tools for one conversation (#893). */
+    private final java.util.function.Function<GraphTools.Graph, CodeTools> tools;
+
     private final String modelName;
     private final Validity validity;
     private final String systemMap;
@@ -476,9 +507,15 @@ public final class Investigator {
     private int reused;
     private int confirmed;
 
-    Run(Model model, GraphTools.Graph graph, String modelName, Validity validity) {
+    Run(
+        Model model,
+        GraphTools.Graph graph,
+        java.util.function.Function<GraphTools.Graph, CodeTools> tools,
+        String modelName,
+        Validity validity) {
       this.model = model;
       this.graph = graph;
+      this.tools = tools;
       this.modelName = modelName;
       this.validity = validity;
       this.systemMap = InvestigatePrompt.systemMap(List.copyOf(model.units.keySet()), model.links);
@@ -534,12 +571,7 @@ public final class Investigator {
         return;
       }
       RoleSession session =
-          harness.session(
-              LEADS.withTools(
-                  graph.tools().tools().stream()
-                      .filter(t -> InvestigateRole.LEAD_TOOLS.contains(t.name()))
-                      .toList(),
-                  LEAD_LIMITS));
+          harness.session(LEADS.withTools(tools.apply(graph).leadTools(), LEAD_LIMITS));
       Map<String, Lead> bySubject = new LinkedHashMap<>();
       Map<String, List<Item>> byUnit = new TreeMap<>();
       for (Lead lead : model.leads) {
@@ -701,7 +733,7 @@ public final class Investigator {
 
     void units() {
       RoleSession session =
-          harness.session(UNITS.withTools(graph.tools().exploreTools(), EXPLORE_LIMITS));
+          harness.session(UNITS.withTools(tools.apply(graph).exploreTools(), EXPLORE_LIMITS));
       Map<String, List<Item>> byUnit = new TreeMap<>();
       for (String unit : model.units.keySet()) {
         if (notInvestigated.contains(unit)) {
@@ -745,7 +777,7 @@ public final class Investigator {
 
     void system() {
       RoleSession session =
-          harness.session(SYSTEM_ROLE.withTools(graph.tools().exploreTools(), EXPLORE_LIMITS));
+          harness.session(SYSTEM_ROLE.withTools(tools.apply(graph).exploreTools(), EXPLORE_LIMITS));
       List<String> risks = new ArrayList<>();
       // Every unit's accepted risks: its confirmed leads and the risks exploring it found.
       answers.forEach(
@@ -861,6 +893,7 @@ public final class Investigator {
           systemMap,
           context,
           graph,
+          tools.apply(graph),
           system ? null : group,
           model.units.keySet(),
           model.elements::contains,

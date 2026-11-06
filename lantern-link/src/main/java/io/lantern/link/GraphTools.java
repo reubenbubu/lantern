@@ -10,7 +10,6 @@ import io.lantern.harness.render.FactLines;
 import io.lantern.llm.LlmTool;
 import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
-import io.lantern.llm.ToolBox;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,7 +46,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>One instance serves one conversation ({@link Graph#tools()}); not thread-safe.
  */
-public final class GraphTools implements ToolBox {
+public final class GraphTools implements CodeTools {
 
   /** The files of the snapshot's repositories, at the snapshot's commit of each. */
   @FunctionalInterface
@@ -79,6 +78,14 @@ public final class GraphTools implements ToolBox {
      * Secrets check (#645); ignored by default.
      */
     default void masked(String value) {}
+
+    /**
+     * The paths of a repository's files at the analysed commit, for the Investigate shell's copy of
+     * it (#893); none by default.
+     */
+    default List<String> paths(String repo) {
+      return List.of();
+    }
   }
 
   /** A line of a file that holds a text {@code find_in_code} looked for. */
@@ -90,6 +97,9 @@ public final class GraphTools implements ToolBox {
   static final String FIND_IN_CODE = "find_in_code";
   static final String NEIGHBOURS = "neighbours";
   static final String SUMMARY_OF = "summary_of";
+
+  /** The tools Mode A may use (knowledge-build epic, section 11.2). */
+  static final Set<String> LEAD_TOOLS = Set.of(READ_FILE, FIND_IN_CODE, FACTS_ABOUT);
 
   /** The most lines one search gives. */
   static final int MAX_HITS = 30;
@@ -150,6 +160,16 @@ public final class GraphTools implements ToolBox {
       return new GraphTools(this, factsBefore);
     }
 
+    /** The repositories the facts name. */
+    Set<String> repos() {
+      return Collections.unmodifiableSet(repos);
+    }
+
+    /** The snapshot's files. */
+    RepoFiles files() {
+      return files;
+    }
+
     /** A file of the snapshot with its blob, as an answer that cites it records it; or empty. */
     public Optional<io.lantern.harness.FileRead> fileRead(String repo, String path) {
       if (!repos.contains(repo) || files == RepoFiles.NONE) {
@@ -179,9 +199,14 @@ public final class GraphTools implements ToolBox {
 
     /** A file as the tools show it, handing what masking took out of it to the files (#645). */
     String shown(String path, byte[] content) {
+      return shown(path, content, files::masked);
+    }
+
+    /** As {@link #shown(String, byte[])}, the values masking took out going to {@code taken}. */
+    String shown(String path, byte[] content, java.util.function.Consumer<String> taken) {
       String text = masked(path, content, secretKeys);
       if (text != null) {
-        MaskedValues.taken(new String(content, StandardCharsets.UTF_8), text, files::masked);
+        MaskedValues.taken(new String(content, StandardCharsets.UTF_8), text, taken);
       }
       return text;
     }
@@ -333,6 +358,12 @@ public final class GraphTools implements ToolBox {
    * 10, Agent loop): {@code neighbours}, the facts that link an entity to others, to a depth of
    * two, and {@code summary_of}, an entity's accepted summary.
    */
+  @Override
+  public List<LlmTool> leadTools() {
+    return tools().stream().filter(t -> LEAD_TOOLS.contains(t.name())).toList();
+  }
+
+  @Override
   public List<LlmTool> exploreTools() {
     List<LlmTool> tools = new ArrayList<>(tools());
     ObjectNode near = schema();
