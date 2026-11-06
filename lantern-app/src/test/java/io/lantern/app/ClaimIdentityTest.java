@@ -135,6 +135,10 @@ class ClaimIdentityTest {
           // Since #536, a group's name the LLM worded: its text, basis and model, as a
           // responsibility's. Since #751, the support judge's verdict on it, as on every text.
           Map.entry("display-name", Set.of("text", "basis", "model", "support")),
+          // Since #919, the model that formed a group by meaning or placed a member in one (ADR
+          // 0124): the same group from another model is the same claim.
+          Map.entry("group-of", Set.of("model")),
+          Map.entry("GROUPS", Set.of("model")),
           // Since #587: the text config resolved an expression to; URLs that differ only in their
           // path are one address.
           Map.entry(
