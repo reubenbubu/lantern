@@ -375,6 +375,13 @@ class GroupViewsTest {
         .filteredOn(Callout.class::isInstance)
         .anyMatch(
             c -> text(((Callout) c).content()).startsWith("Guard cuts across the feature areas"));
+    // It is not taken for a component reached only from outside.
+    assertThat(app.sections())
+        .filteredOn(p -> p.title().startsWith("Reached only from outside"))
+        .allSatisfy(
+            p ->
+                assertThat(block(p, Diagram.class).nodes())
+                    .noneMatch(n -> n.id().toString().equals(aspect)));
     assertThat(app.sections())
         .filteredOn(p -> p.entity() != null && p.entity().toString().endsWith("/area/pkg-orders"))
         .allSatisfy(

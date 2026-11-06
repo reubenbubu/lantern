@@ -1519,7 +1519,9 @@ final class C4Views {
                     inView.add(e.to());
                   });
           for (Elements.Component component : components) {
-            if (!areaOf.containsKey(component.main()) && !inView.contains(component.main())) {
+            if (!areaOf.containsKey(component.main())
+                && !inView.contains(component.main())
+                && !crossOff.contains(component.main())) {
               outsideOnly.add(component);
             }
           }
