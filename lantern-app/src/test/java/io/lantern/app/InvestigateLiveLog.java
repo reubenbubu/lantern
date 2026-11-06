@@ -141,7 +141,7 @@ final class InvestigateLiveLog implements LlmProvider {
       } else {
         Turn turn = c.pending;
         c.pending = null;
-        block = turn == null ? "" : turn(c, turn, request.messages().getLast());
+        block = turn == null ? "" : turn(c, turn, request.messages().getLast(), false);
       }
     }
     write(block);
@@ -156,15 +156,16 @@ final class InvestigateLiveLog implements LlmProvider {
 
   /**
    * Ends the log: each conversation's last turn, and its end line as {@code ending} words it from
-   * its purpose and its totals.
+   * its purpose and its totals; a conversation {@code stopped} by a guard has its last tool calls
+   * marked as never answered.
    */
-  void finish(Ending ending) {
+  void finish(Ending ending, java.util.function.Predicate<String> stopped) {
     StringBuilder out = new StringBuilder();
     synchronized (this) {
       for (Map.Entry<String, Conversation> e : conversations.entrySet()) {
         Conversation c = e.getValue();
         if (c.pending != null) {
-          out.append(turn(c, c.pending, null));
+          out.append(turn(c, c.pending, null, stopped.test(e.getKey())));
           c.pending = null;
         }
         out.append(tag(c))
@@ -191,7 +192,7 @@ final class InvestigateLiveLog implements LlmProvider {
     String words(String purpose);
   }
 
-  private String turn(Conversation c, Turn turn, LlmMessage next) {
+  private String turn(Conversation c, Turn turn, LlmMessage next, boolean stopped) {
     LlmResponse r = turn.response();
     StringBuilder b =
         new StringBuilder("── ")
@@ -223,6 +224,10 @@ final class InvestigateLiveLog implements LlmProvider {
       b.append("  → ").append(call.name()).append("  ").append(cut(input(call))).append('\n');
       LlmToolResult result = results.get(call.id());
       if (result == null) {
+        if (stopped) {
+          b.append(
+              "    (no result sent: the conversation ended before this call's result went back)\n");
+        }
         continue;
       }
       if (result.error()) {
@@ -257,7 +262,9 @@ final class InvestigateLiveLog implements LlmProvider {
     JsonNode in = call.input();
     if (in.has("items")) {
       JsonNode items = in.get("items");
+      String sent = "";
       if (items.isString()) {
+        sent = " (items sent as a string)";
         try {
           items = JSON.readTree(items.asString());
         } catch (RuntimeException e) {
@@ -276,7 +283,7 @@ final class InvestigateLiveLog implements LlmProvider {
         }
         parts.add(item.getKey() + " verdict " + verdict + ", " + cites + " cited");
       }
-      return parts.isEmpty() ? "answer with no items" : String.join("; ", parts);
+      return (parts.isEmpty() ? "answer with no items" : String.join("; ", parts)) + sent;
     }
     List<String> values = new ArrayList<>();
     for (var field : in.properties()) {

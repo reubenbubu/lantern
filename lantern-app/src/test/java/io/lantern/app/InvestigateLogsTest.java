@@ -88,7 +88,9 @@ class InvestigateLogsTest {
     Map<String, LlmConversation.Ending> endings = new LinkedHashMap<>();
     endings.put(PREFIX + LEAD_A, LlmConversation.Ending.ANSWERED);
     endings.put(PREFIX + LEAD_B, LlmConversation.Ending.CAPPED);
-    live.finish(purpose -> InvestigateOpenRouterIT.ending(purpose, endings, verdicts, key));
+    live.finish(
+        purpose -> InvestigateOpenRouterIT.ending(purpose, endings, verdicts, key),
+        purpose -> InvestigateOpenRouterIT.stoppedByAGuard(endings.get(purpose)));
 
     String log = Files.readString(liveFile);
     assertThat(log)
@@ -98,9 +100,12 @@ class InvestigateLogsTest {
         .contains("      line 8\n      … 4 more lines\n")
         .contains("  → read_file  repo=nope path=a.yml\n    ✗ rejected: " + REJECTED)
         .contains("  note to the model:\n    " + NOTE)
-        .contains("  → submit  I1 verdict confirmed, 2 cited\n    ← ")
+        .contains("  → submit  I1 verdict confirmed, 2 cited (items sent as a string)\n    ← ")
         .contains("      " + SENT_BACK)
-        .contains("  → submit  I1 verdict refuted, 1 cited")
+        .contains("  → submit  I1 verdict refuted, 1 cited (items sent as a string)\n[")
+        .contains(
+            "  → submit  I1 verdict refuted, 1 cited (items sent as a string)\n"
+                + "    (no result sent: the conversation ended before this call's result went back)")
         .contains("[01] END answered · refuted (key: confirmed ✗) · 3 turns")
         .contains("[02] END capped · refuted (key: refuted ✓) · 1 turn");
     // Each block is one write: no line of conversation 2 inside a block of conversation 1.
@@ -158,6 +163,64 @@ class InvestigateLogsTest {
     assertThat(guards.path("safetyStop").asInt()).isZero();
     assertThat(guards.path("rejectedToolCalls").path("No repository named nope.").asInt())
         .isEqualTo(1);
+  }
+
+  @Test
+  void aShortenedEarlierResultIsShownAsItWasFirstSent() {
+    String full =
+        "{\"author\":\"USER\",\"text\":\"\",\"toolResults\":"
+            + "[{\"callId\":\"c1\",\"content\":\"all forty lines\",\"error\":false}]}";
+    String cut = full.replace("all forty lines", "[read_file input elided]");
+    String verbatim =
+        InvestigateTranscripts.verbatim(
+            List.of(
+                new InvestigateTranscripts.Recorded(
+                    "p", recordedRequest(full, 3), response(), null),
+                new InvestigateTranscripts.Recorded(
+                    "p", recordedRequest(cut, 5), response(), null)));
+    assertThat(verbatim)
+        .contains("all forty lines")
+        .doesNotContain("elided")
+        .contains("Later requests held 1 earlier message shortened");
+  }
+
+  @Test
+  void aRetriedLeadsVerdictIsOnTheRetrysEndLineOnly() {
+    Map<String, LlmConversation.Ending> endings = new LinkedHashMap<>();
+    endings.put(PREFIX + LEAD_A, LlmConversation.Ending.FAILED);
+    endings.put(PREFIX + LEAD_A + " (again)", LlmConversation.Ending.ANSWERED);
+    Map<String, String> verdicts = Map.of(LEAD_A, "confirmed");
+    assertThat(InvestigateOpenRouterIT.ending(PREFIX + LEAD_A, endings, verdicts, Optional.empty()))
+        .isEqualTo("failed · no verdict, asked again in the retry");
+    assertThat(
+            InvestigateOpenRouterIT.ending(
+                PREFIX + LEAD_A + " (again)", endings, verdicts, Optional.empty()))
+        .isEqualTo("answered (the retry) · confirmed");
+  }
+
+  /** A recorded request whose third message is {@code third}, with {@code size} messages. */
+  private static JsonNode recordedRequest(String third, int size) {
+    StringBuilder messages = new StringBuilder("[{\"author\":\"USER\",\"text\":\"Lead.\"},");
+    messages.append(
+        "{\"author\":\"ASSISTANT\",\"text\":\"\",\"toolCalls\":"
+            + "[{\"id\":\"c1\",\"name\":\"read_file\",\"input\":{}}]},");
+    messages.append(third);
+    for (int i = 3; i < size; i++) {
+      messages.append(
+          i % 2 == 1
+              ? ",{\"author\":\"ASSISTANT\",\"text\":\"More.\"}"
+              : ",{\"author\":\"USER\",\"text\":\"Go on.\"}");
+    }
+    return JSON.readTree(
+        "{\"model\":\"haiku\",\"system\":\"S.\",\"maxOutputTokens\":10,\"tools\":[],\"messages\":"
+            + messages
+            + "]}");
+  }
+
+  private static JsonNode response() {
+    return JSON.readTree(
+        "{\"text\":\"Done.\",\"stopReason\":\"end_turn\","
+            + "\"usage\":{\"input\":1,\"output\":1,\"cacheWrite\":0,\"cacheRead\":0}}");
   }
 
   /**

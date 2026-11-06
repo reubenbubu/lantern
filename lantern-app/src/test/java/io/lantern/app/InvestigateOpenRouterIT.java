@@ -253,7 +253,9 @@ class InvestigateOpenRouterIT {
     answerKey.ifPresent(k -> report.set("answerKey", k.score(verdicts)));
     Map<String, LlmConversation.Ending> endings = new LinkedHashMap<>();
     log.conversations().forEach(c -> endings.put(c.purpose(), c.ending()));
-    live.finish(purpose -> ending(purpose, endings, verdicts, answerKey));
+    live.finish(
+        purpose -> ending(purpose, endings, verdicts, answerKey),
+        purpose -> stoppedByAGuard(endings.get(purpose)));
     InvestigateTranscripts.write(calls, out.resolve("conversations"), live.numbers(), CONVERSATION);
     guards(report.putObject("guards"), endings, InvestigateTranscripts.read(calls));
     Files.writeString(out.resolve("report.json"), JSON.writeValueAsString(report));
@@ -277,7 +279,9 @@ class InvestigateOpenRouterIT {
       result, and any note Lantern added; an END line per conversation with its verdict and, \
       with a key, the key's.
       - conversations/<NN>-<lead>.md: each conversation verbatim and complete (system prompt, \
-      tools, every message as sent and received), written at the end from calls/.
+      tools, every message as first sent and as received), written at the end from calls/. \
+      A conversation a guard stopped never sent its last tool results, so they are in neither \
+      file; live.log marks such calls.
       - calls/: every request and response, replayable for free (lantern.llm.replay-from).
       - log/: each call as plain text, the moment it finishes.
       - report.md and report.json, at the end: each lead's verdict, turns, tokens, tool calls \
@@ -326,6 +330,10 @@ class InvestigateOpenRouterIT {
     if (again) {
       words.append(" (the retry)");
     }
+    if (!again && endings.containsKey(purpose + " (again)")) {
+      // The verdict, if any, came from the retry; its own END line gives it.
+      return words.append(" · no verdict, asked again in the retry").toString();
+    }
     words.append(" · ").append(verdict == null ? "no verdict" : verdict);
     String keyed = key.flatMap(k -> k.verdict(lead)).orElse(null);
     if (keyed != null) {
@@ -346,6 +354,12 @@ class InvestigateOpenRouterIT {
     guards.put("costGuard", count(endings, LlmConversation.Ending.BUDGET));
     guards.put("safetyStop", count(endings, LlmConversation.Ending.TURN_CAP));
     guards.set("rejectedToolCalls", JSON.valueToTree(InvestigateTranscripts.rejected(recorded)));
+  }
+
+  static boolean stoppedByAGuard(LlmConversation.Ending ending) {
+    return ending == LlmConversation.Ending.CAPPED
+        || ending == LlmConversation.Ending.BUDGET
+        || ending == LlmConversation.Ending.TURN_CAP;
   }
 
   private static long count(

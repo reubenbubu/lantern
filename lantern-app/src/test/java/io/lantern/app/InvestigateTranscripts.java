@@ -80,7 +80,7 @@ final class InvestigateTranscripts {
       String name =
           "%02d-%s.md".formatted(number, SummarizeOpenRouterIT.slug(lead.replace("lead:", "")));
       Path file = folder.resolve(name.length() > 120 ? name.substring(0, 117) + ".md" : name);
-      Files.writeString(file, verbatim(e.getValue().getLast()));
+      Files.writeString(file, verbatim(e.getValue()));
       written.put(purpose, file);
     }
     return written;
@@ -115,9 +115,29 @@ final class InvestigateTranscripts {
         .replaceAll("\\d+", "N");
   }
 
-  /** A conversation verbatim: its last recorded call's request, then that call's response. */
-  static String verbatim(Recorded last) {
+  /**
+   * A conversation verbatim: its last recorded call's system prompt and tools, then every message,
+   * each as the first request that carried it sent it (a later request may hold an earlier tool
+   * result shortened, once the history grows long), then the last call's response.
+   */
+  static String verbatim(List<Recorded> calls) {
+    Recorded last = calls.getLast();
     JsonNode request = last.request();
+    List<JsonNode> sent = new ArrayList<>();
+    int shortened = 0;
+    for (int i = 0; i < request.path("messages").size(); i++) {
+      JsonNode first = null;
+      for (Recorded call : calls) {
+        if (call.request().path("messages").size() > i) {
+          first = call.request().path("messages").get(i);
+          break;
+        }
+      }
+      if (!first.equals(request.path("messages").get(i))) {
+        shortened++;
+      }
+      sent.add(first);
+    }
     StringBuilder md = new StringBuilder("# ").append(last.purpose()).append("\n\n");
     md.append("Model ")
         .append(request.path("model").asString())
@@ -127,12 +147,14 @@ final class InvestigateTranscripts {
     int blocks = 0;
     int empty = 0;
     List<JsonNode> turns = new ArrayList<>();
-    request.path("messages").forEach(turns::add);
+    turns.addAll(sent);
     turns.add(last.response());
     for (JsonNode m : turns) {
       for (JsonNode t : m.path("thinking")) {
-        blocks++;
-        empty += t.path("text").asString().isEmpty() ? 1 : 0;
+        if (!t.path("redacted").asBoolean()) {
+          blocks++;
+          empty += t.path("text").asString().isEmpty() ? 1 : 0;
+        }
       }
     }
     if (blocks == 0) {
@@ -144,6 +166,12 @@ final class InvestigateTranscripts {
                   ? empty + " of the " + blocks + " reasoning blocks"
                   : blocks == 1 ? "the one reasoning block" : "all " + blocks + " reasoning blocks")
           .append(" of this conversation empty; empty ones are left out below.\n\n");
+    }
+    if (shortened > 0) {
+      md.append("Later requests held ")
+          .append(shortened)
+          .append(shortened == 1 ? " earlier message" : " earlier messages")
+          .append(" shortened; each message below is as it was first sent.\n\n");
     }
     md.append("## System prompt\n\n");
     if (request.path("system").isNull()) {
@@ -164,7 +192,7 @@ final class InvestigateTranscripts {
     }
     md.append("## Messages\n\n");
     int n = 0;
-    for (JsonNode m : request.path("messages")) {
+    for (JsonNode m : sent) {
       message(md, ++n, m.path("author").asString().equals("USER") ? "Lantern" : "Model", m);
     }
     message(md, ++n, "Model", last.response());
@@ -178,6 +206,8 @@ final class InvestigateTranscripts {
         .append(" cache read, ")
         .append(usage.path("cacheWrite").asString())
         .append(" cache write, ")
+        .append(usage.path("cacheWriteLong").asString("0"))
+        .append(" long-lived cache write, ")
         .append(usage.path("output").asString())
         .append(" output tokens.\n");
     return md.toString();
@@ -186,6 +216,10 @@ final class InvestigateTranscripts {
   private static void message(StringBuilder md, int n, String author, JsonNode m) {
     md.append("### ").append(n).append(". ").append(author).append("\n\n");
     for (JsonNode t : m.path("thinking")) {
+      if (t.path("redacted").asBoolean()) {
+        md.append("Reasoning: withheld by the provider (redacted).\n\n");
+        continue;
+      }
       if (t.path("text").asString().isEmpty()) {
         continue;
       }
