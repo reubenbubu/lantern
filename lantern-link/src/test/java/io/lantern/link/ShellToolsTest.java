@@ -9,6 +9,7 @@ import io.lantern.core.fact.FactJson;
 import io.lantern.core.fact.FactObject;
 import io.lantern.core.fact.Origin;
 import io.lantern.core.fact.Validity;
+import io.lantern.harness.Harness;
 import io.lantern.llm.LlmToolCall;
 import io.lantern.llm.LlmToolResult;
 import java.io.IOException;
@@ -317,6 +318,30 @@ class ShellToolsTest {
     assertThat(ShellTools.folders("cd orders/src; cd ../..; cd /work/gateway; cd /"))
         .containsExactly("", "orders/src", "gateway");
     assertThat(Set.of(tools.leadTools().getFirst().name())).containsExactly("shell");
+  }
+
+  @Test
+  void theRestOfACompoundCommandIsAskedForAsAWhole() {
+    assertThat(ShellTools.whole("cat a | grep b")).isEqualTo("cat a | grep b");
+    assertThat(ShellTools.whole("ls a; ls b")).isEqualTo("sh -c 'ls a; ls b'");
+    assertThat(ShellTools.whole("grep x f || true")).startsWith("sh -c ");
+    assertThat(ShellTools.whole("cat f # all")).startsWith("sh -c ");
+    assertThat(ShellTools.whole("grep 'a;b' f")).isEqualTo("grep 'a;b' f");
+    String answer = call("shell", "{\"command\":\"echo top; cat orders/long.txt\"}");
+    assertThat(answer.lines().toList().getLast())
+        .contains("the rest: sh -c 'echo top; cat orders/long.txt' | sed -n '");
+  }
+
+  @Test
+  void aLineNoFileIsCreditedWithIsScreenedButNotCitable() {
+    String file = "src/main/java/o/OrderController.java";
+    assertThat(call("shell", "{\"command\":\"grep -rh orders.save orders\"}"))
+        .contains("return orders.save(order);");
+    assertThat(tools.showed("orders", file, 12, 12)).isFalse();
+    assertThat(tools.textsShown()).extracting(Harness.Shown::path).contains(file);
+    // A numbered line whose text the command changed is not credited to that number.
+    call("shell", "{\"command\":\"cd orders && grep -n save " + file + " | sed 's/save/keep/'\"}");
+    assertThat(tools.showed("orders", file, 12, 12)).isFalse();
   }
 
   @Test

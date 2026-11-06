@@ -58,12 +58,19 @@ public final class InvestigateShell implements AutoCloseable {
 
   /**
    * Runs the command ({@code $1}) in a process group of its own under {@code timeout}, then kills
-   * what is left of that group, so nothing it started in the background outlives it.
+   * what is left of that group, so nothing it started in the background outlives it. The group's id
+   * is kept in {@code /tmp/lantern-$2} while it runs, so a command Lantern stops reading can be
+   * killed at once ({@link #KILL}).
    */
   static final String WRAPPER =
       "setsid timeout -k 2 "
           + TIMEOUT.toSeconds()
-          + " sh -c \"$1\" & p=$!; wait $p; s=$?; kill -9 -$p 2>/dev/null; exit $s";
+          + " sh -c \"$1\" & p=$!; echo $p > /tmp/lantern-$2 2>/dev/null; wait $p; s=$?;"
+          + " kill -9 -$p 2>/dev/null; rm -f /tmp/lantern-$2; exit $s";
+
+  /** Kills the process group of the command whose id is {@code $1}. */
+  static final String KILL =
+      "p=$(cat /tmp/lantern-$1 2>/dev/null) && kill -9 -$p 2>/dev/null; rm -f /tmp/lantern-$1";
 
   private static final String DOCKERFILE = "investigate-shell/Dockerfile";
   private static final Duration DOCKER_TIMEOUT = Duration.ofMinutes(2);
@@ -196,34 +203,60 @@ public final class InvestigateShell implements AutoCloseable {
   }
 
   private Run runNow(String command) {
-    List<String> args = List.of("exec", name, "sh", "-c", WRAPPER, "sh", command);
+    String id = UUID.randomUUID().toString().substring(0, 12);
+    List<String> args = List.of("exec", name, "sh", "-c", WRAPPER, "sh", command, id);
+    long started = System.nanoTime();
     Process process = Docker.start(docker.builder(args));
     CompletableFuture<Read> out = read(process.getInputStream());
     CompletableFuture<Read> err = read(process.getErrorStream());
     try {
       process.getOutputStream().close();
+      // A command whose output passed the ceiling is not read further: stop it now.
+      CompletableFuture.anyOf(
+          out.thenAccept(r -> stopIf(r.over(), id)), err.thenAccept(r -> stopIf(r.over(), id)));
       boolean ended = process.waitFor(TIMEOUT.toSeconds() + 5, TimeUnit.SECONDS);
       if (!ended) {
+        stop(id);
         process.destroyForcibly();
       }
       Read o = out.get(5, TimeUnit.SECONDS);
       Read e = err.get(5, TimeUnit.SECONDS);
       int exit = ended ? process.exitValue() : 124;
-      boolean timedOut = exit == 124 || exit == 137 && !ended;
-      return new Run(o.text(), e.text(), exit, timedOut, o.over() || e.over());
+      boolean over = o.over() || e.over();
+      // timeout says 124, or 137 when it had to kill; a kill once the time is up is the timeout's.
+      boolean timedOut =
+          !over
+              && (exit == 124
+                  || !ended
+                  || exit == 137
+                      && Duration.ofNanos(System.nanoTime() - started).compareTo(TIMEOUT) >= 0);
+      return new Run(o.text(), e.text(), exit, timedOut, over);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new SandboxException("Interrupted while running a command in " + name, e);
     } catch (ExecutionException | TimeoutException e) {
-      // The output was read up to its ceiling and the process stopped: what was read stands.
+      // The output could not be read: say so rather than call it a timeout.
+      stop(id);
       process.destroyForcibly();
-      Read o = out.getNow(new Read("", true));
-      return new Run(o.text(), "", 124, true, true);
+      Read o = out.isDone() && !out.isCompletedExceptionally() ? out.join() : new Read("", false);
+      return new Run(
+          o.text(), "Lantern could not read this command's output.", -1, false, o.over());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     } finally {
       process.destroyForcibly();
     }
+  }
+
+  private void stopIf(boolean over, String id) {
+    if (over) {
+      stop(id);
+    }
+  }
+
+  /** Kills a command's process group in the container, so its turn frees its processes too. */
+  private void stop(String id) {
+    docker.quietly(DOCKER_TIMEOUT, List.of("exec", name, "sh", "-c", KILL, "sh", id));
   }
 
   private record Read(String text, boolean over) {}

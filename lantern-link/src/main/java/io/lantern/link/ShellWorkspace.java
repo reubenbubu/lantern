@@ -188,6 +188,48 @@ public final class ShellWorkspace implements AutoCloseable {
     return masked.getOrDefault(repo + '\u0000' + path, List.of());
   }
 
+  // Each line of the written files, stripped, and the files that hold it; made when first asked.
+  private Map<String, List<String[]>> byLine;
+
+  /**
+   * The files that hold a line, stripped, as a repository and a path; more than four are not all
+   * listed, as the fifth would show.
+   */
+  synchronized List<String[]> holding(String line) {
+    if (byLine == null) {
+      byLine = new HashMap<>();
+      try (Stream<Path> all = Files.walk(root)) {
+        for (Path file : all.filter(Files::isRegularFile).toList()) {
+          Path relative = root.relativize(file);
+          if (relative.getNameCount() < 2) {
+            continue;
+          }
+          String[] where = {
+            relative.getName(0).toString(), relative.subpath(1, relative.getNameCount()).toString()
+          };
+          List<String> lines;
+          try {
+            lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+          } catch (IOException e) {
+            continue;
+          }
+          for (String l : lines) {
+            String key = l.strip();
+            if (key.length() >= 20) {
+              List<String[]> files = byLine.computeIfAbsent(key, k -> new ArrayList<>(1));
+              if (files.size() <= 4 && (files.isEmpty() || files.getLast() != where)) {
+                files.add(where);
+              }
+            }
+          }
+        }
+      } catch (IOException | UncheckedIOException e) {
+        // The folder could not be walked: such lines go unscreened.
+      }
+    }
+    return byLine.getOrDefault(line.strip(), List.of());
+  }
+
   /** Whether the repository holds the file. */
   boolean has(String repo, String path) {
     if (!repos.contains(repo) || path.isBlank()) {

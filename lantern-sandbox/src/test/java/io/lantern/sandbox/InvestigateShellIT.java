@@ -95,6 +95,9 @@ class InvestigateShellIT {
                   + "\"; print \"GET /\" |& s; if ((s |& getline line) > 0) print \"connected\" }'");
       assertThat(connect.out()).as(address).doesNotContain("connected");
     }
+    // busybox stays, as it is the shell; its own network applets reach nothing either.
+    assertThat(shell.run("busybox wget -q -T 3 -O - http://1.1.1.1/ 2>&1").exitCode()).isNotZero();
+    assertThat(shell.run("echo x | busybox nc -w 3 1.1.1.1 80 2>&1").out()).doesNotContain("HTTP");
     assertThat(shell.run("cat /sys/class/net/*/operstate 2>/dev/null; ls /sys/class/net").out())
         .doesNotContain("eth0");
   }
@@ -133,7 +136,11 @@ class InvestigateShellIT {
     InvestigateShell.Run run = shell.run("head -c 10000000 /dev/zero | tr '\\0' a");
     assertThat(run.overCeiling()).isTrue();
     assertThat(run.out()).hasSize(InvestigateShell.CEILING);
+    assertThat(run.timedOut()).isFalse();
+    // The command was stopped once it passed the ceiling: nothing of it is left running.
     assertThat(shell.run("echo next").out()).isEqualTo("next\n");
+    assertThat(shell.run("ps -o args= | grep -c '[h]ead -c 10000000'").out().strip())
+        .isEqualTo("0");
   }
 
   @Test

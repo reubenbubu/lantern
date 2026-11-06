@@ -48,6 +48,11 @@ final class ShellTools implements CodeTools {
   /** The most hits {@code find_in_code} gives. */
   static final int HITS = 30;
 
+  /** A line shown but credited to no file is screened when this long and held by so few files. */
+  static final int SCREENED_LENGTH = 20;
+
+  static final int SCREENED_FILES = 3;
+
   /** How long a command may run, as its description and its stop note say. */
   static final int SECONDS = 20;
 
@@ -89,6 +94,8 @@ final class ShellTools implements CodeTools {
   private final GraphTools excerpts;
   private final Map<String, BitSet> shown = new LinkedHashMap<>();
   private final Map<String, FileRead> read = new LinkedHashMap<>();
+  // Files that hold a line an answer showed but no file was credited with: screened, not citable.
+  private final Map<String, FileRead> screened = new LinkedHashMap<>();
 
   ShellTools(ShellWorkspace workspace, GraphTools.Graph graph) {
     this.workspace = workspace;
@@ -201,7 +208,7 @@ final class ShellTools implements CodeTools {
           .append(" of ")
           .append(lines.size())
           .append(" lines; the rest: ")
-          .append(command.strip())
+          .append(whole(command.strip()))
           .append(" | sed -n '")
           .append(cut.shown().size() + 1)
           .append(',')
@@ -222,6 +229,17 @@ final class ShellTools implements CodeTools {
     }
     attribute(command, cut.shown());
     return answer.toString();
+  }
+
+  /**
+   * The command as one thing a pipe can follow: as written when it is one pipeline, else run by
+   * {@code sh -c}, so that {@code a; b}, {@code a || b} or a trailing comment pipe their whole
+   * output.
+   */
+  static String whole(String command) {
+    String outside = command.replaceAll("'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"", "");
+    boolean one = !outside.matches("(?s).*(;|&|\\|\\||#|\\n).*");
+    return one ? command : "sh -c " + quote(command);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -264,6 +282,7 @@ final class ShellTools implements CodeTools {
     Cut cut = cut(lines, CHARS);
     StringBuilder answer = new StringBuilder(String.join("\n", cut.shown()));
     for (int i = 0; i < cut.shown().size(); i++) {
+      mark(hits.get(i)[0], hits.get(i)[1], Integer.parseInt(hits.get(i)[2]));
       String[] h = hits.get(i);
       mark(h[0], h[1], Integer.parseInt(h[2]));
     }
@@ -282,7 +301,7 @@ final class ShellTools implements CodeTools {
             byRepo.entrySet().stream().max(Map.Entry.comparingByValue()).orElseThrow().getKey();
         answer
             .append("; narrower: find_in_code(text=\"")
-            .append(text)
+            .append(text.replace("\\", "\\\\").replace("\"", "\\\""))
             .append("\", repo=\"")
             .append(biggest)
             .append("\")");
@@ -392,15 +411,11 @@ final class ShellTools implements CodeTools {
     for (String line : answer) {
       String text = line;
       Matcher grep = GREP_LINE.matcher(line);
-      if (grep.matches()) {
-        String[] file = resolve(grep.group(1), cds);
-        if (file != null) {
-          mark(file[0], file[1], Integer.parseInt(grep.group(2)));
-          continue;
-        }
+      if (grep.matches() && creditAny(grep.group(1), cds, grep)) {
+        continue;
       }
       Matcher context = GREP_CONTEXT.matcher(line);
-      if (context.matches() && credit(resolve(context.group(1), cds), context)) {
+      if (context.matches() && creditAny(context.group(1), cds, context)) {
         continue;
       }
       Matcher nl = NL_LINE.matcher(line);
@@ -419,15 +434,50 @@ final class ShellTools implements CodeTools {
       if (!meaningful(text)) {
         continue;
       }
+      boolean found = false;
       for (String[] file : named) {
         List<String> lines = workspace.lines(file[0], file[1]).orElse(List.of());
         for (int i = 0; i < lines.size(); i++) {
           if (same(lines.get(i), text) || numbered(text, lines.get(i))) {
             mark(file[0], file[1], i + 1);
+            found = true;
           }
         }
       }
+      if (!found) {
+        screen(text);
+      }
     }
+  }
+
+  /**
+   * A line no file was credited with still reaches the model: the few files that hold it go to the
+   * injection screen, though the line may not be cited.
+   */
+  private void screen(String text) {
+    if (text.length() < SCREENED_LENGTH) {
+      return;
+    }
+    List<String[]> holding = workspace.holding(text);
+    if (holding.size() <= SCREENED_FILES) {
+      for (String[] file : holding) {
+        String key = file[0] + '\u0000' + file[1];
+        if (!read.containsKey(key) && !screened.containsKey(key)) {
+          graph.fileRead(file[0], file[1]).ifPresent(f -> screened.put(key, f));
+          workspace.masked(file[0], file[1]).forEach(graph.files()::masked);
+        }
+      }
+    }
+  }
+
+  /** Credits a line given with its path, from the first folder whose file holds that text there. */
+  private boolean creditAny(String written, List<String> cds, Matcher numberAndText) {
+    for (String[] file : resolveAll(written, cds)) {
+      if (credit(file, numberAndText)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Marks a line given as its number (group 1) and text (group 2) when the file holds it there. */
@@ -518,6 +568,13 @@ final class ShellTools implements CodeTools {
    * ./work/x} name the working folder's {@code x}.
    */
   private String[] resolve(String written, List<String> cds) {
+    List<String[]> all = resolveAll(written, cds);
+    return all.isEmpty() ? null : all.getFirst();
+  }
+
+  /** Every repository and path a written path may name, the most likely first. */
+  private List<String[]> resolveAll(String written, List<String> cds) {
+    List<String[]> found = new ArrayList<>();
     String p = written.replaceFirst("^\\./", "");
     List<String> tries = new ArrayList<>();
     if (p.startsWith(ShellWorkspace.WORK + "/")) {
@@ -533,14 +590,17 @@ final class ShellTools implements CodeTools {
     for (String t : tries) {
       int slash = t.indexOf('/');
       if (slash > 0 && workspace.has(t.substring(0, slash), t.substring(slash + 1))) {
-        return new String[] {t.substring(0, slash), t.substring(slash + 1)};
+        String[] file = {t.substring(0, slash), t.substring(slash + 1)};
+        if (found.stream().noneMatch(f -> f[0].equals(file[0]) && f[1].equals(file[1]))) {
+          found.add(file);
+        }
       }
     }
     int colon = p.indexOf(':');
     if (colon > 0 && workspace.has(p.substring(0, colon), p.substring(colon + 1))) {
-      return new String[] {p.substring(0, colon), p.substring(colon + 1)};
+      found.add(new String[] {p.substring(0, colon), p.substring(colon + 1)});
     }
-    return null;
+    return found;
   }
 
   private static boolean same(String fileLine, String shownLine) {
@@ -608,7 +668,9 @@ final class ShellTools implements CodeTools {
   @Override
   public synchronized List<Harness.Shown> textsShown() {
     List<Harness.Shown> texts = new ArrayList<>(excerpts.textsShown());
-    for (FileRead f : read.values()) {
+    List<FileRead> all = new ArrayList<>(read.values());
+    screened.values().stream().filter(f -> !read.containsValue(f)).forEach(all::add);
+    for (FileRead f : all) {
       workspace
           .lines(f.repo(), f.path())
           .ifPresent(
