@@ -148,4 +148,21 @@ On 6 Nov 2026 the owner settled what a view does when its groups still do not fi
   and an area's page still over the limit (after merging its lines) is split by groups of entry
   points, each with what it reaches in the area, packed in order onto pages that fit. A unit with
   no areas still over the limit is split the same way.
+- **One step down per page** (6 Nov): an entry point whose own page does not fit shows what it
+  calls directly, then each of those that calls further gets a page the same way. A page of entry
+  points draws none of the other components being split that call what it shares. The rule reads
+  only who calls whom, never what kind of class a component is (the owner rejected a box for
+  repository classes as fitted to one test set).
+- **What only the outside reaches** (6 Nov): on a component overview that leaves the outside off,
+  a component or area left with no line is taken off it; components go on a page "Reached only
+  from outside" the unit, split by entry point when too large, and an area keeps its own page.
+- **What cuts across the areas** (6 Nov): aspects and bundled library classes are left off that
+  overview with a note naming them; each area's page draws them.
+- **An area of one** is judged after rule 3 has grown it; one still of one is dropped and its
+  member placed again (found on project-8, where single-controller feature folders left their
+  controllers floating).
+- **Found while doing this:** project-8's workorder-service fails its build by design, and calls
+  to methods inherited from Spring Data are then lost, so two of its parts lose their lines (#908).
 - Describing a domain or pocket is left to an LLM step the owner will add.
+- **Evidence runs on Haiku 5.5 only** (owner, 6 Nov, for cost): the views' grouping is decided by
+  code; the model only names groups and words lines.
