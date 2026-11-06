@@ -57,7 +57,10 @@ range its text uses).
 - It is read into the entry the role's checks verify (its ranges as `cites`, every piece's names as
   `names`) and checked by the standard checks, the proposals check and `Quotes`: each quote is a
   line of its range character for character, spaces at either end aside, in the file as the model
-  was shown it (masked); each name it shows is in its range. `Quotes` replaces, for Mode A, both the
+  was shown it (masked); each name it shows is in its range or its path, compared as the other
+  checks compare names (without case or anything but letters and digits), a dotted name
+  (`RefundService.refund`, `spring.r2dbc.password`) part by part: the first panels, checking names
+  exactly, sent back 65 answers for names such as a class cited from its own file. `Quotes` replaces, for Mode A, both the
   check that a cited line was shown and the coverage check (each declared name in some cited
   range), whose problems it only repeated. The names check, that every name the text uses is in
   its citations, stays.

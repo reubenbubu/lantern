@@ -170,6 +170,23 @@ class LeadAnswerTest {
   }
 
   @Test
+  void aNameIsShownByItsRangesLinesOrPathAndADottedNamePartByPart() {
+    String text =
+        "    password: ******\n  datasource:\n  @GetMapping(\"/refunds\")\n  void refund() {";
+    String where = "orders/src/main/java/shop/RefundService.java";
+    java.util.function.Predicate<String> shown =
+        name ->
+            LeadAnswer.Quotes.holds(
+                name,
+                text.toLowerCase().replaceAll("[^\\p{L}\\p{N}]", ""),
+                where.toLowerCase().replaceAll("[^\\p{L}\\p{N}]", ""));
+
+    assertThat(shown).accepts("refund", "RefundService", "RefundService.refund", "GET");
+    assertThat(shown).accepts("spring.datasource.password".substring(7), "/refunds");
+    assertThat(shown).rejects("X-User-Id", "OrderService.refund", "spring.r2dbc.password");
+  }
+
+  @Test
   void aMaskedLinesQuoteIsCheckedAgainstTheMaskedText() {
     String piece =
         """

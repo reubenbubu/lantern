@@ -237,7 +237,7 @@ final class LeadAnswer implements SingleAnswer {
   /**
    * Each evidence piece checked against the files as the model saw them, masked (#892): its quote
    * is one line of its range, character for character, spaces at either end aside; and each name it
-   * shows appears in that range.
+   * shows appears in that range or its path ({@link #holds}).
    */
   static final class Quotes implements Check {
 
@@ -280,9 +280,10 @@ final class LeadAnswer implements SingleAnswer {
                       + closest(range, from, quote)
                       + "; copy one line of the range exactly."));
         }
-        String text = String.join("\n", range);
+        String text = normal(String.join("\n", range));
+        String where = normal(path);
         for (JsonNode name : piece.path("shows")) {
-          if (!text.contains(name.asString(""))) {
+          if (!holds(name.asString(""), text, where)) {
             found.add(
                 reject(
                     answer,
@@ -297,6 +298,34 @@ final class LeadAnswer implements SingleAnswer {
         }
       }
       return found;
+    }
+
+    /**
+     * Whether a range shows a name, compared as the other checks compare names, without case or
+     * anything but letters and digits: in its lines or its path (a class in its own file), and a
+     * dotted name ({@code RefundService.refund}, {@code spring.r2dbc.password}) part by part, since
+     * a type's method or a nested setting is written over several places.
+     */
+    static boolean holds(String name, String text, String where) {
+      String whole = normal(name);
+      if (whole.isEmpty() || text.contains(whole) || where.contains(whole)) {
+        return true;
+      }
+      String[] parts = name.split("\\.");
+      if (parts.length < 2) {
+        return false;
+      }
+      for (String part : parts) {
+        String p = normal(part);
+        if (!p.isEmpty() && !text.contains(p) && !where.contains(p)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    private static String normal(String text) {
+      return text.toLowerCase(java.util.Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
     private static Rejection reject(ItemAnswer answer, int piece, String reason) {
