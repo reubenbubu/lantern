@@ -282,7 +282,6 @@ final class ShellTools implements CodeTools {
     Cut cut = cut(lines, CHARS);
     StringBuilder answer = new StringBuilder(String.join("\n", cut.shown()));
     for (int i = 0; i < cut.shown().size(); i++) {
-      mark(hits.get(i)[0], hits.get(i)[1], Integer.parseInt(hits.get(i)[2]));
       String[] h = hits.get(i);
       mark(h[0], h[1], Integer.parseInt(h[2]));
     }
@@ -351,6 +350,8 @@ final class ShellTools implements CodeTools {
     if (out.isEmpty()) {
       return LlmToolResult.of(call, "No declarations found in " + repo + ":" + path + ".");
     }
+    // The outline shows the file's annotations: the file goes to the injection screen.
+    screenFile(repo, path);
     Cut cut = cut(out, OUTLINE_CHARS);
     StringBuilder answer =
         new StringBuilder(repo + ":" + path + ", " + lines.get().size() + " lines\n")
@@ -458,15 +459,19 @@ final class ShellTools implements CodeTools {
     if (text.length() < SCREENED_LENGTH) {
       return;
     }
-    List<String[]> holding = workspace.holding(text);
+    String start = text.endsWith("…") ? text.substring(0, text.length() - 1).strip() : text;
+    List<String[]> holding = workspace.holding(start);
     if (holding.size() <= SCREENED_FILES) {
-      for (String[] file : holding) {
-        String key = file[0] + '\u0000' + file[1];
-        if (!read.containsKey(key) && !screened.containsKey(key)) {
-          graph.fileRead(file[0], file[1]).ifPresent(f -> screened.put(key, f));
-          workspace.masked(file[0], file[1]).forEach(graph.files()::masked);
-        }
-      }
+      holding.forEach(file -> screenFile(file[0], file[1]));
+    }
+  }
+
+  /** Sends a file whose text an answer showed, though not as citable lines, to the screen. */
+  private synchronized void screenFile(String repo, String path) {
+    String key = repo + '\u0000' + path;
+    if (!read.containsKey(key) && !screened.containsKey(key)) {
+      graph.fileRead(repo, path).ifPresent(f -> screened.put(key, f));
+      workspace.masked(repo, path).forEach(graph.files()::masked);
     }
   }
 
@@ -603,11 +608,21 @@ final class ShellTools implements CodeTools {
     return found;
   }
 
+  /**
+   * Whether a shown line is the file's line: the same, or its start when the line was cut, by this
+   * tool ({@code …}) or by the command ({@code cut -c1-120}), at least {@link #PREFIX} long.
+   */
   private static boolean same(String fileLine, String shownLine) {
     String a = fileLine.strip();
     String b = shownLine.strip();
-    return a.equals(b) || (b.endsWith("…") && a.startsWith(b.substring(0, b.length() - 1)));
+    if (b.endsWith("…")) {
+      b = b.substring(0, b.length() - 1).strip();
+    }
+    return a.equals(b) || (b.length() >= PREFIX && a.startsWith(b));
   }
+
+  /** How long a cut line must be still to tell which file line it starts. */
+  static final int PREFIX = 30;
 
   /**
    * A line long enough to tell where it comes from: four characters, a letter or digit among them.

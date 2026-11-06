@@ -333,6 +333,25 @@ class ShellToolsTest {
   }
 
   @Test
+  void aLineTheCommandCutIsStillCreditedAndScreened() {
+    String file = "src/main/java/o/OrderController.java";
+    call("shell", "{\"command\":\"cd orders && grep -n PathVariable " + file + " | cut -c1-40\"}");
+    assertThat(tools.showed("orders", file, 6, 6)).isTrue();
+    // Shown cut and credited to no file, its file is still screened.
+    call("shell", "{\"command\":\"grep -rh RequestBody orders | cut -c1-40\"}");
+    assertThat(tools.showed("orders", file, 11, 11)).isFalse();
+    assertThat(tools.textsShown()).extracting(Harness.Shown::path).contains(file);
+  }
+
+  @Test
+  void anOutlinedFileIsScreened() {
+    call("outline", "{\"repo\":\"orders\",\"path\":\"src/main/java/o/PartnerClient.java\"}");
+    assertThat(tools.textsShown())
+        .extracting(Harness.Shown::path)
+        .contains("src/main/java/o/PartnerClient.java");
+  }
+
+  @Test
   void aLineNoFileIsCreditedWithIsScreenedButNotCitable() {
     String file = "src/main/java/o/OrderController.java";
     assertThat(call("shell", "{\"command\":\"grep -rh orders.save orders\"}"))

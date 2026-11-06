@@ -189,15 +189,16 @@ public final class ShellWorkspace implements AutoCloseable {
   }
 
   // Each line of the written files, stripped, and the files that hold it; made when first asked.
-  private Map<String, List<String[]>> byLine;
+  private java.util.TreeMap<String, List<String[]>> byLine;
 
   /**
-   * The files that hold a line, stripped, as a repository and a path; more than four are not all
-   * listed, as the fifth would show.
+   * The files that hold a line, stripped, as a repository and a path, or, when none holds it whole,
+   * a line that starts with it (a line a command cut); more than four are not all listed, as the
+   * fifth would show.
    */
   synchronized List<String[]> holding(String line) {
     if (byLine == null) {
-      byLine = new HashMap<>();
+      byLine = new java.util.TreeMap<>();
       try (Stream<Path> all = Files.walk(root)) {
         for (Path file : all.filter(Files::isRegularFile).toList()) {
           Path relative = root.relativize(file);
@@ -227,7 +228,23 @@ public final class ShellWorkspace implements AutoCloseable {
         // The folder could not be walked: such lines go unscreened.
       }
     }
-    return byLine.getOrDefault(line.strip(), List.of());
+    String key = line.strip();
+    List<String[]> exact = byLine.get(key);
+    if (exact != null) {
+      return exact;
+    }
+    List<String[]> starting = new ArrayList<>();
+    for (List<String[]> files : byLine.subMap(key, key + Character.MAX_VALUE).values()) {
+      for (String[] file : files) {
+        if (starting.stream().noneMatch(f -> f[0].equals(file[0]) && f[1].equals(file[1]))) {
+          starting.add(file);
+        }
+      }
+      if (starting.size() > 4) {
+        break;
+      }
+    }
+    return starting;
   }
 
   /** Whether the repository holds the file. */

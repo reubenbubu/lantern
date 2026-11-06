@@ -212,8 +212,9 @@ public final class InvestigateShell implements AutoCloseable {
     try {
       process.getOutputStream().close();
       // A command whose output passed the ceiling is not read further: stop it now.
-      CompletableFuture.anyOf(
-          out.thenAccept(r -> stopIf(r.over(), id)), err.thenAccept(r -> stopIf(r.over(), id)));
+      CompletableFuture<Void> stopped =
+          CompletableFuture.allOf(
+              out.thenAccept(r -> stopIf(r.over(), id)), err.thenAccept(r -> stopIf(r.over(), id)));
       boolean ended = process.waitFor(TIMEOUT.toSeconds() + 5, TimeUnit.SECONDS);
       if (!ended) {
         stop(id);
@@ -221,6 +222,8 @@ public final class InvestigateShell implements AutoCloseable {
       }
       Read o = out.get(5, TimeUnit.SECONDS);
       Read e = err.get(5, TimeUnit.SECONDS);
+      // A command stopped for passing the ceiling is gone before its turn is freed.
+      stopped.get(DOCKER_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
       int exit = ended ? process.exitValue() : 124;
       boolean over = o.over() || e.over();
       // timeout says 124, or 137 when it had to kill; a kill once the time is up is the timeout's.
