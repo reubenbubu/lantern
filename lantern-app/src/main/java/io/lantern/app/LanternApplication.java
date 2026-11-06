@@ -8,9 +8,10 @@ import org.springframework.context.ConfigurableApplicationContext;
 /**
  * Entry point of the Lantern service. With the arguments {@code analyze [--system=<name>]
  * [--title=<title>] [<name>=]<path>...} it runs one analysis, and with {@code remove
- * --system=<name> <repo>...} it removes repositories from a system; either exits with 0 on success
- * and 1 on failure (see {@link AnalyzeCommand}); {@code judge-labels} judges the labelled wording
- * texts with the current prompts (see {@link JudgeLabelsCommand}).
+ * --system=<name> <repo>...} it removes repositories from a system, and with {@code render
+ * --system=<name> [--snapshot=<number>]} it writes a system's documents again from the store; each
+ * exits with 0 on success and 1 on failure (see {@link AnalyzeCommand}); {@code judge-labels}
+ * judges the labelled wording texts with the current prompts (see {@link JudgeLabelsCommand}).
  */
 @SpringBootApplication
 public class LanternApplication {

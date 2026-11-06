@@ -82,6 +82,8 @@ Environment:
   LANTERN_WORKSPACE         Where documents and scores go. Default <repository>/workspace.
   LANTERN_BUILDS            Where the builds go, shared by every checkout (see scripts/launch.sh).
   COMPOSE_PROJECT_NAME      Compose project of the database (see scripts/launch.sh).
+  LANTERN_DB_URL            A database to use as it is for every set, such as one the host runs
+                            (see scripts/launch.sh, #926); not with --jobs.
 EOF
 }
 
@@ -250,6 +252,12 @@ if ! $score_only && ! $assume_yes; then
   answer=""
   read -r -p "Analyze ${#sets[@]} test set(s) with the models of ${llm_file:-<no settings file>}${overrides[*]:+ and ${overrides[*]}}? [y/N] " answer || true
   [[ "$answer" =~ ^[Yy]([Ee][Ss])?$ ]] || die "cancelled"
+fi
+
+# One database given by LANTERN_DB_URL holds every set, one after another (#926): --jobs would
+# give each set a database of its own.
+if ((max_jobs > 1)) && [[ -n "${LANTERN_DB_URL:-}" ]] && ! $score_only; then
+  die "--jobs gives each set a database of its own; with LANTERN_DB_URL every set goes to that one database, one after another: leave out --jobs"
 fi
 
 # --jobs: each set as its own call of this script, on a database of its own (#785).

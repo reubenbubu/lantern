@@ -48,6 +48,9 @@ Options:
   -h, --help                Show this help.
 
 Environment:
+  LANTERN_DB_URL            JDBC URL of a database to use as it is, such as one the host runs,
+                            with LANTERN_DB_USERNAME and LANTERN_DB_PASSWORD (default lantern):
+                            no database is started, no port checked, nothing stopped (#926).
   LANTERN_DB_PORT           Host port of the database. Default 5432.
   COMPOSE_PROJECT_NAME      Compose project to use. Default lantern.
   LANTERN_WORKSPACE         Where documents go. Default <repository>/workspace.
@@ -237,91 +240,100 @@ compose() {
   docker compose -f "$COMPOSE_FILE" -p "$PROJECT" "$@"
 }
 
-# --- Database port -------------------------------------------------------------------
-
-# Prints what holds a TCP port on this host, or nothing if the port is free.
-port_holder() {
-  local port="$1" out=""
-  local containers
-  containers="$(docker ps --filter "publish=$port" --format '{{.Names}} ({{.Ports}})')"
-  [[ -n "$containers" ]] && out+="Docker container(s): $containers"$'\n'
-  local listeners=""
-  if command -v ss >/dev/null 2>&1; then
-    listeners="$(ss -Htlnp "sport = :$port" 2>/dev/null || true)"
-  elif command -v lsof >/dev/null 2>&1; then
-    # lsof sees only this user's processes, so the connection probe below backs it up.
-    listeners="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-  fi
-  if [[ -z "$listeners" ]] && (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
-    listeners="something accepts connections on 127.0.0.1:$port"
-  fi
-  [[ -n "$listeners" ]] && out+="Listening: $listeners"$'\n'
-  printf '%s' "$out"
-}
-
-requested_port="${LANTERN_DB_PORT:-5432}"
-if ! [[ "$requested_port" =~ ^[1-9][0-9]{0,4}$ ]] || ((requested_port > 65535)); then
-  die "LANTERN_DB_PORT must be a port number from 1 to 65535, got '$requested_port'"
-fi
-
-running_port=""
-if [[ -n "$(compose ps -q --status running postgres 2>/dev/null)" ]]; then
-  running_port="$({ compose port postgres 5432 2>/dev/null || true; } | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -n 1)"
-fi
-
-if [[ -n "$running_port" ]]; then
-  if [[ "$running_port" != "$requested_port" ]]; then
-    if [[ -n "${LANTERN_DB_PORT:-}" ]]; then
-      die "the database of project $PROJECT already runs on port $running_port, not $LANTERN_DB_PORT;" \
-        "unset LANTERN_DB_PORT to use it, or stop it first with scripts/teardown.sh"
-    fi
-    info "the database of project $PROJECT already runs on port $running_port; using that port"
-  else
-    info "the database of project $PROJECT already runs on port $running_port"
-  fi
-  port="$running_port"
-else
-  port="$requested_port"
-  holder="$(port_holder "$port")"
-  if [[ -n "$holder" ]]; then
-    if ! $auto_port; then
-      die "port $port is already in use, so the database cannot start on it."$'\n'"$holder"$'\n'"Set LANTERN_DB_PORT to a free port, or pass --auto-port."
-    fi
-    for ((candidate = port + 1; candidate <= port + 100 && candidate <= 65535; candidate++)); do
-      if [[ -z "$(port_holder "$candidate")" ]]; then
-        break
-      fi
-    done
-    ((candidate <= port + 100 && candidate <= 65535)) || die "no free port found from $port to $((port + 100))"
-    info "port $port is in use; using port $candidate instead"
-    port="$candidate"
-  fi
-fi
-
 # --- Database ------------------------------------------------------------------------
 
-export LANTERN_DB_PORT="$port"
-info "starting the database of project $PROJECT on port $port"
-compose up -d --wait postgres >&2 || die "the database did not start or did not become healthy; see 'docker compose -p $PROJECT logs postgres'"
-# Healthy inside its container is not yet reachable from the host: under rootless Docker the port
-# is forwarded a moment later, longer when several databases start at once (#785).
-# Postgres itself must answer: an SSL request, which it answers with one byte, N or S, while a
-# forwarder that is not ready yet accepts the connection and closes it.
-postgres_answers() {
-  local reply=""
-  exec 3<>"/dev/tcp/127.0.0.1/$1" || return 1
-  printf '\x00\x00\x00\x08\x04\xd2\x16\x2f' >&3
-  IFS= read -r -n 1 -t 2 reply <&3 || true
-  exec 3<&- 3>&-
-  [[ "$reply" == N || "$reply" == S ]]
-}
-for ((waited = 0; waited < 60; waited++)); do
-  postgres_answers "$port" 2>/dev/null && break
-  sleep 1
-done
-((waited < 60)) || die "the database is healthy but port $port did not accept a connection within 60 s"
-export LANTERN_DB_URL="jdbc:postgresql://localhost:$port/lantern"
-info "database ready at $LANTERN_DB_URL"
+# With LANTERN_DB_URL set, that database is used as it is, such as a PostgreSQL of the host that
+# outlives containers (#926): no database is started, no port checked, nothing stopped.
+if [[ -n "${LANTERN_DB_URL:-}" ]]; then
+  info "using the database at $LANTERN_DB_URL, as it is (LANTERN_DB_URL)"
+else
+  # --- Database port -------------------------------------------------------------------
+
+  # Prints what holds a TCP port on this host, or nothing if the port is free.
+  port_holder() {
+    local port="$1" out=""
+    local containers
+    containers="$(docker ps --filter "publish=$port" --format '{{.Names}} ({{.Ports}})')"
+    [[ -n "$containers" ]] && out+="Docker container(s): $containers"$'\n'
+    local listeners=""
+    if command -v ss >/dev/null 2>&1; then
+      listeners="$(ss -Htlnp "sport = :$port" 2>/dev/null || true)"
+    elif command -v lsof >/dev/null 2>&1; then
+      # lsof sees only this user's processes, so the connection probe below backs it up.
+      listeners="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+    fi
+    if [[ -z "$listeners" ]] && (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+      listeners="something accepts connections on 127.0.0.1:$port"
+    fi
+    [[ -n "$listeners" ]] && out+="Listening: $listeners"$'\n'
+    printf '%s' "$out"
+  }
+
+  requested_port="${LANTERN_DB_PORT:-5432}"
+  if ! [[ "$requested_port" =~ ^[1-9][0-9]{0,4}$ ]] || ((requested_port > 65535)); then
+    die "LANTERN_DB_PORT must be a port number from 1 to 65535, got '$requested_port'"
+  fi
+
+  running_port=""
+  if [[ -n "$(compose ps -q --status running postgres 2>/dev/null)" ]]; then
+    running_port="$({ compose port postgres 5432 2>/dev/null || true; } | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p' | head -n 1)"
+  fi
+
+  if [[ -n "$running_port" ]]; then
+    if [[ "$running_port" != "$requested_port" ]]; then
+      if [[ -n "${LANTERN_DB_PORT:-}" ]]; then
+        die "the database of project $PROJECT already runs on port $running_port, not $LANTERN_DB_PORT;" \
+          "unset LANTERN_DB_PORT to use it, or stop it first with scripts/teardown.sh"
+      fi
+      info "the database of project $PROJECT already runs on port $running_port; using that port"
+    else
+      info "the database of project $PROJECT already runs on port $running_port"
+    fi
+    port="$running_port"
+  else
+    port="$requested_port"
+    holder="$(port_holder "$port")"
+    if [[ -n "$holder" ]]; then
+      if ! $auto_port; then
+        die "port $port is already in use, so the database cannot start on it."$'\n'"$holder"$'\n'"Set LANTERN_DB_PORT to a free port, or pass --auto-port."
+      fi
+      for ((candidate = port + 1; candidate <= port + 100 && candidate <= 65535; candidate++)); do
+        if [[ -z "$(port_holder "$candidate")" ]]; then
+          break
+        fi
+      done
+      ((candidate <= port + 100 && candidate <= 65535)) || die "no free port found from $port to $((port + 100))"
+      info "port $port is in use; using port $candidate instead"
+      port="$candidate"
+    fi
+  fi
+
+  # --- Database ------------------------------------------------------------------------
+
+  export LANTERN_DB_PORT="$port"
+  info "starting the database of project $PROJECT on port $port"
+  compose up -d --wait postgres >&2 || die "the database did not start or did not become healthy; see 'docker compose -p $PROJECT logs postgres'"
+  # Healthy inside its container is not yet reachable from the host: under rootless Docker the port
+  # is forwarded a moment later, longer when several databases start at once (#785).
+  # Postgres itself must answer: an SSL request, which it answers with one byte, N or S, while a
+  # forwarder that is not ready yet accepts the connection and closes it.
+  postgres_answers() {
+    local reply=""
+    exec 3<>"/dev/tcp/127.0.0.1/$1" || return 1
+    printf '\x00\x00\x00\x08\x04\xd2\x16\x2f' >&3
+    IFS= read -r -n 1 -t 2 reply <&3 || true
+    exec 3<&- 3>&-
+    [[ "$reply" == N || "$reply" == S ]]
+  }
+  for ((waited = 0; waited < 60; waited++)); do
+    postgres_answers "$port" 2>/dev/null && break
+    sleep 1
+  done
+  ((waited < 60)) || die "the database is healthy but port $port did not accept a connection within 60 s"
+  export LANTERN_DB_URL="jdbc:postgresql://localhost:$port/lantern"
+  info "database ready at $LANTERN_DB_URL"
+
+fi
 
 if $db_only; then
   exit 0

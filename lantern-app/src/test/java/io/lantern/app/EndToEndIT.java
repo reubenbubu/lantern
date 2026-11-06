@@ -295,6 +295,12 @@ class EndToEndIT {
   @Autowired FactRepository facts;
   @Autowired BuildSandbox sandbox;
   @Autowired ApplicationContext context;
+  @Autowired org.springframework.jdbc.core.simple.JdbcClient jdbc;
+
+  /** How many LLM calls the store has logged. */
+  private long callCount() {
+    return jdbc.sql("SELECT count(*) FROM llm_calls").query(Long.class).single();
+  }
 
   @TempDir Path temp;
 
@@ -354,6 +360,55 @@ class EndToEndIT {
         .contains("shop.c4.html")
         .contains("_system.c4.html")
         .contains("run.json");
+
+    // Rendered again from what the store holds (#926): the same documents, byte for byte, with no
+    // build and no LLM call; written over the ones the run wrote, in the snapshot's folder.
+    Path folder =
+        output
+            .lines()
+            .filter(line -> line.contains("_system.c4.html"))
+            .map(line -> Path.of(line.substring(line.indexOf('/'))).getParent())
+            .findFirst()
+            .orElseThrow();
+    Map<String, String> written = new java.util.TreeMap<>();
+    try (var files = Files.list(folder)) {
+      for (Path file : files.filter(f -> f.toString().endsWith(".html")).toList()) {
+        written.put(file.getFileName().toString(), Files.readString(file));
+        Files.delete(file);
+      }
+    }
+    long callsBefore = callCount();
+    ByteArrayOutputStream rendered = new ByteArrayOutputStream();
+    AnalyzeCommand render =
+        new AnalyzeCommand(run, new PrintStream(rendered, true, StandardCharsets.UTF_8));
+    render.run(new DefaultApplicationArguments("render", "--system=shop"));
+    String renderOutput = rendered.toString(StandardCharsets.UTF_8);
+    assertThat(render.getExitCode()).as(renderOutput).isZero();
+    assertThat(renderOutput).contains("_system.c4.html");
+    assertThat(callCount()).as("LLM calls made by render").isEqualTo(callsBefore);
+    for (Map.Entry<String, String> file : written.entrySet()) {
+      assertThat(Files.readString(folder.resolve(file.getKey())))
+          .as(file.getKey())
+          .isEqualTo(file.getValue());
+    }
+    // An earlier snapshot by its number, and a system nothing was stored for.
+    assertThat(run.render("shop", twice.first().snapshot().number(), false))
+        .extracting(d -> d.file().getParent())
+        .containsOnly(twice.first().documents().getFirst().file().getParent());
+    // Only the system's report, and no snapshot of another system or none.
+    assertThat(run.render("shop", null, true))
+        .extracting(d -> d.file().getFileName().toString())
+        .containsExactly("_system.c4.html");
+    assertThatThrownBy(() -> run.render("shop", 999_999L, false))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("is not a snapshot of the system shop");
+    ByteArrayOutputStream unknown = new ByteArrayOutputStream();
+    AnalyzeCommand none =
+        new AnalyzeCommand(run, new PrintStream(unknown, true, StandardCharsets.UTF_8));
+    none.run(new DefaultApplicationArguments("render", "--system=no-such-system"));
+    assertThat(none.getExitCode()).isEqualTo(1);
+    assertThat(unknown.toString(StandardCharsets.UTF_8))
+        .contains("no finished analysis of the system no-such-system");
   }
 
   /**

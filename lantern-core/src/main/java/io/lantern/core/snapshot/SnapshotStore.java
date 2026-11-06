@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -197,6 +198,42 @@ public class SnapshotStore {
         .query(SnapshotStore::mapHeader)
         .optional()
         .map(this::withCommits);
+  }
+
+  /**
+   * Marks the snapshot's analysis run as finished, its documents written (#926), so {@link
+   * #latestCompleted} takes it. Marking it again keeps the first time.
+   */
+  public void markCompleted(long snapshot) {
+    jdbc.sql("UPDATE snapshots SET completed_at = now() WHERE number = :n AND completed_at IS NULL")
+        .param("n", snapshot)
+        .update();
+  }
+
+  /**
+   * The latest snapshot of a system whose analysis run finished (see {@link #markCompleted}), if
+   * any (#926); a run stopped part way is passed over.
+   */
+  public Optional<Snapshot> latestCompleted(String system) {
+    return jdbc.sql(
+            """
+            SELECT number, vocabulary_revision, tool_version, created_at FROM snapshots
+            WHERE system = :system AND completed_at IS NOT NULL
+            ORDER BY number DESC LIMIT 1
+            """)
+        .param("system", Objects.requireNonNull(system, "system"))
+        .query(SnapshotStore::mapHeader)
+        .optional()
+        .map(this::withCommits);
+  }
+
+  /** The repositories the snapshot's analysis analyzed, not those it carried forward (#926). */
+  public Set<String> analyzedIn(long number) {
+    return new TreeSet<>(
+        jdbc.sql("SELECT repository FROM snapshot_repositories WHERE snapshot = :n AND analyzed")
+            .param("n", number)
+            .query(String.class)
+            .list());
   }
 
   /** A snapshot row without its commits. */
