@@ -60,6 +60,8 @@ class QualityBarTest {
         Validity.from(1));
   }
 
+  private static final EntityId SALES = EntityId.parse("group:system/domain/sales");
+
   private static Diagram.Node node(EntityId id, String label, String technology, Fact... facts) {
     return new Diagram.Node(
         id,
@@ -101,7 +103,7 @@ class QualityBarTest {
   private static Document document(String template, String audience, Section... sections) {
     List<Fact> facts = List.of(SHOP_UNIT, PAY_UNIT, CALL, AUDIT);
     Map<EntityId, DocumentEntity> entities = new TreeMap<>(Knowledge.BY_ID);
-    List<EntityId> ids = new ArrayList<>(List.of(SYSTEM, SHOP, PAY, DB, PACKAGE));
+    List<EntityId> ids = new ArrayList<>(List.of(SYSTEM, SHOP, PAY, DB, PACKAGE, SALES));
     for (int i = 0; i < DiagramLimits.DEFAULT.mostElements() - 2; i++) {
       ids.add(EntityId.parse("topic:kafka:t" + i));
     }
@@ -439,6 +441,35 @@ class QualityBarTest {
 
     assertThat(failed(document, QualityBar.REPEATED))
         .containsExactly("d2: It shows what \"Containers of Shop\" does.");
+  }
+
+  @Test
+  void aDomainBoxWithNoPageAboutItFails() {
+    EntityId domain = SALES;
+    Diagram withDomain =
+        new Diagram(
+            "d",
+            Diagram.Kind.C4_CONTAINER,
+            "Containers of Shop",
+            List.of(
+                node(SYSTEM, "Shop", null),
+                node(SHOP, "shop", "Spring Boot", SHOP_UNIT),
+                node(domain, "Sales", null)),
+            List.of(edge("e1", SHOP, domain, "Takes payment", "JSON/HTTP", CALL)),
+            List.of());
+    Section about =
+        new Section("sales", "Sales", Set.of(), domain, List.of(), List.of(), List.of());
+
+    assertThat(
+            failed(
+                document("c4-model-sequence-diagrams", "a", section("s", "S", withDomain)),
+                QualityBar.BOX_PAGE))
+        .containsExactly("d: Sales has no page of its own.");
+    assertThat(
+            failed(
+                document("c4-model-sequence-diagrams", "a", section("s", "S", withDomain), about),
+                QualityBar.BOX_PAGE))
+        .isEmpty();
   }
 
   @Test

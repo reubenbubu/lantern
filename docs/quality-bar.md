@@ -269,7 +269,7 @@ LLM found is marked as such.
 
 | Document | Passes only if |
 | --- | --- |
-| C4 report | States its reader and pins its commits and date. Its first paragraph says what the system is (what runs and its main parts) and the single most important fact about it. Every specific claim links to a fact or source. README claims agree with the code. Unknowns are stated once, plainly. No sentence that would be true of any Spring application. One name per concept across text, diagrams and glossary. No diagram repeated across sections. C4 pages hold only C4 content; findings (risks, decisions, unknowns), the glossary, the catalog, the deployment table and the sources are documentation pages of their own. |
+| C4 report | States its reader and pins its commits and date. Its first paragraph says what the system is (what runs and its main parts) and the single most important fact about it. Every specific claim links to a fact or source. README claims agree with the code. Unknowns are stated once, plainly. No sentence that would be true of any Spring application. One name per concept across text, diagrams and glossary. No diagram repeated across sections. Every domain or feature area drawn as one box has a page of its own, which the box opens, and the navigation nests each unit under its domain and each area under its unit (ADR 0130). C4 pages hold only C4 content; findings (risks, decisions, unknowns), the glossary, the catalog, the deployment table and the sources are documentation pages of their own. |
 
 ## Test material
 
