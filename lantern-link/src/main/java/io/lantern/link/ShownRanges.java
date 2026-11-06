@@ -16,9 +16,8 @@ import tools.jackson.databind.JsonNode;
 /**
  * Every file range an answer cites is one the conversation was shown: lines a tool showed (the
  * graph's {@code read_file} and {@code find_in_code}, or the shell's tools, #893), or an excerpt of
- * the request (#715). A range the model never
- * saw is rejected with a reason naming it, so a citation always traces to what the model was shown
- * ({@code docs/quality-bar.md}).
+ * the request (#715). A range the model never saw is rejected with a reason naming it, so a
+ * citation always traces to what the model was shown ({@code docs/quality-bar.md}).
  */
 final class ShownRanges implements Check {
 

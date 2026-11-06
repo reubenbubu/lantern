@@ -73,7 +73,7 @@ final class ShellTools implements CodeTools {
           + " signature, in order: a guide to which lines to read, never something to cite.";
 
   private static final Pattern GREP_LINE = Pattern.compile("^(?:\\./)?([^:\\s]+):(\\d+)[:-](.*)$");
-  private static final Pattern NL_LINE = Pattern.compile("^\\s*(\\d+)\\t(.*)$");
+  private static final Pattern NL_LINE = Pattern.compile("^\\s*(\\d+)(?:\\t|[:-])(.*)$");
   private static final Pattern CD =
       Pattern.compile("(?:^|[;&|(]\\s*)cd\\s+(?:/work/)?([^\\s;&|)/]+)");
   private static final Pattern TOKEN = Pattern.compile("[A-Za-z0-9_./@-]+");

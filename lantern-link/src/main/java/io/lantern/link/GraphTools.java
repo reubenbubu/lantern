@@ -98,6 +98,9 @@ public final class GraphTools implements CodeTools {
   static final String NEIGHBOURS = "neighbours";
   static final String SUMMARY_OF = "summary_of";
 
+  /** The tools Mode A may use (knowledge-build epic, section 11.2). */
+  static final Set<String> LEAD_TOOLS = Set.of(READ_FILE, FIND_IN_CODE, FACTS_ABOUT);
+
   /** The most lines one search gives. */
   static final int MAX_HITS = 30;
 
@@ -352,7 +355,7 @@ public final class GraphTools implements CodeTools {
    */
   @Override
   public List<LlmTool> leadTools() {
-    return tools().stream().filter(t -> InvestigateRole.LEAD_TOOLS.contains(t.name())).toList();
+    return tools().stream().filter(t -> LEAD_TOOLS.contains(t.name())).toList();
   }
 
   @Override

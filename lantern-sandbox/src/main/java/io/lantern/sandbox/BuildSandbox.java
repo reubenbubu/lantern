@@ -183,6 +183,14 @@ public class BuildSandbox {
   }
 
   /**
+   * Starts Investigate's shell container over a folder holding one folder per repository, with this
+   * sandbox's Docker command and labels (#893, ADR 0127).
+   */
+  public InvestigateShell investigateShell(java.nio.file.Path repositories) {
+    return InvestigateShell.start(settings, repositories);
+  }
+
+  /**
    * Builds the repository at the commit, replacing any stored result for that {@code repo@commit}.
    * Waits while the most builds allowed at once are running.
    *

@@ -93,6 +93,29 @@ public final class GitSourceFiles implements SourceFiles {
     return cat(repo, blob, path, blob);
   }
 
+  /**
+   * The paths of a repository's files at a commit, with {@code git ls-tree}; none if git fails
+   * (#893).
+   */
+  public java.util.List<String> paths(String repo, String commit) {
+    Optional<Path> dir = directories.apply(repo);
+    if (dir.isEmpty() || commit.startsWith("-")) {
+      return java.util.List.of();
+    }
+    try {
+      Git.Result result = Git.run(dir.get(), "ls-tree", "-r", "-z", "--name-only", commit);
+      if (result.exitCode() != 0) {
+        return java.util.List.of();
+      }
+      return java.util.Arrays.stream(result.out().split("\u0000"))
+          .filter(p -> !p.isBlank())
+          .toList();
+    } catch (RuntimeException e) {
+      LOG.warn("Cannot list the files of {} at {}", repo, commit, e);
+      return java.util.List.of();
+    }
+  }
+
   /** A line of a file at a commit that holds a text. */
   public record Match(String path, int line) {}
 

@@ -441,6 +441,13 @@ public final class AnalysisRun {
                   .flatMap(commit -> snapshotSources.read(repo, commit, path));
             }
 
+            // The Investigate shell's copy of each repository at the snapshot's commit (#893).
+            @Override
+            public List<String> paths(String repo) {
+              String commit = snapshot.commits().get(repo);
+              return commit == null ? List.of() : snapshotSources.paths(repo, commit);
+            }
+
             // find_in_code searches each repository at the snapshot's commit (ADR 0105).
             @Override
             public List<GraphTools.Hit> find(String repo, String text, int max) {
@@ -563,7 +570,10 @@ public final class AnalysisRun {
         // 0110). It reads the facts made before it: static facts, summaries and resolved links.
         io.lantern.link.Investigator.Result investigated =
             new io.lantern.link.Investigator(
-                    harness, snapshotFiles, io.lantern.derive.LeadRules.judges())
+                    harness,
+                    snapshotFiles,
+                    io.lantern.derive.LeadRules.judges(),
+                    (root, written) -> shellContainer(sandbox.investigateShell(root)))
                 .investigate(
                     facts.findValidAt(snapshot.number(), snapshot.commits().keySet()),
                     snapshot.number());
@@ -1154,6 +1164,24 @@ public final class AnalysisRun {
               result.add(new RepoBuild(repo, commit, storedBuild(sandbox, repo, commit)));
             });
     return result;
+  }
+
+  /** Investigate's shell container as Investigate's tools run commands in it (#893). */
+  static io.lantern.link.ShellWorkspace.Container shellContainer(
+      io.lantern.sandbox.InvestigateShell shell) {
+    return new io.lantern.link.ShellWorkspace.Container() {
+      @Override
+      public io.lantern.link.ShellWorkspace.Run run(String command) {
+        io.lantern.sandbox.InvestigateShell.Run run = shell.run(command);
+        return new io.lantern.link.ShellWorkspace.Run(
+            run.out(), run.err(), run.exitCode(), run.timedOut(), run.overCeiling());
+      }
+
+      @Override
+      public void close() {
+        shell.close();
+      }
+    };
   }
 
   /**

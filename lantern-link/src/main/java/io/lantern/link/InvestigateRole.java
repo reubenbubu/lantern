@@ -68,8 +68,7 @@ final class InvestigateRole implements PacketRole {
   }
 
   /** The tools Mode A may use (knowledge-build epic, section 11.2). */
-  static final Set<String> LEAD_TOOLS =
-      Set.of(GraphTools.READ_FILE, GraphTools.FIND_IN_CODE, GraphTools.FACTS_ABOUT);
+  static final Set<String> LEAD_TOOLS = GraphTools.LEAD_TOOLS;
 
   /** The verdicts of a lead. */
   static final Set<String> VERDICTS = Set.of("confirmed", "refuted", "unclear");
