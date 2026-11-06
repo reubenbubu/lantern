@@ -290,3 +290,34 @@ its quotes. One lead a conversation, whatever a setting or a calibration says (t
 #529 no longer applies), and a lead left unanswered is not asked again alone. Where this ADR says a
 lead's item shows what to judge, its unit's facts and the code around each fact, or that a lead's
 answer is a `submit` entry naming its item, read ADR 0128.
+
+## Amendment (#904): a unit's and the system's conversations work like a lead's
+
+Modes B and C now run as Mode A does since ADR 0128, so Investigate has one design:
+
+- *Tools and turns.* The lead's tools in the same container, and the lead's limits: no tight turn
+  limit, a guard on the size of one turn, a safety stop at 100 turns.
+- *Instructions.* Their own, `prompts/investigate-explore.system.txt` and
+  `prompts/investigate-explore.task.txt`, without the common system prompt or a JSON schema. The
+  epic's text for Modes B and C (section 11.2) is no longer sent.
+- *First message.* TOML, built by `InvestigateExploreMessage`. `[task]` says what to look for and
+  lists the repositories and every unit's ID, which a connection or a risk names. For a unit,
+  `[unit]` holds its summaries and its facts as short sentences, each once, at most 150. For the
+  system, `[[unit]]` holds one entry a unit, with the links between units counted once
+  (`a -> b [CALLS_HTTP] x8`). Each `[[known]]` is a lead already checked, with its verdict, or a
+  risk already found, without the lead's ID, which says nothing to the model. No system map and no
+  `<answers>` block.
+- *Answer.* The same `answer` tool, taking TOML: `[[risk]]` and `[[connection]]` tables, each with
+  its `[[risk.evidence]]` or `[[connection.evidence]]` pieces written as a lead's. Each table is a
+  proposal, numbered on across the conversation's answers, and is checked as before (a connection's
+  ends, infrastructure, a repeated link, at most `MAX_PROPOSALS`), plus each piece's quote and
+  names, as a lead's are (ADR 0128); coverage and the rule that a cited line was shown no longer
+  apply to them. A rejection of any part rejects that proposal only: the others are kept, and the
+  reply names the rejected ones by kind and title, not by their number, which the model never saw.
+  The model may answer three times; each answer adds what passes to what was kept, and an answer
+  with nothing rejected, or the third, ends the conversation. An answer with no table says nothing
+  was found.
+- *Harness.* A role whose entries may be kept in part (`partial()`) can now take a single answer:
+  the parts no check rejected are kept and merged with earlier ones (`SubmitTool`).
+
+The prompt version rises to 13, so every Investigate answer is asked again.

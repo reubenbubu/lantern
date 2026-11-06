@@ -74,6 +74,7 @@ class InvestigateExploreMessageTest {
             repositories = ["shop"]
             units = ["service:shop:billing", "service:shop:orders"]
             ends = "A connection ends at a unit or element by its ID, or at a system no ID names as external-system:<name> or database:<name>."
+            already_known = "Each [[known]] below is a lead already checked or a risk already found; do not report it again, nor a link the facts already state."
 
             [unit]
             id = "service:shop:orders"
@@ -112,13 +113,16 @@ class InvestigateExploreMessageTest {
             List.of("billing", "shop"),
             units,
             Map.of(),
-            List.of(ORDERS + " -> " + BILLING + " [CALLS_HTTP]"),
+            List.of(
+                ORDERS + " -> " + BILLING + " [CALLS_HTTP]",
+                ORDERS + " -> " + BILLING + " [CALLS_HTTP]"),
             List.of("lead confirmed: " + ORDERS + ": Orders trust the user header"));
 
     JsonNode read = InvestigateLeadAnswer.parse(message);
     assertThat(read.path("task").path("units")).hasSize(2);
     assertThat(read.path("task").path("links").get(0).asString())
-        .isEqualTo(ORDERS + " -> " + BILLING + " [CALLS_HTTP]");
+        .isEqualTo(ORDERS + " -> " + BILLING + " [CALLS_HTTP] x2");
+    assertThat(read.path("task").path("links")).hasSize(1);
     assertThat(read.path("unit")).hasSize(2);
     assertThat(read.path("unit").get(1).path("id").asString()).isEqualTo(ORDERS);
     assertThat(read.path("known").get(0).path("verdict").asString()).isEqualTo("confirmed");

@@ -12,7 +12,7 @@ import java.util.Set;
  * The first message of a unit's or the system's conversation (Modes B and C, #904), as TOML like a
  * lead's: {@code [task]} says what to look for and lists the unit IDs and repositories; {@code
  * [unit]} (Mode B) holds the unit's summaries and facts as short sentences, or {@code [[unit]]}
- * (Mode C) one entry a unit with the links static analysis found counted once; each {@code
+ * (Mode C) one entry a unit, with the links static analysis found counted once; each {@code
  * [[known]]} is a lead already checked or a risk already found, so it is not reported again.
  */
 final class InvestigateExploreMessage {
@@ -26,6 +26,10 @@ final class InvestigateExploreMessage {
   private static final String NEW_ENDS =
       "A connection ends at a unit or element by its ID, or at a system no ID names as"
           + " external-system:<name> or database:<name>.";
+
+  private static final String ALREADY_KNOWN =
+      "Each [[known]] below is a lead already checked or a risk already found; do not report it"
+          + " again, nor a link the facts already state.";
 
   private InvestigateExploreMessage() {}
 
@@ -57,6 +61,9 @@ final class InvestigateExploreMessage {
     out.append("repositories = ").append(list(repos)).append('\n');
     out.append("units = ").append(list(units)).append('\n');
     out.append("ends = ").append(Toml.string(NEW_ENDS)).append('\n');
+    if (!known.isEmpty()) {
+      out.append("already_known = ").append(Toml.string(ALREADY_KNOWN)).append('\n');
+    }
     out.append("\n[unit]\nid = ").append(Toml.string(unit)).append('\n');
     List<String> about = summaries(summaries);
     if (!about.isEmpty()) {
@@ -103,9 +110,12 @@ final class InvestigateExploreMessage {
     out.append("repositories = ").append(list(repos)).append('\n');
     out.append("units = ").append(list(units.keySet())).append('\n');
     out.append("ends = ").append(Toml.string(NEW_ENDS)).append('\n');
-    List<String> distinct = new ArrayList<>(new LinkedHashSet<>(links));
-    if (!distinct.isEmpty()) {
-      out.append("links = ").append(lines(distinct)).append('\n');
+    if (!known.isEmpty()) {
+      out.append("already_known = ").append(Toml.string(ALREADY_KNOWN)).append('\n');
+    }
+    List<String> counted = counted(links);
+    if (!counted.isEmpty()) {
+      out.append("links = ").append(lines(counted)).append('\n');
     }
     units.forEach(
         (unit, unitRepos) -> {
@@ -118,6 +128,15 @@ final class InvestigateExploreMessage {
         });
     known(out, known);
     return out.toString();
+  }
+
+  /** Links counted once each, in their order: {@code a -> b [CALLS_HTTP] x8}. */
+  static List<String> counted(List<String> links) {
+    Map<String, Integer> counts = new java.util.LinkedHashMap<>();
+    links.forEach(link -> counts.merge(link, 1, Integer::sum));
+    List<String> out = new ArrayList<>();
+    counts.forEach((link, n) -> out.add(n > 1 ? link + " x" + n : link));
+    return out;
   }
 
   private static void known(StringBuilder out, List<String> known) {
