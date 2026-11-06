@@ -11,7 +11,7 @@ verdicts = "confirmed: on some path a caller's own value of the header reaches t
 hint = "Look at what sits in front of {units}: a gateway's filters and routes, or a filter of {units} itself."
 
 [send-before-commit]
-question = "{code} runs inside a database transaction and sends {sends} before the transaction commits. Can the receiver act on data that is not committed yet, or that is rolled back, with an effect someone can see?"
+question = "A database transaction runs through {code}, and the code sends {sends} before the transaction commits. Can the receiver act on data that is not committed yet, or that is rolled back, with an effect someone can see?"
 verdicts = "confirmed: the send happens before the commit and a rollback or early read leaves a visible effect. refuted: the send happens after the commit, or it changes nothing a rollback would leave wrong (a read, say), and you can show where. unclear: the code does not settle it."
 hint = "Start at the method that holds the transaction, and follow what it does after the send."
 
@@ -25,7 +25,7 @@ verdicts = "confirmed: on some path it reaches no service that answers it. refut
 hint = "The gateway's routes are in its configuration, in {unitRepos}: search there for the path's first segments."
 
 [weak-access-check]
-question = "{trigger}. {code} is the endpoint. Can a caller who should not be allowed use it, or does a check elsewhere (a filter, a security configuration, the method's own code) stop them?"
+question = "{trigger}. The endpoint's code: {code}. Can a caller who should not be allowed use it, or does a check elsewhere (a filter, a security configuration, the method's own code) stop them?"
 verdicts = "confirmed: a caller without the right role or membership can use it on some path. refuted: a check stops them on every path, and you can show it. unclear: the code does not settle it."
 
 [shared-type-skew]

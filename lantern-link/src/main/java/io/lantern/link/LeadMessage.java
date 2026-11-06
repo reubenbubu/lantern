@@ -198,9 +198,7 @@ final class LeadMessage {
         .replace("{detail}", detail.isEmpty() ? "it" : detail)
         .replace(
             "{code}",
-            code.isEmpty()
-                ? "the code"
-                : String.join(", ", code.subList(0, Math.min(3, code.size()))))
+            code.isEmpty() ? "the code" : words(code.subList(0, Math.min(3, code.size()))))
         .replace(
             "{sends}",
             sent.isEmpty()

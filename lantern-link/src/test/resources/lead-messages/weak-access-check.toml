@@ -1,5 +1,5 @@
 [task]
-question = "The endpoint DELETE /orders/{id} of orders checks only that the caller is signed in. OrderController.delete is the endpoint. Can a caller who should not be allowed use it, or does a check elsewhere (a filter, a security configuration, the method's own code) stop them?"
+question = "The endpoint DELETE /orders/{id} of orders checks only that the caller is signed in. The endpoint's code: OrderController.delete. Can a caller who should not be allowed use it, or does a check elsewhere (a filter, a security configuration, the method's own code) stop them?"
 verdicts = "confirmed: a caller without the right role or membership can use it on some path. refuted: a check stops them on every path, and you can show it. unclear: the code does not settle it."
 repositories = ["shop"]
 
