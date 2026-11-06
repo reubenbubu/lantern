@@ -131,7 +131,11 @@ class PromptsTest {
   private static List<Path> files(Path dir) throws IOException {
     try (Stream<Path> list = Files.list(dir)) {
       return list.filter(Files::isRegularFile)
-          .filter(p -> p.toString().endsWith(".txt") || p.toString().endsWith(".json"))
+          .filter(
+              p ->
+                  p.toString().endsWith(".txt")
+                      || p.toString().endsWith(".json")
+                      || p.toString().endsWith(".toml"))
           .sorted()
           .toList();
     }

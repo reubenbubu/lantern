@@ -174,7 +174,7 @@ public final class Prompts {
       for (Path file : files.filter(Files::isRegularFile).sorted().toList()) {
         String name = file.getFileName().toString();
         if (Prompts.class.getResource(BUILT_IN + name) == null) {
-          if (name.endsWith(".txt") || name.endsWith(".json")) {
+          if (name.endsWith(".txt") || name.endsWith(".json") || name.endsWith(".toml")) {
             unknown.add(name);
           }
         } else if (edited(name)) {

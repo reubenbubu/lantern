@@ -317,6 +317,20 @@ public final class Investigator {
     return List.copyOf(names);
   }
 
+  /**
+   * The first message each lead of the facts would be sent, by lead (#860): for the tests that hold
+   * every first message of the test sets to its size, and for reading them.
+   */
+  public static Map<String, String> firstMessages(List<Fact> facts, GraphTools.RepoFiles files) {
+    Model model = new Model(facts);
+    GraphTools.Graph graph = new GraphTools.Graph(facts, files);
+    Map<String, String> messages = new LinkedHashMap<>();
+    for (Lead lead : model.leads) {
+      messages.put(lead.id(), LeadMessage.of(lead, model, graph::lines));
+    }
+    return messages;
+  }
+
   // ---------------------------------------------------------------------------------------------
   // What the snapshot's facts say
 
