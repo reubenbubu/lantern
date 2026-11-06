@@ -383,7 +383,7 @@ public final class Groups implements LinkRule.OverFacts {
     for (Pockets.Pocket pocket : Pockets.of(loose, edges, pocketSize)) {
       String key = pocket.central().key();
       String type = key.substring(key.lastIndexOf('/') + 1);
-      String signal = "pocket-" + type.substring(type.lastIndexOf('.') + 1);
+      String signal = free("pocket-" + type.substring(type.lastIndexOf('.') + 1), areas.keySet());
       Forming forming = new Forming(signal, COUPLING);
       pocket.members().forEach((member, facts) -> forming.join(member, COUPLING, facts));
       areas.put(signal, forming);
@@ -861,12 +861,24 @@ public final class Groups implements LinkRule.OverFacts {
     SortedMap<String, Forming> found = new TreeMap<>();
     for (Pockets.Pocket pocket : Pockets.of(grouped, edges, pocketSize)) {
       String key = pocket.central().key();
-      String signal = "pocket-" + key.substring(key.lastIndexOf(':') + 1);
+      String signal = free("pocket-" + key.substring(key.lastIndexOf(':') + 1), found.keySet());
       Forming forming = new Forming(signal, COUPLING);
       pocket.members().forEach((member, facts) -> forming.join(member, COUPLING, facts));
       found.put(signal, forming);
     }
     return found;
+  }
+
+  /**
+   * A pocket's signal no other group of the scope has: two central members with one simple name (or
+   * two units with one artifactId) give the later pocket, in {@link Pockets}' order, a number.
+   */
+  static String free(String signal, Set<String> taken) {
+    String candidate = signal;
+    for (int n = 2; taken.contains(candidate); n++) {
+      candidate = signal + "-" + n;
+    }
+    return candidate;
   }
 
   /** Keeps a signal's groups of at least 2 units; their units are grouped. */

@@ -152,6 +152,36 @@ class GroupViewsTest {
   }
 
   @Test
+  void aUnitInNoDomainKeepsItsLinesOutsideOnAPageOfItsOwnWhenTheMapLeavesThemOff() {
+    // No domain's page draws a unit in no domain, so its own page does (#764 review).
+    String edge = "service:com.example:edge";
+    String idp = "external-system:idp.example.com";
+    TestFacts more = pair();
+    more.relate("edge", edge, "CONTAINS", "module:com.example:edge")
+        .attribute("edge", "module:com.example:edge", "packaging", "jar")
+        .attribute("edge", edge, "deployable-unit", "spring-boot", "{}")
+        .relate("edge", edge, "CALLS_HTTP", idp, "{\"protocol\": \"HTTPS\", \"path\": \"/token\"}")
+        .relate(
+            "edge",
+            edge,
+            "CALLS_HTTP",
+            APP,
+            "{\"protocol\": \"JSON/HTTP\", \"endpoint\": \"GET /orders\"}");
+    List<Fact> facts = more.list();
+    Diagram whole = block(section(system(facts, limits(100, 2)), "containers"), Diagram.class);
+    Diagram map =
+        block(
+            section(system(facts, limits(C4Views.elements(whole) - 1, 2)), "containers"),
+            Diagram.class);
+    Section smaller = section(system(facts, limits(C4Views.elements(map) - 1, 2)), "containers");
+
+    assertThat(block(smaller, Diagram.class).nodes()).noneMatch(n -> n.id().toString().equals(idp));
+    assertThat(diagrams(smaller))
+        .anyMatch(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(idp)));
+    assertThat(smaller.sections()).anyMatch(p -> p.title().startsWith(C4Views.NO_DOMAIN));
+  }
+
+  @Test
   void aMapOfDomainsStillTooLargeLeavesTheSystemsOutsideOffAndItsPagesDrawThem() {
     // Owner's decision of 6 Nov 2026 on #764.
     String pay = "external-system:pay.example.com";
@@ -283,7 +313,7 @@ class GroupViewsTest {
         .doesNotContain(job);
     Section outside =
         app.sections().stream()
-            .filter(p -> p.title().equals("Reached only from outside shop-app"))
+            .filter(p -> p.title().equals("Connected to no feature area"))
             .findFirst()
             .orElseThrow();
     assertThat(block(outside, Diagram.class).nodes())
@@ -320,7 +350,7 @@ class GroupViewsTest {
 
     List<Section> pages =
         app.sections().stream()
-            .filter(p -> p.title().startsWith("Reached only from outside shop-app"))
+            .filter(p -> p.title().startsWith("Connected to no feature area"))
             .toList();
     assertThat(pages)
         .hasSizeGreaterThan(1)
@@ -334,6 +364,40 @@ class GroupViewsTest {
                       .anyMatch(n -> n.id().toString().equals(job)))
           .hasSize(1);
     }
+  }
+
+  @Test
+  void aUnitWithNoAreaStillTooLargeIsSplitWithWhatItReachesOutsideNotLeftOff() {
+    // With no area there is no area page to draw the outside (#764 review).
+    TestFacts many = TestFacts.runtime();
+    String jobs = "package:com.example:app:com.example.jobs";
+    many.relate("shop", "module:com.example:app", "CONTAINS", jobs);
+    for (int i = 0; i < 8; i++) {
+      String job = "type:com.example.jobs.Job" + i;
+      many.relate("shop", jobs, "CONTAINS", job)
+          .relate("shop", job, "CONTAINS", "method:com.example.jobs.Job" + i + "#run()")
+          .attribute(
+              "shop",
+              "method:com.example.jobs.Job" + i + "#run()",
+              "scheduled",
+              "0 * * * * *",
+              "{}");
+    }
+    DiagramLimits limits = limits(5, 2);
+    Section app =
+        section(system(many.list(), limits), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(app.blocks())
+        .filteredOn(Callout.class::isInstance)
+        .noneMatch(c -> text(((Callout) c).content()).contains("each area's page"));
+    assertThat(diagrams(app))
+        .anyMatch(
+            d ->
+                d.nodes().stream()
+                    .anyMatch(n -> n.id().toString().equals("external-system:pay.example.com")));
   }
 
   @Test
@@ -377,7 +441,7 @@ class GroupViewsTest {
             c -> text(((Callout) c).content()).startsWith("Guard cuts across the feature areas"));
     // It is not taken for a component reached only from outside.
     assertThat(app.sections())
-        .filteredOn(p -> p.title().startsWith("Reached only from outside"))
+        .filteredOn(p -> p.title().startsWith("Connected to no feature area"))
         .allSatisfy(
             p ->
                 assertThat(block(p, Diagram.class).nodes())

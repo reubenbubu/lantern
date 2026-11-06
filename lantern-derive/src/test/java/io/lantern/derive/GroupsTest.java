@@ -357,6 +357,33 @@ class GroupsTest {
   }
 
   @Test
+  void twoPocketsWhoseCentralUnitsShareANameAreBothKept() {
+    // Two units with one artifactId in different groups (#764 review).
+    EntityId orders = unit("service:io.acme:orders");
+    EntityId stock = unit("service:io.acme:stock");
+    EntityId otherOrders = unit("service:io.acme.x:orders");
+    EntityId mail = unit("service:io.acme:mail");
+    calls(orders, stock);
+    calls(stock, orders);
+    calls(otherOrders, mail);
+    calls(mail, otherOrders);
+
+    Map<String, Set<String>> domains = domains();
+
+    assertThat(domains)
+        .containsOnlyKeys(domain("pocket-orders"), domain("pocket-orders-2"))
+        .containsValues(
+            Set.of(orders.toString(), stock.toString()),
+            Set.of(otherOrders.toString(), mail.toString()));
+  }
+
+  private EntityId unit(String id) {
+    EntityId unit = EntityId.parse(id);
+    model.add(unit, "deployable-unit", FactObject.string("spring-boot"));
+    return unit;
+  }
+
+  @Test
   void thePocketSizeSettingCapsAPocketAndTheOrderOfTheFactsChangesNothing() {
     EntityId a = unitNamed("a");
     EntityId b = unitNamed("b");
