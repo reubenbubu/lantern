@@ -43,3 +43,27 @@ shown, and so is one named as a secret in a form not read: inside JSON or YAML i
 String("x"))`, `prefix + "x"`, `c ? "a" : "b"`, `() -> "x"`, `new String[] {"x"}`), as an
 annotation default (`String password() default "x"`), or compared through `Objects.equals` or
 `this.password`. Tokens recognised by their shape alone (high entropy, provider prefixes) are not detected.
+
+## Amendment (#912): a placeholder keeps its variable name
+
+A secret's value that holds placeholders was masked whole, so `bff.jwt.signing-key=${BFF_JWT_SIGNING_KEY:dev-key}`
+was shown as `bff.jwt.signing-key=******` and a model could not tell a value taken from the
+environment from one committed in the file, which is what a plaintext-secret lead asks. Now
+(`SecretPlaceholders`), in config, `.env` and Compose files and in a one-line Java literal named
+as a secret, each placeholder keeps its name and only what is written is masked:
+
+- `${NAME:default}` shows as `${NAME:******}`; the shell's `${NAME:-default}`, `${NAME:?message}`
+  and `${NAME:=default}` keep their sign (`${NAME:-******}`); nested placeholders are read
+  (`${OUTER:${INNER:******}}`); an empty default stays empty; text outside a placeholder is
+  masked (`******${TOKEN}******`).
+- A name is kept only if it is an environment variable (`[A-Za-z_][A-Za-z0-9_]*`) or a Spring
+  property, which alone may hold a hyphen since it holds a dot (`app.jwt-secret`). Anything else,
+  `${DB-hunter2}` (the shell's default without a colon) or an unclosed placeholder, is masked whole,
+  so a default is never passed off as a name. Before, a value of placeholders without defaults was
+  kept whatever their names, so `${DB-hunter2}` was shown; it no longer is.
+- Under a key not named as a secret, a placeholder named as one has its default masked, in config
+  as already in code (`other: ${A_TOKEN:-******}`).
+
+The masked-values list (ADR 0110, amendment for #645) is taken from the difference of the file and
+its masked text, so it holds each masked default as before. On project-8, nine secret lines of three
+services now show their variable (`password: ${RABBITMQ_PASSWORD:******}`).
