@@ -1,5 +1,7 @@
 # Grouping services into pockets for container diagrams
 
+> **Not built (6 Nov 2026).** Pockets were built on #764 and dropped before it merged: a pocket's name came from its central member, so one more unit could rename it. The owner chose a late LLM step that groups by meaning instead (#919). This note stays as the record of the research.
+
 **Depth: high.** This question sets a rule for the design: how the container view is split into pages. It also involves choosing between several algorithm families and deciding how to measure stability, and the design rules count both of those as open questions. Fifteen pages were opened and read in full or in their relevant parts (listed under Sources). Four were PDFs read as extracted text.
 
 ## The question

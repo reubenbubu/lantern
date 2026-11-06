@@ -128,17 +128,17 @@ the amendment for #764 above: the soft targets are dropped, and the measured lim
   read by `DiagramLimits.DEFAULT`, with no copy in code; the app's `lantern.diagrams` settings
   override each one.
 
-## Amendment (#764): pockets, what no line reaches, and the outside left off
+## Amendment (#764): what no line reaches, and the outside left off
 
 On 6 Nov 2026 the owner settled what a view does when its groups still do not fit:
 
-- **Pockets.** The units no domain signal groups are grouped by coupling into pockets, at most
-  `lantern.diagrams.pocket-size` members (4 by default), stored by the derive stage like domains,
-  so the naming role names them (`docs/research/grouping-services-into-pockets.md`; the rule is in
-  `docs/design.md`, Groups). The same rule groups the components the feature-area rules leave. A
-  container may appear on more than one page. The limits' defaults moved to
-  `lantern-derive/src/main/resources/io/lantern/derive/diagram-limits.properties`, since the
-  derive stage reads the pocket size; the composer reads the same file.
+- **No pockets.** Grouping by coupling what no code signal groups was built and dropped on the
+  same day: a pocket was named after its central member, so adding one unit could rename it, which
+  ADR 0099 forbids. What the signals leave ungrouped is left to a late LLM step that groups it by
+  meaning (#919; `docs/research/grouping-services-into-pockets.md` keeps the research). The limits'
+  defaults moved to `lantern-derive/src/main/resources/io/lantern/derive/diagram-limits.properties`,
+  read by the composer through `DiagramLimits.DEFAULT`. A container may appear on more than one
+  page.
 - **What no line reaches** is never drawn with the rest: a container with no line, or a component
   that is not an entry point and has no line, is drawn only on a page of its own, always ("like a
   family picture where the neighbour photobombs it").
@@ -154,8 +154,15 @@ On 6 Nov 2026 the owner settled what a view does when its groups still do not fi
   only who calls whom, never what kind of class a component is (the owner rejected a box for
   repository classes as fitted to one test set).
 - **What only the outside reaches** (6 Nov): on a component overview that leaves the outside off,
-  a component or area left with no line is taken off it; components go on a page "Reached only
-  from outside" the unit, split by entry point when too large, and an area keeps its own page.
+  a component or area left with no line is taken off it; components go on a page "Connected to no
+  feature area", split by entry point when too large, and an area keeps its own page.
+- **What no group holds keeps its outside** (6 Nov review): a unit in no domain on a map that
+  leaves the outside off is drawn again on a page "In no domain" with what it reaches outside, and a
+  component in no area on an overview that does the same on a page "In no feature area"; both stay
+  on the overview, where their other lines are. Components no entry point reaches have pages titled
+  "called by no entry point". A unit with no area still over the limit is split by entry point with
+  its outside drawn. A view still over the limit after all of this is drawn as it is, with the
+  scorer's warning; there is no further step.
 - **What cuts across the areas** (6 Nov): aspects and bundled library classes are left off that
   overview with a note naming them; each area's page draws them.
 - **An area of one** is judged after rule 3 has grown it; one still of one is dropped and its
@@ -163,6 +170,6 @@ On 6 Nov 2026 the owner settled what a view does when its groups still do not fi
   controllers floating).
 - **Found while doing this:** project-8's workorder-service fails its build by design, and calls
   to methods inherited from Spring Data are then lost, so two of its parts lose their lines (#908).
-- Describing a domain or pocket is left to an LLM step the owner will add.
+- Describing a domain is left to an LLM step the owner will add.
 - **Evidence runs on Haiku 5.5 only** (owner, 6 Nov, for cost): the views' grouping is decided by
   code; the model only names groups and words lines.

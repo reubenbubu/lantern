@@ -14,7 +14,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param scale the least scale a drawn view may be shrunk to so it fits the page
  * @param crossings the most line crossings of a drawn view before it is called hard to read
  * @param smallestGroup the fewest members a group needs in a view to be drawn as one box
- * @param pocketSize the most units a pocket of units that work closely together holds
  */
 @ConfigurationProperties("lantern.diagrams")
 public record DiagramProperties(
@@ -23,8 +22,7 @@ public record DiagramProperties(
     Integer linesPerElement,
     Double scale,
     Integer crossings,
-    Integer smallestGroup,
-    Integer pocketSize) {
+    Integer smallestGroup) {
 
   /** The limits, each unset value the default's. */
   public DiagramLimits limits() {
@@ -35,7 +33,6 @@ public record DiagramProperties(
         linesPerElement == null ? d.linesPerElement() : linesPerElement,
         scale == null ? d.scale() : scale,
         crossings == null ? d.crossings() : crossings,
-        smallestGroup == null ? d.smallestGroup() : smallestGroup,
-        pocketSize == null ? d.pocketSize() : pocketSize);
+        smallestGroup == null ? d.smallestGroup() : smallestGroup);
   }
 }

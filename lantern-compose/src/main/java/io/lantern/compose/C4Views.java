@@ -865,6 +865,9 @@ final class C4Views {
    */
   static final String NO_DOMAIN = "In no domain";
 
+  /** The title of the page of the components in no feature area that reach outside the unit. */
+  static final String NO_AREA = "In no feature area";
+
   /** The title of the page of the containers no line reaches. */
   static final String ALONE = "With no connections found";
 
@@ -1553,6 +1556,7 @@ final class C4Views {
       List<Section> areas = new ArrayList<>();
       boolean outsideOff = false;
       List<Elements.Component> outsideOnly = new ArrayList<>();
+      Set<EntityId> looseOutside = new java.util.LinkedHashSet<>();
       Set<EntityId> overview = new java.util.LinkedHashSet<>(all);
       Set<EntityId> crossOff = new HashSet<>();
       if (!fits(diagram)) {
@@ -1568,6 +1572,7 @@ final class C4Views {
           // What the unit's components reach outside it is left off, as on a map of domains;
           // each area's page draws it (owner's decision of 6 Nov 2026 on #764). With no areas
           // there is no such page, so the view is split instead.
+          Diagram full = diagram;
           withoutOutside = true;
           Diagram inside =
               componentDiagram(assembler.id(id, "diagram"), unit, components, title, all, areaOf);
@@ -1606,6 +1611,27 @@ final class C4Views {
                 && !inView.contains(component.main())
                 && !crossOff.contains(component.main())) {
               outsideOnly.add(component);
+            }
+          }
+          // A component in no area that stays here has its lines outside left off with no area page
+          // to draw them, so a page of its own does, as for a unit in no domain (#764).
+          Set<EntityId> mainsHere = new HashSet<>();
+          components.forEach(c -> mainsHere.add(c.main()));
+          for (Elements.Component component : components) {
+            EntityId main = component.main();
+            if (areaOf.containsKey(main)
+                || crossOff.contains(main)
+                || outsideOnly.contains(component)) {
+              continue;
+            }
+            boolean outside =
+                full.edges().stream()
+                    .anyMatch(
+                        e ->
+                            (e.from().equals(main) && !mainsHere.contains(e.to()))
+                                || (e.to().equals(main) && !mainsHere.contains(e.from())));
+            if (outside) {
+              looseOutside.add(main);
             }
           }
           // A feature area with no line here is off it too; its own page draws it.
@@ -1661,6 +1687,34 @@ final class C4Views {
                   Map.of());
           diagram = null;
           outsideOff = false;
+        }
+      }
+      if (!looseOutside.isEmpty() && outsideOff && diagram != null) {
+        String looseId = assembler.id(id, "no-area");
+        String looseTitle =
+            "Components of " + assembler.name(unit) + " " + NO_AREA.toLowerCase(Locale.ROOT);
+        Diagram looseView =
+            componentDiagram(
+                assembler.id(looseId, "diagram"),
+                unit,
+                components,
+                looseTitle,
+                looseOutside,
+                Map.of());
+        if (fits(looseView)) {
+          areas.add(
+              new Section(
+                  looseId,
+                  NO_AREA,
+                  SectionKind.COMPONENTS.levels(),
+                  null,
+                  List.of(),
+                  List.of(looseView),
+                  List.of()));
+        } else {
+          areas.addAll(
+              byEntryPoint(
+                  looseId, null, NO_AREA, unit, components, looseTitle, looseOutside, Map.of()));
         }
       }
       if (!outsideOnly.isEmpty()) {

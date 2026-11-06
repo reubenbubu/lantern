@@ -102,9 +102,8 @@ Size is measured, not guessed. A container or component view holds at most a mea
 boxes, the limit Lantern's diagram layout still draws legibly at page width (8 plus 2 by default,
 owner's decision of 5 Nov 2026; `docs/research/diagram-element-limit.md`), and the limit is a
 setting, so it can be tuned. 7 ± 2 is no target. A view over the limit is drawn at a coarser grouping
-the code proves, where the code proves no grouping by an explicit sign, by pockets of parts that
-work closely together ([SArF](https://arxiv.org/pdf/1306.2096);
-`docs/research/grouping-services-into-pockets.md`); still over it, what lies outside is left off
+the code proves (grouping by meaning what the code leaves ungrouped is #919); still over it, what
+lies outside is left off
 with a note, its lines between two boxes merge into one, then queues and topics between two boxes
 become "via" labels, then it is split by question into an overview and a view per group ([Brown](https://dev.to/simonbrown/diagramming-distributed-architectures-with-the-c4-model-51cm);
 `docs/research/grouping-level-by-meaning.md`). Size never drops content: what a view leaves out

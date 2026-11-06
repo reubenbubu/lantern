@@ -19,8 +19,6 @@ import io.lantern.derive.Groups;
  * @param crossings the most line crossings of a drawn view before it is called hard to read
  * @param smallestGroup the fewest members a domain or feature area needs in a view to be drawn as
  *     one box standing for them
- * @param pocketSize the most units a pocket of units that work closely together holds, which the
- *     derive step groups by (#764)
  */
 public record DiagramLimits(
     int target,
@@ -28,10 +26,9 @@ public record DiagramLimits(
     int linesPerElement,
     double scale,
     int crossings,
-    int smallestGroup,
-    int pocketSize) {
+    int smallestGroup) {
 
-  /** The file of the defaults, in lantern-derive, which groups by the pocket size. */
+  /** The file of the defaults, in lantern-derive, which reads them too. */
   public static final String DEFAULTS = "io/lantern/derive/" + Groups.DIAGRAM_DEFAULTS;
 
   /**
@@ -47,33 +44,17 @@ public record DiagramLimits(
         Integer.parseInt(Groups.diagramDefault("lines-per-element")),
         Double.parseDouble(Groups.diagramDefault("scale")),
         Integer.parseInt(Groups.diagramDefault("crossings")),
-        Integer.parseInt(Groups.diagramDefault("smallest-group")),
-        Groups.POCKET_SIZE);
-  }
-
-  /** The limits with the default pocket size. */
-  public DiagramLimits(
-      int target,
-      int tolerance,
-      int linesPerElement,
-      double scale,
-      int crossings,
-      int smallestGroup) {
-    this(target, tolerance, linesPerElement, scale, crossings, smallestGroup, Groups.POCKET_SIZE);
+        Integer.parseInt(Groups.diagramDefault("smallest-group")));
   }
 
   public DiagramLimits {
     if (target < 1) {
       throw new IllegalArgumentException("The element target must be at least 1: " + target);
     }
-    if (tolerance < 0
-        || linesPerElement < 1
-        || crossings < 0
-        || smallestGroup < 2
-        || pocketSize < 2) {
+    if (tolerance < 0 || linesPerElement < 1 || crossings < 0 || smallestGroup < 2) {
       throw new IllegalArgumentException(
           "The tolerance and crossings must not be negative, the lines per element at least 1, and"
-              + " the smallest group and the pocket size at least 2");
+              + " the smallest group at least 2");
     }
     if (!(scale > 0 && scale <= 1)) {
       throw new IllegalArgumentException("The scale must be above 0 and at most 1: " + scale);

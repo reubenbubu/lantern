@@ -282,6 +282,19 @@ class GroupViewsTest {
             d ->
                 d.nodes().stream()
                     .anyMatch(n -> n.id().toString().equals("external-system:pay.example.com")));
+    // The components no area holds keep what they reach outside on a page of their own, as a unit
+    // in no domain does; they stay on the overview, where their lines inside are.
+    Section loose =
+        app.sections().stream()
+            .filter(s -> s.title().startsWith(C4Views.NO_AREA))
+            .findFirst()
+            .orElseThrow();
+    assertThat(block(loose, Diagram.class).nodes())
+        .extracting(n -> n.id().toString())
+        .contains("type:com.example.web.Controller", "external-system:pay.example.com");
+    assertThat(overview.nodes())
+        .extracting(n -> n.id().toString())
+        .contains("type:com.example.web.Controller");
   }
 
   @Test
@@ -470,12 +483,15 @@ class GroupViewsTest {
     assertThat(overview.title()).isEqualTo("Components of shop-app, by feature area");
     assertThat(overview.nodes()).anyMatch(n -> n.id().type().equals("group"));
     assertThat(C4Views.fits(overview, DiagramLimits.DEFAULT)).isTrue();
-    // The three feature folders, and a pocket of the components they leave that work together
-    // (#764).
-    assertThat(app.sections()).hasSize(features.size() + 1);
+    // A page for each of the three feature folders; no area is made of the components they leave
+    // (#764 dropped grouping by coupling).
     assertThat(app.sections())
+        .filteredOn(p -> p.entity() != null && p.entity().toString().contains("/area/"))
         .extracting(p -> p.entity().toString())
-        .containsOnlyOnce("group:service:com.example:app/area/pocket-JpaOrders");
+        .containsExactlyInAnyOrder(
+            "group:service:com.example:app/area/pkg-orders",
+            "group:service:com.example:app/area/pkg-billing",
+            "group:service:com.example:app/area/pkg-parts");
     assertThat(app.sections())
         .allSatisfy(
             area ->

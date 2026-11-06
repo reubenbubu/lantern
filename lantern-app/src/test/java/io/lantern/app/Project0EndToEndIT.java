@@ -1298,9 +1298,7 @@ class Project0EndToEndIT {
             new TreeMap<>(
                 Map.of(
                     "component", 29L,
-                    // And two domains (#764): storefront, payments and fulfilment share the shop
-                    // database, and catalog forms a pocket with the units that call it.
-                    "container", 6L,
+                    "container", 4L,
                     "database", 2L,
                     "external", 2L,
                     // The Unknown caller (#766).
@@ -1312,13 +1310,13 @@ class Project0EndToEndIT {
     assertThat(pages)
         .containsExactly(
             "context",
-            "containers",
-            // The map of the two domains is the overview; each domain's page is split by concern
-            // (#764).
-            "containers-group-system-domain-pocket-catalog-service-requests-and-data",
-            "containers-group-system-domain-pocket-catalog-service-messaging",
-            "containers-group-system-domain-db-shop-db-5432-2fshop-requests-and-data",
-            "containers-group-system-domain-db-shop-db-5432-2fshop-messaging",
+            // No code signal groups catalog with the units that share the shop database into a
+            // second domain, so the map of one domain does not fit either; the view is split by
+            // concern, messaging per unit (#764; grouping what code leaves loose is #919).
+            "containers-requests-and-data",
+            "containers-messaging-service-com-acme-shop-fulfilment",
+            "containers-messaging-service-com-acme-shop-storefront-app",
+            "containers-messaging-service-com-acme-shop-payments",
             // From the entry inward (#270): the units nothing calls, then payments. Each has no
             // feature area and is too large for one view, so it is split by groups of entry
             // points, what no entry point reaches on a page of its own (#764).
