@@ -114,3 +114,32 @@ cut at about 1,000 characters (ADR 0127; 1,500 since #915) and the model pages t
 - A calibration of `investigate-leads` by packet size (ADR 0112) no longer changes anything.
 - Masking still hides a placeholder's variable name with its default (#912); a plaintext-secret
   lead cannot be refuted from such a line until that lands.
+
+## Amendment (#894): refuted only with evidence of what stops the risk
+
+A wrong "refuted" hides a real risk, since a refuted lead leaves the report. Mode A's instructions
+now say: refuted means the code shows the risk cannot happen on any path, its evidence citing the
+lines that stop it; for a risk in settings or the build (a secret, a baked-in address, CORS, the
+schema, a single instance) look first at how the unit is built and deployed; not finding the risk
+is unclear, not refuted.
+
+A check (`InvestigateLeadAnswer.BuiltAndDeployed`) enforces what it can. A refuted answer to a lead
+of `environment-baked`, `plaintext-secret`, `schema-unmanaged`, `open-cors` or `single-instance`
+whose evidence cites neither a file that builds or deploys a unit (a Dockerfile, a compose file, a
+CI workflow, Helm, Kustomize or Kubernetes files: `BUILD_OR_DEPLOY`) nor a file its first message
+showed is sent back once, with the reason; a second such answer stands, as the rule cannot foresee
+every correct refutation. The role keeps which leads it sent back, since a pipeline is built anew
+for each check. A refuted answer with no evidence was sent back already. Investigate's prompt
+version is 12.
+
+On project-8's panel (Haiku 5.5 through OpenRouter, 6 Nov 2026) the rule gave 44 of 54 verdicts
+agreeing with the key, against 43 before, at $0.0032 a lead; every lead the key refutes from a
+build or deploy file was refuted citing one. On project-1 to project-4 every lead was answered at
+$0.0031 a lead, as before. One tuning step after it, telling the model that deployment files may
+be in another repository, gave 41 of 54 at $0.0037 and was dropped: runs of the same settings vary
+by about four leads, so one run cannot show a step helps, and the owner chose to stop tuning there.
+One lead the key confirms still comes out refuted: notification-service's staging profile, which
+only a staging overlay in another repository turns on.
+
+An absence is cited as the issue's comment asked: a contract-mismatch answer cites the caller's
+line and the routes that do exist, and the names check passes it (the panels' `skils` lead).

@@ -248,9 +248,10 @@ final class InvestigateLeadAnswer implements SingleAnswer {
 
     /** From a lead's subject ({@code lead:<kind>/...}) and its first message. */
     static Shown of(String subject, String message) {
+      String prefix = io.lantern.core.types.Types.LEAD + ":";
       String kind =
-          subject.startsWith("lead:") && subject.indexOf('/') > 5
-              ? subject.substring(5, subject.indexOf('/'))
+          subject.startsWith(prefix) && subject.indexOf('/') > prefix.length()
+              ? subject.substring(prefix.length(), subject.indexOf('/'))
               : "";
       Set<String> files = new java.util.LinkedHashSet<>();
       Matcher where = WHERE.matcher(message);
