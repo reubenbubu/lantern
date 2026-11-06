@@ -86,9 +86,11 @@ class RecordReplayLlmProviderTest {
     assertThat(files).anyMatch(f -> f.getFileName().toString().endsWith("-2.json"));
     String recorded = Files.readString(firstFile);
     assertThat(recorded).contains("\"role\" : \"SUMMARIZE\"").contains("summarize Order");
-    // A replay reads the first call of the request.
-    assertThat(RecordReplayLlmProvider.replaying("anthropic", recordings).complete("big", request))
-        .isEqualTo(first);
+    // A replay answers the calls of a request in the order they were recorded, then the last again.
+    RecordReplayLlmProvider replay = RecordReplayLlmProvider.replaying("anthropic", recordings);
+    assertThat(replay.complete("big", request)).isEqualTo(first);
+    assertThat(replay.complete("big", request)).isEqualTo(second);
+    assertThat(replay.complete("big", request)).isEqualTo(second);
   }
 
   @Test
