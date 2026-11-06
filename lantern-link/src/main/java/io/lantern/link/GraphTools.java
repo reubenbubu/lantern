@@ -183,7 +183,7 @@ public final class GraphTools implements CodeTools {
           continue;
         }
         String repo = moduleRepos.get(fact.object().value());
-        String version = fact.attributes().path("version").asString("").strip();
+        String version = Claims.json(fact).path("version").asString("").strip();
         if (repo == null
             || !version.matches("[A-Za-z0-9][A-Za-z0-9._+-]*")
             || !asked.add(repo + RELEASE + version)) {
