@@ -96,6 +96,13 @@ final class C4Views {
    */
   private boolean perPair;
 
+  /** Whether the view being drawn leaves the systems outside off (#764). */
+  private boolean withoutOutside;
+
+  private boolean outside(EntityId entity) {
+    return isType(entity.type(), Types.EXTERNAL_SYSTEM);
+  }
+
   /** The name of the domain whose page is being split, which each part's title names. */
   private String splitIn;
 
@@ -689,6 +696,15 @@ final class C4Views {
     Map<EntityId, EntityId> lifted = inner(domainOf);
     Diagram coarsest = containerDiagram(id, shown, title, null, true, lifted);
     SortedSet<EntityId> folded = new TreeSet<>(ArchitectureModel.BY_ID);
+    boolean outsideOff = false;
+    if (!fits(coarsest) && !domainOf.isEmpty()) {
+      // A map of the domains still too large leaves the systems outside off: the context view and
+      // each domain's page draw them (owner's decision of 6 Nov 2026 on #764).
+      withoutOutside = true;
+      Diagram inside = containerDiagram(id, shown, title, null, true, lifted);
+      outsideOff = inside.nodes().size() < coarsest.nodes().size();
+      coarsest = inside;
+    }
     if (!fits(coarsest)) {
       perPair = true;
       coarsest = containerDiagram(id, shown, title, null, true, lifted);
@@ -700,9 +716,23 @@ final class C4Views {
     boolean fitted = fits(coarsest);
     if (!domainOf.isEmpty() || fitted) {
       blocks.add(coarsest);
+      if (outsideOff) {
+        blocks.add(
+            new Callout(
+                assembler.id(section, "outside"),
+                Callout.Variant.NOTE,
+                null,
+                null,
+                List.of(
+                    TextRun.of(
+                        "The systems outside are left off this map to keep it readable; the"
+                            + " system context view and each domain's page draw them.")),
+                List.of()));
+      }
       foldNote(assembler.id(section, "folded"), folded).ifPresent(blocks::add);
       profiles.ifPresent(blocks::add);
       perPair = false;
+      withoutOutside = false;
       drawing = links;
       List<Diagram> drawn = new ArrayList<>(List.of(coarsest));
       if (!domainOf.isEmpty()) {
@@ -720,6 +750,7 @@ final class C4Views {
     }
     // No domain and still too large: split by concern, each view drawing every topic and queue.
     perPair = false;
+    withoutOutside = false;
     drawing = links;
     List<Diagram> drawn = new ArrayList<>();
     split(section, shown, REQUESTS.and(DATA), List.of(REQUESTS, DATA), true, drawn, subsections);
@@ -1129,7 +1160,8 @@ final class C4Views {
       EntityId to = lift.getOrDefault(link.to(), link.to());
       if ((concern == null || concern.relationships.contains(link.relationship()))
           && (shown.contains(link.from()) || shown.contains(link.to()))
-          && !merged(lift, link.from(), link.to())) {
+          && !merged(lift, link.from(), link.to())
+          && !(withoutOutside && (outside(link.from()) || outside(link.to())))) {
         container(nodes, from);
         container(nodes, to);
         edges.add(from, to, link);

@@ -152,6 +152,33 @@ class GroupViewsTest {
   }
 
   @Test
+  void aMapOfDomainsStillTooLargeLeavesTheSystemsOutsideOffAndItsPagesDrawThem() {
+    // Owner's decision of 6 Nov 2026 on #764.
+    String pay = "external-system:pay.example.com";
+    List<Fact> facts = pair().list();
+    Diagram whole = block(section(system(facts, limits(100, 2)), "containers"), Diagram.class);
+    assertThat(whole.nodes()).anyMatch(n -> n.id().toString().equals(pay));
+    Diagram map =
+        block(
+            section(system(facts, limits(C4Views.elements(whole) - 1, 2)), "containers"),
+            Diagram.class);
+    assertThat(map.title()).endsWith(", by domain");
+    // A map that fits keeps them.
+    assertThat(map.nodes()).anyMatch(n -> n.id().toString().equals(pay));
+
+    Section smaller = section(system(facts, limits(C4Views.elements(map) - 1, 2)), "containers");
+
+    assertThat(block(smaller, Diagram.class).nodes()).noneMatch(n -> n.id().toString().equals(pay));
+    assertThat(smaller.blocks())
+        .filteredOn(Callout.class::isInstance)
+        .anyMatch(
+            c -> text(((Callout) c).content()).startsWith("The systems outside are left off"));
+    assertThat(diagrams(smaller))
+        .filteredOn(d -> d.title().contains(" in "))
+        .anyMatch(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(pay)));
+  }
+
+  @Test
   void aSystemAboveTheThresholdShowsItsDomainsInPlaceOfTheirUnitsThenAPageEach() {
     TestFacts many = TestFacts.runtime();
     String first = "group:system/domain/first";
@@ -315,20 +342,25 @@ class GroupViewsTest {
   void aViewStillTooLargeAtItsCoarsestLevelDrawsOneLinePerPair() {
     // Owner's decisions (b) and (c) of 4 Nov 2026 on #764: lines per pair and protocol, merged
     // into one per pair only as the first fallback.
+    // A unit outside the domain the pair calls over two protocols; the systems outside are left
+    // off a map this small, so the merged line is to a unit.
+    String other = "service:com.example:other";
     TestFacts facts = pair();
     facts
+        .attribute("shop", other, "deployable-unit", "spring-boot", "{}")
+        .attribute("shop", other, "application-name", "other", "{}")
         .relate(
             "shop",
             APP,
             "CALLS_HTTP",
-            "external-system:idp.example.com",
-            "{\"protocol\": \"HTTPS\", \"httpMethod\": \"GET\", \"path\": \"/me\"}")
+            other,
+            "{\"protocol\": \"HTTPS\", \"endpoint\": \"GET /me\"}")
         .relate(
             "base",
             WORKER,
-            "USES_IDENTITY_PROVIDER",
-            "external-system:idp.example.com",
-            "{\"purpose\": \"gets-tokens\", \"protocol\": \"OAuth2 over HTTP\"}");
+            "CALLS_HTTP",
+            other,
+            "{\"protocol\": \"gRPC\", \"endpoint\": \"GET /token\"}");
     String pair = "group:system/domain/pair";
 
     Diagram overview =
@@ -336,12 +368,9 @@ class GroupViewsTest {
 
     assertThat(overview.title()).endsWith(", by domain");
     assertThat(overview.edges())
-        .filteredOn(
-            e ->
-                e.from().toString().equals(pair)
-                    && e.to().toString().equals("external-system:idp.example.com"))
+        .filteredOn(e -> e.from().toString().equals(pair) && e.to().toString().equals(other))
         .singleElement()
-        .satisfies(e -> assertThat(e.technology()).contains("HTTPS", "OAuth2 over HTTP"));
+        .satisfies(e -> assertThat(e.technology()).contains("HTTPS", "gRPC"));
   }
 
   @Test
