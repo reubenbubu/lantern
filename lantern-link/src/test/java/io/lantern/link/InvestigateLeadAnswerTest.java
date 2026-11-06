@@ -20,6 +20,11 @@ class InvestigateLeadAnswerTest {
 
   private static final String PATH = "orders/src/main/java/shop/orders/OrderController.java";
   private static final String CONFIG = "orders/src/main/resources/application.yml";
+  private static final String LONG = "orders/src/main/java/shop/orders/Routes.java";
+  private static final String LONG_LINE =
+      "  @GetMapping(path = \"/orders/{orderId}/lines/{lineId}/refunds\", produces ="
+          + " MediaType.APPLICATION_JSON_VALUE, headers = \"X-Api-Version=2\") // the v2 refunds"
+          + " route";
 
   /** The files as the model was shown them: the password masked. */
   private static final Map<String, List<String>> FILES =
@@ -35,7 +40,9 @@ class InvestigateLeadAnswerTest {
               "  }",
               "}"),
           CONFIG,
-          List.of("spring:", "  datasource:", "    password: ******"));
+          List.of("spring:", "  datasource:", "    password: ******"),
+          LONG,
+          List.of("class Routes {", LONG_LINE, "}"));
 
   private static final CheckInputs INPUTS =
       new CheckInputs(
@@ -157,6 +164,49 @@ class InvestigateLeadAnswerTest {
                   .startsWith("the quote is not a line of shop:" + PATH + ":4-7; line 5 reads: '")
                   .endsWith("; copy one line of the range exactly.");
             });
+  }
+
+  @Test
+  void aQuoteThatShowsNothingFailsThoughTheRangeHasABlankLine() {
+    JsonNode blank =
+        answer.read(
+            toml(
+                CONFIRMED
+                    .replace(":4-7\"", ":1-7\"")
+                    .replaceAll("quote = \".*\"", "quote = \"\"")));
+    JsonNode brace = answer.read(toml(CONFIRMED.replaceAll("quote = \".*\"", "quote = \"}\"")));
+
+    assertThat(quotes(blank))
+        .singleElement()
+        .satisfies(
+            r ->
+                assertThat(r.reason())
+                    .isEqualTo(
+                        "the quote shows nothing; copy one line of shop:"
+                            + PATH
+                            + ":1-7 that holds what the piece shows."));
+    assertThat(quotes(brace))
+        .singleElement()
+        .satisfies(r -> assertThat(r.reason()).startsWith("the quote shows nothing"));
+  }
+
+  @Test
+  void aLongLineIsQuotedAsTheFirstMessageCutItWithOrWithoutItsEllipsis() {
+    String cut = LONG_LINE.strip().substring(0, InvestigateLeadMessage.LINE_WIDTH - 3);
+    String piece =
+        """
+        verdict = "refuted"
+
+        [[evidence]]
+        lines = "shop:%s:2-2"
+        quote = "%s"
+        """;
+    java.util.function.Function<String, JsonNode> quoting =
+        quote -> answer.read(toml(piece.formatted(LONG, quote.replace("\"", "\\\""))));
+
+    assertThat(quotes(quoting.apply(cut + "…"))).isEmpty();
+    assertThat(quotes(quoting.apply(cut))).isEmpty();
+    assertThat(quotes(quoting.apply("@GetMapping(path = \"/orders/{orderId}/lines"))).hasSize(1);
   }
 
   @Test

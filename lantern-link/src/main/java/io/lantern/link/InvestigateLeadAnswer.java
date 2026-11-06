@@ -277,7 +277,15 @@ final class InvestigateLeadAnswer implements SingleAnswer {
         }
         List<String> range = file.get().subList(from - 1, to);
         String quote = piece.path("quote").asString("").strip();
-        if (range.stream().noneMatch(line -> line.strip().equals(quote))) {
+        if (normal(quote).isEmpty()) {
+          found.add(
+              reject(
+                  answer,
+                  n,
+                  "the quote shows nothing; copy one line of "
+                      + m.group()
+                      + " that holds what the piece shows."));
+        } else if (range.stream().noneMatch(line -> quotes(line.strip(), quote))) {
           found.add(
               reject(
                   answer,
@@ -305,6 +313,19 @@ final class InvestigateLeadAnswer implements SingleAnswer {
         }
       }
       return found;
+    }
+
+    /**
+     * Whether a quote is the line or, for a long line the first message cut at {@value
+     * InvestigateLeadMessage#LINE_WIDTH} characters and ended with "…", its start as shown, with or
+     * without the "…": at least half that width, so a quote still holds a line's substance.
+     */
+    private static boolean quotes(String line, String quote) {
+      if (line.equals(quote)) {
+        return true;
+      }
+      String shown = quote.endsWith("…") ? quote.substring(0, quote.length() - 1).strip() : quote;
+      return shown.length() >= InvestigateLeadMessage.LINE_WIDTH / 2 && line.startsWith(shown);
     }
 
     /**
@@ -363,7 +384,9 @@ final class InvestigateLeadAnswer implements SingleAnswer {
       return "; line "
           + (from + best)
           + " reads: '"
-          + (line.length() > 120 ? line.substring(0, 120) + "…" : line)
+          + (line.length() > InvestigateLeadMessage.LINE_WIDTH
+              ? line.substring(0, InvestigateLeadMessage.LINE_WIDTH - 1) + "…"
+              : line)
           + "'";
     }
   }

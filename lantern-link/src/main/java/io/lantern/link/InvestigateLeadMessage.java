@@ -53,6 +53,9 @@ final class InvestigateLeadMessage {
   /** The longest a piece's label grows by joining the facts on its lines. */
   static final int MAX_WHAT = 400;
 
+  /** A code line longer than this is cut, ending with "…". */
+  static final int LINE_WIDTH = 160;
+
   private static final String MORE = "; and more facts on these lines.";
 
   /** The predicates of a send, whose objects name what a lead's code sends. */
@@ -320,13 +323,46 @@ final class InvestigateLeadMessage {
       out.append("where = ").append(Toml.string(piece.repo() + ":" + piece.path())).append('\n');
       String code = code(piece, lines);
       if (!code.isEmpty()) {
-        out.append("code = \"\"\"\n")
-            .append(code.replace("\\", "\\\\").replace("\"\"\"", "\\\"\"\""))
-            .append("\"\"\"\n");
+        out.append("code = \"\"\"\n").append(multiline(code)).append("\"\"\"\n");
       }
     }
     if (question.hint() != null) {
       out.append("\n[start]\nhint = ").append(Toml.string(question.hint())).append('\n');
+    }
+    return out.toString();
+  }
+
+  /**
+   * Code as the body of a TOML multi-line basic string: backslashes and control characters escaped,
+   * a carriage return dropped, and a quote escaped where it would make a third in a row or touch
+   * the closing delimiter, so a Java string such as {@code ""} reads as written.
+   */
+  static String multiline(String code) {
+    StringBuilder out = new StringBuilder(code.length() + 16);
+    int quotes = 0;
+    for (int i = 0; i < code.length(); i++) {
+      char c = code.charAt(i);
+      if (c == '"') {
+        boolean last = i == code.length() - 1;
+        if (quotes == 2 || last) {
+          out.append("\\\"");
+          quotes = 0;
+        } else {
+          out.append(c);
+          quotes++;
+        }
+        continue;
+      }
+      quotes = 0;
+      if (c == '\\') {
+        out.append("\\\\");
+      } else if (c == '\r') {
+        // dropped: a line ends at its newline
+      } else if (c != '\n' && c != '\t' && (c < 0x20 || c == 0x7f)) {
+        out.append(String.format("\\u%04X", (int) c));
+      } else {
+        out.append(c);
+      }
     }
     return out.toString();
   }
@@ -361,7 +397,7 @@ final class InvestigateLeadMessage {
       String line = text.get(n - 1);
       out.append(n)
           .append("  ")
-          .append(line.length() > 160 ? line.substring(0, 159) + "…" : line)
+          .append(line.length() > LINE_WIDTH ? line.substring(0, LINE_WIDTH - 1) + "…" : line)
           .append('\n');
     }
     return out.toString();

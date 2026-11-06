@@ -506,4 +506,21 @@ class InvestigateLeadMessageTest {
     assertThat(message.length()).isLessThanOrEqualTo(InvestigateLeadMessage.MAX_CHARS);
     assertThat(message).contains("X-User-Id").contains("8    Order place(");
   }
+
+  @Test
+  void codeOfAnyQuotesBackslashesAndControlCharactersReadsBackAsWritten() {
+    String code =
+        String.join(
+            "\n",
+            "1  String empty = \"\";",
+            "2  String text = \"\"\"",
+            "3      four \"\"\"\" quotes and a \\ backslash\r",
+            "4      a bell \u0007 and a tab\t\"\"\";",
+            "5  String last = \"x\"");
+    String toml = "code = \"\"\"\n" + InvestigateLeadMessage.multiline(code) + "\"\"\"\n";
+
+    assertThat(Toml.read(toml).root().path("code").asString()).isEqualTo(code.replace("\r", ""));
+    assertThat(InvestigateLeadMessage.multiline("String empty = \"\";"))
+        .isEqualTo("String empty = \"\";");
+  }
 }

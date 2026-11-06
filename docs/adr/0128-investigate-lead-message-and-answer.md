@@ -36,7 +36,7 @@ Investigate's conversation: *The first message*, *The answer*, *Turns*).
   X-User-Id.`), with short names: an entity by its last part, a method as `Type.method`, a class
   without its package, a Maven coordinate by its artifact, a deployment instance as "the compose
   deployment (default)"; no internal field names. A message over 6,000 characters drops its last
-  pieces until it fits.
+  pieces until it fits, or one piece is left (on the test sets the largest was 5,977).
 - What the model judges for a kind lives only in the question file: the catalog `leads.json` keeps
   each kind's trigger, and its `judge` texts and `LeadRules.judges()` are gone. A changed question
   file changes Investigate's prompt version (its digest is part of it), so leads are asked anew.
@@ -57,7 +57,8 @@ range its text uses).
 - It is read into the entry the role's checks verify (its ranges as `cites`, every piece's names as
   `names`) and checked by the standard checks, the proposals check and `Quotes`: each quote is a
   line of its range character for character, spaces at either end aside, in the file as the model
-  was shown it (masked); each name it shows is in its range or its path, compared as the other
+  was shown it (masked), or the start of a line the message cut, at least 80 characters, with or
+  without its "…"; a quote with no letter or digit shows nothing and is sent back; each name it shows is in its range or its path, compared as the other
   checks compare names (without case or anything but letters and digits), a dotted name
   (`RefundService.refund`, `spring.r2dbc.password`) part by part: the first panels, checking names
   exactly, sent back 65 answers for names such as a class cited from its own file. `Quotes` replaces, for Mode A, both the
@@ -74,7 +75,7 @@ range its text uses).
 its own answer tool. A lead with no answer is not asked again alone; it is unclear.
 
 **Limits** (`Investigator.LEAD_LIMITS`): no cap on tool turns; a guard of 60,000 input tokens on one
-turn, well under the 200,000-token price line; a cost guard of 400,000 fresh-token equivalents; a
+turn, well under the 100,000-token line above which Haiku 5.5's price rises; a cost guard of 400,000 fresh-token equivalents; a
 safety stop at 100 turns. At three quarters of a guard the model is told once "Give your answer now
 with what you have found." and from then only `answer` runs; another tool asked for is answered
 with the same note. The estimate of the next turn counts the tool results about to go back.
