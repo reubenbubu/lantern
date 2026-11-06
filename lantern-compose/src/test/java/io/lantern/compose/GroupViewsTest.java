@@ -282,6 +282,59 @@ class GroupViewsTest {
                     .isTrue());
   }
 
+  @Test
+  void anAreaPageStillTooLargeIsSplitByEntryPointEachWithWhatItCalls() {
+    // docs/design.md, Readable diagrams: the last step splits by groups of entry points.
+    TestFacts many = TestFacts.runtime();
+    String pkg = "package:com.example:app:com.example.desk";
+    many.relate("shop", "module:com.example:app", "CONTAINS", pkg);
+    // Desks 2k and 2k + 1 share Work k, so each Work is a component of its own.
+    int count = 8;
+    for (int i = 0; i < count; i++) {
+      String controller = "type:com.example.desk.Desk" + i;
+      String service = "type:com.example.desk.Work" + i / 2;
+      many.relate("shop", pkg, "CONTAINS", controller)
+          .attribute("shop", controller, "stereotype", "controller", "{\"rest\": true}")
+          .relate("shop", controller, "CONTAINS", controller.replace("type:", "method:") + "#get()")
+          .attribute(
+              "shop",
+              controller.replace("type:", "method:") + "#get()",
+              "endpoint",
+              "GET /d/" + i,
+              "{}")
+          .relate("shop", pkg, "CONTAINS", service)
+          .attribute("shop", service, "stereotype", "service", "{}")
+          .relate("shop", service, "CONTAINS", service.replace("type:", "method:") + "#run()")
+          .relate(
+              "shop",
+              controller.replace("type:", "method:") + "#get()",
+              "CALLS",
+              service.replace("type:", "method:") + "#run()");
+    }
+    DiagramLimits limits = DiagramLimits.DEFAULT;
+    Section components = section(system(many.list(), limits), "components");
+    Section app =
+        components.sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    List<Diagram> pages = diagrams(app);
+    assertThat(pages).hasSizeGreaterThan(1).allMatch(d -> C4Views.fits(d, limits));
+    for (int i = 0; i < count; i++) {
+      String controller = "type:com.example.desk.Desk" + i;
+      String service = "type:com.example.desk.Work" + i / 2;
+      assertThat(pages)
+          .filteredOn(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(controller)))
+          .hasSize(1)
+          .allMatch(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(service)));
+    }
+    assertThat(app.sections())
+        .filteredOn(p -> p.title().contains("from Desk"))
+        .hasSizeGreaterThan(1)
+        .allMatch(p -> p.title().startsWith("d (not named): from "));
+  }
+
   /** shop-app with three feature folders of controllers, more than one view holds. */
   private static TestFacts manyComponents() {
     TestFacts many = TestFacts.runtime();

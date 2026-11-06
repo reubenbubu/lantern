@@ -1497,6 +1497,20 @@ final class C4Views {
         withoutOutside = false;
         if (!areaOf.isEmpty()) {
           areas = areas(id, unit, components, areaOf);
+        } else if (!fits(diagram)) {
+          // No area to draw and still too large: split by groups of entry points.
+          areas =
+              byEntryPoint(
+                  id,
+                  unit,
+                  assembler.name(unit),
+                  unit,
+                  components,
+                  "Components of " + assembler.name(unit),
+                  all,
+                  Map.of());
+          diagram = null;
+          outsideOff = false;
         }
       }
       if (!alone.isEmpty()) {
@@ -1520,7 +1534,10 @@ final class C4Views {
                         Map.of())),
                 List.of()));
       }
-      List<Block> blocks = new ArrayList<>(List.of(diagram));
+      List<Block> blocks = new ArrayList<>();
+      if (diagram != null) {
+        blocks.add(diagram);
+      }
       if (outsideOff) {
         blocks.add(
             new Callout(
@@ -1598,14 +1615,24 @@ final class C4Views {
           others.keySet().removeAll(mains);
           String areaId = assembler.id(id, area.toString());
           String name = assembler.name(area);
+          String title = "Components of " + assembler.name(unit) + " in " + name;
           Diagram view =
               componentDiagram(
-                  assembler.id(areaId, "diagram"),
-                  unit,
-                  components,
-                  "Components of " + assembler.name(unit) + " in " + name,
-                  mains,
-                  others);
+                  assembler.id(areaId, "diagram"), unit, components, title, mains, others);
+          if (!fits(view)) {
+            // Too large: its lines merged per pair first (docs/design.md, Readable diagrams).
+            perPair = true;
+            view =
+                componentDiagram(
+                    assembler.id(areaId, "diagram"), unit, components, title, mains, others);
+            perPair = false;
+          }
+          if (!fits(view)) {
+            // An area too large for one page is split by groups of entry points (docs/design.md,
+            // Readable diagrams), each page naming the area.
+            result.addAll(byEntryPoint(areaId, area, name, unit, components, title, mains, others));
+            return;
+          }
           result.add(
               new Section(
                   areaId,
@@ -1616,6 +1643,129 @@ final class C4Views {
                   List.of(view),
                   List.of()));
         });
+    return result;
+  }
+
+  /**
+   * The pages of components too many for one view (#764; docs/design.md, Readable diagrams): each
+   * entry point in focus (or, with none, each component nothing in focus calls) with the components
+   * it reaches in focus, entry points in order put on one page while it fits; what no entry point
+   * reaches goes on the last page. Each page is titled by the scope and its entry points.
+   */
+  /** The ID of a diagram drawn only to measure it, never shown. */
+  private static final String TRIAL = "trial";
+
+  private List<Section> byEntryPoint(
+      String id,
+      EntityId entity,
+      String scope,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Set<EntityId> focus,
+      Map<EntityId, EntityId> lift) {
+    // Split only after merging lines per pair, so each page draws them merged too.
+    perPair = true;
+    try {
+      return pagesByEntryPoint(id, entity, scope, unit, components, title, focus, lift);
+    } finally {
+      perPair = false;
+    }
+  }
+
+  private List<Section> pagesByEntryPoint(
+      String id,
+      EntityId entity,
+      String scope,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Set<EntityId> focus,
+      Map<EntityId, EntityId> lift) {
+    // The calls between the components in focus, each drawn as itself.
+    Diagram flat = componentDiagram(TRIAL, unit, components, title, focus, Map.of());
+    Map<EntityId, Set<EntityId>> calls = new HashMap<>();
+    Set<EntityId> called = new HashSet<>();
+    for (Diagram.Edge edge : flat.edges()) {
+      if (focus.contains(edge.from()) && focus.contains(edge.to())) {
+        calls
+            .computeIfAbsent(edge.from(), f -> new java.util.TreeSet<>(ArchitectureModel.BY_ID))
+            .add(edge.to());
+        called.add(edge.to());
+      }
+    }
+    List<EntityId> inOrder = new ArrayList<>();
+    components.forEach(
+        c -> {
+          if (focus.contains(c.main())) {
+            inOrder.add(c.main());
+          }
+        });
+    List<EntityId> entries =
+        components.stream()
+            .filter(c -> focus.contains(c.main()) && c.entryPoint())
+            .map(Elements.Component::main)
+            .toList();
+    if (entries.isEmpty()) {
+      entries = inOrder.stream().filter(c -> !called.contains(c)).toList();
+    }
+    if (entries.isEmpty()) {
+      entries = inOrder;
+    }
+    List<Set<EntityId>> pages = new ArrayList<>();
+    List<List<EntityId>> pageEntries = new ArrayList<>();
+    Set<EntityId> current = new java.util.LinkedHashSet<>();
+    List<EntityId> currentEntries = new ArrayList<>();
+    for (EntityId entry : entries) {
+      Set<EntityId> reach = new java.util.LinkedHashSet<>();
+      Deque<EntityId> todo = new ArrayDeque<>(List.of(entry));
+      while (!todo.isEmpty()) {
+        EntityId next = todo.pop();
+        if (reach.add(next)) {
+          todo.addAll(calls.getOrDefault(next, Set.of()));
+        }
+      }
+      Set<EntityId> together = new java.util.LinkedHashSet<>(current);
+      together.addAll(reach);
+      if (current.isEmpty()
+          || fits(componentDiagram(TRIAL, unit, components, title, together, lift))) {
+        current = together;
+        currentEntries.add(entry);
+      } else {
+        pages.add(current);
+        pageEntries.add(currentEntries);
+        current = reach;
+        currentEntries = new ArrayList<>(List.of(entry));
+      }
+    }
+    Set<EntityId> left = new java.util.LinkedHashSet<>(inOrder);
+    pages.forEach(left::removeAll);
+    left.removeAll(current);
+    current.addAll(left);
+    pages.add(current);
+    pageEntries.add(currentEntries);
+    List<Section> result = new ArrayList<>();
+    for (int i = 0; i < pages.size(); i++) {
+      String from =
+          "from " + ScopeFlows.list(pageEntries.get(i).stream().map(assembler::name).toList());
+      String pageId = assembler.id(id, "part-" + (i + 1));
+      result.add(
+          new Section(
+              pageId,
+              scope + ": " + from,
+              SectionKind.COMPONENTS.levels(),
+              entity,
+              List.of(),
+              List.of(
+                  componentDiagram(
+                      assembler.id(pageId, "diagram"),
+                      unit,
+                      components,
+                      title + ", " + from,
+                      pages.get(i),
+                      lift)),
+              List.of()));
+    }
     return result;
   }
 
