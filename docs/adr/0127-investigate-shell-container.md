@@ -85,6 +85,8 @@ version than the analysed one, that release, as a folder of its own named `repo@
   folder, `find_in_code`, the quotes check and the answer cache's blobs. Its files are masked like
   every other file. A lead's first message lists the releases of every repository it lists; a
   lead whose list does not name the library sees its releases only through `ls` in the shell.
+- *Evidence.* An answer may quote and cite a release's lines, but a stored fact's evidence keeps only
+  the citations in the snapshot's own repositories, as a release is read at another commit (#938).
 - *The question* for shared-type-skew says the versions in use are folders named like
   `library@1.9.4`; Investigate's prompt version rises to 14.
 
