@@ -1582,22 +1582,40 @@ final class C4Views {
         Set<EntityId> mains = new HashSet<>();
         outsideOnly.forEach(c -> mains.add(c.main()));
         String outsideId = assembler.id(id, "outside-only");
-        areas.add(
-            new Section(
-                outsideId,
-                "Reached only from outside " + assembler.name(unit),
-                SectionKind.COMPONENTS.levels(),
-                null,
-                List.of(),
-                List.of(
-                    componentDiagram(
-                        assembler.id(outsideId, "diagram"),
-                        unit,
-                        components,
-                        "Components of " + assembler.name(unit) + " reached only from outside it",
-                        mains,
-                        Map.of())),
-                List.of()));
+        String outsideTitle = "Reached only from outside " + assembler.name(unit);
+        String outsideDiagramTitle =
+            "Components of " + assembler.name(unit) + " reached only from outside it";
+        Diagram outsideView =
+            componentDiagram(
+                assembler.id(outsideId, "diagram"),
+                unit,
+                components,
+                outsideDiagramTitle,
+                mains,
+                Map.of());
+        if (fits(outsideView)) {
+          areas.add(
+              new Section(
+                  outsideId,
+                  outsideTitle,
+                  SectionKind.COMPONENTS.levels(),
+                  null,
+                  List.of(),
+                  List.of(outsideView),
+                  List.of()));
+        } else {
+          // Too many for one page: split by groups of entry points like any other page.
+          areas.addAll(
+              byEntryPoint(
+                  outsideId,
+                  null,
+                  outsideTitle,
+                  unit,
+                  components,
+                  outsideDiagramTitle,
+                  mains,
+                  Map.of()));
+        }
       }
       if (!alone.isEmpty()) {
         Set<EntityId> mains = new HashSet<>();

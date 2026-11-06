@@ -299,6 +299,44 @@ class GroupViewsTest {
   }
 
   @Test
+  void manyComponentsReachedOnlyFromOutsideAreSplitOntoPagesThatFit() {
+    // Each job in a package of its own, so no feature folder holds them.
+    TestFacts many = manyComponents();
+    for (int i = 0; i < 8; i++) {
+      String ops = "package:com.example:app:com.example.ops" + i;
+      String job = "type:com.example.ops" + i + ".Sampler" + i;
+      String run = "method:com.example.ops" + i + ".Sampler" + i + "#sample()";
+      many.relate("shop", "module:com.example:app", "CONTAINS", ops)
+          .relate("shop", ops, "CONTAINS", job)
+          .relate("shop", job, "CONTAINS", run)
+          .attribute("shop", run, "scheduled", "0 * * * * *", "{}");
+    }
+    DiagramLimits limits = limits(5, 2);
+    Section app =
+        section(system(many.list(), limits), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    List<Section> pages =
+        app.sections().stream()
+            .filter(p -> p.title().startsWith("Reached only from outside shop-app"))
+            .toList();
+    assertThat(pages)
+        .hasSizeGreaterThan(1)
+        .allSatisfy(p -> assertThat(C4Views.fits(block(p, Diagram.class), limits)).isTrue());
+    for (int i = 0; i < 8; i++) {
+      String job = "type:com.example.ops" + i + ".Sampler" + i;
+      assertThat(pages)
+          .filteredOn(
+              p ->
+                  block(p, Diagram.class).nodes().stream()
+                      .anyMatch(n -> n.id().toString().equals(job)))
+          .hasSize(1);
+    }
+  }
+
+  @Test
   void anAspectAcrossTheAreasIsOffTheOverviewThatLeavesTheOutsideOffWithANoteAndOnTheirPages() {
     // Owner's decision of 6 Nov 2026 on #764.
     TestFacts many = manyComponents();
