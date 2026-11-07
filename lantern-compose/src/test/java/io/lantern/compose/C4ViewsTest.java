@@ -113,6 +113,77 @@ class C4ViewsTest {
   }
 
   @Test
+  void aLineOfMessageKeysWithNoPurposeSaysWhatTheyAreAbout() {
+    // #933: never "Delivers order.*, refund.# and 3 more".
+    assertThat(C4Views.messages("Delivers", List.of("order.*", "refund.#")))
+        .contains("Delivers order and refund messages");
+    assertThat(C4Views.messages("Sends", List.of("a.x", "b.x", "c.x", "d.x")))
+        .contains("Sends a, b and c and other messages");
+    assertThat(C4Views.messages("Publishes to", List.of("orders"))).isEmpty();
+    assertThat(C4Views.messages("Sends", List.of("GET /orders"))).isEmpty();
+  }
+
+  @Test
+  void aRouteSummarySkipsSegmentsThatSayNothing() {
+    assertThat(C4Views.resources(List.of("GET /internal/orders/{id}", "POST /api/v2/rest/cases")))
+        .containsExactly("orders", "cases");
+  }
+
+  @Test
+  void aLineOfMethodsWithNoPurposeSaysWhatTheyDoNotTheirNames() {
+    // #933: never "Calls approve, complete and 2 more".
+    assertThat(C4Views.actions(List.of("approve", "complete", "findOpen", "reviewQueue")))
+        .contains("Approves, completes and finds");
+    assertThat(C4Views.actions(List.of("findByCustomerIdAndActiveTrue", "findByIdAndActiveTrue")))
+        .contains("Finds");
+    assertThat(C4Views.actions(List.of("amountReserved", "create", "query")))
+        .contains("Creates and queries");
+    // None starts with a verb, or a detail is not a method: left to the line's other wording.
+    assertThat(C4Views.actions(List.of("summary", "dueAt"))).isEmpty();
+    assertThat(C4Views.actions(List.of("GET /orders"))).isEmpty();
+  }
+
+  @Test
+  void aLabelDoesNotNameTheEndItPointsTo() {
+    // #933: the line already points to the box that says PostgreSQL, Keycloak or edge-gateway.
+    assertThat(
+            C4Views.withoutEnd(
+                "Keeps invoices and payments in PostgreSQL", List.of("billing", "PostgreSQL")))
+        .isEqualTo("Keeps invoices and payments");
+    assertThat(C4Views.withoutEnd("Validates caller tokens against Keycloak", List.of("Keycloak")))
+        .isEqualTo("Validates caller tokens");
+    assertThat(
+            C4Views.withoutEnd(
+                "Forwards API calls through the edge gateway",
+                List.of("edge-gateway", "edge gateway")))
+        .isEqualTo("Forwards API calls");
+    assertThat(C4Views.withoutEnd("Stores customer sessions in the Redis cache", List.of("Redis")))
+        .isEqualTo("Stores customer sessions");
+    assertThat(
+            C4Views.withoutEnd(
+                "Publishes payment outcomes to billing events exchange",
+                List.of("billing.events", "billing events")))
+        .isEqualTo("Publishes payment outcomes");
+    assertThat(
+            C4Views.withoutEnd(
+                "Fetches the operations summary from the gateway",
+                List.of("edge-gateway", "edge gateway", "gateway")))
+        .isEqualTo("Fetches the operations summary");
+    // Into a topic, queue or exchange, a closing phrase naming one goes.
+    assertThat(C4Views.withoutDestination("Publishes payment events to work-order exchange"))
+        .isEqualTo("Publishes payment events");
+    assertThat(C4Views.withoutDestination("Publishes priority alerts to the headers exchange"))
+        .isEqualTo("Publishes priority alerts");
+    assertThat(C4Views.withoutDestination("Queues payment confirmations for its own listener"))
+        .isEqualTo("Queues payment confirmations for its own listener");
+    assertThat(C4Views.withoutDestination("Sends to queue")).isEqualTo("Sends to queue");
+    // Too little would be left, or the end is not named last: kept as it is.
+    assertThat(C4Views.withoutEnd("Uses Redis", List.of("Redis"))).isEqualTo("Uses Redis");
+    assertThat(C4Views.withoutEnd("Reads Redis keys for rate limits", List.of("Redis")))
+        .isEqualTo("Reads Redis keys for rate limits");
+  }
+
+  @Test
   void contextShowsTheSystemTheExternalSystemsItCallsAndThatItsUsersAreUnknown() {
     Section context = section(repo(facts.list()), "context");
     Diagram diagram = block(context, Diagram.class);
@@ -125,7 +196,7 @@ class C4ViewsTest {
     // No technology on a context diagram; the profile marks the line conditional.
     assertThat(edges(diagram))
         .containsExactly(
-            "system:snapshot -> external-system:pay.example.com: Calls POST /charges [prod]");
+            "system:snapshot -> external-system:pay.example.com: Works with charges [prod]");
     assertThat(diagram.edges().getFirst().facts())
         .containsExactly(facts.find("service:com.example:app", "CALLS_HTTP").id());
     assertThat(text(block(context, Callout.class).content()))
@@ -349,6 +420,96 @@ class C4ViewsTest {
   }
 
   @Test
+  void aPersonWithNoFrontendIsDrawnDoingWhatDescribeSaysTheyDoNotABareUses() {
+    TestFacts withPeople = TestFacts.runtime();
+    withPeople.attribute(
+        "shop",
+        "type:com.example.Clerk",
+        "person-evidence",
+        "role",
+        "{\"scope\":\"Role\",\"type\":\"com.example.Clerk\"}");
+    Fact evidence = withPeople.find("type:com.example.Clerk", "person-evidence");
+    withPeople.attribute(
+        "shop",
+        "person:billing-clerk",
+        "person-basis",
+        "role",
+        "{\"basis\":\"role\",\"description\":\"The code has a billing clerk role.\","
+            + "\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[]}");
+    withPeople.attribute("shop", "person:billing-clerk", "display-name", "Billing clerk");
+    withPeople.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("person:billing-clerk"),
+            Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            "Reviews unpaid invoices and chases arrears, every morning.",
+            List.of(evidence),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    Diagram diagram = block(section(repo(withPeople.list()), "context"), Diagram.class);
+
+    // #933: the first clause of what the person does, never a bare "Uses".
+    assertThat(edges(diagram))
+        .contains(
+            "person:billing-clerk -> system:snapshot: Reviews unpaid invoices and chases arrears");
+  }
+
+  @Test
+  void aPersonsLongSentenceIsCutBeforeItsQualifierNeverMidPhrase() {
+    assertThat(
+            personLine("Reviews and approves repair work orders submitted by field technicians."))
+        .isEqualTo("Reviews and approves repair work orders");
+    assertThat(personLine("Tracks e.g. overdue invoices for the finance team."))
+        .isEqualTo("Tracks e.g. overdue invoices for the finance team");
+  }
+
+  private String personLine(String sentence) {
+    TestFacts withPeople = TestFacts.runtime();
+    withPeople.attribute(
+        "shop",
+        "type:com.example.Clerk",
+        "person-evidence",
+        "role",
+        "{\"scope\":\"Role\",\"type\":\"com.example.Clerk\"}");
+    Fact evidence = withPeople.find("type:com.example.Clerk", "person-evidence");
+    withPeople.attribute(
+        "shop",
+        "person:billing-clerk",
+        "person-basis",
+        "role",
+        "{\"basis\":\"role\",\"description\":\"The code has a billing clerk role.\","
+            + "\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[]}");
+    withPeople.attribute("shop", "person:billing-clerk", "display-name", "Billing clerk");
+    withPeople.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("person:billing-clerk"),
+            Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            sentence,
+            List.of(evidence),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+    Diagram diagram = block(section(repo(withPeople.list()), "context"), Diagram.class);
+    return edges(diagram).stream()
+        .filter(e -> e.startsWith("person:billing-clerk -> "))
+        .findFirst()
+        .orElseThrow()
+        .replaceFirst("^.*?system:snapshot: ", "")
+        .replaceAll(" \\[.*$", "");
+  }
+
+  @Test
   void aPersonsLinesShowTheIntentDescribeStoredForTheirUseOfAFrontend() {
     TestFacts withFrontend = withFrontendAndUser();
     Fact basis = withFrontend.find("person:user", "person-basis");
@@ -389,7 +550,7 @@ class C4ViewsTest {
             io.lantern.harness.LlmFacts.Basis.INFERRED,
             1));
     assertThat(edges(block(section(system(elsewhere.list()), "containers"), Diagram.class)))
-        .contains("person:user -> frontend:shop/web: Uses the screens /registration [Web browser]");
+        .contains("person:user -> frontend:shop/web: Opens the registration screens [Web browser]");
   }
 
   @Test
@@ -405,8 +566,8 @@ class C4ViewsTest {
             "person:user \"User\"");
     assertThat(edges(diagram))
         .contains(
-            "frontend:shop/web -> service:com.example:app: Calls GET /orders [JSON/HTTP]",
-            "person:user -> frontend:shop/web: Uses the screens /registration [Web browser]");
+            "frontend:shop/web -> service:com.example:app: Works with orders [JSON/HTTP]",
+            "person:user -> frontend:shop/web: Opens the registration screens [Web browser]");
     DocumentEntity frontend =
         document.entities().stream()
             .filter(e -> e.id().toString().equals("frontend:shop/web"))
@@ -436,11 +597,11 @@ class C4ViewsTest {
             "topic:kafka:orders \"orders\" [Kafka topic] in system:snapshot");
     assertThat(edges(diagram))
         .containsExactly(
-            "service:com.example:app -> external-system:pay.example.com: Calls POST /charges"
+            "service:com.example:app -> external-system:pay.example.com: Works with charges"
                 + " [HTTPS] [prod]",
             "service:com.example:app -> topic:kafka:orders: Sends messages [Kafka]",
             "service:com.example:app -> database:db:5432/shop: Stores its data in [JDBC]",
-            "service:com.example:worker -> service:com.example:app: Calls GET /orders [JSON/HTTP]");
+            "service:com.example:worker -> service:com.example:app: Works with orders [JSON/HTTP]");
   }
 
   @Test
@@ -577,8 +738,8 @@ class C4ViewsTest {
             "type:com.example.domain.JpaOrders -> topic:kafka:orders: Sends messages [Kafka]",
             "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads [JDBC]",
             "type:com.example.web.Controller -> external-system:pay.example.com:"
-                + " Calls POST /charges [HTTPS] [prod]",
-            "service:com.example:worker -> type:com.example.web.Controller: Calls GET /orders"
+                + " Works with charges [HTTPS] [prod]",
+            "service:com.example:worker -> type:com.example.web.Controller: Works with orders"
                 + " [JSON/HTTP]");
   }
 
@@ -730,8 +891,8 @@ class C4ViewsTest {
     Diagram containers = block(section(repo(gateway), "containers"), Diagram.class);
     assertThat(edges(containers))
         .contains(
-            "service:com.example:app -> service:com.example:worker: Calls and routes"
-                + " /reports/**, /ws/** and 1 more [HTTP, WebSocket]");
+            "service:com.example:app -> service:com.example:worker: Routes reports, ws and jobs"
+                + " requests [HTTP, WebSocket]");
     Diagram components =
         block(section(repo(gateway), "components").sections().getFirst(), Diagram.class);
     assertThat(nodes(components))
@@ -745,8 +906,8 @@ class C4ViewsTest {
         .contains(
             "type:com.example.web.Routes -> type:com.example.web.AuthFilter:"
                 + " Applies on routes users",
-            "type:com.example.web.Routes -> service:com.example:worker: Routes /ws/** [WebSocket]",
-            "module:com.example:app -> service:com.example:worker: Routes /reports/** [HTTP]");
+            "type:com.example.web.Routes -> service:com.example:worker: Routes ws requests [WebSocket]",
+            "module:com.example:app -> service:com.example:worker: Routes reports requests [HTTP]");
   }
 
   @Test
@@ -791,7 +952,7 @@ class C4ViewsTest {
   }
 
   @Test
-  void aUnitWhoseSentenceTheJudgeRejectedShowsNoDescriptionNotItsModulesSummary() {
+  void aUnitWhoseSentenceTheJudgeRejectedShowsPlainWordingNotItsModulesSummary() {
     EntityId module = EntityId.parse("module:com.example:app");
     String packaging = facts.find("module:com.example:app", "packaging").id();
     Map<EntityId, io.lantern.summarize.Summary> summaries =
@@ -820,14 +981,17 @@ class C4ViewsTest {
         new Composer("1")
             .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, held);
 
-    // Rejected though asked again: its name, kind and technology only (#751).
+    // Rejected though asked again: Lantern's plain wording, never its module's summary, which may
+    // share the rejected claims (#751), and never nothing (#933).
     DocumentEntity app =
         document.entities().stream()
             .filter(e -> e.id().toString().equals("service:com.example:app"))
             .findFirst()
             .orElseThrow();
     assertThat(app.name()).isEqualTo("shop-app");
-    assertThat(app.description()).isEmpty();
+    assertThat(String.valueOf(app.description()))
+        .doesNotContain("Serves orders")
+        .startsWith("[TextRun[text=A deployable unit that ");
   }
 
   @Test

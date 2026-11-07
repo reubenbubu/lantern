@@ -110,6 +110,10 @@ final class QualityBar {
   static final String CLAIMS = "Every specific claim links to a fact or source";
   static final String REPEATED = "No diagram repeated across sections";
   static final String BOX_PAGE = "Every domain or feature area drawn has a page of its own";
+  static final String PURPOSE = "Every line label is a purpose, not its routes or queues";
+  static final String END_NAMED = "No label repeats the name or technology of the box it points to";
+  static final String READABLE = "Every service and frontend has a name in words";
+  static final String SHORT_NAMES = "No page or box name over " + C4Views.MAX_NAME + " characters";
   static final String ORIENTATION = "An orientation section of at most 300 words";
   static final String START_HERE =
       "A \"start here\" list of the entry points and files to read first";
@@ -307,6 +311,10 @@ final class QualityBar {
     }
     acronyms();
     boxPages(diagrams);
+    // The C4 report draws names in boxes and the sidebar (#933); the other templates list them.
+    if (LEGEND_TEMPLATES.contains(document.template().name())) {
+      shortNames(diagrams);
+    }
     if (document.audience() == null) {
       fail(
           READER,
@@ -349,6 +357,28 @@ final class QualityBar {
             CrossReference.Target.block(diagram.id()),
             names(missing) + (missing.size() == 1 ? " has" : " have") + " no page of its own.");
       }
+    }
+  }
+
+  /** A name a reader scans in a box or the sidebar fits on a line or two (#933). */
+  private void shortNames(List<Diagram> diagrams) {
+    Set<String> long_ = new java.util.TreeSet<>();
+    forEachSection(
+        document.sections(),
+        section -> {
+          if (section.title() != null && section.title().length() > C4Views.MAX_NAME) {
+            long_.add(section.title());
+          }
+        });
+    for (Diagram diagram : diagrams) {
+      for (Diagram.Node node : diagram.nodes()) {
+        if (node.label() != null && node.label().length() > C4Views.MAX_NAME) {
+          long_.add(node.label());
+        }
+      }
+    }
+    if (!long_.isEmpty()) {
+      fail(SHORT_NAMES, null, names(new ArrayList<>(long_)) + ".");
     }
   }
 
@@ -404,6 +434,9 @@ final class QualityBar {
     }
     Map<EntityId, String> labels = new HashMap<>();
     diagram.nodes().forEach(n -> labels.put(n.id(), n.label()));
+    if (LEGEND_TEMPLATES.contains(document.template().name())) {
+      wording(diagram, target, labels);
+    }
     List<String> unlabelled = new ArrayList<>();
     List<String> unfounded = new ArrayList<>();
     List<String> unconditional = new ArrayList<>();
@@ -419,6 +452,59 @@ final class QualityBar {
       missingProfiles(edge.facts(), edge.profiles()).ifPresent(p -> unconditional.add(line + p));
     }
     lines(target, unlabelled, unfounded, unconditional);
+  }
+
+  /** Lists of routes in a label: a method and a path, or "and 3 more". */
+  private static final Pattern ROUTE_LIST =
+      Pattern.compile("\\b(?:GET|POST|PUT|PATCH|DELETE)\\s+/|\\band \\d+ more\\b");
+
+  /** A service's or frontend's name as its build names it, not words (#933). */
+  private static final Pattern TECHNICAL_NAME =
+      Pattern.compile("[a-z][A-Za-z0-9]*(?:[-_.][A-Za-z0-9]+)*");
+
+  /**
+   * The C4 report's lines say what they are for and its boxes read as names (#933): no label lists
+   * routes or names the box it points to, and no service or frontend has only a build's name.
+   */
+  private void wording(
+      Diagram diagram, CrossReference.Target target, Map<EntityId, String> labels) {
+    Map<EntityId, Diagram.Node> nodes = new HashMap<>();
+    diagram.nodes().forEach(n -> nodes.put(n.id(), n));
+    List<String> routes = new ArrayList<>();
+    List<String> named = new ArrayList<>();
+    for (Diagram.Edge edge : diagram.edges()) {
+      if (edge.label() == null) {
+        continue;
+      }
+      String line = labels.get(edge.from()) + " to " + labels.get(edge.to());
+      if (ROUTE_LIST.matcher(edge.label()).find()) {
+        routes.add(line + " (\"" + edge.label() + "\")");
+      }
+      Diagram.Node end = nodes.get(edge.to());
+      if (end != null
+          && !C4Views.withoutEnd(edge.label(), C4Views.endNames(end.label(), end.technology()))
+              .equals(edge.label())) {
+        named.add(line + " (\"" + edge.label() + "\")");
+      }
+    }
+    if (!routes.isEmpty()) {
+      fail(PURPOSE, target, "Labelled with routes: " + names(routes) + ".");
+    }
+    if (!named.isEmpty()) {
+      fail(END_NAMED, target, "Labels naming the box they point to: " + names(named) + ".");
+    }
+    List<String> technical = new ArrayList<>();
+    for (Diagram.Node node : diagram.nodes()) {
+      String type = node.id().type();
+      if ((extendsOneOf(type, Set.of(Types.SERVICE, Types.FRONTEND)))
+          && node.label() != null
+          && TECHNICAL_NAME.matcher(ReadableNames.of(node.label())).matches()) {
+        technical.add(node.label());
+      }
+    }
+    if (!technical.isEmpty()) {
+      fail(READABLE, target, "Named only as built: " + names(technical) + ".");
+    }
   }
 
   private void title(Diagram diagram, CrossReference.Target target, Set<EntityId> boundaries) {

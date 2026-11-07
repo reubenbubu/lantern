@@ -252,9 +252,13 @@ and arrowhead used. One abstraction level. Readable (Diagrams stay readable), el
 level or detail folded away. Every element has a name, a type and a responsibility sentence that does
 not restate the name; containers and components have a technology, a container's naming its
 frameworks and their versions, and an exchange its type. Every line is one-way, labelled with one
-intent phrase other than "uses" or "depends on", linked to the facts behind it, and marked
+intent phrase other than "uses" or "depends on" that says what it is for, never a list of its
+routes, queues or methods nor the name or technology of the box it points to (ADR 0131), linked to
+the facts behind it, and marked
 conditional, naming the profile, when it holds only under a Spring profile; lines between containers
-name a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`). Acronyms are explained in the glossary. What the
+name a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`). No box or page name is over about 40
+characters, and a service or frontend is named in words, a build's name ("edge-gateway") shown
+small beneath, never in its place (ADR 0131). Acronyms are explained in the glossary. What the
 LLM found is marked as such.
 
 | Diagram | Passes only if |

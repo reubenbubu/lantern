@@ -100,6 +100,7 @@
           "description": "person · system (in scope) · external (third-party system) · container (deployable app/service/worker) · database · queue (message broker) · component."
         },
         "name": { "type": "string" },
+        "technicalName": { "type": "string", "description": "The name the code or build gives the element, when its name is written in words, e.g. \"customer-portal-bff\" for \"Customer portal BFF\". Shown small on the technology line and in tables." },
         "parent": {
           "$ref": "#/$defs/id",
           "description": "The C4 hierarchy: containers, databases and queues name their system (databases/queues may also sit in a container); components name their container. Drives diagram boundaries and zoom-in links."

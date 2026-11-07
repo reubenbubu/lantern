@@ -19,14 +19,16 @@
     },
     "service-com-example-app" : {
       "kind" : "container",
-      "name" : "shop-app",
+      "name" : "Shop app",
+      "technicalName" : "shop-app",
       "parent" : "system-snapshot",
       "tag" : "Service",
       "technology" : "Spring Boot 3.5.0 / Java 21"
     },
     "service-com-example-worker" : {
       "kind" : "container",
-      "name" : "worker",
+      "name" : "Worker",
+      "technicalName" : "worker",
       "parent" : "system-snapshot",
       "tag" : "Service",
       "technology" : "Spring Boot 3.5.0 / Java 21"
@@ -91,7 +93,7 @@
       "relationships" : [ {
         "from" : "system-snapshot",
         "to" : "external-system-pay-example-com",
-        "label" : "Calls POST /charges (only with the Spring profile prod)"
+        "label" : "Works with charges (only with the Spring profile prod)"
       } ]
     }, {
       "type" : "elements",
@@ -135,7 +137,7 @@
       "relationships" : [ {
         "from" : "service-com-example-app",
         "to" : "external-system-pay-example-com",
-        "label" : "Calls POST /charges (only with the Spring profile prod)",
+        "label" : "Works with charges (only with the Spring profile prod)",
         "technology" : "HTTPS"
       }, {
         "from" : "service-com-example-app",
@@ -150,7 +152,7 @@
       }, {
         "from" : "service-com-example-worker",
         "to" : "service-com-example-app",
-        "label" : "Calls GET /orders",
+        "label" : "Works with orders",
         "technology" : "JSON/HTTP"
       }, {
         "from" : "topic-kafka-orders",
@@ -193,7 +195,7 @@
   }, {
     "id" : "components-service-com-example-app",
     "level" : "components",
-    "title" : "shop-app",
+    "title" : "Shop app",
     "element" : "service-com-example-app",
     "sections" : [ {
       "type" : "diagram",
@@ -204,7 +206,7 @@
       "relationships" : [ {
         "from" : "service-com-example-worker",
         "to" : "type-com-example-web-controller",
-        "label" : "Calls GET /orders",
+        "label" : "Works with orders",
         "technology" : "JSON/HTTP"
       }, {
         "from" : "type-com-example-domain-jpaorders",
@@ -223,7 +225,7 @@
       }, {
         "from" : "type-com-example-web-controller",
         "to" : "external-system-pay-example-com",
-        "label" : "Calls POST /charges (only with the Spring profile prod)",
+        "label" : "Works with charges (only with the Spring profile prod)",
         "technology" : "HTTPS"
       }, {
         "from" : "type-com-example-web-jobs",

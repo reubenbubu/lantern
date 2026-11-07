@@ -144,8 +144,11 @@ final class Assembler {
         || id.type().equals(Types.FRONTEND)
         // An element only Investigate found, by the connections it found (ADR 0110).
         || (responsibility(id) == null && foundOnlyByTheInvestigator(id))
-        // A domain or feature area a diagram draws, by what Name groups wrote of it (ADR 0107).
-        || (id.type().equals(Types.GROUP) && responsibility(id) != null)
+        // A domain or feature area a diagram draws, by what Name groups wrote of it (ADR 0107),
+        // else by its members (#933).
+        || id.type().equals(Types.GROUP)
+        // A unit whose sentence the support judge rejected, by Lantern's plain wording (#933).
+        || (described.contains(id) && model.rejected(id, Types.RESPONSIBILITY))
         // The Unknown caller, marked unknown (#766).
         || id.equals(UnknownCallers.CALLER)) {
       undescribed.add(id);
@@ -172,6 +175,20 @@ final class Assembler {
     }
     SortedSet<EntityId> modules = model.parts(id, Types.MODULE);
     return modules.isEmpty() ? id : modules.first();
+  }
+
+  /**
+   * The entity a member is named by: a component by its main type ("CreditNoteController"), never
+   * by its key (#933's real run); anything else as it is.
+   */
+  static EntityId named(EntityId member) {
+    if (member.type().equals(Types.COMPONENT)) {
+      int slash = member.key().indexOf('/');
+      if (slash > 0) {
+        return EntityId.parse(member.key().substring(slash + 1));
+      }
+    }
+    return member;
   }
 
   /** What follows the name of a group no role named. */
@@ -502,6 +519,68 @@ final class Assembler {
   }
 
   /**
+   * What a person does, as a line's purpose (#933): the first clause of Describe's sentence about
+   * them, at most eight words, citing what it cites; or {@code null} if it wrote none.
+   */
+  private static final int MOST_PURPOSE_WORDS = 8;
+
+  /** Words that open a qualifier after what a person does. */
+  private static final Set<String> QUALIFIERS =
+      Set.of(
+          "submitted",
+          "by",
+          "for",
+          "with",
+          "that",
+          "which",
+          "who",
+          "through",
+          "from",
+          "to",
+          "in",
+          "on",
+          "using",
+          "via",
+          "across",
+          "when",
+          "while",
+          "so",
+          "as",
+          "and",
+          "or");
+
+  Phrased personPurpose(EntityId person) {
+    ArchitectureModel.Text sentence = model.responsibility(person).orElse(null);
+    if (sentence == null || sentence.text() == null || sentence.text().isBlank()) {
+      return null;
+    }
+    String text = sentence.text().strip().replaceAll("\\b(e\\.g|i\\.e|etc)\\.", "$1");
+    String clause = text.split("[;,:(]|\\.(?:\\s|$)", 2)[0].strip();
+    List<String> words = new ArrayList<>(List.of(clause.split("\\s+")));
+    // Too long for a line: up to the first word that opens a qualifier ("submitted by …"),
+    // never cut mid-phrase; none such within reach, no purpose.
+    if (words.size() > MOST_PURPOSE_WORDS) {
+      int cut = -1;
+      for (int i = 3; i < words.size() && i <= MOST_PURPOSE_WORDS; i++) {
+        if (QUALIFIERS.contains(words.get(i).toLowerCase(Locale.ROOT))) {
+          cut = i;
+          break;
+        }
+      }
+      if (cut < 0) {
+        return null;
+      }
+      words = words.subList(0, cut);
+    }
+    clause = String.join(" ", words).replaceAll("\\b(e\\.g|i\\.e)\\b(?!\\.)", "$1.");
+    if (clause.isEmpty()) {
+      return null;
+    }
+    Phrased cited = phrased(sentence);
+    return new Phrased(clause, cited == null ? List.of() : cited.facts());
+  }
+
+  /**
    * The intent Name groups stored for a line leaving a group (ADR 0107), and the facts it cites
    * that are in the snapshot, or {@code null} if it stored none.
    *
@@ -667,10 +746,9 @@ final class Assembler {
                               : responsibility != null
                                   ? responsibility(entity.id(), responsibility).content()
                                   // A box whose sentence the support judge rejected, though
-                                  // asked again, shows its name, kind and technology only (#751).
-                                  : model.rejected(entity.id(), Types.RESPONSIBILITY)
-                                      ? List.<Inline>of()
-                                      : summarizedDescription(entity.id()).content();
+                                  // asked again, or that has none, shows Lantern's plain
+                                  // wording, never nothing (#933).
+                                  : plain(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
@@ -1005,6 +1083,85 @@ final class Assembler {
       content.add(TextRun.of(text.substring(at)));
     }
     return content;
+  }
+
+  /**
+   * Lantern's plain wording for a box with no sentence that holds (#933; ADR 0101, amendment for
+   * #751): a group by its members; a unit by its module's summary, else by what it calls, uses and
+   * sends; never nothing a diagram could show as a blank box.
+   */
+  private Text plain(EntityId id) {
+    if (id.type().equals(Types.GROUP)) {
+      List<Fact> members = model.groupMembers(id);
+      SortedSet<String> names = new TreeSet<>();
+      members.forEach(f -> names.add(ReadableNames.of(name(named(ArchitectureModel.object(f))))));
+      if (names.isEmpty()) {
+        return new Text(List.of(), List.of());
+      }
+      List<String> ids = facts(members);
+      return new Text(
+          List.of(TextRun.of("Holds " + listedAtMost(names) + "."), new Citation(ids)), ids);
+    }
+    // A module's summary stands in for a unit with no sentence, never for one the judge rejected,
+    // whose claims it may share (#751).
+    if (!model.rejected(id, Types.RESPONSIBILITY) && model.summary(summarized(id)).isPresent()) {
+      return summarizedDescription(id);
+    }
+    if (!UNIT_TYPES.contains(id.type())) {
+      return new Text(List.of(), List.of());
+    }
+    List<String> parts = new ArrayList<>();
+    List<Fact> cited = new ArrayList<>();
+    for (String[] kind :
+        new String[][] {
+          {Types.CALLS_HTTP, "calls"},
+          {Types.USES_DATABASE, "uses"},
+          {Types.PUBLISHES, "sends to"},
+          {Types.CONSUMES, "receives from"}
+        }) {
+      SortedSet<String> to = new TreeSet<>();
+      for (Fact link : model.linksOf(id, kind[0])) {
+        EntityId end = ArchitectureModel.object(link);
+        to.add(UNIT_TYPES.contains(end.type()) ? ReadableNames.of(name(end)) : name(end));
+        cited.add(link);
+      }
+      if (!to.isEmpty()) {
+        parts.add(kind[1] + " " + listedAtMost(to));
+      }
+    }
+    if (parts.isEmpty()) {
+      // Nothing it reaches: still not a blank box (#933).
+      return new Text(
+          List.of(TextRun.of("A deployable unit; what it does is not known.")), List.of());
+    }
+    List<String> ids = facts(cited);
+    return new Text(
+        List.of(
+            TextRun.of("A deployable unit that " + listed(new ArrayList<>(parts)) + "."),
+            new Citation(ids)),
+        ids);
+  }
+
+  /** The types of a box the plain wording calls a deployable unit. */
+  private static final Set<String> UNIT_TYPES = Set.of(Types.SERVICE, Types.FRONTEND);
+
+  /** At most four names, else three and the rest counted: "a, b, c and 2 others". */
+  private static String listedAtMost(java.util.Collection<String> names) {
+    List<String> list = new ArrayList<>(names);
+    if (list.size() <= 4) {
+      return listed(list);
+    }
+    return String.join(", ", list.subList(0, 3)) + " and " + (list.size() - 3) + " others";
+  }
+
+  /** The names as a sentence list: "a", "a and b", "a, b and c". */
+  private static String listed(java.util.Collection<String> names) {
+    List<String> list = new ArrayList<>(names);
+    if (list.size() == 1) {
+      return list.getFirst();
+    }
+    String last = list.removeLast();
+    return String.join(", ", list) + " and " + last;
   }
 
   /**

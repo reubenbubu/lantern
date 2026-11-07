@@ -1,6 +1,6 @@
 # 0101: Model checks: the support judge and the injection screen
 
-Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier), amended for #529 (the support judge asks five a request), #530 (the verdict is stored on the text), #765 (injection findings on the findings page) and #751 (every role's texts judged on the writer's model, after the screen; inputs masked; a rejected text asked again, then left to the plain wording)
+Status: accepted (#526), amended by ADR 0103 (#528: bulk tier, judge tier), amended for #529 (the support judge asks five a request), #530 (the verdict is stored on the text), #765 (injection findings on the findings page) and #751 (every role's texts judged on the writer's model, after the screen; inputs masked; a rejected text asked again, then left to the plain wording), and by ADR 0131 (#933: a box whose sentence is rejected shows the plain sentence, never nothing)
 
 ## Context
 

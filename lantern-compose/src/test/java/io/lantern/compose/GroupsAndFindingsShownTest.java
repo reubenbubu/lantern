@@ -58,6 +58,35 @@ class GroupsAndFindingsShownTest {
   }
 
   @Test
+  void aGroupWithNoSentenceSaysWhatItHoldsInTheNamesItsBoxesShow() {
+    Document document = system(domains(TestFacts.runtime()));
+
+    // #933: never a blank box, and its members named in words, as their boxes are.
+    String said =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals(SECOND))
+            .findFirst()
+            .orElseThrow()
+            .description()
+            .stream()
+            .map(i -> i instanceof io.lantern.core.document.TextRun t ? t.text() : "")
+            .collect(java.util.stream.Collectors.joining());
+    assertThat(said).isEqualTo("Holds U1 service, U3 service, U5 service and 2 others.");
+  }
+
+  @Test
+  void aComponentInAGroupIsNamedByItsMainTypeNeverByItsKey() {
+    // #933's real run: a feature area of components read "Holds service:…/type:…Controller".
+    assertThat(
+            Assembler.named(
+                io.lantern.core.fact.EntityId.parse(
+                    "component:service:io.fleetcare:billing-service/type:io.fleetcare.billing.Credit")))
+        .isEqualTo(io.lantern.core.fact.EntityId.parse("type:io.fleetcare.billing.Credit"));
+    assertThat(Assembler.named(io.lantern.core.fact.EntityId.parse("service:g:shop")))
+        .isEqualTo(io.lantern.core.fact.EntityId.parse("service:g:shop"));
+  }
+
+  @Test
   void aGroupNameTheSupportJudgeRejectedGivesWayToTheNameTheCodeGivesIt() {
     List<Fact> facts = domains(TestFacts.runtime());
     Fact member = membership(facts, SECOND);
@@ -247,7 +276,7 @@ class GroupsAndFindingsShownTest {
     for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
       String unit = "service:com.example:u" + i;
       many.attribute("shop", unit, "deployable-unit", "spring-boot", "{}")
-          .attribute("shop", unit, "application-name", "u" + i, "{}")
+          .attribute("shop", unit, "application-name", "u" + i + "-service", "{}")
           .attribute("shop", unit, "technology", "Spring Boot 3.5.0 / Java 21", "{}")
           .relate(
               "shop",

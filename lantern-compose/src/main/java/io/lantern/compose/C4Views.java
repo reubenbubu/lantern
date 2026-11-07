@@ -38,6 +38,8 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The C4 context, container and component diagrams of a scope, by the definitions of {@code
@@ -61,6 +63,12 @@ final class C4Views {
   static final String NOT_RECORDED = "Not recorded.";
 
   /** The most participants a sequence diagram shows (docs/design.md, Sequence diagrams). */
+  /**
+   * The longest name a box or page may have (#933): "about 40 characters", room for a flow title's
+   * five words (prompts/flow-narrative.task.txt) and no more.
+   */
+  static final int MAX_NAME = 45;
+
   static final int MAX_PARTICIPANTS = 15;
 
   /** How many details an edge label names before it counts the rest. */
@@ -311,8 +319,12 @@ final class C4Views {
           return lineIntent;
         }
         // A line Describe words as a whole that holds no intent of its own reads what its links
-        // record, not one request's intent (ADR 0103, amendment for #810).
-        if (claims.size() < MergedLines.MIN_CLAIMS || phrases.size() < 2) {
+        // are about, not one request's intent (ADR 0103, amendment for #810), unless they record
+        // no routes: every line says what it is for (#933).
+        if (claims.size() < MergedLines.MIN_CLAIMS
+            || phrases.size() < 2
+            || details.isEmpty()
+            || !(details.stream().allMatch(d -> d.contains("/")) || actions(details).isPresent())) {
           return phrases.entrySet().stream()
               .max(
                   Map.Entry.<String, Integer>comparingByValue()
@@ -324,13 +336,315 @@ final class C4Views {
       if (details.isEmpty()) {
         return plain;
       }
-      List<String> named = new ArrayList<>(details);
-      String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
-      if (named.size() > NAMED) {
-        text += " and " + (named.size() - NAMED) + " more";
+      // Routes or screens with no stated purpose: what they are about, never the list (#933).
+      List<String> about =
+          details.stream().allMatch(d -> d.contains("/")) ? resources(details) : List.of();
+      if (about.isEmpty()) {
+        // Methods with no stated purpose: what they do, never the list of their names (#933).
+        Optional<String> done = actions(details);
+        if (done.isPresent()) {
+          return done.get();
+        }
+        // Messages by their keys or destinations: what they are about (#933).
+        Optional<String> messages = messages(prefix, details);
+        if (messages.isPresent()) {
+          return messages.get();
+        }
+        List<String> named = new ArrayList<>(details);
+        String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
+        if (named.size() > NAMED) {
+          text += " and others";
+        }
+        return prefix + " " + text;
       }
-      return prefix + " " + text;
+      String text = String.join(", ", about.subList(0, Math.min(NAMED + 1, about.size())));
+      if (about.size() > NAMED + 1) {
+        text += " and others";
+      } else if (about.size() > 1) {
+        int last = text.lastIndexOf(", ");
+        text = text.substring(0, last) + " and " + text.substring(last + 2);
+      }
+      String said = prefix == null ? "" : prefix.toLowerCase(Locale.ROOT);
+      if (said.contains("route")) {
+        return "Routes " + text + " requests";
+      }
+      if (said.contains("screen")) {
+        return "Opens the " + text + " screens";
+      }
+      return "Works with " + text;
     }
+  }
+
+  /** Path segments that say nothing of what a route is about. */
+  private static final Set<String> ROUTE_NOISE =
+      Set.of("api", "rest", "internal", "public", "private", "external", "graphql", "rpc");
+
+  private static final Set<String> MESSAGE_VERBS =
+      Set.of("Sends", "Delivers", "Publishes", "Receives", "Consumes");
+
+  private static final Pattern MESSAGE_KEY = Pattern.compile("[A-Za-z0-9_.*#-]+");
+
+  /**
+   * Messages a line sends or delivers, by what their keys or destinations are about (#933):
+   * "Delivers order.*, refund.#" is "Delivers order and refund messages"; empty unless the prefix
+   * is one verb and every detail a key or a destination's name.
+   */
+  static Optional<String> messages(String prefix, java.util.Collection<String> details) {
+    if (!MESSAGE_VERBS.contains(prefix) || details.size() < 2) {
+      return Optional.empty();
+    }
+    java.util.LinkedHashSet<String> about = new java.util.LinkedHashSet<>();
+    for (String detail : details) {
+      if (!MESSAGE_KEY.matcher(detail).matches()) {
+        return Optional.empty();
+      }
+      String first = detail.split("[.*#]")[0].replace('-', ' ').replace('_', ' ').strip();
+      if (!first.isEmpty()) {
+        about.add(first);
+      }
+    }
+    if (about.isEmpty()) {
+      return Optional.empty();
+    }
+    List<String> shown = new ArrayList<>(about).subList(0, Math.min(3, about.size()));
+    String text =
+        shown.size() == 1
+            ? shown.getFirst()
+            : String.join(", ", shown.subList(0, shown.size() - 1)) + " and " + shown.getLast();
+    return Optional.of(prefix + " " + text + (about.size() > 3 ? " and other" : "") + " messages");
+  }
+
+  /** Verbs a method's name may start with, in the form a label reads them. */
+  private static final Set<String> VERBS =
+      Set.of(
+          "find",
+          "get",
+          "load",
+          "fetch",
+          "list",
+          "search",
+          "query",
+          "read",
+          "count",
+          "create",
+          "add",
+          "save",
+          "store",
+          "insert",
+          "update",
+          "change",
+          "delete",
+          "remove",
+          "approve",
+          "reject",
+          "complete",
+          "cancel",
+          "close",
+          "open",
+          "start",
+          "stop",
+          "record",
+          "request",
+          "review",
+          "decide",
+          "send",
+          "publish",
+          "notify",
+          "check",
+          "validate",
+          "verify",
+          "apply",
+          "assign",
+          "mark",
+          "reserve",
+          "release",
+          "refund",
+          "issue",
+          "process",
+          "handle",
+          "submit",
+          "compute",
+          "calculate",
+          "register",
+          "schedule",
+          "book",
+          "charge",
+          "pay",
+          "post",
+          "track",
+          "import",
+          "export",
+          "sync",
+          "resolve",
+          "dispatch",
+          "lock",
+          "unlock",
+          "confirm",
+          "renew");
+
+  private static final Pattern METHOD = Pattern.compile("[a-z][A-Za-z0-9]*");
+
+  /**
+   * What a line's methods do (#933): "approve, complete and findOpen" is "Approves, completes and
+   * finds", the verbs their names start with, in order, once each, at most three; empty if a detail
+   * is not a method's name or none starts with a verb.
+   */
+  static Optional<String> actions(java.util.Collection<String> details) {
+    java.util.LinkedHashSet<String> verbs = new java.util.LinkedHashSet<>();
+    for (String detail : details) {
+      if (!METHOD.matcher(detail).matches()) {
+        return Optional.empty();
+      }
+      String first = detail.split("(?=[A-Z0-9])")[0];
+      if (VERBS.contains(first)) {
+        verbs.add(thirdPerson(first));
+      }
+    }
+    if (verbs.isEmpty()) {
+      return Optional.empty();
+    }
+    List<String> shown = new ArrayList<>(verbs).subList(0, Math.min(3, verbs.size()));
+    String text =
+        shown.size() == 1
+            ? shown.getFirst()
+            : String.join(", ", shown.subList(0, shown.size() - 1)) + " and " + shown.getLast();
+    return Optional.of(Character.toUpperCase(text.charAt(0)) + text.substring(1));
+  }
+
+  private static String thirdPerson(String verb) {
+    if (verb.matches(".*(s|sh|ch|x|z|o)")) {
+      return verb + "es";
+    }
+    if (verb.matches(".*[^aeiou]y")) {
+      return verb.substring(0, verb.length() - 1) + "ies";
+    }
+    return verb + "s";
+  }
+
+  /**
+   * What routes or destinations are about (#933): each route's first literal path segment after
+   * {@code api} and versions ("GET /api/collections/cases/{id}" is about collections), each other
+   * detail as it is, in their order, once each.
+   */
+  static List<String> resources(java.util.Collection<String> details) {
+    java.util.LinkedHashSet<String> about = new java.util.LinkedHashSet<>();
+    for (String detail : details) {
+      String path = detail.contains(" /") ? detail.substring(detail.indexOf(" /") + 1) : detail;
+      if (!path.startsWith("/")) {
+        about.add(detail);
+        continue;
+      }
+      for (String segment : path.split("/")) {
+        String plain = segment.strip();
+        if (plain.isEmpty()
+            || plain.startsWith("{")
+            || plain.equals("**")
+            || ROUTE_NOISE.contains(plain.toLowerCase(Locale.ROOT))
+            || plain.matches("v\\d+")) {
+          continue;
+        }
+        about.add(plain.replace('-', ' '));
+        break;
+      }
+    }
+    return new ArrayList<>(about);
+  }
+
+  /**
+   * The ways a label may name a line's end, which the line already points to (#933): its name, the
+   * name with dashes as spaces, and each word of its technology that names a product (PostgreSQL,
+   * Redis, Keycloak, Kafka), not a version or a generic word.
+   */
+  private List<String> endNames(EntityId end) {
+    return endNames(assembler.name(end), elements.technology(end));
+  }
+
+  /** The ways a label may name a box of this name and technology; see {@link #endNames}. */
+  static List<String> endNames(String name, String technology) {
+    java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+    if (name != null && !name.isBlank()) {
+      names.add(name);
+      names.add(name.replace('-', ' '));
+      names.add(name.replaceAll("[-._]", " "));
+      // "from the gateway" into a box named "Edge gateway"
+      String[] words = name.split("[-._ ]");
+      String last = words[words.length - 1];
+      if (KIND_NOUNS.contains(last.toLowerCase(Locale.ROOT))) {
+        names.add(last);
+      }
+    }
+    if (technology != null) {
+      for (String part : technology.split("[/,·()]")) {
+        String word = part.strip().split("\\s+")[0];
+        if (word.length() > 2
+            && Character.isUpperCase(word.charAt(0))
+            && !GENERIC_TECHNOLOGY.contains(word.toLowerCase(Locale.ROOT))) {
+          names.add(word);
+        }
+      }
+    }
+    return new ArrayList<>(names);
+  }
+
+  /** Words that say what kind of box a line ends in. */
+  private static final Set<String> KIND_NOUNS =
+      Set.of("gateway", "database", "cache", "store", "registry", "broker", "server");
+
+  /** Words of a technology line that say what kind of thing it is, not which product. */
+  private static final Set<String> GENERIC_TECHNOLOGY =
+      Set.of("java", "spring", "boot", "container", "service", "topic", "queue", "exchange", "web");
+
+  /**
+   * The label without a closing phrase that names the line's other end ("Stores sessions in Redis"
+   * into Redis is "Stores sessions"), as long as at least two words are left (#933).
+   */
+  static String withoutEnd(String label, List<String> names) {
+    if (label == null || names.isEmpty()) {
+      return label;
+    }
+    StringBuilder alternatives = new StringBuilder();
+    names.stream()
+        .filter(n -> !n.isBlank())
+        .sorted(java.util.Comparator.comparingInt(String::length).reversed())
+        .forEach(
+            n -> alternatives.append(alternatives.isEmpty() ? "" : "|").append(Pattern.quote(n)));
+    Matcher m =
+        Pattern.compile(
+                "\\s+(?:in|into|to|through|via|against|from|with|on|at|using|onto)\\s+"
+                    + "(?:the\\s+|its\\s+|a\\s+)?(?:"
+                    + alternatives
+                    + ")(?:'s)?(?:\\s+(?:database|cache|store|topic|queue|exchange|server|service"
+                    + "|gateway|registry|instance|broker))?\\s*\\.?$",
+                Pattern.CASE_INSENSITIVE)
+            .matcher(label);
+    if (!m.find()) {
+      return label;
+    }
+    String kept = label.substring(0, m.start()).strip();
+    return kept.split("\\s+").length >= 2 ? kept : label;
+  }
+
+  private static final Pattern CLOSING_DESTINATION =
+      Pattern.compile(
+          "\\s+(?:to|on|into|onto|via|through)\\s+(?:the\\s+|its\\s+|a\\s+)?(?:[\\w.-]+\\s+){0,2}"
+              + "(?:exchange|queue|topic)\\s*\\.?$",
+          Pattern.CASE_INSENSITIVE);
+
+  /**
+   * A label into a topic, queue or exchange without a closing phrase naming one ("Publishes payment
+   * events to the work-order exchange" is "Publishes payment events"): the line ends at it (#933).
+   * Kept as it is if fewer than two words would be left.
+   */
+  static String withoutDestination(String label) {
+    if (label == null) {
+      return null;
+    }
+    Matcher m = CLOSING_DESTINATION.matcher(label);
+    if (!m.find()) {
+      return label;
+    }
+    String kept = label.substring(0, m.start()).strip();
+    return kept.split("\\s+").length >= 2 ? kept : label;
   }
 
   /** A phrase's first letter in lower case, unless it starts an acronym or a name in capitals. */
@@ -365,12 +679,16 @@ final class C4Views {
      */
     void add(EntityId from, EntityId to, Line link) {
       EdgeBuilder edge = get(from, link.relationship(), to);
-      edge.add(
-          link,
-          link.relationship().equals(Elements.USES) && link.from().type().equals(Types.PERSON)
-              // A person's use of a frontend is worded per frontend (ADR 0103, amendment for #739).
-              ? assembler.personPhrase(link.facts().getFirst(), link.to())
-              : assembler.phrase(link.facts().getFirst()));
+      boolean person =
+          link.relationship().equals(Elements.USES) && link.from().type().equals(Types.PERSON);
+      Assembler.Phrased phrase =
+          person
+              // A person's use of a frontend is worded per frontend (ADR 0103, amendment for #739),
+              // else by what Describe said the person does (#933).
+              ? Optional.ofNullable(assembler.personPhrase(link.facts().getFirst(), link.to()))
+                  .orElseGet(() -> assembler.personPurpose(link.from()))
+              : assembler.phrase(link.facts().getFirst());
+      edge.add(link, phrase);
       if (from.type().equals(Types.GROUP) && edge.intent == null) {
         intent(edge, assembler.groupIntent(from, to + " " + link.relationship()));
       }
@@ -410,7 +728,9 @@ final class C4Views {
                 Assembler.edgeId(ids, edge.from, edge.relationship, edge.to),
                 edge.from,
                 edge.to,
-                edge.label(),
+                isType(edge.to.type(), Types.DESTINATION)
+                    ? withoutDestination(withoutEnd(edge.label(), endNames(edge.to)))
+                    : withoutEnd(edge.label(), endNames(edge.to)),
                 technology,
                 edge.relationship,
                 edge.always ? List.of() : List.copyOf(edge.profiles),
@@ -502,8 +822,15 @@ final class C4Views {
           null);
       edge.facts.addAll(cited);
       // The person's intent for each frontend they use (ADR 0103, amendment for #739).
+      boolean phrased = false;
       for (EntityId frontend : elements.screens(person.getValue()).keySet()) {
-        edge.phrased(assembler.personPhrase(person.getValue(), frontend));
+        Assembler.Phrased phrase = assembler.personPhrase(person.getValue(), frontend);
+        phrased |= phrase != null;
+        edge.phrased(phrase);
+      }
+      // Else what Describe said the person does, never a bare "Uses" (#933).
+      if (!phrased) {
+        edge.phrased(assembler.personPurpose(person.getKey()));
       }
     }
     // The Unknown caller, where entry points of the scope's units nothing reaches (#766).

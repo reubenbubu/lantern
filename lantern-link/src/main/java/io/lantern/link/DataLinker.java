@@ -304,8 +304,36 @@ final class DataLinker {
     }
     String key = Claims.key(datasource);
     return unresolved && key != null && !key.equals("spring.datasource.url")
-        ? name + " (" + key + ")"
+        ? name + " (" + keyWords(key) + ")"
         : name;
+  }
+
+  /** Words of a configuration key no datasource key has ("datasource", "url"). */
+  private static final java.util.Set<String> KEY_NOISE =
+      java.util.Set.of(
+          "app",
+          "spring",
+          "datasource",
+          "datasources",
+          "url",
+          "jdbc",
+          "r2dbc",
+          "jpa",
+          "db",
+          "hikari");
+
+  /**
+   * What tells a datasource key apart, for a name a reader scans (#933): "billing.datasource.
+   * workorders.url" is "billing workorders"; the key itself if it has nothing else.
+   */
+  static String keyWords(String key) {
+    java.util.LinkedHashSet<String> words = new java.util.LinkedHashSet<>();
+    for (String word : key.split("[.\\-_\\[\\]]")) {
+      if (!word.isBlank() && !KEY_NOISE.contains(word.toLowerCase(java.util.Locale.ROOT))) {
+        words.add(word);
+      }
+    }
+    return words.isEmpty() ? key : String.join(" ", words);
   }
 
   /**

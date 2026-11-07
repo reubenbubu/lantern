@@ -1,6 +1,6 @@
 # 0088: One intent per line, frameworks in the technology line, exchange types
 
-Status: accepted (#276, part of 2C), amends ADR 0039, ADR 0044 and ADR 0050
+Status: accepted (#276, part of 2C), amends ADR 0039, ADR 0044 and ADR 0050; amended by ADR 0131 (#933: a label is a purpose, never a list, and does not name its end)
 
 ## Context
 

@@ -4410,7 +4410,9 @@ const LEVEL = Object.fromEntries(LEVELS.map(l => [l.id, l]));
 /* Elements, normalised for the renderers (tech / desc / props). */
 const EL = {};
 for (const [id, e] of Object.entries(DATA.elements || {}))
-  EL[id] = {...e, tech:e.technology || '', desc:e.description || '', props:e.properties || {}};
+  EL[id] = {...e, tech:e.technology || '', desc:e.description || '', props:e.properties || {},
+    // the name the build gives it, small on the technology line (a box's name is in words)
+    techLine:[e.technicalName, e.technology].filter(Boolean).join(' · ')};
 /* An element's type label in diagrams; one the LLM found says so (schema: llm). */
 const tagOf = e => (e.llm ? 'LLM · ' : '') + (e.tag || KIND[e.kind]?.label || '');
 
@@ -4644,8 +4646,8 @@ function nodeSVG(n, view, uid, ruled=false){
   const tag = tagOf(e);
   const descLines = h >= 300 ? 6 : h >= 140 ? 3 : h >= 100 ? 2 : 1;
   const desc = e.desc ? wrap(e.desc, Math.floor((w-(hero?60:sidePad(k)))/(hero?6.6:NODE_TEXT.ds)), descLines) : [];
-  const nmL = fitText(e.name, w - sidePad(k), hero ? NODE_TEXT.nmHero : NODE_TEXT.nm, 2), tcL = fitText(e.tech, w - sidePad(k), NODE_TEXT.tc, 2);
-  const nameH = nmL.length*(hero ? 24 : 18), tech = e.tech, techH = tcL.length ? 16 + (tcL.length - 1)*13 : 0;
+  const nmL = fitText(e.name, w - sidePad(k), hero ? NODE_TEXT.nmHero : NODE_TEXT.nm, 2), tcL = fitText(e.techLine, w - sidePad(k), NODE_TEXT.tc, 2);
+  const nameH = nmL.length*(hero ? 24 : 18), tech = e.techLine, techH = tcL.length ? 16 + (tcL.length - 1)*13 : 0;
   const pills = view ? pillsFor(n.id, view) : [];
   const grid = pills.length ? pillGrid(pills, w - 2*PILL.pad) : null;
   const pillArea = grid ? grid.h + 18 : 0;
@@ -5118,9 +5120,9 @@ function layoutDiagram(spec){
     let [w,h] = NODE_SIZE[k]; if (hero){ w = 300; h = 150; }
     { // widen to fit the name and technology line; past the cap they wrap and the box grows taller
       const e = EL[id], per = hero ? NODE_TEXT.nmHero : NODE_TEXT.nm;
-      const need = Math.max(e.name.length*per, (e.tech || '').length*NODE_TEXT.tc, tagOf(e).length*6.5 + 16) + sidePad(k);
+      const need = Math.max(e.name.length*per, (e.techLine || '').length*NODE_TEXT.tc, tagOf(e).length*6.5 + 16) + sidePad(k);
       w = Math.max(w, Math.min(hero ? NODE_TEXT.capHero : NODE_TEXT.cap, need));
-      const nl = fitText(e.name, w - sidePad(k), per, 2).length, tl = fitText(e.tech, w - sidePad(k), NODE_TEXT.tc, 2).length;
+      const nl = fitText(e.name, w - sidePad(k), per, 2).length, tl = fitText(e.techLine, w - sidePad(k), NODE_TEXT.tc, 2).length;
       h += Math.max(0, nl - 1)*(hero ? 24 : 18) + Math.max(0, tl - 1)*13;
     }
     const pills = spec._key ? pillsFor(id, spec._key) : [];
@@ -5920,7 +5922,7 @@ function diagramCard(kind, key){
    ========================================================================== */
 let currentView = 'home';
 const llmBadge = '<span class="badge b-llm" title="Found by the LLM, not by static analysis">LLM</span>';
-const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + llmBadge : ''}<small>${esc(e.tag||KIND[e.kind].label)}</small></div></div>`; };
+const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + llmBadge : ''}<small>${esc(e.tag||KIND[e.kind].label)}${e.technicalName ? ' · ' + esc(e.technicalName) : ''}</small></div></div>`; };
 const critBadge = c => c ? `<span class="badge ${/^(high|critical)$/i.test(c)?'b-high':/^med/i.test(c)?'b-med':'b-low'}">${esc(c)}</span>` : '';
 const statusBadge = s => `<span class="badge ${/approved|accepted|done|active/i.test(s)?'b-ok':/rejected|deprecated/i.test(s)?'b-high':'b-info'}">${esc(s)}</span>`;
 const fmtDate = d => { const t = Date.parse(d); return isNaN(t) ? d : new Date(t).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); };

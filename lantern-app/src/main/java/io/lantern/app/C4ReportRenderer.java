@@ -178,6 +178,14 @@ public final class C4ReportRenderer {
   /** The catalogues after a diagram: the element kinds each lists, its title and its columns. */
   private record Catalogue(String suffix, Set<String> kinds, String title, List<String> columns) {}
 
+  /** The entity types drawn as containers whose build names may be technical (#933). */
+  private static final Set<String> CONTAINER_TYPES = Set.of("service", "frontend");
+
+  /** A container's name in words ({@link io.lantern.compose.ReadableNames}); any other as it is. */
+  static String readable(String kind, String name) {
+    return "container".equals(kind) ? io.lantern.compose.ReadableNames.of(name) : name;
+  }
+
   private static final List<String> DEFAULT_COLUMNS = List.of("name", "description", "technology");
 
   private static final List<Catalogue> CATALOGUES =
@@ -764,7 +772,16 @@ public final class C4ReportRenderer {
       ObjectNode node = MAPPER.createObjectNode();
       String kind = element.kind();
       node.put("kind", kind);
-      node.put("name", entity.name());
+      // A container named as its build names it reads as words, with that name small beneath
+      // (#933).
+      String readable =
+          CONTAINER_TYPES.contains(element.id.type())
+              ? readable(kind, entity.name())
+              : entity.name();
+      node.put("name", readable);
+      if (!readable.equals(entity.name())) {
+        node.put("technicalName", entity.name());
+      }
       EntityId parent = shownParent(element);
       if (parent != null) {
         node.put("parent", elementIds.find(parent.toString()));
@@ -793,11 +810,24 @@ public final class C4ReportRenderer {
       return node;
     }
 
+    /** A page's title: a container's page named as its box is (#933). */
+    private String pageTitle(PagePlan page) {
+      String title = page.section.title();
+      EntityId about = page.section.entity();
+      if (about != null && entities.containsKey(about)) {
+        DocumentEntity entity = entities.get(about);
+        if (title.equals(entity.name()) && CONTAINER_TYPES.contains(about.type())) {
+          return readable("container", title);
+        }
+      }
+      return title;
+    }
+
     private ObjectNode pageNode(PagePlan page) {
       ObjectNode node = MAPPER.createObjectNode();
       node.put("id", page.id);
       node.put("level", page.level);
-      node.put("title", page.section.title());
+      node.put("title", pageTitle(page));
       if (page.parent != null) {
         node.put("parent", page.parent.id);
       }

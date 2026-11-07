@@ -2148,7 +2148,7 @@ class CrossRepoLinksTest {
             "database:g:files/sql-server:g:files display-name files database 1.0",
             "database:g:notes/g:notes display-name notes database 1.0",
             "database:g:reports/postgresql:g:reports@app.reporting.url display-name"
-                + " reports database (app.reporting.url) 1.0",
+                + " reports database (reporting) 1.0",
             "database:g:main/postgresql:orders display-name orders 1.0",
             "database:g:embedded/postgresql:cache display-name cache 1.0");
   }

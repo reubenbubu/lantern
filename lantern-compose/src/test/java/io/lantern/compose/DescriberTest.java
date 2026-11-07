@@ -617,18 +617,20 @@ class DescriberTest {
   }
 
   @Test
-  void aSentenceTheSupportJudgeRejectedLeavesTheBoxWithoutOneAndNothingIsMarked() {
+  void aSentenceTheSupportJudgeRejectedLeavesTheBoxPlainWordingAndNothingIsMarked() {
     TestTexts.Written wordings =
         TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)))
             .withUnsupported(Set.of(APP));
 
     Document document = system(wordings);
 
-    // The box keeps its name, kind and technology, with no sentence; no document shows a support
-    // mark (the owner's decision of 4 Nov 2026 on #751).
+    // The box shows Lantern's plain wording of what it connects to, never nothing (#933); no
+    // document shows a support mark (the owner's decision of 4 Nov 2026 on #751).
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(app.description()).isEmpty();
+    assertThat(text(app.description()))
+        .isEqualTo(
+            "A deployable unit that calls pay.example.com, uses shop on db and sends to orders.");
     assertThat(app.name()).isEqualTo("shop-app");
     assertThat(String.valueOf(document)).doesNotContain("Not supported by its sources");
     DocumentEntity database =
@@ -1621,7 +1623,7 @@ class DescriberTest {
     assertThat(store.size()).isEqualTo(10);
     // The documents keep summaries and static labels.
     assertThat(edges(diagrams(system(result), Diagram.Kind.C4_CONTEXT).getFirst()))
-        .containsExactly("system:snapshot -> external-system:pay.example.com: Calls POST /charges");
+        .containsExactly("system:snapshot -> external-system:pay.example.com: Works with charges");
   }
 
   @Test
@@ -3278,11 +3280,12 @@ class DescriberTest {
 
     Describer.Result result = new Describer(harness(client(fake))).describe(facts.list());
 
-    // No request's intent stands for the whole line (review of #810).
+    // No request's intent stands for the whole line (review of #810); it says what its requests
+    // are about, never their list (#933).
     assertThat(webLine(result, facts).label())
         .isNotIn(
             "Lists the shopper's orders", "Places a new shop order", "Cancels one of the orders")
-        .startsWith("Calls ");
+        .isEqualTo("Works with orders");
     assertThat(result.unknown()).contains("frontend:shop/web|service:com.example:app|CALLS_HTTP");
     assertThat(io.lantern.core.document.DocumentJson.write(webDocument(result, facts)))
         .contains("as a whole, whose requests do different things:")
