@@ -580,6 +580,29 @@ final class C4Views {
     return kept.split("\\s+").length >= 2 ? kept : label;
   }
 
+  private static final Pattern CLOSING_DESTINATION =
+      Pattern.compile(
+          "\\s+(?:to|on|into|onto|via|through)\\s+(?:the\\s+|its\\s+|a\\s+)?(?:[\\w.-]+\\s+){0,2}"
+              + "(?:exchange|queue|topic)\\s*\\.?$",
+          Pattern.CASE_INSENSITIVE);
+
+  /**
+   * A label into a topic, queue or exchange without a closing phrase naming one ("Publishes payment
+   * events to the work-order exchange" is "Publishes payment events"): the line ends at it (#933).
+   * Kept as it is if fewer than two words would be left.
+   */
+  static String withoutDestination(String label) {
+    if (label == null) {
+      return null;
+    }
+    Matcher m = CLOSING_DESTINATION.matcher(label);
+    if (!m.find()) {
+      return label;
+    }
+    String kept = label.substring(0, m.start()).strip();
+    return kept.split("\\s+").length >= 2 ? kept : label;
+  }
+
   /** A phrase's first letter in lower case, unless it starts an acronym or a name in capitals. */
   static String lowerFirst(String phrase) {
     if (phrase.length() > 1
@@ -661,7 +684,9 @@ final class C4Views {
                 Assembler.edgeId(ids, edge.from, edge.relationship, edge.to),
                 edge.from,
                 edge.to,
-                withoutEnd(edge.label(), endNames(edge.to)),
+                isType(edge.to.type(), Types.DESTINATION)
+                    ? withoutDestination(withoutEnd(edge.label(), endNames(edge.to)))
+                    : withoutEnd(edge.label(), endNames(edge.to)),
                 technology,
                 edge.relationship,
                 edge.always ? List.of() : List.copyOf(edge.profiles),

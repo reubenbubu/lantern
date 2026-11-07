@@ -152,6 +152,14 @@ class C4ViewsTest {
                 "Fetches the operations summary from the gateway",
                 List.of("edge-gateway", "edge gateway", "gateway")))
         .isEqualTo("Fetches the operations summary");
+    // Into a topic, queue or exchange, a closing phrase naming one goes.
+    assertThat(C4Views.withoutDestination("Publishes payment events to work-order exchange"))
+        .isEqualTo("Publishes payment events");
+    assertThat(C4Views.withoutDestination("Publishes priority alerts to the headers exchange"))
+        .isEqualTo("Publishes priority alerts");
+    assertThat(C4Views.withoutDestination("Queues payment confirmations for its own listener"))
+        .isEqualTo("Queues payment confirmations for its own listener");
+    assertThat(C4Views.withoutDestination("Sends to queue")).isEqualTo("Sends to queue");
     // Too little would be left, or the end is not named last: kept as it is.
     assertThat(C4Views.withoutEnd("Uses Redis", List.of("Redis"))).isEqualTo("Uses Redis");
     assertThat(C4Views.withoutEnd("Reads Redis keys for rate limits", List.of("Redis")))
