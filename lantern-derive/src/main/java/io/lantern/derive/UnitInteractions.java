@@ -123,7 +123,9 @@ public final class UnitInteractions {
     Set<Fact> held = new HashSet<>();
     for (String predicate : LINKS) {
       for (Fact link : order.apply(knowledge.relations(unit, predicate))) {
-        if (!alternatives.contains(link) && held.add(link)) {
+        // A proxy no call goes through is no interaction of the code: its line keeps its own
+        // label (ADR 0083, amendment for #980).
+        if (!alternatives.contains(link) && !Elements.unusedProxy(link) && held.add(link)) {
           result.add(new Held(Kind.LINK, unit, link, null, unit, Knowledge.object(link), null));
         }
       }

@@ -2949,8 +2949,9 @@ class CrossRepoLinksTest {
             "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"GET\","
                 + "\"matchedBy\":\"host\",\"path\":\"/bff/api/orders\",\"protocol\":\"JSON/HTTP\","
                 + "\"proxy\":\"/bff/\",\"request\":\"GET /bff/api/orders\",\"url\":\"http://bff:8081/bff/api/orders\"} 0.81",
+            // A proxy no call goes through passes requests on over its scheme alone (#980).
             "frontend:shop/web-ui CALLS_HTTP service:g:files {\"matchedBy\":\"host\","
-                + "\"protocol\":\"JSON/HTTP\",\"proxy\":\"/media/\",\"request\":\"http://files:8080\",\"url\":\"http://files:8080\"}"
+                + "\"protocol\":\"HTTP\",\"proxy\":\"/media/\",\"request\":\"http://files:8080\",\"url\":\"http://files:8080\"}"
                 + " 0.81");
     assertThat(derive(Types.DEPLOYED_IN))
         .containsExactly(
@@ -2962,6 +2963,42 @@ class CrossRepoLinksTest {
     assertThat(FrontendLinker.folder("deploy/compose.yaml", "../web-ui Dockerfile.prod"))
         .isEqualTo("web-ui");
     assertThat(FrontendLinker.folder("compose.yaml", "../elsewhere")).isNull();
+  }
+
+  @Test
+  void aProxyNoCallGoesThroughIsALinkWithItsPrefixAndNoPath() {
+    // ADR 0083, amendment for #980: the nginx that serves the app passes /api/ to the gateway, but
+    // the app's only call goes to the BFF by its own URL. The proxy is a link of its own, with the
+    // prefix and no path or method, which the diagrams draw as unused.
+    unit("shop", "bff", "bff");
+    unit("shop", "gateway", "gateway");
+    frontend("shop", "web-ui");
+    String web = "frontend:shop/web-ui";
+    frontendProxy(web, "/api/", "http://gateway:8080/api/", "nginx");
+    frontendCall(web, "POST", "http://bff:8085/graphql", null, 3);
+    // A development server's proxy (Vite's server.proxy, an Angular proxy config, a package
+    // manifest's proxy) is one too when no nginx serves the app.
+    frontend("admin", "");
+    frontendProxy("frontend:admin", "/api", "http://gateway:8080", "dev-server");
+    // A proxy to a target a call reaches by its own URL adds nothing.
+    frontend("staff", "");
+    frontendProxy("frontend:staff", "/api/", "http://gateway:8080/api/", "nginx");
+    frontendCall("frontend:staff", "GET", "http://gateway:8080/api/summary", null, 5);
+
+    assertThat(derive(Types.CALLS_HTTP))
+        .containsExactlyInAnyOrder(
+            "frontend:shop/web-ui CALLS_HTTP service:g:bff {\"httpMethod\":\"POST\","
+                + "\"matchedBy\":\"host\",\"path\":\"/graphql\",\"protocol\":\"JSON/HTTP\","
+                + "\"request\":\"POST /graphql\",\"url\":\"http://bff:8085/graphql\"} 0.81",
+            "frontend:shop/web-ui CALLS_HTTP service:g:gateway {\"matchedBy\":\"host\","
+                + "\"protocol\":\"HTTP\",\"proxy\":\"/api/\",\"request\":\"http://gateway:8080/api/\","
+                + "\"url\":\"http://gateway:8080/api/\"} 0.81",
+            "frontend:admin CALLS_HTTP service:g:gateway {\"matchedBy\":\"host\","
+                + "\"protocol\":\"HTTP\",\"proxy\":\"/api\",\"request\":\"http://gateway:8080\","
+                + "\"url\":\"http://gateway:8080\"} 0.81",
+            "frontend:staff CALLS_HTTP service:g:gateway {\"httpMethod\":\"GET\","
+                + "\"matchedBy\":\"host\",\"path\":\"/api/summary\",\"protocol\":\"JSON/HTTP\","
+                + "\"request\":\"GET /api/summary\",\"url\":\"http://gateway:8080/api/summary\"} 0.81");
   }
 
   // ---------------------------------------------------------------------------------------------

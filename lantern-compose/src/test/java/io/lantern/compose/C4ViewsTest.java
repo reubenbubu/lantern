@@ -596,6 +596,57 @@ class C4ViewsTest {
   }
 
   @Test
+  void aProxyNoCallGoesThroughIsDrawnAsUnusedNeverAsACall() {
+    // ADR 0083, amendment for #980: the nginx that serves the app passes /api/ to a gateway no
+    // call of the app reaches. The line says so, whatever intent an earlier run stored for it, and
+    // the description does not count it as a call.
+    TestFacts withFrontend = withFrontendAndUser();
+    withFrontend.relate(
+        "shop",
+        "frontend:shop/web",
+        "CALLS_HTTP",
+        "service:com.example:worker",
+        "{\"protocol\":\"HTTP\",\"url\":\"http://worker:8080/api/\",\"matchedBy\":\"host\","
+            + "\"proxy\":\"/api/\",\"request\":\"http://worker:8080/api/\"}");
+    Fact proxied =
+        withFrontend.list().stream()
+            .filter(f -> f.predicate().equals("CALLS_HTTP"))
+            .filter(f -> f.object().value().equals("service:com.example:worker"))
+            .findFirst()
+            .orElseThrow();
+    withFrontend.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("frontend:shop/web"),
+            Types.INTENT,
+            proxied.claimId() != null ? proxied.claimId() : proxied.id(),
+            "Forwards API calls",
+            List.of(proxied),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    Document document = system(withFrontend.list());
+
+    assertThat(edges(block(section(document, "containers"), Diagram.class)))
+        .filteredOn(e -> e.startsWith("frontend:shop/web -> "))
+        .containsExactlyInAnyOrder(
+            "frontend:shop/web -> service:com.example:app: Works with orders [JSON/HTTP]",
+            "frontend:shop/web -> service:com.example:worker:"
+                + " Passes /api/ on (no call of the page uses it) [HTTP]");
+    DocumentEntity frontend =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("frontend:shop/web"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(frontend.description()))
+        .isEqualTo(
+            "A single-page app built with Angular 19.2, served by nginx; it calls shop-app from"
+                + " the browser.");
+  }
+
+  @Test
   void containersAreTheUnitsWithTheirStoresQueuesAndNeighboursInsideTheSystem() {
     Diagram diagram = block(section(repo(facts.list()), "containers"), Diagram.class);
 

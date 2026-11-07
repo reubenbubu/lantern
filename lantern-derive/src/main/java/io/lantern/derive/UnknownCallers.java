@@ -133,6 +133,10 @@ public final class UnknownCallers implements LinkRule.OverFacts {
       reach(unrouted, parse(attribute(fact, "target")), attribute(fact, "endpoint"));
     }
     for (Fact fact : knowledge.withPredicate(Types.CALLS_HTTP)) {
+      // A frontend's proxy no call goes through calls nothing (ADR 0083, amendment for #980).
+      if (Elements.unusedProxy(fact)) {
+        continue;
+      }
       called.add(Knowledge.object(fact));
       reach(reached, Knowledge.object(fact), attribute(fact, "target"));
       reach(reached, parse(attribute(fact, "reachesUnit")), attribute(fact, "reaches"));
@@ -372,7 +376,9 @@ public final class UnknownCallers implements LinkRule.OverFacts {
       Set<String> followed = followed(knowledge);
       for (Origin.Kind kind : Origin.Kind.values()) {
         for (Fact fact : knowledge.withOrigin(kind)) {
-          all.add(new Link(fact, followed));
+          if (!Elements.unusedProxy(fact)) {
+            all.add(new Link(fact, followed));
+          }
         }
       }
       for (Fact fact : knowledge.withPredicate(Types.UNROUTED_ENDPOINT)) {
@@ -388,7 +394,7 @@ public final class UnknownCallers implements LinkRule.OverFacts {
           return "is a route of another unit, " + entry.subject();
         }
         for (Fact call : knowledge.withPredicate(Types.CALLS_HTTP)) {
-          if (unitId.equals(call.object().value())) {
+          if (unitId.equals(call.object().value()) && !Elements.unusedProxy(call)) {
             return "is a route of a gateway " + call.subject() + " calls";
           }
         }

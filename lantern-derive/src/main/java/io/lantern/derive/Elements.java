@@ -245,6 +245,20 @@ public final class Elements {
                     attribute(app, "server", null)));
   }
 
+  /**
+   * Whether a frontend's {@code CALLS_HTTP} link is a proxy of its server that no call of its code
+   * goes through (ADR 0083, amendment for #980): it names the proxy's prefix and, unlike every call
+   * through a proxy, no path. It is drawn as a path the server opens, never as a call, and no
+   * intent is asked or counted for it.
+   */
+  public static boolean unusedProxy(Fact link) {
+    return link.subject().type().equals(Types.FRONTEND)
+        && link.predicate().equals(Types.CALLS_HTTP)
+        && attribute(link, "proxy") != null
+        && attribute(link, "path") == null
+        && attribute(link, "httpMethod") == null;
+  }
+
   /** The entity a link's {@code source} attribute names, or {@code null} when it names none. */
   public static EntityId sourceOf(Fact link) {
     String id = attribute(link, "source", null);
@@ -615,18 +629,30 @@ public final class Elements {
     }
     for (EntityId frontend : frontends(knowledge)) {
       for (Fact fact : knowledge.relations(frontend, Types.CALLS_HTTP)) {
-        String proxy = attribute(fact, "proxy");
         boolean socket = "WebSocket".equals(attribute(fact, "protocol"));
-        boolean passed =
-            !socket && attribute(fact, "httpMethod") == null && attribute(fact, "path") == null;
+        if (unusedProxy(fact)) {
+          // A path the server opens that no call of the page uses says so, never as a call; no
+          // intent words it (ADR 0083, amendment for #980).
+          result.add(
+              link(
+                  frontend,
+                  Types.CALLS_HTTP,
+                  Knowledge.object(fact),
+                  "Passes " + attribute(fact, "proxy") + " on (no call of the page uses it)",
+                  null,
+                  null,
+                  protocol(fact),
+                  fact));
+          continue;
+        }
         result.add(
             link(
                 frontend,
                 Types.CALLS_HTTP,
                 Knowledge.object(fact),
-                passed ? "Passes requests on to" : socket ? "Opens a socket to" : "Calls",
-                passed ? "Passes on" : socket ? "Opens" : "Calls",
-                passed ? proxy : socket ? attribute(fact, "path") : endpoint(fact),
+                socket ? "Opens a socket to" : "Calls",
+                socket ? "Opens" : "Calls",
+                socket ? attribute(fact, "path") : endpoint(fact),
                 protocol(fact),
                 fact));
       }

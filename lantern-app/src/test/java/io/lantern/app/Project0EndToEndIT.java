@@ -277,10 +277,12 @@ class Project0EndToEndIT {
                     || l.startsWith("environment-baked/")
                     || l.startsWith("open-cors/")
                     || l.startsWith("contract-mismatch/"))
-        // Compose runs each service once, and catalog-service and fulfilment each serve two units.
+        // Compose runs each service once, and catalog-service and fulfilment each serve two units,
+        // storefront-app fulfilment and the order page (FE-1).
         .containsExactly(
             "single-instance/service:com.acme.shop:catalog-service",
-            "single-instance/service:com.acme.shop:fulfilment");
+            "single-instance/service:com.acme.shop:fulfilment",
+            "single-instance/service:com.acme.shop:storefront-app");
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
     // The links project-0 leaves open with candidates: nine (HTTP-6 to HTTP-9, MSG-5 to MSG-9,
@@ -1175,7 +1177,10 @@ class Project0EndToEndIT {
     for (io.lantern.core.fact.EntityId unit : interactions.units()) {
       for (io.lantern.derive.UnitInteractions.Held interaction : interactions.of(unit)) {
         Fact fact = interaction.fact();
+        // Two of the units' own links, which this check is about; not the order page's call
+        // (FE-1).
         if (left.size() < 2
+            && !unit.type().equals(Types.FRONTEND)
             && interaction.kind() == io.lantern.derive.UnitInteractions.Kind.LINK
             && !fact.predicate().equals(Types.USES_DATABASE)) {
           left.add(interaction);
@@ -1360,9 +1365,9 @@ class Project0EndToEndIT {
 
     Map<String, Long> kinds = new TreeMap<>();
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
-    // Four units and the Keycloak compose runs, a container of the system (DEP-6, #979); the
-    // catalog, shop and ledger databases (the local profile's localhost one is a note; the ledger
-    // is payments' second datasource, DB-6);
+    // Four units, the Keycloak compose runs, a container of the system (DEP-6, #979), and the
+    // order page (FE-1); the catalog, shop and ledger databases (the local profile's localhost one
+    // is a note; the ledger is payments' second datasource, DB-6);
     // the shop.orders, shop.returns, shop.parcels, shop.cancellations and shop.disputes exchanges
     // (their queues folded into their lines; the last three from #734's open links), the
     // storefront.order-status fanout exchange storefront-app hears itself on (MSG-10), two JMS
@@ -1378,7 +1383,7 @@ class Project0EndToEndIT {
             new TreeMap<>(
                 Map.of(
                     "component", 32L,
-                    "container", 5L,
+                    "container", 6L,
                     "database", 3L,
                     "external", 3L,
                     // The Unknown caller (#766).
@@ -1393,20 +1398,20 @@ class Project0EndToEndIT {
             // No code signal groups catalog with the units that share the shop database into a
             // second domain, so the map of one domain does not fit either; the view is split by
             // concern, messaging per unit (#764; grouping what code leaves loose is #919). With
-            // the Keycloak compose runs inside the system (DEP-6, #979), requests and data no
-            // longer fit one view either, so each has its own.
+            // the Keycloak compose runs (DEP-6, #979) and the order page (FE-1) inside the system,
+            // requests and data no longer fit one view either, so each has its own.
             "containers-requests",
             "containers-data",
-            "containers-messaging-service-com-acme-shop-fulfilment",
-            "containers-messaging-service-com-acme-shop-storefront-app",
             "containers-messaging-service-com-acme-shop-payments",
-            // From the entry inward (#270): the units nothing calls, then payments. Each has no
-            // feature area and is too large for one view, so it is split by groups of entry
-            // points, as views on the unit's one page with what no entry point reaches (#764,
-            // ADR 0130).
-            "components-service-com-acme-shop-fulfilment",
-            "components-service-com-acme-shop-storefront-app",
+            "containers-messaging-service-com-acme-shop-storefront-app",
+            "containers-messaging-service-com-acme-shop-fulfilment",
+            // From the entry inward (#270): the units the order page's lines reach, payments
+            // through its unused proxy and storefront, then fulfilment. Each has no feature area
+            // and is too large for one view, so it is split by groups of entry points, as views on
+            // the unit's one page with what no entry point reaches (#764, ADR 0130).
             "components-service-com-acme-shop-payments",
+            "components-service-com-acme-shop-storefront-app",
+            "components-service-com-acme-shop-fulfilment",
             "sequences-storefront-ordercontroller-place",
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
@@ -1457,6 +1462,27 @@ class Project0EndToEndIT {
     assertThat(data.get("pages").get(pages.indexOf("decisions")).toString())
         .contains("payments: GET /api/orders/{orderId}. storefront: POST /api/orders.");
     assertThat(data.toString()).doesNotContain("Every Unknown caller line points to");
+    // FE-1 (#980): the order page's call through its nginx's /api/ is a line to storefront; the
+    // nginx's /payments/, which no call goes through, is a line that says so, never a call, and
+    // the page's description names only what it calls.
+    assertThat(containerLines.toString())
+        .contains(
+            "{\"from\":\"frontend-storefront-storefront-web\","
+                + "\"to\":\"service-com-acme-shop-storefront-app\","
+                + "\"label\":\"Works with orders\",\"technology\":\"JSON/HTTP\"}")
+        .contains(
+            "{\"from\":\"frontend-storefront-storefront-web\","
+                + "\"to\":\"service-com-acme-shop-payments\","
+                + "\"label\":\"Passes /payments/ on (no call of the page uses it)\","
+                + "\"technology\":\"HTTP\"}");
+    assertThat(
+            data.get("elements")
+                .get("frontend-storefront-storefront-web")
+                .get("description")
+                .asString())
+        .isEqualTo(
+            "A single-page app built with React 19.2, served by nginx; it calls storefront from the"
+                + " browser.");
     assertThat(containerLines.toString())
         // HTTP-1: Feign by client name, with what the endpoint is about and the protocol (the
         // endpoint itself on the line's facts, #933).
@@ -1533,14 +1559,17 @@ class Project0EndToEndIT {
                 + " Delivers to ShipmentListener.dispatched [JMS]",
             "storefront-app > database-shop-db-5432-shop:"
                 + " Calls OrderRepository.findById, OrderRepository.save [JDBC]");
-    // Looking up an order reads it through Spring Data's inherited findById (#176). A request
-    // comes before a schedule (ADR 0047, amendment for #272).
+    // Looking up an order reads it through Spring Data's inherited findById (#176), starting at
+    // the order page that asks for it (FE-1). A request comes before a schedule (ADR 0047,
+    // amendment for #272).
     assertThat(
             steps(
                 data.get("pages").get(pages.indexOf("sequences-storefront-ordercontroller-order"))))
         .containsExactly(
-            "note all: Starts when storefront receives GET /api/orders/{id}"
+            "note all: Starts when storefront-web sends GET /api/orders/{id} to storefront"
                 + " (OrderController.order).",
+            "frontend-storefront-storefront-web > storefront-app: Calls OrderController.order"
+                + " [GET /api/orders/{id}]",
             "storefront-app > database-shop-db-5432-shop: Calls OrderRepository.findById [JDBC]");
     // FLOW-2: the nightly settlement (ENTRY-1) reads and writes the shared shop database (DB-2),
     // one of its tables storefront's (DB-5), in one step.
