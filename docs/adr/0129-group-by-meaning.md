@@ -65,3 +65,30 @@ lines, numeric ids, and a too-large area split by code, not by the model.
   over the limit (#919 lists the follow-up).
 - Early mistakes are kept. Re-opening a group on a trigger (it breaks the limit, loses half its
   members) is left for when a test set shows the need.
+
+## Amendment for #932: shared infrastructure, and areas split by meaning
+
+The owner's review of 6 Nov 2026 (milestone 1I) found two faults. Decision 4 made every connected
+container join a domain, so edge-gateway, which routes for every domain, was forced into
+"Customer accounts". And an area too large for one view was sliced by the code into views per entry
+point, titled "from X and Y", which say nothing a reader would name.
+
+1. **Shared infrastructure stays outside the domains.** A unit is shared infrastructure when it is
+   a gateway (it routes requests on: `routed-endpoint` facts, or gateway routes in its modules) or
+   an infrastructure server (a type of its own modules is a config, Eureka or admin server,
+   `infrastructure-server`). The code's domain signals leave it out (Groups version 5); the item
+   marks it "(shared infrastructure)", the check rejects an answer that puts it in a domain and no
+   longer asks it to join one, and a kept membership of it in a domain is dropped. It is drawn
+   beside the domains.
+2. **The role splits an area too large for one view.** A feature area, of the code or of an earlier
+   answer, with more members than the target and its tolerance makes its service listed, its
+   components marked "(too large: split it)". The answer may move them into new areas of at least
+   2 members, never into an existing area. A group formed by meaning takes its members from any
+   other group of its scope, and a group left with fewer than 2 members stands for nothing
+   (`Groups.of`); a kept member stays in its group by meaning while the code's group it came from
+   is still too large.
+3. **The code no longer slices an area by entry point.** An area that still does not fit after
+   merging its lines is drawn as it is, with the scorer's warning. A unit with no areas is still
+   split by groups of entry points.
+
+The prompt is version 2.
