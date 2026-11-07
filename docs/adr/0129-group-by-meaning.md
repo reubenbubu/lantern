@@ -87,13 +87,15 @@ point, titled "from X and Y", which say nothing a reader would name.
    other group of its scope, and a group left with fewer than 2 members stands for nothing
    (`Groups.of`); a kept member stays in its group by meaning while the code's group it came from
    is still too large.
-3. **The code no longer slices an area by entry point.** An area that still does not fit after
-   merging its lines is split by concern, as a domain is: a view each for requests, data and
+3. **The code slices an area by entry point only when the role left it unsplit.** An area of more
+   members than a view holds that the role did not split (no model, as in the fake-model runs, or
+   an answer that failed) is split by groups of entry points as before. An area of few enough
+   members that still does not fit after merging its lines is split by concern, as a domain is: a view each for requests, data and
    messaging, each drawing the lines between components and only that concern's lines to other
    containers, on the area's page; a concern with no such line has no view. An area of few
    members can overflow on what it reaches outside alone (project-8's Work order notices: 3
    components, 9 exchanges), which no split by meaning can fix. One that still does not fit is
    drawn as it is, with the scorer's warning. A unit with no areas is still split by groups of
-   entry points.
+   entry points (#933 or a later issue may group its components by meaning instead).
 
 The prompt is version 2.

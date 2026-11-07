@@ -492,9 +492,9 @@ class GroupViewsTest {
   }
 
   @Test
-  void anAreaStillTooLargeIsDrawnWholeNotSlicedByEntryPoint() {
-    // #932: the grouping role splits an area too large for one view by meaning; the code no
-    // longer slices it by entry point, so it is drawn as it is.
+  void anAreaPageStillTooLargeIsSplitByEntryPointEachWithWhatItCalls() {
+    // docs/design.md, Readable diagrams: an area of too many members the grouping role did not
+    // split by meaning (#932) is split by groups of entry points.
     TestFacts many = TestFacts.runtime();
     String pkg = "package:com.example:app:com.example.desk";
     many.relate("shop", "module:com.example:app", "CONTAINS", pkg);
@@ -529,19 +529,100 @@ class GroupViewsTest {
             .findFirst()
             .orElseThrow();
 
-    assertThat(diagrams(app)).noneMatch(d -> d.title().contains("from Desk"));
+    List<Diagram> pages = diagrams(app);
+    // The desks' pages fit (the orders area's one entry point reaches more than this small limit).
+    assertThat(pages)
+        .filteredOn(d -> d.title().contains("from Desk"))
+        .hasSizeGreaterThan(1)
+        .allMatch(d -> C4Views.fits(d, limits));
+    for (int i = 0; i < count; i++) {
+      String controller = "type:com.example.desk.Desk" + i;
+      String service = "type:com.example.desk.Work";
+      assertThat(pages)
+          .filteredOn(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(controller)))
+          .hasSize(1)
+          .allMatch(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(service)));
+    }
+    // The area is one page (#931), holding a view per group of entry points, not a page each.
+    assertThat(app.sections()).noneMatch(p -> p.title().contains("from Desk"));
     Section area =
         app.sections().stream()
             .filter(p -> p.title().equals("d (not named)"))
             .findFirst()
             .orElseThrow();
     List<Diagram> views =
-        area.blocks().stream().filter(Diagram.class::isInstance).map(Diagram.class::cast).toList();
-    assertThat(views).hasSize(1);
-    for (int i = 0; i < count; i++) {
-      String controller = "type:com.example.desk.Desk" + i;
-      assertThat(views.getFirst().nodes()).anyMatch(n -> n.id().toString().endsWith(controller));
+        area.blocks().stream()
+            .filter(Diagram.class::isInstance)
+            .map(Diagram.class::cast)
+            .filter(d -> d.title().contains("from Desk"))
+            .toList();
+    assertThat(views).hasSizeGreaterThan(1);
+    // A view draws only its own entry points, not the others calling what they share.
+    assertThat(views)
+        .allSatisfy(
+            d ->
+                assertThat(d.nodes())
+                    .filteredOn(n -> n.label().startsWith("Desk"))
+                    .allMatch(n -> d.title().contains(n.label())));
+  }
+
+  @Test
+  void anEntryPointThatAloneReachesTooMuchGoesOneStepDownPerPage() {
+    // Owner's decision of 6 Nov 2026 on #764: what it calls directly, then each of those that
+    // calls further on a page of its own; no kind of class is treated apart.
+    TestFacts many = TestFacts.runtime();
+    String pkg = "package:com.example:app:com.example.desk";
+    many.relate("shop", "module:com.example:app", "CONTAINS", pkg);
+    for (String entry : List.of("Big", "Small")) {
+      String type = "type:com.example.desk." + entry;
+      many.relate("shop", pkg, "CONTAINS", type)
+          .attribute("shop", type, "stereotype", "controller", "{\"rest\": true}")
+          .relate("shop", type, "CONTAINS", method(type, "get"))
+          .attribute("shop", method(type, "get"), "endpoint", "GET /d/" + entry, "{}");
     }
+    for (int i = 1; i <= 5; i++) {
+      String service = bean(many, pkg, "S" + i);
+      many.relate(
+              "shop", method("type:com.example.desk.Big", "get"), "CALLS", method(service, "run"))
+          .relate(
+              "shop",
+              method("type:com.example.desk.Small", "get"),
+              "CALLS",
+              method(service, "run"));
+    }
+    for (int i = 1; i <= 3; i++) {
+      String deeper = bean(many, pkg, "T" + i);
+      // Called by S1 and S2, so each is a component of its own, not a part of either.
+      many.relate("shop", method("type:com.example.desk.S1", "run"), "CALLS", method(deeper, "run"))
+          .relate(
+              "shop", method("type:com.example.desk.S2", "run"), "CALLS", method(deeper, "run"));
+    }
+    DiagramLimits limits = limits(4, 2);
+    Section app =
+        section(system(many.list(), limits), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    // The area's page (#931) holds a view per step.
+    Section area =
+        app.sections().stream()
+            .filter(p -> p.title().equals("d (not named)"))
+            .findFirst()
+            .orElseThrow();
+    List<Diagram> desk = views(area, "");
+    assertThat(desk).allSatisfy(p -> assertThat(C4Views.fits(p, limits)).isTrue());
+    assertThat(desk)
+        .extracting(Diagram::title)
+        .anyMatch(t -> t.endsWith(", from Big (1 of 2)"))
+        .anyMatch(t -> t.endsWith(", from Big (2 of 2)"))
+        .anyMatch(t -> t.endsWith(", what S1 calls"))
+        .anyMatch(t -> t.endsWith(", what S2 calls"));
+    Diagram deeper = view(area, "what S1 calls");
+    assertThat(deeper.nodes())
+        .extracting(Diagram.Node::label)
+        .contains("S1", "T1", "T2", "T3")
+        .doesNotContain("Big", "Small");
   }
 
   @Test

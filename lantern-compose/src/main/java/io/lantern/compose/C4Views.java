@@ -1930,10 +1930,22 @@ final class C4Views {
                     assembler.id(areaId, "diagram"), unit, components, title, mains, others);
             perPair = false;
           }
+          if (!fits(view) && mains.size() > limits.mostElements()) {
+            // Too many members: the grouping role splits such an area by meaning (#932); one it
+            // did not split (no model, or an answer that failed) is split by groups of entry
+            // points as before (docs/design.md, Readable diagrams), each view naming the area.
+            result.add(
+                onePage(
+                    areaId,
+                    name,
+                    area,
+                    SectionKind.COMPONENTS.levels(),
+                    byEntryPoint(areaId, area, name, unit, components, title, mains, others)));
+            return;
+          }
           if (!fits(view)) {
-            // Its members are few enough, the grouping role splits an area of too many by meaning
-            // (#932); what it reaches outside is too much: one view per concern, as a domain's
-            // (docs/design.md, Readable diagrams), never slices by entry point.
+            // Few enough members, but what they reach outside is too much: one view per concern,
+            // as a domain's (#932), never slices by entry point.
             List<Block> parts = byConcern(areaId, unit, components, title, mains, others);
             if (!parts.isEmpty()) {
               result.add(
