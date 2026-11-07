@@ -12,6 +12,7 @@ import io.lantern.link.LinkRule;
 import io.lantern.link.RuleInfo;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -295,16 +296,12 @@ public final class UnknownCallers implements LinkRule.OverFacts {
    */
   public static List<String> violations(Knowledge knowledge) {
     List<String> result = new ArrayList<>();
-    List<Fact> all = new ArrayList<>();
-    for (Origin.Kind kind : Origin.Kind.values()) {
-      all.addAll(knowledge.withOrigin(kind));
-    }
+    Check check = new Check(knowledge);
     for (Fact line : knowledge.withPredicate(Types.CALLS_UNREACHED)) {
       EntityId unit = Knowledge.object(line);
       for (String id : Screens.strings(line, "facts")) {
         Fact entry = knowledge.fact(id);
-        String why =
-            entry == null ? "the set does not hold" : reachedBy(knowledge, all, unit, entry);
+        String why = entry == null ? "the set does not hold" : check.reachedBy(unit, entry);
         if (why != null) {
           result.add(
               "The line to "
@@ -319,101 +316,175 @@ public final class UnknownCallers implements LinkRule.OverFacts {
     return result;
   }
 
-  /** Why the entry point is not one nothing reaches, or null when nothing does. */
-  private static String reachedBy(Knowledge knowledge, List<Fact> all, EntityId unit, Fact entry) {
-    if (entry.predicate().equals(Types.ROUTED_ENDPOINT)) {
-      if (!entry.subject().equals(unit)) {
-        return "is a route of another unit, " + entry.subject();
+  /**
+   * A fact of the set as the check reads it (#948): its object as text, since an entity ID's text
+   * is its canonical form, so comparing texts is comparing IDs; and each attribute the check reads,
+   * read when the check first needs it, as before, and kept for the other entry points.
+   */
+  private static final class Link {
+    private static final String UNREAD = new String("unread");
+
+    private final Fact fact;
+    private final String object;
+    private final Set<String> followed;
+    private Boolean followedRoute;
+    private final Map<String, String> attributes = new HashMap<>(4);
+
+    Link(Fact fact, Set<String> followed) {
+      this.fact = fact;
+      this.object = Knowledge.isEntity(fact) ? fact.object().value() : null;
+      this.followed = followed;
+    }
+
+    Fact fact() {
+      return fact;
+    }
+
+    String object() {
+      return object;
+    }
+
+    boolean followedRoute() {
+      if (followedRoute == null) {
+        followedRoute = UnknownCallers.followedRoute(fact, followed);
       }
-      for (Fact call : knowledge.withPredicate(Types.CALLS_HTTP)) {
-        if (Knowledge.object(call).equals(unit)) {
-          return "is a route of a gateway " + call.subject() + " calls";
+      return followedRoute;
+    }
+
+    String attribute(String name) {
+      String value = attributes.getOrDefault(name, UNREAD);
+      if (value == UNREAD) {
+        value = UnknownCallers.attribute(fact, name);
+        attributes.put(name, value);
+      }
+      return value;
+    }
+  }
+
+  /**
+   * What the check of every line reads, worked out once for all of them rather than once per cited
+   * entry point (#948).
+   */
+  private static final class Check {
+    private final Knowledge knowledge;
+    private final List<Link> all = new ArrayList<>();
+    private final Set<String> unrouted = new HashSet<>();
+    private final Map<EntityId, Set<EntityId>> methods = new HashMap<>();
+
+    Check(Knowledge knowledge) {
+      this.knowledge = knowledge;
+      Set<String> followed = followed(knowledge);
+      for (Origin.Kind kind : Origin.Kind.values()) {
+        for (Fact fact : knowledge.withOrigin(kind)) {
+          all.add(new Link(fact, followed));
+        }
+      }
+      for (Fact fact : knowledge.withPredicate(Types.UNROUTED_ENDPOINT)) {
+        reach(unrouted, parse(attribute(fact, "target")), attribute(fact, "endpoint"));
+      }
+    }
+
+    /** Why the entry point is not one nothing reaches, or null when nothing does. */
+    String reachedBy(EntityId unit, Fact entry) {
+      String unitId = unit.toString();
+      if (entry.predicate().equals(Types.ROUTED_ENDPOINT)) {
+        if (!entry.subject().equals(unit)) {
+          return "is a route of another unit, " + entry.subject();
+        }
+        for (Fact call : knowledge.withPredicate(Types.CALLS_HTTP)) {
+          if (unitId.equals(call.object().value())) {
+            return "is a route of a gateway " + call.subject() + " calls";
+          }
+        }
+        return null;
+      }
+      if (!Set.of(Types.ENDPOINT, Types.WEBSOCKET_ENDPOINT, Types.MESSAGE_LISTENER)
+          .contains(entry.predicate())) {
+        return "is no entry point meant to be called (" + entry.predicate() + ")";
+      }
+      String method = entry.subject().toString();
+      if (!methods
+          .computeIfAbsent(unit, u -> new HashSet<>(unitMethods(knowledge, u)))
+          .contains(entry.subject())) {
+        return "is not in the code of " + unit;
+      }
+      boolean listener = entry.predicate().equals(Types.MESSAGE_LISTENER);
+      EntityId behind = null;
+      for (Link link : all) {
+        Fact fact = link.fact();
+        boolean toUnit = unitId.equals(link.object());
+        if (toUnit
+            && !listener
+            && fact.predicate().equals(Types.CALLS_HTTP)
+            && link.followedRoute()
+            && !unrouted.contains(unit + " " + method)) {
+          behind = fact.subject();
+        }
+        // A link into the unit that names no entry point, or one Investigate found, may reach
+        // any; a gateway's followed routes reach only what a routed-endpoint names.
+        if (toUnit
+            && !(fact.predicate().equals(Types.CALLS_HTTP) && link.followedRoute())
+            && link.attribute("target") == null
+            && link.attribute("reaches") == null
+            && (fact.predicate().equals(Types.INVESTIGATED_CONNECTION)
+                || (listener
+                    ? fact.predicate().equals(Types.SENDS_MESSAGES_TO)
+                    : fact.predicate().equals(Types.CALLS_HTTP)
+                        || fact.predicate().equals(Types.USES_IDENTITY_PROVIDER)))) {
+          return "the unit is reached by "
+              + fact.subject()
+              + " "
+              + fact.predicate()
+              + ", which names no entry point";
+        }
+        if ((toUnit && method.equals(link.attribute("target")))
+            || (unitId.equals(link.attribute("reachesUnit"))
+                && method.equals(link.attribute("reaches")))
+            || (fact.predicate().equals(Types.ROUTED_ENDPOINT)
+                && unitId.equals(link.attribute("target"))
+                && method.equals(link.attribute("endpoint")))) {
+          return "is reached by " + fact.subject() + " " + fact.predicate();
+        }
+      }
+      if (behind != null) {
+        return "is behind the routes of "
+            + behind
+            + ", which the linker did not record as unrouted";
+      }
+      for (Fact basis : knowledge.withPredicate(Types.PERSON_BASIS)) {
+        for (String id : Screens.strings(basis, "cites")) {
+          Fact cited = knowledge.fact(id);
+          if (cited != null
+              && (cited.subject().toString().equals(method)
+                  || cited.subject().toString().equals(declaringType(entry.subject()))
+                  || (cited.subject().type().equals(Types.METHOD)
+                      && declaringType(cited.subject()).equals(declaringType(entry.subject()))))) {
+            return "is used by " + basis.subject();
+          }
+        }
+      }
+      if (entry.predicate().equals(Types.MESSAGE_LISTENER)) {
+        for (Fact consumes : knowledge.relations(unit, Types.CONSUMES)) {
+          if (!method.equals(attribute(consumes, "source"))) {
+            continue;
+          }
+          EntityId destination = Knowledge.object(consumes);
+          for (Fact publishes : knowledge.withPredicate(Types.PUBLISHES)) {
+            EntityId to = Knowledge.object(publishes);
+            if (to.equals(destination)
+                || knowledge.relations(to, Types.ROUTES_TO).stream()
+                    .anyMatch(r -> Knowledge.object(r).equals(destination))) {
+              return "listens on "
+                  + destination
+                  + ", which "
+                  + publishes.subject()
+                  + " publishes to";
+            }
+          }
         }
       }
       return null;
     }
-    if (!Set.of(Types.ENDPOINT, Types.WEBSOCKET_ENDPOINT, Types.MESSAGE_LISTENER)
-        .contains(entry.predicate())) {
-      return "is no entry point meant to be called (" + entry.predicate() + ")";
-    }
-    String method = entry.subject().toString();
-    if (!unitMethods(knowledge, unit).contains(entry.subject())) {
-      return "is not in the code of " + unit;
-    }
-    boolean listener = entry.predicate().equals(Types.MESSAGE_LISTENER);
-    Set<String> followed = followed(knowledge);
-    Set<String> unrouted = new HashSet<>();
-    for (Fact fact : knowledge.withPredicate(Types.UNROUTED_ENDPOINT)) {
-      reach(unrouted, parse(attribute(fact, "target")), attribute(fact, "endpoint"));
-    }
-    EntityId behind = null;
-    for (Fact fact : all) {
-      boolean toUnit = Knowledge.isEntity(fact) && Knowledge.object(fact).equals(unit);
-      if (toUnit
-          && !listener
-          && fact.predicate().equals(Types.CALLS_HTTP)
-          && followedRoute(fact, followed)
-          && !unrouted.contains(unit + " " + method)) {
-        behind = fact.subject();
-      }
-      // A link into the unit that names no entry point, or one Investigate found, may reach any;
-      // a gateway's followed routes reach only what a routed-endpoint names.
-      if (toUnit
-          && !(fact.predicate().equals(Types.CALLS_HTTP) && followedRoute(fact, followed))
-          && attribute(fact, "target") == null
-          && attribute(fact, "reaches") == null
-          && (fact.predicate().equals(Types.INVESTIGATED_CONNECTION)
-              || (listener
-                  ? fact.predicate().equals(Types.SENDS_MESSAGES_TO)
-                  : fact.predicate().equals(Types.CALLS_HTTP)
-                      || fact.predicate().equals(Types.USES_IDENTITY_PROVIDER)))) {
-        return "the unit is reached by "
-            + fact.subject()
-            + " "
-            + fact.predicate()
-            + ", which names no entry point";
-      }
-      if ((toUnit && method.equals(attribute(fact, "target")))
-          || (unit.toString().equals(attribute(fact, "reachesUnit"))
-              && method.equals(attribute(fact, "reaches")))
-          || (fact.predicate().equals(Types.ROUTED_ENDPOINT)
-              && unit.toString().equals(attribute(fact, "target"))
-              && method.equals(attribute(fact, "endpoint")))) {
-        return "is reached by " + fact.subject() + " " + fact.predicate();
-      }
-    }
-    if (behind != null) {
-      return "is behind the routes of " + behind + ", which the linker did not record as unrouted";
-    }
-    for (Fact basis : knowledge.withPredicate(Types.PERSON_BASIS)) {
-      for (String id : Screens.strings(basis, "cites")) {
-        Fact cited = knowledge.fact(id);
-        if (cited != null
-            && (cited.subject().toString().equals(method)
-                || cited.subject().toString().equals(declaringType(entry.subject()))
-                || (cited.subject().type().equals(Types.METHOD)
-                    && declaringType(cited.subject()).equals(declaringType(entry.subject()))))) {
-          return "is used by " + basis.subject();
-        }
-      }
-    }
-    if (entry.predicate().equals(Types.MESSAGE_LISTENER)) {
-      for (Fact consumes : knowledge.relations(unit, Types.CONSUMES)) {
-        if (!method.equals(attribute(consumes, "source"))) {
-          continue;
-        }
-        EntityId destination = Knowledge.object(consumes);
-        for (Fact publishes : knowledge.withPredicate(Types.PUBLISHES)) {
-          EntityId to = Knowledge.object(publishes);
-          if (to.equals(destination)
-              || knowledge.relations(to, Types.ROUTES_TO).stream()
-                  .anyMatch(r -> Knowledge.object(r).equals(destination))) {
-            return "listens on " + destination + ", which " + publishes.subject() + " publishes to";
-          }
-        }
-      }
-    }
-    return null;
   }
 
   /** The type that declares the method, as an entity ID: {@code type:a.B} of {@code a.B#m()}. */
