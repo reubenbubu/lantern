@@ -1286,22 +1286,25 @@ class Project0EndToEndIT {
 
     Map<String, Long> kinds = new TreeMap<>();
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
-    // Four units; the catalog and shop databases (the local profile's localhost one is a note);
+    // Four units; the catalog, shop and ledger databases (the local profile's localhost one is a
+    // note; the ledger is payments' second datasource, DB-6);
     // the shop.orders, shop.returns, shop.parcels, shop.cancellations and shop.disputes exchanges
     // (their queues folded into their lines; the last three from #734's open links), the
     // storefront.order-status fanout exchange storefront-app hears itself on (MSG-10), two JMS
     // queues and a Kafka topic; PayGate, by its default sandbox host (HTTP-4), and the mail host
     // compose gives payments (DEP-4) and the relay storefront's config names, whose host compose
     // points at a mail catcher it runs (DEP-5); and the components
-    // by role. catalog's ProductRepository is reached only from ProductController (through Spring
-    // Data's findById), so catalog has one component and no component page.
+    // by role, with payments' LedgerEntries, which no entry point reaches but which alone reaches
+    // the ledger database (#962). catalog's ProductRepository is reached only from
+    // ProductController (through Spring Data's findById), so catalog has one component and no
+    // component page.
     assertThat(kinds)
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
-                    "component", 31L,
+                    "component", 32L,
                     "container", 4L,
-                    "database", 2L,
+                    "database", 3L,
                     "external", 3L,
                     // The Unknown caller (#766).
                     "person", 1L,
@@ -1314,8 +1317,10 @@ class Project0EndToEndIT {
             "context",
             // No code signal groups catalog with the units that share the shop database into a
             // second domain, so the map of one domain does not fit either; the view is split by
-            // concern, messaging per unit (#764; grouping what code leaves loose is #919).
-            "containers-requests-and-data",
+            // concern, requests, data and messaging per unit (#764; grouping what code leaves
+            // loose is #919).
+            "containers-requests",
+            "containers-data",
             "containers-messaging-service-com-acme-shop-fulfilment",
             "containers-messaging-service-com-acme-shop-storefront-app",
             "containers-messaging-service-com-acme-shop-payments",

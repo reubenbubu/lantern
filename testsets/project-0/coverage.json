@@ -102,6 +102,17 @@
         }
       ]
     },
+    "ledger-db": {
+      "kind": "database",
+      "name": "ledger",
+      "needs": [
+        {
+          "area": "config",
+          "at": "payments:src/main/resources/application.properties:23",
+          "hash": "5dac40fab904db79"
+        }
+      ]
+    },
     "shop.orders": {
       "kind": "queue",
       "name": "shop.orders",
@@ -240,6 +251,22 @@
           "area": "config",
           "at": "payments:src/main/resources/application.properties:5",
           "hash": "94406be21da5fae4"
+        }
+      ]
+    },
+    "payments -> ledger-db": {
+      "kind": "connection",
+      "name": "payments → ledger-db",
+      "needs": [
+        {
+          "area": "config",
+          "at": "payments:src/main/resources/application.properties:23",
+          "hash": "5dac40fab904db79"
+        },
+        {
+          "area": "persistence",
+          "at": "payments:src/main/java/com/acme/shop/payments/LedgerEntries.java:14",
+          "hash": "d86455b53b4e3096"
         }
       ]
     },
