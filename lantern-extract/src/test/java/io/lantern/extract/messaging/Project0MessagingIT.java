@@ -182,17 +182,49 @@ class Project0MessagingIT {
   }
 
   @Test
+  void msg10AnAnonymousQueueBoundToAFanoutExchange() {
+    String listener =
+        "method:com.acme.shop.storefront.order.OrderStatusListener#statusChanged(java.lang.String)";
+    String at = STOREFRONT + "app/src/main/java/com/acme/shop/storefront/order/";
+    assertBoth(
+        // The queue has no name: it is named after the exchange it is bound to, as anonymous.
+        listener
+            + " message-listener storefront.order-status.anonymous"
+            + " {\"annotation\":\"org.springframework.amqp.rabbit.annotation.RabbitListener\","
+            + "\"anonymous\":true,\"broker\":\"rabbitmq\",\"destinationKind\":\"queue\"}"
+            + at
+            + "OrderStatusListener.java#17-22",
+        // Bound to the fanout exchange, which takes no routing key.
+        listener
+            + " message-binding storefront.order-status.anonymous"
+            + " {\"anonymous\":true,\"broker\":\"rabbitmq\",\"exchange\":\"storefront.order-status\","
+            + "\"exchangeType\":\"fanout\"}"
+            + at
+            + "OrderStatusListener.java#17-22");
+  }
+
+  @Test
   void entry2MessageListenersAsEntryPoints() {
     for (List<String> facts : List.of(compiled, parsed)) {
       assertThat(facts.stream().filter(l -> l.contains(" message-listener ")))
           .extracting(l -> l.substring(0, l.indexOf(" message-listener ")))
           .containsExactly(
               "method:com.acme.shop.fulfilment.AuditListener#orderPlaced(java.lang.String)",
+              "method:com.acme.shop.fulfilment.CancellationListener#cancelled(java.lang.String)",
+              "method:com.acme.shop.fulfilment.DisputeListener#disputeOpened(java.lang.String)",
               "method:com.acme.shop.fulfilment.PaymentCompletedListener#paymentCompleted("
                   + "java.lang.String)",
+              "method:com.acme.shop.payments.CancellationListener#cancelled(java.lang.String)",
               "method:com.acme.shop.payments.OrderEventsListener#orderEvent(java.lang.String)",
               "method:com.acme.shop.payments.OrderEventsListener#refund(java.lang.String)",
+              "method:com.acme.shop.payments.ParcelDelayListener#parcelDelayed(java.lang.String)",
               "method:com.acme.shop.payments.RefundListener#refundRequested(java.lang.String)",
+              "method:com.acme.shop.storefront.order.DisputeListener#disputeOpened("
+                  + "java.lang.String)",
+              "method:com.acme.shop.storefront.order.OrderStatusListener#statusChanged("
+                  + "java.lang.String)",
+              "method:com.acme.shop.storefront.order.ParcelEventListener#parcelEvent("
+                  + "java.lang.String)",
               "method:com.acme.shop.storefront.order.ReturnListener#returned(java.lang.String)",
               "method:com.acme.shop.storefront.order.ShipmentListener#dispatched("
                   + "java.lang.String)");

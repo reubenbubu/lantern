@@ -32,6 +32,20 @@ public class OrderEventsListener {
               exchange = @Exchange(name = "board", type = ExchangeTypes.FANOUT)))
   public void board(String event) {}
 
+  @RabbitListener(
+      bindings = {
+        @QueueBinding(
+            value = @Queue,
+            exchange =
+                @Exchange(name = "${events.rabbit.cache-exchange:cache}", type = ExchangeTypes.TOPIC),
+            key = {"cache.product.*", "cache.price.#"}),
+        @QueueBinding(
+            value = @Queue(name = ""),
+            exchange = @Exchange("refresh"),
+            key = "refresh.all")
+      })
+  public void evict(String key) {}
+
   @RabbitListener(queuesToDeclare = @Queue(name = "declared.queue"))
   public void declared(String event) {}
 }

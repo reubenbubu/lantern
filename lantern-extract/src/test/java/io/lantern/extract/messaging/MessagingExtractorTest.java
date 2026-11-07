@@ -205,6 +205,44 @@ class MessagingExtractorTest {
                     && l.contains("\"exchangeType\":\"fanout\"")
                     && l.contains("\"anonymous\":true")
                     && !l.contains("routingKey"))
+        // Anonymous queues in several bindings: a placeholder in the exchange resolved, each key
+        // of a list bound, and an @Exchange without a type a direct one.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderEventsListener#evict(java.lang.String) message-listener"
+                            + " cache.anonymous ")
+                    && l.contains("\"anonymous\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderEventsListener#evict(java.lang.String) message-binding"
+                            + " cache.anonymous ")
+                    && l.contains("\"exchangeType\":\"topic\"")
+                    && l.contains("\"routingKey\":\"cache.product.*\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderEventsListener#evict(java.lang.String) message-binding"
+                            + " cache.anonymous ")
+                    && l.contains("\"routingKey\":\"cache.price.#\""))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    events
+                        + "OrderEventsListener#evict(java.lang.String) message-listener"
+                        + " refresh.anonymous "))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderEventsListener#evict(java.lang.String) message-binding"
+                            + " refresh.anonymous ")
+                    && l.contains("\"exchangeType\":\"direct\"")
+                    && l.contains("\"routingKey\":\"refresh.all\""))
         // A reply to an exchange with a routing key.
         .anyMatch(
             l ->

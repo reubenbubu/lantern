@@ -684,6 +684,34 @@ class Project0LinksIT {
   }
 
   @Test
+  void msg10AListenerOnAnAnonymousQueueConsumesFromTheFanoutExchangeItBinds() {
+    for (List<String> facts : List.of(built, unbuilt)) {
+      assertThat(facts)
+          .anyMatch(
+              l ->
+                  l.startsWith(
+                          "exchange:rabbitmq:storefront.order-status ROUTES_TO"
+                              + " queue:rabbitmq:storefront.order-status.anonymous ")
+                      && l.contains("\"exchangeType\":\"fanout\""))
+          .anyMatch(
+              l ->
+                  l.startsWith(
+                      "service:~:storefront-app CONSUMES"
+                          + " queue:rabbitmq:storefront.order-status.anonymous "));
+      // storefront-app hears its own broadcast through the exchange.
+      assertThat(of(facts, "SENDS_MESSAGES_TO"))
+          .anyMatch(
+              l ->
+                  l.startsWith(
+                          "service:~:storefront-app SENDS_MESSAGES_TO service:~:storefront-app ")
+                      && l.contains("\"destination\":\"exchange:rabbitmq:storefront.order-status\"")
+                      && l.contains(
+                          "\"target\":\"method:~.storefront.order.OrderStatusListener#statusChanged("
+                              + "java.lang.String)\""));
+    }
+  }
+
+  @Test
   void msg4KafkaFromPaymentsToFulfilment() {
     assertBoth(
         "service:~:payments SENDS_MESSAGES_TO service:~:fulfilment"
@@ -839,7 +867,9 @@ class Project0LinksIT {
               "service:~:storefront-app CALLS_HTTP service:~:catalog-service",
               "service:~:storefront-app CALLS_HTTP service:~:payments",
               "service:~:storefront-app SENDS_MESSAGES_TO service:~:fulfilment",
-              "service:~:storefront-app SENDS_MESSAGES_TO service:~:payments");
+              "service:~:storefront-app SENDS_MESSAGES_TO service:~:payments",
+              // MSG-10, besides the flow.
+              "service:~:storefront-app SENDS_MESSAGES_TO service:~:storefront-app");
     }
   }
 
