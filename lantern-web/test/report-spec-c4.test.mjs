@@ -394,3 +394,47 @@ test('the commits sit behind one short "Analyzed" line that opens into the list 
   assert.match(analyzedHTML({ commits: { one: 'abc' } }), /<summary>1 repository<\/summary>/);
   assert.equal(analyzedHTML({ updated: '2026-11-07' }), '');
 });
+
+// A diagram's lines (#934), loaded from the template source.
+const { mergedEdges } = new Function(
+  `const MARK = {llm:'✦'};\n${template.match(/^function shortTech[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function mergedEdges[\s\S]*?^\}/m)[0]}\nreturn {mergedEdges};`,
+)();
+
+test('two lines with the same ends and direction become one, with the shortest label and every technology (#934)', () => {
+  const edges = mergedEdges([
+    { from: 'web', to: 'gw', label: 'Sends customer web requests through the gateway.', technology: 'HTTP' },
+    { from: 'web', to: 'gw', label: 'Sends customer web requests', technology: 'JSON/HTTP' },
+    { from: 'gw', to: 'web', label: 'Answers', technology: 'HTTP' },
+  ]);
+  assert.deepEqual(edges, [
+    { f: 'web', t: 'gw', l: 'Sends customer web requests', llm: false, tech: 'HTTP, JSON/HTTP' },
+    { f: 'gw', t: 'web', l: 'Answers', llm: false, tech: 'HTTP' },
+  ]);
+});
+
+test('a long list of routing keys on a line gives the protocol and a count (#934)', () => {
+  const [edge] = mergedEdges([
+    {
+      from: 'a',
+      to: 'b',
+      label: 'Receives payment state changes',
+      technology: 'AMQP, notification.maintenance.reminders, notification.payment.events, notification.workorder.cancelled',
+    },
+  ]);
+  assert.equal(edge.tech, 'AMQP · 3 more');
+  assert.equal(mergedEdges([{ from: 'a', to: 'b', technology: 'AMQP, orders.created' }])[0].tech, 'AMQP, orders.created');
+  assert.equal(mergedEdges([{ from: 'a', to: 'b', label: 'x', technology: 'HTTP', llm: true }])[0].l, '✦ x');
+});
+
+test('opposite lines that say the same are one line with an arrowhead at each end; different ones stay two (#934)', () => {
+  const edges = mergedEdges([
+    { from: 'web', to: 'gw', label: 'Sends customer web requests', technology: 'JSON/HTTP' },
+    { from: 'gw', to: 'web', label: 'Sends customer web requests through the gateway.', technology: 'HTTP' },
+    { from: 'gw', to: 'db', label: 'Keeps request counts', technology: 'RESP' },
+    { from: 'db', to: 'gw', label: 'Notifies of expiry', technology: 'RESP' },
+  ]);
+  assert.deepEqual(edges[0], { f: 'web', t: 'gw', l: 'Sends customer web requests', llm: false, tech: 'JSON/HTTP, HTTP', both: true });
+  assert.equal(edges.length, 3);
+  assert.ok(edges.slice(1).every((e) => !e.both));
+});

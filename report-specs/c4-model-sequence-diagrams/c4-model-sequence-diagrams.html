@@ -4448,13 +4448,49 @@ const PAGES = (DATA.pages || []).filter(p => LEVEL[p.level]);
 const PAGE = Object.fromEntries(PAGES.map(p => [p.id, p]));
 const pageOf = key => key.split('/')[0];
 
+/* A diagram's lines (#934): one per pair and direction, with the shortest of their labels and all
+   their technologies; a long list of technologies (routing keys, topics) gives its first and a count. */
+function shortTech(list){
+  const parts = [...new Set(list.flatMap(t => String(t || '').split(/\s*,\s*/)).filter(Boolean))];
+  if (parts.join(', ').length <= 40) return parts.join(', ');
+  // a name with a dot and no space is a routing key, topic or queue, not a protocol
+  const named = parts.filter(t => /^\S*\w\.\w\S*$/.test(t)), plain = parts.filter(t => !named.includes(t));
+  const head = plain.length ? plain.join(', ') : named.shift();
+  return named.length ? `${head} · ${named.length} more` : head;
+}
+function mergedEdges(relationships){
+  const byPair = new Map();
+  for (const r of relationships){
+    const k = r.from + '\u0000' + r.to;
+    if (!byPair.has(k)) byPair.set(k, []);
+    byPair.get(k).push(r);
+  }
+  const one = rs => {
+    const labelled = rs.filter(r => r.label), pick = labelled.length ? labelled.reduce((a, b) => b.label.length < a.label.length ? b : a) : rs[0];
+    return {pick, rs, llm:rs.every(r => r.llm)};
+  };
+  const lines = [...byPair.values()].map(one), gone = new Set();
+  // a pair of opposite lines that say the same (a call through a gateway and on into the same box)
+  // is one line with an arrowhead at each end
+  const words = l => String(l || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean);
+  const same = (a, b) => { const [x, y] = [words(a), words(b)].sort((p, q) => p.length - q.length); return x.length > 0 && x.every((w, i) => w === y[i]); };
+  for (const a of lines) for (const b of lines){
+    if (a === b || gone.has(a) || gone.has(b) || a.pick.from !== b.pick.to || a.pick.to !== b.pick.from) continue;
+    if (!same(a.pick.label, b.pick.label)) continue;
+    const keep = (b.pick.label || '').length < (a.pick.label || '').length ? b : a, drop = keep === a ? b : a;
+    keep.both = true; keep.rs = [...keep.rs, ...drop.rs]; keep.llm = keep.llm && drop.llm; gone.add(drop);
+  }
+  return lines.filter(x => !gone.has(x)).map(({pick, rs, llm, both}) => ({f:pick.from, t:pick.to, l:(llm ? MARK.llm + ' ' : '') + (pick.label || ''), llm,
+    tech:shortTech(rs.map(r => r.technology)), ...(both ? {both:true} : {})}));
+}
+
 /* Diagram and sequence sections → engine specs, keyed "pageId/sectionId". */
 const DIAGRAMS = {}, SEQS = {};
 for (const p of PAGES) for (const s of (p.sections || [])){
   const key = `${p.id}/${s.id}`;
   if (s.type === 'diagram'){
     // relationships naming unknown elements are skipped (and reported by validate()) so the rest still draws
-    const edges = (s.relationships || []).filter(r => EL[r.from] && EL[r.to]).map(r => ({f:r.from, t:r.to, l:(r.llm ? MARK.llm + ' ' : '') + (r.label || ''), llm:!!r.llm, tech:r.technology || ''}));
+    const edges = mergedEdges((s.relationships || []).filter(r => EL[r.from] && EL[r.to]));
     const ids = new Set([...edges.flatMap(e => [e.f, e.t]), ...(s.elements || []).filter(id => EL[id])]);
     const spec = {level:LEVEL[p.level].badge, title:s.caption || LEVEL[p.level].card, sub:p.title, edges, groupByKind: s.layout?.groupByKind !== false,
       constraints:(s.layout?.rules || []).map(r => r.strict === false ? {a:r.a, rel:r.rel, b:r.b, strict:false} : {a:r.a, rel:r.rel, b:r.b})};
@@ -4630,6 +4666,7 @@ function md(s){
 /* Box text that must stay inside its box. A box widens to fit its name and technology line (up to a cap);
    past the cap the text wraps onto even lines, breaking long dotted names after . - / _ :, and ends with "…". */
 const NODE_TEXT = {nm:7.9, nmHero:10.6, tc:6.4, ds:6.05, cap:320, capHero:460};
+const DESC_LINES = 4;   // a box's description shows up to four lines, the box growing to hold them (#934)
 const sidePad = k => k === 'queue' ? 56 : k === 'person' ? 36 : 30;
 function fitText(text, maxPx, perChar, maxLines){
   text = String(text ?? '').trim(); if (!text) return [];
@@ -4672,7 +4709,7 @@ function nodeSVG(n, view, uid, ruled=false){
   }
   const hero = !!n.hero;
   const tag = tagOf(e);
-  const descLines = h >= 300 ? 6 : h >= 140 ? 3 : h >= 100 ? 2 : 1;
+  const descLines = h >= 300 ? 6 : h >= 100 ? DESC_LINES : 1;
   const desc = e.desc ? wrap(descOf(e), Math.floor((w-(hero?60:sidePad(k)))/(hero?6.6:NODE_TEXT.ds)), descLines) : [];
   const nmL = fitText(e.name, w - sidePad(k), hero ? NODE_TEXT.nmHero : NODE_TEXT.nm, 2), tcL = fitText(e.techLine, w - sidePad(k), NODE_TEXT.tc, 2);
   const nameH = nmL.length*(hero ? 24 : 18), tech = e.techLine, techH = tcL.length ? 16 + (tcL.length - 1)*13 : 0;
@@ -4734,6 +4771,9 @@ function nodeSVG(n, view, uid, ruled=false){
 const NODE_SIZE = {person:[160,116], system:[200,116], external:[190,108], container:[190,112],
                    component:[200,112], database:[180,104], queue:[190,100]};
 const LAYOUT_CACHE = new Map();
+/* How many grid cells past its own a box may stretch in each direction to meet its neighbours:
+   one, so a box at most doubles; past that its lines bend instead of the box becoming a tall slab (#934). */
+const STRETCH_MAX = 0;
 
 function prng(seed){ return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
   t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -4984,16 +5024,18 @@ function makeEvaluator(G, C, R){
       const up = new Set(), down = new Set();
       for (const j of nbr[i]) if (c1[j] < c || c0[j] > c){ if (r1[j] < row) up.add(r1[j]); else if (r0[j] > row) down.add(r0[j]); }
       let lo = row, hi = row;
-      for (let r=row-1; r>=0 && up.size; r--){ if (!free(c, r)) break; if (up.has(r)) lo = r; }
-      for (let r=row+1; r<R && down.size; r++){ if (!free(c, r)) break; if (down.has(r)) hi = r; }
+      for (let r=row-1; r>=Math.max(0, row-STRETCH_MAX) && up.size; r--){ if (!free(c, r)) break; if (up.has(r)) lo = r; }
+      for (let r=row+1; r<=Math.min(R-1, row+STRETCH_MAX) && down.size; r++){ if (!free(c, r)) break; if (down.has(r)) hi = r; }
+      if (hi - lo > STRETCH_MAX){ if (row - lo >= hi - row) hi = row; else lo = row; }
       if (lo < row || hi > row){ for (let r=lo; r<=hi; r++) sp[c*R+r] = 1; r0[i] = lo; r1[i] = hi; }
       // 2. wider: same idea for neighbours above / below that are still out of reach
       const left = new Set(), right = new Set();
       for (const j of nbr[i]) if (r1[j] < r0[i] || r0[j] > r1[i]){ if (c1[j] < c) left.add(c1[j]); else if (c0[j] > c) right.add(c0[j]); }
       const colFree = cc => { for (let r=r0[i]; r<=r1[i]; r++) if (!free(cc, r)) return false; return true; };
       let cl = c, ch = c;
-      for (let cc=c-1; cc>=0 && left.size; cc--){ if (!colFree(cc)) break; if (left.has(cc)) cl = cc; }
-      for (let cc=c+1; cc<C && right.size; cc++){ if (!colFree(cc)) break; if (right.has(cc)) ch = cc; }
+      for (let cc=c-1; cc>=Math.max(0, c-STRETCH_MAX) && left.size; cc--){ if (!colFree(cc)) break; if (left.has(cc)) cl = cc; }
+      for (let cc=c+1; cc<=Math.min(C-1, c+STRETCH_MAX) && right.size; cc++){ if (!colFree(cc)) break; if (right.has(cc)) ch = cc; }
+      if (ch - cl > STRETCH_MAX){ if (c - cl >= ch - c) ch = c; else cl = c; }
       if (cl < c || ch > c){ for (let cc=cl; cc<=ch; cc++) for (let r=r0[i]; r<=r1[i]; r++) sp[cc*R+r] = 1; c0[i] = cl; c1[i] = ch; }
     }
     for (let i=0;i<N;i++){ const b = boxes[i]; b.x = c0[i]-HW; b.w = c1[i]-c0[i]+2*HW; b.y = r0[i]-HH; b.h = r1[i]-r0[i]+2*HH; }
@@ -5152,6 +5194,8 @@ function layoutDiagram(spec){
       w = Math.max(w, Math.min(hero ? NODE_TEXT.capHero : NODE_TEXT.cap, need));
       const nl = fitText(e.name, w - sidePad(k), per, 2).length, tl = fitText(e.techLine, w - sidePad(k), NODE_TEXT.tc, 2).length;
       h += Math.max(0, nl - 1)*(hero ? 24 : 18) + Math.max(0, tl - 1)*13;
+      // and taller for a description of up to four lines, so it is not cut mid-sentence (#934)
+      if (!hero && e.desc) h += Math.max(0, Math.min(DESC_LINES, wrap(descOf(e), Math.floor((w - sidePad(k))/NODE_TEXT.ds), 99).length) - 2)*13.5;
     }
     const pills = spec._key ? pillsFor(id, spec._key) : [];
     if (pills.length){ const g = pillGrid(pills); w = Math.max(w, g.w + 2*PILL.pad); h += g.h + 18; }
@@ -5397,7 +5441,7 @@ function ensureApproach(pts, a){
 
 function edgeSVG(g, uid){
   const {e, pts} = g;
-  return `<g class="edge" data-f="${e.f}" data-t="${e.t}"><path class="ln" d="${polyPath(pts)}" marker-end="url(#ar-${uid})"/></g>`;
+  return `<g class="edge" data-f="${e.f}" data-t="${e.t}"><path class="ln" d="${polyPath(pts)}"${e.both ? ` marker-start="url(#ar-${uid})"` : ''} marker-end="url(#ar-${uid})"/></g>`;
 }
 /* Labels are drawn after every line so no line ever runs through a label. */
 function edgeLabelSVG(g){
@@ -5862,7 +5906,9 @@ function attachViewer(svg, signal){
     $$('.edge', svg).forEach(ed => {
       const on = ed.dataset.f === id || ed.dataset.t === id;
       ed.classList.toggle('hl', on);
-      ed.querySelector('.ln')?.setAttribute('marker-end', `url(#${on?'arh':'ar'}-${uid})`);
+      const ln = ed.querySelector('.ln');
+      ln?.setAttribute('marker-end', `url(#${on?'arh':'ar'}-${uid})`);
+      if (ln?.hasAttribute('marker-start')) ln.setAttribute('marker-start', `url(#${on?'arh':'ar'}-${uid})`);
       if (on) $$(`.node[data-id="${ed.dataset.f===id?ed.dataset.t:ed.dataset.f}"]`, svg).forEach(x => x.classList.add('hl'));
     });
     if (svg.classList.contains('seq')) svg.classList.remove('dim');
@@ -5875,7 +5921,7 @@ function attachViewer(svg, signal){
     const n = e.target.closest('.node, .boundary');
     if (n && !n.contains(e.relatedTarget)){
       svg.classList.remove('dim'); $$('.hl', svg).forEach(x => x.classList.remove('hl'));
-      $$('.edge .ln', svg).forEach(l => l.setAttribute('marker-end', `url(#ar-${uid})`));
+      $$('.edge .ln', svg).forEach(l => { l.setAttribute('marker-end', `url(#ar-${uid})`); if (l.hasAttribute('marker-start')) l.setAttribute('marker-start', `url(#ar-${uid})`); });
       hideTip();
     }
   });
