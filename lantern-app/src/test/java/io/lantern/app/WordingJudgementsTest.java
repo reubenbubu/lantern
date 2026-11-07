@@ -46,7 +46,9 @@ class WordingJudgementsTest {
             fact("group:orders/a", "responsibility", "name-groups", "Places orders."),
             fact("lead:x/y", "lead-verdict", "investigate-leads", "Confirmed."),
             fact("service:billing", "responsibility", "describe-unit", "  "),
-            fact("group:orders/a", "intent", "name-groups", "asks for payment"));
+            fact("group:orders/a", "intent", "name-groups", "asks for payment"),
+            fact("service:orders", "display-name", "describe-unit", "Order taking"),
+            fact("frontend:shop/web", "display-name", "describe-unit", "Shop front"));
 
     List<WordingJudgements.Judged> texts = WordingJudgements.texts(facts);
 
@@ -57,7 +59,9 @@ class WordingJudgementsTest {
             "intent of a line drawn from a service",
             "the most important fact about the system",
             "name of a group of components",
-            "responsibility of a group of components");
+            "responsibility of a group of components",
+            "name of a service",
+            "name of a frontend");
     assertThat(texts.get(2).text().about()).isEqualTo("the system");
     assertThat(texts.get(0).text().about()).isEqualTo("service:orders");
   }

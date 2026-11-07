@@ -1713,6 +1713,29 @@ class DescriberTest {
   }
 
   @Test
+  void aNameWithoutTheUnitsSentenceIsNoResponsibility() {
+    // The model may leave a unit's sentence out; its name never stands in for it (#946).
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  String answer = answer(request);
+                  return answer.contains("\"name\"")
+                      ? answer.replaceFirst(
+                          "\"unit\": \\{\"text\": \"[^\"]*\", \"cites\": \\[[^\\]]*\\]\\},\\s*", "")
+                      : answer;
+                });
+    Describer.Result result = describe(fake);
+
+    assertThat(result.unknown()).contains(APP.toString());
+    assertThat(fake.sent())
+        .extracting(s -> s.request().messages().getFirst().text())
+        .filteredOn(p -> !p.contains("The deployable unit shop-app"))
+        .isNotEmpty()
+        .noneMatch(p -> p.contains("Shop orders"));
+  }
+
+  @Test
   void aUnitWithNothingToWordIsNotAskedAbout() {
     TestFacts bare =
         new TestFacts()

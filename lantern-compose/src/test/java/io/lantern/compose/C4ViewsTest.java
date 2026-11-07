@@ -796,6 +796,35 @@ class C4ViewsTest {
     assertThat(entity(system(rejected), "service:com.example:app").readableName()).isNull();
   }
 
+  @Test
+  void twoBoxesNeverShowOneName() {
+    Fact packaging = facts.find("service:com.example:app", "application-name");
+    java.util.function.BiFunction<String, String, Fact> named =
+        (unit, name) ->
+            io.lantern.harness.LlmFacts.text(
+                io.lantern.summarize.describe.DescribeRole.UNITS,
+                "test/test",
+                "a".repeat(64),
+                EntityId.parse(unit),
+                Types.DISPLAY_NAME,
+                io.lantern.harness.LlmFacts.C4,
+                name,
+                List.of(packaging),
+                io.lantern.harness.LlmFacts.Basis.INFERRED,
+                1);
+    List<Fact> same = new ArrayList<>(facts.list());
+    same.add(named.apply("service:com.example:app", "Order handling"));
+    same.add(named.apply("service:com.example:worker", "order handling"));
+    List<Fact> another = new ArrayList<>(facts.list());
+    another.add(named.apply("service:com.example:app", "Worker"));
+
+    // #946: a written name two boxes would show is dropped for both; they read as built.
+    Document both = system(same);
+    assertThat(entity(both, "service:com.example:app").readableName()).isNull();
+    assertThat(entity(both, "service:com.example:worker").readableName()).isNull();
+    assertThat(entity(system(another), "service:com.example:app").readableName()).isNull();
+  }
+
   private static DocumentEntity entity(Document document, String id) {
     return document.entities().stream()
         .filter(e -> e.id().toString().equals(id))

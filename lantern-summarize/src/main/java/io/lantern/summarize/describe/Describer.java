@@ -771,6 +771,10 @@ public final class Describer {
                 interaction.id(),
                 new Phrase(text.text(), text.cited().stream().map(Fact::id).toList()));
           }
+        } else if (text.field().equals(DescribeRole.NAME)) {
+          // A unit's name is stored as its display name and judged with it: never its
+          // responsibility, whether or not the unit's sentence came too (#946).
+          continue;
         } else {
           EntityId key = element;
           String component =

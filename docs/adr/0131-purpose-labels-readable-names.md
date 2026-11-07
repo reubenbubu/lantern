@@ -101,3 +101,13 @@ support judge rejected it. The C4 report draws it on the box and the page, the b
 beneath as `technicalName`; with none it title-cases as before. The scorer matches a box by its
 `technicalName` when it has one, so a name in words changes no match.
 
+A unit's name is judged on every run, like a group's: `display-name` is among the texts the support
+judge always checks, not sampled. A rejected name asks the unit's whole item again, sentence,
+components and intents with it, so a real run may make more judge calls and retries. A name is
+never taken as the unit's sentence when the sentence is left out. Two boxes never show one name: a
+written name another service's or frontend's box would also show, written or title-cased, is
+dropped for each of them, which then title-case. Other boxes' fallback sentences name a unit as its
+box does. The wording judge reads a unit's name as "name of a service" or "name of a frontend", with
+its own rule: it passes when it names in plain words what the unit is for, and fails when it names
+only its kind or technology.
+
