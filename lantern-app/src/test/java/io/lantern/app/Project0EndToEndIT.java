@@ -1319,19 +1319,11 @@ class Project0EndToEndIT {
             "containers-messaging-service-com-acme-shop-payments",
             // From the entry inward (#270): the units nothing calls, then payments. Each has no
             // feature area and is too large for one view, so it is split by groups of entry
-            // points, what no entry point reaches on a page of its own (#764).
+            // points, as views on the unit's one page with what no entry point reaches (#764,
+            // ADR 0130).
             "components-service-com-acme-shop-fulfilment",
-            "components-service-com-acme-shop-fulfilment-part-1",
-            "components-service-com-acme-shop-fulfilment-part-2",
-            "components-service-com-acme-shop-fulfilment-unconnected",
             "components-service-com-acme-shop-storefront-app",
-            "components-service-com-acme-shop-storefront-app-part-1",
-            "components-service-com-acme-shop-storefront-app-part-2",
-            "components-service-com-acme-shop-storefront-app-part-3",
             "components-service-com-acme-shop-payments",
-            "components-service-com-acme-shop-payments-part-1",
-            "components-service-com-acme-shop-payments-part-2",
-            "components-service-com-acme-shop-payments-part-3",
             "sequences-storefront-ordercontroller-place",
             "sequences-storefront-ordercontroller-order",
             "sequences-payments-settlementjob-settle",
