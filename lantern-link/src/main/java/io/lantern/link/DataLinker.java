@@ -89,6 +89,23 @@ final class DataLinker {
   /** A table a unit's schema declares. */
   private record Owned(EntityId table, Unit unit, Fact fact) {}
 
+  /** Where a deployment puts a placeholder datasource in an environment: server and database. */
+  private record Where(String server, String database) {}
+
+  /**
+   * A datasource whose server or database is a placeholder, as sharing reads it: the server and
+   * database it writes (a placeholder database as the deployments fill it) and where the
+   * deployments put it in each environment.
+   */
+  private record Candidate(
+      Unit unit, Fact datasource, String server, String name, Map<String, Where> places) {}
+
+  /**
+   * The one database placeholder datasources that write the same server and database are (#640):
+   * its entity, its name, and whether the deployments put every one of them on it.
+   */
+  private record Shared(EntityId database, String name, boolean confirmed) {}
+
   private final LinkIndex index;
   private final FoundLinks out;
   private final AddressAnswers addresses;
@@ -98,6 +115,9 @@ final class DataLinker {
 
   /** The tables the schemas declare, by name. */
   private final Map<String, List<Owned>> owned = new TreeMap<>();
+
+  /** Per view, the shared database of each placeholder datasource, by unit and fact ID. */
+  private final Map<String, Map<String, Shared>> shared = new HashMap<>();
 
   /**
    * @param addresses where a datasource whose server or database is a placeholder leads in each
@@ -181,10 +201,11 @@ final class DataLinker {
       if (f == null || Claims.masked(f)) {
         continue;
       }
-      EntityId database = database(unit, f);
+      EntityId database = database(unit, f, view);
       if (database == null) {
         continue;
       }
+      Shared together = shared(view).get(shareKey(unit, f));
       List<Deployments.Placed> placed = placed(unit, f);
       Deployments.Placed named =
           placed.stream()
@@ -193,7 +214,10 @@ final class DataLinker {
                   Comparator.comparing((Deployments.Placed p) -> p.guessed())
                       .thenComparing(p -> p.unit().fact().id()))
               .orElse(null);
-      String displayName = ownName(unit, f, named == null ? null : named.database());
+      String displayName =
+          together != null
+              ? together.name()
+              : ownName(unit, f, named == null ? null : named.database());
       if (displayName != null) {
         ownNames.merge(
             database,
@@ -267,6 +291,15 @@ final class DataLinker {
                   + " or the placeholder is taken.");
           confidence *= 0.8;
         }
+      }
+      if (together != null && !together.confirmed()) {
+        String why =
+            "The server is a placeholder no config resolves; datasources that write the same"
+                + " server and database are taken to be one database.";
+        attributes.put(
+            "inferred",
+            attributes.has("inferred") ? attributes.get("inferred").asString() + " " + why : why);
+        confidence *= 0.8;
       }
       out.add(
           view,
@@ -362,13 +395,19 @@ final class DataLinker {
   }
 
   /**
-   * The database a datasource points to: {@code database:<server>/<database>}, so units on the same
-   * server and database share it; an embedded one ({@code jdbc:h2:mem:x}, no server) is the unit's
-   * own. One whose server or database is a placeholder no config resolves is the unit's own too,
-   * named by its database when that is written out, else by the unit (and by the datasource key
-   * when that is not the main one), never shared. Null when the URL does not say.
+   * The database a datasource points to in a view: {@code database:<server>/<database>}, so units
+   * on the same server and database share it; an embedded one ({@code jdbc:h2:mem:x}, no server) is
+   * the unit's own. One whose server or database is a placeholder no config resolves is the unit's
+   * own too, named by its database when that is written out, else by the unit (and by the
+   * datasource key when that is not the main one), unless other datasources of the view write the
+   * same server and database: then they are one database (#640, {@link #shared(String)}). Null when
+   * the URL does not say.
    */
-  private static EntityId database(Unit unit, Fact datasource) {
+  private EntityId database(Unit unit, Fact datasource, String view) {
+    Shared together = shared(view).get(shareKey(unit, datasource));
+    if (together != null) {
+      return together.database();
+    }
     String server = Store.of(datasource).server();
     String name = Store.of(datasource).database();
     if (!Claims.unresolved(datasource).isEmpty()) {
@@ -386,6 +425,123 @@ final class DataLinker {
       return ownDatabase(unit, datasource, name);
     }
     return null;
+  }
+
+  private static String shareKey(Unit unit, Fact datasource) {
+    return unit.id() + "|" + datasource.id();
+  }
+
+  /**
+   * The databases placeholder datasources of a view share (#640). Datasources whose server or
+   * database is a placeholder no config resolves, and that write the same server (host and port,
+   * placeholders as written, case ignored), technology and database, are one database: a deployment
+   * fills the same placeholders from one environment, as for Redis (ADR 0073). A database that is
+   * itself a placeholder counts only as the deployments fill it, the same in every environment that
+   * places it; with none it says nothing. Datasources that the deployments put on different servers
+   * or databases in one environment stay apart, and so does one they put on two. Those of one unit
+   * are its own database, without the key; those of several units are {@code
+   * database:<server>/<database>}.
+   */
+  private Map<String, Shared> shared(String view) {
+    Map<String, Shared> known = shared.get(view);
+    if (known != null) {
+      return known;
+    }
+    Map<String, Shared> found = new HashMap<>();
+    Map<String, List<Candidate>> groups = new TreeMap<>();
+    for (Unit unit : index.units.values()) {
+      for (String key : index.configKeys(unit, Types.DATASOURCE)) {
+        Fact f = index.config(unit, view, Types.DATASOURCE, key);
+        if (f == null || Claims.masked(f) || Claims.unresolved(f).isEmpty()) {
+          continue;
+        }
+        Candidate candidate = candidate(unit, f);
+        if (candidate != null) {
+          String technology = Store.of(f).technology();
+          groups
+              .computeIfAbsent(
+                  (technology == null ? "" : technology.toLowerCase(Locale.ROOT))
+                      + "|"
+                      + candidate.server()
+                      + "/"
+                      + candidate.name(),
+                  g -> new ArrayList<>())
+              .add(candidate);
+        }
+      }
+    }
+    for (List<Candidate> group : groups.values()) {
+      if (group.size() < 2 || !together(group)) {
+        continue;
+      }
+      Set<EntityId> units = new TreeSet<>(LinkIndex.BY_TEXT);
+      group.forEach(c -> units.add(c.unit().id()));
+      Candidate first = group.getFirst();
+      EntityId database =
+          units.size() == 1
+              ? ownDatabase(first.unit(), first.datasource(), first.name())
+              : new EntityId(Types.DATABASE, first.server() + "/" + first.name());
+      // The deployments confirm it when they put every datasource on it in the same environments.
+      boolean confirmed =
+          units.size() == 1
+              || !first.places().isEmpty()
+                  && group.stream()
+                      .allMatch(c -> c.places().keySet().equals(first.places().keySet()));
+      Shared shared = new Shared(database, first.name(), confirmed);
+      group.forEach(c -> found.put(shareKey(c.unit(), c.datasource()), shared));
+    }
+    this.shared.put(view, found);
+    return found;
+  }
+
+  /**
+   * A placeholder datasource as sharing reads it, or null when it says too little: no server or
+   * database, or a database that is a placeholder the deployments do not fill the same way.
+   */
+  private Candidate candidate(Unit unit, Fact datasource) {
+    String server = Store.of(datasource).server();
+    String name = Store.of(datasource).database();
+    if (server == null || server.isBlank() || name == null || name.isBlank()) {
+      return null;
+    }
+    Map<String, Where> places = new TreeMap<>();
+    Set<String> conflicting = new TreeSet<>();
+    for (Deployments.Placed p : placed(unit, datasource)) {
+      if (p.server() == null || p.database() == null || p.guessed()) {
+        continue;
+      }
+      Where where = new Where(p.server().name(), p.database());
+      Where before = places.putIfAbsent(p.unit().label(), where);
+      if (before != null && !before.equals(where)) {
+        conflicting.add(p.unit().label());
+      }
+    }
+    if (!conflicting.isEmpty()) {
+      return null;
+    }
+    if (name.contains("${")) {
+      Set<String> filled = new TreeSet<>();
+      places.values().forEach(w -> filled.add(w.database()));
+      if (filled.size() != 1) {
+        return null;
+      }
+      name = filled.iterator().next();
+    }
+    return new Candidate(unit, datasource, server.toLowerCase(Locale.ROOT), name, places);
+  }
+
+  /** Whether no two datasources of a group are put on different databases in one environment. */
+  private static boolean together(List<Candidate> group) {
+    Map<String, Where> seen = new HashMap<>();
+    for (Candidate c : group) {
+      for (Map.Entry<String, Where> e : c.places().entrySet()) {
+        Where before = seen.putIfAbsent(e.getKey(), e.getValue());
+        if (before != null && !before.equals(e.getValue())) {
+          return false;
+        }
+      }
+    }
+    return true;
   }
 
   /**
@@ -431,10 +587,10 @@ final class DataLinker {
             // the owner's tables are in the one its migrations run against.
             Fact used = primary(from, view, CODE_KEYS);
             Fact migrated = primary(owner.unit(), view, MIGRATION_KEYS);
-            EntityId database = used == null ? null : database(from, used);
+            EntityId database = used == null ? null : database(from, used, view);
             if (database == null
                 || migrated == null
-                || !database.equals(database(owner.unit(), migrated))) {
+                || !database.equals(database(owner.unit(), migrated, view))) {
               continue;
             }
             Key key = new Key(from, owner.unit(), database);

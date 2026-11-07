@@ -758,7 +758,7 @@
         },
         "inferred": {
           "type": "string",
-          "description": "Why the link rests on an inference: the Redis host or port is a placeholder no config resolves, so units that write the same placeholders are taken to share one server; or the database's name is left to the environment, and of the databases its server creates in a deployment the one whose name shares a word with the unit or the placeholder is taken."
+          "description": "Why the link rests on an inference: the Redis host or port is a placeholder no config resolves, so units that write the same placeholders are taken to share one server; the database's server is a placeholder no config resolves, so datasources that write the same server and database are taken to be one database and no deployment puts them all on it; or the database's name is left to the environment, and of the databases its server creates in a deployment the one whose name shares a word with the unit or the placeholder is taken."
         },
         "uses": {
           "type": "array",

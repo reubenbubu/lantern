@@ -1367,7 +1367,8 @@ class Project0EndToEndIT {
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
     // Four units, the Keycloak compose runs, a container of the system (DEP-6, #979), and the
     // order page (FE-1); the catalog, shop and ledger databases (the local profile's localhost one
-    // is a note; the ledger is payments' second datasource, DB-6);
+    // is a note; the ledger is payments' second datasource, DB-6) and the reporting database
+    // payments and fulfilment share, whose host is left to the environment (DB-7, #640);
     // the shop.orders, shop.returns, shop.parcels, shop.cancellations and shop.disputes exchanges
     // (their queues folded into their lines; the last three from #734's open links), the
     // storefront.order-status fanout exchange storefront-app hears itself on (MSG-10), two JMS
@@ -1384,7 +1385,7 @@ class Project0EndToEndIT {
                 Map.of(
                     "component", 32L,
                     "container", 6L,
-                    "database", 3L,
+                    "database", 4L,
                     "external", 3L,
                     // The Unknown caller (#766).
                     "person", 1L,

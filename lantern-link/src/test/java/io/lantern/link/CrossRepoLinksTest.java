@@ -2405,6 +2405,240 @@ class CrossRepoLinksTest {
             "service:g:app USES_DATABASE database:g:app/postgresql:g:app@app.reporting.url");
   }
 
+  /**
+   * A datasource under a key whose server or database is left to placeholders, its server, database
+   * and technology read from the URL as the persistence extractor reads them.
+   */
+  private void placeholderDatasource(String repo, String module, String key, String url) {
+    io.lantern.extract.sql.JdbcUrl jdbc = io.lantern.extract.sql.JdbcUrl.of(url, null);
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("key", key);
+    if (jdbc.technology() != null) {
+      attributes.put("technology", jdbc.technology());
+    }
+    if (jdbc.server() != null) {
+      attributes.put("server", jdbc.server());
+    }
+    if (jdbc.database() != null) {
+      attributes.put("database", jdbc.database());
+    }
+    ArrayNode unresolved = attributes.putArray("unresolved");
+    java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\$\\{([^}:]+)}").matcher(url);
+    while (m.find()) {
+      unresolved.add(m.group(1));
+    }
+    add(
+        PersistenceExtractor.NAME,
+        "module:g:" + module,
+        Types.DATASOURCE,
+        FactObject.string(url),
+        attributes.toString(),
+        repo + ":src/main/resources/application.yml#" + (7 + Math.abs(key.hashCode() % 40)),
+        1.0);
+  }
+
+  /** A unit named by its artifact, with config. */
+  private void placeholderUnit(String repo, String artifact) {
+    unit(repo, artifact, artifact);
+    config(repo, artifact, "application.yml", "spring.application.name", artifact, null);
+  }
+
+  @Test
+  void placeholderDatasourcesOfTwoUnitsWithTheSameServerAndDatabaseAreOneDatabase() {
+    // Each URL shape the extractor reads: the database in the path, in a property, or after an
+    // Oracle service; the main key or another one; JDBC or R2DBC.
+    List<List<String>> shapes =
+        List.of(
+            List.of(
+                "jdbc:postgresql://${DB_HOST}:5432/workorder",
+                "jdbc:postgresql://${DB_HOST}:5432/workorder",
+                "database:${db_host}:5432/workorder",
+                "workorder"),
+            List.of(
+                "jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/orders?useSSL=false",
+                "jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/orders",
+                "database:${mysql_host}:${mysql_port}/orders",
+                "orders"),
+            List.of(
+                "jdbc:sqlserver://${sql.host}:1433;databaseName=ledger;encrypt=true",
+                "jdbc:sqlserver://${sql.host}:1433;databaseName=ledger",
+                "database:${sql.host}:1433/ledger",
+                "ledger"),
+            List.of(
+                "jdbc:oracle:thin:@//${ORA_HOST}:1521/FLEET",
+                "jdbc:oracle:thin:@//${ORA_HOST}:1521/FLEET",
+                "database:${ora_host}:1521/FLEET",
+                "FLEET"),
+            List.of(
+                "r2dbc:postgresql://${PG_HOST}:5432/catalog",
+                "r2dbc:postgresql://${PG_HOST}:5432/catalog",
+                "database:${pg_host}:5432/catalog",
+                "catalog"));
+    for (List<String> shape : shapes) {
+      facts.clear();
+      unit("o", "owner-service", "owner-service");
+      config("o", "owner-service", "application.yml", "spring.application.name", "owner", null);
+      placeholderDatasource("o", "owner-service", "spring.datasource.url", shape.get(0));
+      unit("r", "reader-service", "reader-service");
+      config("r", "reader-service", "application.yml", "spring.application.name", "reader", null);
+      placeholderDatasource("r", "reader-service", "spring.datasource.url", "jdbc:h2:mem:own");
+      placeholderDatasource("r", "reader-service", "reader.datasource.owner.url", shape.get(1));
+
+      assertThat(derive(Types.USES_DATABASE))
+          .as(shape.getFirst())
+          .extracting(l -> l.substring(0, l.indexOf(" {")))
+          .containsExactlyInAnyOrder(
+              "service:g:owner-service USES_DATABASE " + shape.get(2),
+              "service:g:reader-service USES_DATABASE " + shape.get(2),
+              "service:g:reader-service USES_DATABASE database:g:reader-service/h2:own");
+      assertThat(derive(Types.USES_DATABASE))
+          .filteredOn(l -> l.contains(shape.get(2)))
+          .allSatisfy(l -> assertThat(l).contains("\"inferred\":").endsWith(" 0.8"));
+      assertThat(derive("display-name"))
+          .as(shape.getFirst())
+          .contains(shape.get(2) + " display-name " + shape.get(3) + " 1.0");
+    }
+  }
+
+  @Test
+  void placeholderDatasourcesWithAnotherServerOrDatabaseStayApart() {
+    placeholderUnit("o", "owner-service");
+    placeholderDatasource(
+        "o", "owner-service", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}:5432/owner");
+    placeholderUnit("r", "reader-service");
+    placeholderDatasource(
+        "r", "reader-service", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}:5432/reader");
+    placeholderDatasource(
+        "r", "reader-service", "reader.owner.url", "jdbc:postgresql://${OWNER_DB_HOST}:5432/owner");
+    // Both leave the database to the environment, and no deployment fills it: nothing says it is
+    // one database.
+    placeholderUnit("a", "audit-service");
+    placeholderDatasource(
+        "a", "audit-service", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}/${DB_NAME}");
+    placeholderUnit("n", "notes-service");
+    placeholderDatasource(
+        "n", "notes-service", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}/${DB_NAME}");
+
+    assertThat(derive(Types.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactlyInAnyOrder(
+            "service:g:owner-service USES_DATABASE database:g:owner-service/postgresql:owner",
+            "service:g:reader-service USES_DATABASE database:g:reader-service/postgresql:reader",
+            "service:g:reader-service USES_DATABASE"
+                + " database:g:reader-service/postgresql:owner@reader.owner.url",
+            "service:g:audit-service USES_DATABASE"
+                + " database:g:audit-service/postgresql:g:audit-service",
+            "service:g:notes-service USES_DATABASE"
+                + " database:g:notes-service/postgresql:g:notes-service");
+  }
+
+  @Test
+  void twoPlaceholderDatasourcesOfOneUnitOnTheSameDatabaseAreItsOneDatabase() {
+    placeholderUnit("a", "app");
+    placeholderDatasource(
+        "a", "app", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}:5432/app");
+    placeholderDatasource("a", "app", "spring.flyway.url", "jdbc:postgresql://${DB_HOST}:5432/app");
+
+    assertThat(derive(Types.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactly("service:g:app USES_DATABASE database:g:app/postgresql:app");
+    assertThat(derive(Types.USES_DATABASE)).noneMatch(l -> l.contains("\"inferred\""));
+    assertThat(derive("display-name"))
+        .containsExactly("database:g:app/postgresql:app display-name app 1.0");
+  }
+
+  /** A compose service that runs a unit with the environment given. */
+  private void composeUnit(String name, String env) {
+    container(
+        "deploy",
+        name,
+        "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+            + "\"hosts\":[\""
+            + name
+            + "\"],\"env\":{"
+            + env
+            + "}}");
+  }
+
+  /** A compose PostgreSQL server that creates the databases given. */
+  private void composePostgres(String name, String databases) {
+    container(
+        "deploy",
+        name,
+        "{\"platform\":\"compose\",\"environment\":\"local\",\"kind\":\"service\","
+            + "\"image\":\"postgres:16\",\"product\":\"PostgreSQL\",\"version\":\"16\","
+            + "\"hosts\":[\""
+            + name
+            + "\"],\"databases\":["
+            + databases
+            + "]}");
+  }
+
+  @Test
+  void theDeploymentConfirmsAPlaceholderDatabaseTheUnitsShareOrKeepsThemApart() {
+    placeholderUnit("o", "owner-service");
+    placeholderDatasource(
+        "o", "owner-service", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}:5432/owner");
+    placeholderUnit("r", "reader-service");
+    placeholderDatasource(
+        "r", "reader-service", "reader.owner.url", "jdbc:postgresql://${DB_HOST}:5432/owner");
+    // The database is a placeholder both units' containers fill with the same name.
+    placeholderUnit("a", "audit-service");
+    placeholderDatasource(
+        "a", "audit-service", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}/${DB_NAME}");
+    placeholderUnit("n", "notes-service");
+    placeholderDatasource(
+        "n", "notes-service", "spring.datasource.url", "jdbc:postgresql://${DB_HOST}/${DB_NAME}");
+    composePostgres("postgres", "\"owner\",\"shared\"");
+    composeUnit("owner-service", "\"DB_HOST\":\"postgres\"");
+    composeUnit("reader-service", "\"DB_HOST\":\"postgres\"");
+    composeUnit("audit-service", "\"DB_HOST\":\"postgres\",\"DB_NAME\":\"shared\"");
+    composeUnit("notes-service", "\"DB_HOST\":\"postgres\",\"DB_NAME\":\"shared\"");
+
+    assertThat(derive(Types.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactlyInAnyOrder(
+            "service:g:owner-service USES_DATABASE database:${db_host}:5432/owner",
+            "service:g:reader-service USES_DATABASE database:${db_host}:5432/owner",
+            "service:g:audit-service USES_DATABASE database:${db_host}/shared",
+            "service:g:notes-service USES_DATABASE database:${db_host}/shared");
+    // The deployment puts them all on one server and database: no inference.
+    assertThat(derive(Types.USES_DATABASE)).noneMatch(l -> l.contains("\"inferred\""));
+    assertThat(derive(Types.DEPLOYED_IN))
+        .filteredOn(l -> l.startsWith("database:"))
+        .containsExactlyInAnyOrder(
+            "database:${db_host}:5432/owner deployed-in Docker Compose (local)"
+                + " {\"container\":\"postgres\",\"environment\":\"local\","
+                + "\"platform\":\"compose\"} 1.0",
+            "database:${db_host}/shared deployed-in Docker Compose (local)"
+                + " {\"container\":\"postgres\",\"environment\":\"local\","
+                + "\"platform\":\"compose\"} 1.0");
+    assertThat(derive("display-name"))
+        .containsExactlyInAnyOrder(
+            "database:${db_host}:5432/owner display-name owner 1.0",
+            "database:${db_host}/shared display-name shared 1.0");
+  }
+
+  @Test
+  void unitsTheDeploymentPutsOnDifferentServersKeepTheirOwnDatabases() {
+    for (String name : List.of("owner", "reader")) {
+      placeholderUnit(name, name + "-service");
+      placeholderDatasource(
+          name,
+          name + "-service",
+          "spring.datasource.url",
+          "jdbc:postgresql://${DB_HOST}:5432/app");
+      composePostgres(name + "-db", "\"app\"");
+      composeUnit(name + "-service", "\"DB_HOST\":\"" + name + "-db\"");
+    }
+
+    assertThat(derive(Types.USES_DATABASE))
+        .extracting(l -> l.substring(0, l.indexOf(" {")))
+        .containsExactlyInAnyOrder(
+            "service:g:owner-service USES_DATABASE database:g:owner-service/postgresql:app",
+            "service:g:reader-service USES_DATABASE database:g:reader-service/postgresql:app");
+  }
+
   @Test
   void aTableIsAnothersDataOnlyWhereItsMigrationsRun() {
     unit("s", "shop", "shop");

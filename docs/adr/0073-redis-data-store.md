@@ -22,8 +22,9 @@ datasource, so the persistence extractor and the data linker never saw it.
   6379). No new config fact is needed; the config extractor already records the values. Units on
   the same server share the store. A host or port that is a placeholder no config resolves (project-4
   sets `${redis.host}`, which only an environment variable fills) names the server by the
-  placeholders as written, so units that write the same ones share it. This is the one exception
-  to ADR 0042's rule that a datasource with a placeholder is never shared (#255): the reference
+  placeholders as written, so units that write the same ones share it. This was the one exception
+  to ADR 0042's rule that a datasource with a placeholder is never shared (#255), until datasources
+  were shared the same way (ADR 0042, amendment for #640): the reference
   shows one Redis for auth-service and api-gateway; such a link is marked
   `inferred` and has 0.8 of the confidence. A unit with Redis code or a Redis client dependency but
   no connection config of its own takes the one server the snapshot's config names, marked

@@ -767,6 +767,29 @@ class Project0LinksIT {
                 + "\"reads\":[\"table:~:storefront-app:orders\"]}");
   }
 
+  @Test
+  void db7PaymentsAndFulfilmentShareTheReportingDatabaseWhoseHostIsLeftToTheEnvironment() {
+    String reporting = "database:${reporting_db_host}:5432/reporting";
+    for (List<String> facts : List.of(built, unbuilt)) {
+      assertThat(of(facts, "USES_DATABASE"))
+          .filteredOn(l -> l.contains("reporting"))
+          .extracting(l -> l.substring(0, l.indexOf(" {")))
+          .containsExactlyInAnyOrder(
+              "service:~:payments USES_DATABASE " + reporting,
+              "service:~:fulfilment USES_DATABASE " + reporting);
+      assertThat(of(facts, "USES_DATABASE"))
+          .filteredOn(l -> l.contains(reporting))
+          .allSatisfy(
+              l ->
+                  assertThat(l)
+                      .contains("\"inferred\":")
+                      .contains(
+                          "\"url\":\"jdbc:postgresql://${REPORTING_DB_HOST}:5432/reporting\""));
+    }
+    assertBoth(
+        reporting + " display-name reporting @fulfilment:src/main/resources/application.yml#41");
+  }
+
   /** The one link of the code, with builds and without, that starts as given and comes from it. */
   private static void assertDeployed(String start, String source, String... parts) {
     for (List<String> facts : List.of(built, unbuilt)) {
@@ -901,9 +924,12 @@ class Project0LinksIT {
             + "\"units\":[\"service:~:storefront-app\"]} @storefront:README.md#5";
     String ownDatabase =
         "readme:payments:README.md claim-contradiction own-database {\"contradictedBy\":["
+            + "\"service:~:fulfilment USES_DATABASE database:${reporting_db_host}:5432/reporting\","
+            + "\"service:~:payments USES_DATABASE database:${reporting_db_host}:5432/reporting\","
             + "\"service:~:payments USES_DATABASE database:shop-db:5432/shop\","
             + "\"service:~:storefront-app USES_DATABASE database:shop-db:5432/shop\"],"
-            + "\"found\":[\"service:~:storefront-app\"],\"units\":[\"service:~:payments\"]}"
+            + "\"found\":[\"service:~:fulfilment\",\"service:~:storefront-app\"],"
+            + "\"units\":[\"service:~:payments\"]}"
             + " @payments:README.md#5";
     String othersTables =
         "readme:payments:README.md claim-contradiction other-services-data {\"contradictedBy\":["
