@@ -1078,7 +1078,8 @@ final class C4Views {
 
   /**
    * How many deployable units the scope has, and how many data stores, queues and external systems
-   * they use, each citing the facts it counts.
+   * they use, each citing the facts it counts: the ends of the lines of the units and frontends,
+   * which the container views draw, on one view or another, whatever their kind (#978).
    */
   private Metrics counts(String section, SortedMap<EntityId, Fact> people) {
     List<Fact> unitFacts = new ArrayList<>();
@@ -1157,6 +1158,32 @@ final class C4Views {
       new Concern("Data", Set.of(Types.USES_DATABASE, Types.ACCESSES_DATA_OF));
   private static final Concern MESSAGING =
       new Concern("Messaging", Set.of(Types.PUBLISHES, Types.CONSUMES, Types.ROUTES_TO));
+
+  /**
+   * Whether a view of this concern draws the line: its relationship is one of the concern's, or no
+   * concern names it (what Investigate found, any other interaction, #978) and the concern is that
+   * of what the line reaches: data for a data store, messaging for a topic, queue or exchange,
+   * requests for anything else. So every line is in one concern, and a view split by concern draws
+   * every element the system context counts.
+   */
+  private boolean holds(Concern concern, Line link) {
+    if (concern == null || concern.relationships.contains(link.relationship())) {
+      return true;
+    }
+    if (List.of(REQUESTS, DATA, MESSAGING).stream()
+        .anyMatch(c -> c.relationships.contains(link.relationship()))) {
+      return false;
+    }
+    Concern reached = REQUESTS;
+    for (EntityId end : List.of(link.from(), link.to())) {
+      if (isType(end.type(), Types.DATABASE)) {
+        reached = DATA;
+      } else if (isTopic(end) || isType(end.type(), Types.EXCHANGE)) {
+        reached = MESSAGING;
+      }
+    }
+    return concern.relationships.containsAll(reached.relationships);
+  }
 
   /**
    * The container view of the whole system: one diagram of the scope's units and frontends and what
@@ -1481,7 +1508,7 @@ final class C4Views {
     // Per unit, with only its neighbours in this concern.
     Set<EntityId> lined = new HashSet<>();
     for (Line link : drawing) {
-      if (concern.relationships.contains(link.relationship())) {
+      if (holds(concern, link)) {
         lined.add(link.from());
         lined.add(link.to());
       }
@@ -1784,7 +1811,7 @@ final class C4Views {
     for (Line link : drawing) {
       EntityId from = lift.getOrDefault(link.from(), link.from());
       EntityId to = lift.getOrDefault(link.to(), link.to());
-      if ((concern == null || concern.relationships.contains(link.relationship()))
+      if (holds(concern, link)
           && (shown.contains(link.from()) || shown.contains(link.to()))
           && !merged(lift, link.from(), link.to())
           && !(withoutOutside && (outside(link.from()) || outside(link.to())))) {

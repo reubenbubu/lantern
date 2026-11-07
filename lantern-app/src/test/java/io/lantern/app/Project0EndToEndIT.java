@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
@@ -1448,6 +1449,50 @@ class Project0EndToEndIT {
                         });
               }
             });
+    // Each count of the context page is what the container pages draw of its kind (#978), though
+    // they are split by concern.
+    Map<String, Set<String>> drawnByKind = new TreeMap<>();
+    data.get("pages")
+        .forEach(
+            page -> {
+              if (page.get("id").asString().startsWith("containers")) {
+                page.get("sections")
+                    .forEach(
+                        section ->
+                            section
+                                .path("relationships")
+                                .forEach(
+                                    line -> {
+                                      for (String end : List.of("from", "to")) {
+                                        String id = line.get(end).asString();
+                                        drawnByKind
+                                            .computeIfAbsent(
+                                                data.get("elements").get(id).get("kind").asString(),
+                                                k -> new TreeSet<>())
+                                            .add(id);
+                                      }
+                                    }));
+              }
+            });
+    Map<String, String> counted = new TreeMap<>();
+    data.get("pages")
+        .get(0)
+        .get("sections")
+        .forEach(
+            section -> {
+              if ("stats".equals(section.get("type").asString())) {
+                section
+                    .get("items")
+                    .forEach(
+                        i -> counted.put(i.get("label").asString(), i.get("value").asString()));
+              }
+            });
+    assertThat(counted)
+        .containsEntry("Databases", "" + drawnByKind.getOrDefault("database", Set.of()).size())
+        .containsEntry(
+            "Topics, queues and exchanges", "" + drawnByKind.getOrDefault("queue", Set.of()).size())
+        .containsEntry(
+            "External systems", "" + drawnByKind.getOrDefault("external", Set.of()).size());
     // The Unknown caller (#766): storefront's POST /api/orders and payments' order lookup are
     // reached by nothing in project-0 and used by no person.
     assertThat(containerLines.toString())

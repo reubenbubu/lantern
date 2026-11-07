@@ -173,3 +173,15 @@ On 6 Nov 2026 the owner settled what a view does when its groups still do not fi
 - Describing a domain is left to an LLM step the owner will add.
 - **Evidence runs on Haiku 5.5 only** (owner, 6 Nov, for cost): the views' grouping is decided by
   code; the model only names groups and words lines.
+
+## Amendment (#978): every line is in one concern
+
+A container view split by concern drew only the lines whose relationship one of its concerns
+names (requests, data, messaging). A line of any other kind, such as what Investigate found
+(`INVESTIGATED_CONNECTION`) or an interaction of a type the vocabulary adds, was on no split view,
+so the store or system it reaches was drawn nowhere while the system context counted it (project-8:
+"Databases 9" with 7 drawn, "External systems 10" with 6). Now such a line is in the concern of
+what it reaches: data for a data store, messaging for a topic, queue or exchange, requests for
+anything else, as component views already put it in requests. Each count of the system context is
+then what the container views draw of its kind; a composer test and project-0's end-to-end test
+check that.
