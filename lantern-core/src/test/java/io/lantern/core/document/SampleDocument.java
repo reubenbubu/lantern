@@ -339,8 +339,16 @@ final class SampleDocument {
                 facts(BUILDS),
                 null,
                 "Service"),
+            // In the group of its unit, as a component is in its feature area's (#931).
             new DocumentEntity(
-                LIB, "orders-lib", ORDERS, List.of(), facts(BUILDS, READS), null, "Library"),
+                LIB,
+                "orders-lib",
+                ORDERS,
+                List.of(),
+                facts(BUILDS, READS),
+                null,
+                "Library",
+                ORDERS),
             new DocumentEntity(
                 DB, "orders-db", null, List.of(), List.of(), DocumentEntity.Kind.DATABASE, null)),
         List.of(READS, BUILDS),

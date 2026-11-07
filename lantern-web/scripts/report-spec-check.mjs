@@ -42,6 +42,23 @@ export function crossReferenceIssues(data) {
       issues.push(`element ${id}: a ${element.kind} cannot sit inside a ${parent.kind}`);
     }
   }
+  // A page's parent is a page of the document, and following parents ends (#931).
+  const parentOf = new Map(data.pages.map((p) => [p.id, p.parent]));
+  for (const page of data.pages) {
+    if (page.parent === undefined) continue;
+    if (!parentOf.has(page.parent)) {
+      issues.push(`page ${page.id}: its parent ${page.parent} is not a page of the document`);
+      continue;
+    }
+    const seen = new Set([page.id]);
+    for (let at = page.parent; at !== undefined; at = parentOf.get(at)) {
+      if (seen.has(at)) {
+        issues.push(`page ${page.id} is its own ancestor`);
+        break;
+      }
+      seen.add(at);
+    }
+  }
   const pageIds = new Set();
   for (const page of data.pages) {
     if (pageIds.has(page.id)) issues.push(`page ${page.id} is used more than once`);

@@ -130,12 +130,14 @@ public final class DocumentJson {
     if (entity.tag() != null) {
       node.put("tag", entity.tag());
     }
+    putOptional(node, "group", entity.group());
     return node;
   }
 
   private static DocumentEntity entityFromJson(JsonNode node) {
     Reader in =
-        Reader.of(node, "entity", "id", "name", "parent", "description", "facts", "kind", "tag");
+        Reader.of(
+            node, "entity", "id", "name", "parent", "description", "facts", "kind", "tag", "group");
     String kind = in.optionalString("kind");
     return new DocumentEntity(
         in.entityId("id"),
@@ -146,7 +148,8 @@ public final class DocumentJson {
             : List.of(),
         in.facts(),
         kind == null ? null : DocumentEntity.Kind.fromJsonName(kind),
-        in.optionalString("tag"));
+        in.optionalString("tag"),
+        in.optionalEntityId("group"));
   }
 
   private static ObjectNode toJson(Section section) {

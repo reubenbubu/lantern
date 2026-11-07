@@ -298,6 +298,7 @@ public final class C4ReportRenderer {
 
     Result run() {
       document.sections().forEach(section -> plan(section, null));
+      nestUnderGroups();
       rehome();
       pages.forEach(this::placeOnPage);
       pages.forEach(this::collectElements);
@@ -327,6 +328,11 @@ public final class C4ReportRenderer {
       }
       if (level != null) {
         target = new PagePlan(section, level, pageIds.id(section.id()));
+        // A components page inside another, such as a feature area's in its unit's, is nested
+        // under it in the menu (#931).
+        if (enclosing != null && level.equals("components") && enclosing.level.equals(level)) {
+          target.parent = enclosing;
+        }
         pages.add(target);
         // A documentation page is about the whole document, so no entity's links point to it.
         if (section.entity() != null && !level.equals("documentation")) {
@@ -356,6 +362,31 @@ public final class C4ReportRenderer {
       }
       for (Section sub : section.sections()) {
         plan(sub, target);
+      }
+    }
+
+    /**
+     * Nests each top components page about an element of a domain under the domain's page (#931),
+     * so the menu reads domain, then its units, then their areas.
+     */
+    private void nestUnderGroups() {
+      Map<EntityId, PagePlan> about = new HashMap<>();
+      for (PagePlan page : pages) {
+        if (page.section.entity() != null && !page.level.equals("documentation")) {
+          about.putIfAbsent(page.section.entity(), page);
+        }
+      }
+      for (PagePlan page : pages) {
+        EntityId subject = page.section.entity();
+        if (page.parent != null || subject == null || !page.level.equals("components")) {
+          continue;
+        }
+        DocumentEntity entity = entities.get(subject);
+        PagePlan group =
+            entity == null || entity.group() == null ? null : about.get(entity.group());
+        if (group != null && group.level.equals("containers")) {
+          page.parent = group;
+        }
       }
     }
 
@@ -767,6 +798,9 @@ public final class C4ReportRenderer {
       node.put("id", page.id);
       node.put("level", page.level);
       node.put("title", page.section.title());
+      if (page.parent != null) {
+        node.put("parent", page.parent.id);
+      }
       if (!page.summary.isEmpty()) {
         node.put(
             "summary",
@@ -1334,6 +1368,9 @@ public final class C4ReportRenderer {
     final List<Part> parts = new ArrayList<>();
     final List<Part> summary = new ArrayList<>();
     final ReportSpecIds sectionIds = new ReportSpecIds("section");
+
+    /** The page this one is nested under in the menu, or null (#931). */
+    PagePlan parent;
 
     /** The failures of the document's quality report shown on this page. */
     final List<PageReport> quality = new ArrayList<>();

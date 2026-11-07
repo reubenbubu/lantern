@@ -110,15 +110,20 @@ class GroupViewsTest {
         .filteredOn(Diagram.class::isInstance)
         .extracting(b -> ((Diagram) b).title())
         .containsExactly("Containers of base and shop, by domain");
-    // The domain's page, split by concern as its units do not fit either.
-    assertThat(containers.sections()).extracting(Section::id).anyMatch(id -> id.contains("pair"));
-    // Each of its pages names the domain, so two domains' "requests" pages are told apart (#764).
+    // The domain is one page, about the domain, which its box opens (#931): its units do not fit
+    // one view, so the page holds a view per concern rather than a page each.
     assertThat(containers.sections())
         .filteredOn(p -> p.id().contains("pair"))
-        .isNotEmpty()
-        .allSatisfy(p -> assertThat(p.title()).startsWith("pair (not named): "))
-        .allSatisfy(
-            p -> assertThat(block(p, Diagram.class).title()).contains(" in pair (not named): "));
+        .singleElement()
+        .satisfies(
+            p -> {
+              assertThat(p.title()).isEqualTo("pair (not named)");
+              assertThat(p.entity()).hasToString(domain);
+              assertThat(p.sections()).isEmpty();
+              assertThat(p.blocks()).filteredOn(Diagram.class::isInstance).hasSizeGreaterThan(1);
+            });
+    // The overview is titled as one, not again "Containers" under the containers level (#931).
+    assertThat(containers.title()).isEqualTo("Overview");
   }
 
   @Test
@@ -282,14 +287,11 @@ class GroupViewsTest {
             d ->
                 d.nodes().stream()
                     .anyMatch(n -> n.id().toString().equals("external-system:pay.example.com")));
-    // The components no area holds keep what they reach outside on a page of their own, as a unit
-    // in no domain does; they stay on the overview, where their lines inside are.
-    Section loose =
-        app.sections().stream()
-            .filter(s -> s.title().startsWith(C4Views.NO_AREA))
-            .findFirst()
-            .orElseThrow();
-    assertThat(block(loose, Diagram.class).nodes())
+    // The components no area holds keep what they reach outside in a view of their own on the
+    // unit's page (#931), as a unit in no domain does; they stay on the overview, where their
+    // lines inside are.
+    Diagram loose = view(app, "in no feature area");
+    assertThat(loose.nodes())
         .extracting(n -> n.id().toString())
         .contains("type:com.example.web.Controller", "external-system:pay.example.com");
     assertThat(overview.nodes())
@@ -324,14 +326,9 @@ class GroupViewsTest {
     assertThat(block(app, Diagram.class).nodes())
         .extracting(n -> n.id().toString())
         .doesNotContain(job);
-    Section outside =
-        app.sections().stream()
-            .filter(p -> p.title().equals("Connected to no feature area"))
-            .findFirst()
-            .orElseThrow();
-    assertThat(block(outside, Diagram.class).nodes())
-        .extracting(n -> n.id().toString())
-        .contains(job);
+    // In a view of its own on the unit's page (#931).
+    Diagram outside = view(app, "connected to no feature area");
+    assertThat(outside.nodes()).extracting(n -> n.id().toString()).contains(job);
     // So is a feature area with no line on it; its own page draws it.
     String parts = "group:service:com.example:app/area/pkg-parts";
     assertThat(block(app, Diagram.class).nodes())
@@ -361,20 +358,15 @@ class GroupViewsTest {
             .findFirst()
             .orElseThrow();
 
-    List<Section> pages =
-        app.sections().stream()
-            .filter(p -> p.title().startsWith("Connected to no feature area"))
-            .toList();
+    // Views on the unit's page (#931), each readable.
+    List<Diagram> pages = views(app, "connected to no feature area");
     assertThat(pages)
         .hasSizeGreaterThan(1)
-        .allSatisfy(p -> assertThat(C4Views.fits(block(p, Diagram.class), limits)).isTrue());
+        .allSatisfy(p -> assertThat(C4Views.fits(p, limits)).isTrue());
     for (int i = 0; i < 8; i++) {
       String job = "type:com.example.ops" + i + ".Sampler" + i;
       assertThat(pages)
-          .filteredOn(
-              p ->
-                  block(p, Diagram.class).nodes().stream()
-                      .anyMatch(n -> n.id().toString().equals(job)))
+          .filteredOn(p -> p.nodes().stream().anyMatch(n -> n.id().toString().equals(job)))
           .hasSize(1);
     }
   }
@@ -550,18 +542,27 @@ class GroupViewsTest {
           .hasSize(1)
           .allMatch(d -> d.nodes().stream().anyMatch(n -> n.id().toString().equals(service)));
     }
-    assertThat(app.sections())
-        .filteredOn(p -> p.title().contains("from Desk"))
-        .hasSizeGreaterThan(1)
-        .allMatch(p -> p.title().startsWith("d (not named): from "));
-    // A page draws only its own entry points, not the others calling what they share.
-    assertThat(app.sections())
-        .filteredOn(p -> p.title().contains("from Desk"))
+    // The area is one page (#931), holding a view per group of entry points, not a page each.
+    assertThat(app.sections()).noneMatch(p -> p.title().contains("from Desk"));
+    Section area =
+        app.sections().stream()
+            .filter(p -> p.title().equals("d (not named)"))
+            .findFirst()
+            .orElseThrow();
+    List<Diagram> views =
+        area.blocks().stream()
+            .filter(Diagram.class::isInstance)
+            .map(Diagram.class::cast)
+            .filter(d -> d.title().contains("from Desk"))
+            .toList();
+    assertThat(views).hasSizeGreaterThan(1);
+    // A view draws only its own entry points, not the others calling what they share.
+    assertThat(views)
         .allSatisfy(
-            p ->
-                assertThat(block(p, Diagram.class).nodes())
+            d ->
+                assertThat(d.nodes())
                     .filteredOn(n -> n.label().startsWith("Desk"))
-                    .allMatch(n -> p.title().contains(n.label())));
+                    .allMatch(n -> d.title().contains(n.label())));
   }
 
   @Test
@@ -602,20 +603,22 @@ class GroupViewsTest {
             .findFirst()
             .orElseThrow();
 
-    List<Section> desk =
-        app.sections().stream().filter(p -> p.title().startsWith("d (not named): ")).toList();
+    // The area's page (#931) holds a view per step.
+    Section area =
+        app.sections().stream()
+            .filter(p -> p.title().equals("d (not named)"))
+            .findFirst()
+            .orElseThrow();
+    List<Diagram> desk = views(area, "");
+    assertThat(desk).allSatisfy(p -> assertThat(C4Views.fits(p, limits)).isTrue());
     assertThat(desk)
-        .allSatisfy(p -> assertThat(C4Views.fits(block(p, Diagram.class), limits)).isTrue());
-    assertThat(desk)
-        .extracting(Section::title)
-        .contains(
-            "d (not named): from Big (1 of 2)",
-            "d (not named): from Big (2 of 2)",
-            "d (not named): what S1 calls",
-            "d (not named): what S2 calls");
-    Section deeper =
-        desk.stream().filter(p -> p.title().endsWith("what S1 calls")).findFirst().orElseThrow();
-    assertThat(block(deeper, Diagram.class).nodes())
+        .extracting(Diagram::title)
+        .anyMatch(t -> t.endsWith(", from Big (1 of 2)"))
+        .anyMatch(t -> t.endsWith(", from Big (2 of 2)"))
+        .anyMatch(t -> t.endsWith(", what S1 calls"))
+        .anyMatch(t -> t.endsWith(", what S2 calls"));
+    Diagram deeper = view(area, "what S1 calls");
+    assertThat(deeper.nodes())
         .extracting(Diagram.Node::label)
         .contains("S1", "T1", "T2", "T3")
         .doesNotContain("Big", "Small");
@@ -646,9 +649,8 @@ class GroupViewsTest {
             .findFirst()
             .orElseThrow();
 
-    assertThat(app.sections())
-        .extracting(Section::title)
-        .anyMatch(x -> x.startsWith("orders (not named): "));
+    // The split area is one page (#931).
+    assertThat(app.sections()).extracting(Section::title).contains("orders (not named)");
     assertThat(diagrams(app))
         .anyMatch(
             d ->
@@ -714,6 +716,22 @@ class GroupViewsTest {
   }
 
   /** Every container diagram the section and its pages draw. */
+  /** The views on a page whose caption contains the text. */
+  private static List<Diagram> views(Section page, String caption) {
+    return page.blocks().stream()
+        .filter(Diagram.class::isInstance)
+        .map(Diagram.class::cast)
+        .filter(d -> d.title().contains(caption))
+        .toList();
+  }
+
+  /** The one view on a page whose caption contains the text. */
+  private static Diagram view(Section page, String caption) {
+    List<Diagram> found = views(page, caption);
+    assertThat(found).as("views captioned '%s'", caption).hasSize(1);
+    return found.getFirst();
+  }
+
   private static List<Diagram> diagrams(Section section) {
     List<Diagram> result = new java.util.ArrayList<>();
     section.blocks().stream()
@@ -755,6 +773,49 @@ class GroupViewsTest {
   }
 
   @Test
+  void aGatewaysRouteLandsOnTheControllerItRoutesTo() {
+    // #931: a unit whose caller is a gateway shows it calling the controller its routes reach,
+    // though the gateway's link names no method at the unit's end.
+    String gateway = "service:com.example:gateway";
+    TestFacts routed = TestFacts.runtime();
+    routed
+        .relate("base", gateway, "CONTAINS", "module:com.example:gateway")
+        .attribute("base", "module:com.example:gateway", "packaging", "jar")
+        .attribute("base", gateway, "deployable-unit", "spring-boot", "{}")
+        .relate(
+            "base",
+            gateway,
+            "CALLS_HTTP",
+            APP,
+            "{\"protocol\": \"HTTP\", \"paths\": [\"/api/orders/**\"], \"route\": \"orders\","
+                + " \"matchedBy\": \"service-name\"}")
+        // The gateway strips the prefix, so only its routed endpoint says which controller it is.
+        .attribute(
+            "base",
+            gateway,
+            "routed-endpoint",
+            "GET /api/orders",
+            "{\"target\": \""
+                + APP
+                + "\", \"endpoint\": \"method:com.example.web.Controller#list()\","
+                + " \"served\": \"GET /orders\"}");
+    Section app =
+        section(system(routed.list()), "components").sections().stream()
+            .filter(s -> s.entity() != null && s.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    assertThat(diagrams(app))
+        .anyMatch(
+            d ->
+                d.edges().stream()
+                    .anyMatch(
+                        e ->
+                            e.from().toString().equals(gateway)
+                                && e.to().toString().equals("type:com.example.web.Controller")));
+  }
+
+  @Test
   void eachUnitsBoxNamesTheDomainItBelongsTo() {
     // No frame is drawn around a domain's units (owner's decision of 5 Nov 2026 on #764; #897).
     List<Fact> facts = pair().list();
@@ -762,6 +823,10 @@ class GroupViewsTest {
     assertThat(entity(system(facts, limits(100, 2)), APP).tag())
         .isEqualTo("Service · pair (not named)");
     assertThat(entity(system(facts, limits(100, 3)), APP).tag()).isEqualTo("Service");
+    // And the document says which, so the report nests its page under the domain's (#931).
+    assertThat(entity(system(facts, limits(100, 2)), APP).group())
+        .hasToString("group:system/domain/pair");
+    assertThat(entity(system(facts, limits(100, 3)), APP).group()).isNull();
   }
 
   @Test

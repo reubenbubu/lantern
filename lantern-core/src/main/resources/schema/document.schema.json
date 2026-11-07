@@ -120,6 +120,10 @@
         "tag": {
           "description": "The name of its type a reader sees beside its name, such as Topic.",
           "$ref": "#/$defs/nonBlankText"
+        },
+        "group": {
+          "description": "The domain or feature area this entity belongs to, an entity of the document; a report nests the entity's page under its group's (#931).",
+          "$ref": "#/$defs/entityId"
         }
       }
     },

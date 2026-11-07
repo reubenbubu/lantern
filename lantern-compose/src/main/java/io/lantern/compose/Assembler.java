@@ -122,7 +122,15 @@ final class Assembler {
     }
     entities.put(
         id,
-        new DocumentEntity(id, name(id), parent, List.of(), facts(facts), kind(id), groupTag(id)));
+        new DocumentEntity(
+            id,
+            name(id),
+            parent,
+            List.of(),
+            facts(facts),
+            kind(id),
+            groupTag(id),
+            groupOf.get(id)));
     adding.remove(id);
     if (described.contains(id)
             && (model.summary(summarized(id)).isPresent() || responsibility(id) != null)
@@ -672,7 +680,8 @@ final class Assembler {
               description,
               entity.facts(),
               entity.kind(),
-              entity.tag()));
+              entity.tag(),
+              entity.group()));
     }
     return List.copyOf(entities.values());
   }

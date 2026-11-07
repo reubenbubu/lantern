@@ -109,6 +109,7 @@ final class QualityBar {
   static final String READER = "It states its reader";
   static final String CLAIMS = "Every specific claim links to a fact or source";
   static final String REPEATED = "No diagram repeated across sections";
+  static final String BOX_PAGE = "Every domain or feature area drawn has a page of its own";
   static final String ORIENTATION = "An orientation section of at most 300 words";
   static final String START_HERE =
       "A \"start here\" list of the entry points and files to read first";
@@ -305,6 +306,7 @@ final class QualityBar {
       }
     }
     acronyms();
+    boxPages(diagrams);
     if (document.audience() == null) {
       fail(
           READER,
@@ -315,6 +317,38 @@ final class QualityBar {
       case EXPLORER -> explorer(all);
       case BRIEF -> brief(all);
       default -> {}
+    }
+  }
+
+  /**
+   * A domain or feature area drawn as one box stands for what it holds, so a reader clicks it to
+   * see inside: the document has a section about it (#931).
+   */
+  private void boxPages(List<Diagram> diagrams) {
+    Set<EntityId> about = new HashSet<>();
+    forEachSection(
+        document.sections(),
+        section -> {
+          if (section.entity() != null) {
+            about.add(section.entity());
+          }
+        });
+    for (Diagram diagram : diagrams) {
+      Set<EntityId> boundaries = boundaries(diagram);
+      List<String> missing = new ArrayList<>();
+      for (Diagram.Node node : diagram.nodes()) {
+        if (node.id().type().equals(Types.GROUP)
+            && !boundaries.contains(node.id())
+            && !about.contains(node.id())) {
+          missing.add(node.label());
+        }
+      }
+      if (!missing.isEmpty()) {
+        fail(
+            BOX_PAGE,
+            CrossReference.Target.block(diagram.id()),
+            names(missing) + (missing.size() == 1 ? " has" : " have") + " no page of its own.");
+      }
     }
   }
 
@@ -998,6 +1032,13 @@ final class QualityBar {
     for (Section section : sections) {
       section.blocks().forEach(action);
       forEachBlock(section.sections(), action);
+    }
+  }
+
+  private static void forEachSection(List<Section> sections, Consumer<Section> action) {
+    for (Section section : sections) {
+      action.accept(section);
+      forEachSection(section.sections(), action);
     }
   }
 

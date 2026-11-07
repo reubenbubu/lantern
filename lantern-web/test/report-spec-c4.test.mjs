@@ -277,3 +277,36 @@ test("the template judges a view by the report's own limits, and none without th
   assert.deepEqual(none.readabilityGaps(page), []);
   assert.equal(strict.readabilityGaps(page).length, 1);
 });
+
+// pageTree builds the sidebar's tree (#931); load it from the template source.
+const pageTree = new Function(`${template.match(/^function pageTree[\s\S]*?^\}/m)?.[0]}\nreturn pageTree;`)();
+
+test("the sidebar nests a unit's page under its domain's and an area's under its unit's (#931)", () => {
+  const tree = pageTree([
+    { id: 'context', level: 'context' },
+    { id: 'overview', level: 'containers' },
+    { id: 'sales', level: 'containers' },
+    { id: 'orders', level: 'components', parent: 'sales' },
+    { id: 'checkout', level: 'components', parent: 'orders' },
+    { id: 'gateway', level: 'components' },
+    { id: 'lost', level: 'components', parent: 'no-such-page' },
+  ]);
+  assert.deepEqual(tree.roots, {
+    context: ['context'],
+    containers: ['overview', 'sales'],
+    components: ['gateway', 'lost'],
+  });
+  assert.deepEqual(tree.kids, { sales: ['orders'], orders: ['checkout'] });
+});
+
+test('a page must name an existing page as its parent, and no page may be its own ancestor (#931)', () => {
+  const data = read(`${specDir}${spec}.sample-data.json`);
+  const [first, second] = data.pages;
+  const named = structuredClone(data);
+  named.pages[1].parent = 'no-such-page';
+  assert.ok(reportSpecIssues(spec, named).some((i) => i.includes('no-such-page')));
+  const cycle = structuredClone(data);
+  cycle.pages[0].parent = second.id;
+  cycle.pages[1].parent = first.id;
+  assert.ok(reportSpecIssues(spec, cycle).some((i) => i.includes('its own ancestor')));
+});

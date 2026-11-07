@@ -127,6 +127,7 @@
           "description": "C4 level the page belongs to (L1, L2, L3), a sequence page, or a documentation page: architecture documentation at no C4 level (decisions, risks, unknowns, glossary, catalog, deployment, sources), shown without a diagram."
         },
         "title": { "type": "string" },
+        "parent": { "$ref": "#/$defs/id", "description": "The page this one is nested under in the sidebar: a unit's page under its domain's, a feature area's under its unit's. A page without one is listed under its level." },
         "summary": { "$ref": "#/$defs/markdown", "description": "Lead paragraph under the page title." },
         "element": { "$ref": "#/$defs/id", "description": "The element this page is about. Adds its technology, owner and a link to its catalogue row under the title." },
         "sections": {
