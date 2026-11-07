@@ -33,6 +33,7 @@ import io.lantern.derive.Vocabularies;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1439,6 +1440,82 @@ class C4ViewsTest {
                     .isEqualTo(
                         CrossReference.Target.block(
                             "containers.messaging.service:com.example:app.diagram")));
+  }
+
+  @Test
+  void eachCountOfTheContextIsWhatTheContainerViewsDrawEvenWhenSplitByConcern() {
+    // Lines no concern names (#978): what Investigate found, to a store and to a system outside,
+    // and an interaction of a type the vocabulary adds under a data store. Enough topics that the
+    // container view is split by concern.
+    Vocabulary vocabulary = subtypes("graph-database", Types.DATABASE, "USES_GRAPH");
+    TestFacts many = TestFacts.runtime();
+    many.relate(
+            "shop",
+            "service:com.example:app",
+            Types.INVESTIGATED_CONNECTION,
+            "database:search",
+            "{\"description\": \"Indexes orders for search\", \"technology\": \"Elasticsearch\"}")
+        .relate(
+            "shop",
+            "service:com.example:app",
+            Types.INVESTIGATED_CONNECTION,
+            "external-system:objects",
+            "{\"description\": \"Stores invoices as files\", \"technology\": \"S3\"}")
+        .relate(
+            "shop",
+            "service:com.example:worker",
+            "USES_GRAPH",
+            "graph-database:neo4j:7687/shop",
+            "{\"protocol\": \"Bolt\"}");
+    for (int i = 0; i <= DiagramLimits.DEFAULT.mostElements(); i++) {
+      many.relate(
+          "shop",
+          "service:com.example:app",
+          "PUBLISHES",
+          "topic:kafka:t" + i,
+          "{\"protocol\": \"Kafka\"}");
+    }
+
+    Document document =
+        new Composer("1", vocabulary)
+            .compose(
+                ViewDefinition.c4System("system:c4", "System", TEMPLATE),
+                SNAPSHOT,
+                Derivation.withModel(many.list(), 1));
+    Section containers = section(document, "containers");
+    assertThat(containers.blocks()).noneMatch(Diagram.class::isInstance);
+
+    // Every element the container views draw, across all their pages.
+    Set<String> drawn = new HashSet<>();
+    List<Section> pages = new ArrayList<>(List.of(containers));
+    while (!pages.isEmpty()) {
+      Section page = pages.removeLast();
+      pages.addAll(page.sections());
+      page.blocks().stream()
+          .filter(Diagram.class::isInstance)
+          .forEach(d -> ((Diagram) d).nodes().forEach(n -> drawn.add(n.id().toString())));
+    }
+    assertThat(drawn)
+        .contains("database:search", "external-system:objects", "graph-database:neo4j:7687/shop");
+    Map<String, Long> byKind =
+        drawn.stream()
+            .collect(
+                Collectors.groupingBy(
+                    id ->
+                        id.startsWith("database:") || id.startsWith("graph-database:")
+                            ? "Databases"
+                            : id.startsWith("topic:")
+                                    || id.startsWith("queue:")
+                                    || id.startsWith("exchange:")
+                                ? "Topics, queues and exchanges"
+                                : id.startsWith("external-system:") ? "External systems" : "other",
+                    Collectors.counting()));
+    assertThat(block(section(document, "context"), Metrics.class).items())
+        .extracting(i -> i.label() + " " + i.value())
+        .contains(
+            "Databases " + byKind.get("Databases"),
+            "Topics, queues and exchanges " + byKind.get("Topics, queues and exchanges"),
+            "External systems " + byKind.get("External systems"));
   }
 
   @Test
