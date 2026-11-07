@@ -359,31 +359,27 @@ public final class ArchitectureModel {
     java.util.SortedSet<String> names = new java.util.TreeSet<>();
     for (Fact access : attributes(component, Types.DATA_ACCESS)) {
       for (Fact basis : derivedFrom(access)) {
-        if (basis.object() == null
-            || basis.object().kind() != io.lantern.core.fact.FactObject.Kind.ENTITY) {
-          continue;
+        String words = DataStores.words(basis);
+        if (words != null) {
+          names.add(words);
         }
-        String key = object(basis).key();
-        String last = key.substring(key.replaceAll("[.:/#$]", " ").lastIndexOf(' ') + 1);
-        String words =
-            last.replaceAll("([a-z0-9])([A-Z])", "$1 $2")
-                .replace('_', ' ')
-                .replace('-', ' ')
-                .strip()
-                .toLowerCase(java.util.Locale.ROOT);
-        if (words.isBlank()) {
-          continue;
-        }
-        // A repository's type names one ("work order"), a table many ("work orders"): many. A
-        // type's "Entity" suffix is how it is coded, not what it holds (#944's real run).
-        boolean type = !object(basis).type().equals(Types.TABLE);
-        if (type) {
-          words = words.replaceAll(" entity$", "").strip();
-        }
-        names.add(type ? plural(words) : words);
       }
     }
     return List.copyOf(names);
+  }
+
+  private DataStores dataStores;
+
+  /**
+   * What the types of a unit's component do in each store of the unit, by store (#962): only the
+   * stores their code touches.
+   */
+  public java.util.SortedMap<EntityId, DataStores.Access> storeAccess(
+      EntityId unit, java.util.Collection<EntityId> types) {
+    if (dataStores == null) {
+      dataStores = new DataStores(knowledge);
+    }
+    return dataStores.access(unit, types);
   }
 
   /** The facts saying a type is an application's main class. */

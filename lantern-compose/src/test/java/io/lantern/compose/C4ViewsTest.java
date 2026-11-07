@@ -749,7 +749,7 @@ class C4ViewsTest {
             "type:com.example.web.Controller -> type:com.example.domain.JpaOrders: Calls all",
             "type:com.example.web.Jobs -> type:com.example.domain.JpaOrders: Calls all",
             "type:com.example.domain.JpaOrders -> topic:kafka:orders: Sends messages [Kafka]",
-            "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads [JDBC]",
+            "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads orders [JDBC]",
             "type:com.example.web.Controller -> external-system:pay.example.com:"
                 + " Works with charges [HTTPS] [prod]",
             "service:com.example:worker -> type:com.example.web.Controller: Works with orders"
@@ -778,6 +778,58 @@ class C4ViewsTest {
         .contains(
             "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads orders [JDBC]",
             "type:com.example.web.Jobs -> database:db:5432/shop: Reads unpaid invoices [JDBC]");
+  }
+
+  @Test
+  void aComponentsLineGoesOnlyToTheStoresItsCodeTouches() {
+    String app = "service:com.example:app";
+    String ledger = "database:db:5432/ledger";
+    String redis = "database:localhost:6379/redis";
+    String list = "method:com.example.web.Controller#list()";
+    facts
+        // The main datasource holds the unit's own schema; a second one is read for its entries.
+        .relate(
+            "shop",
+            app,
+            "USES_DATABASE",
+            "database:db:5432/shop",
+            "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
+                + " \"schemas\": [\"schema:com.example:app\"]}")
+        .relate("shop", "schema:com.example:app", "CONTAINS", "table:com.example:app:orders")
+        .relate(
+            "shop",
+            app,
+            "USES_DATABASE",
+            ledger,
+            "{\"protocol\": \"JDBC\", \"key\": \"shop.ledger.url\","
+                + " \"schemas\": [\"schema:com.example:app\"]}")
+        .attribute("shop", ledger, "technology", "PostgreSQL", "{}")
+        .relate(
+            "shop",
+            "method:com.example.web.Jobs#run()",
+            "READS_TABLE",
+            "table:com.example:app:ledger_entries",
+            "{}")
+        .relate(
+            "shop",
+            app,
+            "USES_DATABASE",
+            redis,
+            "{\"server\": \"localhost:6379\", \"uses\": [\"template\"]}")
+        .attribute("shop", redis, "technology", "Redis 7.4", "{}")
+        .attribute("shop", list, "redis-use", "template", "{}");
+
+    Diagram diagram =
+        block(section(repo(facts.list()), "components").sections().getFirst(), Diagram.class);
+
+    // #962: the orders table is in the unit's own schema, so in the main database; the ledger's
+    // entries are not, so in the other; only the controller's code uses Redis.
+    assertThat(edges(diagram).stream().filter(e -> e.contains(" -> database:")))
+        .containsExactlyInAnyOrder(
+            "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads orders [JDBC]",
+            "type:com.example.web.Jobs -> database:db:5432/ledger: Reads ledger entries [JDBC]",
+            "type:com.example.web.Controller -> database:localhost:6379/redis:"
+                + " Reads and writes keys");
   }
 
   @Test

@@ -173,6 +173,39 @@ class ComponentsTest {
     assertThat(components(derived())).contains(Components.id(UNIT, users));
   }
 
+  @Test
+  void codeNothingReachesStaysWhenNoOtherComponentReachesTheDatabaseItReads() {
+    unitWithTwoControllers();
+    EntityId shop = EntityId.parse("database:db:5432/shop");
+    EntityId ledger = EntityId.parse("database:db:5432/ledger");
+    EntityId schema = EntityId.parse("schema:com.example:shop");
+    ObjectNode main = FactJson.newObject();
+    main.put("protocol", "JDBC");
+    main.put("key", "spring.datasource.url");
+    main.putArray("schemas").add(schema.toString());
+    add(UNIT, Types.USES_DATABASE, FactObject.entity(shop), main);
+    ObjectNode second = main.deepCopy();
+    second.put("key", "shop.ledger.url");
+    add(UNIT, Types.USES_DATABASE, FactObject.entity(ledger), second);
+    add(schema, Types.CONTAINS, EntityId.parse("table:shop:prices"));
+    // Pricing, inside OrdersController's component, reaches the main database only.
+    add(PRICING, "WRITES_TABLE", EntityId.parse("table:shop:prices"));
+    EntityId ledgerReader = EntityId.parse("type:com.example.LedgerReader");
+    EntityId priceReader = EntityId.parse("type:com.example.PriceReader");
+    for (EntityId reader : List.of(ledgerReader, priceReader)) {
+      add(MODULE, Types.CONTAINS, reader);
+      add(reader, "stereotype", FactObject.string("repository"));
+    }
+    // A batch job's step calls them, which no entry point shows.
+    add(ledgerReader, "READS_TABLE", EntityId.parse("table:shop:ledger_entries"));
+    add(priceReader, "READS_TABLE", EntityId.parse("table:shop:prices"));
+
+    // #962: no drawn component would reach the ledger, so the code reading it is drawn.
+    assertThat(components(derived()))
+        .contains(Components.id(UNIT, ledgerReader))
+        .doesNotContain(Components.id(UNIT, priceReader));
+  }
+
   private void unitWithTwoControllers() {
     add(UNIT, "deployable-unit", FactObject.string("spring-boot"));
     add(UNIT, Types.CONTAINS, MODULE);

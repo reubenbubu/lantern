@@ -1357,6 +1357,36 @@ class SequenceFlowsTest {
   }
 
   @Test
+  void dataAccessGoesToTheDatabaseWhoseSchemaHoldsItsTables() {
+    // ship's migrations build parcel on its main datasource; a second one holds the archive.
+    relate(
+        "ship",
+        SHIP,
+        "USES_DATABASE",
+        "database:db:5432/ship",
+        "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\","
+            + " \"schemas\": [\"schema:x:ship\"]}",
+        0);
+    relate("ship", "schema:x:ship", "CONTAINS", "table:x:ship:parcel", "{}", 0);
+    relate(
+        "ship",
+        SHIP,
+        "USES_DATABASE",
+        "database:db:5432/archive",
+        "{\"protocol\": \"JDBC\", \"key\": \"ship.archive.url\","
+            + " \"schemas\": [\"schema:x:ship\"]}",
+        0);
+    relate("ship", NIGHTLY, "READS_TABLE", "table:x:ship:archived_parcel", "{}", 2);
+
+    // #962: each access reaches the one database that holds what it touches; no note.
+    assertThat(steps(diagram(flow(system(facts), "The schedule cron 0 0 2 * * * in ship")).steps()))
+        .containsExactly(
+            "note []: Starts when the schedule cron 0 0 2 * * * fires in ship (Nightly.run).",
+            "service:x:ship > database:db:5432/archive: Reads archived_parcel [JDBC]",
+            "service:x:ship > database:db:5432/ship: Writes parcel [JDBC]");
+  }
+
+  @Test
   void showsAtMostSevenFlowsInRankOrder() {
     for (int i = 0; i < ScopeFlows.MAX_FLOWS + 2; i++) {
       String method = "method:x.pay.Job" + i + "#run()";

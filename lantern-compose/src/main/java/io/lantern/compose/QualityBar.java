@@ -113,6 +113,7 @@ final class QualityBar {
   static final String PURPOSE = "Every line label is a purpose, not its routes or queues";
   static final String END_NAMED = "No label repeats the name or technology of the box it points to";
   static final String DISTINCT = "No two lines into one box share a label";
+  static final String ONE_LABEL = "A line has one label on every page it is drawn on";
   static final String READABLE = "Every service and frontend has a name in words";
   static final String SHORT_NAMES = "No page or box name over " + C4Views.MAX_NAME + " characters";
   static final String ORIENTATION = "An orientation section of at most 300 words";
@@ -315,6 +316,7 @@ final class QualityBar {
     // The C4 report draws names in boxes and the sidebar (#933); the other templates list them.
     if (LEGEND_TEMPLATES.contains(document.template().name())) {
       shortNames(diagrams);
+      oneLabel(diagrams);
     }
     if (document.audience() == null) {
       fail(
@@ -358,6 +360,40 @@ final class QualityBar {
             CrossReference.Target.block(diagram.id()),
             names(missing) + (missing.size() == 1 ? " has" : " have") + " no page of its own.");
       }
+    }
+  }
+
+  /**
+   * A line between the same two boxes says the same on every page it is drawn on (#962), so a
+   * reader moving between pages does not see one interaction worded two ways.
+   */
+  private void oneLabel(List<Diagram> diagrams) {
+    Map<String, Set<String>> labels = new java.util.TreeMap<>();
+    Map<String, String> lines = new HashMap<>();
+    for (Diagram diagram : diagrams) {
+      Map<EntityId, String> names = new HashMap<>();
+      diagram.nodes().forEach(n -> names.put(n.id(), n.label()));
+      for (Diagram.Edge edge : diagram.edges()) {
+        if (edge.label() == null) {
+          continue;
+        }
+        String key = edge.from() + " " + edge.relationship() + " " + edge.to();
+        labels.computeIfAbsent(key, k -> new java.util.TreeSet<>()).add(edge.label());
+        lines.putIfAbsent(key, names.get(edge.from()) + " to " + names.get(edge.to()));
+      }
+    }
+    List<String> several = new ArrayList<>();
+    labels.forEach(
+        (key, said) -> {
+          if (said.size() > 1) {
+            several.add(lines.get(key) + " (\"" + String.join("\", \"", said) + "\")");
+          }
+        });
+    if (!several.isEmpty()) {
+      fail(
+          ONE_LABEL,
+          null,
+          "Lines labelled differently on different pages: " + names(several) + ".");
     }
   }
 

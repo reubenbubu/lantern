@@ -46,7 +46,7 @@ public final class Components implements LinkRule.OverFacts {
   public static final String NAME = "components";
 
   /** Raised whenever the components it gives for the same facts change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The roles of a component. */
   public static final String ENTRY_POINT = "entry-point";
@@ -249,11 +249,14 @@ public final class Components implements LinkRule.OverFacts {
         }
       }
       // Code with only data access that no entry point reaches is not drawn (#271), unless no
-      // drawn component would then reach the unit's databases: the framework may call it (a
-      // UserDetailsService, a data seeder), or the calls to it were not seen.
+      // drawn component would then reach one of the unit's stores it reaches (#962), or any of
+      // them: the framework may call it (a UserDetailsService, a data seeder, a batch job's step),
+      // or the calls to it were not seen.
       boolean dataAccessShown = false;
+      Set<EntityId> storesShown = new TreeSet<>(Knowledge.BY_ID);
       for (Found found : components) {
         dataAccessShown |= found.members().stream().anyMatch(this::accessesData);
+        storesShown.addAll(stores(found.members()));
       }
       List<EntityId> unreachedData = new ArrayList<>();
       for (EntityId bean : beans) {
@@ -273,10 +276,11 @@ public final class Components implements LinkRule.OverFacts {
               });
           components.add(new Found(bean, SHARED, beanKind(bean), members, beanBasis(bean)));
           dataAccessShown |= members.stream().anyMatch(this::accessesData);
+          storesShown.addAll(stores(members));
         }
       }
-      if (!dataAccessShown) {
-        for (EntityId bean : unreachedData) {
+      for (EntityId bean : unreachedData) {
+        if (!dataAccessShown || !storesShown.containsAll(stores(List.of(bean)))) {
           components.add(new Found(bean, SHARED, beanKind(bean), only(bean), beanBasis(bean)));
         }
       }
@@ -593,6 +597,16 @@ public final class Components implements LinkRule.OverFacts {
         }
       }
       return types;
+    }
+
+    private DataStores dataStores;
+
+    /** The stores of the unit the types' code reads or writes (#962). */
+    private Set<EntityId> stores(java.util.Collection<EntityId> types) {
+      if (dataStores == null) {
+        dataStores = new DataStores(knowledge);
+      }
+      return dataStores.access(unit, types).keySet();
     }
 
     /** Whether a type is a repository or its code reads or writes tables. */

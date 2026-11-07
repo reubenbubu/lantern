@@ -14,6 +14,7 @@ import io.lantern.core.types.Types;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ComponentInteractions;
 import io.lantern.derive.Components;
+import io.lantern.derive.DataStores;
 import io.lantern.derive.Decisions;
 import io.lantern.derive.DeploymentInstances;
 import io.lantern.derive.Elements;
@@ -214,6 +215,18 @@ final class C4Views {
     /** What the line's data access touches, which tells it apart from another's (#944). */
     final Set<String> touches = new TreeSet<>();
 
+    /** How the line's ends access a store, when it goes into one (#962). */
+    final Set<String> verbs = new TreeSet<>();
+
+    /** Whether the line goes into a Redis store, whose touches are the kinds of use (#962). */
+    boolean redis;
+
+    /**
+     * The label a line into a store has on every page it is drawn on (#962), or null for another
+     * line.
+     */
+    String fixed;
+
     final Set<String> technologies = new TreeSet<>();
     final Set<String> vias = new TreeSet<>();
     final Set<String> profiles = new TreeSet<>();
@@ -311,6 +324,9 @@ final class C4Views {
      * alphabetically on a tie). The rest stay with the line's facts. Else what the links record.
      */
     String label() {
+      if (fixed != null) {
+        return fixed;
+      }
       if (intent != null) {
         return intent;
       }
@@ -814,11 +830,10 @@ final class C4Views {
   }
 
   /**
-   * Lines from several boxes into one with the same label say what each does there (#944): a
-   * component's data access with the purpose's object ("Keeps work orders" read by one and written
-   * by another is "Reads work orders" and "Writes work orders"), a line of methods its own methods.
-   * Left as they are when that would not tell them apart, and when the label is an intent the model
-   * stored.
+   * Lines from several boxes into one with the same label say what each does there (#944): a line
+   * of methods its own methods. Left as they are when that would not tell them apart, when the
+   * label is an intent the model stored, and for a line into a store, whose label says what its end
+   * touches there on every page (#962).
    */
   private static void apart(Map<EdgeBuilder, String> labels) {
     Map<String, List<EdgeBuilder>> same = new java.util.LinkedHashMap<>();
@@ -844,30 +859,14 @@ final class C4Views {
     }
   }
 
-  private static final Set<String> ACCESS = Set.of("Reads", "Writes", "Reads and writes");
-
-  /** The longest label a line told apart by what it touches may have. */
+  /** The longest label a line into a store, told by what it touches, may have. */
   private static final int MAX_LABEL = 45;
-
-  /** Technologies of a store with tables. */
-  private static final Pattern RELATIONAL =
-      Pattern.compile(
-          "(?i)(?<!no)sql|postgres|oracle|maria|\\bh2\\b|db2|derby|hsql|cockroach|jdbc");
 
   /** What one line of a same-label group does there, or its label if nothing tells. */
   private static String apart(EdgeBuilder edge, String label, Set<String> others) {
-    if (edge.plain != null && ACCESS.contains(edge.plain) && !edge.touches.isEmpty()) {
-      List<String> touched = new ArrayList<>(edge.touches);
-      String text =
-          touched.size() == 1
-              ? touched.getFirst()
-              : touched.size() == 2
-                  ? touched.getFirst() + " and " + touched.getLast()
-                  : touched.getFirst() + ", " + touched.get(1) + " and others";
-      String told = edge.plain + " " + text;
-      return told.length() <= MAX_LABEL
-          ? told
-          : edge.plain + " " + touched.getFirst() + " and others";
+    if (edge.fixed != null) {
+      // A line into a store reads the same on every page (#962).
+      return label;
     }
     // What the model wrote for the line stays; only labels Lantern derived are rewritten (#944).
     if (label.equals(edge.intent)
@@ -2965,30 +2964,67 @@ final class C4Views {
         }
       }
     }
-    // Data access, to the databases the unit's datasources point to.
-    for (Elements.Component component : components) {
-      String access = model.dataAccess(Components.id(unit, component.main())).orElse(null);
-      if (access == null
-          || !focus.contains(component.main())
-          || withoutOutside
-          || !inConcern(Types.USES_DATABASE)) {
-        continue;
+    // Data access, to the stores of the unit the component's code touches (#962): its tables to the
+    // relational database whose schema holds them, its Redis use to the Redis store.
+    if (!withoutOutside && inConcern(Types.USES_DATABASE)) {
+      Map<EntityId, Map<String, Integer>> touchedBy = new HashMap<>();
+      Map<EntityId, Map<EntityId, DataStores.Access>> accessOf = new HashMap<>();
+      for (Elements.Component component : components) {
+        Map<EntityId, DataStores.Access> access = storeAccess(unit, component);
+        accessOf.put(component.main(), access);
+        access.forEach(
+            (store, a) ->
+                a.touched()
+                    .forEach(
+                        t ->
+                            touchedBy
+                                .computeIfAbsent(store, s -> new TreeMap<>())
+                                .merge(t, 1, Integer::sum)));
       }
-      for (Line link : links) {
-        if (link.from().equals(unit) && link.relationship().equals(Types.USES_DATABASE)) {
+      Set<EdgeBuilder> stored = new java.util.LinkedHashSet<>();
+      Map<EdgeBuilder, Line> storeLinks = new HashMap<>();
+      for (Elements.Component component : components) {
+        if (!focus.contains(component.main())) {
+          continue;
+        }
+        Map<EntityId, DataStores.Access> access = accessOf.get(component.main());
+        for (Line link : links) {
+          if (!link.from().equals(unit) || !link.relationship().equals(Types.USES_DATABASE)) {
+            continue;
+          }
+          DataStores.Access touched = access.get(link.to());
+          if (touched == null) {
+            continue;
+          }
           container(nodes, link.to());
           EdgeBuilder edge =
               edges.get(shown.apply(component.main()), Types.USES_DATABASE, link.to());
-          edge.add(access, null, null, link.technology(), link.profile());
-          // Tables and repositories are a relational store's, never a cache's (#944).
-          String technology = elements.technology(link.to());
-          if (technology != null && RELATIONAL.matcher(technology).find()) {
-            edge.touches.addAll(model.dataAccessed(Components.id(unit, component.main())));
-          }
+          edge.add(touched.verb(), null, null, link.technology(), link.profile());
+          edge.verbs.add(touched.verb());
+          edge.redis |= touched.redis();
+          edge.touches.addAll(touched.touched());
           edge.facts.addAll(link.facts());
-          // The unit's intent for its store, which the component's access serves (#739).
-          edge.phrased(assembler.phrase(link.facts().getFirst()));
+          edge.facts.addAll(touched.basis());
+          stored.add(edge);
+          storeLinks.putIfAbsent(edge, link);
         }
+      }
+      for (EdgeBuilder edge : stored) {
+        Map<String, Integer> all = touchedBy.getOrDefault(edge.to, Map.of());
+        if (edge.touches.containsAll(all.keySet())) {
+          // It touches everything the unit's sentence for the store covers: that sentence (#739).
+          Assembler.Phrased phrase = assembler.phrase(storeLinks.get(edge).facts().getFirst());
+          if (phrase != null) {
+            edge.fixed = phrase.text();
+            edge.facts.addAll(phrase.facts());
+            continue;
+          }
+        }
+        List<DataStores.Access> others = new ArrayList<>();
+        accessOf
+            .values()
+            .forEach(access -> Optional.ofNullable(access.get(edge.to)).ifPresent(others::add));
+        edge.fixed = storeLabel(edge, all, others);
       }
     }
     return new Diagram(
@@ -2998,6 +3034,75 @@ final class C4Views {
         List.copyOf(nodes.values()),
         edges.build(assembler, true),
         List.of());
+  }
+
+  private final Map<String, Map<EntityId, DataStores.Access>> storeAccess = new HashMap<>();
+
+  /** What a component's code does in each store of its unit, by store (#962). */
+  private Map<EntityId, DataStores.Access> storeAccess(
+      EntityId unit, Elements.Component component) {
+    return storeAccess.computeIfAbsent(
+        unit + " " + component.main(),
+        k -> {
+          Set<EntityId> types = new TreeSet<>(ArchitectureModel.BY_ID);
+          types.add(component.main());
+          types.addAll(component.types());
+          return model.storeAccess(unit, types);
+        });
+  }
+
+  /**
+   * What a line into a store says its end does there (#962), the same on every page: how it
+   * accesses it and what it touches, the records fewest of the unit's components touch first; when
+   * that reads like the label of a component touching other records, the records only this line
+   * touches first, so two lines touching different records read differently. For Redis, what it
+   * does there.
+   *
+   * @param all how many of the unit's components touch each record of the store
+   * @param others what each of the unit's components does in the store
+   */
+  static String storeLabel(
+      EdgeBuilder edge, Map<String, Integer> all, List<DataStores.Access> others) {
+    if (edge.redis) {
+      return DataStores.redisVerb(edge.touches);
+    }
+    String verb = verb(edge.verbs);
+    String label = storeLabel(verb, edge.touches, all, Set.of());
+    for (DataStores.Access other : others) {
+      if (!other.touched().equals(edge.touches)
+          && storeLabel(verb(Set.of(other.verb())), other.touched(), all, Set.of()).equals(label)) {
+        return storeLabel(verb, edge.touches, all, other.touched());
+      }
+    }
+    return label;
+  }
+
+  /** "Reads and writes" when any access reads and any writes, else the one it does. */
+  private static String verb(Set<String> verbs) {
+    boolean reads = verbs.stream().anyMatch(v -> v.startsWith("Reads"));
+    boolean writes = verbs.stream().anyMatch(v -> v.endsWith("rites"));
+    return reads && writes ? "Reads and writes" : reads ? "Reads" : "Writes";
+  }
+
+  /** The verb and the records touched: those not in {@code after} first, then the rarest. */
+  private static String storeLabel(
+      String verb, Set<String> touches, Map<String, Integer> all, Set<String> after) {
+    if (touches.isEmpty()) {
+      return verb;
+    }
+    List<String> touched = new ArrayList<>(touches);
+    touched.sort(
+        Comparator.comparing((String t) -> after.contains(t))
+            .thenComparing(t -> all.getOrDefault(t, 0))
+            .thenComparing(Comparator.naturalOrder()));
+    String text =
+        touched.size() == 1
+            ? touched.getFirst()
+            : touched.size() == 2
+                ? touched.getFirst() + " and " + touched.getLast()
+                : touched.getFirst() + ", " + touched.get(1) + " and others";
+    String told = verb + " " + text;
+    return told.length() <= MAX_LABEL ? told : verb + " " + touched.getFirst() + " and others";
   }
 
   /** The main type of the component that holds the type, or null. */

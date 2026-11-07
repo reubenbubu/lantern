@@ -118,6 +118,9 @@ public final class Types {
   /** The attribute type {@code datasource}. */
   public static final String DATASOURCE = "datasource";
 
+  /** The attribute type {@code datasource-use}. */
+  public static final String DATASOURCE_USE = "datasource-use";
+
   /** The attribute type {@code data-access}. */
   public static final String DATA_ACCESS = "data-access";
 
