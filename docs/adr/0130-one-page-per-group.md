@@ -1,6 +1,6 @@
 # 0130: One page per domain and feature area, nested in a sidebar tree
 
-Status: accepted (#931)
+Status: accepted (#931), amended for #953 (badges, counts, units in no domain)
 
 ## Context
 
@@ -44,3 +44,11 @@ pages are laid out and reached.
   titled with entry-point lists in the menu.
 - Document models without `group` and report data without `parent` still render: both are
   optional, and a page with no parent sits at the top of its level as before.
+
+## Amendment (#953): badges, counts and units in no domain
+
+From the owner's review of 7 Nov 2026:
+- Each sidebar item carries a short badge for what its page is about, as L1/L2 do for levels: DO for a domain, CO for a container, FA for a feature area and P for a component (the owner's letters). A components page nested under another without an element of its own is a feature area's.
+- Every item with pages beneath shows their count, as the level headings do.
+- Each level indents less, and the sidebar is a little wider (320 px).
+- A unit in no domain (project-8's edge gateway) had its page alone under a separate Components heading. Its page now sits under the "In no domain" page, or the "With no connections found" page, that draws it. A heading left with no pages goes. The renderer finds those pages by their titles, which the composer keeps in one public place (`PageTitles`).

@@ -456,3 +456,44 @@ test("a diagram's canvas is at most its own size plus a margin, and the screen c
   assert.equal(canvasFit(null), '');
   assert.match(template, /\.dcanvas\{[^}]*height:min\(max\(320px,calc\(100vh - var\(--canvas-top,250px\)\)\),var\(--canvas-h,9999px\)\)/);
 });
+
+// The sidebar's badges and counts (#953), loaded from the template source.
+const loadNav = (DATA, TREE, PAGE) =>
+  new Function(
+    'DATA',
+    'TREE',
+    'PAGE',
+    `${template.match(/^const esc = .*$/m)[0]}\nconst ICON = {chev:''};\n` +
+      `${template.match(/^const NAV_BADGE = .*$/m)[0]}\n${template.match(/^const NAV_BADGE_TEXT = .*$/m)[0]}\n` +
+      `${template.match(/^function navKind[\s\S]*?^\}/m)[0]}\n${template.match(/^function navItem[\s\S]*?^\}/m)[0]}\n` +
+      'return {navKind, navItem};',
+  )(DATA, TREE, PAGE);
+
+test('each sidebar item carries a badge for what it is about, and an item with pages beneath shows their count (#953)', () => {
+  const DATA = {
+    elements: {
+      d: { kind: 'container', tag: 'Domain' },
+      c: { kind: 'container', tag: 'Service' },
+      a: { kind: 'component', tag: 'Feature area' },
+      p: { kind: 'component' },
+    },
+  };
+  const pages = {
+    sales: { id: 'sales', level: 'containers', title: 'Sales', element: 'd' },
+    orders: { id: 'orders', level: 'components', title: 'Orders', element: 'c', parent: 'sales' },
+    checkout: { id: 'checkout', level: 'components', title: 'Checkout', element: 'a', parent: 'orders' },
+    live: { id: 'live', level: 'components', title: 'Live push', parent: 'orders' },
+    one: { id: 'one', level: 'components', title: 'OrderController', element: 'p' },
+    loose: { id: 'loose', level: 'containers', title: 'In no domain' },
+  };
+  const { navKind, navItem } = loadNav(DATA, { kids: { sales: ['orders'], orders: ['checkout', 'live'] } }, pages);
+  assert.deepEqual(
+    Object.values(pages).map(navKind),
+    ['domain', 'container', 'area', 'area', 'component', null],
+  );
+  const html = navItem('sales');
+  assert.match(html, /<span class="nb" title="Domain">DO<\/span><span class="nav-t">Sales<\/span><\/a><em class="nav-count"[^>]*>1<\/em>/);
+  assert.match(html, /title="Container">CO<\/span><span class="nav-t">Orders<\/span><\/a><em class="nav-count"[^>]*>2<\/em>/);
+  assert.match(html, /title="Feature area">FA<\/span><span class="nav-t">Checkout/);
+  assert.doesNotMatch(navItem('loose'), /class="nb"|nav-count/);
+});

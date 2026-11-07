@@ -721,7 +721,24 @@ class C4ReportRendererTest {
                 "containers",
                 null,
                 List.of(containers),
-                List.of(section("sales", domain, List.of(domainView), List.of()))),
+                List.of(
+                    section("sales", domain, List.of(domainView), List.of()),
+                    // the page of the units in no domain, which draws the gateway (#953)
+                    new Section(
+                        "loose",
+                        "In no domain",
+                        Set.of(),
+                        null,
+                        List.of(),
+                        List.of(
+                            new Diagram(
+                                "loose.diagram",
+                                Diagram.Kind.C4_CONTAINER,
+                                null,
+                                List.of(node(system), node(loose, system)),
+                                List.of(),
+                                List.of())),
+                        List.of()))),
             section(
                 "components",
                 null,
@@ -745,7 +762,9 @@ class C4ReportRendererTest {
         .containsEntry("sales", "")
         .containsEntry("orders", "sales")
         .containsEntry("checkout", "orders")
-        .containsEntry("gateway", "");
+        // a unit in no domain sits under the page of the units in no domain (#953)
+        .containsEntry("loose", "")
+        .containsEntry("gateway", "loose");
   }
 
   @Test
