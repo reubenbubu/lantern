@@ -25,6 +25,13 @@ public class OrderEventsListener {
               key = {"audit.#", "${events.rabbit.audit-key}"}))
   public void audit(String event) {}
 
+  @RabbitListener(
+      bindings =
+          @QueueBinding(
+              value = @Queue(exclusive = "true", autoDelete = "true"),
+              exchange = @Exchange(name = "board", type = ExchangeTypes.FANOUT)))
+  public void board(String event) {}
+
   @RabbitListener(queuesToDeclare = @Queue(name = "declared.queue"))
   public void declared(String event) {}
 }

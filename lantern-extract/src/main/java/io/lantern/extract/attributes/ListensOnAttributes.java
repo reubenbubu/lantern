@@ -20,10 +20,11 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * @param annotation Key. The binary name of the annotation written that makes the method a
  *     listener.
- * @param anonymous Descriptive. Present and true for a Spring Cloud Stream RabbitMQ binding without
- *     a group: the binder declares an anonymous queue, named here as the destination with
- *     .anonymous, whose real name ends in a random suffix. Only on value resolution's relations
- *     (origin values, #597).
+ * @param anonymous Descriptive. Present and true when the queue is anonymous, its real name chosen
+ *     at startup and ending in a random suffix: a Spring Cloud Stream RabbitMQ binding's without a
+ *     group, named here as the destination with .anonymous, or a &#64;QueueBinding's &#64;Queue
+ *     without a name, named here as the exchange it binds with .anonymous. For a Spring Cloud
+ *     Stream binding, only on value resolution's relations (origin values, #597).
  * @param binders Key. For a Spring Cloud Stream binding, the brokers of the binders on the module's
  *     build classpath (or declared in its POMs without a build), kafka or rabbitmq.
  * @param binding Descriptive. The Spring Cloud Stream binding the method consumes, such as

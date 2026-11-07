@@ -15,9 +15,10 @@ import tools.jackson.databind.node.ObjectNode;
  * field or parameter. Linking records these facts from the BINDS facts (ADR 0094, #559); values
  * resolved from config are those of the default view unless profile is set.
  *
- * @param anonymous Descriptive. Present and true when the queue is a Spring Cloud Stream binding's
- *     anonymous one, named as the destination with .anonymous; its real name ends in a random
- *     suffix.
+ * @param anonymous Descriptive. Present and true when the queue is anonymous, its real name chosen
+ *     at startup and ending in a random suffix: a Spring Cloud Stream binding's without a group,
+ *     named as the destination with .anonymous, or a &#64;QueueBinding's &#64;Queue without a name,
+ *     named as the exchange with .anonymous.
  * @param binding Key. The Spring Cloud Stream binding the queue is declared for. Absent outside
  *     Spring Cloud Stream.
  * @param broker Key. Which broker the binding is for.

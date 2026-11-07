@@ -16,9 +16,11 @@ import tools.jackson.databind.node.ObjectNode;
  * view's; where a placeholder stays unresolved or names a secret, to the destination as written,
  * with unresolved or masked. The messaging matcher reads only these.
  *
- * @param anonymous Descriptive. Present and true when the queue is a Spring Cloud Stream binding's
- *     anonymous one, named as the destination with .anonymous; its real name ends in a random
- *     suffix. Only on value resolution's relations (origin values, #597).
+ * @param anonymous Descriptive. Present and true when the queue is anonymous, its real name chosen
+ *     at startup and ending in a random suffix: a Spring Cloud Stream binding's without a group,
+ *     named as the destination with .anonymous, or a &#64;QueueBinding's &#64;Queue without a name,
+ *     named as the exchange with .anonymous. For a Spring Cloud Stream binding, only on value
+ *     resolution's relations (origin values, #597).
  * @param binding Key. The Spring Cloud Stream binding the queue is declared for. Absent outside
  *     Spring Cloud Stream. Only on value resolution's relations (origin values, #597).
  * @param broker Key. Which broker the binding is for.

@@ -69,7 +69,7 @@ public final class MessagingExtractor implements Extractor {
   public static final String NAME = "messaging";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "9";
+  public static final String VERSION = "10";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "messaging-extractor";
@@ -630,16 +630,26 @@ public final class MessagingExtractor implements Extractor {
       if (queues.isEmpty()) {
         return;
       }
-      String queue = firstOf(queues.getFirst(), "name", "value");
-      if (queue == null) {
+      String name = firstOf(queues.getFirst(), "name", "value");
+      Annotation written = exchanges.isEmpty() ? null : exchanges.getFirst();
+      String exchange = written == null ? null : firstOf(written, "name", "value");
+      boolean anonymous = name == null || name.isBlank();
+      if (anonymous && (exchange == null || exchange.isBlank())) {
+        // An anonymous queue bound to no exchange named receives nothing the code can tell.
         return;
       }
-      listen(method, Text.annotated(queue), "queue", null, common, where);
-      if (exchanges.isEmpty()) {
-        return;
+      // A @Queue without a name is anonymous: the broker names it (spring.gen-...) at startup. It
+      // is named here as the exchange it is bound to with .anonymous, as Spring Cloud Stream's.
+      Text queue =
+          anonymous
+              ? Text.concat(List.of(Text.annotated(exchange), Text.literal(".anonymous")))
+              : Text.annotated(name);
+      ObjectNode attributes = common;
+      if (anonymous) {
+        attributes = common.deepCopy();
+        attributes.put("anonymous", true);
       }
-      Annotation written = exchanges.getFirst();
-      String exchange = firstOf(written, "name", "value");
+      listen(method, queue, "queue", null, attributes, where);
       if (exchange == null) {
         return;
       }
@@ -651,10 +661,10 @@ public final class MessagingExtractor implements Extractor {
       Declared declared = new Declared(Text.annotated(exchange), exchangeType);
       List<String> keys = binding.values("key");
       if (keys.isEmpty()) {
-        bindingFact(method.id(), Text.annotated(queue), declared, null, where);
+        bindingFact(method.id(), queue, declared, null, anonymous, where);
       }
       for (String key : keys) {
-        bindingFact(method.id(), Text.annotated(queue), declared, Text.annotated(key), where);
+        bindingFact(method.id(), queue, declared, Text.annotated(key), anonymous, where);
       }
     }
 
@@ -1027,8 +1037,21 @@ public final class MessagingExtractor implements Extractor {
 
     private void bindingFact(
         EntityId subject, Text queue, Declared exchange, Text key, Location where) {
+      bindingFact(subject, queue, exchange, key, false, where);
+    }
+
+    private void bindingFact(
+        EntityId subject,
+        Text queue,
+        Declared exchange,
+        Text key,
+        boolean anonymous,
+        Location where) {
       ObjectNode attributes = FactJson.newObject();
       attributes.put("broker", RABBITMQ);
+      if (anonymous) {
+        attributes.put("anonymous", true);
+      }
       if (exchange.exchangeType() != null) {
         attributes.put("exchangeType", exchange.exchangeType());
       }

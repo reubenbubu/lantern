@@ -186,6 +186,25 @@ class MessagingExtractorTest {
                             + "OrderEventsListener#audit(java.lang.String) message-binding"
                             + " audit.queue ")
                     && l.contains("\"routingKey\":\"audit.special\""))
+        // A @QueueBinding of an anonymous @Queue: the listener consumes from the exchange it
+        // binds, through a queue named after the exchange; a fanout exchange takes no key.
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderEventsListener#board(java.lang.String) message-listener"
+                            + " board.anonymous ")
+                    && l.contains("\"anonymous\":true"))
+        .anyMatch(
+            l ->
+                l.startsWith(
+                        events
+                            + "OrderEventsListener#board(java.lang.String) message-binding"
+                            + " board.anonymous ")
+                    && l.contains("\"exchange\":\"board\"")
+                    && l.contains("\"exchangeType\":\"fanout\"")
+                    && l.contains("\"anonymous\":true")
+                    && !l.contains("routingKey"))
         // A reply to an exchange with a routing key.
         .anyMatch(
             l ->
