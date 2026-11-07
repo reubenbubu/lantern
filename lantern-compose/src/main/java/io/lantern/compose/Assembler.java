@@ -1039,7 +1039,7 @@ final class Assembler {
     if (id.type().equals(Types.GROUP)) {
       List<Fact> members = model.groupMembers(id);
       SortedSet<String> names = new TreeSet<>();
-      members.forEach(f -> names.add(name(ArchitectureModel.object(f))));
+      members.forEach(f -> names.add(ReadableNames.of(name(ArchitectureModel.object(f)))));
       if (names.isEmpty()) {
         return new Text(List.of(), List.of());
       }
