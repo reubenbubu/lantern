@@ -354,6 +354,11 @@ final class C4Views {
         if (messages.isPresent()) {
           return messages.get();
         }
+        // Methods named for what they return, not by a verb, read as fetching it (#933's real run).
+        Optional<String> got = "Calls".equals(prefix) ? accessed(details) : Optional.empty();
+        if (got.isPresent()) {
+          return got.get();
+        }
         List<String> named = new ArrayList<>(details);
         String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
         if (named.size() > NAMED) {
@@ -418,11 +423,41 @@ final class C4Views {
     return Optional.of(prefix + " " + text + (about.size() > 3 ? " and other" : "") + " messages");
   }
 
+  /**
+   * Methods named for what they return rather than by a verb, read as getting it (#933's real run):
+   * "amountApplied" is "Gets amount applied", two at most, then "and others", within a name's
+   * length; empty if a detail is not a method's name.
+   */
+  static Optional<String> accessed(java.util.Collection<String> details) {
+    if (details.isEmpty() || !details.stream().allMatch(d -> METHOD.matcher(d).matches())) {
+      return Optional.empty();
+    }
+    List<String> parts = new ArrayList<>();
+    for (String detail : details) {
+      described("get" + Character.toUpperCase(detail.charAt(0)) + detail.substring(1))
+          .map(t -> t.substring("Gets".length()).strip())
+          .filter(t -> !t.isEmpty() && !parts.contains(t))
+          .ifPresent(parts::add);
+    }
+    for (int n = Math.min(2, parts.size()); n > 0; n--) {
+      String text =
+          "Gets "
+              + (n < parts.size()
+                  ? String.join(", ", parts.subList(0, n)) + " and others"
+                  : String.join(" and ", parts.subList(0, n)));
+      if (text.length() <= MAX_NAME) {
+        return Optional.of(text);
+      }
+    }
+    return Optional.empty();
+  }
+
   /** Verbs a method's name may start with, in the form a label reads them. */
   private static final Set<String> VERBS =
       Set.of(
           "find",
           "get",
+          "launch",
           "load",
           "fetch",
           "list",

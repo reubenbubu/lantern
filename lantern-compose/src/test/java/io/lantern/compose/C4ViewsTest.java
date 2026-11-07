@@ -147,6 +147,16 @@ class C4ViewsTest {
   }
 
   @Test
+  void methodsNamedForWhatTheyReturnReadAsGettingIt() {
+    // #933's real run: never "Calls amountApplied".
+    assertThat(C4Views.accessed(List.of("amountApplied"))).contains("Gets amount applied");
+    assertThat(C4Views.accessed(List.of("creditedAmount", "dueAt", "summary")))
+        .contains("Gets credited amount, due at and others");
+    assertThat(C4Views.accessed(List.of("payments.refunds"))).isEmpty();
+    assertThat(C4Views.described("launchManually")).contains("Launches manually");
+  }
+
+  @Test
   void aLabelDoesNotNameTheEndItPointsTo() {
     // #933: the line already points to the box that says PostgreSQL, Keycloak or edge-gateway.
     assertThat(
