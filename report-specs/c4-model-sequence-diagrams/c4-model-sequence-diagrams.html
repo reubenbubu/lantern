@@ -6169,6 +6169,12 @@ $('#navFilter').addEventListener('input', e => {
     const txt = (a.textContent + ' ' + (p ? p.title + ' ' + (p.sections||[]).map(s => s.title || '').join(' ') : '')).toLowerCase();
     a.classList.toggle('nav-hidden', !!q && !txt.includes(q));
   });
+  // A match inside a branch opens the branch and keeps the pages above it in sight (#931).
+  if (q) [...$$('#nav .nav-node')].reverse().forEach(n => {
+    if (!$$('.nav-kids [data-page]:not(.nav-hidden)', n).length) return;
+    n.classList.add('open'); n.querySelector('.nav-twisty')?.setAttribute('aria-expanded', 'true');
+    n.querySelector(':scope > .nav-row > [data-page]')?.classList.remove('nav-hidden');
+  });
   $$('.nav-group').forEach(g => { if (q) g.classList.add('open'); g.classList.toggle('nav-hidden', !!q && !$$('[data-page]:not(.nav-hidden)', g).length); });
 });
 

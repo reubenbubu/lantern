@@ -1103,11 +1103,17 @@ final class C4Views {
     List<Block> blocks = new ArrayList<>();
     List<String> facts = new ArrayList<>();
     for (Section part : parts) {
-      blocks.addAll(part.blocks());
-      facts.addAll(part.facts());
-      part.sections().forEach(s -> blocks.addAll(s.blocks()));
+      gather(part, blocks, facts);
     }
-    return new Section(id, title, levels, entity, facts, blocks, List.of());
+    return new Section(
+        id, title, levels, entity, List.copyOf(new LinkedHashSet<>(facts)), blocks, List.of());
+  }
+
+  /** A part's blocks and facts, and those of the sections beneath it, for one page. */
+  private static void gather(Section part, List<Block> blocks, List<String> facts) {
+    blocks.addAll(part.blocks());
+    facts.addAll(part.facts());
+    part.sections().forEach(sub -> gather(sub, blocks, facts));
   }
 
   private Section subsection(String id, String title, EntityId entity, Diagram diagram) {
@@ -1819,7 +1825,7 @@ final class C4Views {
                             + " draws it"
                             + (looseOutside.isEmpty()
                                 ? "."
-                                : ", and the page " + NO_AREA + " draws it for the rest."))),
+                                : ", and the view " + NO_AREA + " below draws it for the rest."))),
                 List.of()));
       }
       if (!crossOff.isEmpty()) {
@@ -1847,9 +1853,9 @@ final class C4Views {
                 List.of()));
       }
       alternativesNote(assembler.id(id, "profiles"), only(unit), false).ifPresent(blocks::add);
+      List<String> pageFacts = new ArrayList<>();
       for (Section part : extra) {
-        blocks.addAll(part.blocks());
-        part.sections().forEach(sub -> blocks.addAll(sub.blocks()));
+        gather(part, blocks, pageFacts);
       }
       result.add(
           new Section(
@@ -1857,7 +1863,7 @@ final class C4Views {
               assembler.name(unit),
               SectionKind.COMPONENTS.levels(),
               unit,
-              List.of(),
+              List.copyOf(new LinkedHashSet<>(pageFacts)),
               blocks,
               areas));
     }
