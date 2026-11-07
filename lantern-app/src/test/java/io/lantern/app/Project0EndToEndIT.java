@@ -126,7 +126,10 @@ class Project0EndToEndIT {
           .callingTools(
               request -> {
                 List<io.lantern.llm.LlmToolCall> calls = FakeLlmConfiguration.toolCalls(request);
-                return calls.isEmpty() ? plaintextSecretConfirmed(request) : calls;
+                if (calls.isEmpty()) {
+                  calls = plaintextSecretConfirmed(request);
+                }
+                return calls.isEmpty() ? paygateProposed(request) : calls;
               })
           .answering(
               request -> {
@@ -367,6 +370,18 @@ class Project0EndToEndIT {
       assertThat(DocumentJson.write(again)).as(report.id()).isEqualTo(DocumentJson.write(report));
     }
     checkSystemReport(system.document());
+    // #976: Investigate's connection to PayGate under a name of its own is stored as proposed and
+    // drawn as the PayGate static analysis found, by the host it cites: the report holds no second
+    // PayGate (checkSystemReport counts the external systems).
+    assertThat(held)
+        .as("Investigate's proposed connection to PayGate")
+        .anyMatch(
+            f ->
+                f.predicate().equals(io.lantern.core.types.Types.INVESTIGATED_CONNECTION)
+                    && f.subject().toString().equals(PAYMENTS)
+                    && f.object().kind() == io.lantern.core.fact.FactObject.Kind.ENTITY
+                    && f.object().entityId().toString().equals("external-system:paygate-api"));
+    assertThat(DocumentJson.write(system.document())).doesNotContain("paygate-api");
     // Describe asks about every interaction a view can draw (#738), as the scorecard counts them
     // (#742), apart from a component's use of a store, which takes its unit's store intent (#739).
     assertThat(io.lantern.summarize.describe.Describer.interactionsAsked(held))
@@ -437,6 +452,59 @@ class Project0EndToEndIT {
       }
     }
     return List.of();
+  }
+
+  /** The unit whose conversation {@link #paygateProposed} answers. */
+  private static final String PAYMENTS = "service:com.acme.shop:payments";
+
+  /**
+   * Investigate's turn on the payments unit (#976): it reads the line of payments' config that
+   * names the payment provider's URL and proposes a connection to it under a name of its own,
+   * {@code external-system:paygate-api}, which static analysis knows as {@code
+   * sandbox.paygate.example.com} (HTTP-4). The report draws one PayGate, under the host's name.
+   * Nothing for any other request.
+   */
+  static List<io.lantern.llm.LlmToolCall> paygateProposed(io.lantern.llm.LlmRequest request) {
+    if (request.role() != Role.INVESTIGATE
+        || request.messages().size() != 1
+        || !request.system().contains("Task: find what static analysis missed")) {
+      return List.of();
+    }
+    JsonNode unit;
+    try {
+      unit = io.lantern.harness.Toml.read(request.messages().getFirst().text()).root().path("unit");
+    } catch (io.lantern.harness.Toml.Fault e) {
+      return List.of();
+    }
+    if (!unit.isObject() || !unit.toString().contains(PAYMENTS)) {
+      return List.of();
+    }
+    String answer =
+        """
+        [[connection]]
+        from = "%s"
+        to = "external-system:paygate-api"
+        interaction = "http"
+        description = "Charges card payments through the PayGate API"
+        technology = "HTTPS"
+
+        [[connection.evidence]]
+        lines = "payments:src/main/resources/application.properties:16-16"
+        quote = "paygate.url=https://sandbox.paygate.example.com"
+        shows = ["paygate.url"]
+        """
+            .formatted(PAYMENTS);
+    return List.of(
+        new io.lantern.llm.LlmToolCall(
+            "read",
+            "read_file",
+            JSON.createObjectNode()
+                .put("repo", "payments")
+                .put("path", "src/main/resources/application.properties")
+                .put("from", 16)
+                .put("to", 16)),
+        new io.lantern.llm.LlmToolCall(
+            "answer", "answer", JSON.createObjectNode().put("toml", answer)));
   }
 
   /** The key and value of the secret {@link #aSecretOnACitedLineReachesNoPrompt} plants. */
@@ -551,8 +619,14 @@ class Project0EndToEndIT {
       if (basis == null || !Set.of("evidenced", "inferred").contains(basis)) {
         problems.add(what + ": no basis");
       }
+      // Investigate's proposals cite file ranges, repo:path:from-to, in cites (ADR 0110).
+      boolean citesRanges = false;
+      for (JsonNode cite : fact.attributes().path("cites")) {
+        citesRanges |= cite.asString("").matches("[^:\\s]+:[^:\\s]+:\\d+(-\\d+)?");
+      }
       boolean citesCode =
           fact.attributes().path("ranges").size() > 0
+              || citesRanges
               || fact.evidence().locations().stream()
                   .anyMatch(l -> l.role() == io.lantern.core.fact.Evidence.Role.CITED);
       if (fact.lineage().isEmpty() && !citesCode) {

@@ -46,8 +46,12 @@ public final class Knowledge {
   private final Map<EntityId, SortedSet<String>> reposByModule = new HashMap<>();
   private final Map<String, Fact> resolvedLinks = new HashMap<>();
 
+  /**
+   * @param facts the facts, an external system or database Investigate proposes read as the one
+   *     already known that it names ({@link ProposedSystems}, #976)
+   */
   public Knowledge(Collection<Fact> facts) {
-    List<Fact> sorted = new ArrayList<>(facts);
+    List<Fact> sorted = new ArrayList<>(ProposedSystems.matched(facts));
     sorted.sort(STABLE);
     for (Fact fact : sorted) {
       if (byId.putIfAbsent(fact.id(), fact) != null) {
