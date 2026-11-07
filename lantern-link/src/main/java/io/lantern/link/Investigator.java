@@ -488,6 +488,9 @@ public final class Investigator {
                   modules.contains(f.subject().toString())
                       || (f.subject().type().equals(Types.REPO)
                           && unitRepos.contains(f.evidence().repo())))
+          // By subject, so the summary the system's message shows first does not depend on the
+          // order the facts come in, which changes when unrelated facts do.
+          .sorted(java.util.Comparator.comparing((Fact f) -> f.subject().toString()))
           .toList();
     }
 

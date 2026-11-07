@@ -170,3 +170,19 @@ extractor (version 7) reads no config:
   `stream-function` fact rather than a relationship to a destination (ADR 0040, amendment for #559).
 - The extractor no longer requires the identity extractor: linking masks with the JWT secret keys.
 
+
+## Amendment (#965): anonymous queues of `@QueueBinding`
+
+`messaging` version 10. A `@QueueBinding` whose `@Queue` has no name (`@Queue`, `@Queue("")`,
+`@Queue(exclusive = "true", autoDelete = "true")`) declares an anonymous queue: Spring AMQP names
+it at startup (`spring.gen-…`), so the code cannot tell its name. It was dropped, and with it the
+listener and the binding, so an exchange a service listens to this way had no consumer. Now the
+queue is recorded as the exchange it binds with `.anonymous` (the exchange's name as written,
+placeholders and all, so they resolve as the exchange's do), with `anonymous: true` on both the
+`message-listener` and the `message-binding`, as ADR 0040 names a Spring Cloud Stream binding's
+anonymous queue. Each binding of `bindings = {…}` is read on its own; the exchange's type and the
+keys are read as for a named queue (`direct` unless written; one binding per key; none for fanout
+and headers). An anonymous queue whose binding names no exchange receives nothing the code can
+tell and is left out. Two listeners that bind anonymous queues to the same exchange share the
+recorded name; each still consumes from the exchange, which is what the diagram draws.
+project-0's MSG-10 is this shape on a fanout exchange.

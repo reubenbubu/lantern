@@ -17,9 +17,10 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * @param annotation Descriptive. The binary name of the annotation written that makes the method a
  *     listener. Absent for a Spring Cloud Stream function, which none does.
- * @param anonymous Descriptive. Present and true for a Spring Cloud Stream RabbitMQ binding without
- *     a group: the binder declares an anonymous queue, named here as the destination with
- *     .anonymous, whose real name ends in a random suffix.
+ * @param anonymous Descriptive. Present and true when the queue is anonymous, its real name chosen
+ *     at startup and ending in a random suffix: a Spring Cloud Stream RabbitMQ binding's without a
+ *     group, named here as the destination with .anonymous, or a &#64;QueueBinding's &#64;Queue
+ *     without a name, named here as the exchange it binds with .anonymous.
  * @param binding Descriptive. The Spring Cloud Stream binding the method consumes, such as
  *     process-in-0, whose config gives the destination (its own name when none is configured) and
  *     group. Absent outside Spring Cloud Stream.

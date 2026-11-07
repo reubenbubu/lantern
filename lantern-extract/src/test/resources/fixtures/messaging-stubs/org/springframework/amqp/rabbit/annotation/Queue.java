@@ -11,4 +11,8 @@ public @interface Queue {
   String value() default "";
 
   String name() default "";
+
+  String exclusive() default "";
+
+  String autoDelete() default "";
 }
