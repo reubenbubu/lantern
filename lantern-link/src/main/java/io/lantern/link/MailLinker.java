@@ -63,10 +63,18 @@ final class MailLinker {
             view,
             "smtp://" + host.object().value().trim(),
             written == null ? null : "smtp://" + written.trim());
-    // Where a deployment sets the host, the config's own value is not what runs there: every
-    // deployment must name the same system outside.
-    List<Answer> filled = answers.stream().filter(a -> a.filledBy() != null).toList();
-    List<Answer> deciding = filled.isEmpty() ? answers : filled;
+    // Where a deployment sets the host to a system outside, the config's own value is not what
+    // runs there: every such deployment must name the same system outside. A deployment that sets
+    // it to a host leading nowhere (a server it runs itself, such as a local mail catcher, a name
+    // without a domain, this machine) says nothing about the server outside, so the config's host
+    // stands (ADR 0042: an answer that leads nowhere does not count against one that does).
+    List<Answer> filled =
+        answers.stream().filter(a -> a.filledBy() != null && a.kind() != Kind.UNKNOWN).toList();
+    List<Answer> deciding =
+        filled.isEmpty() ? answers.stream().filter(a -> a.filledBy() == null).toList() : filled;
+    if (deciding.isEmpty()) {
+      return;
+    }
     Answer answer = deciding.getFirst();
     if (deciding.stream()
         .anyMatch(
