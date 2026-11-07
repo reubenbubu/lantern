@@ -6322,7 +6322,8 @@ $('#navFilter').addEventListener('input', e => {
   const q = e.target.value.trim().toLowerCase();
   $$('#nav [data-page]').forEach(a => {
     const p = PAGE[a.dataset.page];
-    const txt = (a.textContent + ' ' + (p ? p.title + ' ' + (p.sections||[]).map(s => s.title || '').join(' ') : '')).toLowerCase();
+    // the badge's letters are not part of the title (#953)
+    const txt = ((a.querySelector('.nav-t') || a).textContent + ' ' + (p ? p.title + ' ' + (p.sections||[]).map(s => s.title || '').join(' ') : '')).toLowerCase();
     a.classList.toggle('nav-hidden', !!q && !txt.includes(q));
   });
   // A match inside a branch opens the branch and keeps the pages above it in sight (#931).
