@@ -52,6 +52,8 @@
         "id": { "type": "string", "description": "Document reference, e.g. ARC-0042." },
         "title": { "type": "string", "description": "Document title. The last word is highlighted on the index page." },
         "subtitle": { "$ref": "#/$defs/markdown", "description": "Intro shown under the title on the index page." },
+        "subtitleInferred": { "type": "boolean", "description": "true: the intro's purpose was inferred from the code, not written by people (ADR 0059); shown as the small ≈ mark before it." },
+        "commits": { "type": "object", "description": "The commit each repository was analyzed at, by repository name. The index page shows a short \"Analyzed <updated> · <n> repositories\" line that opens into the list.", "additionalProperties": { "type": "string" } },
         "version": { "type": "string", "examples": ["2.5.0"] },
         "status": { "type": "string", "examples": ["Draft", "In review", "Approved"] },
         "owner": { "type": "string" },

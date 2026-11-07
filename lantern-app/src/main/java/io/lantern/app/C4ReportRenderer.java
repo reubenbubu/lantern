@@ -754,26 +754,24 @@ public final class C4ReportRenderer {
               .map(part -> looseMarkdown(part.block))
               .filter(s -> !s.isEmpty())
               .collect(Collectors.joining("\n\n"));
-      String pinned = pinnedMarkdown();
-      node.put("subtitle", intro.isEmpty() ? pinned : intro + "\n\n" + pinned);
+      // The opening is about the system; who it is for is not shown, and the commits are listed
+      // apart, behind a short "Analyzed" line the template draws (#934).
+      java.util.regex.Matcher inferred = INFERRED.matcher(intro);
+      if (inferred.find()) {
+        node.put("subtitleInferred", true);
+        intro = intro.substring(inferred.end());
+      }
+      if (!intro.isEmpty()) {
+        node.put("subtitle", intro);
+      }
+      ObjectNode commits = node.putObject("commits");
+      document
+          .source()
+          .commits()
+          .forEach((repository, commit) -> commits.put(repository, commit.substring(0, 12)));
       node.put("version", Long.toString(document.source().snapshot()));
       node.put("updated", document.source().date().toString());
       return node;
-    }
-
-    /** Who the document is for and the commits it is pinned to, as Lantern's templates say it. */
-    private String pinnedMarkdown() {
-      StringBuilder text = new StringBuilder();
-      if (document.audience() != null) {
-        text.append("For ").append(literal(oneLine(document.audience()))).append(". ");
-      }
-      Map<String, String> commits = document.source().commits();
-      text.append("Pinned to ").append(commits.size() == 1 ? "commit " : "commits ");
-      text.append(
-          commits.entrySet().stream()
-              .map(c -> literal(c.getKey()) + " `" + c.getValue().substring(0, 12) + "`")
-              .collect(Collectors.joining(", ")));
-      return text.append(", as of ").append(document.source().date()).append('.').toString();
     }
 
     private String looseMarkdown(Block block) {

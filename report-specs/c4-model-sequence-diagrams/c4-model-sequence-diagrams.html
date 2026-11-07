@@ -218,8 +218,16 @@ body.sb-collapsed .open-sb{display:grid}
 .sec-cont{margin-top:16px}
 .page-head .lead{color:var(--text-2);max-width:780px;font-size:14.5px}
 .page-head .lead p{margin:0 0 6px}
-.hero-sub{font-size:16.5px;color:var(--text-2);max-width:680px}
+.hero-sub{font-size:16.5px;color:var(--text-2);max-width:min(680px,100% - 340px)}
+@media (max-width:1100px){.hero-sub{max-width:680px}}
 .hero-sub p{margin:0}
+.analyzed summary{cursor:pointer;list-style:none}
+.analyzed summary::-webkit-details-marker{display:none}
+.analyzed summary::after{content:' ▸';color:var(--muted)}
+.analyzed[open] summary::after{content:' ▾'}
+.analyzed[open]{border-radius:var(--radius)}
+.analyzed ul{margin:8px 0 2px;padding:0;list-style:none;columns:2 220px;column-gap:24px;font-size:12.5px}
+.analyzed li{break-inside:avoid;padding:1px 0}
 .stats-compact .stat b{font-size:19px}
 .stats-text .stat b{font:500 14px/1.5 var(--font);color:var(--text);margin-top:8px;letter-spacing:0}
 .callout.tone-warning{background:color-mix(in srgb,var(--warn) 9%,transparent);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
@@ -5954,6 +5962,14 @@ const markHTML = k => `<span class="mark m-${k}" title="${MARK_TEXT[k]}">${MARK[
 const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + markHTML('llm') : ''}<small>${esc(e.tag||KIND[e.kind].label)}${e.technicalName ? ' · ' + esc(e.technicalName) : ''}</small></div></div>`; };
 const critBadge = c => c ? `<span class="badge ${/^(high|critical)$/i.test(c)?'b-high':/^med/i.test(c)?'b-med':'b-low'}">${esc(c)}</span>` : '';
 const statusBadge = s => `<span class="badge ${/approved|accepted|done|active/i.test(s)?'b-ok':/rejected|deprecated/i.test(s)?'b-high':'b-info'}">${esc(s)}</span>`;
+/* The commits behind the document: one short line that opens into the list (#934). */
+function analyzedHTML(d){
+  const repos = Object.entries(d.commits || {});
+  if (!repos.length) return '';
+  const when = d.updated ? `Analyzed ${esc(fmtDate(d.updated))} · ` : '';
+  return `<details class="pill analyzed"><summary>${when}${repos.length} ${repos.length === 1 ? 'repository' : 'repositories'}</summary>`
+    + `<ul>${repos.map(([r, c]) => `<li>${esc(r)} <code>${esc(c)}</code></li>`).join('')}</ul></details>`;
+}
 const fmtDate = d => { const t = Date.parse(d); return isNaN(t) ? d : new Date(t).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); };
 const chip = (id, key) => { const e = EL[id], lk = linkFor(id, key); return `<a class="chip k-${e.kind}" href="${lk?lk.href:'#'}"><i></i>${esc(e.name)}</a>`; };
 
@@ -6108,7 +6124,7 @@ function renderHome(){
   const d = DATA.document || {};
   const words = String(d.title || 'Architecture').split(' '), last = words.pop();
   const pills = [d.status && `<span class="pill"><i class="dot"></i>${esc(d.status)}</span>`, d.version && `<span class="pill">Version ${esc(d.version)}</span>`,
-    d.owner && `<span class="pill">Owner · ${esc(d.owner)}</span>`, d.updated && `<span class="pill">Updated · ${esc(fmtDate(d.updated))}</span>`,
+    d.owner && `<span class="pill">Owner · ${esc(d.owner)}</span>`, analyzedHTML(d) || (d.updated && `<span class="pill">Updated · ${esc(fmtDate(d.updated))}</span>`),
     d.classification && `<span class="pill">${esc(d.classification)}</span>`].filter(Boolean).join('');
   const cards = C4_LEVELS.filter(l => pagesOf(l.id).length).map(l => {
     const ps = pagesOf(l.id);
@@ -6141,14 +6157,14 @@ function renderHome(){
       </svg>
       <div class="eyebrow">Architecture Description${d.id ? ` · ${esc(d.id)}` : ''}</div>
       <h1>${esc(words.join(' '))} <em>${esc(last)}</em></h1>
-      ${d.subtitle ? `<div class="hero-sub">${md(d.subtitle)}</div>` : ''}
+      ${d.subtitle ? `<div class="hero-sub">${d.subtitleInferred ? md(d.subtitle).replace(/^<p>/, `<p>${markHTML('inferred')} `) : md(d.subtitle)}</div>` : ''}
       ${pills ? `<div class="page-meta">${pills}</div>` : ''}
     </section>
     ${cards ? `<section class="sec" id="contents" data-sec data-label="Contents"><div class="sec-head"><div class="eyebrow">Index</div><h2>Contents</h2></div><div class="grid g3">${cards}</div></section>` : ''}
     ${seqs ? `<section class="sec" id="sequences" data-sec data-label="Sequence Diagrams"><div class="sec-head"><div class="eyebrow">Dynamic views</div><h2>Sequence Diagrams</h2></div><div class="grid g2">${seqs}</div></section>` : ''}
     ${docs ? `<section class="sec" id="documentation" data-sec data-label="Documentation"><div class="sec-head"><div class="eyebrow">Beyond the diagrams</div><h2>Documentation</h2></div><div class="grid g2">${docs}</div></section>` : ''}
     <section class="sec" id="notation" data-sec data-label="Notation"><div class="sec-head"><div class="eyebrow">Legend</div><h2>Notation</h2></div>
-      <p>Each element type has a dedicated colour used consistently across every diagram and table. Elements with a <b style="color:var(--accent)">●</b> badge are clickable and jump to their deeper diagram or catalogue entry.</p>
+      <p>Each element type has a dedicated colour used consistently across every diagram and table. Elements with a <b style="color:var(--accent)">●</b> badge are clickable and jump to their deeper diagram or catalogue entry. ${markHTML('inferred')} marks a description inferred from the code, not written by people; ${markHTML('llm')} marks what the LLM found reading the code.</p>
       <div class="notation">${usedKinds.map(k => `<div class="card ncard">${notationArt(k)}<div><b>${KIND[k].label}</b><span>${KIND[k].desc}</span></div></div>`).join('')}
         <div class="card ncard"><svg viewBox="0 0 58 42"><rect x="5" y="6" width="48" height="30" rx="7" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="5 4"/></svg><div><b>Outside scope</b><span>Dashed outline — shown for context, detailed elsewhere.</span></div></div></div></section>
     ${(d.revisions||[]).length ? `<section class="sec" id="revisions" data-sec data-label="Revision History"><div class="sec-head"><div class="eyebrow">Document control</div><h2>Revision History</h2></div>

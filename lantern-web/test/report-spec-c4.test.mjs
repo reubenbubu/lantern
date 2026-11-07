@@ -380,3 +380,17 @@ test('a table sorts by any column: severity by how serious, numbers by value, te
   // ties keep the order they had
   assert.deepEqual(sortedRows([['High', 'b'], ['High', 'a']], 0, 'desc'), [0, 1]);
 });
+
+// The index page's opening (#934), loaded from the template source.
+const analyzedHTML = new Function(
+  `${template.match(/^const esc = .*$/m)[0]}\n${template.match(/^const fmtDate = .*$/m)[0]}\n` +
+    `${template.match(/^function analyzedHTML[\s\S]*?^\}/m)[0]}\nreturn analyzedHTML;`,
+)();
+
+test('the commits sit behind one short "Analyzed" line that opens into the list (#934)', () => {
+  const html = analyzedHTML({ updated: '2026-11-07', commits: { billing: 'a394af573b6c', web: '50a3be190c6f' } });
+  assert.match(html, /^<details class="pill analyzed"><summary>Analyzed 7 Nov 2026 · 2 repositories<\/summary>/);
+  assert.match(html, /<li>billing <code>a394af573b6c<\/code><\/li><li>web <code>50a3be190c6f<\/code><\/li>/);
+  assert.match(analyzedHTML({ commits: { one: 'abc' } }), /<summary>1 repository<\/summary>/);
+  assert.equal(analyzedHTML({ updated: '2026-11-07' }), '');
+});

@@ -613,8 +613,9 @@ export function qualityChecks(data, limits = diagramLimits(data)) {
       failures.technology.push(element.name);
     }
   }
-  // Commits are pinned where the document says what it describes: its subtitle and revisions.
+  // Commits are pinned where the document says what it describes: its commits, subtitle and revisions.
   const metadata = [
+    ...Object.values(data.document.commits ?? {}),
     data.document.subtitle ?? '',
     ...(data.document.revisions ?? []).map((r) => r.summary ?? ''),
   ].join('\n');

@@ -987,6 +987,29 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void theOpeningIsAboutTheSystemAndTheCommitsAreListedApart() throws IOException {
+    Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
+
+    JsonNode head = C4ReportRenderer.toJson(document).data().get("document");
+
+    // No audience line, no commits and no "inferred" label in the opening (#934); the template
+    // lists the commits behind a short "Analyzed" line and draws the mark.
+    assertThat(head.has("subtitle") ? head.get("subtitle").asString() : "")
+        .doesNotContain("architect")
+        .doesNotContain("Pinned");
+    assertThat(head.get("commits").get("orders").asString()).isEqualTo("aaaaaaaaaaaa");
+    assertThat(head.get("updated").asString()).isEqualTo("2026-01-15");
+
+    JsonNode inferred =
+        C4ReportRenderer.toJson(
+                DocumentJson.read(Files.readString(COMPOSED.resolve("greeting-service.json"))))
+            .data()
+            .get("document");
+    assertThat(inferred.get("subtitleInferred").asBoolean()).isTrue();
+    assertThat(inferred.get("subtitle").asString()).startsWith("Builds on its parts");
+  }
+
+  @Test
   void writesTheDiagramLimitsItIsGivenIntoEachReport() throws IOException {
     Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
 

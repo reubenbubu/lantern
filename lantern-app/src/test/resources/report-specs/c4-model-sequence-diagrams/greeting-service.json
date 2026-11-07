@@ -2,7 +2,11 @@
   "document" : {
     "id" : "greeting-service",
     "title" : "greeting-service",
-    "subtitle" : "*Purpose inferred from the code:* Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.\n\nFor architects and senior engineers. Pinned to commit greeting-service `87b8856deb48`, as of 1970-01-01.",
+    "subtitleInferred" : true,
+    "subtitle" : "Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them.",
+    "commits" : {
+      "greeting-service" : "87b8856deb48"
+    },
     "version" : "1",
     "updated" : "1970-01-01"
   },
