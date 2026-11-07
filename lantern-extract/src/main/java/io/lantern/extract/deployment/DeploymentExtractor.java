@@ -57,7 +57,7 @@ public final class DeploymentExtractor implements Extractor {
   public static final String NAME = "deployment";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "deployment-extractor";

@@ -51,6 +51,10 @@ public record Image(String product, String version, String role) {
           Map.entry("activemq", new String[] {"ActiveMQ", "broker"}),
           Map.entry("nats", new String[] {"NATS", "broker"}),
           Map.entry("keycloak", new String[] {"Keycloak", "identity"}),
+          Map.entry("authentik", new String[] {"Authentik", "identity"}),
+          Map.entry("dex", new String[] {"Dex", "identity"}),
+          Map.entry("zitadel", new String[] {"ZITADEL", "identity"}),
+          Map.entry("authelia", new String[] {"Authelia", "identity"}),
           Map.entry("nginx", new String[] {"nginx", "proxy"}),
           Map.entry("traefik", new String[] {"Traefik", "proxy"}),
           Map.entry("envoy", new String[] {"Envoy", "proxy"}),
@@ -97,6 +101,12 @@ public record Image(String product, String version, String role) {
       known = new String[] {"OpenTelemetry Collector", "observability"};
     } else if (repository.endsWith("mssql/") && name.equals("server")) {
       known = new String[] {"SQL Server", "database"};
+    } else if (repository.endsWith("goauthentik/") && name.equals("server")) {
+      known = new String[] {"Authentik", "identity"};
+    } else if (repository.endsWith("oryd/") && name.equals("hydra")) {
+      known = new String[] {"Ory Hydra", "identity"};
+    } else if (repository.endsWith("oryd/") && name.equals("kratos")) {
+      known = new String[] {"Ory Kratos", "identity"};
     }
     if (known == null) {
       return null;
