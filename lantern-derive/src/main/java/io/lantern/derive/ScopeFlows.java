@@ -43,6 +43,57 @@ public final class ScopeFlows {
   /** What the subscribed browsers are named wherever a flow draws them. */
   public static final String SUBSCRIBERS_NAME = "Subscribed browsers";
 
+  /**
+   * A message a unit pushes to its STOMP subscribers, as the stored flows hold it (#973).
+   *
+   * @param unit the unit that pushes it
+   * @param destination where it is pushed, such as {@code /topic/orders}
+   * @param toUser whether it goes to one user's subscriptions only
+   * @param connectedOver the paths of the unit's STOMP WebSocket endpoints, where browsers connect
+   * @param facts the push and those endpoints, which it rests on
+   */
+  public record Push(
+      EntityId unit,
+      String destination,
+      boolean toUser,
+      List<String> connectedOver,
+      List<Fact> facts) {}
+
+  /**
+   * Every push to STOMP subscribers the stored flows hold, each once, in the order stored: what the
+   * {@link #SUBSCRIBERS} stand for (#973).
+   */
+  public static List<Push> pushes(ArchitectureModel model) {
+    java.util.Map<String, Push> result = new java.util.LinkedHashMap<>();
+    for (FlowModel.Flow flow : FlowModel.read(model.index())) {
+      pushes(flow.steps(), result);
+    }
+    return List.copyOf(result.values());
+  }
+
+  private static void pushes(List<FlowModel.Step> steps, java.util.Map<String, Push> result) {
+    for (FlowModel.Step step : steps) {
+      if (step.action().equals(FlowModel.STOMP_PUSH)
+          && !step.over().isEmpty()
+          && !step.facts().isEmpty()) {
+        Fact push = step.facts().getFirst();
+        List<String> paths =
+            step.facts().stream().skip(1).map(e -> e.object().value()).distinct().toList();
+        result.putIfAbsent(
+            push.id(),
+            new Push(
+                step.over().getFirst(),
+                push.object().value(),
+                "true".equals(attribute(push, "toUser")),
+                paths,
+                List.copyOf(step.facts())));
+      }
+      for (FlowModel.Operand operand : step.operands()) {
+        pushes(operand.steps(), result);
+      }
+    }
+  }
+
   /** The most flows a scope shows (docs/design.md: three to seven). */
   public static final int MAX_FLOWS = 7;
 

@@ -3,7 +3,9 @@ package io.lantern.compose;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.lantern.core.document.Callout;
+import io.lantern.core.document.Citation;
 import io.lantern.core.document.Document;
+import io.lantern.core.document.DocumentEntity;
 import io.lantern.core.document.Inline;
 import io.lantern.core.document.Paragraph;
 import io.lantern.core.document.Section;
@@ -452,6 +454,73 @@ class SequenceFlowsTest {
             "service:x:ship > database:db:5432/ship: Reads parcel [JDBC]",
             "service:x:ship >> actor:subscribed-browsers: Pushes to the subscribers of"
                 + " /topic/parcels [STOMP over WebSocket] (Connected over /ws-parcels.)");
+  }
+
+  @Test
+  void theSubscribedBrowsersAreDescribedByWhatIsPushedToThemAndWhereTheyConnect() {
+    // No fact of the code names the browsers; the pushes that make them do (#973).
+    attribute(
+        "ship", LISTEN, "stomp-send", "/topic/parcels", "{\"method\": \"convertAndSend\"}", 9);
+    attribute("ship", STATUS, "stomp-send", "/topic/status", "{\"method\": \"convertAndSend\"}", 4);
+    attribute(
+        "ship",
+        STATUS,
+        "websocket-endpoint",
+        "/ws-parcels",
+        "{\"path\": \"/ws-parcels\", \"protocol\": \"stomp\"}",
+        2);
+
+    DocumentEntity browsers = entity(system(facts), "actor:subscribed-browsers");
+
+    assertThat(text(browsers.description()))
+        .isEqualTo(
+            "Browsers subscribed over STOMP to /topic/parcels and /topic/status, which Ship"
+                + " pushes, connected over /ws-parcels; no code names them.");
+    assertThat(browsers.description().getLast()).isInstanceOf(Citation.class);
+  }
+
+  @Test
+  void aUnitWithNoSentenceIsDescribedByWhatItServesFirstNeverByItsStoresAlone() {
+    // A unit that only uses a database: what it does is not known, not "uses keep on db"; one that
+    // serves nothing but calls another: what it calls, then what it uses (#973).
+    String keep = "service:x:keep";
+    unit("keep", keep, "keep", "x.keep", "Repository");
+    relate(
+        "keep",
+        keep,
+        "USES_DATABASE",
+        "database:db:5432/keep",
+        "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\"}",
+        0);
+    String relay = "service:x:relay";
+    unit("relay", relay, "relay", "x.relay", "Poller");
+    relate("relay", relay, "CALLS_HTTP", PAY, "{\"protocol\": \"JSON/HTTP\"}", 0);
+    relate(
+        "relay",
+        relay,
+        "USES_DATABASE",
+        "database:db:5432/relay",
+        "{\"protocol\": \"JDBC\", \"key\": \"spring.datasource.url\"}",
+        0);
+
+    Document document = system(facts);
+
+    // What it serves says what it does; what it reaches is left to its lines.
+    assertThat(text(entity(document, SHIP).description()))
+        .isEqualTo("Serves GET /status; receives messages from orders; runs a scheduled job.");
+    assertThat(text(entity(document, PAY).description())).isEqualTo("Serves POST /pay.");
+    assertThat(text(entity(document, relay).description()))
+        .isEqualTo("Calls Pay; uses relay on db.");
+    assertThat(text(entity(document, keep).description())).isEqualTo(Assembler.NOT_KNOWN);
+    assertThat(document.entities())
+        .allSatisfy(e -> assertThat(text(e.description())).doesNotStartWith("A deployable unit"));
+  }
+
+  private static DocumentEntity entity(Document document, String id) {
+    return document.entities().stream()
+        .filter(e -> e.id().toString().equals(id))
+        .findFirst()
+        .orElseThrow();
   }
 
   @Test

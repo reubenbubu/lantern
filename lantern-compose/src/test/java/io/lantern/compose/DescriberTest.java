@@ -626,13 +626,12 @@ class DescriberTest {
 
     Document document = system(wordings);
 
-    // The box shows Lantern's plain wording of what it connects to, never nothing (#933); no
-    // document shows a support mark (the owner's decision of 4 Nov 2026 on #751).
+    // The box shows Lantern's plain wording of what it serves, never nothing (#933, #973); no
+    // document shows a support mark (the owner's decision of 4 Nov 2026
+    // on #751).
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(text(app.description()))
-        .isEqualTo(
-            "A deployable unit that calls pay.example.com, uses shop on db and sends to orders.");
+    assertThat(text(app.description())).isEqualTo("Serves GET /orders; runs a scheduled job.");
     assertThat(app.name()).isEqualTo("shop-app");
     assertThat(String.valueOf(document)).doesNotContain("Not supported by its sources");
     DocumentEntity database =
@@ -1540,13 +1539,15 @@ class DescriberTest {
     Callout first = (Callout) document.sections().getFirst().blocks().getFirst();
     assertThat(first.variant()).isEqualTo(Callout.Variant.NOTE);
     assertThat(text(first.content())).isEqualTo(RepoSections.UNKNOWN_PURPOSE);
+    // The system's box still says what it is made of, never nothing (#973).
     assertThat(
-            document.entities().stream()
-                .filter(e -> e.id().equals(RepoSections.SYSTEM))
-                .findFirst()
-                .orElseThrow()
-                .description())
-        .isEmpty();
+            text(
+                document.entities().stream()
+                    .filter(e -> e.id().equals(RepoSections.SYSTEM))
+                    .findFirst()
+                    .orElseThrow()
+                    .description()))
+        .isEqualTo("Made of 2 services and 1 database.");
   }
 
   @Test
@@ -1648,7 +1649,7 @@ class DescriberTest {
   }
 
   @Test
-  void aCitationOfAFactNotInTheDocumentsFactsIsLeftOutAndWithoutAnyTheSummaryStays() {
+  void aCitationOfAFactNotInTheDocumentsFactsIsLeftOutAndWithoutAnyThePlainWordingShows() {
     Fact deployable = facts.find(APP.toString(), "deployable-unit");
     TestTexts.Written wordings =
         new TestTexts.Written(
@@ -1659,9 +1660,10 @@ class DescriberTest {
 
     Document document = system(wordings);
 
+    // With no sentence that still cites something, the box shows Lantern's plain wording (#973).
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(app.description()).isEmpty();
+    assertThat(text(app.description())).startsWith("Serves GET /orders").doesNotContain("Takes");
     Diagram containers = diagrams(document, Diagram.Kind.C4_CONTAINER).getFirst();
     Diagram.Edge send =
         containers.edges().stream()

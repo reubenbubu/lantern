@@ -124,6 +124,22 @@ class GroupViewsTest {
             });
     // The overview is titled as one, not again "Containers" under the containers level (#931).
     assertThat(containers.title()).isEqualTo("Overview");
+    // A domain's box names what its members run on, never how many it holds (#973).
+    Diagram overview = block(containers, Diagram.class);
+    assertThat(overview.nodes())
+        .filteredOn(n -> n.id().toString().equals(domain))
+        .singleElement()
+        .satisfies(n -> assertThat(n.technology()).isEqualTo("Spring Boot"));
+  }
+
+  @Test
+  void aGroupsTechnologyIsTheFrameworkItsMembersOpenWithWithoutVersions() {
+    assertThat(C4Views.framework("Spring Boot 3.5.0 / Spring Cloud Gateway 4.3.0 / Java 21"))
+        .isEqualTo("Spring Boot");
+    assertThat(C4Views.framework("React 19.1 \u00b7 Vite \u00b7 nginx")).isEqualTo("React");
+    assertThat(C4Views.framework("Angular 21.2")).isEqualTo("Angular");
+    assertThat(C4Views.framework("4.1")).isNull();
+    assertThat(C4Views.framework(null)).isNull();
   }
 
   @Test

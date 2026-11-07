@@ -133,6 +133,10 @@
   }, {
     "id" : "system:snapshot",
     "name" : "greeting-lib, greeting-service, orders and shop",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Made of 1 service."
+    } ],
     "facts" : [ ]
   }, {
     "id" : "type:com.example.greeting.lib.Greeter",

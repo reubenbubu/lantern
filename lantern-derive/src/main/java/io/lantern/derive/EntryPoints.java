@@ -96,4 +96,58 @@ public final class EntryPoints {
     }
     return result;
   }
+
+  /**
+   * The entry points of a deployable unit's own code: of every method of every type its code
+   * modules hold, by type and method in ID order (#973).
+   */
+  public static List<EntryPoint> ofUnit(ArchitectureModel model, EntityId unit) {
+    java.util.SortedSet<EntityId> types = new java.util.TreeSet<>(ArchitectureModel.BY_ID);
+    for (EntityId module : Elements.codeModules(model, unit)) {
+      types.addAll(model.typesWithin(module));
+      for (EntityId pkg : model.parts(module, Types.PACKAGE)) {
+        types.addAll(model.typesWithin(pkg));
+      }
+    }
+    return ofTypes(model, types);
+  }
+
+  /**
+   * The entry points of the type a box draws: of the component anchored on it, if one is, else of
+   * its own methods (#973).
+   */
+  public static List<EntryPoint> ofType(ArchitectureModel model, EntityId type) {
+    return model
+        .componentAnchoredOn(type)
+        .map(component -> ofComponent(model, component))
+        .orElseGet(() -> ofTypes(model, List.of(type)));
+  }
+
+  /**
+   * The entry points of a component: of every method of its main type and its other member types
+   * (#973).
+   */
+  public static List<EntryPoint> ofComponent(ArchitectureModel model, EntityId component) {
+    java.util.SortedSet<EntityId> types = new java.util.TreeSet<>(ArchitectureModel.BY_ID);
+    for (String predicate : List.of(Types.ANCHORED_ON, Types.HAS_MEMBER)) {
+      model.relations(component, predicate).forEach(f -> types.add(Knowledge.object(f)));
+    }
+    return ofTypes(model, types);
+  }
+
+  private static List<EntryPoint> ofTypes(
+      ArchitectureModel model, java.util.Collection<EntityId> types) {
+    List<EntryPoint> result = new ArrayList<>();
+    java.util.Set<String> seen = new java.util.HashSet<>();
+    for (EntityId type : types) {
+      for (EntityId method : model.parts(type, Types.METHOD)) {
+        for (EntryPoint entry : of(model, method)) {
+          if (seen.add(entry.fact().id())) {
+            result.add(entry);
+          }
+        }
+      }
+    }
+    return result;
+  }
 }

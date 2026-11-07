@@ -282,7 +282,10 @@ class Project0EndToEndIT {
         .containsExactly(
             "single-instance/service:com.acme.shop:catalog-service",
             "single-instance/service:com.acme.shop:fulfilment",
-            "single-instance/service:com.acme.shop:storefront-app");
+            "single-instance/service:com.acme.shop:storefront-app",
+            // storefront's STOMP pushes (MSG-11) go through Spring's in-memory simple broker,
+            // which each instance keeps to itself.
+            "single-instance/service:com.acme.shop:storefront-app/stomp-simple-broker");
     assertThat(first.summariesGenerated()).isPositive();
     assertThat(first.wordingsAsked()).isPositive();
     // The links project-0 leaves open with candidates: nine (HTTP-6 to HTTP-9, MSG-5 to MSG-9,
@@ -1383,14 +1386,38 @@ class Project0EndToEndIT {
         .containsExactlyEntriesOf(
             new TreeMap<>(
                 Map.of(
-                    "component", 32L,
+                    // storefront's STOMP endpoint config, an entry point (MSG-11).
+                    "component", 33L,
                     "container", 6L,
                     "database", 4L,
                     "external", 3L,
-                    // The Unknown caller (#766).
-                    "person", 1L,
+                    // The Unknown caller (#766) and the browsers storefront pushes to (MSG-11).
+                    "person", 2L,
                     "queue", 9L,
                     "system", 1L)));
+    // Every container, component, person and the system's box says what it does (#973): none is
+    // blank, none reads "A deployable unit that", none shows a count as its technology; the
+    // browsers storefront pushes order status to over STOMP (MSG-11) by that push and where they
+    // connect.
+    data.get("elements")
+        .forEach(
+            e -> {
+              String description = e.path("description").asString("");
+              if (Set.of("container", "component", "person", "system")
+                  .contains(e.get("kind").asString())) {
+                assertThat(description).as(e.get("name").asString()).isNotBlank();
+              }
+              assertThat(description).doesNotStartWith("A deployable unit");
+              assertThat(e.path("technology").asString(""))
+                  .doesNotMatch("\\d+ (containers?|components?)");
+            });
+    // The Keycloak compose runs (DEP-6), with no sentence from the fake model, by what it runs.
+    assertThat(data.get("elements").get("identity-provider-keycloak").get("description").asString())
+        .isEqualTo("Identity provider running Keycloak 26.1.0.");
+    assertThat(data.get("elements").get("actor-subscribed-browsers").get("description").asString())
+        .isEqualTo(
+            "Browsers subscribed over STOMP to /topic/order-status, which Storefront pushes,"
+                + " connected over /live; no code names them.");
     List<String> pages = new ArrayList<>();
     data.get("pages").forEach(page -> pages.add(page.get("id").asString()));
     assertThat(pages)
@@ -1449,7 +1476,8 @@ class Project0EndToEndIT {
               }
             });
     // The Unknown caller (#766): storefront's POST /api/orders and payments' order lookup are
-    // reached by nothing in project-0 and used by no person.
+    // reached by nothing in project-0 and used by no person; nor is the WebSocket endpoint the
+    // order pages connect to (MSG-11).
     assertThat(containerLines.toString())
         .contains(
             "{\"from\":\"actor-unknown-caller\",\"to\":\"service-com-acme-shop-payments\","
@@ -1457,11 +1485,11 @@ class Project0EndToEndIT {
         .contains(
             "{\"from\":\"actor-unknown-caller\","
                 + "\"to\":\"service-com-acme-shop-storefront-app\","
-                + "\"label\":\"Works with orders\",\"technology\":\"HTTP\"}");
+                + "\"label\":\"Works with orders\",\"technology\":\"HTTP, WebSocket\"}");
     assertThat(data.get("pages").get(0).toString())
         .contains("\"from\":\"actor-unknown-caller\",\"to\":\"system-snapshot\"");
     assertThat(data.get("pages").get(pages.indexOf("decisions")).toString())
-        .contains("payments: GET /api/orders/{orderId}. storefront: POST /api/orders.");
+        .contains("payments: GET /api/orders/{orderId}. storefront: /live, POST /api/orders.");
     assertThat(data.toString()).doesNotContain("Every Unknown caller line points to");
     // FE-1 (#980): the order page's call through its nginx's /api/ is a line to storefront; the
     // nginx's /payments/, which no call goes through, is a line that says so, never a call, and
@@ -1531,6 +1559,9 @@ class Project0EndToEndIT {
             "storefront-app > payments: Calls PaymentController.charge [POST /api/payments]",
             "payments > external-system-sandbox-paygate-example-com:"
                 + " Calls sandbox.paygate.example.com [POST /v1/charges]",
+            // The paid order pushed to the order pages open on it (MSG-11).
+            "storefront-app >> actor-subscribed-browsers: Pushes to the subscribers of"
+                + " /topic/order-status [STOMP over WebSocket]",
             "storefront-app >> exchange-rabbitmq-shop-orders: Sends order.created [AMQP]",
             "note storefront-app, exchange-rabbitmq-shop-orders: storefront does not wait:"
                 + " payments takes the message later.",

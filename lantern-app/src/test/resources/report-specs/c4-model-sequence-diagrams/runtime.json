@@ -27,7 +27,8 @@
       "technicalName" : "shop-app",
       "parent" : "system-snapshot",
       "tag" : "Service",
-      "technology" : "Spring Boot 3.5.0 / Java 21"
+      "technology" : "Spring Boot 3.5.0 / Java 21",
+      "description" : "Serves GET /orders; runs a scheduled job."
     },
     "service-com-example-worker" : {
       "kind" : "container",
@@ -35,11 +36,13 @@
       "technicalName" : "worker",
       "parent" : "system-snapshot",
       "tag" : "Service",
-      "technology" : "Spring Boot 3.5.0 / Java 21"
+      "technology" : "Spring Boot 3.5.0 / Java 21",
+      "description" : "Receives from orders."
     },
     "system-snapshot" : {
       "kind" : "system",
-      "name" : "base and shop"
+      "name" : "base and shop",
+      "description" : "Made of 2 services and 1 database."
     },
     "topic-kafka-orders" : {
       "kind" : "queue",
@@ -52,19 +55,22 @@
       "kind" : "component",
       "name" : "JpaOrders",
       "parent" : "service-com-example-app",
-      "technology" : "Spring repository"
+      "technology" : "Spring repository",
+      "description" : "What it does is not known: no sentence about it holds and the code shows nothing it serves."
     },
     "type-com-example-web-controller" : {
       "kind" : "component",
       "name" : "Controller",
       "parent" : "service-com-example-app",
-      "technology" : "Spring MVC REST controller"
+      "technology" : "Spring MVC REST controller",
+      "description" : "Serves GET /orders."
     },
     "type-com-example-web-jobs" : {
       "kind" : "component",
       "name" : "Jobs",
       "parent" : "service-com-example-app",
-      "technology" : "Scheduled job"
+      "technology" : "Scheduled job",
+      "description" : "Runs a scheduled job."
     }
   },
   "pages" : [ {

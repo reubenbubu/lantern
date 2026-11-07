@@ -83,17 +83,51 @@
     "id" : "service:com.example:app",
     "name" : "shop-app",
     "parent" : "repo:shop",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Serves "
+    }, {
+      "kind" : "text",
+      "text" : "GET /orders",
+      "style" : "code"
+    }, {
+      "kind" : "text",
+      "text" : "; "
+    }, {
+      "kind" : "text",
+      "text" : "runs a scheduled job"
+    }, {
+      "kind" : "text",
+      "text" : "."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "b394a91a93fe10a7cb925b5d0c5b8fede696c29a62e1c066beccc4c472f4f6c9", "e9341ef4b3f1630f489f2256765f33b90add4b55731641ab97e44c5b28f79397" ]
+    } ],
     "facts" : [ "5460bae37808b4553f286492dddd2635bbed2e498036815e02dabe1c36a8c8c3", "5b9e55a21e6aa702334924dbdf6e00c36351fa766ee6eec11f938074d18b0e98", "60ab8fb615ea262d55a5ed344b123a12e75bbe4f2cc7a4ec9d3fa6819de7375f", "648da25dcc289d9add64cb22a9995b9ac81de90a9de33a4775545499ea656e44", "975f1838a442b752839606f49a22c4e650cd13fd6f83f91b5cb09ac8fa6108b6", "b0eb5400d240445c0940cf27c4580af2d3f2a8891341164f1cc0a3a8c9bc9f7b" ],
     "tag" : "Service"
   }, {
     "id" : "service:com.example:worker",
     "name" : "worker",
     "parent" : "repo:base",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Receives from orders"
+    }, {
+      "kind" : "text",
+      "text" : "."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "3393b7ad7f02a91075da67f4a564beebd1051c14aa733da4b05ac1e6bd13986b" ]
+    } ],
     "facts" : [ "14b57f614700605dbc03ec55d088d210571daf29a7f3795edf18828e86817cf5", "2932a0605c6c48541c33327d725f279f3ae1922455f977ea867bcd4f19520a04", "fe767333948ac67cbd40c3772ba794f9480aedcbae03744d9c4f0fa549ce7e53" ],
     "tag" : "Service"
   }, {
     "id" : "system:snapshot",
     "name" : "base and shop",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Made of 2 services and 1 database."
+    } ],
     "facts" : [ ]
   }, {
     "id" : "topic:kafka:orders",
@@ -105,6 +139,10 @@
     "id" : "type:com.example.domain.JpaOrders",
     "name" : "JpaOrders",
     "parent" : "package:com.example:app:com.example.domain",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "What it does is not known: no sentence about it holds and the code shows nothing it serves."
+    } ],
     "facts" : [ "182fa5c004c7425afff7e758d091a1745a96d5f87db8003e27841c355df44592", "bbf6fc952843d1b84388bb3a5407ea13ffcdeca5a355b722663cd24e172b3a5d" ]
   }, {
     "id" : "type:com.example.domain.Orders",
@@ -115,11 +153,35 @@
     "id" : "type:com.example.web.Controller",
     "name" : "Controller",
     "parent" : "package:com.example:app:com.example.web",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Serves "
+    }, {
+      "kind" : "text",
+      "text" : "GET /orders",
+      "style" : "code"
+    }, {
+      "kind" : "text",
+      "text" : "."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "b394a91a93fe10a7cb925b5d0c5b8fede696c29a62e1c066beccc4c472f4f6c9" ]
+    } ],
     "facts" : [ "0db5611bd5446640ab0c0e56c21b8f3b20d39477cbca3ecdb80cc8079e19ec28", "7eb776af0e8c1e430a59ebfffca54699745069f39a7181eb9f9549bf98c989d0" ]
   }, {
     "id" : "type:com.example.web.Jobs",
     "name" : "Jobs",
     "parent" : "package:com.example:app:com.example.web",
+    "description" : [ {
+      "kind" : "text",
+      "text" : "Runs a scheduled job"
+    }, {
+      "kind" : "text",
+      "text" : "."
+    }, {
+      "kind" : "citation",
+      "facts" : [ "e9341ef4b3f1630f489f2256765f33b90add4b55731641ab97e44c5b28f79397" ]
+    } ],
     "facts" : [ "a587fb07052d9cbda84908433e2f533ee8cd59eb26c381be664494d0db436353" ]
   } ],
   "facts" : [ {

@@ -206,6 +206,7 @@ class Project0DeployableUnitsIT {
         "%stechnology Spring Boot 3.5.14 / WebFlux / Java %s {\"framework\":\"Spring Boot\","
             + "\"frameworkVersion\":\"3.5.14\",\"frameworks\":[\"WebFlux\"],\"java\":\"%2$s\"}"
             + " @%s";
+    String websocket = reactive.replace("WebFlux", "WebSocket");
     assertThat(built)
         .contains(
             // catalog's Spring Boot and Java come through its parent, built by catalog-lib
@@ -214,8 +215,9 @@ class Project0DeployableUnitsIT {
             // fulfilment is reactive: WebFlux joins the line.
             reactive.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#36"),
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#28"),
-            technology.formatted(
-                SHOP + "storefront-app ", "21", "storefront:storefront-model/pom.xml#17"));
+            // storefront pushes over STOMP (MSG-11): WebSocket joins the line.
+            websocket.formatted(
+                SHOP + "storefront-app ", "21", "storefront:storefront-app/pom.xml#25"));
     // Without builds, the version comes from Spring Boot's parent POM, which each repository's
     // top POM names, catalog's through its parent from catalog-lib (BUILD-1).
     assertThat(unbuilt)
@@ -223,7 +225,7 @@ class Project0DeployableUnitsIT {
             technology.formatted(SHOP + "catalog-service ", "21", "catalog:pom.xml"),
             reactive.formatted(SHOP + "fulfilment ", "21", "fulfilment:pom.xml#7"),
             technology.formatted(SHOP + "payments ", "17", "payments:pom.xml#7"),
-            technology.formatted(SHOP + "storefront-app ", "21", "storefront:pom.xml#7"));
+            websocket.formatted(SHOP + "storefront-app ", "21", "storefront:pom.xml#7"));
   }
 
   @Test
