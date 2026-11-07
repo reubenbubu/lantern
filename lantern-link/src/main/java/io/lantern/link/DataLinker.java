@@ -310,7 +310,17 @@ final class DataLinker {
 
   /** Words of a configuration key no datasource key has ("datasource", "url"). */
   private static final java.util.Set<String> KEY_NOISE =
-      java.util.Set.of("app", "spring", "datasource", "url", "jdbc", "r2dbc", "jpa", "db");
+      java.util.Set.of(
+          "app",
+          "spring",
+          "datasource",
+          "datasources",
+          "url",
+          "jdbc",
+          "r2dbc",
+          "jpa",
+          "db",
+          "hikari");
 
   /**
    * What tells a datasource key apart, for a name a reader scans (#933): "billing.datasource.

@@ -158,8 +158,9 @@ class C4ReportRendererTest {
     "container, customer-portal-bff, Customer portal BFF",
     "container, sms_sender, SMS sender",
     "container, Billing, Billing",
-    "container, billing, billing",
-    "container, com.example.app, com.example.app",
+    "container, billing, Billing",
+    "container, billing-svc, Billing svc",
+    "container, shop.web, Shop web",
     "database, orders-db, orders-db",
   })
   void aContainerNamedAsItsBuildNamesItReadsAsWords(String kind, String name, String shown) {

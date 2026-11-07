@@ -27,7 +27,8 @@
     },
     "service-com-example-worker" : {
       "kind" : "container",
-      "name" : "worker",
+      "name" : "Worker",
+      "technicalName" : "worker",
       "parent" : "system-snapshot",
       "tag" : "Service",
       "technology" : "Spring Boot 3.5.0 / Java 21"

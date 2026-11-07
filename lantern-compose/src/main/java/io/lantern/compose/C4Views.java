@@ -324,7 +324,7 @@ final class C4Views {
         if (claims.size() < MergedLines.MIN_CLAIMS
             || phrases.size() < 2
             || details.isEmpty()
-            || !details.stream().allMatch(d -> d.contains("/"))) {
+            || !(details.stream().allMatch(d -> d.contains("/")) || actions(details).isPresent())) {
           return phrases.entrySet().stream()
               .max(
                   Map.Entry.<String, Integer>comparingByValue()
@@ -345,16 +345,21 @@ final class C4Views {
         if (done.isPresent()) {
           return done.get();
         }
+        // Messages by their keys or destinations: what they are about (#933).
+        Optional<String> messages = messages(prefix, details);
+        if (messages.isPresent()) {
+          return messages.get();
+        }
         List<String> named = new ArrayList<>(details);
         String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
         if (named.size() > NAMED) {
-          text += " and " + (named.size() - NAMED) + " more";
+          text += " and others";
         }
         return prefix + " " + text;
       }
       String text = String.join(", ", about.subList(0, Math.min(NAMED + 1, about.size())));
       if (about.size() > NAMED + 1) {
-        text += " and " + (about.size() - NAMED - 1) + " more";
+        text += " and others";
       } else if (about.size() > 1) {
         int last = text.lastIndexOf(", ");
         text = text.substring(0, last) + " and " + text.substring(last + 2);
@@ -368,6 +373,45 @@ final class C4Views {
       }
       return "Works with " + text;
     }
+  }
+
+  /** Path segments that say nothing of what a route is about. */
+  private static final Set<String> ROUTE_NOISE =
+      Set.of("api", "rest", "internal", "public", "private", "external", "graphql", "rpc");
+
+  private static final Set<String> MESSAGE_VERBS =
+      Set.of("Sends", "Delivers", "Publishes", "Receives", "Consumes");
+
+  private static final Pattern MESSAGE_KEY = Pattern.compile("[A-Za-z0-9_.*#-]+");
+
+  /**
+   * Messages a line sends or delivers, by what their keys or destinations are about (#933):
+   * "Delivers order.*, refund.#" is "Delivers order and refund messages"; empty unless the prefix
+   * is one verb and every detail a key or a destination's name.
+   */
+  static Optional<String> messages(String prefix, java.util.Collection<String> details) {
+    if (!MESSAGE_VERBS.contains(prefix) || details.size() < 2) {
+      return Optional.empty();
+    }
+    java.util.LinkedHashSet<String> about = new java.util.LinkedHashSet<>();
+    for (String detail : details) {
+      if (!MESSAGE_KEY.matcher(detail).matches()) {
+        return Optional.empty();
+      }
+      String first = detail.split("[.*#]")[0].replace('-', ' ').replace('_', ' ').strip();
+      if (!first.isEmpty()) {
+        about.add(first);
+      }
+    }
+    if (about.isEmpty()) {
+      return Optional.empty();
+    }
+    List<String> shown = new ArrayList<>(about).subList(0, Math.min(3, about.size()));
+    String text =
+        shown.size() == 1
+            ? shown.getFirst()
+            : String.join(", ", shown.subList(0, shown.size() - 1)) + " and " + shown.getLast();
+    return Optional.of(prefix + " " + text + (about.size() > 3 ? " and other" : "") + " messages");
   }
 
   /** Verbs a method's name may start with, in the form a label reads them. */
@@ -495,7 +539,7 @@ final class C4Views {
         if (plain.isEmpty()
             || plain.startsWith("{")
             || plain.equals("**")
-            || plain.equalsIgnoreCase("api")
+            || ROUTE_NOISE.contains(plain.toLowerCase(Locale.ROOT))
             || plain.matches("v\\d+")) {
           continue;
         }

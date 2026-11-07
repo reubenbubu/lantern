@@ -113,6 +113,23 @@ class C4ViewsTest {
   }
 
   @Test
+  void aLineOfMessageKeysWithNoPurposeSaysWhatTheyAreAbout() {
+    // #933: never "Delivers order.*, refund.# and 3 more".
+    assertThat(C4Views.messages("Delivers", List.of("order.*", "refund.#")))
+        .contains("Delivers order and refund messages");
+    assertThat(C4Views.messages("Sends", List.of("a.x", "b.x", "c.x", "d.x")))
+        .contains("Sends a, b and c and other messages");
+    assertThat(C4Views.messages("Publishes to", List.of("orders"))).isEmpty();
+    assertThat(C4Views.messages("Sends", List.of("GET /orders"))).isEmpty();
+  }
+
+  @Test
+  void aRouteSummarySkipsSegmentsThatSayNothing() {
+    assertThat(C4Views.resources(List.of("GET /internal/orders/{id}", "POST /api/v2/rest/cases")))
+        .containsExactly("orders", "cases");
+  }
+
+  @Test
   void aLineOfMethodsWithNoPurposeSaysWhatTheyDoNotTheirNames() {
     // #933: never "Calls approve, complete and 2 more".
     assertThat(C4Views.actions(List.of("approve", "complete", "findOpen", "reviewQueue")))
@@ -441,6 +458,55 @@ class C4ViewsTest {
     assertThat(edges(diagram))
         .contains(
             "person:billing-clerk -> system:snapshot: Reviews unpaid invoices and chases arrears");
+  }
+
+  @Test
+  void aPersonsLongSentenceIsCutBeforeItsQualifierNeverMidPhrase() {
+    assertThat(
+            personLine("Reviews and approves repair work orders submitted by field technicians."))
+        .isEqualTo("Reviews and approves repair work orders");
+    assertThat(personLine("Tracks e.g. overdue invoices for the finance team."))
+        .isEqualTo("Tracks e.g. overdue invoices for the finance team");
+  }
+
+  private String personLine(String sentence) {
+    TestFacts withPeople = TestFacts.runtime();
+    withPeople.attribute(
+        "shop",
+        "type:com.example.Clerk",
+        "person-evidence",
+        "role",
+        "{\"scope\":\"Role\",\"type\":\"com.example.Clerk\"}");
+    Fact evidence = withPeople.find("type:com.example.Clerk", "person-evidence");
+    withPeople.attribute(
+        "shop",
+        "person:billing-clerk",
+        "person-basis",
+        "role",
+        "{\"basis\":\"role\",\"description\":\"The code has a billing clerk role.\","
+            + "\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[]}");
+    withPeople.attribute("shop", "person:billing-clerk", "display-name", "Billing clerk");
+    withPeople.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("person:billing-clerk"),
+            Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            sentence,
+            List.of(evidence),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+    Diagram diagram = block(section(repo(withPeople.list()), "context"), Diagram.class);
+    return edges(diagram).stream()
+        .filter(e -> e.startsWith("person:billing-clerk -> "))
+        .findFirst()
+        .orElseThrow()
+        .replaceFirst("^.*?system:snapshot: ", "")
+        .replaceAll(" \\[.*$", "");
   }
 
   @Test

@@ -527,9 +527,9 @@ class QualityBarTest {
     // A build's name of words reads as words in the report; one the report cannot read fails.
     assertThat(
             failedOn(
-                containers("com.example.shop", "Takes payment", "pay-service", "Java"),
+                containers("orderService", "Takes payment", "pay-service", "Java"),
                 QualityBar.READABLE))
-        .containsExactly("d: Named only as built: com.example.shop.");
+        .containsExactly("d: Named only as built: orderService.");
   }
 
   @Test

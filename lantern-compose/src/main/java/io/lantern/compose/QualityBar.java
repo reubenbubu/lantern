@@ -459,7 +459,8 @@ final class QualityBar {
       Pattern.compile("\\b(?:GET|POST|PUT|PATCH|DELETE)\\s+/|\\band \\d+ more\\b");
 
   /** A service's or frontend's name as its build names it, not words (#933). */
-  private static final Pattern TECHNICAL_NAME = Pattern.compile("[a-z0-9]+(?:[-_.][a-z0-9]+)+");
+  private static final Pattern TECHNICAL_NAME =
+      Pattern.compile("[a-z][A-Za-z0-9]*(?:[-_.][A-Za-z0-9]+)*");
 
   /**
    * The C4 report's lines say what they are for and its boxes read as names (#933): no label lists

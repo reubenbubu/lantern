@@ -774,7 +774,10 @@ public final class C4ReportRenderer {
       node.put("kind", kind);
       // A container named as its build names it reads as words, with that name small beneath
       // (#933).
-      String readable = readable(kind, entity.name());
+      String readable =
+          CONTAINER_TYPES.contains(element.id.type())
+              ? readable(kind, entity.name())
+              : entity.name();
       node.put("name", readable);
       if (!readable.equals(entity.name())) {
         node.put("technicalName", entity.name());

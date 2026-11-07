@@ -508,16 +508,57 @@ final class Assembler {
    * What a person does, as a line's purpose (#933): the first clause of Describe's sentence about
    * them, at most eight words, citing what it cites; or {@code null} if it wrote none.
    */
+  private static final int MOST_PURPOSE_WORDS = 8;
+
+  /** Words that open a qualifier after what a person does. */
+  private static final Set<String> QUALIFIERS =
+      Set.of(
+          "submitted",
+          "by",
+          "for",
+          "with",
+          "that",
+          "which",
+          "who",
+          "through",
+          "from",
+          "to",
+          "in",
+          "on",
+          "using",
+          "via",
+          "across",
+          "when",
+          "while",
+          "so",
+          "as",
+          "and",
+          "or");
+
   Phrased personPurpose(EntityId person) {
     ArchitectureModel.Text sentence = model.responsibility(person).orElse(null);
     if (sentence == null || sentence.text() == null || sentence.text().isBlank()) {
       return null;
     }
-    String clause = sentence.text().strip().split("[.;,:(]", 2)[0].strip();
-    String[] words = clause.split("\\s+");
-    if (words.length > 8) {
-      clause = String.join(" ", java.util.Arrays.copyOf(words, 8));
+    String text = sentence.text().strip().replaceAll("\\b(e\\.g|i\\.e|etc)\\.", "$1");
+    String clause = text.split("[;,:(]|\\.(?:\\s|$)", 2)[0].strip();
+    List<String> words = new ArrayList<>(List.of(clause.split("\\s+")));
+    // Too long for a line: up to the first word that opens a qualifier ("submitted by …"),
+    // never cut mid-phrase; none such within reach, no purpose.
+    if (words.size() > MOST_PURPOSE_WORDS) {
+      int cut = -1;
+      for (int i = 3; i < words.size() && i <= MOST_PURPOSE_WORDS; i++) {
+        if (QUALIFIERS.contains(words.get(i).toLowerCase(Locale.ROOT))) {
+          cut = i;
+          break;
+        }
+      }
+      if (cut < 0) {
+        return null;
+      }
+      words = words.subList(0, cut);
     }
+    clause = String.join(" ", words).replaceAll("\\b(e\\.g|i\\.e)\\b(?!\\.)", "$1.");
     if (clause.isEmpty()) {
       return null;
     }
@@ -1043,33 +1084,41 @@ final class Assembler {
       if (names.isEmpty()) {
         return new Text(List.of(), List.of());
       }
-      List<String> ids = facts(members.subList(0, Math.min(6, members.size())));
-      return new Text(List.of(TextRun.of("Holds " + listed(names) + "."), new Citation(ids)), ids);
+      List<String> ids = facts(members);
+      return new Text(
+          List.of(TextRun.of("Holds " + listedAtMost(names) + "."), new Citation(ids)), ids);
     }
     // A module's summary stands in for a unit with no sentence, never for one the judge rejected,
     // whose claims it may share (#751).
     if (!model.rejected(id, Types.RESPONSIBILITY) && model.summary(summarized(id)).isPresent()) {
       return summarizedDescription(id);
     }
+    if (!UNIT_TYPES.contains(id.type())) {
+      return new Text(List.of(), List.of());
+    }
     List<String> parts = new ArrayList<>();
     List<Fact> cited = new ArrayList<>();
     for (String[] kind :
         new String[][] {
-          {Types.CALLS_HTTP, "calls"}, {Types.USES_DATABASE, "uses"}, {Types.PUBLISHES, "sends to"}
+          {Types.CALLS_HTTP, "calls"},
+          {Types.USES_DATABASE, "uses"},
+          {Types.PUBLISHES, "sends to"},
+          {Types.CONSUMES, "receives from"}
         }) {
       SortedSet<String> to = new TreeSet<>();
       for (Fact link : model.linksOf(id, kind[0])) {
-        to.add(name(ArchitectureModel.object(link)));
-        if (cited.size() < 6) {
-          cited.add(link);
-        }
+        EntityId end = ArchitectureModel.object(link);
+        to.add(UNIT_TYPES.contains(end.type()) ? ReadableNames.of(name(end)) : name(end));
+        cited.add(link);
       }
       if (!to.isEmpty()) {
-        parts.add(kind[1] + " " + listed(to));
+        parts.add(kind[1] + " " + listedAtMost(to));
       }
     }
     if (parts.isEmpty()) {
-      return new Text(List.of(), List.of());
+      // Nothing it reaches: still not a blank box (#933).
+      return new Text(
+          List.of(TextRun.of("A deployable unit; what it does is not known.")), List.of());
     }
     List<String> ids = facts(cited);
     return new Text(
@@ -1077,6 +1126,18 @@ final class Assembler {
             TextRun.of("A deployable unit that " + listed(new ArrayList<>(parts)) + "."),
             new Citation(ids)),
         ids);
+  }
+
+  /** The types of a box the plain wording calls a deployable unit. */
+  private static final Set<String> UNIT_TYPES = Set.of(Types.SERVICE, Types.FRONTEND);
+
+  /** At most three names, the rest counted: "a, b, c and 4 others". */
+  private static String listedAtMost(java.util.Collection<String> names) {
+    List<String> list = new ArrayList<>(names);
+    if (list.size() <= 3) {
+      return listed(list);
+    }
+    return String.join(", ", list.subList(0, 3)) + " and " + (list.size() - 3) + " others";
   }
 
   /** The names as a sentence list: "a", "a and b", "a, b and c". */

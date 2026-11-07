@@ -13,8 +13,7 @@
     },
     "library-orders-lib" : {
       "kind" : "container",
-      "name" : "Orders lib",
-      "technicalName" : "orders-lib",
+      "name" : "orders-lib",
       "parent" : "service-orders",
       "tag" : "Library",
       "technology" : "Java, Spring Boot"

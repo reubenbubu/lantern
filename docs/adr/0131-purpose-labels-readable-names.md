@@ -22,12 +22,16 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
    records are about, never the list: routes as "Works with collections and cases" (each route's
    first path segment after `api` and versions), a gateway's as "Routes reports and jobs
    requests", screens as "Opens the registration screens", methods as the verbs their names start
-   with ("Approves, completes and finds"). The routes, queues and methods stay on the line's facts
-   and in the tables. A line merging several requests with different phrases and no majority
-   keeps ADR 0103's line intent (amendment for #810) or, failing that, this summary.
+   with ("Approves, completes and finds"), message keys by what they are about ("Delivers order
+   and refund messages"); at most three, the rest "and others", never "and N more". Path
+   segments that say nothing (`api`, versions, `internal`, `rest`, `public`) are skipped. The
+   routes, queues and methods stay on the line's facts and in the tables. A line merging several
+   requests or method calls with different phrases and no majority keeps ADR 0103's line intent
+   (amendment for #810) or, failing that, this summary; other lines the phrase most links state.
 2. **A person's line reads what they do.** With no intent for a frontend, it is the first clause
-   of Describe's sentence about the person, at most eight words, on the container and context
-   diagrams.
+   of Describe's sentence about the person, on the container and context diagrams. Over eight
+   words it ends before the first word that opens a qualifier ("submitted by …"), never mid-phrase;
+   with none such it falls back to the static label.
 3. **A label does not name the box it points to.** A closing phrase naming the end (its name, the
    name with dashes, dots or underscores as spaces, a kind noun the name ends with such as
    "gateway", or a product word of its technology such as PostgreSQL or Keycloak) is dropped when at
@@ -37,16 +41,18 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
    versions as #933 first asked: the composer sees both ends, and a prompt change would re-ask
    every stored answer for a rule a regular expression keeps.
 4. **No blank box.** A box whose sentence was rejected, or that has none, shows Lantern's plain
-   wording: a domain or area "Holds a, b and c.", a unit its module's summary when that was not
-   rejected, else "A deployable unit that calls X, uses Y and sends to Z." from its links, each
-   citing its facts. This amends ADR 0101's "a box without a sentence".
-5. **Readable names.** The C4 report draws a container whose name is a build's name of words
-   (`edge-gateway`, `customer-portal-bff`) in words ("Edge gateway", "Customer portal BFF":
-   acronyms and short vowel-less words in capitals), its page titled the same, and writes the
+   wording: a domain or area "Holds a, b, c and 4 others.", a unit its module's summary when that
+   was not rejected, else "A deployable unit that calls X, uses Y, sends to Z and receives from W."
+   from its links (at most three of each, units named in words), else "A deployable unit; what it
+   does is not known.", each citing its facts. This amends ADR 0101's "a box without a sentence".
+5. **Readable names.** The C4 report draws a service or frontend whose name is a build's name
+   (`edge-gateway`, `customer-portal-bff`, `billing`) in words ("Edge gateway", "Customer portal
+   BFF", "Billing": known acronyms in capitals), its page titled the same, and writes the
    build's name as the element's `technicalName` (an optional property of the report spec), shown
    small on the technology line and in the tables. Title-casing is the fallback; a readable name
    written with the description replaces it when a role provides one. A unit's database named by
-   a datasource key keeps only the key's telling words: "workorder (billing workorders)".
+   a datasource key keeps only the key's telling words: "workorder (billing workorders)". An
+   LLM-written readable name is #946.
 6. **The report's checks fail on each.** On the C4 report the quality report fails a line labelled
    with routes or "and N more", a label naming the box it points to, a service or frontend whose
    name stays a build's name once made readable, and a page or box name over 45 characters

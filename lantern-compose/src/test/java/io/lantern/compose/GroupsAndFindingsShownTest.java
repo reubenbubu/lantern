@@ -71,8 +71,7 @@ class GroupsAndFindingsShownTest {
             .stream()
             .map(i -> i instanceof io.lantern.core.document.TextRun t ? t.text() : "")
             .collect(java.util.stream.Collectors.joining());
-    assertThat(said)
-        .isEqualTo("Holds U1 service, U3 service, U5 service, U7 service and U9 service.");
+    assertThat(said).isEqualTo("Holds U1 service, U3 service, U5 service and 2 others.");
   }
 
   @Test
