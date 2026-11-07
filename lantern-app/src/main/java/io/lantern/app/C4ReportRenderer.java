@@ -178,6 +178,44 @@ public final class C4ReportRenderer {
   /** The catalogues after a diagram: the element kinds each lists, its title and its columns. */
   private record Catalogue(String suffix, Set<String> kinds, String title, List<String> columns) {}
 
+  /** The entity types drawn as containers whose build names may be technical (#933). */
+  private static final Set<String> CONTAINER_TYPES = Set.of("service", "frontend");
+
+  /** Acronyms a technical name may hold, written in capitals when made readable. */
+  private static final Set<String> ACRONYMS =
+      Set.of("api", "bff", "ui", "sms", "sla", "crm", "iot", "sso", "id", "db", "mq", "ai", "ml");
+
+  private static final java.util.regex.Pattern TECHNICAL =
+      java.util.regex.Pattern.compile("[a-z0-9]+(?:[-_][a-z0-9]+)+");
+
+  /**
+   * A container's name as words (#933): "edge-gateway" is "Edge gateway", "customer-portal-bff" is
+   * "Customer portal BFF"; a name already in words, or not a container, as it is.
+   */
+  static String readable(String kind, String name) {
+    if (!"container".equals(kind) || name == null || !TECHNICAL.matcher(name).matches()) {
+      return name;
+    }
+    String[] words = name.split("[-_]");
+    StringBuilder out = new StringBuilder();
+    for (String word : words) {
+      if (word.isEmpty()) {
+        continue;
+      }
+      String shown =
+          ACRONYMS.contains(word) || (word.length() <= 4 && !word.matches(".*[aeiouy].*"))
+              ? word.toUpperCase(java.util.Locale.ROOT)
+              : word;
+      if (out.isEmpty()) {
+        shown = Character.toUpperCase(shown.charAt(0)) + shown.substring(1);
+      } else {
+        out.append(' ');
+      }
+      out.append(shown);
+    }
+    return out.toString();
+  }
+
   private static final List<String> DEFAULT_COLUMNS = List.of("name", "description", "technology");
 
   private static final List<Catalogue> CATALOGUES =
@@ -764,7 +802,13 @@ public final class C4ReportRenderer {
       ObjectNode node = MAPPER.createObjectNode();
       String kind = element.kind();
       node.put("kind", kind);
-      node.put("name", entity.name());
+      // A container named as its build names it reads as words, with that name small beneath
+      // (#933).
+      String readable = readable(kind, entity.name());
+      node.put("name", readable);
+      if (!readable.equals(entity.name())) {
+        node.put("technicalName", entity.name());
+      }
       EntityId parent = shownParent(element);
       if (parent != null) {
         node.put("parent", elementIds.find(parent.toString()));
@@ -793,11 +837,24 @@ public final class C4ReportRenderer {
       return node;
     }
 
+    /** A page's title: a container's page named as its box is (#933). */
+    private String pageTitle(PagePlan page) {
+      String title = page.section.title();
+      EntityId about = page.section.entity();
+      if (about != null && entities.containsKey(about)) {
+        DocumentEntity entity = entities.get(about);
+        if (title.equals(entity.name()) && CONTAINER_TYPES.contains(about.type())) {
+          return readable("container", title);
+        }
+      }
+      return title;
+    }
+
     private ObjectNode pageNode(PagePlan page) {
       ObjectNode node = MAPPER.createObjectNode();
       node.put("id", page.id);
       node.put("level", page.level);
-      node.put("title", page.section.title());
+      node.put("title", pageTitle(page));
       if (page.parent != null) {
         node.put("parent", page.parent.id);
       }

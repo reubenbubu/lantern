@@ -125,7 +125,7 @@ class C4ReportRendererTest {
     assertThat(containers.get("relationships").toString())
         .contains(
             "{\"from\":\"service-com-example-app\",\"to\":\"external-system-pay-example-com\","
-                + "\"label\":\"Calls POST /charges (only with the Spring profile prod)\","
+                + "\"label\":\"Works with charges (only with the Spring profile prod)\","
                 + "\"technology\":\"HTTPS\"}");
     // Each kind has its own catalogue; decision records become a decisions section, on a
     // documentation page of its own: C4 pages hold only C4 content (ADR 0086).
@@ -150,6 +150,41 @@ class C4ReportRendererTest {
         .isEqualTo(
             "{\"id\":\"ADR 1\",\"title\":\"Use Kafka\",\"body\":\"Orders go to Kafka.\\n\\n"
                 + "**Rationale:** Not recorded.\",\"status\":\"Accepted\"}");
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "container, edge-gateway, Edge gateway",
+    "container, customer-portal-bff, Customer portal BFF",
+    "container, sms_sender, SMS sender",
+    "container, Billing, Billing",
+    "container, billing, billing",
+    "container, com.example.app, com.example.app",
+    "database, orders-db, orders-db",
+  })
+  void aContainerNamedAsItsBuildNamesItReadsAsWords(String kind, String name, String shown) {
+    assertThat(C4ReportRenderer.readable(kind, name)).isEqualTo(shown);
+  }
+
+  @Test
+  void aBoxWithAReadableNameKeepsItsTechnicalNameAndItsPageIsNamedAsTheBox() throws IOException {
+    Document document =
+        DocumentJson.read(Files.readString(COMPOSED.resolve("greeting-service.json")));
+
+    JsonNode data = C4ReportRenderer.toJson(document).data();
+
+    JsonNode renamed =
+        data.get("elements")
+            .valueStream()
+            .filter(e -> e.has("technicalName"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(renamed.get("kind").asString()).isEqualTo("container");
+    assertThat(renamed.get("name").asString())
+        .isEqualTo(C4ReportRenderer.readable("container", renamed.get("technicalName").asString()))
+        .isNotEqualTo(renamed.get("technicalName").asString());
+    assertThat(data.get("pages").findValuesAsString("title"))
+        .doesNotContain(renamed.get("technicalName").asString());
   }
 
   @Test

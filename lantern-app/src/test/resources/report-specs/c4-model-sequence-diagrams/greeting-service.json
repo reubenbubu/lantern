@@ -9,7 +9,8 @@
   "elements" : {
     "service-com-example-greeting-greeting-service" : {
       "kind" : "container",
-      "name" : "greeting-service",
+      "name" : "Greeting service",
+      "technicalName" : "greeting-service",
       "parent" : "system-snapshot",
       "tag" : "Service",
       "technology" : "Java 21",
