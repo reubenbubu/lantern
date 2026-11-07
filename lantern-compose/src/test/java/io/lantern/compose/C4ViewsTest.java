@@ -804,6 +804,49 @@ class C4ViewsTest {
   }
 
   @Test
+  void linesIntoOneComponentKeepTheIntentDescribeStoredForThem() {
+    String count = "method:com.example.domain.JpaOrders#countOverdue()";
+    facts
+        .relate("shop", "type:com.example.domain.JpaOrders", "CONTAINS", count)
+        .relate("shop", "method:com.example.web.Jobs#run()", "CALLS", count);
+    List<Fact> derived = new ArrayList<>(io.lantern.derive.Derivation.withModel(facts.list(), 1));
+    List<Fact> lines =
+        derived.stream()
+            .filter(
+                f ->
+                    f.predicate().equals(Types.COMPONENT_LINK)
+                        && f.object().value().endsWith("type:com.example.domain.JpaOrders"))
+            .toList();
+    assertThat(lines).hasSizeGreaterThan(1);
+    // Describe words both lines alike (ADR 0103, #739).
+    for (Fact line : lines) {
+      derived.add(
+          io.lantern.harness.LlmFacts.text(
+              io.lantern.summarize.describe.DescribeRole.UNITS,
+              "test/test",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              line.subject(),
+              Types.INTENT,
+              line.claimId() != null ? line.claimId() : line.id(),
+              "Looks up the stored orders",
+              List.of(line),
+              io.lantern.harness.LlmFacts.Basis.INFERRED,
+              1));
+    }
+
+    Document document =
+        new Composer("1")
+            .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, derived);
+    Diagram diagram = block(section(document, "components").sections().getFirst(), Diagram.class);
+
+    // #944: what the model wrote is kept, never replaced to tell the lines apart.
+    assertThat(edges(diagram))
+        .filteredOn(e -> e.contains("-> type:com.example.domain.JpaOrders:"))
+        .hasSizeGreaterThan(1)
+        .allMatch(e -> e.contains(": Looks up the stored orders"));
+  }
+
+  @Test
   void aMethodsNameSaysWhatItDoes() {
     assertThat(C4Views.described("requestDiagnosticSnapshot"))
         .contains("Requests diagnostic snapshot");
