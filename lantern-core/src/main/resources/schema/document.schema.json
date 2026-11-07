@@ -124,6 +124,10 @@
         "group": {
           "description": "The domain or feature area this entity belongs to, an entity of the document; a report nests the entity's page under its group's (#931).",
           "$ref": "#/$defs/entityId"
+        },
+        "readableName": {
+          "description": "The name in words a role wrote for an entity whose name is a build's name, such as \"Edge gateway\" for edge-gateway; a report shows it with the name small beneath (#946).",
+          "$ref": "#/$defs/nonBlankText"
         }
       }
     },

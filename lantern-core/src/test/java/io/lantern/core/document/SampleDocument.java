@@ -348,7 +348,9 @@ final class SampleDocument {
                 facts(BUILDS, READS),
                 null,
                 "Library",
-                ORDERS),
+                ORDERS,
+                // A name in words a role wrote for it (#946).
+                "Order rules"),
             new DocumentEntity(
                 DB, "orders-db", null, List.of(), List.of(), DocumentEntity.Kind.DATABASE, null)),
         List.of(READS, BUILDS),

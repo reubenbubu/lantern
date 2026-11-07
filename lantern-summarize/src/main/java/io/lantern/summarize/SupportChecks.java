@@ -127,7 +127,7 @@ public final class SupportChecks {
 
   /**
    * The kinds of text judged whatever the sample, as risks are: each system's purpose and key fact,
-   * and every group's name (the decision of 4 Nov 2026 on #751).
+   * and every name: a group's (the decision of 4 Nov 2026 on #751) and a unit's in words (#946).
    */
   static final Set<String> ALWAYS =
       Set.of(Types.INVESTIGATED_RISK, Types.PURPOSE, Types.KEY_FACT, Types.DISPLAY_NAME);

@@ -20,6 +20,9 @@ import java.util.Objects;
  *     as what the diagram's level makes it (a system, container or component)
  * @param tag the name of its type a reader sees beside its name, such as {@code Topic}, or {@code
  *     null} for none
+ * @param group the domain or feature area it belongs to, or {@code null}
+ * @param readableName the name in words a role wrote for an entity whose name is a build's name,
+ *     such as "Edge gateway" for {@code edge-gateway}, or {@code null} for none (#946)
  */
 public record DocumentEntity(
     EntityId id,
@@ -29,7 +32,8 @@ public record DocumentEntity(
     List<String> facts,
     Kind kind,
     String tag,
-    EntityId group) {
+    EntityId group,
+    String readableName) {
 
   public DocumentEntity {
     Objects.requireNonNull(id, "id");
@@ -43,6 +47,20 @@ public record DocumentEntity(
     if (id.equals(group)) {
       throw new IllegalArgumentException("Entity " + id + " cannot be its own group");
     }
+    Checks.optionalText(readableName, "entity readable name");
+  }
+
+  /** An entity with no readable name of its own. */
+  public DocumentEntity(
+      EntityId id,
+      String name,
+      EntityId parent,
+      List<Inline> description,
+      List<String> facts,
+      Kind kind,
+      String tag,
+      EntityId group) {
+    this(id, name, parent, description, facts, kind, tag, group, null);
   }
 
   /** An entity in no domain or feature area. */
@@ -54,13 +72,13 @@ public record DocumentEntity(
       List<String> facts,
       Kind kind,
       String tag) {
-    this(id, name, parent, description, facts, kind, tag, null);
+    this(id, name, parent, description, facts, kind, tag, null, null);
   }
 
   /** An entity whose kind follows from the level it is shown at, with no tag. */
   public DocumentEntity(
       EntityId id, String name, EntityId parent, List<Inline> description, List<String> facts) {
-    this(id, name, parent, description, facts, null, null, null);
+    this(id, name, parent, description, facts, null, null, null, null);
   }
 
   /** What an entity's type makes it, whatever diagram shows it. */

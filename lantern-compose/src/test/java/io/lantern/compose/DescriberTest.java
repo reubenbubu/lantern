@@ -195,6 +195,7 @@ class DescriberTest {
     if (body.startsWith("The deployable unit shop-app")) {
       return """
           {"unit": {"text": "Takes and lists the shop's orders for its web customers.", "cites": ["F1", "F2"]},
+           "name": {"text": "Shop orders", "cites": ["F1"]},
            "components": {"C1": {"text": "Lists the orders the web shop has taken so far.", "cites": [%s]}},
            "interactions": {"%s": {"text": "Charges customers' cards", "cites": ["F%s"]},
                             "%s": {"text": "Announces new orders.", "cites": ["F%s"]}}}"""
@@ -481,6 +482,7 @@ class DescriberTest {
         .startsWith(
             "<items>\n<item id=\"I1\">\n"
                 + "The deployable unit shop-app, built with Spring Boot 3.5.0 / Java 21.\n"
+                + "Its name is a build's name: also write its name.\n"
                 + "Facts that make it a unit:\n<facts>\n"
                 + "[F1] service:com.example:app application-name \"shop-app\" (shop:pom.xml)\n"
                 + "[F2] service:com.example:app deployable-unit \"spring-boot\" (shop:pom.xml)\n")
@@ -1708,6 +1710,29 @@ class DescriberTest {
     assertThat(text(worker.description()))
         .endsWith("Stores orders and ships them.")
         .doesNotStartWith(" ");
+  }
+
+  @Test
+  void aNameWithoutTheUnitsSentenceIsNoResponsibility() {
+    // The model may leave a unit's sentence out; its name never stands in for it (#946).
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(
+                request -> {
+                  String answer = answer(request);
+                  return answer.contains("\"name\"")
+                      ? answer.replaceFirst(
+                          "\"unit\": \\{\"text\": \"[^\"]*\", \"cites\": \\[[^\\]]*\\]\\},\\s*", "")
+                      : answer;
+                });
+    Describer.Result result = describe(fake);
+
+    assertThat(result.unknown()).contains(APP.toString());
+    assertThat(fake.sent())
+        .extracting(s -> s.request().messages().getFirst().text())
+        .filteredOn(p -> !p.contains("The deployable unit shop-app"))
+        .isNotEmpty()
+        .noneMatch(p -> p.contains("Shop orders"));
   }
 
   @Test

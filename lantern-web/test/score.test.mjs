@@ -193,6 +193,13 @@ test('elements match by kind and name or alias; precision counts the whole repor
   });
 });
 
+test('a box shown by a name in words matches by the name its build gives it (#946)', () => {
+  const renamed = structuredClone(reference);
+  renamed.elements.orders = { ...renamed.elements.orders, name: 'Order taking', technicalName: 'order-service' };
+  const s = score(renamed, reference, {});
+  assert.equal(s.elements.containers.matched, 2);
+});
+
 test('an element the alias table allows in either kind matches in both, and counts as the reference kind', () => {
   const eitherKind = { eitherKind: { orders: ['external'] } };
   const asExternal = {

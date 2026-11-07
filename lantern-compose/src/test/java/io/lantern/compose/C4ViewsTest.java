@@ -134,8 +134,11 @@ class C4ViewsTest {
     // #933: never "Calls approve, complete and 2 more".
     assertThat(C4Views.actions(List.of("approve", "complete", "findOpen", "reviewQueue")))
         .contains("Approves, completes and finds");
+    // One verb says what it is done to, never the bare verb (#946's real run).
     assertThat(C4Views.actions(List.of("findByCustomerIdAndActiveTrue", "findByIdAndActiveTrue")))
-        .contains("Finds");
+        .hasValueSatisfying(t -> assertThat(t).startsWith("Finds by ").isNotEqualTo("Finds"));
+    assertThat(C4Views.actions(List.of("findOverdue", "findByStatus", "findByCustomer")))
+        .contains("Finds overdue, by status and others");
     assertThat(C4Views.actions(List.of("amountReserved", "create", "query")))
         .contains("Creates and queries");
     // None starts with a verb, or a detail is not a method: left to the line's other wording.
@@ -775,6 +778,92 @@ class C4ViewsTest {
         .contains(
             "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads orders [JDBC]",
             "type:com.example.web.Jobs -> database:db:5432/shop: Reads unpaid invoices [JDBC]");
+  }
+
+  @Test
+  void aUnitCarriesTheNameDescribeWroteForItUnlessTheJudgeRejectedIt() {
+    Fact packaging = facts.find("service:com.example:app", "application-name");
+    Fact named =
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("service:com.example:app"),
+            Types.DISPLAY_NAME,
+            io.lantern.harness.LlmFacts.C4,
+            "Shop orders",
+            List.of(packaging),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1);
+    List<Fact> held = new ArrayList<>(facts.list());
+    held.add(named);
+    List<Fact> rejected = new ArrayList<>(facts.list());
+    rejected.add(
+        io.lantern.harness.LlmFacts.withSupport(
+            named, io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED));
+
+    // #946: the name in words beside the build's, which stays the entity's name.
+    DocumentEntity app = entity(system(held), "service:com.example:app");
+    assertThat(app.name()).isEqualTo("shop-app");
+    assertThat(app.readableName()).isEqualTo("Shop orders");
+    assertThat(entity(system(rejected), "service:com.example:app").readableName()).isNull();
+  }
+
+  @Test
+  void twoBoxesNeverShowOneName() {
+    Fact packaging = facts.find("service:com.example:app", "application-name");
+    java.util.function.BiFunction<String, String, Fact> named =
+        (unit, name) ->
+            io.lantern.harness.LlmFacts.text(
+                io.lantern.summarize.describe.DescribeRole.UNITS,
+                "test/test",
+                "a".repeat(64),
+                EntityId.parse(unit),
+                Types.DISPLAY_NAME,
+                io.lantern.harness.LlmFacts.C4,
+                name,
+                List.of(packaging),
+                io.lantern.harness.LlmFacts.Basis.INFERRED,
+                1);
+    List<Fact> same = new ArrayList<>(facts.list());
+    same.add(named.apply("service:com.example:app", "Order handling"));
+    same.add(named.apply("service:com.example:worker", "order handling"));
+    List<Fact> another = new ArrayList<>(facts.list());
+    another.add(named.apply("service:com.example:app", "Worker"));
+
+    // #946: a written name two boxes would show is dropped for both; they read as built.
+    Document both = system(same);
+    assertThat(entity(both, "service:com.example:app").readableName()).isNull();
+    assertThat(entity(both, "service:com.example:worker").readableName()).isNull();
+    assertThat(entity(system(another), "service:com.example:app").readableName()).isNull();
+  }
+
+  @Test
+  void aWrittenNameThatOnlyRepeatsTheBuildsWordsGivesWayToTheReadableOne() {
+    Fact packaging = facts.find("service:com.example:app", "application-name");
+    List<Fact> held = new ArrayList<>(facts.list());
+    held.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("service:com.example:app"),
+            Types.DISPLAY_NAME,
+            io.lantern.harness.LlmFacts.C4,
+            "Shop App",
+            List.of(packaging),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    // #946: "Shop App" says no more than shop-app; the box title-cases it, acronyms kept.
+    assertThat(entity(system(held), "service:com.example:app").readableName()).isNull();
+  }
+
+  private static DocumentEntity entity(Document document, String id) {
+    return document.entities().stream()
+        .filter(e -> e.id().toString().equals(id))
+        .findFirst()
+        .orElseThrow();
   }
 
   @Test

@@ -1025,10 +1025,11 @@ Describe words the responsibility of every element and the intent of every inter
 ```text
 Task: describe deployable units. Each item in <items> is one deployable unit with the facts that make it a unit, what its README claims, its components [C1]... (each with the start of its main type's code), its interactions [R1]... with other containers, between its own components and with the people who use it, and the summaries of its code.
 For the unit and for each component, write a responsibility sentence: one plain sentence of 10 to 22 words saying what it is responsible for, in words a non-engineer understands. Say what it does for the system: what it decides, owns or protects. Do not restate its name or its kind. It is shown on its own beside the part, so open it with what the part does, usually a verb ("Keeps each customer's cart until checkout.", "Sends password-reset emails to users."); never open with a pronoun (It, This, These) or with its kind ("The service…", "A database that…"). Do not open by echoing its name: for a part called PasswordResetService, write "Emails a one-time code so a user can choose a new password", not "Handles password resets". Use the code's own terms for what it handles (passwords, organizations, bookings) rather than a vaguer word.
+When the item says the unit's name is a build's name (such as "edge-gateway" or "customer-portal-bff"), also write its name: 1 to 4 plain words a reader would call it, the first word capitalized, such as "Edge gateway" or "Customer portal backend"; keep the build's own words where they already say what it is, and expand an abbreviation only where the facts show what it stands for.
 For each interaction, write an intent phrase: 4 to 7 words, starting with a verb, saying what the source does with the target and why, such as "Looks up product prices", "Publishes new orders for shipping" or "Checks a member's organization role". Never start it with "uses", "calls", "depends on", "connects to", "talks to", "communicates with" or "interacts with", and never name a protocol, which is shown separately.
 Leave out any unit, component or interaction whose facts and code do not show its responsibility or intent. Cite facts [F..], code excerpts [E..] and summaries [S..]; [C..] and [R..] are keys for your answer, not citations. A citation is the bare reference, such as "F2" or "S1"; never add line numbers or other words to it.
 Answer with the JSON object alone. Check that every bracket you open is closed once, and that nothing follows the object.
-Before you answer, check: each responsibility opens with what the part does and has 10 to 22 words; each intent phrase starts with a verb, says what this interaction does rather than repeating another's phrase, and has 4 to 7 words; each citation is a bare reference from the item.
+Before you answer, check: each responsibility opens with what the part does and has 10 to 22 words; a name, where asked, has 1 to 4 words; each intent phrase starts with a verb, says what this interaction does rather than repeating another's phrase, and has 4 to 7 words; each citation is a bare reference from the item.
 ```
 
 **Role instructions, elements** (block 2):
@@ -1052,6 +1053,7 @@ Units:
  "type": "object", "required": ["items"], "properties": {"items": {"type": "object", "additionalProperties": {
    "type": "object", "additionalProperties": false, "properties": {
      "unit": {"$ref": "#/$defs/text"},
+     "name": {"$ref": "#/$defs/text"},
      "components": {"type": "object", "additionalProperties": {"$ref": "#/$defs/text"}},
      "interactions": {"type": "object", "additionalProperties": {"$ref": "#/$defs/text"}}}}}}}
 ```

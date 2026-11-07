@@ -130,7 +130,8 @@ final class Assembler {
             facts(facts),
             kind(id),
             groupTag(id),
-            groupOf.get(id)));
+            groupOf.get(id),
+            readableName(id)));
     adding.remove(id);
     if (described.contains(id)
             && (model.summary(summarized(id)).isPresent() || responsibility(id) != null)
@@ -175,6 +176,61 @@ final class Assembler {
     }
     SortedSet<EntityId> modules = model.parts(id, Types.MODULE);
     return modules.isEmpty() ? id : modules.first();
+  }
+
+  /**
+   * The name in words Describe wrote for a unit or frontend named as its build names it, unless the
+   * support judge rejected it (#946); {@code null} for none, when the report title-cases.
+   */
+  String readableName(EntityId id) {
+    if (!(id.type().equals(Types.SERVICE) || id.type().equals(Types.FRONTEND))) {
+      return null;
+    }
+    String name = written(id);
+    // Two boxes never share a name: a written name another unit's box would also show is dropped
+    // for each of them, which then read as their builds name them (#946).
+    return name == null || shownBy(name.toLowerCase(Locale.ROOT)) > 1 ? null : name;
+  }
+
+  /** The name Describe wrote for a unit, unless rejected or its build's name; or null. */
+  private String written(EntityId id) {
+    String name = model.displayName(id).orElse(null);
+    if (name == null || name.isBlank() || model.rejected(id, Types.DISPLAY_NAME)) {
+      return null;
+    }
+    // A name of the build's own words only ("Api gateway" for api-gateway) says nothing more, and
+    // title-casing writes them better, acronyms kept (#946).
+    return words(name).equals(words(names.name(id))) ? null : name;
+  }
+
+  private static String words(String name) {
+    return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", " ").strip();
+  }
+
+  /** How many service and frontend boxes would show the name, written or title-cased. */
+  private long shownBy(String name) {
+    if (shownNames == null) {
+      shownNames = new HashMap<>();
+      for (String type : List.of(Types.SERVICE, Types.FRONTEND)) {
+        for (EntityId unit : model.entities(type)) {
+          String written = written(unit);
+          shownNames.merge(
+              (written != null ? written : ReadableNames.of(names.name(unit)))
+                  .toLowerCase(Locale.ROOT),
+              1L,
+              Long::sum);
+        }
+      }
+    }
+    return shownNames.getOrDefault(name, 0L);
+  }
+
+  private Map<String, Long> shownNames;
+
+  /** The name a unit's box shows: the name Describe wrote, else its name made readable. */
+  String shownName(EntityId id) {
+    String readable = readableName(id);
+    return readable != null ? readable : ReadableNames.of(name(id));
   }
 
   /**
@@ -759,7 +815,8 @@ final class Assembler {
               entity.facts(),
               entity.kind(),
               entity.tag(),
-              entity.group()));
+              entity.group(),
+              entity.readableName()));
     }
     return List.copyOf(entities.values());
   }
@@ -1094,7 +1151,7 @@ final class Assembler {
     if (id.type().equals(Types.GROUP)) {
       List<Fact> members = model.groupMembers(id);
       SortedSet<String> names = new TreeSet<>();
-      members.forEach(f -> names.add(ReadableNames.of(name(named(ArchitectureModel.object(f))))));
+      members.forEach(f -> names.add(shownName(named(ArchitectureModel.object(f)))));
       if (names.isEmpty()) {
         return new Text(List.of(), List.of());
       }
@@ -1122,7 +1179,7 @@ final class Assembler {
       SortedSet<String> to = new TreeSet<>();
       for (Fact link : model.linksOf(id, kind[0])) {
         EntityId end = ArchitectureModel.object(link);
-        to.add(UNIT_TYPES.contains(end.type()) ? ReadableNames.of(name(end)) : name(end));
+        to.add(UNIT_TYPES.contains(end.type()) ? shownName(end) : name(end));
         cited.add(link);
       }
       if (!to.isEmpty()) {

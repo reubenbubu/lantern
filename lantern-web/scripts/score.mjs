@@ -218,12 +218,16 @@ const UNKNOWN_CALLER = 'Unknown caller';
 /** The quality check the composer fails when an Unknown caller line cites a reached entry point. */
 const UNKNOWN_CALLER_CHECK = 'Every Unknown caller line points to entry points nothing in the set reaches';
 
+/** An element as listings show it: by the build's name when it has one (#946). */
+const listed = (element) => element?.technicalName ?? element?.name;
+
 /**
  * The Unknown caller's lines a report's diagrams draw (#766), once per element they reach, with
  * the entry points the line names; and whether the report fails its check of them.
  */
 export function unknownCallersOf(data) {
-  const name = (id) => data.elements?.[id]?.name ?? id;
+  // Elements by the build's name, so a name in words does not change the listing (#946).
+  const name = (id) => data.elements?.[id]?.technicalName ?? data.elements?.[id]?.name ?? id;
   const lines = new Map();
   for (const { section } of diagrams(data)) {
     for (const r of section.relationships ?? []) {
@@ -373,7 +377,8 @@ function matchElements(report, reference, aliases) {
   }
   const matched = new Map();
   for (const [id, element] of Object.entries(report.elements)) {
-    const name = normalizeName(element.name);
+    // A box shown by a name in words is matched by the name its build gives it (#946).
+    const name = normalizeName(element.technicalName ?? element.name);
     const pair = sameName.get(`${element.kind}:${name}`) ?? [];
     if (pair.length > 1) {
       const ref = pair.find((r) => exchange(reference.elements[r]) === exchange(element));
@@ -579,7 +584,7 @@ export function qualityChecks(data, limits = diagramLimits(data)) {
     }
     for (const r of section.relationships) {
       const label = String(r.label ?? '').trim();
-      const name = `${data.elements[r.from]?.name} -> ${data.elements[r.to]?.name}`;
+      const name = `${listed(data.elements[r.from])} -> ${listed(data.elements[r.to])}`;
       // Empty, or opening only with a generic verb, such as the fallback "Calls write" (#742).
       if (isGenericLabel(label)) {
         failures['line-labels'].push(`${where}: ${name}`);
@@ -859,7 +864,7 @@ export function llmMarks(data, infrastructure) {
       for (const r of section.relationships ?? []) {
         if (!r.llm) continue;
         lines++;
-        const line = `${elements[r.from]?.name ?? r.from} -> ${elements[r.to]?.name ?? r.to}`;
+        const line = `${listed(elements[r.from]) ?? r.from} -> ${listed(elements[r.to]) ?? r.to}`;
         if (FOUND_PREFIX.test(r.label ?? '')) prefixed.push(`line ${line}`);
         const word = named(`${r.to} ${elements[r.to]?.name ?? ''} ${r.label ?? ''}`);
         if (word) infrastructureLines.push(`${line} (${word})`);

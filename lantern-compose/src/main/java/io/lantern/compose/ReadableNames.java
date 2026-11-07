@@ -7,7 +7,8 @@ import java.util.regex.Pattern;
 /**
  * A service's or frontend's name in words, for a reader (#933): "edge-gateway" is "Edge gateway",
  * "customer-portal-bff" is "Customer portal BFF". The C4 report draws it so, the build's name small
- * beneath; title-casing is the fallback until a readable name comes with the description.
+ * beneath. It is the fallback where Describe wrote no name in words, or one that was rejected
+ * (#946).
  */
 public final class ReadableNames {
 

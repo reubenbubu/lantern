@@ -235,6 +235,26 @@ class FakeLlmConfigurationTest {
                 + FakeLlmConfiguration.INTENT
                 + "\","
                 + " \"cites\": [\"F1\"]}}}, \"I2\": {}, \"I3\": {\"omitted\": true}}}");
+    // A unit named as its build names it is also given a name (#946).
+    assertThat(
+            describe(
+                "Task: describe deployable units. More.",
+                """
+                <items>
+                <item id="I1">
+                The deployable unit shop-app.
+                Its name is a build's name: also write its name.
+                <facts>
+                [F1] service:a:shop-app deployable-unit "spring-boot" (shop:pom.xml)
+                </facts>
+                </item>
+                </items>"""))
+        .isEqualTo(
+            "{\"items\": {\"I1\": {\"unit\": {\"text\": \""
+                + FakeLlmConfiguration.RESPONSIBILITY
+                + "\", \"cites\": [\"F1\"]}, \"name\": {\"text\": \""
+                + FakeLlmConfiguration.UNIT_NAME
+                + "\", \"cites\": [\"F1\"]}}}}");
     assertThat(
             describe(
                 "Task: describe the elements the units use. More.",

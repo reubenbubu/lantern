@@ -41,6 +41,30 @@
       ]
     },
     {
+      "name": "name",
+      "kind": "name",
+      "answer": "^name$",
+      "facts": {
+        "predicate": "display-name",
+        "subject": "^(service|frontend):"
+      },
+      "words": {
+        "requested": [
+          1,
+          4
+        ],
+        "stated": "its name: 1 to 4 plain words",
+        "restated": [
+          "a name, where asked, has 1 to 4 words;"
+        ]
+      },
+      "cites": [
+        "F",
+        "E",
+        "S"
+      ]
+    },
+    {
       "name": "intent",
       "kind": "intent",
       "answer": "^interactions\\.[A-Za-z0-9]+$",

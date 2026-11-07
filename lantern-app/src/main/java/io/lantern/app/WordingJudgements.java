@@ -76,7 +76,12 @@ final class WordingJudgements {
               ? Optional.empty()
               : Optional.of("intent of a line drawn from a " + type.replace('-', ' '));
       case Types.KEY_FACT -> Optional.of("the most important fact about the system");
-      case Types.DISPLAY_NAME -> Optional.of("name of a group of components");
+      // Describe names a service or frontend; Name groups a group (#946).
+      case Types.DISPLAY_NAME ->
+          Optional.of(
+              type.equals(Types.GROUP)
+                  ? "name of a group of components"
+                  : "name of a " + type.replace('-', ' '));
       default -> Optional.empty();
     };
   }
