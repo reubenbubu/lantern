@@ -358,6 +358,10 @@ class FakeLlmConfiguration {
       if (!body.contains("say nothing about the unit itself")) {
         fields.add("\"unit\": " + cite.formatted(RESPONSIBILITY));
       }
+      // A unit named as its build names it gets a placeholder name in words (#946).
+      if (body.contains("Its name is a build's name")) {
+        fields.add("\"name\": " + cite.formatted(UNIT_NAME));
+      }
       List<String> components = new ArrayList<>();
       List<String> interactions = new ArrayList<>();
       Matcher key = KEY.matcher(body);
@@ -379,6 +383,9 @@ class FakeLlmConfiguration {
     }
     return "{\"items\": {" + String.join(", ", entries) + "}}";
   }
+
+  /** The name in words the fake gives every unit Describe asks to name (#946). */
+  static final String UNIT_NAME = "{{placeholder: unit name}}";
 
   /** The name the fake gives every group Name groups asks about. */
   static final String GROUP_NAME = "{{placeholder: group name}}";
