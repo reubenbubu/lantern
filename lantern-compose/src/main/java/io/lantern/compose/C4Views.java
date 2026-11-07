@@ -38,6 +38,8 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The C4 context, container and component diagrams of a scope, by the definitions of {@code
@@ -386,6 +388,66 @@ final class C4Views {
     return new ArrayList<>(about);
   }
 
+  /**
+   * The ways a label may name a line's end, which the line already points to (#933): its name, the
+   * name with dashes as spaces, and each word of its technology that names a product (PostgreSQL,
+   * Redis, Keycloak, Kafka), not a version or a generic word.
+   */
+  private List<String> endNames(EntityId end) {
+    java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+    String name = assembler.name(end);
+    if (name != null && !name.isBlank()) {
+      names.add(name);
+      names.add(name.replace('-', ' '));
+    }
+    String technology = elements.technology(end);
+    if (technology != null) {
+      for (String part : technology.split("[/,·()]")) {
+        String word = part.strip().split("\\s+")[0];
+        if (word.length() > 2
+            && Character.isUpperCase(word.charAt(0))
+            && !GENERIC_TECHNOLOGY.contains(word.toLowerCase(Locale.ROOT))) {
+          names.add(word);
+        }
+      }
+    }
+    return new ArrayList<>(names);
+  }
+
+  /** Words of a technology line that say what kind of thing it is, not which product. */
+  private static final Set<String> GENERIC_TECHNOLOGY =
+      Set.of("java", "spring", "boot", "container", "service", "topic", "queue", "exchange", "web");
+
+  /**
+   * The label without a closing phrase that names the line's other end ("Stores sessions in Redis"
+   * into Redis is "Stores sessions"), as long as at least two words are left (#933).
+   */
+  static String withoutEnd(String label, List<String> names) {
+    if (label == null || names.isEmpty()) {
+      return label;
+    }
+    StringBuilder alternatives = new StringBuilder();
+    names.stream()
+        .filter(n -> !n.isBlank())
+        .sorted(java.util.Comparator.comparingInt(String::length).reversed())
+        .forEach(
+            n -> alternatives.append(alternatives.isEmpty() ? "" : "|").append(Pattern.quote(n)));
+    Matcher m =
+        Pattern.compile(
+                "\\s+(?:in|into|to|through|via|against|from|with|on|at|using|onto)\\s+"
+                    + "(?:the\\s+|its\\s+|a\\s+)?(?:"
+                    + alternatives
+                    + ")(?:'s)?(?:\\s+(?:database|cache|store|topic|queue|exchange|server|service"
+                    + "|gateway|registry|instance|broker))?\\s*\\.?$",
+                Pattern.CASE_INSENSITIVE)
+            .matcher(label);
+    if (!m.find()) {
+      return label;
+    }
+    String kept = label.substring(0, m.start()).strip();
+    return kept.split("\\s+").length >= 2 ? kept : label;
+  }
+
   /** A phrase's first letter in lower case, unless it starts an acronym or a name in capitals. */
   static String lowerFirst(String phrase) {
     if (phrase.length() > 1
@@ -467,7 +529,7 @@ final class C4Views {
                 Assembler.edgeId(ids, edge.from, edge.relationship, edge.to),
                 edge.from,
                 edge.to,
-                edge.label(),
+                withoutEnd(edge.label(), endNames(edge.to)),
                 technology,
                 edge.relationship,
                 edge.always ? List.of() : List.copyOf(edge.profiles),

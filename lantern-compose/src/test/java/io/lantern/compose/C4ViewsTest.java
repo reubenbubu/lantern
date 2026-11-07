@@ -113,6 +113,28 @@ class C4ViewsTest {
   }
 
   @Test
+  void aLabelDoesNotNameTheEndItPointsTo() {
+    // #933: the line already points to the box that says PostgreSQL, Keycloak or edge-gateway.
+    assertThat(
+            C4Views.withoutEnd(
+                "Keeps invoices and payments in PostgreSQL", List.of("billing", "PostgreSQL")))
+        .isEqualTo("Keeps invoices and payments");
+    assertThat(C4Views.withoutEnd("Validates caller tokens against Keycloak", List.of("Keycloak")))
+        .isEqualTo("Validates caller tokens");
+    assertThat(
+            C4Views.withoutEnd(
+                "Forwards API calls through the edge gateway",
+                List.of("edge-gateway", "edge gateway")))
+        .isEqualTo("Forwards API calls");
+    assertThat(C4Views.withoutEnd("Stores customer sessions in the Redis cache", List.of("Redis")))
+        .isEqualTo("Stores customer sessions");
+    // Too little would be left, or the end is not named last: kept as it is.
+    assertThat(C4Views.withoutEnd("Uses Redis", List.of("Redis"))).isEqualTo("Uses Redis");
+    assertThat(C4Views.withoutEnd("Reads Redis keys for rate limits", List.of("Redis")))
+        .isEqualTo("Reads Redis keys for rate limits");
+  }
+
+  @Test
   void contextShowsTheSystemTheExternalSystemsItCallsAndThatItsUsersAreUnknown() {
     Section context = section(repo(facts.list()), "context");
     Diagram diagram = block(context, Diagram.class);
