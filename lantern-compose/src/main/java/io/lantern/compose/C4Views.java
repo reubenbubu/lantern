@@ -1930,8 +1930,24 @@ final class C4Views {
                     assembler.id(areaId, "diagram"), unit, components, title, mains, others);
             perPair = false;
           }
-          // An area still too large is drawn as it is: the grouping role splits an area too large
-          // for one view by meaning (#932), and slices by entry point read as nothing.
+          if (!fits(view)) {
+            // Its members are few enough, the grouping role splits an area of too many by meaning
+            // (#932); what it reaches outside is too much: one view per concern, as a domain's
+            // (docs/design.md, Readable diagrams), never slices by entry point.
+            List<Block> parts = byConcern(areaId, unit, components, title, mains, others);
+            if (!parts.isEmpty()) {
+              result.add(
+                  new Section(
+                      areaId,
+                      name,
+                      SectionKind.COMPONENTS.levels(),
+                      area,
+                      List.of(),
+                      parts,
+                      List.of()));
+              return;
+            }
+          }
           result.add(
               new Section(
                   areaId,
@@ -1943,6 +1959,64 @@ final class C4Views {
                   List.of()));
         });
     return result;
+  }
+
+  /**
+   * An area's views, one per concern whose lines reach outside the unit (#932): each draws the
+   * area's components, the lines between them and the unit's other components, and only that
+   * concern's lines to other containers; a concern with no such line has no view.
+   */
+  private List<Block> byConcern(
+      String areaId,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Set<EntityId> mains,
+      Map<EntityId, EntityId> others) {
+    perPair = true;
+    withoutOutside = true;
+    int inside =
+        componentDiagram(assembler.id(areaId, TRIAL), unit, components, title, mains, others)
+            .edges()
+            .size();
+    withoutOutside = false;
+    List<Block> parts = new ArrayList<>();
+    for (Concern concern : List.of(REQUESTS, DATA, MESSAGING)) {
+      componentConcern = concern;
+      Diagram part =
+          componentDiagram(
+              assembler.id(areaId, slug(concern.title)),
+              unit,
+              components,
+              title + ": " + concern.title.toLowerCase(Locale.ROOT),
+              mains,
+              others);
+      componentConcern = null;
+      if (part.edges().size() > inside) {
+        parts.add(part);
+      }
+    }
+    perPair = false;
+    return parts.size() > 1 ? parts : List.of();
+  }
+
+  /** The concern a component view draws the outside lines of, or null for all of them. */
+  private Concern componentConcern;
+
+  /**
+   * Whether a view draws a line of this kind to another container: a request if no concern names
+   * it.
+   */
+  private boolean inConcern(String relationship) {
+    if (componentConcern == null) {
+      return true;
+    }
+    if (componentConcern.relationships.contains(relationship)) {
+      return true;
+    }
+    return componentConcern == REQUESTS
+        && !DATA.relationships.contains(relationship)
+        && !MESSAGING.relationships.contains(relationship);
   }
 
   /**
@@ -2314,6 +2388,9 @@ final class C4Views {
     }
     // Lines to and from other containers, at the code on this unit's end.
     for (Line link : withoutOutside ? List.<Line>of() : links) {
+      if (!inConcern(link.relationship())) {
+        continue;
+      }
       if (link.from().equals(unit)) {
         for (Fact fact : link.facts()) {
           EntityId from = codeEnds.get("source " + fact.id());
@@ -2354,7 +2431,10 @@ final class C4Views {
     // Data access, to the databases the unit's datasources point to.
     for (Elements.Component component : components) {
       String access = model.dataAccess(Components.id(unit, component.main())).orElse(null);
-      if (access == null || !focus.contains(component.main()) || withoutOutside) {
+      if (access == null
+          || !focus.contains(component.main())
+          || withoutOutside
+          || !inConcern(Types.USES_DATABASE)) {
         continue;
       }
       for (Line link : links) {
