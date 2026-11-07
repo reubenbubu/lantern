@@ -34,7 +34,9 @@ import tools.jackson.databind.node.ObjectNode;
  * deployment container that runs it, its artifact ID, or for this machine or a private address the
  * port a deployment container publishes, else its {@code server.port}), or an external system for a
  * public domain that names no unit. Each call is a {@code CALLS_HTTP} link from the frontend; a
- * proxy that no call goes through is one too.
+ * proxy that no call goes through, to a target no call reaches, is one too, with the proxy's prefix
+ * and no path, which the diagrams draw as a path the server opens that no call of the page uses
+ * (ADR 0083, amendment for #980).
  */
 final class FrontendLinker {
 
@@ -312,9 +314,11 @@ final class FrontendLinker {
     }
     // Each request is a claim of its own, so each gets its own intent (#810, owner's choice).
     attributes.put("request", request(method, attributes));
+    // A proxy no call goes through passes requests on whatever they carry: its scheme alone.
     attributes.put(
         "protocol",
         target.to().type().equals(Types.EXTERNAL_SYSTEM)
+                || from.predicate().equals(Types.FRONTEND_PROXY)
             ? reached.protocol()
             : reached.protocol().equals(FrontendExtractor.WEBSOCKET)
                 ? FrontendExtractor.WEBSOCKET

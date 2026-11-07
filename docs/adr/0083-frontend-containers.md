@@ -1,6 +1,6 @@
 # 0083: Frontend containers
 
-Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, amended for #369, amended for #394, amended by ADR 0103 (#528: a frontend with a responsibility sentence is described by it)
+Status: accepted (#267), amends ADR 0042 and ADR 0074, amended for #331 below, amended for #369, amended for #394, amended for #980, amended by ADR 0103 (#528: a frontend with a responsibility sentence is described by it)
 
 ## Context
 
@@ -67,7 +67,8 @@ environment file, often `localhost` and a port that a compose file publishes.
   - the link records the URL as it reaches the target, its path, `JSON/HTTP` or `WebSocket` (the
     external system's scheme for one), `matchedBy` (`host`, `artifact-id`, `container-host`,
     `published-port`, `port`, `external`) and the `proxy` it went through. A proxy no call goes
-    through, to a target no call reaches, is a link of its own: the server passes requests on. A
+    through, to a target no call reaches, is a link of its own: the server passes requests on
+    (drawn as unused, amendment for #980 below). A
     development server's proxy counts only when no nginx serves the frontend, since it says
     nothing about the deployed page.
   - A compose container whose build context is a frontend's folder runs it: a `deployed-in` fact
@@ -172,3 +173,23 @@ Not covered: a base URL declared in another file; runtime config fetched at star
 `env.js`); nginx `*.template` files filled from the environment; Next.js rewrites and Nuxt
 `runtimeConfig`; the `BASE_PATH` of generated OpenAPI clients; server-side templates (Thymeleaf,
 JSF, Vaadin). No development set has any of these.
+
+## Amendment: a proxy no call goes through is drawn as unused (#980)
+
+The owner's decision of 7 Nov 2026, revised the same day. The rule above stays: a proxy no call
+goes through, to a target no call reaches, is a link, since the server really opens that path
+(project-2's reference draws one on purpose, "Proxies /api/ (unused by the page)"). What changes
+is how it reads. It was labelled like a call, and the LLM worded it as one: project-8's customer
+app, whose only call goes straight to the BFF, was drawn "Forwards API calls" to the edge gateway
+through the `/api/` of the nginx that serves it. `docs/quality-bar.md` counts only interactions the
+code makes as calls.
+
+- The link records the proxy's prefix in `proxy` and has no `path` or `httpMethod`, unlike every
+  call through a proxy; its protocol is the target's scheme alone (`HTTP`, `HTTPS`), since nothing
+  says what passes through it. `Elements.unusedProxy` reads it so.
+- Its line is labelled `Passes /api/ on (no call of the page uses it)` with that technology. No
+  intent is asked for it (it is no interaction of the code), and an intent stored for it by an
+  earlier run is not used.
+- The frontend's description does not count it among the units it calls.
+- A line a call goes through keeps its call's label. The document model has no style or tag for
+  an edge, so the label alone marks it as unused; a dashed style is not worth a model change.

@@ -614,9 +614,12 @@ public final class LeadRules {
       SortedSet<EntityId> units = leads.units();
       for (String predicate : RUNTIME) {
         for (Fact link : knowledge.withPredicate(predicate)) {
+          // A frontend's proxy no call goes through is no use of its target (ADR 0083, amendment
+          // for #980).
           if (Knowledge.isEntity(link)
               && (units.contains(link.subject()) || link.subject().type().equals(Types.FRONTEND))
-              && !link.subject().equals(Knowledge.object(link))) {
+              && !link.subject().equals(Knowledge.object(link))
+              && !Elements.unusedProxy(link)) {
             users
                 .computeIfAbsent(Knowledge.object(link), e -> new TreeMap<>(Knowledge.BY_ID))
                 .putIfAbsent(link.subject(), link);

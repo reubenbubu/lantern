@@ -558,6 +558,11 @@ final class Assembler {
    * still used: its line or message cites the link fact it words.
    */
   Phrased phrase(Fact link) {
+    // A proxy no call goes through keeps its own label, whatever an earlier run stored for it
+    // (ADR 0083, amendment for #980).
+    if (Elements.unusedProxy(link)) {
+      return null;
+    }
     return phrased(model.intent(link).orElse(null));
   }
 
@@ -1019,6 +1024,10 @@ final class Assembler {
     List<Fact> cited = new ArrayList<>(List.of(app.fact()));
     SortedSet<String> called = new TreeSet<>();
     for (Fact call : model.linksOf(id, Types.CALLS_HTTP)) {
+      // A proxy no call goes through is no call (ADR 0083, amendment for #980).
+      if (Elements.unusedProxy(call)) {
+        continue;
+      }
       called.add(name(ArchitectureModel.object(call)));
       if (cited.size() < 6) {
         cited.add(call);
