@@ -774,10 +774,18 @@ public final class C4ReportRenderer {
       return inside;
     }
 
-    /** Whether the element is the group or one of its members. */
+    /**
+     * Whether the element is the group, one of its members, or what holds the group: a feature
+     * area's container, whose line to a store on a container view stands for its areas' lines.
+     */
     private boolean belongsTo(EntityId element, EntityId group) {
       DocumentEntity entity = entities.get(element);
-      return element.equals(group) || entity != null && group.equals(entity.group());
+      DocumentEntity holder = entities.get(group);
+      return element.equals(group)
+          || entity != null && group.equals(entity.group())
+          || holder != null
+              && element.equals(holder.parent())
+              && !Types.SYSTEM.equals(element.type());
     }
 
     private Map<EntityId, Set<EntityId>> usersEverywhere;

@@ -724,6 +724,84 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void aFeatureAreasFrameHoldsTheStoreOnlyItUsesThoughItsContainerIsDrawnUsingIt() {
+    // The container view's line from the unit to a store stands for its areas' lines (#957).
+    EntityId system = EntityId.parse("system:shop");
+    EntityId unit = EntityId.parse("service:orders");
+    EntityId checkout = EntityId.parse("group:service:orders/area/checkout");
+    EntityId returns = EntityId.parse("group:service:orders/area/returns");
+    EntityId a = EntityId.parse("type:orders.A");
+    EntityId b = EntityId.parse("type:orders.B");
+    EntityId own = EntityId.parse("database:carts");
+    EntityId shared = EntityId.parse("database:orders-db");
+    Diagram containers =
+        new Diagram(
+            "containers.diagram",
+            Diagram.Kind.C4_CONTAINER,
+            null,
+            List.of(node(system), node(unit, system), node(own, system), node(shared, system)),
+            List.of(
+                new Diagram.Edge("c1", unit, own, "Keeps carts", null, null, List.of(), List.of()),
+                new Diagram.Edge(
+                    "c2", unit, shared, "Stores orders", null, null, List.of(), List.of())),
+            List.of());
+    Diagram unitView =
+        new Diagram(
+            "orders.diagram",
+            Diagram.Kind.C4_COMPONENT,
+            null,
+            List.of(node(unit), node(checkout, unit), node(returns, unit), node(own), node(shared)),
+            List.of(
+                new Diagram.Edge("u1", checkout, own, "Keeps", null, null, List.of(), List.of()),
+                new Diagram.Edge("u2", checkout, shared, "Saves", null, null, List.of(), List.of()),
+                new Diagram.Edge("u3", returns, shared, "Reads", null, null, List.of(), List.of())),
+            List.of());
+    Diagram areaView =
+        new Diagram(
+            "checkout.diagram",
+            Diagram.Kind.C4_COMPONENT,
+            null,
+            List.of(node(unit), node(a, unit), node(own), node(shared)),
+            List.of(
+                new Diagram.Edge("a1", a, own, "Keeps carts", null, null, List.of(), List.of()),
+                new Diagram.Edge(
+                    "a2", a, shared, "Saves orders", null, null, List.of(), List.of())),
+            List.of());
+    Document document =
+        document(
+            List.of(
+                entity(system),
+                entity(unit),
+                new DocumentEntity(checkout, "Checkout", unit, List.of(), List.of(), null, null),
+                new DocumentEntity(returns, "Returns", unit, List.of(), List.of(), null, null),
+                new DocumentEntity(a, "A", null, List.of(), List.of(), null, null, checkout),
+                new DocumentEntity(b, "B", null, List.of(), List.of(), null, null, returns),
+                entity(own),
+                entity(shared)),
+            section("containers", null, List.of(containers), List.of()),
+            section(
+                "components",
+                null,
+                List.of(),
+                List.of(
+                    section(
+                        "orders",
+                        unit,
+                        List.of(unitView),
+                        List.of(section("checkout", checkout, List.of(areaView), List.of()))))));
+
+    JsonNode area = null;
+    for (JsonNode page : C4ReportRenderer.toJson(document).data().get("pages")) {
+      if (page.get("id").asString().equals("checkout")) {
+        area = page.get("sections").get(0);
+      }
+    }
+
+    assertThat(area.get("boundaryContains").valueStream().map(JsonNode::asString))
+        .containsExactlyInAnyOrder("type-orders-a", "database-carts");
+  }
+
+  @Test
   void nestsAUnitsPageUnderItsDomainsAndAnAreasPageUnderItsUnits() {
     // The menu is a tree (#931): a domain's page, then its units' pages, then their areas'.
     EntityId system = EntityId.parse("system:shop");
