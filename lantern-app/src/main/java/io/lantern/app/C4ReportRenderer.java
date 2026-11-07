@@ -1,6 +1,7 @@
 package io.lantern.app;
 
 import io.lantern.compose.DiagramLimits;
+import io.lantern.compose.PageTitles;
 import io.lantern.compose.SectionKind;
 import io.lantern.core.document.Block;
 import io.lantern.core.document.Callout;
@@ -411,8 +412,29 @@ public final class C4ReportRenderer {
             entity == null || entity.group() == null ? null : about.get(entity.group());
         if (group != null && group.level.equals("containers")) {
           page.parent = group;
+        } else if (entity != null && entity.group() == null) {
+          // A unit in no domain sits under the page of the units in no domain, or of those no line
+          // reaches, that draws it, not on its own at the end of the menu (#953).
+          pages.stream()
+              .filter(p -> p.level.equals("containers") && p.section.entity() == null)
+              .filter(
+                  p ->
+                      p.section.title().equals(PageTitles.NO_DOMAIN)
+                          || p.section.title().equals(PageTitles.ALONE))
+              .filter(p -> draws(p, subject))
+              .findFirst()
+              .ifPresent(p -> page.parent = p);
         }
       }
+    }
+
+    /** Whether a diagram on the page draws the element. */
+    private static boolean draws(PagePlan page, EntityId element) {
+      return page.parts.stream()
+          .map(Part::block)
+          .filter(Diagram.class::isInstance)
+          .map(Diagram.class::cast)
+          .anyMatch(d -> d.nodes().stream().anyMatch(n -> n.id().equals(element)));
     }
 
     /**

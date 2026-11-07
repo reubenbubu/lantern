@@ -15,7 +15,7 @@
   --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --sidebar-w: 288px;
+  --sidebar-w: 320px;
   --topbar-h: 60px;
   --radius: 14px;
 
@@ -121,7 +121,12 @@ body.sb-collapsed .sidebar{transform:translateX(-100%)}
 .nav-twisty:hover{color:var(--text);background:var(--surface-2)}
 .nav-twisty svg{width:12px;height:12px;transition:transform .2s}
 .nav-node.open>.nav-row>.nav-twisty svg{transform:rotate(90deg)}
-.nav-kids{display:none;margin:0 0 2px 10px;padding-left:8px;border-left:1px solid var(--border)}
+.nav-kids{display:none;margin:0 0 2px 7px;padding-left:4px;border-left:1px solid var(--border)}
+.nav-sec{display:flex;align-items:center;gap:6px}
+.nav-sec .nav-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nb{flex:none;font:600 9px/1 var(--mono);letter-spacing:.04em;padding:3px 4px;border-radius:4px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);min-width:22px;text-align:center}
+.nav-sec.active .nb{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.nav-row>.nav-count{margin-left:4px;flex:none}
 .nav-node.open>.nav-kids{display:block}
 .nav-sub+.nav-sec{margin-top:0}
 .nav-sec.active,.nav-top.active,.nav-seq.active,.nav-doc.active{color:var(--accent);background:var(--accent-soft)}
@@ -6252,12 +6257,29 @@ function treeOrder(ids, seen = new Set()){
   return ids.flatMap(id => seen.has(id) ? [] : (seen.add(id), [id, ...treeOrder(TREE.kids[id] || [], seen)]));
 }
 const NAV_ORDER = ['home', ...LEVELS.flatMap(l => treeOrder(TREE.roots[l.id] || []))];
+/* A page's badge in the sidebar, as L1/L2 are for levels (#953): what the page is about. */
+const NAV_BADGE = {domain:'DO', container:'CO', area:'FA', component:'P'};
+const NAV_BADGE_TEXT = {domain:'Domain', container:'Container', area:'Feature area', component:'Component'};
+function navKind(p){
+  const e = p.element && DATA.elements?.[p.element];
+  if (e){
+    if (/^domain$/i.test(e.tag || '')) return 'domain';
+    if (/^feature area$/i.test(e.tag || '')) return 'area';
+    if (e.kind === 'container') return 'container';
+    if (e.kind === 'component') return 'component';
+    return null;
+  }
+  // a components page nested under another without an element of its own is one of its feature areas
+  return p.level === 'components' && p.parent ? 'area' : null;
+}
 function navItem(id, seen = new Set()){
   const p = PAGE[id]; seen.add(id);
   const kids = (TREE.kids[id] || []).filter(k => !seen.has(k));
-  const link = `<a class="nav-sec" href="#/${id}" data-page="${id}" title="${esc(p.title)}">${esc(p.title)}</a>`;
+  const kind = navKind(p);
+  const badge = kind ? `<span class="nb" title="${NAV_BADGE_TEXT[kind]}">${NAV_BADGE[kind]}</span>` : '';
+  const link = `<a class="nav-sec" href="#/${id}" data-page="${id}" title="${esc(p.title)}">${badge}<span class="nav-t">${esc(p.title)}</span></a>`;
   if (!kids.length) return link;
-  return `<div class="nav-node" data-node="${id}"><div class="nav-row">${link}<button class="nav-twisty" aria-label="Show what ${esc(p.title)} holds" aria-expanded="false">${ICON.chev}</button></div>
+  return `<div class="nav-node" data-node="${id}"><div class="nav-row">${link}<em class="nav-count" title="${kids.length} pages beneath">${kids.length}</em><button class="nav-twisty" aria-label="Show what ${esc(p.title)} holds" aria-expanded="false">${ICON.chev}</button></div>
     <div class="nav-kids">${kids.map(k => navItem(k, seen)).join('')}</div></div>`;
 }
 function buildNav(){

@@ -1386,16 +1386,12 @@ final class C4Views {
                 Map.of())));
   }
 
-  /**
-   * The title of the page of the units in no domain, when a map of domains leaves the outside off.
-   */
-  static final String NO_DOMAIN = "In no domain";
+  /** Titles of the pages no element names (#953: the renderer places them by title). */
+  static final String NO_DOMAIN = PageTitles.NO_DOMAIN;
 
-  /** The title of the page of the components in no feature area that reach outside the unit. */
-  static final String NO_AREA = "In no feature area";
+  static final String NO_AREA = PageTitles.NO_AREA;
 
-  /** The title of the page of the containers no line reaches. */
-  static final String ALONE = "With no connections found";
+  static final String ALONE = PageTitles.ALONE;
 
   /**
    * The pages of the container view at domain level (ADR 0117), after its readable overview: one
