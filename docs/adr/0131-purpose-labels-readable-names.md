@@ -1,6 +1,6 @@
 # 0131: Every line says what it is for, every box reads as a name
 
-Status: accepted (#933), amended for #944 (lines into one box with one label)
+Status: accepted (#933), amended for #944 (lines into one box with one label) and #946 (readable names written by Describe)
 
 ## Context
 
@@ -51,8 +51,8 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
    build's name as the element's `technicalName` (an optional property of the report spec), shown
    small on the technology line and in the tables. Title-casing is the fallback; a readable name
    written with the description replaces it when a role provides one. A unit's database named by
-   a datasource key keeps only the key's telling words: "workorder (billing workorders)". An
-   LLM-written readable name is #946.
+   a datasource key keeps only the key's telling words: "workorder (billing workorders)". Since
+   #946 a name Describe wrote comes first (amendment below).
 6. **The report's checks fail on each.** On the C4 report the quality report fails a line labelled
    with routes or "and N more", a label naming the box it points to, a service or frontend whose
    name stays a build's name once made readable, and a page or box name over 45 characters
@@ -83,3 +83,19 @@ Container views are not checked: several units may well publish to one broker wi
 
 Labels and names change on every C4 report; the scorer matches names lower-cased and dashed, so
 its matching is unchanged. No prompt changed, so no stored answer is asked again.
+
+## Amendment for #946: readable names written by Describe
+
+Title-casing cannot know a better name ("telematics-ingest" reads "Telematics ingest"). Describe's
+unit request now asks, for a unit whose name is a build's name of words (`edge-gateway`), its name
+in words, 1 to 4 plain words, keeping the build's own words where they already say what it is; the
+item says so ("Its name is a build's name: also write its name."), and the answer's `name` field
+is checked against its contract like every text and stored as the unit's `display-name`, citing
+what it cites. The unit role's prompt version is 9, so every unit is asked again once.
+
+The composer keeps the unit's name as the code gives it (scoring, links and every other text read
+it) and carries the written name as the document entity's optional `readableName`, unless the
+support judge rejected it. The C4 report draws it on the box and the page, the build's name small
+beneath as `technicalName`; with none it title-cases as before. The scorer matches a box by its
+`technicalName` when it has one, so a name in words changes no match.
+
