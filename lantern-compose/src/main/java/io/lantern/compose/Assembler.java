@@ -1131,10 +1131,10 @@ final class Assembler {
   /** The types of a box the plain wording calls a deployable unit. */
   private static final Set<String> UNIT_TYPES = Set.of(Types.SERVICE, Types.FRONTEND);
 
-  /** At most three names, the rest counted: "a, b, c and 4 others". */
+  /** At most four names, else three and the rest counted: "a, b, c and 2 others". */
   private static String listedAtMost(java.util.Collection<String> names) {
     List<String> list = new ArrayList<>(names);
-    if (list.size() <= 3) {
+    if (list.size() <= 4) {
       return listed(list);
     }
     return String.join(", ", list.subList(0, 3)) + " and " + (list.size() - 3) + " others";
