@@ -277,7 +277,7 @@ public final class GroupByMeaning {
             model,
             outcome.answerKey(),
             snapshot);
-    List<Fact> all = new ArrayList<>(kept);
+    List<Fact> all = new ArrayList<>(withoutMoved(kept, added));
     all.addAll(added);
     long members = added.stream().filter(f -> f.predicate().equals(Types.GROUPS)).count();
     LOG.info(
@@ -366,6 +366,41 @@ public final class GroupByMeaning {
             joined.forEach(f -> result.add(again(f, snapshot)));
           }
         });
+    return result;
+  }
+
+  /**
+   * The kept facts without the members the answer placed anew, which it moved out of an area of an
+   * earlier answer too large for one view (#932); a kept group left with fewer than 2 members is
+   * dropped with them.
+   */
+  static List<Fact> withoutMoved(List<Fact> kept, List<Fact> added) {
+    Set<EntityId> moved = new HashSet<>();
+    added.stream()
+        .filter(f -> f.predicate().equals(Types.GROUPS))
+        .forEach(f -> moved.add(Knowledge.object(f)));
+    if (moved.isEmpty()) {
+      return kept;
+    }
+    Map<EntityId, Integer> left = new HashMap<>();
+    for (Fact fact : kept) {
+      if (fact.predicate().equals(Types.GROUPS) && !moved.contains(Knowledge.object(fact))) {
+        left.merge(fact.subject(), 1, Integer::sum);
+      }
+    }
+    Set<EntityId> formed = new HashSet<>();
+    kept.stream()
+        .filter(f -> f.predicate().equals(Types.GROUP_OF))
+        .forEach(f -> formed.add(f.subject()));
+    List<Fact> result = new ArrayList<>();
+    for (Fact fact : kept) {
+      boolean dropped = formed.contains(fact.subject()) && left.getOrDefault(fact.subject(), 0) < 2;
+      if (dropped
+          || fact.predicate().equals(Types.GROUPS) && moved.contains(Knowledge.object(fact))) {
+        continue;
+      }
+      result.add(fact);
+    }
     return result;
   }
 

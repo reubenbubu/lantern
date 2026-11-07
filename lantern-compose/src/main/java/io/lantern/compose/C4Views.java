@@ -1988,12 +1988,6 @@ final class C4Views {
       Set<EntityId> mains,
       Map<EntityId, EntityId> others) {
     perPair = true;
-    withoutOutside = true;
-    int inside =
-        componentDiagram(assembler.id(areaId, TRIAL), unit, components, title, mains, others)
-            .edges()
-            .size();
-    withoutOutside = false;
     List<Block> parts = new ArrayList<>();
     for (Concern concern : List.of(REQUESTS, DATA, MESSAGING)) {
       componentConcern = concern;
@@ -2006,7 +2000,8 @@ final class C4Views {
               mains,
               others);
       componentConcern = null;
-      if (part.edges().size() > (concern == REQUESTS ? inside : 0)) {
+      // Requests also holds the lines between the unit's components, so it is kept with any.
+      if (!part.edges().isEmpty()) {
         parts.add(part);
       }
     }

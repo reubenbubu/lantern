@@ -473,6 +473,44 @@ class GroupByMeaningTest {
   }
 
   @Test
+  void anAreaAnEarlierAnswerMadeTooLargeIsSplitAndItsMembersLeaveIt() {
+    String formed =
+        """
+        {"domains": [],
+         "areas": [
+           {"service": "{billing}", "key": "listeners", "extends": null,
+            "reason": {"text": "They react to what happens to orders and payments after a customer acts.", "cites": ["{OrderPlaced}"]},
+            "members": ["{OrderPlaced}", "{OrderShipped}", "{PaymentTaken}", "{PaymentRefunded}"]}],
+         "left_out": []}""";
+    String split =
+        """
+        {"domains": [],
+         "areas": [
+           {"service": "{billing}", "key": "order-events", "extends": null,
+            "reason": {"text": "They follow each order from the moment it is placed until it ships.", "cites": ["{OrderPlaced}"]},
+            "members": ["{OrderPlaced}", "{OrderShipped}"]},
+           {"service": "{billing}", "key": "payments", "extends": null,
+            "reason": {"text": "They react when a customer pays for an order or gets the money back.", "cites": ["{PaymentTaken}"]},
+            "members": ["{PaymentTaken}", "{PaymentRefunded}"]}],
+         "left_out": []}""";
+    GroupByMeaning.Result first =
+        new GroupByMeaning(harness(new FakeLlmProvider().answering(answering(formed))), 3, 0)
+            .group(facts(), 2);
+    List<Fact> after = first.replacing(facts());
+    assertThat(groups(after, Groups.FEATURE_AREA)).containsKey(area("llm-listeners"));
+
+    // The earlier answer's area of 4 is now too large for a target of 3: its members move.
+    GroupByMeaning.Result second =
+        new GroupByMeaning(harness(new FakeLlmProvider().answering(answering(split))), 3, 0)
+            .group(after, 3);
+
+    Map<String, Set<String>> areas = groups(second.replacing(after), Groups.FEATURE_AREA);
+    assertThat(areas)
+        .containsKeys(area("llm-order-events"), area("llm-payments"))
+        .doesNotContainKey(area("llm-listeners"));
+  }
+
+  @Test
   void aKeptMemberTheCodeNowGroupsLeavesItsEarlierGroup() {
     List<Fact> facts = facts();
     FakeLlmProvider fake = new FakeLlmProvider().answering(answering(GOOD));
