@@ -786,6 +786,11 @@ final class C4Views {
 
   private static final Set<String> ACCESS = Set.of("Reads", "Writes", "Reads and writes");
 
+  /** Technologies of a store with tables. */
+  private static final Pattern RELATIONAL =
+      Pattern.compile(
+          "(?i)sql|postgres|oracle|maria|\\bh2\\b|db2|derby|hsql|cockroach|sql server|jdbc");
+
   /** What one line of a same-label group does there, or its label if nothing tells. */
   private static String apart(EdgeBuilder edge, String label, Set<String> others) {
     String[] words = label.split("\\s+", 2);
@@ -2887,7 +2892,11 @@ final class C4Views {
           EdgeBuilder edge =
               edges.get(shown.apply(component.main()), Types.USES_DATABASE, link.to());
           edge.add(access, null, null, link.technology(), link.profile());
-          edge.touches.addAll(model.dataAccessed(Components.id(unit, component.main())));
+          // Tables and repositories are a relational store's, never a cache's (#944).
+          String technology = elements.technology(link.to());
+          if (technology != null && RELATIONAL.matcher(technology).find()) {
+            edge.touches.addAll(model.dataAccessed(Components.id(unit, component.main())));
+          }
           edge.facts.addAll(link.facts());
           // The unit's intent for its store, which the component's access serves (#739).
           edge.phrased(assembler.phrase(link.facts().getFirst()));
