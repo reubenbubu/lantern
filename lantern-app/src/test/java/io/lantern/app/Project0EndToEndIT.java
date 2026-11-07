@@ -1385,10 +1385,11 @@ class Project0EndToEndIT {
         .contains(
             "\"label\":\"Sends messages (only with the Spring profile audit)\","
                 + "\"technology\":\"JMS\"")
-        // MSG-1: RabbitMQ through the exchange, the bound queues on the line.
+        // MSG-1: RabbitMQ through the exchange, the bound queues on the line, its keys by what
+        // they are about (#933).
         .contains(
             "{\"from\":\"exchange-rabbitmq-shop-orders\",\"to\":\"service-com-acme-shop-payments\","
-                + "\"label\":\"Delivers order.*, refund.#\","
+                + "\"label\":\"Delivers order and refund messages\","
                 + "\"technology\":\"AMQP · payments.order-events, payments.refunds\"}");
     assertThat(containerPages.toString())
         .contains(
