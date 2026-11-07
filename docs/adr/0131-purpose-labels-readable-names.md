@@ -106,7 +106,8 @@ judge always checks, not sampled. A rejected name asks the unit's whole item aga
 components and intents with it, so a real run may make more judge calls and retries. A name is
 never taken as the unit's sentence when the sentence is left out. Two boxes never show one name: a
 written name another service's or frontend's box would also show, written or title-cased, is
-dropped for each of them, which then title-case. Other boxes' fallback sentences name a unit as its
+dropped for each of them, which then title-case. A written name of only the build's own words ("Api gateway" for
+`api-gateway`) is dropped too: title-casing writes the same words better, acronyms kept. Other boxes' fallback sentences name a unit as its
 box does. The wording judge reads a unit's name as "name of a service" or "name of a frontend", with
 its own rule: it passes when it names in plain words what the unit is for, and fails when it names
 only its kind or technology.

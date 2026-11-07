@@ -825,6 +825,27 @@ class C4ViewsTest {
     assertThat(entity(system(another), "service:com.example:app").readableName()).isNull();
   }
 
+  @Test
+  void aWrittenNameThatOnlyRepeatsTheBuildsWordsGivesWayToTheReadableOne() {
+    Fact packaging = facts.find("service:com.example:app", "application-name");
+    List<Fact> held = new ArrayList<>(facts.list());
+    held.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("service:com.example:app"),
+            Types.DISPLAY_NAME,
+            io.lantern.harness.LlmFacts.C4,
+            "Shop App",
+            List.of(packaging),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    // #946: "Shop App" says no more than shop-app; the box title-cases it, acronyms kept.
+    assertThat(entity(system(held), "service:com.example:app").readableName()).isNull();
+  }
+
   private static DocumentEntity entity(Document document, String id) {
     return document.entities().stream()
         .filter(e -> e.id().toString().equals(id))

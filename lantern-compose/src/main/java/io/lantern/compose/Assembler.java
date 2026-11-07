@@ -198,7 +198,13 @@ final class Assembler {
     if (name == null || name.isBlank() || model.rejected(id, Types.DISPLAY_NAME)) {
       return null;
     }
-    return name.equals(names.name(id)) ? null : name;
+    // A name of the build's own words only ("Api gateway" for api-gateway) says nothing more, and
+    // title-casing writes them better, acronyms kept (#946).
+    return words(name).equals(words(names.name(id))) ? null : name;
+  }
+
+  private static String words(String name) {
+    return name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", " ").strip();
   }
 
   /** How many service and frontend boxes would show the name, written or title-cased. */
