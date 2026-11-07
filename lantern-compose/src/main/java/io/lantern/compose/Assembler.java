@@ -12,7 +12,9 @@ import io.lantern.core.vocabulary.Vocabulary;
 import io.lantern.derive.ArchitectureModel;
 import io.lantern.derive.ElementNames;
 import io.lantern.derive.Elements;
+import io.lantern.derive.EntryPoints;
 import io.lantern.derive.Groups;
+import io.lantern.derive.ScopeFlows;
 import io.lantern.derive.UnknownCallers;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -150,8 +152,19 @@ final class Assembler {
         || id.type().equals(Types.GROUP)
         // A unit whose sentence the support judge rejected, by Lantern's plain wording (#933).
         || (described.contains(id) && model.rejected(id, Types.RESPONSIBILITY))
+        // A unit, or a type a component box draws, with no sentence at all, by what it serves
+        // (#973).
+        || (described.contains(id)
+            && (UNIT_TYPES.contains(id.type()) || model.componentAnchoredOn(id).isPresent()))
         // The Unknown caller, marked unknown (#766).
-        || id.equals(UnknownCallers.CALLER)) {
+        || id.equals(UnknownCallers.CALLER)
+        // The subscribed browsers, by what is pushed to them (#973).
+        || id.equals(ScopeFlows.SUBSCRIBERS)
+        // The system's box, by its purpose, else by what it is made of (#973).
+        || id.equals(RepoSections.SYSTEM)
+        // Something else the container diagrams draw as a container, such as an identity provider
+        // the deployment runs, by what it is and runs (#973).
+        || (ranContainer(id) && responsibility(id) == null)) {
       undescribed.add(id);
     }
     return id;
@@ -432,7 +445,17 @@ final class Assembler {
     if (!model.rejected(RepoSections.SYSTEM, Types.PURPOSE)) {
       return null;
     }
-    java.util.Optional<ArchitectureModel.ReadmeParagraph> readme = model.firstReadmeDescription();
+    return madeOf(true, true);
+  }
+
+  /**
+   * The system as its README describes it, else what it is made of, else {@code null}: what stands
+   * in for a rejected purpose; and, not naming the system the box names, nor quoting a README
+   * paragraph no role checked, what the system's box shows with no purpose that holds (#973).
+   */
+  private Text madeOf(boolean named, boolean quoted) {
+    java.util.Optional<ArchitectureModel.ReadmeParagraph> readme =
+        quoted ? model.firstReadmeDescription() : java.util.Optional.empty();
     if (readme.isPresent()) {
       factIds.add(readme.get().fact());
       return new Text(
@@ -450,6 +473,9 @@ final class Assembler {
         parts.size() == 1
             ? parts.getFirst()
             : String.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.getLast();
+    if (!named) {
+      return new Text(List.of(TextRun.of("Made of " + made + ".")), List.of());
+    }
     String name =
         systemName.isEmpty()
             ? "The system"
@@ -794,22 +820,24 @@ final class Assembler {
           // linker's own note (#767).
           entity.id().equals(UnknownCallers.CALLER)
               ? unknownCaller().content()
-              : entity.id().type().equals(Types.PERSON)
-                      && personBasis(entity.id()) != null
-                      && responsibility == null
-                  ? person(entity.id()).content()
-                  : entity.id().type().equals(Types.FRONTEND) && responsibility == null
-                      ? frontend(entity.id()).content()
-                      : responsibility == null && foundOnlyByTheInvestigator(entity.id())
-                          ? investigated(entity.id()).content()
-                          : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
-                              ? purpose().content()
-                              : responsibility != null
-                                  ? responsibility(entity.id(), responsibility).content()
-                                  // A box whose sentence the support judge rejected, though
-                                  // asked again, or that has none, shows Lantern's plain
-                                  // wording, never nothing (#933).
-                                  : plain(entity.id()).content();
+              : entity.id().equals(ScopeFlows.SUBSCRIBERS)
+                  ? subscribers().content()
+                  : entity.id().type().equals(Types.PERSON)
+                          && personBasis(entity.id()) != null
+                          && responsibility == null
+                      ? person(entity.id()).content()
+                      : entity.id().type().equals(Types.FRONTEND) && responsibility == null
+                          ? frontend(entity.id()).content()
+                          : responsibility == null && foundOnlyByTheInvestigator(entity.id())
+                              ? investigated(entity.id()).content()
+                              : entity.id().equals(RepoSections.SYSTEM) && responsibility != null
+                                  ? purpose().content()
+                                  : responsibility != null
+                                      ? responsibility(entity.id(), responsibility).content()
+                                      // A box whose sentence the support judge rejected, though
+                                      // asked again, or that has none, shows Lantern's plain
+                                      // wording, never nothing (#933).
+                                      : plain(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
@@ -1064,6 +1092,47 @@ final class Assembler {
         ids);
   }
 
+  /**
+   * What the subscribed browsers are (#973): the clients of each unit's STOMP pushes, by the
+   * destinations pushed to and where they connect, citing the pushes and endpoints; no fact of the
+   * code names the clients themselves.
+   */
+  private Text subscribers() {
+    Map<EntityId, List<ScopeFlows.Push>> byUnit = new TreeMap<>(ArchitectureModel.BY_ID);
+    for (ScopeFlows.Push push : ScopeFlows.pushes(model)) {
+      byUnit.computeIfAbsent(push.unit(), u -> new ArrayList<>()).add(push);
+    }
+    List<Fact> cited = new ArrayList<>();
+    List<Inline> content = new ArrayList<>();
+    content.add(TextRun.of("Browsers subscribed over STOMP"));
+    if (byUnit.isEmpty()) {
+      content.add(TextRun.of(" to what a unit pushes; no code names them."));
+      return new Text(content, List.of());
+    }
+    boolean firstUnit = true;
+    for (Map.Entry<EntityId, List<ScopeFlows.Push>> entry : byUnit.entrySet()) {
+      SortedSet<String> destinations = new TreeSet<>();
+      SortedSet<String> paths = new TreeSet<>();
+      for (ScopeFlows.Push push : entry.getValue()) {
+        destinations.add(push.destination());
+        paths.addAll(push.connectedOver());
+        cited.addAll(push.facts());
+      }
+      content.add(TextRun.of(firstUnit ? " to " : "; to "));
+      content.addAll(codes(destinations));
+      content.add(TextRun.of(", which " + shownName(entry.getKey()) + " pushes"));
+      if (!paths.isEmpty()) {
+        content.add(TextRun.of(", connected over "));
+        content.addAll(codes(paths));
+      }
+      firstUnit = false;
+    }
+    content.add(TextRun.of("; no code names them."));
+    List<String> ids = facts(cited);
+    content.add(new Citation(ids));
+    return new Text(content, ids);
+  }
+
   /** What opens the Unknown caller's description. */
   static final String UNKNOWN_SENTENCE = "Unknown:";
 
@@ -1157,6 +1226,25 @@ final class Assembler {
    * sends; never nothing a diagram could show as a blank box.
    */
   private Text plain(EntityId id) {
+    if (id.equals(RepoSections.SYSTEM)) {
+      Text made = madeOf(false, false);
+      return made != null ? made : new Text(List.of(TextRun.of(NOT_KNOWN)), List.of());
+    }
+    if (ranContainer(id)) {
+      // What it is and what it runs: "Identity provider running Keycloak 26.1.0." (#973).
+      String technology = model.technology(id).orElse(null);
+      if (technology == null || technology.isBlank()) {
+        return new Text(List.of(TextRun.of(NOT_KNOWN)), List.of());
+      }
+      String what = tag(id);
+      List<String> ids = facts(model.describing(id));
+      List<Inline> content = new ArrayList<>();
+      content.add(TextRun.of((what == null ? "Runs " : what + " running ") + technology + "."));
+      if (!ids.isEmpty()) {
+        content.add(new Citation(ids));
+      }
+      return new Text(content, ids);
+    }
     if (id.type().equals(Types.GROUP)) {
       List<Fact> members = model.groupMembers(id);
       SortedSet<String> names = new TreeSet<>();
@@ -1173,39 +1261,221 @@ final class Assembler {
     if (!model.rejected(id, Types.RESPONSIBILITY) && model.summary(summarized(id)).isPresent()) {
       return summarizedDescription(id);
     }
-    if (!UNIT_TYPES.contains(id.type())) {
+    boolean unit = UNIT_TYPES.contains(id.type());
+    if (!unit && model.componentAnchoredOn(id).isEmpty()) {
       return new Text(List.of(), List.of());
     }
-    List<String> parts = new ArrayList<>();
+    // What it serves first: its endpoints, listeners and jobs (#973), then, for a unit, what it
+    // calls, sends to and receives from, and the stores it uses, never those alone.
     List<Fact> cited = new ArrayList<>();
-    for (String[] kind :
-        new String[][] {
-          {Types.CALLS_HTTP, "calls"},
-          {Types.USES_DATABASE, "uses"},
-          {Types.PUBLISHES, "sends to"},
-          {Types.CONSUMES, "receives from"}
-        }) {
-      SortedSet<String> to = new TreeSet<>();
-      for (Fact link : model.linksOf(id, kind[0])) {
-        EntityId end = ArchitectureModel.object(link);
-        to.add(UNIT_TYPES.contains(end.type()) ? shownName(end) : name(end));
-        cited.add(link);
+    List<List<Inline>> parts =
+        served(
+            unit ? EntryPoints.ofUnit(model, id) : EntryPoints.ofType(model, id),
+            cited,
+            unit && !model.linksOf(id, Types.CONSUMES).isEmpty());
+    if (unit) {
+      // What it receives from is served too; what it calls, sends to and uses only says what it
+      // does when it serves nothing, and its stores never alone.
+      List<Inline> receives = linked(id, Types.CONSUMES, "receives from", cited);
+      if (receives != null) {
+        parts.add(Math.min(1, parts.size()), receives);
       }
-      if (!to.isEmpty()) {
-        parts.add(kind[1] + " " + listedAtMost(to));
+      if (parts.isEmpty()) {
+        List<Fact> reached = new ArrayList<>();
+        for (String[] kind :
+            new String[][] {{Types.CALLS_HTTP, "calls"}, {Types.PUBLISHES, "sends to"}}) {
+          List<Inline> part = linked(id, kind[0], kind[1], reached);
+          if (part != null) {
+            parts.add(part);
+          }
+        }
+        if (!parts.isEmpty()) {
+          List<Inline> uses = linked(id, Types.USES_DATABASE, "uses", reached);
+          if (uses != null) {
+            parts.add(uses);
+          }
+          cited.addAll(reached);
+        }
       }
     }
     if (parts.isEmpty()) {
-      // Nothing it reaches: still not a blank box (#933).
-      return new Text(
-          List.of(TextRun.of("A deployable unit; what it does is not known.")), List.of());
+      // Nothing it serves or reaches: still not a blank box (#933), and never its stores alone.
+      return new Text(List.of(TextRun.of(NOT_KNOWN)), List.of());
     }
+    List<Inline> content = new ArrayList<>();
+    for (List<Inline> part : parts) {
+      if (!content.isEmpty()) {
+        content.add(TextRun.of("; "));
+      }
+      content.addAll(part);
+    }
+    if (content.getFirst() instanceof TextRun first && !first.text().isEmpty()) {
+      content.set(
+          0,
+          new TextRun(
+              Character.toUpperCase(first.text().charAt(0)) + first.text().substring(1),
+              first.style()));
+    }
+    content.add(TextRun.of("."));
     List<String> ids = facts(cited);
-    return new Text(
-        List.of(
-            TextRun.of("A deployable unit that " + listed(new ArrayList<>(parts)) + "."),
-            new Citation(ids)),
-        ids);
+    if (!ids.isEmpty()) {
+      content.add(new Citation(ids));
+    }
+    return new Text(content, ids);
+  }
+
+  /**
+   * "<verb> a, b and c" of what the unit's links of the kind reach, units named in words, adding
+   * the links to the cited facts; {@code null} if it has none.
+   */
+  private List<Inline> linked(EntityId unit, String interaction, String verb, List<Fact> cited) {
+    SortedSet<String> to = new TreeSet<>();
+    List<Fact> links = model.linksOf(unit, interaction);
+    for (Fact link : links) {
+      EntityId end = ArchitectureModel.object(link);
+      to.add(UNIT_TYPES.contains(end.type()) ? shownName(end) : name(end));
+    }
+    if (to.isEmpty()) {
+      return null;
+    }
+    cited.addAll(links);
+    return List.of(TextRun.of(verb + " " + listedAtMost(to)));
+  }
+
+  /**
+   * Whether the container diagrams draw the entity as a container that is no unit: one they draw
+   * besides units ({@link #destination}) that is no store, queue, outside system or person.
+   */
+  private boolean ranContainer(EntityId id) {
+    return !UNIT_TYPES.contains(id.type()) && destination(id) && kind(id) == null;
+  }
+
+  /** What a box with no sentence and nothing it serves or reaches says (#973). */
+  static final String NOT_KNOWN =
+      "What it does is not known: no sentence about it holds and the code shows nothing it serves.";
+
+  /** The most endpoints, destinations or paths a plain wording names one by one. */
+  private static final int NAMED_ENTRIES = 3;
+
+  /**
+   * What a box serves, in words (#973): its HTTP endpoints, named when few, else counted with what
+   * their paths are about; the destinations it listens to, unless a link of its unit says what it
+   * receives from; the STOMP destinations it handles; its WebSocket endpoints; its jobs.
+   */
+  private List<List<Inline>> served(
+      List<EntryPoints.EntryPoint> entries, List<Fact> cited, boolean receives) {
+    Map<EntryPoints.Kind, SortedSet<String>> values =
+        new java.util.EnumMap<>(EntryPoints.Kind.class);
+    Map<String, Integer> jobs = new TreeMap<>();
+    for (EntryPoints.EntryPoint entry : entries) {
+      if (entry.kind() == EntryPoints.Kind.SCHEDULED
+          || entry.kind() == EntryPoints.Kind.BACKGROUND_JOB) {
+        jobs.merge(entry.kindName(), 1, Integer::sum);
+      } else {
+        values.computeIfAbsent(entry.kind(), k -> new TreeSet<>()).add(entry.value());
+      }
+      cited.add(entry.fact());
+    }
+    List<List<Inline>> parts = new ArrayList<>();
+    SortedSet<String> endpoints = values.getOrDefault(EntryPoints.Kind.ENDPOINT, new TreeSet<>());
+    if (!endpoints.isEmpty()) {
+      if (endpoints.size() <= NAMED_ENTRIES) {
+        parts.add(codeList("serves ", endpoints));
+      } else {
+        String about = about(endpoints);
+        parts.add(
+            List.of(
+                TextRun.of(
+                    "serves "
+                        + endpoints.size()
+                        + " HTTP endpoints"
+                        + (about == null ? "" : " about " + about))));
+      }
+    }
+    SortedSet<String> listened = values.get(EntryPoints.Kind.MESSAGE_LISTENER);
+    if (listened != null && !receives) {
+      parts.add(List.of(TextRun.of("receives messages from " + listedAtMost(listened))));
+    }
+    SortedSet<String> stomp = values.get(EntryPoints.Kind.STOMP_MAPPING);
+    if (stomp != null) {
+      parts.add(codeList("takes STOMP messages to ", stomp));
+    }
+    SortedSet<String> sockets = values.get(EntryPoints.Kind.WEBSOCKET_ENDPOINT);
+    if (sockets != null) {
+      parts.add(codeList("accepts WebSocket connections on ", sockets));
+    }
+    jobs.forEach(
+        (kind, n) -> {
+          String what = kind.startsWith("Scheduled") ? kind.toLowerCase(Locale.ROOT) : kind;
+          parts.add(List.of(TextRun.of("runs " + (n == 1 ? "a " + what : n + " " + what + "s"))));
+        });
+    return parts;
+  }
+
+  /** The prefix, then the values as code: "serves `GET /a` and `POST /b`". */
+  private static List<Inline> codeList(String prefix, SortedSet<String> values) {
+    List<Inline> content = new ArrayList<>();
+    content.add(TextRun.of(prefix));
+    content.addAll(codes(values));
+    return content;
+  }
+
+  /** The values as code, listed: at most four, else three and the rest counted. */
+  private static List<Inline> codes(SortedSet<String> values) {
+    List<Inline> content = new ArrayList<>();
+    List<String> list = new ArrayList<>(values);
+    int shown = list.size() <= NAMED_ENTRIES + 1 ? list.size() : NAMED_ENTRIES;
+    for (int i = 0; i < shown; i++) {
+      if (i > 0) {
+        content.add(TextRun.of(i == list.size() - 1 ? " and " : ", "));
+      }
+      content.add(new TextRun(list.get(i), TextRun.Style.CODE));
+    }
+    if (shown < list.size()) {
+      content.add(TextRun.of(" and " + (list.size() - shown) + " others"));
+    }
+    return content;
+  }
+
+  /**
+   * What endpoints are about, by their paths' telling segments (#973): the resources they start
+   * with, or, when all start with one, it and what follows it: "technicians (absences, shifts and
+   * skills)". Variables, versions and segments that say nothing ({@link C4Views#ROUTE_NOISE}) are
+   * skipped; {@code null} if no path has a telling segment.
+   */
+  static String about(java.util.Collection<String> endpoints) {
+    SortedSet<String> first = new TreeSet<>();
+    SortedSet<String> second = new TreeSet<>();
+    for (String endpoint : endpoints) {
+      String path =
+          endpoint.contains(" /") ? endpoint.substring(endpoint.indexOf(" /") + 1) : endpoint;
+      List<String> telling = new ArrayList<>();
+      for (String segment : path.split("/")) {
+        String plain = segment.strip();
+        if (plain.isEmpty()
+            || plain.contains("{")
+            || plain.contains("*")
+            || C4Views.ROUTE_NOISE.contains(plain.toLowerCase(Locale.ROOT))
+            || plain.matches("v\\d+")) {
+          continue;
+        }
+        telling.add(plain.replace('-', ' ').replace('_', ' '));
+      }
+      if (telling.isEmpty()) {
+        continue;
+      }
+      first.add(telling.getFirst());
+      if (telling.size() > 1) {
+        second.add(telling.get(1));
+      }
+    }
+    if (first.isEmpty()) {
+      return null;
+    }
+    if (first.size() == 1 && !second.isEmpty()) {
+      return first.getFirst() + " (" + listedAtMost(second) + ")";
+    }
+    return listedAtMost(first);
   }
 
   /** The types of a box the plain wording calls a deployable unit. */

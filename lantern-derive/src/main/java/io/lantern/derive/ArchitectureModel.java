@@ -151,6 +151,25 @@ public final class ArchitectureModel {
     for (Fact text : componentTexts) {
       responsibilities.putIfAbsent(anchors.get(text.subject()), text);
     }
+    // So does a rejection of the component's sentence, which leaves the type's box with Lantern's
+    // plain wording (#973); and each type knows the component anchored on it.
+    Map<EntityId, EntityId> byComponent = new java.util.TreeMap<>(BY_ID);
+    byComponent.putAll(anchors);
+    byComponent.forEach(
+        (component, type) -> {
+          componentsAnchoredOn.putIfAbsent(type, component);
+          if (rejected.contains(component + "\u0000" + Types.RESPONSIBILITY)) {
+            rejected.add(type + "\u0000" + Types.RESPONSIBILITY);
+          }
+        });
+  }
+
+  /** The component anchored on each type that one is anchored on. */
+  private final Map<EntityId, EntityId> componentsAnchoredOn = new HashMap<>();
+
+  /** The component anchored on the type, which its box stands for, if any (#973). */
+  public Optional<EntityId> componentAnchoredOn(EntityId type) {
+    return Optional.ofNullable(componentsAnchoredOn.get(type));
   }
 
   /**

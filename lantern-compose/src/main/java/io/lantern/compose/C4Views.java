@@ -401,7 +401,7 @@ final class C4Views {
   }
 
   /** Path segments that say nothing of what a route is about. */
-  private static final Set<String> ROUTE_NOISE =
+  static final Set<String> ROUTE_NOISE =
       Set.of("api", "rest", "internal", "public", "private", "external", "graphql", "rpc");
 
   private static final Set<String> MESSAGE_VERBS =
@@ -1883,14 +1883,58 @@ final class C4Views {
   }
 
   /**
-   * A domain or feature area drawn in place of its members: named as Name groups named it, with how
-   * many it holds as its technology line, citing the facts that make it and hold its members.
+   * A domain or feature area drawn in place of its members: named as Name groups named it, with the
+   * frameworks its members run on as its technology line, never how many it holds (#973), citing
+   * the facts that make it and hold its members.
    */
   private Diagram.Node groupNode(EntityId group, EntityId parent) {
-    List<Fact> facts = model.groupFacts(group);
-    int members = model.groupMembers(group).size();
-    String what = group.key().contains("/" + Groups.DOMAIN + "/") ? "container" : "component";
-    return node(group, members + " " + what + (members == 1 ? "" : "s"), parent, facts);
+    return node(group, groupTechnology(group), parent, model.groupFacts(group));
+  }
+
+  /** The most frameworks a group's technology line names. */
+  private static final int GROUP_FRAMEWORKS = 3;
+
+  /**
+   * What a group's members run on (#973): the framework each unit's technology opens with, a
+   * component's being its unit's, without versions; the most common first, at most {@value
+   * #GROUP_FRAMEWORKS}, as "Spring Boot · React"; {@code null} if none says.
+   */
+  private String groupTechnology(EntityId group) {
+    Map<String, Integer> frameworks = new TreeMap<>();
+    for (Fact member : model.groupMembers(group)) {
+      EntityId box = ArchitectureModel.object(member);
+      if (box.type().equals(Types.COMPONENT) && box.key().indexOf('/') > 0) {
+        box = EntityId.parse(box.key().substring(0, box.key().indexOf('/')));
+      }
+      String framework = framework(elements.technology(box));
+      if (framework != null) {
+        frameworks.merge(framework, 1, Integer::sum);
+      }
+    }
+    if (frameworks.isEmpty()) {
+      return null;
+    }
+    return frameworks.entrySet().stream()
+        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+        .limit(GROUP_FRAMEWORKS)
+        .map(Map.Entry::getKey)
+        .collect(java.util.stream.Collectors.joining(" \u00b7 "));
+  }
+
+  /**
+   * The framework a technology line opens with, without its version: "Spring Boot" of "Spring Boot
+   * 3.5.0 / Java 21", "React" of "React 19.1 · Vite"; {@code null} if it names none.
+   */
+  static String framework(String technology) {
+    if (technology == null || technology.isBlank()) {
+      return null;
+    }
+    String first = technology.split(" / | \u00b7 ", 2)[0];
+    String name =
+        java.util.Arrays.stream(first.strip().split("\\s+"))
+            .filter(w -> !w.isEmpty() && !Character.isDigit(w.charAt(0)))
+            .collect(java.util.stream.Collectors.joining(" "));
+    return name.isEmpty() ? null : name;
   }
 
   /**

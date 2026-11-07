@@ -1,6 +1,6 @@
 # 0131: Every line says what it is for, every box reads as a name
 
-Status: accepted (#933), amended for #944 (lines into one box with one label), #946 (readable names written by Describe) and #962 (a component's line goes only to the stores it touches)
+Status: accepted (#933), amended for #944 (lines into one box with one label), #946 (readable names written by Describe), #962 (a component's line goes only to the stores it touches) and #973 (a box with no sentence says what it serves; a group names no count)
 
 ## Context
 
@@ -44,7 +44,7 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
    wording: a domain or area "Holds a, b, c and 4 others.", a unit its module's summary when that
    was not rejected, else "A deployable unit that calls X, uses Y, sends to Z and receives from W."
    from its links (at most three of each, units named in words), else "A deployable unit; what it
-   does is not known.", each citing its facts. This amends ADR 0101's "a box without a sentence".
+   does is not known.", each citing its facts. This amends ADR 0101's "a box without a sentence". (A unit's and a component's plain wording now says what it serves first: amendment for #973.)
 5. **Readable names.** The C4 report draws a service or frontend whose name is a build's name
    (`edge-gateway`, `customer-portal-bff`, `billing`) in words ("Edge gateway", "Customer portal
    BFF", "Billing": known acronyms in capitals), its page titled the same, and writes the
@@ -147,3 +147,42 @@ touches is a false fact (`docs/quality-bar.md`, ADR 0088). Now (`DataStores`, `l
   a batch job's step reading a second database is shown.
 - **The check.** The C4 report's quality report fails a line labelled differently on two pages: "A
   line has one label on every page it is drawn on".
+
+## Amendment for #973: a box with no sentence says what it serves; a group names no count
+
+On project-8's real run three kinds of box still read badly: two services showed "A deployable unit
+that uses Redis and technician on localhost" and the like, two controllers and the subscribed
+browsers showed nothing, and every domain and feature area showed "3 containers" or "4 components"
+as its technology. The recorded calls show why the sentences were missing: Describe wrote one for
+each, and the support judge found a claim of it unsupported twice (technician-service's "Exposes
+this over REST", notification-service's "Delivers billing notifications", the controllers' own
+sentences), so the model left it out and the plain wording took its place (ADR 0101, amendment for
+#751). Describe and the judge did what they are for; the plain wording was what failed. Now:
+
+- **What it serves first.** A unit, or the type a component's box draws, with no sentence that
+  holds (none written, or rejected though asked again) says what it serves, from its entry points
+  (`EntryPoints.ofUnit`, `ofComponent`): up to three HTTP endpoints by name, as code
+  ("Serves `POST /api/work-orders`."), more by count and what their paths are about ("Serves 15
+  HTTP endpoints about technicians (absences, availability, certifications and 3 others)"; path
+  variables, versions and segments that say nothing skipped, as for labels); what it receives
+  from (a unit's links, else its listeners' destinations); the STOMP destinations it handles; its
+  WebSocket endpoints; its jobs ("runs a Quartz job"). Only when it serves nothing does it say what
+  it calls and sends to, then the stores it uses; never its stores alone, and never "A deployable
+  unit that…". With nothing at all: "What it does is not known: no sentence about it holds and the
+  code shows nothing it serves." It cites the facts it names. A component's rejected sentence also
+  marks its anchor type, whose box it describes, so its type's summary does not stand in for it.
+- **The subscribed browsers** are described by the pushes that make them: "Browsers subscribed
+  over STOMP to /topic/a and /topic/b, which Notification service pushes, connected over /ws; no
+  code names them.", citing the pushes and endpoints (`ScopeFlows.pushes`).
+- **The system's box**, with no purpose that holds, says what the system is made of ("Made of 6
+  services, 1 frontend and 1 database."); it does not quote a README paragraph no role checked,
+  which the documents' rejected-purpose line still does.
+- **A group's technology** is what its members run on: the framework each unit's technology opens
+  with (a component's being its unit's), without versions, the most common first, at most three
+  ("Spring Boot · React"); never how many it holds, which its description ("Holds a, b and c")
+  already says. The report's check that every container and component shown has a technology
+  still holds for groups.
+
+This is done in the composer, deterministically, without a new LLM call or prompt change: the
+plain wording is what the report shows when Describe's sentence does not hold, and what a box
+serves is in the facts.

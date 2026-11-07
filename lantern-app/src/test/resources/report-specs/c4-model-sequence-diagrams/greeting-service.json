@@ -23,7 +23,8 @@
     },
     "system-snapshot" : {
       "kind" : "system",
-      "name" : "greeting-lib, greeting-service, orders and shop"
+      "name" : "greeting-lib, greeting-service, orders and shop",
+      "description" : "Made of 1 service."
     }
   },
   "pages" : [ {

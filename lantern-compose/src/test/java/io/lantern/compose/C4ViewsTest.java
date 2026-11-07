@@ -1275,7 +1275,73 @@ class C4ViewsTest {
     assertThat(app.name()).isEqualTo("shop-app");
     assertThat(String.valueOf(app.description()))
         .doesNotContain("Serves orders")
-        .startsWith("[TextRun[text=A deployable unit that ");
+        .doesNotContain("A deployable unit")
+        .isNotEqualTo("[]");
+  }
+
+  @Test
+  void aComponentWhoseSentenceTheJudgeRejectedShowsWhatItServes() {
+    // Describe's sentence about the controller's component, rejected though asked again (#973).
+    EntityId component =
+        io.lantern.derive.Components.id(
+            EntityId.parse("service:com.example:app"),
+            EntityId.parse("type:com.example.web.Controller"));
+    List<Fact> held = new ArrayList<>(facts.list());
+    held.add(
+        io.lantern.harness.LlmFacts.withSupport(
+            io.lantern.harness.LlmFacts.text(
+                io.lantern.summarize.describe.DescribeRole.UNITS,
+                "test/test",
+                "b".repeat(64),
+                component,
+                Types.RESPONSIBILITY,
+                io.lantern.harness.LlmFacts.C4,
+                "Takes the shop's orders from its staff.",
+                List.of(facts.find("module:com.example:app", "packaging")),
+                io.lantern.harness.LlmFacts.Basis.INFERRED,
+                1),
+            io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED));
+
+    Document document =
+        new Composer("1")
+            .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, held);
+
+    // Its box shows what the component serves, its endpoint as code, citing it; never nothing.
+    DocumentEntity controller =
+        document.entities().stream()
+            .filter(e -> e.id().toString().equals("type:com.example.web.Controller"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(text(controller.description())).isEqualTo("Serves GET /orders.");
+    assertThat(controller.description())
+        .contains(new TextRun("GET /orders", TextRun.Style.CODE))
+        .last()
+        .isInstanceOf(io.lantern.core.document.Citation.class);
+  }
+
+  @Test
+  void manyEndpointsAreSaidByWhatTheirPathsAreAbout() {
+    // Spring's documented shapes: path variables, versions and words that say nothing skipped.
+    assertThat(
+            Assembler.about(
+                List.of(
+                    "GET /api/v1/technicians/{id}",
+                    "GET /api/v1/technicians/{id}/shifts",
+                    "POST /api/v1/technicians/{technicianId}/absences/{absenceId}/decision",
+                    "GET /api/v1/technicians/{id}/skills",
+                    "GET /api/v1/technicians/roster/summary")))
+        .isEqualTo("technicians (absences, roster, shifts and skills)");
+    assertThat(
+            Assembler.about(
+                List.of(
+                    "GET /orders",
+                    "POST /orders",
+                    "GET /work-orders/{id}",
+                    "GET /invoices",
+                    "GET /rest/customers",
+                    "DELETE /parts/{id}")))
+        .isEqualTo("customers, invoices, orders and 2 others");
+    assertThat(Assembler.about(List.of("GET /", "GET /{id}"))).isNull();
   }
 
   @Test
