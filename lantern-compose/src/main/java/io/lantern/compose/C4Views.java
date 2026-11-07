@@ -1930,18 +1930,8 @@ final class C4Views {
                     assembler.id(areaId, "diagram"), unit, components, title, mains, others);
             perPair = false;
           }
-          if (!fits(view)) {
-            // An area too large for one page is split by groups of entry points (docs/design.md,
-            // Readable diagrams), each page naming the area.
-            result.add(
-                onePage(
-                    areaId,
-                    name,
-                    area,
-                    SectionKind.COMPONENTS.levels(),
-                    byEntryPoint(areaId, area, name, unit, components, title, mains, others)));
-            return;
-          }
+          // An area still too large is drawn as it is: the grouping role splits an area too large
+          // for one view by meaning (#932), and slices by entry point read as nothing.
           result.add(
               new Section(
                   areaId,

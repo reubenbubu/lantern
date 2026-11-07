@@ -273,7 +273,7 @@ class GroupByMeaningTest {
       }
     }
 
-    List<Fact> kept = GroupByMeaning.kept(new Knowledge(later), 3);
+    List<Fact> kept = GroupByMeaning.kept(new Knowledge(later), 3, 10);
 
     assertThat(groups(kept, Groups.FEATURE_AREA)).doesNotContainKey(area("llm-payments"));
     assertThat(kept)
@@ -388,6 +388,91 @@ class GroupByMeaningTest {
   }
 
   @Test
+  void sharedInfrastructureStaysOutsideTheDomains() {
+    // s11 is a config server: every unit reads its settings, so it serves no one domain (#932).
+    List<Fact> facts = new ArrayList<>(services());
+    TestFacts server = new TestFacts();
+    server.relate("s11", "service:io.acme:s11", Types.CONTAINS, "module:io.acme:s11");
+    server.relate(
+        "s11", "module:io.acme:s11", Types.CONTAINS, "type:io.acme.config.ConfigApplication");
+    server.attribute(
+        "s11", "type:io.acme.config.ConfigApplication", Types.INFRASTRUCTURE_SERVER, "config");
+    facts.addAll(server.list());
+    String inADomain =
+        "{\"domains\": ["
+            + domain("s1", "s2", "s3", "s4", "s5")
+            + ", "
+            + domain("s6", "s7", "s8", "s9", "s10", "s11")
+            + "], \"areas\": [], \"left_out\": []}";
+    String beside = inADomain.replace(", \"{s11}\"]}", "]}");
+    java.util.concurrent.atomic.AtomicInteger asked =
+        new java.util.concurrent.atomic.AtomicInteger();
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(r -> answering(asked.getAndIncrement() == 0 ? inADomain : beside).apply(r));
+
+    GroupByMeaning.Result result = new GroupByMeaning(harness(fake), 8, 2).group(facts, 2);
+
+    String prompt = fake.sent().getFirst().request().messages().getFirst().text();
+    assertThat(prompt).contains("s11 | - | (shared infrastructure)");
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(fake.sent().get(1).request().messages().getLast().text())
+        .contains("shared infrastructure and stays outside the domains");
+    Map<String, Set<String>> domains = groups(result.replacing(facts), Groups.DOMAIN);
+    assertThat(domains).hasSize(2);
+    assertThat(domains.values()).noneSatisfy(m -> assertThat(m).contains("service:io.acme:s11"));
+  }
+
+  @Test
+  void anAreaTooLargeForOneViewIsSplitIntoNewAreasByMeaning() {
+    // With a target of 3, the code's orders and invoices areas, of 4 components each, are too
+    // large: the model may split them into new areas, never move their parts into another (#932).
+    String intoAnother =
+        """
+        {"domains": [],
+         "areas": [
+           {"service": "{billing}", "key": "path-invoices", "extends": "path-invoices",
+            "reason": {"text": "They read what customers owe and what they have already paid.", "cites": ["{OrderA}"]},
+            "members": ["{OrderA}"]}],
+         "left_out": []}""";
+    String split =
+        """
+        {"domains": [],
+         "areas": [
+           {"service": "{billing}", "key": "order-browsing", "extends": null,
+            "reason": {"text": "They let a customer look through the orders placed so far.", "cites": ["{OrderA}"]},
+            "members": ["{OrderA}", "{OrderB}"]},
+           {"service": "{billing}", "key": "order-changes", "extends": null,
+            "reason": {"text": "They let a customer change or cancel an order before it ships.", "cites": ["{OrderC}"]},
+            "members": ["{OrderC}", "{OrderD}"]}],
+         "left_out": []}""";
+    java.util.concurrent.atomic.AtomicInteger asked =
+        new java.util.concurrent.atomic.AtomicInteger();
+    FakeLlmProvider fake =
+        new FakeLlmProvider()
+            .answering(r -> answering(asked.getAndIncrement() == 0 ? intoAnother : split).apply(r));
+
+    GroupByMeaning.Result result = new GroupByMeaning(harness(fake), 3, 0).group(facts(), 2);
+
+    String prompt = fake.sent().getFirst().request().messages().getFirst().text();
+    assertThat(prompt).contains("OrderA | path-orders (too large: split it) |");
+    assertThat(fake.sent()).hasSize(2);
+    assertThat(fake.sent().get(1).request().messages().getLast().text())
+        .contains("split it into new areas, never into an existing one");
+    Map<String, Set<String>> areas = groups(result.replacing(facts()), Groups.FEATURE_AREA);
+    assertThat(areas)
+        .containsKeys(area("llm-order-browsing"), area("llm-order-changes"), INVOICES)
+        .doesNotContainKey(ORDERS)
+        .containsEntry(
+            area("llm-order-browsing"),
+            Set.of(component("web", "OrderA"), component("web", "OrderB")));
+
+    // A later run keeps the split, though the code still groups the orders by their path.
+    List<Fact> kept = GroupByMeaning.kept(new Knowledge(result.replacing(facts())), 3, 3);
+    assertThat(groups(kept, Groups.FEATURE_AREA)).containsKeys(area("llm-order-browsing"));
+  }
+
+  @Test
   void aKeptMemberTheCodeNowGroupsLeavesItsEarlierGroup() {
     List<Fact> facts = facts();
     FakeLlmProvider fake = new FakeLlmProvider().answering(answering(GOOD));
@@ -412,7 +497,7 @@ class GroupByMeaningTest {
             invoices.confidence(),
             invoices.validity()));
 
-    List<Fact> kept = GroupByMeaning.kept(new Knowledge(later), 3);
+    List<Fact> kept = GroupByMeaning.kept(new Knowledge(later), 3, 10);
 
     // It is in one area only, the code's, and the area it was in, left with one member, is gone.
     assertThat(kept).noneSatisfy(f -> assertThat(f.object().value().toString()).isEqualTo(taken));

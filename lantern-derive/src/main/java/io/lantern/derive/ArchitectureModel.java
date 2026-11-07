@@ -279,10 +279,25 @@ public final class ArchitectureModel {
     return knowledge.relations(unit, Types.BUNDLES);
   }
 
-  /** The members of a group, as its {@code GROUPS} facts. */
+  /**
+   * The members of a group, as its {@code GROUPS} facts: those it still holds once a group formed
+   * by meaning has split it (#932), none when too few are left for it to stand for anything.
+   */
   public List<Fact> groupMembers(EntityId group) {
-    return knowledge.relations(group, Types.GROUPS);
+    if (resolvedMembers == null) {
+      Map<EntityId, Set<EntityId>> members = new HashMap<>();
+      for (String kind : List.of(Groups.DOMAIN, Groups.FEATURE_AREA)) {
+        Groups.of(knowledge, kind).forEach(g -> members.put(g.id(), g.members()));
+      }
+      resolvedMembers = members;
+    }
+    Set<EntityId> held = resolvedMembers.getOrDefault(group, Set.of());
+    return knowledge.relations(group, Types.GROUPS).stream()
+        .filter(f -> held.contains(Knowledge.object(f)))
+        .toList();
   }
+
+  private Map<EntityId, Set<EntityId>> resolvedMembers;
 
   /** The facts that make a group: those about it and those holding its members. */
   public List<Fact> groupFacts(EntityId group) {

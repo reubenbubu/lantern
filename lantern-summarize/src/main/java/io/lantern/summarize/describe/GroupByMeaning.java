@@ -83,10 +83,10 @@ public final class GroupByMeaning {
   public static final String NAME = "group-by-meaning";
 
   /** The prompt version, part of every answer's cache key. */
-  static final String VERSION = "1";
+  static final String VERSION = "2";
 
   /** The basis of a group, and of a member joining one, the role formed. */
-  public static final String BASIS = "meaning";
+  public static final String BASIS = Groups.MEANING;
 
   /** The prefix of the signal of a group the role formed. */
   static final String SIGNAL = "llm-";
@@ -192,11 +192,27 @@ public final class GroupByMeaning {
    * @param group the group the code or an earlier answer gave it, or null
    * @param connected whether a link names it, from or to; a container nothing connects to is drawn
    *     on a page of its own and need not join a domain
+   * @param shared whether it is shared infrastructure (a gateway, a config or discovery server),
+   *     which stays beside the domains (#932)
+   * @param oversized whether its group is a feature area too large for one view, which the answer
+   *     may split into new areas (#932)
    */
-  record Part(EntityId id, String name, EntityId container, EntityId group, boolean connected) {
+  record Part(
+      EntityId id,
+      String name,
+      EntityId container,
+      EntityId group,
+      boolean connected,
+      boolean shared,
+      boolean oversized) {
 
     boolean loose() {
       return group == null;
+    }
+
+    /** Whether an answer may place it: it has no group, or its area is to be split. */
+    boolean placeable() {
+      return loose() || oversized;
     }
   }
 
@@ -227,7 +243,7 @@ public final class GroupByMeaning {
    */
   public Result group(Collection<Fact> facts, long snapshot) {
     Knowledge knowledge = new Knowledge(facts);
-    List<Fact> kept = kept(knowledge, snapshot);
+    List<Fact> kept = kept(knowledge, snapshot, target + tolerance);
     // Read with the kept groups only, so a group that lost its members frees them.
     List<Fact> current = new ArrayList<>();
     for (Fact fact : facts) {
@@ -281,10 +297,13 @@ public final class GroupByMeaning {
 
   /**
    * The role's earlier groups, written again from this snapshot: each member that still exists in
-   * the group it was given; a group it formed with fewer than 2 members left is dropped, which
-   * frees them.
+   * the group it was given, unless the code now groups it in a group of the same kind that fits one
+   * view, or it is shared infrastructure in a domain; a group it formed with fewer than 2 members
+   * left is dropped, which frees them.
+   *
+   * @param most the most members a group may hold and still fit one view
    */
-  static List<Fact> kept(Knowledge knowledge, long snapshot) {
+  static List<Fact> kept(Knowledge knowledge, long snapshot, int most) {
     Set<EntityId> exists = new HashSet<>();
     for (Fact part : knowledge.withPredicate(Types.PART_OF)) {
       exists.add(part.subject());
@@ -305,11 +324,26 @@ public final class GroupByMeaning {
     knowledge
         .withPredicate(Types.GROUP_OF)
         .forEach(f -> kindOf.putIfAbsent(f.subject(), f.object().value().toString()));
+    // A code group too large for one view may be split by meaning (#932): its members stay in
+    // the groups an earlier answer split it into.
+    Map<EntityId, Integer> codeSize = new HashMap<>();
+    for (Fact fact : knowledge.withPredicate(Types.GROUPS)) {
+      if (!own(fact)) {
+        codeSize.merge(fact.subject(), 1, Integer::sum);
+      }
+    }
     Set<String> codeGrouped = new HashSet<>();
     for (Fact fact : knowledge.withPredicate(Types.GROUPS)) {
-      if (!own(fact) && kindOf.containsKey(fact.subject())) {
+      if (!own(fact)
+          && kindOf.containsKey(fact.subject())
+          && codeSize.get(fact.subject()) <= most) {
         codeGrouped.add(kindOf.get(fact.subject()) + " " + Knowledge.object(fact));
       }
+    }
+    SortedSet<EntityId> units = new TreeSet<>(Knowledge.BY_ID);
+    units.addAll(Elements.units(knowledge));
+    for (EntityId shared : Groups.sharedInfrastructure(knowledge, units)) {
+      codeGrouped.add(Groups.DOMAIN + " " + shared);
     }
     for (Fact fact : knowledge.withPredicate(Types.GROUPS)) {
       if (own(fact)
@@ -385,21 +419,32 @@ public final class GroupByMeaning {
           .put(key(domain.id()), domain.id());
     }
     Map<EntityId, EntityId> areaOf = new HashMap<>();
+    Set<EntityId> oversized = new HashSet<>();
     for (Groups.Group area : Groups.of(knowledge, Groups.FEATURE_AREA)) {
       area.members().forEach(m -> areaOf.putIfAbsent(m, area.id()));
       groups.computeIfAbsent(area.scope(), s -> new TreeMap<>()).put(key(area.id()), area.id());
+      if (area.members().size() > most) {
+        oversized.add(area.id());
+      }
     }
     SortedSet<EntityId> containers = new TreeSet<>(Knowledge.BY_ID);
     containers.addAll(Elements.units(knowledge));
     containers.addAll(Elements.frontends(knowledge));
+    Set<EntityId> shared = Groups.sharedInfrastructure(knowledge, Elements.units(knowledge));
     boolean domains =
-        containers.size() > most && containers.stream().anyMatch(c -> !domainOf.containsKey(c));
+        containers.size() > most
+            && containers.stream().anyMatch(c -> !domainOf.containsKey(c) && !shared.contains(c));
     Map<EntityId, List<Elements.Component>> services = new LinkedHashMap<>();
     for (EntityId unit : Elements.units(knowledge)) {
       List<Elements.Component> components = elements.components(unit);
-      if (components.size() > most
-          && components.stream()
-              .anyMatch(c -> !areaOf.containsKey(Components.id(unit, c.main())))) {
+      boolean loose =
+          components.size() > most
+              && components.stream()
+                  .anyMatch(c -> !areaOf.containsKey(Components.id(unit, c.main())));
+      boolean split =
+          components.stream()
+              .anyMatch(c -> oversized.contains(areaOf.get(Components.id(unit, c.main()))));
+      if (loose || split) {
         services.put(unit, components);
       }
     }
@@ -420,12 +465,23 @@ public final class GroupByMeaning {
       String does = responsibilities.getOrDefault(container, "");
       if (!connected.contains(container)) {
         does = (does + " (nothing connects to it)").strip();
+      } else if (shared.contains(container)) {
+        does = (does + " (shared infrastructure)").strip();
       }
       String line = name + " | " + (group == null ? "-" : key(group)) + " | " + does;
       String token = refs.add('E', container.toString(), container, line);
       tokens.put(container, token);
       byName.putIfAbsent(name, token);
-      parts.put(ref(token), new Part(container, name, null, group, connected.contains(container)));
+      parts.put(
+          ref(token),
+          new Part(
+              container,
+              name,
+              null,
+              group,
+              connected.contains(container),
+              shared.contains(container),
+              false));
       text.append('[').append(token).append("] ").append(line).append('\n');
     }
     if (domains) {
@@ -448,10 +504,11 @@ public final class GroupByMeaning {
         EntityId id = Components.id(unit, component.main());
         String name = FactLines.oneLine(NameGroups.name(knowledge, names, id));
         EntityId group = areaOf.get(id);
+        boolean split = oversized.contains(group);
         StringBuilder line =
             new StringBuilder(name)
                 .append(" | ")
-                .append(group == null ? "-" : key(group))
+                .append(group == null ? "-" : key(group) + (split ? " (too large: split it)" : ""))
                 .append(" | ")
                 .append(responsibilities.getOrDefault(id, ""));
         List<String> paths = paths(knowledge, component);
@@ -462,7 +519,7 @@ public final class GroupByMeaning {
         tokens.put(id, token);
         component.types().forEach(t -> tokens.putIfAbsent(t, token));
         byName.putIfAbsent(name, token);
-        parts.put(ref(token), new Part(id, name, unit, group, true));
+        parts.put(ref(token), new Part(id, name, unit, group, true, false, split));
         text.append('[').append(token).append("] ").append(line).append('\n');
       }
     }
@@ -724,7 +781,10 @@ public final class GroupByMeaning {
     List<EntityId> members = new ArrayList<>();
     for (JsonNode member : group.path("members")) {
       Part part = asked.parts().get(clean(member.asString("")));
-      if (part != null && part.loose() && scope.equals(scopeOf(part))) {
+      if (part != null
+          && scope.equals(scopeOf(part))
+          && (part.loose() || part.oversized() && id == null)
+          && !(part.shared() && kind.equals(Groups.DOMAIN))) {
         members.add(part.id());
       }
     }
@@ -872,7 +932,13 @@ public final class GroupByMeaning {
             && isNew(domain, Groups.SYSTEM, "Domain", newKeys, problems)) {
           newDomains++;
         }
-        members(domain, Groups.SYSTEM, "domain " + label(domain), placedIn, problems);
+        members(
+            domain,
+            Groups.SYSTEM,
+            "domain " + label(domain),
+            isNewKey(domain, Groups.SYSTEM),
+            placedIn,
+            problems);
       }
       if (asked.domains()) {
         // Every container something connects to joins a domain: one left out would stand beside
@@ -885,13 +951,15 @@ public final class GroupByMeaning {
                   if (part.container() == null
                       && part.loose()
                       && part.connected()
+                      && !part.shared()
                       && !placedIn.containsKey(ref)) {
                     outside.add(ref);
                   }
                 });
         if (!outside.isEmpty()) {
           problems.add(
-              "Every container not marked \"nothing connects to it\" joins a domain; "
+              "Every container not marked \"nothing connects to it\" or \"shared infrastructure\""
+                  + " joins a domain; "
                   + String.join(", ", outside)
                   + " "
                   + (outside.size() == 1 ? "joins" : "join")
@@ -930,7 +998,7 @@ public final class GroupByMeaning {
         } else if (extended.isEmpty()) {
           isNew(area, scope, "Area", newKeys, problems);
         }
-        members(area, scope, "area " + label(area), placedIn, problems);
+        members(area, scope, "area " + label(area), isNewKey(area, scope), placedIn, problems);
       }
       List<Rejection> found = new ArrayList<>();
       problems.forEach(p -> found.add(new Rejection(answer.item(), "", name(), p)));
@@ -956,7 +1024,7 @@ public final class GroupByMeaning {
       int holds = 0;
       for (JsonNode member : group.path("members")) {
         Part part = asked.parts().get(clean(member.asString("")));
-        if (part != null && part.loose() && scope.equals(scopeOf(part))) {
+        if (part != null && part.placeable() && scope.equals(scopeOf(part))) {
           holds++;
         }
       }
@@ -974,10 +1042,20 @@ public final class GroupByMeaning {
       return true;
     }
 
+    /** Whether a group of an answer is a new one: it extends none and its key is no group's. */
+    private boolean isNewKey(JsonNode group, String scope) {
+      String key = group.path("key").asString("");
+      Map<String, EntityId> existing = asked.groups().getOrDefault(scope, Map.of());
+      return group.path("extends").asString("").isEmpty()
+          && !existing.containsKey(key)
+          && !existing.containsKey(SIGNAL + key);
+    }
+
     private void members(
         JsonNode group,
         String scope,
         String what,
+        boolean isNew,
         Map<String, String> placedIn,
         List<String> problems) {
       for (JsonNode member : group.path("members")) {
@@ -994,7 +1072,23 @@ public final class GroupByMeaning {
                   + ", which is "
                   + (part.container() == null ? "a container" : "a component of another service")
                   + ".");
-        } else if (!part.loose()) {
+        } else if (part.shared() && scope.equals(Groups.SYSTEM)) {
+          problems.add(
+              "The "
+                  + what
+                  + " holds "
+                  + ref
+                  + ", which is shared infrastructure and stays outside the domains.");
+        } else if (part.oversized() && !isNew) {
+          problems.add(
+              "The "
+                  + what
+                  + " holds "
+                  + ref
+                  + ", whose area "
+                  + key(part.group())
+                  + " is too large; split it into new areas, never into an existing one.");
+        } else if (!part.placeable()) {
           problems.add(
               "The "
                   + what
