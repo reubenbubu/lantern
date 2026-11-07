@@ -361,7 +361,7 @@ public final class ArchitectureModel {
           continue;
         }
         // A repository's type names one ("work order"), a table many ("work orders"): many.
-        boolean type = !object(basis).type().equals("table");
+        boolean type = !object(basis).type().equals(Types.TABLE);
         names.add(type && !words.endsWith("s") ? words + "s" : words);
       }
     }
