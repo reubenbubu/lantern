@@ -1,6 +1,6 @@
 # 0042: Cross-repo links
 
-Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), amended by ADR 0083 (#267), amended (#473), amended by ADR 0090 (#518: runtime links under `INTERACTS_WITH`, brokers and infrastructure are containers), amended by ADR 0095 (#575: the step is one link rule per protocol), amended by ADR 0095 (#576: the claim ID is the link ID)
+Status: accepted (#94), amended by ADR 0070 (#250) and ADR 0077 (#257), amended (#265), amended by ADR 0082 (#266), amended (#307), amended (#272), amended by ADR 0083 (#267), amended (#473), amended by ADR 0090 (#518: runtime links under `INTERACTS_WITH`, brokers and infrastructure are containers), amended by ADR 0095 (#575: the step is one link rule per protocol), amended by ADR 0095 (#576: the claim ID is the link ID), amended (#640: placeholder datasources that write the same database are one)
 
 ## Context
 
@@ -401,3 +401,36 @@ and merges what it finds (ADR 0095, amendment for #590). A link found only under
 profile in `view` (was `profile`), a key attribute; one found in the default view lists the
 profiles it is not found under in `absentIn` (was `exceptProfiles`). A call's `alternates` are
 named once the views are merged.
+
+## Amendment (#640): placeholder datasources that write the same database are one
+
+A datasource whose server or database is a placeholder no config resolves was its unit's own
+database and never shared (#255). On project-8, billing-service's second datasource and
+workorder-service's own both write `jdbc:postgresql://${DB_HOST}:5432/workorder`, and the report
+showed two `workorder` databases, so the one database two units share could not be seen. A
+deployment fills the same placeholders from one environment, which is why Redis is already shared
+this way (ADR 0073).
+
+- **Datasources of one view that write the same server, technology and database are one
+  database.** The server is the host and port as the URL writes them, placeholders as written and
+  case ignored; the database is the one the URL names, in the path, in a `databaseName` property
+  or after an Oracle service, whatever key the datasource is under. A database that is itself a
+  placeholder counts only as the deployments fill it, the same in every environment that places
+  it; with no deployment it says nothing, so two units writing `${DB_NAME}` stay apart. Datasources
+  the deployments put on different servers or databases in one environment stay apart, and so does
+  one they put on two.
+- **Its entity.** Those of several units are `database:<server>/<database>`, the server in lower
+  case (`database:${db_host}:5432/workorder`), with the database as `display-name` and no key in
+  parentheses; those of one unit (a main datasource and Flyway's on the same database) are the
+  unit's own database without the key, `<unit>/<technology>:<database>`. A lone placeholder
+  datasource keeps its key as before.
+- **Inferred.** Each unit's `USES_DATABASE` link into a database of several units is `inferred`,
+  with 0.8 of the confidence, unless the deployments put every one of its datasources on it in
+  the same environments.
+- **A database the config writes out is the one placed.** Placing a datasource on a deployment's
+  server took the database's name from the environment only, so a name written out
+  (`.../workorder`) was guessed among the server's databases by word and marked `inferred`. It is
+  now that name.
+
+The reading of a unit's data by another (`ACCESSES_DATA_OF`) compares the same entities, so it
+now also holds across such a database.

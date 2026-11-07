@@ -71,7 +71,8 @@ for the Redis store's version (ADR 0073), which the Deployment extractor was to 
   whose name shares a word with the unit's names or the placeholder's key (`auth_db` for
   `auth-service` and `auth.datasource.database`), generic words such as `db` and `service`
   ignored; that choice is `inferred` and has 0.8 of the confidence. The database stays the unit's
-  own (ADR 0042 as amended by #255): its key does not change and it is never shared; its
+  own (ADR 0042 as amended by #255): its key does not change and it is not shared, unless other
+  datasources write the same server and database (ADR 0042, amendment for #640); its
   `display-name` is that name, its `technology` the URL's product with the versions of the server
   containers, and its `USES_DATABASE` link lists `deployments` (per environment: the unit's
   container, the server container, the address and the database) with their facts. Each server

@@ -25,9 +25,11 @@ import tools.jackson.databind.node.ObjectNode;
  *     view it holds in.
  * @param inferred Descriptive. Why the link rests on an inference: the Redis host or port is a
  *     placeholder no config resolves, so units that write the same placeholders are taken to share
- *     one server; or the database's name is left to the environment, and of the databases its
- *     server creates in a deployment the one whose name shares a word with the unit or the
- *     placeholder is taken.
+ *     one server; the database's server is a placeholder no config resolves, so datasources that
+ *     write the same server and database are taken to be one database and no deployment puts them
+ *     all on it; or the database's name is left to the environment, and of the databases its server
+ *     creates in a deployment the one whose name shares a word with the unit or the placeholder is
+ *     taken.
  * @param key Key. The config key that sets it.
  * @param link Descriptive. No longer given since #576: the claim ID is the link's stable ID (ADR
  *     0095). Kept so links stored before stay valid.

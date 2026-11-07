@@ -238,6 +238,10 @@ final class Deployments {
                         .anyMatch(v -> variable.equals(o.env().get(v))));
       }
       String known = name == null || name.contains("${") || name.isBlank() ? null : name;
+      if (known == null && database != null && !database.isBlank() && !database.contains("${")) {
+        // The config writes the database out: it is that one, whatever the server creates.
+        known = database;
+      }
       boolean guessed = false;
       if (known == null && host != null) {
         List<String> candidates = host.databases();
