@@ -1,6 +1,6 @@
 # 0131: Every line says what it is for, every box reads as a name
 
-Status: accepted (#933)
+Status: accepted (#933), amended for #944 (lines into one box with one label)
 
 ## Context
 
@@ -59,10 +59,16 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
    ("about 40": a flow title's five words, `prompts/flow-narrative.task.txt`, fit). A bare "Uses"
    already fails the intent check; a box with no sentence the responsibility check.
 
-## Not done
+## Amendment for #944: lines into one box with one label
 
-Lines from several components of one box into the same target with the same label stay separate
-lines with the same label (#933, item 13's second half); #944 tracks it.
+Lines from several boxes into one target with the same label say what each does there: a
+component's data access names the tables it reads or writes, or the types its repositories are for
+("Reads orders", "Reads unpaid invoices", not "Keeps shop data" twice), and a line of method calls
+its method that no other of those lines calls, in words ("requestDiagnosticSnapshot" is "Requests
+diagnostic snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle vin": at most five
+words, no ordering or locking clause). A line of one method reads so whether or not another
+shares its label. Lines nothing tells apart (one method called from two places) keep their label,
+and the C4 report's quality report fails on them: "No two lines into one box share a label".
 
 ## Consequences
 

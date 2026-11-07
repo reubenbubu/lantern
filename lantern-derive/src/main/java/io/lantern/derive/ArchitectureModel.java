@@ -336,6 +336,31 @@ public final class ArchitectureModel {
     return knowledge.attribute(component, Types.DATA_ACCESS);
   }
 
+  /**
+   * What a component's data access touches (#944): the tables it reads or writes, or the types its
+   * repositories are for, in words ("work_orders" and {@code WorkOrder} are "work orders" and "work
+   * order"), once each, sorted.
+   */
+  public List<String> dataAccessed(EntityId component) {
+    java.util.SortedSet<String> names = new java.util.TreeSet<>();
+    for (Fact access : attributes(component, Types.DATA_ACCESS)) {
+      for (Fact basis : derivedFrom(access)) {
+        if (basis.object() == null
+            || basis.object().kind() != io.lantern.core.fact.FactObject.Kind.ENTITY) {
+          continue;
+        }
+        String key = object(basis).key();
+        String last = key.substring(key.replaceAll("[.:/#]", " ").lastIndexOf(' ') + 1);
+        String words =
+            last.replaceAll("([a-z0-9])([A-Z])", "$1 $2").replace('_', ' ').replace('-', ' ');
+        if (!words.isBlank()) {
+          names.add(words.strip().toLowerCase(java.util.Locale.ROOT));
+        }
+      }
+    }
+    return List.copyOf(names);
+  }
+
   /** The facts saying a type is an application's main class. */
   public List<Fact> mainClassFacts(EntityId type) {
     return attributes(type, Types.MAIN_CLASS);

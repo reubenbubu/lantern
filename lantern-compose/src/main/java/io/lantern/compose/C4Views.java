@@ -210,6 +210,10 @@ final class C4Views {
     String plain;
     String prefix;
     final Set<String> details = new TreeSet<>();
+
+    /** What the line's data access touches, which tells it apart from another's (#944). */
+    final Set<String> touches = new TreeSet<>();
+
     final Set<String> technologies = new TreeSet<>();
     final Set<String> vias = new TreeSet<>();
     final Set<String> profiles = new TreeSet<>();
@@ -503,6 +507,9 @@ final class C4Views {
     if (verbs.isEmpty()) {
       return Optional.empty();
     }
+    if (details.size() == 1) {
+      return described(details.iterator().next());
+    }
     List<String> shown = new ArrayList<>(verbs).subList(0, Math.min(3, verbs.size()));
     String text =
         shown.size() == 1
@@ -721,6 +728,15 @@ final class C4Views {
     List<Diagram.Edge> build(Assembler assembler, boolean withTechnology) {
       List<Diagram.Edge> result = new ArrayList<>();
       Set<String> ids = new HashSet<>();
+      Map<EdgeBuilder, String> labels = new java.util.LinkedHashMap<>();
+      for (EdgeBuilder edge : byKey.values()) {
+        labels.put(
+            edge,
+            isType(edge.to.type(), Types.DESTINATION)
+                ? withoutDestination(withoutEnd(edge.label(), endNames(edge.to)))
+                : withoutEnd(edge.label(), endNames(edge.to)));
+      }
+      apart(labels);
       for (EdgeBuilder edge : byKey.values()) {
         String technology = withTechnology ? edge.technology() : null;
         result.add(
@@ -728,9 +744,7 @@ final class C4Views {
                 Assembler.edgeId(ids, edge.from, edge.relationship, edge.to),
                 edge.from,
                 edge.to,
-                isType(edge.to.type(), Types.DESTINATION)
-                    ? withoutDestination(withoutEnd(edge.label(), endNames(edge.to)))
-                    : withoutEnd(edge.label(), endNames(edge.to)),
+                labels.get(edge),
                 technology,
                 edge.relationship,
                 edge.always ? List.of() : List.copyOf(edge.profiles),
@@ -738,6 +752,98 @@ final class C4Views {
       }
       return perPair ? merged(result) : result;
     }
+  }
+
+  /**
+   * Lines from several boxes into one with the same label say what each does there (#944): a
+   * component's data access with the purpose's object ("Keeps work orders" read by one and written
+   * by another is "Reads work orders" and "Writes work orders"), a line of methods its own methods.
+   * Left as they are when that would not tell them apart.
+   */
+  private static void apart(Map<EdgeBuilder, String> labels) {
+    Map<String, List<EdgeBuilder>> same = new java.util.LinkedHashMap<>();
+    labels.forEach(
+        (edge, label) -> {
+          if (label != null) {
+            same.computeIfAbsent(edge.to + " " + label, k -> new ArrayList<>()).add(edge);
+          }
+        });
+    for (List<EdgeBuilder> group : same.values()) {
+      if (group.size() < 2) {
+        continue;
+      }
+      Map<EdgeBuilder, String> told = new java.util.LinkedHashMap<>();
+      for (EdgeBuilder edge : group) {
+        Set<String> others = new HashSet<>();
+        group.stream().filter(e -> e != edge).forEach(e -> others.addAll(e.details));
+        told.put(edge, apart(edge, labels.get(edge), others));
+      }
+      if (new HashSet<>(told.values()).size() > 1) {
+        labels.putAll(told);
+      }
+    }
+  }
+
+  private static final Set<String> ACCESS = Set.of("Reads", "Writes", "Reads and writes");
+
+  /** What one line of a same-label group does there, or its label if nothing tells. */
+  private static String apart(EdgeBuilder edge, String label, Set<String> others) {
+    String[] words = label.split("\\s+", 2);
+    if (edge.plain != null && ACCESS.contains(edge.plain) && !edge.touches.isEmpty()) {
+      List<String> touched = new ArrayList<>(edge.touches);
+      String text =
+          touched.size() == 1
+              ? touched.getFirst()
+              : touched.size() <= 3
+                  ? String.join(", ", touched.subList(0, touched.size() - 1))
+                      + " and "
+                      + touched.getLast()
+                  : String.join(", ", touched.subList(0, 2)) + " and others";
+      return edge.plain + " " + text;
+    }
+    if (edge.plain != null && ACCESS.contains(edge.plain) && words.length == 2) {
+      return words[0].equalsIgnoreCase(edge.plain) ? label : edge.plain + " " + words[1];
+    }
+    if (!edge.details.isEmpty()
+        && edge.details.stream().allMatch(d -> METHOD.matcher(d).matches())) {
+      // The first method only this line calls, else its first.
+      String method =
+          edge.details.stream()
+              .filter(d -> !others.contains(d))
+              .findFirst()
+              .orElse(edge.details.iterator().next());
+      return described(method).orElse(label);
+    }
+    return label;
+  }
+
+  /**
+   * A method's name as what it does (#944): "requestDiagnosticSnapshot" is "Requests diagnostic
+   * snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle vin"; at most five words,
+   * no ordering or locking clause; empty unless it starts with a known verb.
+   */
+  static Optional<String> described(String method) {
+    String[] parts = method.split("(?=[A-Z])|(?<=[a-z])(?=[0-9])");
+    if (parts.length == 0 || !VERBS.contains(parts[0])) {
+      return Optional.empty();
+    }
+    List<String> words = new ArrayList<>(List.of(thirdPerson(parts[0])));
+    for (int i = 1; i < parts.length && words.size() < 5; i++) {
+      String word = parts[i].toLowerCase(Locale.ROOT);
+      String next = i + 1 < parts.length ? parts[i + 1].toLowerCase(Locale.ROOT) : "";
+      if ((word.equals("order") && next.equals("by"))
+          || (word.equals("for") && next.equals("update"))
+          || word.equals("desc")
+          || word.equals("asc")) {
+        break;
+      }
+      if (word.matches("top|first|distinct|all|\\d+")) {
+        continue;
+      }
+      words.add(word);
+    }
+    String text = String.join(" ", words);
+    return Optional.of(Character.toUpperCase(text.charAt(0)) + text.substring(1));
   }
 
   /**
@@ -2781,6 +2887,7 @@ final class C4Views {
           EdgeBuilder edge =
               edges.get(shown.apply(component.main()), Types.USES_DATABASE, link.to());
           edge.add(access, null, null, link.technology(), link.profile());
+          edge.touches.addAll(model.dataAccessed(Components.id(unit, component.main())));
           edge.facts.addAll(link.facts());
           // The unit's intent for its store, which the component's access serves (#739).
           edge.phrased(assembler.phrase(link.facts().getFirst()));

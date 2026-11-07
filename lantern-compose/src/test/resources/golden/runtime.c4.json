@@ -1946,6 +1946,17 @@
         } ],
         "facts" : [ ]
       }, {
+        "check" : "No two lines into one box share a label",
+        "target" : {
+          "kind" : "block",
+          "id" : "components.service:com.example:app.diagram"
+        },
+        "detail" : [ {
+          "kind" : "text",
+          "text" : "Lines with one label: Controller and Jobs to JpaOrders (\"Calls all\")."
+        } ],
+        "facts" : [ ]
+      }, {
         "check" : "Every line is labelled with an intent phrase",
         "target" : {
           "kind" : "block",

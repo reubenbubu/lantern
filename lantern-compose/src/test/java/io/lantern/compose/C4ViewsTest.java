@@ -744,6 +744,42 @@ class C4ViewsTest {
   }
 
   @Test
+  void linesFromSeveralComponentsIntoOneStoreSayWhatEachTouchesThere() {
+    String read = "method:com.example.domain.JdbcInvoices#unpaid()";
+    facts
+        .attribute("shop", "type:com.example.domain.JdbcInvoices", "stereotype", "repository", "{}")
+        .relate(
+            "shop",
+            "package:com.example:app:com.example.domain",
+            "CONTAINS",
+            "type:com.example.domain.JdbcInvoices")
+        .relate("shop", "type:com.example.domain.JdbcInvoices", "CONTAINS", read)
+        .relate("shop", read, "READS_TABLE", "table:com.example:app:unpaid_invoices", "{}")
+        .relate("shop", "method:com.example.web.Jobs#run()", "CALLS", read);
+
+    Diagram diagram =
+        block(section(repo(facts.list()), "components").sections().getFirst(), Diagram.class);
+
+    // #944: both only read the store; what each reads tells them apart.
+    assertThat(edges(diagram))
+        .contains(
+            "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads orders [JDBC]",
+            "type:com.example.web.Jobs -> database:db:5432/shop: Reads unpaid invoices [JDBC]");
+  }
+
+  @Test
+  void aMethodsNameSaysWhatItDoes() {
+    assertThat(C4Views.described("requestDiagnosticSnapshot"))
+        .contains("Requests diagnostic snapshot");
+    assertThat(C4Views.described("findByVehicleVinOrderByCreatedAtDesc"))
+        .contains("Finds by vehicle vin");
+    assertThat(C4Views.described("findTop100ByPublishedAtIsNull"))
+        .contains("Finds by published at is");
+    assertThat(C4Views.described("findByIdForUpdate")).contains("Finds by id");
+    assertThat(C4Views.described("summary")).isEmpty();
+  }
+
+  @Test
   void aComponentLineShowsTheIntentDescribeStoredForIt() {
     List<Fact> derived = new ArrayList<>(io.lantern.derive.Derivation.withModel(facts.list(), 1));
     Fact line =
