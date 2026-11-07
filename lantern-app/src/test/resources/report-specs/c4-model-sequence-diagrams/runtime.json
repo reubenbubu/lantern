@@ -269,7 +269,7 @@
       "type" : "list",
       "id" : "quality-report",
       "title" : "Quality gaps",
-      "items" : [ "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ],
+      "items" : [ "**No two lines into one box share a label** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Lines with one label: Controller and Jobs to JpaOrders (\"Calls all\").", "**Every line is labelled with an intent phrase** ([Components of shop-app](#/components-service-com-example-app/components-service-com-example-app-diagram)): Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")." ],
       "quality" : true
     } ]
   }, {

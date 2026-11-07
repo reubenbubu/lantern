@@ -243,4 +243,17 @@ class ArchitectureModelTest {
         confidence,
         Validity.from(1));
   }
+
+  @Test
+  void aNounPhraseIsMadePluralAsEnglishDoes() {
+    // #944's real run: never "diagnostic visit entitys".
+    org.assertj.core.api.Assertions.assertThat(ArchitectureModel.plural("work order"))
+        .isEqualTo("work orders");
+    org.assertj.core.api.Assertions.assertThat(ArchitectureModel.plural("labor entry"))
+        .isEqualTo("labor entries");
+    org.assertj.core.api.Assertions.assertThat(ArchitectureModel.plural("inbox"))
+        .isEqualTo("inboxes");
+    org.assertj.core.api.Assertions.assertThat(ArchitectureModel.plural("payments"))
+        .isEqualTo("payments");
+  }
 }

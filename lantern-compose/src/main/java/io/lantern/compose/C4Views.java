@@ -210,6 +210,10 @@ final class C4Views {
     String plain;
     String prefix;
     final Set<String> details = new TreeSet<>();
+
+    /** What the line's data access touches, which tells it apart from another's (#944). */
+    final Set<String> touches = new TreeSet<>();
+
     final Set<String> technologies = new TreeSet<>();
     final Set<String> vias = new TreeSet<>();
     final Set<String> profiles = new TreeSet<>();
@@ -350,6 +354,11 @@ final class C4Views {
         if (messages.isPresent()) {
           return messages.get();
         }
+        // Methods named for what they return, not by a verb, read as fetching it (#933's real run).
+        Optional<String> got = "Calls".equals(prefix) ? accessed(details) : Optional.empty();
+        if (got.isPresent()) {
+          return got.get();
+        }
         List<String> named = new ArrayList<>(details);
         String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
         if (named.size() > NAMED) {
@@ -414,11 +423,41 @@ final class C4Views {
     return Optional.of(prefix + " " + text + (about.size() > 3 ? " and other" : "") + " messages");
   }
 
+  /**
+   * Methods named for what they return rather than by a verb, read as getting it (#933's real run):
+   * "amountApplied" is "Gets amount applied", two at most, then "and others", within a name's
+   * length; empty if a detail is not a method's name.
+   */
+  static Optional<String> accessed(java.util.Collection<String> details) {
+    if (details.isEmpty() || !details.stream().allMatch(d -> METHOD.matcher(d).matches())) {
+      return Optional.empty();
+    }
+    List<String> parts = new ArrayList<>();
+    for (String detail : details) {
+      described("get" + Character.toUpperCase(detail.charAt(0)) + detail.substring(1))
+          .map(t -> t.substring("Gets".length()).strip())
+          .filter(t -> !t.isEmpty() && !parts.contains(t))
+          .ifPresent(parts::add);
+    }
+    for (int n = Math.min(2, parts.size()); n > 0; n--) {
+      String text =
+          "Gets "
+              + (n < parts.size()
+                  ? String.join(", ", parts.subList(0, n)) + " and others"
+                  : String.join(" and ", parts.subList(0, n)));
+      if (text.length() <= MAX_NAME) {
+        return Optional.of(text);
+      }
+    }
+    return Optional.empty();
+  }
+
   /** Verbs a method's name may start with, in the form a label reads them. */
   private static final Set<String> VERBS =
       Set.of(
           "find",
           "get",
+          "launch",
           "load",
           "fetch",
           "list",
@@ -502,6 +541,9 @@ final class C4Views {
     }
     if (verbs.isEmpty()) {
       return Optional.empty();
+    }
+    if (details.size() == 1) {
+      return described(details.iterator().next());
     }
     List<String> shown = new ArrayList<>(verbs).subList(0, Math.min(3, verbs.size()));
     String text =
@@ -721,6 +763,15 @@ final class C4Views {
     List<Diagram.Edge> build(Assembler assembler, boolean withTechnology) {
       List<Diagram.Edge> result = new ArrayList<>();
       Set<String> ids = new HashSet<>();
+      Map<EdgeBuilder, String> labels = new java.util.LinkedHashMap<>();
+      for (EdgeBuilder edge : byKey.values()) {
+        labels.put(
+            edge,
+            isType(edge.to.type(), Types.DESTINATION)
+                ? withoutDestination(withoutEnd(edge.label(), endNames(edge.to)))
+                : withoutEnd(edge.label(), endNames(edge.to)));
+      }
+      apart(labels);
       for (EdgeBuilder edge : byKey.values()) {
         String technology = withTechnology ? edge.technology() : null;
         result.add(
@@ -728,9 +779,7 @@ final class C4Views {
                 Assembler.edgeId(ids, edge.from, edge.relationship, edge.to),
                 edge.from,
                 edge.to,
-                isType(edge.to.type(), Types.DESTINATION)
-                    ? withoutDestination(withoutEnd(edge.label(), endNames(edge.to)))
-                    : withoutEnd(edge.label(), endNames(edge.to)),
+                labels.get(edge),
                 technology,
                 edge.relationship,
                 edge.always ? List.of() : List.copyOf(edge.profiles),
@@ -738,6 +787,136 @@ final class C4Views {
       }
       return perPair ? merged(result) : result;
     }
+  }
+
+  /**
+   * Lines from several boxes into one with the same label say what each does there (#944): a
+   * component's data access with the purpose's object ("Keeps work orders" read by one and written
+   * by another is "Reads work orders" and "Writes work orders"), a line of methods its own methods.
+   * Left as they are when that would not tell them apart, and when the label is an intent the model
+   * stored.
+   */
+  private static void apart(Map<EdgeBuilder, String> labels) {
+    Map<String, List<EdgeBuilder>> same = new java.util.LinkedHashMap<>();
+    labels.forEach(
+        (edge, label) -> {
+          if (label != null) {
+            same.computeIfAbsent(edge.to + " " + label, k -> new ArrayList<>()).add(edge);
+          }
+        });
+    for (List<EdgeBuilder> group : same.values()) {
+      if (group.size() < 2) {
+        continue;
+      }
+      Map<EdgeBuilder, String> told = new java.util.LinkedHashMap<>();
+      for (EdgeBuilder edge : group) {
+        Set<String> others = new HashSet<>();
+        group.stream().filter(e -> e != edge).forEach(e -> others.addAll(e.details));
+        told.put(edge, apart(edge, labels.get(edge), others));
+      }
+      if (new HashSet<>(told.values()).size() > 1) {
+        labels.putAll(told);
+      }
+    }
+  }
+
+  private static final Set<String> ACCESS = Set.of("Reads", "Writes", "Reads and writes");
+
+  /** The longest label a line told apart by what it touches may have. */
+  private static final int MAX_LABEL = 45;
+
+  /** Technologies of a store with tables. */
+  private static final Pattern RELATIONAL =
+      Pattern.compile(
+          "(?i)(?<!no)sql|postgres|oracle|maria|\\bh2\\b|db2|derby|hsql|cockroach|jdbc");
+
+  /** What one line of a same-label group does there, or its label if nothing tells. */
+  private static String apart(EdgeBuilder edge, String label, Set<String> others) {
+    if (edge.plain != null && ACCESS.contains(edge.plain) && !edge.touches.isEmpty()) {
+      List<String> touched = new ArrayList<>(edge.touches);
+      String text =
+          touched.size() == 1
+              ? touched.getFirst()
+              : touched.size() == 2
+                  ? touched.getFirst() + " and " + touched.getLast()
+                  : touched.getFirst() + ", " + touched.get(1) + " and others";
+      String told = edge.plain + " " + text;
+      return told.length() <= MAX_LABEL
+          ? told
+          : edge.plain + " " + touched.getFirst() + " and others";
+    }
+    // What the model wrote for the line stays; only labels Lantern derived are rewritten (#944).
+    if (label.equals(edge.intent)
+        || label.equals(edge.lineIntent)
+        || edge.phrases.containsKey(label)) {
+      return label;
+    }
+    if (!edge.details.isEmpty()
+        && edge.details.stream().allMatch(d -> METHOD.matcher(d).matches())) {
+      // What only this line calls: one method in words, several by their verbs; nothing only it
+      // calls, its label.
+      List<String> own = edge.details.stream().filter(d -> !others.contains(d)).toList();
+      if (own.isEmpty()) {
+        return label;
+      }
+      return (own.size() == 1 ? described(own.getFirst()) : actions(own)).orElse(label);
+    }
+    return label;
+  }
+
+  private static final Set<String> QUERY_WORDS =
+      Set.of(
+          "is", "not", "null", "in", "like", "between", "and", "or", "true", "false", "containing");
+
+  /**
+   * A method's name as what it does (#944): "requestDiagnosticSnapshot" is "Requests diagnostic
+   * snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle vin"; at most five words,
+   * no ordering or locking clause; empty unless it starts with a known verb.
+   */
+  static Optional<String> described(String method) {
+    String[] parts =
+        method.split("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[a-z])(?=[0-9])");
+    if (parts.length == 0 || !VERBS.contains(parts[0])) {
+      return Optional.empty();
+    }
+    List<String> words = new ArrayList<>(List.of(thirdPerson(parts[0])));
+    boolean by = false;
+    for (int i = 1; i < parts.length; i++) {
+      String part = parts[i];
+      String word = part.matches("[A-Z0-9]{2,}") ? part : part.toLowerCase(Locale.ROOT);
+      String next = i + 1 < parts.length ? parts[i + 1].toLowerCase(Locale.ROOT) : "";
+      // Spring Data's ordering and locking clauses, never an entity called Order.
+      if ((by && word.equals("order") && next.equals("by"))
+          || (word.equals("for") && next.equals("update"))
+          || word.equals("desc")
+          || word.equals("asc")) {
+        break;
+      }
+      // A query's limit right after its verb ("findTop10", "findFirst").
+      if (i == 1
+          && word.matches("top|first|distinct|all")
+          && Set.of("find", "get", "read", "query", "count", "search", "load").contains(parts[0])) {
+        continue;
+      }
+      if (word.matches("\\d+")) {
+        continue;
+      }
+      by |= word.equals("by");
+      words.add(word);
+    }
+    // A query's condition words say nothing alone at its end ("… published at is null").
+    while (words.size() > 1 && QUERY_WORDS.contains(words.getLast())) {
+      words.removeLast();
+    }
+    if (words.size() > 5) {
+      words = new ArrayList<>(words.subList(0, 5));
+      while (words.size() > 1
+          && (QUERY_WORDS.contains(words.getLast()) || words.getLast().equals("by"))) {
+        words.removeLast();
+      }
+    }
+    String text = String.join(" ", words);
+    return Optional.of(Character.toUpperCase(text.charAt(0)) + text.substring(1));
   }
 
   /**
@@ -2781,6 +2960,11 @@ final class C4Views {
           EdgeBuilder edge =
               edges.get(shown.apply(component.main()), Types.USES_DATABASE, link.to());
           edge.add(access, null, null, link.technology(), link.profile());
+          // Tables and repositories are a relational store's, never a cache's (#944).
+          String technology = elements.technology(link.to());
+          if (technology != null && RELATIONAL.matcher(technology).find()) {
+            edge.touches.addAll(model.dataAccessed(Components.id(unit, component.main())));
+          }
           edge.facts.addAll(link.facts());
           // The unit's intent for its store, which the component's access serves (#739).
           edge.phrased(assembler.phrase(link.facts().getFirst()));

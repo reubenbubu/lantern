@@ -112,6 +112,7 @@ final class QualityBar {
   static final String BOX_PAGE = "Every domain or feature area drawn has a page of its own";
   static final String PURPOSE = "Every line label is a purpose, not its routes or queues";
   static final String END_NAMED = "No label repeats the name or technology of the box it points to";
+  static final String DISTINCT = "No two lines into one box share a label";
   static final String READABLE = "Every service and frontend has a name in words";
   static final String SHORT_NAMES = "No page or box name over " + C4Views.MAX_NAME + " characters";
   static final String ORIENTATION = "An orientation section of at most 300 words";
@@ -489,6 +490,27 @@ final class QualityBar {
     }
     if (!routes.isEmpty()) {
       fail(PURPOSE, target, "Labelled with routes: " + names(routes) + ".");
+    }
+    // #944: lines from several components into one box with one label do not say what each does
+    // there; on a container view several units may well do the same with one broker.
+    Map<String, List<String>> same = new java.util.TreeMap<>();
+    for (Diagram.Edge edge : diagram.edges()) {
+      if (edge.label() != null && diagram.diagramKind() == Diagram.Kind.C4_COMPONENT) {
+        same.computeIfAbsent(
+                edge.to() + " " + labels.get(edge.to()) + " (\"" + edge.label() + "\")",
+                k -> new ArrayList<>())
+            .add(labels.get(edge.from()));
+      }
+    }
+    List<String> shared = new ArrayList<>();
+    same.forEach(
+        (into, from) -> {
+          if (from.size() > 1) {
+            shared.add(names(from) + " to " + into.substring(into.indexOf(' ') + 1));
+          }
+        });
+    if (!shared.isEmpty()) {
+      fail(DISTINCT, target, "Lines with one label: " + names(shared) + ".");
     }
     if (!named.isEmpty()) {
       fail(END_NAMED, target, "Labels naming the box they point to: " + names(named) + ".");

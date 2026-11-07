@@ -1,6 +1,6 @@
 # 0131: Every line says what it is for, every box reads as a name
 
-Status: accepted (#933)
+Status: accepted (#933), amended for #944 (lines into one box with one label)
 
 ## Context
 
@@ -59,10 +59,27 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
    ("about 40": a flow title's five words, `prompts/flow-narrative.task.txt`, fit). A bare "Uses"
    already fails the intent check; a box with no sentence the responsibility check.
 
-## Not done
+## Amendment for #944: lines into one box with one label
 
-Lines from several components of one box into the same target with the same label stay separate
-lines with the same label (#933, item 13's second half); #944 tracks it.
+Lines from several boxes into one target with the same label say what each does there:
+
+- A component's data access into a relational store (its technology names SQL, PostgreSQL, Oracle,
+  MariaDB, H2, DB2, Derby, HSQL, CockroachDB or JDBC; never a cache or a NoSQL store, whose lines
+  keep the unit's phrase) names the tables it reads or writes, or the types its repositories are
+  for, as many: "Reads orders" and "Reads unpaid invoices", not "Keeps shop data" twice. This
+  replaces the unit's intent Describe stored for the store on those lines only; at most two
+  names, then "and others", within 45 characters.
+- A line of method calls names what only it calls: one method in words ("requestDiagnosticSnapshot"
+  is "Requests diagnostic snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle
+  vin", acronyms kept, at most five words, no ordering, locking or trailing condition words),
+  several by their verbs; a line calling nothing the others do not keeps its label.
+  A line whose label is an intent the model stored for it, or for the interactions drawn as it,
+  keeps it: what the model wrote is never replaced by a method's name.
+
+A line of one method reads as that method in words whether or not another shares its label. Lines
+nothing tells apart (one method called from two places) keep their label, and on a component
+diagram the C4 report's quality report fails on them: "No two lines into one box share a label".
+Container views are not checked: several units may well publish to one broker with one purpose.
 
 ## Consequences
 

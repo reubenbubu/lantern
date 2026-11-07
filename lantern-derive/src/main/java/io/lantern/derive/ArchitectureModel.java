@@ -336,6 +336,56 @@ public final class ArchitectureModel {
     return knowledge.attribute(component, Types.DATA_ACCESS);
   }
 
+  /** A noun phrase made plural: "work order" is "work orders", "entry" "entries". */
+  static String plural(String words) {
+    if (words.endsWith("s")) {
+      return words;
+    }
+    if (words.matches(".*[^aeiou]y")) {
+      return words.substring(0, words.length() - 1) + "ies";
+    }
+    if (words.matches(".*(x|ch|sh)")) {
+      return words + "es";
+    }
+    return words + "s";
+  }
+
+  /**
+   * What a component's data access touches (#944): the tables it reads or writes, or the types its
+   * repositories are for, in words ("work_orders" and {@code WorkOrder} are "work orders" and "work
+   * order"), once each, sorted.
+   */
+  public List<String> dataAccessed(EntityId component) {
+    java.util.SortedSet<String> names = new java.util.TreeSet<>();
+    for (Fact access : attributes(component, Types.DATA_ACCESS)) {
+      for (Fact basis : derivedFrom(access)) {
+        if (basis.object() == null
+            || basis.object().kind() != io.lantern.core.fact.FactObject.Kind.ENTITY) {
+          continue;
+        }
+        String key = object(basis).key();
+        String last = key.substring(key.replaceAll("[.:/#$]", " ").lastIndexOf(' ') + 1);
+        String words =
+            last.replaceAll("([a-z0-9])([A-Z])", "$1 $2")
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .strip()
+                .toLowerCase(java.util.Locale.ROOT);
+        if (words.isBlank()) {
+          continue;
+        }
+        // A repository's type names one ("work order"), a table many ("work orders"): many. A
+        // type's "Entity" suffix is how it is coded, not what it holds (#944's real run).
+        boolean type = !object(basis).type().equals(Types.TABLE);
+        if (type) {
+          words = words.replaceAll(" entity$", "").strip();
+        }
+        names.add(type ? plural(words) : words);
+      }
+    }
+    return List.copyOf(names);
+  }
+
   /** The facts saying a type is an application's main class. */
   public List<Fact> mainClassFacts(EntityId type) {
     return attributes(type, Types.MAIN_CLASS);

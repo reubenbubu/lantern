@@ -523,6 +523,40 @@ class QualityBarTest {
   }
 
   @Test
+  void twoLinesIntoOneBoxWithOneLabelFail() {
+    EntityId third = DB;
+    Diagram diagram =
+        new Diagram(
+            "d",
+            Diagram.Kind.C4_COMPONENT,
+            "Containers of Shop",
+            List.of(
+                node(SYSTEM, "Shop", null),
+                node(SHOP, "shop", "Spring Boot", SHOP_UNIT),
+                node(third, "audit", "Spring Boot", SHOP_UNIT),
+                node(PAY, "pay", "Spring Boot", PAY_UNIT)),
+            List.of(
+                edge("e1", SHOP, PAY, "Takes payment", "JSON/HTTP", CALL),
+                edge("e2", third, PAY, "Takes payment", "JSON/HTTP", CALL)),
+            List.of());
+
+    assertThat(failedOn(diagram, QualityBar.DISTINCT))
+        .containsExactly("d: Lines with one label: shop and audit to pay (\"Takes payment\").");
+    // On a container view several units may do the same with one box.
+    assertThat(
+            failedOn(
+                new Diagram(
+                    "d",
+                    Diagram.Kind.C4_CONTAINER,
+                    diagram.title(),
+                    diagram.nodes(),
+                    diagram.edges(),
+                    List.of()),
+                QualityBar.DISTINCT))
+        .isEmpty();
+  }
+
+  @Test
   void aServiceNamedOnlyAsBuiltFails() {
     // A build's name of words reads as words in the report; one the report cannot read fails.
     assertThat(

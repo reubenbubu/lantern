@@ -144,6 +144,16 @@ class C4ViewsTest {
   }
 
   @Test
+  void methodsNamedForWhatTheyReturnReadAsGettingIt() {
+    // #933's real run: never "Calls amountApplied".
+    assertThat(C4Views.accessed(List.of("amountApplied"))).contains("Gets amount applied");
+    assertThat(C4Views.accessed(List.of("creditedAmount", "dueAt", "summary")))
+        .contains("Gets credited amount, due at and others");
+    assertThat(C4Views.accessed(List.of("payments.refunds"))).isEmpty();
+    assertThat(C4Views.described("launchManually")).contains("Launches manually");
+  }
+
+  @Test
   void aLabelDoesNotNameTheEndItPointsTo() {
     // #933: the line already points to the box that says PostgreSQL, Keycloak or edge-gateway.
     assertThat(
@@ -741,6 +751,88 @@ class C4ViewsTest {
                 + " Works with charges [HTTPS] [prod]",
             "service:com.example:worker -> type:com.example.web.Controller: Works with orders"
                 + " [JSON/HTTP]");
+  }
+
+  @Test
+  void linesFromSeveralComponentsIntoOneStoreSayWhatEachTouchesThere() {
+    String read = "method:com.example.domain.JdbcInvoices#unpaid()";
+    facts
+        .attribute("shop", "type:com.example.domain.JdbcInvoices", "stereotype", "repository", "{}")
+        .relate(
+            "shop",
+            "package:com.example:app:com.example.domain",
+            "CONTAINS",
+            "type:com.example.domain.JdbcInvoices")
+        .relate("shop", "type:com.example.domain.JdbcInvoices", "CONTAINS", read)
+        .relate("shop", read, "READS_TABLE", "table:com.example:app:unpaid_invoices", "{}")
+        .relate("shop", "method:com.example.web.Jobs#run()", "CALLS", read);
+
+    Diagram diagram =
+        block(section(repo(facts.list()), "components").sections().getFirst(), Diagram.class);
+
+    // #944: both only read the store; what each reads tells them apart.
+    assertThat(edges(diagram))
+        .contains(
+            "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads orders [JDBC]",
+            "type:com.example.web.Jobs -> database:db:5432/shop: Reads unpaid invoices [JDBC]");
+  }
+
+  @Test
+  void linesIntoOneComponentKeepTheIntentDescribeStoredForThem() {
+    String count = "method:com.example.domain.JpaOrders#countOverdue()";
+    facts
+        .relate("shop", "type:com.example.domain.JpaOrders", "CONTAINS", count)
+        .relate("shop", "method:com.example.web.Jobs#run()", "CALLS", count);
+    List<Fact> derived = new ArrayList<>(io.lantern.derive.Derivation.withModel(facts.list(), 1));
+    List<Fact> lines =
+        derived.stream()
+            .filter(
+                f ->
+                    f.predicate().equals(Types.COMPONENT_LINK)
+                        && f.object().value().endsWith("type:com.example.domain.JpaOrders"))
+            .toList();
+    assertThat(lines).hasSizeGreaterThan(1);
+    // Describe words both lines alike (ADR 0103, #739).
+    for (Fact line : lines) {
+      derived.add(
+          io.lantern.harness.LlmFacts.text(
+              io.lantern.summarize.describe.DescribeRole.UNITS,
+              "test/test",
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              line.subject(),
+              Types.INTENT,
+              line.claimId() != null ? line.claimId() : line.id(),
+              "Looks up the stored orders",
+              List.of(line),
+              io.lantern.harness.LlmFacts.Basis.INFERRED,
+              1));
+    }
+
+    Document document =
+        new Composer("1")
+            .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, derived);
+    Diagram diagram = block(section(document, "components").sections().getFirst(), Diagram.class);
+
+    // #944: what the model wrote is kept, never replaced to tell the lines apart.
+    assertThat(edges(diagram))
+        .filteredOn(e -> e.contains("-> type:com.example.domain.JpaOrders:"))
+        .hasSizeGreaterThan(1)
+        .allMatch(e -> e.contains(": Looks up the stored orders"));
+  }
+
+  @Test
+  void aMethodsNameSaysWhatItDoes() {
+    assertThat(C4Views.described("requestDiagnosticSnapshot"))
+        .contains("Requests diagnostic snapshot");
+    assertThat(C4Views.described("findByVehicleVinOrderByCreatedAtDesc"))
+        .contains("Finds by vehicle vin");
+    assertThat(C4Views.described("findTop100ByPublishedAtIsNull"))
+        .contains("Finds by published at");
+    assertThat(C4Views.described("sendSMSAlert")).contains("Sends SMS alert");
+    assertThat(C4Views.described("findOrderByNumber")).contains("Finds order by number");
+    assertThat(C4Views.described("markAllAsRead")).contains("Marks all as read");
+    assertThat(C4Views.described("findByIdForUpdate")).contains("Finds by id");
+    assertThat(C4Views.described("summary")).isEmpty();
   }
 
   @Test
