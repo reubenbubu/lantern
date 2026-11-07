@@ -1220,11 +1220,37 @@ class C4ReportRendererTest {
                 + "<script>main()</script></html>",
             "data");
 
-    assertThat(template.render("{\"title\":\"</script><!-- a < b $1\"}"))
+    assertThat(template.render("{\"title\":\"</script><!-- a < b $1\"}", "Shop"))
         .isEqualTo(
             "<html><script type=\"application/json\" id=\"data\">\n"
                 + "{\"title\":\"\\u003c/script>\\u003c!-- a \\u003c b $1\"}\n"
                 + "</script><script>main()</script></html>");
+  }
+
+  @Test
+  void writesTheTitleEscapedInPlaceOfTheSampleTitle() {
+    ReportSpecTemplate template =
+        new ReportSpecTemplate(
+            "<html><head><title>Meridian — Architecture</title></head><body>"
+                + "<script type=\"application/json\" id=\"data\">{}</script></body></html>",
+            "data");
+
+    assertThat(template.render("{}", "R&D <shop> \"one\" — Architecture $1"))
+        .isEqualTo(
+            "<html><head><title>R&amp;D &lt;shop&gt; &quot;one&quot; — Architecture $1</title>"
+                + "</head><body><script type=\"application/json\" id=\"data\">\n{}\n"
+                + "</script></body></html>");
+  }
+
+  @Test
+  void writesTheDocumentsTitleAsTheReportsHtmlTitle() throws IOException {
+    Document document = DocumentJson.read(Files.readString(MODEL_FIXTURE));
+
+    String html = C4ReportRenderer.fromClassPath().render(document);
+
+    assertThat(html)
+        .contains("<title>" + document.title() + "</title>")
+        .doesNotContain("Meridian Commerce Platform — Architecture");
   }
 
   @Test

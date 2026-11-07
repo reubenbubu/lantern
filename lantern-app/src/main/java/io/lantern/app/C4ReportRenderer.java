@@ -132,7 +132,7 @@ public final class C4ReportRenderer {
    * @throws IllegalArgumentException if two Lantern IDs would become the same report spec ID
    */
   public String render(Document document) {
-    return template.render(MAPPER.writeValueAsString(data(document)));
+    return template.render(MAPPER.writeValueAsString(data(document)), document.title());
   }
 
   /**

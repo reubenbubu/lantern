@@ -9,7 +9,8 @@ import java.util.Objects;
 /**
  * The HTML template of a report spec in {@code report-specs/<spec>/<spec>.html}, which embeds the
  * document's data as JSON in one {@code <script type="application/json" id="...">} element. The
- * template ships with sample data in that element; rendering replaces it (ADR 0031).
+ * template ships with sample data in that element, and a sample {@code <title>}; rendering replaces
+ * both (ADR 0031, #981).
  *
  * <p>Thread-safe.
  */
@@ -19,13 +20,20 @@ final class ReportSpecTemplate {
   static final String RESOURCE_ROOT = "/report-specs/";
 
   private static final String CLOSE = "</script>";
+  private static final String TITLE_OPEN = "<title>";
+  private static final String TITLE_CLOSE = "</title>";
 
-  private final String before;
+  /** The template up to its title's text, or up to its data when it has no title before it. */
+  private final String head;
+
+  /** From the end of the title's text up to the data; null when there is no title. */
+  private final String middle;
+
   private final String after;
 
   /**
    * A template whose data element, {@code <script type="application/json" id="<dataId>">}, occurs
-   * exactly once.
+   * exactly once. The first {@code <title>} element before it, if any, is the document's title.
    */
   ReportSpecTemplate(String template, String dataId) {
     Objects.requireNonNull(template, "template");
@@ -39,7 +47,16 @@ final class ReportSpecTemplate {
     if (end < 0) {
       throw new IllegalArgumentException("The template's " + open + " is not closed");
     }
-    this.before = template.substring(0, start);
+    String before = template.substring(0, start);
+    int titleOpen = before.indexOf(TITLE_OPEN);
+    int titleClose = titleOpen < 0 ? -1 : before.indexOf(TITLE_CLOSE, titleOpen);
+    if (titleClose < 0) {
+      this.head = before;
+      this.middle = null;
+    } else {
+      this.head = before.substring(0, titleOpen + TITLE_OPEN.length());
+      this.middle = before.substring(titleClose);
+    }
     this.after = template.substring(end);
   }
 
@@ -62,11 +79,23 @@ final class ReportSpecTemplate {
   }
 
   /**
-   * The template with the JSON as its data. Every {@code <} is written as its JSON unicode escape,
-   * so the text can never close the script element, as for Lantern's own template (ADR 0013).
+   * The template with the JSON as its data and {@code title}, HTML-escaped, as the text of its
+   * {@code <title>}, so the file names its own system before any script runs (#981). Every {@code
+   * <} of the JSON is written as its JSON unicode escape, so the text can never close the script
+   * element, as for Lantern's own template (ADR 0013).
    */
-  String render(String json) {
+  String render(String json, String title) {
     Objects.requireNonNull(json, "json");
-    return before + "\n" + json.replace("<", "\\u003c") + "\n" + after;
+    Objects.requireNonNull(title, "title");
+    String start = middle == null ? head : head + escapeHtml(title) + middle;
+    return start + "\n" + json.replace("<", "\\u003c") + "\n" + after;
+  }
+
+  private static String escapeHtml(String text) {
+    return text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;");
   }
 }
