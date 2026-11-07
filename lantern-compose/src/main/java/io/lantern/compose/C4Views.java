@@ -1930,10 +1930,28 @@ final class C4Views {
                     assembler.id(areaId, "diagram"), unit, components, title, mains, others);
             perPair = false;
           }
-          if (!fits(view) && mains.size() > limits.mostElements()) {
-            // Too many members: the grouping role splits such an area by meaning (#932); one it
-            // did not split (no model, or an answer that failed) is split by groups of entry
-            // points as before (docs/design.md, Readable diagrams), each view naming the area.
+          List<Block> parts =
+              fits(view) || mains.size() > limits.mostElements()
+                  ? List.of()
+                  : byConcern(areaId, unit, components, title, mains, others);
+          if (!parts.isEmpty()) {
+            // Few enough members, but what they reach outside is too much: one view per concern,
+            // as a domain's (#932), when each fits.
+            result.add(
+                new Section(
+                    areaId,
+                    name,
+                    SectionKind.COMPONENTS.levels(),
+                    area,
+                    List.of(),
+                    parts,
+                    List.of()));
+            return;
+          }
+          if (!fits(view)) {
+            // Too many members, which the grouping role splits by meaning (#932) unless it could
+            // not, or what they reach outside does not fit even per concern: split by groups of
+            // entry points (docs/design.md, Readable diagrams), each view naming the area.
             result.add(
                 onePage(
                     areaId,
@@ -1942,23 +1960,6 @@ final class C4Views {
                     SectionKind.COMPONENTS.levels(),
                     byEntryPoint(areaId, area, name, unit, components, title, mains, others)));
             return;
-          }
-          if (!fits(view)) {
-            // Few enough members, but what they reach outside is too much: one view per concern,
-            // as a domain's (#932), never slices by entry point.
-            List<Block> parts = byConcern(areaId, unit, components, title, mains, others);
-            if (!parts.isEmpty()) {
-              result.add(
-                  new Section(
-                      areaId,
-                      name,
-                      SectionKind.COMPONENTS.levels(),
-                      area,
-                      List.of(),
-                      parts,
-                      List.of()));
-              return;
-            }
           }
           result.add(
               new Section(
@@ -1974,9 +1975,10 @@ final class C4Views {
   }
 
   /**
-   * An area's views, one per concern whose lines reach outside the unit (#932): each draws the
-   * area's components, the lines between them and the unit's other components, and only that
-   * concern's lines to other containers; a concern with no such line has no view.
+   * An area's views, one per concern whose lines reach outside the unit (#932): requests draws the
+   * lines between the area's components and the unit's others too, data and messaging only their
+   * own lines to other containers; a concern with no such line has no view. None unless there are
+   * at least two and each fits.
    */
   private List<Block> byConcern(
       String areaId,
@@ -2004,12 +2006,13 @@ final class C4Views {
               mains,
               others);
       componentConcern = null;
-      if (part.edges().size() > inside) {
+      if (part.edges().size() > (concern == REQUESTS ? inside : 0)) {
         parts.add(part);
       }
     }
     perPair = false;
-    return parts.size() > 1 ? parts : List.of();
+    boolean allFit = parts.stream().allMatch(b -> fits((Diagram) b));
+    return parts.size() > 1 && allFit ? parts : List.of();
   }
 
   /** The concern a component view draws the outside lines of, or null for all of them. */
@@ -2361,6 +2364,7 @@ final class C4Views {
         }
         EntityId to = mainOf.get(ArchitectureModel.object(line));
         if (to == null
+            || componentConcern != null && componentConcern != REQUESTS
             || !(focus.contains(component.main()) || focus.contains(to))
             || (!focus.contains(component.main()) && callersElsewhere.contains(component.main()))
             || (!focus.contains(to) && callersElsewhere.contains(to))

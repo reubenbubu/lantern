@@ -658,7 +658,7 @@ class GroupViewsTest {
               "{\"protocol\": \"Kafka\", \"source\": \"method:com.example.web.notices1#get()\"}");
     }
     Section app =
-        section(system(many.list(), limits(4, 2)), "components").sections().stream()
+        section(system(many.list(), limits(7, 2)), "components").sections().stream()
             .filter(x -> x.entity() != null && x.entity().toString().equals(APP))
             .findFirst()
             .orElseThrow();
