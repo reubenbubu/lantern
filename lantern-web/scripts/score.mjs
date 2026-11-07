@@ -373,7 +373,8 @@ function matchElements(report, reference, aliases) {
   }
   const matched = new Map();
   for (const [id, element] of Object.entries(report.elements)) {
-    const name = normalizeName(element.name);
+    // A box shown by a name in words is matched by the name its build gives it (#946).
+    const name = normalizeName(element.technicalName ?? element.name);
     const pair = sameName.get(`${element.kind}:${name}`) ?? [];
     if (pair.length > 1) {
       const ref = pair.find((r) => exchange(reference.elements[r]) === exchange(element));

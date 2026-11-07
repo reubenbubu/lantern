@@ -768,6 +768,42 @@ class C4ViewsTest {
   }
 
   @Test
+  void aUnitCarriesTheNameDescribeWroteForItUnlessTheJudgeRejectedIt() {
+    Fact packaging = facts.find("service:com.example:app", "application-name");
+    Fact named =
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("service:com.example:app"),
+            Types.DISPLAY_NAME,
+            io.lantern.harness.LlmFacts.C4,
+            "Shop orders",
+            List.of(packaging),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1);
+    List<Fact> held = new ArrayList<>(facts.list());
+    held.add(named);
+    List<Fact> rejected = new ArrayList<>(facts.list());
+    rejected.add(
+        io.lantern.harness.LlmFacts.withSupport(
+            named, io.lantern.harness.checks.SupportJudge.Support.UNSUPPORTED));
+
+    // #946: the name in words beside the build's, which stays the entity's name.
+    DocumentEntity app = entity(system(held), "service:com.example:app");
+    assertThat(app.name()).isEqualTo("shop-app");
+    assertThat(app.readableName()).isEqualTo("Shop orders");
+    assertThat(entity(system(rejected), "service:com.example:app").readableName()).isNull();
+  }
+
+  private static DocumentEntity entity(Document document, String id) {
+    return document.entities().stream()
+        .filter(e -> e.id().toString().equals(id))
+        .findFirst()
+        .orElseThrow();
+  }
+
+  @Test
   void aMethodsNameSaysWhatItDoes() {
     assertThat(C4Views.described("requestDiagnosticSnapshot"))
         .contains("Requests diagnostic snapshot");

@@ -130,7 +130,8 @@ final class Assembler {
             facts(facts),
             kind(id),
             groupTag(id),
-            groupOf.get(id)));
+            groupOf.get(id),
+            readableName(id)));
     adding.remove(id);
     if (described.contains(id)
             && (model.summary(summarized(id)).isPresent() || responsibility(id) != null)
@@ -175,6 +176,21 @@ final class Assembler {
     }
     SortedSet<EntityId> modules = model.parts(id, Types.MODULE);
     return modules.isEmpty() ? id : modules.first();
+  }
+
+  /**
+   * The name in words Describe wrote for a unit or frontend named as its build names it, unless the
+   * support judge rejected it (#946); {@code null} for none, when the report title-cases.
+   */
+  String readableName(EntityId id) {
+    if (!(id.type().equals(Types.SERVICE) || id.type().equals(Types.FRONTEND))) {
+      return null;
+    }
+    String name = model.displayName(id).orElse(null);
+    if (name == null || name.isBlank() || model.rejected(id, Types.DISPLAY_NAME)) {
+      return null;
+    }
+    return name.equals(names.name(id)) ? null : name;
   }
 
   /** What follows the name of a group no role named. */
@@ -745,7 +761,8 @@ final class Assembler {
               entity.facts(),
               entity.kind(),
               entity.tag(),
-              entity.group()));
+              entity.group(),
+              entity.readableName()));
     }
     return List.copyOf(entities.values());
   }

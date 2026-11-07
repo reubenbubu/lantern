@@ -168,6 +168,26 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void aBoxShowsTheNameDescribeWroteWithItsBuildsNameBeneath() throws IOException {
+    String json = Files.readString(COMPOSED.resolve("greeting-service.json"));
+    String named =
+        json.replace(
+            "\"id\" : \"service:com.example.greeting:greeting-service\",\n    \"name\" : \"greeting-service\",",
+            "\"id\" : \"service:com.example.greeting:greeting-service\",\n    \"name\" : \"greeting-service\",\n    \"readableName\" : \"Greeting desk\",");
+    assertThat(named).isNotEqualTo(json);
+
+    JsonNode data = C4ReportRenderer.toJson(DocumentJson.read(named)).data();
+
+    JsonNode box =
+        data.get("elements")
+            .valueStream()
+            .filter(e -> "greeting-service".equals(e.path("technicalName").asString(null)))
+            .findFirst()
+            .orElseThrow();
+    assertThat(box.get("name").asString()).isEqualTo("Greeting desk");
+  }
+
+  @Test
   void aBoxWithAReadableNameKeepsItsTechnicalNameAndItsPageIsNamedAsTheBox() throws IOException {
     Document document =
         DocumentJson.read(Files.readString(COMPOSED.resolve("greeting-service.json")));

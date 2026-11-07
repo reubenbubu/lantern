@@ -181,6 +181,17 @@ public final class C4ReportRenderer {
   /** The entity types drawn as containers whose build names may be technical (#933). */
   private static final Set<String> CONTAINER_TYPES = Set.of("service", "frontend");
 
+  /**
+   * The name a service's or frontend's box and page show: the one Describe wrote in words, else its
+   * name title-cased (#946); any other entity's name as it is.
+   */
+  static String shownName(DocumentEntity entity, String kind) {
+    if (!CONTAINER_TYPES.contains(entity.id().type())) {
+      return entity.name();
+    }
+    return entity.readableName() != null ? entity.readableName() : readable(kind, entity.name());
+  }
+
   /** A container's name in words ({@link io.lantern.compose.ReadableNames}); any other as it is. */
   static String readable(String kind, String name) {
     return "container".equals(kind) ? io.lantern.compose.ReadableNames.of(name) : name;
@@ -774,10 +785,7 @@ public final class C4ReportRenderer {
       node.put("kind", kind);
       // A container named as its build names it reads as words, with that name small beneath
       // (#933).
-      String readable =
-          CONTAINER_TYPES.contains(element.id.type())
-              ? readable(kind, entity.name())
-              : entity.name();
+      String readable = shownName(entity, kind);
       node.put("name", readable);
       if (!readable.equals(entity.name())) {
         node.put("technicalName", entity.name());
@@ -817,7 +825,7 @@ public final class C4ReportRenderer {
       if (about != null && entities.containsKey(about)) {
         DocumentEntity entity = entities.get(about);
         if (title.equals(entity.name()) && CONTAINER_TYPES.contains(about.type())) {
-          return readable("container", title);
+          return shownName(entity, "container");
         }
       }
       return title;
