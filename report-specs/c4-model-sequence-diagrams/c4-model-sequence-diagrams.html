@@ -121,10 +121,11 @@ body.sb-collapsed .sidebar{transform:translateX(-100%)}
 .nav-twisty:hover{color:var(--text);background:var(--surface-2)}
 .nav-twisty svg{width:12px;height:12px;transition:transform .2s}
 .nav-node.open>.nav-row>.nav-twisty svg{transform:rotate(90deg)}
-.nav-kids{display:none;margin:0 0 2px 7px;padding-left:4px;border-left:1px solid var(--border)}
-.nav-sec{display:flex;align-items:center;gap:6px}
+.nav-kids{display:none;margin:0 0 2px 4px;padding-left:2px;border-left:1px solid var(--border)}
+.nav-sec{display:flex;align-items:center;gap:5px}
+.nav-kids .nav-sec{padding-left:8px}
 .nav-sec .nav-t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.nb{flex:none;font:600 9px/1 var(--mono);letter-spacing:.04em;padding:3px 4px;border-radius:4px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);min-width:22px;text-align:center}
+.nb{flex:none;font:600 9px/1 var(--mono);letter-spacing:.04em;padding:3px 3px;border-radius:4px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);min-width:19px;text-align:center}
 .nav-sec.active .nb{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
 .nav-row>.nav-count{margin-left:4px;flex:none}
 .nav-node.open>.nav-kids{display:block}
