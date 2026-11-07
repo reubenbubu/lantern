@@ -128,6 +128,16 @@ class C4ViewsTest {
         .isEqualTo("Forwards API calls");
     assertThat(C4Views.withoutEnd("Stores customer sessions in the Redis cache", List.of("Redis")))
         .isEqualTo("Stores customer sessions");
+    assertThat(
+            C4Views.withoutEnd(
+                "Publishes payment outcomes to billing events exchange",
+                List.of("billing.events", "billing events")))
+        .isEqualTo("Publishes payment outcomes");
+    assertThat(
+            C4Views.withoutEnd(
+                "Fetches the operations summary from the gateway",
+                List.of("edge-gateway", "edge gateway", "gateway")))
+        .isEqualTo("Fetches the operations summary");
     // Too little would be left, or the end is not named last: kept as it is.
     assertThat(C4Views.withoutEnd("Uses Redis", List.of("Redis"))).isEqualTo("Uses Redis");
     assertThat(C4Views.withoutEnd("Reads Redis keys for rate limits", List.of("Redis")))
@@ -368,6 +378,47 @@ class C4ViewsTest {
             + "\"],\"repos\":[\"shop\"],\"frontends\":[\"shop\"]}");
     withFrontend.attribute("shop", "person:user", "display-name", "User");
     return withFrontend;
+  }
+
+  @Test
+  void aPersonWithNoFrontendIsDrawnDoingWhatDescribeSaysTheyDoNotABareUses() {
+    TestFacts withPeople = TestFacts.runtime();
+    withPeople.attribute(
+        "shop",
+        "type:com.example.Clerk",
+        "person-evidence",
+        "role",
+        "{\"scope\":\"Role\",\"type\":\"com.example.Clerk\"}");
+    Fact evidence = withPeople.find("type:com.example.Clerk", "person-evidence");
+    withPeople.attribute(
+        "shop",
+        "person:billing-clerk",
+        "person-basis",
+        "role",
+        "{\"basis\":\"role\",\"description\":\"The code has a billing clerk role.\","
+            + "\"cites\":[\""
+            + evidence.id()
+            + "\"],\"repos\":[\"shop\"],\"frontends\":[]}");
+    withPeople.attribute("shop", "person:billing-clerk", "display-name", "Billing clerk");
+    withPeople.add(
+        io.lantern.harness.LlmFacts.text(
+            io.lantern.summarize.describe.DescribeRole.UNITS,
+            "test/test",
+            "a".repeat(64),
+            EntityId.parse("person:billing-clerk"),
+            Types.RESPONSIBILITY,
+            io.lantern.harness.LlmFacts.C4,
+            "Reviews unpaid invoices and chases arrears, every morning.",
+            List.of(evidence),
+            io.lantern.harness.LlmFacts.Basis.INFERRED,
+            1));
+
+    Diagram diagram = block(section(repo(withPeople.list()), "context"), Diagram.class);
+
+    // #933: the first clause of what the person does, never a bare "Uses".
+    assertThat(edges(diagram))
+        .contains(
+            "person:billing-clerk -> system:snapshot: Reviews unpaid invoices and chases arrears");
   }
 
   @Test

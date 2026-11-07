@@ -402,6 +402,13 @@ final class C4Views {
     if (name != null && !name.isBlank()) {
       names.add(name);
       names.add(name.replace('-', ' '));
+      names.add(name.replaceAll("[-._]", " "));
+      // "from the gateway" into a box named "Edge gateway"
+      String[] words = name.split("[-._ ]");
+      String last = words[words.length - 1];
+      if (KIND_NOUNS.contains(last.toLowerCase(Locale.ROOT))) {
+        names.add(last);
+      }
     }
     String technology = elements.technology(end);
     if (technology != null) {
@@ -416,6 +423,10 @@ final class C4Views {
     }
     return new ArrayList<>(names);
   }
+
+  /** Words that say what kind of box a line ends in. */
+  private static final Set<String> KIND_NOUNS =
+      Set.of("gateway", "database", "cache", "store", "registry", "broker", "server");
 
   /** Words of a technology line that say what kind of thing it is, not which product. */
   private static final Set<String> GENERIC_TECHNOLOGY =
@@ -624,8 +635,15 @@ final class C4Views {
           null);
       edge.facts.addAll(cited);
       // The person's intent for each frontend they use (ADR 0103, amendment for #739).
+      boolean phrased = false;
       for (EntityId frontend : elements.screens(person.getValue()).keySet()) {
-        edge.phrased(assembler.personPhrase(person.getValue(), frontend));
+        Assembler.Phrased phrase = assembler.personPhrase(person.getValue(), frontend);
+        phrased |= phrase != null;
+        edge.phrased(phrase);
+      }
+      // Else what Describe said the person does, never a bare "Uses" (#933).
+      if (!phrased) {
+        edge.phrased(assembler.personPurpose(person.getKey()));
       }
     }
     // The Unknown caller, where entry points of the scope's units nothing reaches (#766).
