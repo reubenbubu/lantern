@@ -73,6 +73,8 @@ Lines from several boxes into one target with the same label say what each does 
   is "Requests diagnostic snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle
   vin", acronyms kept, at most five words, no ordering, locking or trailing condition words),
   several by their verbs; a line calling nothing the others do not keeps its label.
+  A line whose label is an intent the model stored for it, or for the interactions drawn as it,
+  keeps it: what the model wrote is never replaced by a method's name.
 
 A line of one method reads as that method in words whether or not another shares its label. Lines
 nothing tells apart (one method called from two places) keep their label, and on a component

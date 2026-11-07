@@ -758,7 +758,8 @@ final class C4Views {
    * Lines from several boxes into one with the same label say what each does there (#944): a
    * component's data access with the purpose's object ("Keeps work orders" read by one and written
    * by another is "Reads work orders" and "Writes work orders"), a line of methods its own methods.
-   * Left as they are when that would not tell them apart.
+   * Left as they are when that would not tell them apart, and when the label is an intent the model
+   * stored.
    */
   private static void apart(Map<EdgeBuilder, String> labels) {
     Map<String, List<EdgeBuilder>> same = new java.util.LinkedHashMap<>();
@@ -808,6 +809,12 @@ final class C4Views {
       return told.length() <= MAX_LABEL
           ? told
           : edge.plain + " " + touched.getFirst() + " and others";
+    }
+    // What the model wrote for the line stays; only labels Lantern derived are rewritten (#944).
+    if (label.equals(edge.intent)
+        || label.equals(edge.lineIntent)
+        || edge.phrases.containsKey(label)) {
+      return label;
     }
     if (!edge.details.isEmpty()
         && edge.details.stream().allMatch(d -> METHOD.matcher(d).matches())) {
