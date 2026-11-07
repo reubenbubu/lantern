@@ -497,3 +497,37 @@ test('each sidebar item carries a badge for what it is about, and an item with p
   assert.match(html, /title="Feature area">FA<\/span><span class="nav-t">Checkout/);
   assert.doesNotMatch(navItem('loose'), /class="nb"|nav-count/);
 });
+
+test("a group's page is framed by the group, named by its tag in the frame and the legend (#957)", () => {
+  const { boundaryLabel, legendHTML: legend } = new Function(
+    `${template.match(/^const KIND = \{[\s\S]*?^\};/m)[0]}\n${marks}\n${template.match(/^const boundaryLabel = .*$/m)[0]}\n` +
+      `${template.match(/^function legendHTML[\s\S]*?^\}/m)[0]}\nreturn {boundaryLabel, legendHTML};`,
+  )();
+  assert.equal(boundaryLabel({ kind: 'container', tag: 'Domain' }), 'Domain');
+  assert.equal(boundaryLabel({ kind: 'component', tag: 'Feature area' }), 'Feature area');
+  assert.equal(boundaryLabel({ kind: 'container', tag: 'Service' }), 'Container');
+  assert.match(legend(['container'], { boundary: 'container', boundaryLabel: 'Domain' }), /Domain boundary/);
+
+  const data = {
+    document: { title: 'Shop' },
+    elements: {
+      s: { kind: 'system', name: 'Shop' },
+      d: { kind: 'container', name: 'Sales', parent: 's', tag: 'Domain' },
+      o: { kind: 'container', name: 'Orders', parent: 's' },
+      b: { kind: 'container', name: 'Billing', parent: 's' },
+    },
+    pages: [
+      {
+        id: 'sales',
+        level: 'containers',
+        title: 'Sales',
+        sections: [
+          { type: 'diagram', id: 'v', boundary: 'd', boundaryContains: ['o'], elements: ['o', 'b'], relationships: [{ from: 'o', to: 'b', label: 'Bills' }] },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(reportSpecIssues(spec, data), []);
+  data.pages[0].sections[0].boundaryContains = ['x'];
+  assert.match(reportSpecIssues(spec, data).join('\n'), /nothing the boundary d contains is drawn/);
+});

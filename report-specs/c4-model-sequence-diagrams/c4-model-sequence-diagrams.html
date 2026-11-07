@@ -4512,7 +4512,9 @@ for (const p of PAGES) for (const s of (p.sections || [])){
     spec._key = key;
     spec._level = p.level;
     spec._section = s;
-    if (s.boundary) spec.boundary = {id:s.boundary, contains:[...ids].filter(id => EL[id] && EL[id].parent === s.boundary)};
+    if (s.boundary) spec.boundary = {id:s.boundary, contains:s.boundaryContains
+      ? s.boundaryContains.filter(id => ids.has(id))
+      : [...ids].filter(id => EL[id] && EL[id].parent === s.boundary)};
     spec._ids = ids;
     DIAGRAMS[key] = spec;
   }
@@ -4606,7 +4608,7 @@ function pillsFor(id, key){ const t = drillTargets(id, key); return t.length >= 
       if (s.type === 'diagram'){
         for (const r of s.relationships || []) for (const id of [r.from, r.to]) if (!EL[id]) issues.push(`${where}: relationship refers to unknown element "${id}"`);
         if (s.boundary && !EL[s.boundary]) issues.push(`${where}: boundary "${s.boundary}" does not exist`);
-        else if (s.boundary && !DIAGRAMS[`${p.id}/${s.id}`].boundary.contains.length) issues.push(`${where}: nothing in this diagram has "${s.boundary}" as its parent, so the boundary would be empty`);
+        else if (s.boundary && !DIAGRAMS[`${p.id}/${s.id}`].boundary.contains.length) issues.push(`${where}: ${s.boundaryContains ? 'nothing the boundary contains is drawn' : `nothing in this diagram has "${s.boundary}" as its parent`}, so the boundary would be empty`);
       }
       if (s.type === 'sequence'){
         for (const id of s.participants || []) if (!EL[id]) issues.push(`${where}: participant "${id}" does not exist`);
@@ -5621,7 +5623,7 @@ function c4SVG(raw, view, key=''){
   routes.forEach((pts, i) => routes[i] = ensureApproach(pts, map[spec.edges[i].f]));
   if (spec.boundary){
     const b = spec.boundary, e = EL[b.id];
-    const line2 = `[${KIND[e.kind].label}${e.tech ? ': ' + e.tech : ''}]`;
+    const line2 = `[${boundaryLabel(e)}${e.tech ? ': ' + e.tech : ''}]`;
     const lw = Math.max(e.name.length * 7.6, line2.length * 6.4) + 12, lh = 38;
     // put the boundary's name in whichever corner no line passes through
     const corners = [
@@ -5725,9 +5727,11 @@ function c4SVG(raw, view, key=''){
   return s + '</svg>';
 }
 
+/* What a boundary is called: a group (domain, feature area) by its own tag, else its kind (#957). */
+const boundaryLabel = e => /^(domain|feature area)$/i.test(e.tag || '') ? e.tag : KIND[e.kind].label;
 function legendHTML(kinds, opts={}){
   let h = kinds.map(k => `<span class="lg"><i class="sw k-${k}"></i>${KIND[k].label}</span>`).join('');
-  if (opts.boundary) h += `<span class="lg"><i class="sw bnd k-${opts.boundary}"></i>${KIND[opts.boundary].label} boundary</span>`;
+  if (opts.boundary) h += `<span class="lg"><i class="sw bnd k-${opts.boundary}"></i>${opts.boundaryLabel || KIND[opts.boundary].label} boundary</span>`;
   if (opts.ext) h += `<span class="lg"><i class="sw ext"></i>Outside scope</span>`;
   if (opts.seq){
     const arrow = (cls, head) => `<svg class="sw-arrow ${cls}" viewBox="0 0 24 10" aria-hidden="true"><path class="shaft" d="M1,5 H22"/>${head}</svg>`;
@@ -6008,7 +6012,7 @@ function diagramCard(kind, key){
       <div class="dtools">${toolsHTML()}<span class="sep"></span><button class="icon-btn" data-act="max" title="Maximize">${ICON.max}</button></div>
     </div>
     <div class="dcanvas"${fit}>${isSeq ? seqSVG(spec, key) : c4SVG(spec, key, key)}</div>
-    <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, seq:isSeq, async, llm, inferred})}</figcaption>
+    <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, boundaryLabel:!isSeq && spec.boundary ? boundaryLabel(EL[spec.boundary.id]) : null, seq:isSeq, async, llm, inferred})}</figcaption>
   </figure>${isSeq ? '' : readabilityNote(spec)}`;
 }
 

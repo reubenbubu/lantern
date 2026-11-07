@@ -1,6 +1,6 @@
 # 0130: One page per domain and feature area, nested in a sidebar tree
 
-Status: accepted (#931), amended for #953 (badges, counts, units in no domain)
+Status: accepted (#931), amended for #953 (badges, counts, units in no domain), amended for #957 (a group frames its own page)
 
 ## Context
 
@@ -52,3 +52,12 @@ From the owner's review of 7 Nov 2026:
 - Every item with pages beneath shows their count, as the level headings do.
 - Each level indents less, and the sidebar is a little wider (320 px).
 - A unit in no domain (project-8's edge gateway) had its page alone under a separate Components heading. Its page now sits under the "In no domain" page, or the "With no connections found" page, that draws it. A heading left with no pages goes. The renderer finds those pages by their titles, which the composer keeps in one public place (`PageTitles`).
+
+## Amendment (#957): a group frames its own page
+
+From the owner's review of 7 Nov 2026: opening the Repair work domain showed a page framed by "project-8 [Software System]", Repair work's containers inside beside those of other domains, so nothing said which boxes were the domain's. A feature area's page had the same fault one level down, framed by its container.
+
+- A domain's or feature area's page draws the group as its dashed frame, captioned with its name and "[Domain]" or "[Feature area]", and the legend calls it a domain or feature area boundary.
+- Inside are the group's members and each data store, topic, queue or exchange that only the group uses: every line to it, on every view of the report, is from the group or one of its members. A store shared with other groups, or with other areas of the same container, stays outside.
+- Boxes of other groups are drawn outside the frame, joined by their lines. There is one frame: the page's title and breadcrumb already name the system and the container.
+- An element has one parent, the system or the container, so the renderer lists what each frame holds (`boundaryContains` in the report spec) instead of drawing the elements whose parent the frame is.

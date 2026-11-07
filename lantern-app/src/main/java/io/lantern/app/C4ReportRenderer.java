@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -739,6 +740,73 @@ public final class C4ReportRenderer {
       return null;
     }
 
+    /**
+     * On the page of a group drawn as a box elsewhere, the boxes inside it: its members, and each
+     * data store, topic, queue or exchange that only the group uses, on every view of the report
+     * (every line to it, anywhere, is from the group or one of its members). Empty on any other
+     * page.
+     */
+    private List<EntityId> insideGroup(Diagram diagram, Section owner) {
+      EntityId group = owner.entity();
+      if (group == null || !group.type().equals(Types.GROUP) || !elements.containsKey(group)) {
+        return List.of();
+      }
+      Set<EntityId> members = new LinkedHashSet<>();
+      for (Diagram.Node node : diagram.nodes()) {
+        DocumentEntity entity = entities.get(node.id());
+        if (entity != null && group.equals(entity.group())) {
+          members.add(node.id());
+        }
+      }
+      if (members.isEmpty()) {
+        return List.of();
+      }
+      List<EntityId> inside = new ArrayList<>(members);
+      for (Diagram.Node node : diagram.nodes()) {
+        if (!GROUP_DETAIL.contains(node.id().type())) {
+          continue;
+        }
+        Set<EntityId> others = usersEverywhere().getOrDefault(node.id(), Set.of());
+        if (!others.isEmpty() && others.stream().allMatch(o -> belongsTo(o, group))) {
+          inside.add(node.id());
+        }
+      }
+      return inside;
+    }
+
+    /** Whether the element is the group or one of its members. */
+    private boolean belongsTo(EntityId element, EntityId group) {
+      DocumentEntity entity = entities.get(element);
+      return element.equals(group) || entity != null && group.equals(entity.group());
+    }
+
+    private Map<EntityId, Set<EntityId>> usersEverywhere;
+
+    /** For each element, what the lines of every diagram in the document join it to. */
+    private Map<EntityId, Set<EntityId>> usersEverywhere() {
+      if (usersEverywhere == null) {
+        usersEverywhere = new HashMap<>();
+        java.util.ArrayDeque<Section> todo = new java.util.ArrayDeque<>(document.sections());
+        while (!todo.isEmpty()) {
+          Section section = todo.pop();
+          todo.addAll(section.sections());
+          for (Block block : section.blocks()) {
+            if (block instanceof Diagram d) {
+              for (Diagram.Edge e : d.edges()) {
+                usersEverywhere.computeIfAbsent(e.from(), k -> new HashSet<>()).add(e.to());
+                usersEverywhere.computeIfAbsent(e.to(), k -> new HashSet<>()).add(e.from());
+              }
+            }
+          }
+        }
+      }
+      return usersEverywhere;
+    }
+
+    /** What may sit inside a group's frame beside its members: its own stores and channels. */
+    private static final Set<String> GROUP_DETAIL =
+        Set.of(Types.DATABASE, Types.TOPIC, Types.QUEUE, Types.EXCHANGE);
+
     /** The element's parent, if it is an element of a kind the schema allows as its parent. */
     private EntityId shownParent(Element element) {
       EntityId parent = element.parent();
@@ -1152,6 +1220,13 @@ public final class C4ReportRenderer {
         node.put("caption", diagram.title());
       }
       EntityId boundary = boundary(diagram, owner);
+      // A domain's or feature area's page is framed by the group, its own boxes inside (#957).
+      List<EntityId> inside = insideGroup(diagram, owner);
+      if (!inside.isEmpty()) {
+        boundary = owner.entity();
+        ArrayNode contains = node.putArray("boundaryContains");
+        inside.forEach(e -> contains.add(elementIds.find(e.toString())));
+      }
       if (boundary != null) {
         node.put("boundary", elementIds.find(boundary.toString()));
       }
