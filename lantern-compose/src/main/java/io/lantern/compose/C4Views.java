@@ -510,6 +510,30 @@ final class C4Views {
     if (details.size() == 1) {
       return described(details.iterator().next());
     }
+    if (verbs.size() == 1) {
+      // One verb for several methods says what they do it to, never the bare verb: "Finds by
+      // status and by customer", within a label's length (real run of #946 on project-8).
+      String verb =
+          Character.toUpperCase(verbs.getFirst().charAt(0)) + verbs.getFirst().substring(1);
+      java.util.LinkedHashSet<String> what = new java.util.LinkedHashSet<>();
+      for (String detail : details) {
+        described(detail)
+            .filter(d -> d.startsWith(verb + " "))
+            .ifPresent(d -> what.add(d.substring(verb.length() + 1)));
+      }
+      List<String> parts = new ArrayList<>(what);
+      for (int n = Math.min(2, parts.size()); n > 0; n--) {
+        String text =
+            verb
+                + " "
+                + (n < parts.size()
+                    ? String.join(", ", parts.subList(0, n)) + " and others"
+                    : String.join(" and ", parts.subList(0, n)));
+        if (text.length() <= MAX_LABEL) {
+          return Optional.of(text);
+        }
+      }
+    }
     List<String> shown = new ArrayList<>(verbs).subList(0, Math.min(3, verbs.size()));
     String text =
         shown.size() == 1

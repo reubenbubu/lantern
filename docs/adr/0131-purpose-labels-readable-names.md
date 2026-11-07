@@ -72,7 +72,9 @@ Lines from several boxes into one target with the same label say what each does 
 - A line of method calls names what only it calls: one method in words ("requestDiagnosticSnapshot"
   is "Requests diagnostic snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle
   vin", acronyms kept, at most five words, no ordering, locking or trailing condition words),
-  several by their verbs; a line calling nothing the others do not keeps its label.
+  several by their verbs, or, when they share one verb, by what it is done to ("Finds by id, by
+  status and others", within 45 characters) rather than the bare verb (real run of #946); a line
+  calling nothing the others do not keeps its label.
   A line whose label is an intent the model stored for it, or for the interactions drawn as it,
   keeps it: what the model wrote is never replaced by a method's name.
 

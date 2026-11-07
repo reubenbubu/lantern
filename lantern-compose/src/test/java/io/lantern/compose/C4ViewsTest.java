@@ -134,8 +134,11 @@ class C4ViewsTest {
     // #933: never "Calls approve, complete and 2 more".
     assertThat(C4Views.actions(List.of("approve", "complete", "findOpen", "reviewQueue")))
         .contains("Approves, completes and finds");
+    // One verb says what it is done to, never the bare verb (#946's real run).
     assertThat(C4Views.actions(List.of("findByCustomerIdAndActiveTrue", "findByIdAndActiveTrue")))
-        .contains("Finds");
+        .hasValueSatisfying(t -> assertThat(t).startsWith("Finds by ").isNotEqualTo("Finds"));
+    assertThat(C4Views.actions(List.of("findOverdue", "findByStatus", "findByCustomer")))
+        .contains("Finds overdue, by status and others");
     assertThat(C4Views.actions(List.of("amountReserved", "create", "query")))
         .contains("Creates and queries");
     // None starts with a verb, or a detail is not a method: left to the line's other wording.
