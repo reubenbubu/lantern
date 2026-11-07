@@ -125,7 +125,7 @@ class C4ViewsTest {
     // No technology on a context diagram; the profile marks the line conditional.
     assertThat(edges(diagram))
         .containsExactly(
-            "system:snapshot -> external-system:pay.example.com: Calls POST /charges [prod]");
+            "system:snapshot -> external-system:pay.example.com: Works with charges [prod]");
     assertThat(diagram.edges().getFirst().facts())
         .containsExactly(facts.find("service:com.example:app", "CALLS_HTTP").id());
     assertThat(text(block(context, Callout.class).content()))
@@ -389,7 +389,7 @@ class C4ViewsTest {
             io.lantern.harness.LlmFacts.Basis.INFERRED,
             1));
     assertThat(edges(block(section(system(elsewhere.list()), "containers"), Diagram.class)))
-        .contains("person:user -> frontend:shop/web: Uses the screens /registration [Web browser]");
+        .contains("person:user -> frontend:shop/web: Opens the registration screens [Web browser]");
   }
 
   @Test
@@ -405,8 +405,8 @@ class C4ViewsTest {
             "person:user \"User\"");
     assertThat(edges(diagram))
         .contains(
-            "frontend:shop/web -> service:com.example:app: Calls GET /orders [JSON/HTTP]",
-            "person:user -> frontend:shop/web: Uses the screens /registration [Web browser]");
+            "frontend:shop/web -> service:com.example:app: Works with orders [JSON/HTTP]",
+            "person:user -> frontend:shop/web: Opens the registration screens [Web browser]");
     DocumentEntity frontend =
         document.entities().stream()
             .filter(e -> e.id().toString().equals("frontend:shop/web"))
@@ -436,11 +436,11 @@ class C4ViewsTest {
             "topic:kafka:orders \"orders\" [Kafka topic] in system:snapshot");
     assertThat(edges(diagram))
         .containsExactly(
-            "service:com.example:app -> external-system:pay.example.com: Calls POST /charges"
+            "service:com.example:app -> external-system:pay.example.com: Works with charges"
                 + " [HTTPS] [prod]",
             "service:com.example:app -> topic:kafka:orders: Sends messages [Kafka]",
             "service:com.example:app -> database:db:5432/shop: Stores its data in [JDBC]",
-            "service:com.example:worker -> service:com.example:app: Calls GET /orders [JSON/HTTP]");
+            "service:com.example:worker -> service:com.example:app: Works with orders [JSON/HTTP]");
   }
 
   @Test
@@ -577,8 +577,8 @@ class C4ViewsTest {
             "type:com.example.domain.JpaOrders -> topic:kafka:orders: Sends messages [Kafka]",
             "type:com.example.domain.JpaOrders -> database:db:5432/shop: Reads [JDBC]",
             "type:com.example.web.Controller -> external-system:pay.example.com:"
-                + " Calls POST /charges [HTTPS] [prod]",
-            "service:com.example:worker -> type:com.example.web.Controller: Calls GET /orders"
+                + " Works with charges [HTTPS] [prod]",
+            "service:com.example:worker -> type:com.example.web.Controller: Works with orders"
                 + " [JSON/HTTP]");
   }
 
@@ -730,8 +730,8 @@ class C4ViewsTest {
     Diagram containers = block(section(repo(gateway), "containers"), Diagram.class);
     assertThat(edges(containers))
         .contains(
-            "service:com.example:app -> service:com.example:worker: Calls and routes"
-                + " /reports/**, /ws/** and 1 more [HTTP, WebSocket]");
+            "service:com.example:app -> service:com.example:worker: Routes reports, ws and jobs"
+                + " requests [HTTP, WebSocket]");
     Diagram components =
         block(section(repo(gateway), "components").sections().getFirst(), Diagram.class);
     assertThat(nodes(components))
@@ -745,8 +745,8 @@ class C4ViewsTest {
         .contains(
             "type:com.example.web.Routes -> type:com.example.web.AuthFilter:"
                 + " Applies on routes users",
-            "type:com.example.web.Routes -> service:com.example:worker: Routes /ws/** [WebSocket]",
-            "module:com.example:app -> service:com.example:worker: Routes /reports/** [HTTP]");
+            "type:com.example.web.Routes -> service:com.example:worker: Routes ws requests [WebSocket]",
+            "module:com.example:app -> service:com.example:worker: Routes reports requests [HTTP]");
   }
 
   @Test

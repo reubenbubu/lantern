@@ -311,8 +311,12 @@ final class C4Views {
           return lineIntent;
         }
         // A line Describe words as a whole that holds no intent of its own reads what its links
-        // record, not one request's intent (ADR 0103, amendment for #810).
-        if (claims.size() < MergedLines.MIN_CLAIMS || phrases.size() < 2) {
+        // are about, not one request's intent (ADR 0103, amendment for #810), unless they record
+        // no routes: every line says what it is for (#933).
+        if (claims.size() < MergedLines.MIN_CLAIMS
+            || phrases.size() < 2
+            || details.isEmpty()
+            || !details.stream().allMatch(d -> d.contains("/"))) {
           return phrases.entrySet().stream()
               .max(
                   Map.Entry.<String, Integer>comparingByValue()
@@ -324,13 +328,62 @@ final class C4Views {
       if (details.isEmpty()) {
         return plain;
       }
-      List<String> named = new ArrayList<>(details);
-      String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
-      if (named.size() > NAMED) {
-        text += " and " + (named.size() - NAMED) + " more";
+      // Routes or screens with no stated purpose: what they are about, never the list (#933).
+      List<String> about =
+          details.stream().allMatch(d -> d.contains("/")) ? resources(details) : List.of();
+      if (about.isEmpty()) {
+        List<String> named = new ArrayList<>(details);
+        String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
+        if (named.size() > NAMED) {
+          text += " and " + (named.size() - NAMED) + " more";
+        }
+        return prefix + " " + text;
       }
-      return prefix + " " + text;
+      String text = String.join(", ", about.subList(0, Math.min(NAMED + 1, about.size())));
+      if (about.size() > NAMED + 1) {
+        text += " and " + (about.size() - NAMED - 1) + " more";
+      } else if (about.size() > 1) {
+        int last = text.lastIndexOf(", ");
+        text = text.substring(0, last) + " and " + text.substring(last + 2);
+      }
+      String said = prefix == null ? "" : prefix.toLowerCase(Locale.ROOT);
+      if (said.contains("route")) {
+        return "Routes " + text + " requests";
+      }
+      if (said.contains("screen")) {
+        return "Opens the " + text + " screens";
+      }
+      return "Works with " + text;
     }
+  }
+
+  /**
+   * What routes or destinations are about (#933): each route's first literal path segment after
+   * {@code api} and versions ("GET /api/collections/cases/{id}" is about collections), each other
+   * detail as it is, in their order, once each.
+   */
+  static List<String> resources(java.util.Collection<String> details) {
+    java.util.LinkedHashSet<String> about = new java.util.LinkedHashSet<>();
+    for (String detail : details) {
+      String path = detail.contains(" /") ? detail.substring(detail.indexOf(" /") + 1) : detail;
+      if (!path.startsWith("/")) {
+        about.add(detail);
+        continue;
+      }
+      for (String segment : path.split("/")) {
+        String plain = segment.strip();
+        if (plain.isEmpty()
+            || plain.startsWith("{")
+            || plain.equals("**")
+            || plain.equalsIgnoreCase("api")
+            || plain.matches("v\\d+")) {
+          continue;
+        }
+        about.add(plain.replace('-', ' '));
+        break;
+      }
+    }
+    return new ArrayList<>(about);
   }
 
   /** A phrase's first letter in lower case, unless it starts an acronym or a name in capitals. */
@@ -365,12 +418,16 @@ final class C4Views {
      */
     void add(EntityId from, EntityId to, Line link) {
       EdgeBuilder edge = get(from, link.relationship(), to);
-      edge.add(
-          link,
-          link.relationship().equals(Elements.USES) && link.from().type().equals(Types.PERSON)
-              // A person's use of a frontend is worded per frontend (ADR 0103, amendment for #739).
-              ? assembler.personPhrase(link.facts().getFirst(), link.to())
-              : assembler.phrase(link.facts().getFirst()));
+      boolean person =
+          link.relationship().equals(Elements.USES) && link.from().type().equals(Types.PERSON);
+      Assembler.Phrased phrase =
+          person
+              // A person's use of a frontend is worded per frontend (ADR 0103, amendment for #739),
+              // else by what Describe said the person does (#933).
+              ? Optional.ofNullable(assembler.personPhrase(link.facts().getFirst(), link.to()))
+                  .orElseGet(() -> assembler.personPurpose(link.from()))
+              : assembler.phrase(link.facts().getFirst());
+      edge.add(link, phrase);
       if (from.type().equals(Types.GROUP) && edge.intent == null) {
         intent(edge, assembler.groupIntent(from, to + " " + link.relationship()));
       }

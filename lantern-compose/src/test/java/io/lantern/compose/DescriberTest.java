@@ -1623,7 +1623,7 @@ class DescriberTest {
     assertThat(store.size()).isEqualTo(10);
     // The documents keep summaries and static labels.
     assertThat(edges(diagrams(system(result), Diagram.Kind.C4_CONTEXT).getFirst()))
-        .containsExactly("system:snapshot -> external-system:pay.example.com: Calls POST /charges");
+        .containsExactly("system:snapshot -> external-system:pay.example.com: Works with charges");
   }
 
   @Test
@@ -3280,11 +3280,12 @@ class DescriberTest {
 
     Describer.Result result = new Describer(harness(client(fake))).describe(facts.list());
 
-    // No request's intent stands for the whole line (review of #810).
+    // No request's intent stands for the whole line (review of #810); it says what its requests
+    // are about, never their list (#933).
     assertThat(webLine(result, facts).label())
         .isNotIn(
             "Lists the shopper's orders", "Places a new shop order", "Cancels one of the orders")
-        .startsWith("Calls ");
+        .isEqualTo("Works with orders");
     assertThat(result.unknown()).contains("frontend:shop/web|service:com.example:app|CALLS_HTTP");
     assertThat(io.lantern.core.document.DocumentJson.write(webDocument(result, facts)))
         .contains("as a whole, whose requests do different things:")

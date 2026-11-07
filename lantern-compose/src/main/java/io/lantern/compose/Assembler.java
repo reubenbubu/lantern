@@ -505,6 +505,27 @@ final class Assembler {
   }
 
   /**
+   * What a person does, as a line's purpose (#933): the first clause of Describe's sentence about
+   * them, at most eight words, citing what it cites; or {@code null} if it wrote none.
+   */
+  Phrased personPurpose(EntityId person) {
+    ArchitectureModel.Text sentence = model.responsibility(person).orElse(null);
+    if (sentence == null || sentence.text() == null || sentence.text().isBlank()) {
+      return null;
+    }
+    String clause = sentence.text().strip().split("[.;,:(]", 2)[0].strip();
+    String[] words = clause.split("\\s+");
+    if (words.length > 8) {
+      clause = String.join(" ", java.util.Arrays.copyOf(words, 8));
+    }
+    if (clause.isEmpty()) {
+      return null;
+    }
+    Phrased cited = phrased(sentence);
+    return new Phrased(clause, cited == null ? List.of() : cited.facts());
+  }
+
+  /**
    * The intent Name groups stored for a line leaving a group (ADR 0107), and the facts it cites
    * that are in the snapshot, or {@code null} if it stored none.
    *
