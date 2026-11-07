@@ -1,6 +1,6 @@
 # 0131: Every line says what it is for, every box reads as a name
 
-Status: accepted (#933), amended for #944 (lines into one box with one label) and #946 (readable names written by Describe)
+Status: accepted (#933), amended for #944 (lines into one box with one label), #946 (readable names written by Describe) and #962 (a component's line goes only to the stores it touches)
 
 ## Context
 
@@ -114,3 +114,36 @@ box does. The wording judge reads a unit's name as "name of a service" or "name 
 its own rule: it passes when it names in plain words what the unit is for, and fails when it names
 only its kind or technology.
 
+
+## Amendment for #962: a component's line goes only to the stores it touches
+
+The component diagram drew every component with data access to every store of its unit, labelled
+with the unit's sentence for that store: on project-8 nine billing repositories went to two
+databases, and components that never touch Redis to Redis. A line to a store the code never
+touches is a false fact (`docs/quality-bar.md`, ADR 0088). Now (`DataStores`, `lantern-derive`):
+
+- **Which store.** A component's tables and repositories go to the relational database its classes'
+  SQL runs on as Spring wires it (`datasource-use`, ADR 0036 amendment for #962); without that, to
+  the database its unit's main datasource (`spring.datasource.url`, `spring.r2dbc.url`) points to
+  when the unit's own schemas hold the table, else to the unit's other relational databases; every
+  relational database when nothing tells them apart. A Spring Data repository goes to the store of
+  its kind: a JPA, JDBC or R2DBC one by its entity's table, a Redis one (or one for a `@RedisHash`
+  entity) to the unit's Redis store, and an Elasticsearch, MongoDB, Cassandra or other one to none,
+  never a relational database, until those stores are drawn (#466). Redis use (`redis-use`: a
+  template, hash, lock, cache, session, publish and subscribe, rate limiter) goes from the
+  components whose code shows it to the unit's Redis store; tables never reach a cache. Sequence
+  diagrams place a run of data access the same way, so it reaches one database where the wiring or
+  the schemas tell which, instead of a note that the code does not say which.
+- **The label.** A line into a store says what its end does there, the same on every page it is
+  drawn on: "Reads and writes payments", the records fewest of the unit's components touch first,
+  at most two, then "and others", within 45 characters; where that reads like another component's
+  line touching other records, the records only it touches come first. It carries the unit's
+  sentence for the store only when it touches everything the unit touches there. Into Redis it
+  says what the code does there by its kinds of use ("Reads and writes keys and takes locks").
+  This replaces #944's rewrite of same-label lines per diagram, which gave one line two labels on
+  two pages.
+- **Code nothing reaches.** Code with only data access that no entry point reaches is drawn when no
+  drawn component would reach one of the stores it reaches, not only when none reaches any (#271):
+  a batch job's step reading a second database is shown.
+- **The check.** The C4 report's quality report fails a line labelled differently on two pages: "A
+  line has one label on every page it is drawn on".

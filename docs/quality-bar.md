@@ -255,7 +255,9 @@ not restate the name; containers and components have a technology, a container's
 frameworks and their versions, and an exchange its type. Every line is one-way, labelled with one
 intent phrase other than "uses" or "depends on" that says what it is for, never a list of its
 routes, queues or methods nor the name or technology of the box it points to, and on a component
-diagram no two lines into one box share a label (ADR 0131), linked to
+diagram no two lines into one box share a label (ADR 0131); a line has one label on every page it is
+drawn on, and a component's line goes only to the stores its code touches (ADR 0131, amendment for
+#962), linked to
 the facts behind it, and marked
 conditional, naming the profile, when it holds only under a Spring profile; lines between containers
 name a protocol (`[JSON/HTTPS]`, `[AMQP]`, `[JDBC]`). No box or page name is over about 40

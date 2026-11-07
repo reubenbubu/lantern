@@ -557,6 +557,41 @@ class QualityBarTest {
   }
 
   @Test
+  void aLineLabelledDifferentlyOnTwoPagesFails() {
+    // #962: one interaction reads the same wherever it is drawn.
+    Diagram first = containers("shop", "Takes payment", "pay", "Spring Boot");
+    Diagram second =
+        new Diagram(
+            "d2",
+            first.diagramKind(),
+            first.title(),
+            first.nodes(),
+            List.of(edge("e1", SHOP, PAY, "Charges cards", "JSON/HTTP", CALL)),
+            List.of());
+
+    assertThat(
+            failed(
+                document(
+                    "c4-model-sequence-diagrams",
+                    "a",
+                    section("s", "S", first),
+                    section("t", "T", second)),
+                QualityBar.ONE_LABEL))
+        .containsExactly(
+            "document: Lines labelled differently on different pages: shop to pay (\"Charges"
+                + " cards\", \"Takes payment\").");
+    assertThat(
+            failed(
+                document(
+                    "c4-model-sequence-diagrams",
+                    "a",
+                    section("s", "S", first),
+                    section("t", "T", goodContainers("d2"))),
+                QualityBar.ONE_LABEL))
+        .isEmpty();
+  }
+
+  @Test
   void aServiceNamedOnlyAsBuiltFails() {
     // A build's name of words reads as words in the report; one the report cannot read fails.
     assertThat(

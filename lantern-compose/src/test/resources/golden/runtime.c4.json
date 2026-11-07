@@ -1321,10 +1321,10 @@
           "id" : "type:com.example.domain.JpaOrders--USES_DATABASE--database:db:5432-shop",
           "from" : "type:com.example.domain.JpaOrders",
           "to" : "database:db:5432/shop",
-          "label" : "Reads",
+          "label" : "Reads orders",
           "technology" : "JDBC",
           "relationship" : "USES_DATABASE",
-          "facts" : [ "d74c76cf28a35c154f0f07a683a2e3b3ef977c6083df99f0378ce86491196ab6" ]
+          "facts" : [ "d74c76cf28a35c154f0f07a683a2e3b3ef977c6083df99f0378ce86491196ab6", "e71483f3abb9dddbcb1fb2a44cebd84ae05f35a57ed3429ea0ccbd23c13c1935" ]
         }, {
           "id" : "type:com.example.web.Controller--CALLS--type:com.example.domain.JpaOrders",
           "from" : "type:com.example.web.Controller",
@@ -1964,7 +1964,7 @@
         },
         "detail" : [ {
           "kind" : "text",
-          "text" : "Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\") and JpaOrders to shop on db (\"Reads\")."
+          "text" : "Labelled only with a generic verb or not at all: JpaOrders to orders (\"Sends messages\")."
         } ],
         "facts" : [ ]
       }, {

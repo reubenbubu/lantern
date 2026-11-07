@@ -1,6 +1,6 @@
 # 0036: Persistence extractor
 
-Status: accepted (#130, part of #92)
+Status: accepted (#130, part of #92), amended for #567 and #962 (the datasource a class's SQL runs on)
 
 ## Context
 
@@ -196,3 +196,34 @@ module's config sets (`PersistenceExtractor.tables`, read from the config facts)
 `MAPS_TO` fact as before. `ValueViewsTest` checks that the extractor's facts, without those kept for
 linking, with what linking records, are its whole golden file of before.
 
+
+## Amendment (#962): the datasource a class's SQL runs on, as Spring wires it
+
+A unit with two datasources drew every component that touches a table to both. The extractor
+(version 8) now records, for each class that has JDBC or R2DBC access injected (a `DataSource`,
+`JdbcTemplate`, `JdbcOperations`, `NamedParameterJdbcTemplate`, `JdbcClient`, R2DBC
+`DatabaseClient`, `R2dbcEntityTemplate` or `ConnectionFactory`, through a constructor, an
+`@Autowired`, `@Inject` or `@Resource` method or field, or a final field a Lombok constructor
+sets), a `datasource-use` fact: the config prefix of the datasource that access is built on, with
+the beans on the way. It follows Spring's own rules, within the repository, own module first:
+
+- the bean injected: the one the point's `@Qualifier` names (a bean's name or the qualifier on its
+  `@Bean` method; `@Resource(name)` too), else the `@Primary` one, else the one named as the
+  parameter or field, else the only one of a template's or client's type;
+- a template or client bean is built on what its `@Bean` method takes, followed the same way;
+- a datasource bean is bound to the prefix of `@ConfigurationProperties` on its method (a pool's
+  `.hikari` and the like dropped), or of the `DataSourceProperties` bean it is built from, or of the
+  `@Value` placeholder of its URL (`${billing.reports.url}` is `billing.reports`);
+- with no such bean, the point is Spring Boot's own: `spring.datasource` (`spring.r2dbc`), and a
+  template or client Spring Boot makes is built on it. An unqualified `DataSource` with no
+  `@Primary` and no bean of its name is taken as Spring Boot's own even where the code declares
+  one, which is what such code means when its config sets `spring.datasource.*`; the declared
+  prefixes are recorded (`declared`), since Spring Boot then backs off and Spring injects the only
+  declared one. The composer uses the declared one when the config sets no `spring.datasource`.
+  Modelling the back-off as a risk is left to a finding.
+
+A point that names a qualifier no bean answers, or a bean whose datasource the code does not show,
+gives the class no fact: which datasource is then not certain. Spring Data repositories are not
+followed (`@EnableJpaRepositories` and the like); their store is told by their base interface and
+their entity's table (`DataStores`, ADR 0131 amendment for #962). Only the `@Bean` methods of the
+analyzed code are seen; a datasource a library's auto-configuration makes is Spring Boot's own.

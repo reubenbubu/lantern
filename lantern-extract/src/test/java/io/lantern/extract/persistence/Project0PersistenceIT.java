@@ -108,7 +108,7 @@ class Project0PersistenceIT {
   void db2JdbcTemplateReadsOrdersAndPaymentAndWritesPayment() {
     String job = " @payments:src/main/java/com/acme/shop/payments/SettlementJob.java#";
     String api = "\"api\":\"org.springframework.jdbc.core.JdbcTemplate\"";
-    assertThat(compiled.stream().filter(l -> l.contains("_TABLE ")))
+    assertThat(compiled.stream().filter(l -> l.contains("_TABLE ") && l.contains("SettlementJob")))
         .containsExactly(
             "method:com.acme.shop.payments.SettlementJob#settle() READS_TABLE"
                 + " table:com.acme.shop:payments:orders {"
@@ -160,6 +160,27 @@ class Project0PersistenceIT {
                         + " table:com.acme.shop:payments:orders "));
     // No credentials reach a fact.
     assertThat(String.join("\n", compiled)).doesNotContain("password", "username");
+  }
+
+  @Test
+  void db6EachClassRunsOnTheDatasourceSpringWiresIntoIt() {
+    // SettlementJob's unqualified JdbcTemplate is Spring Boot's own, on the primary datasource,
+    // bound to spring.datasource; LedgerEntries asks for the ledger by qualifier (#962).
+    for (List<String> facts : List.of(compiled, parsed)) {
+      assertThat(facts.stream().filter(l -> l.contains(" datasource-use ")))
+          .extracting(l -> l.substring(0, l.indexOf(" @")))
+          .containsExactly(
+              "type:com.acme.shop.payments.LedgerEntries datasource-use"
+                  + " payments.ledger.datasource {\"beans\":[\"ledgerDataSource\"]}",
+              "type:com.acme.shop.payments.SettlementJob datasource-use spring.datasource"
+                  + " {\"beans\":[\"shopDataSource\",\"shopDataSourceProperties\"]}");
+    }
+    assertThat(compiled)
+        .anyMatch(
+            l ->
+                l.startsWith(
+                    "method:com.acme.shop.payments.LedgerEntries#closeDay() WRITES_TABLE"
+                        + " table:com.acme.shop:payments:ledger_entry "));
   }
 
   @Test

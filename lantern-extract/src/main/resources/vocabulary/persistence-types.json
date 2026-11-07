@@ -52,6 +52,21 @@
     }
   },
   {
+    "name": "datasource-use",
+    "kind": "attribute",
+    "keyAttributes": ["beans", "declared"],
+    "description": "The subject class's JDBC or R2DBC access runs on the datasource bound to the config prefix the object names, as Spring wires it (#962): the DataSource, JdbcTemplate, NamedParameterJdbcTemplate, JdbcClient, DatabaseClient or ConnectionFactory injected into it, the bean Spring injects there (by @Qualifier, else @Primary, else the bean named as the point), the datasource that bean's @Bean method is built on, and the config that datasource is bound to (@ConfigurationProperties on its method or on the DataSourceProperties it is built from, or the @Value placeholder of its URL), such as billing.datasource.orders. With no such bean it is Spring Boot's own, spring.datasource (spring.r2dbc for R2DBC). One fact per datasource the class reaches; none when a point cannot be followed.",
+    "attributeSchema": {
+      "type": "object",
+      "properties": {
+        "beans": { "type": "array", "items": { "type": "string" }, "description": "The names of the beans Spring injects on the way, from the one injected into the class to the datasource; absent for Spring Boot's own." },
+        "declared": { "type": "array", "items": { "type": "string" }, "description": "For Spring Boot's own datasource: the config prefixes of the datasource beans the code declares beside it, none @Primary. Spring Boot does not build its own datasource when the code declares one, so these show where the wiring may differ from what the config intends." }
+      },
+      "additionalProperties": false
+    },
+    "objectKind": "string"
+  },
+  {
     "name": "READS_TABLE",
     "kind": "relationship",
     "keyAttributes": ["api", "statement"],

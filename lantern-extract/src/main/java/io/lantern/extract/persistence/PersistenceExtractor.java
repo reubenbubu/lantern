@@ -73,7 +73,7 @@ public final class PersistenceExtractor implements Extractor {
   public static final String NAME = "persistence";
 
   /** The extractor's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "7";
+  public static final String VERSION = "8";
 
   /** The source recorded on the vocabulary revision that adds this extractor's types. */
   public static final String VOCABULARY_SOURCE = "persistence-extractor";
@@ -366,6 +366,25 @@ public final class PersistenceExtractor implements Extractor {
       }
       for (Call call : m.structure().calls()) {
         sql(m, call);
+      }
+      // Which datasource each class's JDBC or R2DBC access runs on, as Spring wires it (#962).
+      for (DataSourceWiring.Use use : new DataSourceWiring(code).uses(m)) {
+        ObjectNode attributes = FactJson.newObject();
+        if (!use.beans().isEmpty()) {
+          ArrayNode beans = attributes.putArray("beans");
+          use.beans().forEach(beans::add);
+        }
+        if (!use.declared().isEmpty()) {
+          ArrayNode declared = attributes.putArray("declared");
+          use.declared().forEach(declared::add);
+        }
+        attribute(
+            m,
+            typeId(use.type().binaryName()),
+            Types.DATASOURCE_USE,
+            use.prefix(),
+            attributes,
+            use.where());
       }
     }
 

@@ -1155,7 +1155,15 @@ final class FlowTracer {
         facts.add(shared);
       }
     }
-    Database database = database(unit);
+    // The database whose schema holds the tables (#962).
+    Set<EntityId> stores = new TreeSet<>(Knowledge.BY_ID);
+    accesses.forEach(
+        f ->
+            stores.addAll(
+                dataStores()
+                    .tableStores(
+                        unit, Components.ownerType(knowledge, f.subject()), Knowledge.object(f))));
+    Database database = database(unit, stores);
     facts.addAll(database.facts);
     if (database.entity == null) {
       Node note =
@@ -1172,10 +1180,17 @@ final class FlowTracer {
 
   private void repositoryCall(Trace trace, EntityId unit, Fact call, List<String> profiles) {
     EntityId callee = Knowledge.object(call);
-    Database database = database(unit);
+    List<Fact> repositories =
+        knowledge.relations(Components.ownerType(knowledge, callee), Types.REPOSITORY_FOR);
+    // The store of the repository's kind (#962); none for a store not drawn yet (#466).
+    Set<EntityId> stores = new TreeSet<>(Knowledge.BY_ID);
+    repositories.forEach(r -> stores.addAll(dataStores().repositoryStores(unit, r)));
+    if (stores.isEmpty()) {
+      return;
+    }
+    Database database = database(unit, stores);
     List<Fact> facts = new ArrayList<>(List.of(call));
-    facts.addAll(
-        knowledge.relations(Components.ownerType(knowledge, callee), Types.REPOSITORY_FOR));
+    facts.addAll(repositories);
     facts.addAll(database.facts);
     if (database.entity == null) {
       Node note =
@@ -1203,10 +1218,23 @@ final class FlowTracer {
   private record Database(
       EntityId entity, String protocol, List<Fact> facts, List<String> candidates) {}
 
-  private Database database(EntityId unit) {
+  private DataStores dataStores;
+
+  private DataStores dataStores() {
+    if (dataStores == null) {
+      dataStores = new DataStores(knowledge);
+    }
+    return dataStores;
+  }
+
+  /**
+   * @param within the stores the access goes to (#962); every one of the unit's when empty
+   */
+  private Database database(EntityId unit, Set<EntityId> within) {
     Map<EntityId, List<Fact>> databases = new TreeMap<>(Knowledge.BY_ID);
     for (Fact fact : knowledge.relations(unit, Types.USES_DATABASE)) {
-      if (Knowledge.view(fact) == null) {
+      if (Knowledge.view(fact) == null
+          && (within.isEmpty() || within.contains(Knowledge.object(fact)))) {
         databases.computeIfAbsent(Knowledge.object(fact), d -> new ArrayList<>()).add(fact);
       }
     }
