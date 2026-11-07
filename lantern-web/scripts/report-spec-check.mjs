@@ -81,7 +81,13 @@ export function crossReferenceIssues(data) {
         (section.elements ?? []).forEach((id) => known(id, where));
         if (section.boundary !== undefined) {
           known(section.boundary, where);
-          if (![...ids].some((id) => elements[id]?.parent === section.boundary)) {
+          if (section.boundaryContains !== undefined) {
+            // a group's frame names what it holds (#957)
+            section.boundaryContains.forEach((id) => known(id, where));
+            if (!section.boundaryContains.some((id) => ids.has(id))) {
+              issues.push(`${where}: nothing the boundary ${section.boundary} contains is drawn`);
+            }
+          } else if (![...ids].some((id) => elements[id]?.parent === section.boundary)) {
             issues.push(`${where}: nothing has the boundary ${section.boundary} as its parent`);
           }
         }
