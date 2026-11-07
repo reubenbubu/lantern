@@ -1364,22 +1364,23 @@ class Project0EndToEndIT {
     assertThat(containerLines.toString())
         .contains(
             "{\"from\":\"actor-unknown-caller\",\"to\":\"service-com-acme-shop-payments\","
-                + "\"label\":\"Calls GET /api/orders/{orderId}\",\"technology\":\"HTTP\"}")
+                + "\"label\":\"Works with orders\",\"technology\":\"HTTP\"}")
         .contains(
             "{\"from\":\"actor-unknown-caller\","
                 + "\"to\":\"service-com-acme-shop-storefront-app\","
-                + "\"label\":\"Calls POST /api/orders\",\"technology\":\"HTTP\"}");
+                + "\"label\":\"Works with orders\",\"technology\":\"HTTP\"}");
     assertThat(data.get("pages").get(0).toString())
         .contains("\"from\":\"actor-unknown-caller\",\"to\":\"system-snapshot\"");
     assertThat(data.get("pages").get(pages.indexOf("decisions")).toString())
         .contains("payments: GET /api/orders/{orderId}. storefront: POST /api/orders.");
     assertThat(data.toString()).doesNotContain("Every Unknown caller line points to");
     assertThat(containerLines.toString())
-        // HTTP-1: Feign by client name, with the endpoint and protocol.
+        // HTTP-1: Feign by client name, with what the endpoint is about and the protocol (the
+        // endpoint itself on the line's facts, #933).
         .contains(
             "{\"from\":\"service-com-acme-shop-storefront-app\","
                 + "\"to\":\"service-com-acme-shop-catalog-service\","
-                + "\"label\":\"Calls GET /api/products/{id}\",\"technology\":\"JSON/HTTP\"}")
+                + "\"label\":\"Works with products\",\"technology\":\"JSON/HTTP\"}")
         // SPR-4: the audit trail is sent only under its profile.
         .contains(
             "\"label\":\"Sends messages (only with the Spring profile audit)\","
