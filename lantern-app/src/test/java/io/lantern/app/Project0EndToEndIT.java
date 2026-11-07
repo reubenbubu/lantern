@@ -1315,8 +1315,11 @@ class Project0EndToEndIT {
             "context",
             // No code signal groups catalog with the units that share the shop database into a
             // second domain, so the map of one domain does not fit either; the view is split by
-            // concern, messaging per unit (#764; grouping what code leaves loose is #919).
-            "containers-requests-and-data",
+            // concern, messaging per unit (#764; grouping what code leaves loose is #919). With
+            // the Keycloak compose runs inside the system (DEP-6, #979), requests and data no
+            // longer fit one view either, so each has its own.
+            "containers-requests",
+            "containers-data",
             "containers-messaging-service-com-acme-shop-fulfilment",
             "containers-messaging-service-com-acme-shop-storefront-app",
             "containers-messaging-service-com-acme-shop-payments",
@@ -1332,7 +1335,7 @@ class Project0EndToEndIT {
             "sequences-payments-settlementjob-settle",
             "findings",
             // The decision records and unknowns are a documentation page (ADR 0086), then the
-            // deployment table of storefront's compose file (ADR 0082, DEP-1 to DEP-5) and the
+            // deployment table of storefront's compose file (ADR 0082, DEP-1 to DEP-6) and the
             // glossary (ADR 0087).
             "decisions",
             "deployment",
