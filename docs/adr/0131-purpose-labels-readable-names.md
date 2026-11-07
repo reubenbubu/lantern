@@ -32,6 +32,7 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
    name with dashes, dots or underscores as spaces, a kind noun the name ends with such as
    "gateway", or a product word of its technology such as PostgreSQL or Keycloak) is dropped when at
    least two words are left: "Keeps invoices in PostgreSQL" into PostgreSQL is "Keeps invoices".
+   Into a topic, queue or exchange, a closing "to the custody exchange" goes too.
    This is done in the composer, deterministically, not by a new LLM check with raised prompt
    versions as #933 first asked: the composer sees both ends, and a prompt change would re-ask
    every stored answer for a rule a regular expression keeps.
