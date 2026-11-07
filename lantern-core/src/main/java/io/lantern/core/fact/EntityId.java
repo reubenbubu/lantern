@@ -16,9 +16,6 @@ import java.util.regex.Pattern;
 public record EntityId(String type, String key) {
 
   private static final Pattern TYPE = Pattern.compile("[a-z][a-z0-9-]*");
-  private static final Pattern KEY =
-      Pattern.compile(
-          "[^\\u0000-\\u0020\\u007f-\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]+");
 
   /**
    * The software system a snapshot describes, the one entity every stage names the same way: the
@@ -32,7 +29,7 @@ public record EntityId(String type, String key) {
     if (!TYPE.matcher(type).matches()) {
       throw new IllegalArgumentException("Invalid entity type: '" + type + "'");
     }
-    if (!KEY.matcher(key).matches()) {
+    if (!isValidKey(key)) {
       throw new IllegalArgumentException("Invalid entity key: '" + key + "'");
     }
   }
@@ -40,6 +37,33 @@ public record EntityId(String type, String key) {
   /** Whether the text is a valid entity type name, the form entity types use. */
   public static boolean isValidType(String type) {
     return type != null && TYPE.matcher(type).matches();
+  }
+
+  /**
+   * Whether the text is a valid key: not empty, with no whitespace or control character, the
+   * characters the JSON Schema excludes. A loop rather than a regular expression, since every
+   * parsed ID is checked and the expression was most of a run's CPU time (#948).
+   */
+  static boolean isValidKey(String key) {
+    if (key.isEmpty()) {
+      return false;
+    }
+    for (int i = 0; i < key.length(); i++) {
+      char c = key.charAt(i);
+      if (c <= '\u0020'
+          || (c >= '\u007f' && c <= '\u00a0')
+          || c == '\u1680'
+          || (c >= '\u2000' && c <= '\u200a')
+          || c == '\u2028'
+          || c == '\u2029'
+          || c == '\u202f'
+          || c == '\u205f'
+          || c == '\u3000'
+          || c == '\ufeff') {
+        return false;
+      }
+    }
+    return true;
   }
 
   /** Parses the {@code <type>:<key>} form. The inverse of {@link #toString()}. */
