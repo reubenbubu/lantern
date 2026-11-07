@@ -54,7 +54,7 @@ public final class Groups implements LinkRule.OverFacts {
   public static final String NAME = "groups";
 
   /** Raised whenever the groups it gives for the same facts change. */
-  public static final String VERSION = "4";
+  public static final String VERSION = "5";
 
   /** The file of the diagram defaults (setting {@code lantern.diagrams}), beside this class. */
   public static final String DIAGRAM_DEFAULTS = "diagram-limits.properties";
@@ -180,7 +180,10 @@ public final class Groups implements LinkRule.OverFacts {
     for (EntityId unit : units) {
       write(featureAreas(knowledge, unit), FEATURE_AREA, unit.toString(), validity, derived);
     }
-    write(domains(knowledge, units, units), DOMAIN, SYSTEM, validity, derived);
+    SortedSet<EntityId> domainUnits = new TreeSet<>(Knowledge.BY_ID);
+    domainUnits.addAll(units);
+    domainUnits.removeAll(sharedInfrastructure(knowledge, units));
+    write(domains(knowledge, domainUnits, units), DOMAIN, SYSTEM, validity, derived);
     return Derivation.merged(derived);
   }
 
@@ -671,6 +674,40 @@ public final class Groups implements LinkRule.OverFacts {
 
   // Domains.
 
+  /**
+   * The units that serve every domain rather than one (#932): a gateway, which routes requests on
+   * to other units, and an infrastructure server (a config, Eureka or admin server), which every
+   * unit reads or registers with. They stay beside the domains, in none.
+   */
+  public static SortedSet<EntityId> sharedInfrastructure(
+      Knowledge knowledge, Collection<EntityId> units) {
+    SortedSet<EntityId> shared = new TreeSet<>(Knowledge.BY_ID);
+    for (EntityId unit : units) {
+      if (knowledge.attributes(unit).stream()
+          .anyMatch(f -> f.predicate().equals(Types.ROUTED_ENDPOINT))) {
+        shared.add(unit);
+        continue;
+      }
+      for (EntityId module : knowledge.parts(unit, Types.MODULE)) {
+        boolean routes =
+            knowledge.attributes(module).stream()
+                .anyMatch(f -> f.predicate().equals(Types.GATEWAY_ROUTE));
+        SortedSet<EntityId> types = new TreeSet<>(Knowledge.BY_ID);
+        types.addAll(knowledge.typesWithin(module));
+        for (EntityId pkg : knowledge.parts(module, Types.PACKAGE)) {
+          types.addAll(knowledge.typesWithin(pkg));
+        }
+        if (routes
+            || types.stream()
+                .anyMatch(t -> knowledge.attribute(t, Types.INFRASTRUCTURE_SERVER).isPresent())) {
+          shared.add(unit);
+          break;
+        }
+      }
+    }
+    return shared;
+  }
+
   static SortedMap<String, Forming> domains(
       Knowledge knowledge, SortedSet<EntityId> units, Set<EntityId> system) {
     SortedMap<String, Forming> domains = new TreeMap<>();
@@ -876,7 +913,41 @@ public final class Groups implements LinkRule.OverFacts {
                   attribute(fact, "basis", null),
                   members));
         });
-    return groups;
+    return splitByMeaning(groups);
+  }
+
+  /** The basis of a group the grouping role formed by meaning (ADR 0129). */
+  public static final String MEANING = "meaning";
+
+  /**
+   * The groups with what the grouping role split off a code group too large for one view (#932): a
+   * member of a group formed by meaning leaves any other group of its scope, and a group left with
+   * fewer than 2 members stands for nothing.
+   */
+  private static List<Group> splitByMeaning(List<Group> groups) {
+    Map<String, Set<EntityId>> byMeaning = new HashMap<>();
+    for (Group group : groups) {
+      if (MEANING.equals(group.basis())) {
+        byMeaning.computeIfAbsent(group.scope(), s -> new HashSet<>()).addAll(group.members());
+      }
+    }
+    if (byMeaning.isEmpty()) {
+      return groups;
+    }
+    List<Group> result = new ArrayList<>();
+    for (Group group : groups) {
+      Set<EntityId> taken = byMeaning.getOrDefault(group.scope(), Set.of());
+      if (MEANING.equals(group.basis()) || group.members().stream().noneMatch(taken::contains)) {
+        result.add(group);
+        continue;
+      }
+      SortedSet<EntityId> left = new TreeSet<>(Knowledge.BY_ID);
+      group.members().stream().filter(m -> !taken.contains(m)).forEach(left::add);
+      if (left.size() >= 2) {
+        result.add(new Group(group.id(), group.kind(), group.scope(), group.basis(), left));
+      }
+    }
+    return result;
   }
 
   /** A line between two elements, by protocol, and the facts it stands for. */

@@ -1930,9 +1930,28 @@ final class C4Views {
                     assembler.id(areaId, "diagram"), unit, components, title, mains, others);
             perPair = false;
           }
+          List<Block> parts =
+              fits(view) || mains.size() > limits.mostElements()
+                  ? List.of()
+                  : byConcern(areaId, unit, components, title, mains, others);
+          if (!parts.isEmpty()) {
+            // Few enough members, but what they reach outside is too much: one view per concern,
+            // as a domain's (#932), when each fits.
+            result.add(
+                new Section(
+                    areaId,
+                    name,
+                    SectionKind.COMPONENTS.levels(),
+                    area,
+                    List.of(),
+                    parts,
+                    List.of()));
+            return;
+          }
           if (!fits(view)) {
-            // An area too large for one page is split by groups of entry points (docs/design.md,
-            // Readable diagrams), each page naming the area.
+            // Too many members, which the grouping role splits by meaning (#932) unless it could
+            // not, or what they reach outside does not fit even per concern: split by groups of
+            // entry points (docs/design.md, Readable diagrams), each view naming the area.
             result.add(
                 onePage(
                     areaId,
@@ -1953,6 +1972,61 @@ final class C4Views {
                   List.of()));
         });
     return result;
+  }
+
+  /**
+   * An area's views, one per concern whose lines reach outside the unit (#932): requests draws the
+   * lines between the area's components and the unit's others too, data and messaging only their
+   * own lines to other containers; a concern with no such line has no view. None unless there are
+   * at least two and each fits.
+   */
+  private List<Block> byConcern(
+      String areaId,
+      EntityId unit,
+      List<Elements.Component> components,
+      String title,
+      Set<EntityId> mains,
+      Map<EntityId, EntityId> others) {
+    perPair = true;
+    List<Block> parts = new ArrayList<>();
+    for (Concern concern : List.of(REQUESTS, DATA, MESSAGING)) {
+      componentConcern = concern;
+      Diagram part =
+          componentDiagram(
+              assembler.id(areaId, slug(concern.title)),
+              unit,
+              components,
+              title + ": " + concern.title.toLowerCase(Locale.ROOT),
+              mains,
+              others);
+      componentConcern = null;
+      // Requests also holds the lines between the unit's components, so it is kept with any.
+      if (!part.edges().isEmpty()) {
+        parts.add(part);
+      }
+    }
+    perPair = false;
+    boolean allFit = parts.stream().allMatch(b -> fits((Diagram) b));
+    return parts.size() > 1 && allFit ? parts : List.of();
+  }
+
+  /** The concern a component view draws the outside lines of, or null for all of them. */
+  private Concern componentConcern;
+
+  /**
+   * Whether a view draws a line of this kind to another container: a request if no concern names
+   * it.
+   */
+  private boolean inConcern(String relationship) {
+    if (componentConcern == null) {
+      return true;
+    }
+    if (componentConcern.relationships.contains(relationship)) {
+      return true;
+    }
+    return componentConcern == REQUESTS
+        && !DATA.relationships.contains(relationship)
+        && !MESSAGING.relationships.contains(relationship);
   }
 
   /**
@@ -2285,6 +2359,7 @@ final class C4Views {
         }
         EntityId to = mainOf.get(ArchitectureModel.object(line));
         if (to == null
+            || componentConcern != null && componentConcern != REQUESTS
             || !(focus.contains(component.main()) || focus.contains(to))
             || (!focus.contains(component.main()) && callersElsewhere.contains(component.main()))
             || (!focus.contains(to) && callersElsewhere.contains(to))
@@ -2324,6 +2399,9 @@ final class C4Views {
     }
     // Lines to and from other containers, at the code on this unit's end.
     for (Line link : withoutOutside ? List.<Line>of() : links) {
+      if (!inConcern(link.relationship())) {
+        continue;
+      }
       if (link.from().equals(unit)) {
         for (Fact fact : link.facts()) {
           EntityId from = codeEnds.get("source " + fact.id());
@@ -2364,7 +2442,10 @@ final class C4Views {
     // Data access, to the databases the unit's datasources point to.
     for (Elements.Component component : components) {
       String access = model.dataAccess(Components.id(unit, component.main())).orElse(null);
-      if (access == null || !focus.contains(component.main()) || withoutOutside) {
+      if (access == null
+          || !focus.contains(component.main())
+          || withoutOutside
+          || !inConcern(Types.USES_DATABASE)) {
         continue;
       }
       for (Line link : links) {

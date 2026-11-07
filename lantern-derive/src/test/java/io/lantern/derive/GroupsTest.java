@@ -315,6 +315,35 @@ class GroupsTest {
   }
 
   @Test
+  void aGatewayAndConfigAndDiscoveryServersStayOutsideTheDomains() {
+    EntityId mail = EntityId.parse("service:io.acme.mail:mailer");
+    EntityId audit = EntityId.parse("service:io.acme.mail:audit");
+    EntityId gateway = EntityId.parse("service:io.acme.mail:gateway");
+    EntityId config = EntityId.parse("service:io.acme.mail:config");
+    EntityId discovery = EntityId.parse("service:io.acme.mail:discovery");
+    EntityId stock = EntityId.parse("service:io.acme.stock:stock");
+    EntityId ledger = EntityId.parse("service:io.acme.stock:ledger");
+    for (EntityId unit : List.of(mail, audit, gateway, config, discovery, stock, ledger)) {
+      model.add(unit, "deployable-unit", FactObject.string("spring-boot"));
+    }
+    ObjectNode route = FactJson.newObject();
+    route.put("target", mail.toString());
+    model.add(gateway, Types.ROUTED_ENDPOINT, FactObject.string("GET /mail/{id}"), route);
+    server(config, "ConfigApplication", "config");
+    server(discovery, "DiscoveryApplication", "eureka");
+
+    // A gateway routes for every domain and the servers configure and find every unit: they stay
+    // beside the domains, not in one (#932).
+    assertThat(
+            Groups.sharedInfrastructure(
+                new Knowledge(model.facts), List.of(mail, gateway, config, discovery, stock)))
+        .containsExactly(config, discovery, gateway);
+    assertThat(domains())
+        .containsOnlyKeys(domain("maven-mail"), domain("maven-stock"))
+        .containsEntry(domain("maven-mail"), Set.of(mail.toString(), audit.toString()));
+  }
+
+  @Test
   void aScopeYieldingOneGroupStoresNone() {
     EntityId orders = EntityId.parse("service:io.acme:orders");
     for (EntityId unit : List.of(BILLING, orders)) {
@@ -334,6 +363,31 @@ class GroupsTest {
     calls(stock, orders);
 
     assertThat(domains()).isEmpty();
+  }
+
+  @Test
+  void anAreaSplitByMeaningTakesItsMembersFromTheCodesArea() {
+    EntityId big = EntityId.parse("group:" + BILLING + "/area/feature-folder-billing");
+    EntityId other = EntityId.parse("group:" + BILLING + "/area/feature-folder-refunds");
+    EntityId invoices = EntityId.parse("group:" + BILLING + "/area/llm-invoices");
+    EntityId payments = EntityId.parse("group:" + BILLING + "/area/llm-payments");
+    EntityId a = Components.id(BILLING, EntityId.parse("type:io.acme.billing.a"));
+    EntityId b = Components.id(BILLING, EntityId.parse("type:io.acme.billing.b"));
+    EntityId c = Components.id(BILLING, EntityId.parse("type:io.acme.billing.c"));
+    EntityId d = Components.id(BILLING, EntityId.parse("type:io.acme.billing.d"));
+    EntityId e = Components.id(BILLING, EntityId.parse("type:io.acme.billing.e"));
+    EntityId r1 = Components.id(BILLING, EntityId.parse("type:io.acme.billing.r1"));
+    EntityId r2 = Components.id(BILLING, EntityId.parse("type:io.acme.billing.r2"));
+    group(big, "feature-folder", a, b, c, d, e);
+    group(other, "feature-folder", r1, r2);
+    group(invoices, "meaning", a, b);
+    group(payments, "meaning", c, d);
+
+    // The model split the code's area, too large for one view, by meaning (#932): its parts take
+    // their members from it, and what is left of it, one component, stands for nothing.
+    assertThat(groups(Groups.FEATURE_AREA))
+        .containsOnlyKeys(other.toString(), invoices.toString(), payments.toString())
+        .containsEntry(invoices.toString(), Set.of(a.toString(), b.toString()));
   }
 
   @Test
@@ -408,6 +462,31 @@ class GroupsTest {
           EntityId.parse("method:" + pkg + "." + name + "#find()"));
     }
     model.add(type, Types.CONTAINS, EntityId.parse("method:" + pkg + "." + name + "#find()"));
+  }
+
+  /** A stored feature area of billing, of a basis, with its members. */
+  private void group(EntityId id, String basis, EntityId... members) {
+    ObjectNode of = FactJson.newObject();
+    of.put("scope", BILLING.toString());
+    of.put("basis", basis);
+    model.add(id, Types.GROUP_OF, FactObject.string(Groups.FEATURE_AREA), of);
+    for (EntityId member : members) {
+      ObjectNode in = FactJson.newObject();
+      in.put("basis", basis);
+      model.add(id, Types.GROUPS, FactObject.entity(member), in);
+    }
+  }
+
+  /** A unit whose main class makes it an infrastructure server: a config or Eureka server. */
+  private void server(EntityId unit, String name, String kind) {
+    EntityId module = EntityId.parse("module:io.acme:" + unit.key().replace(':', '-'));
+    EntityId type = EntityId.parse("type:io.acme." + name);
+    model.add(unit, Types.CONTAINS, module);
+    model.add(module, Types.CONTAINS, type);
+    model.add(type, Types.MAIN_CLASS, FactObject.string("spring-boot"));
+    ObjectNode attributes = FactJson.newObject();
+    attributes.put("annotation", "org.example.Enable" + name);
+    model.add(type, Types.INFRASTRUCTURE_SERVER, FactObject.string(kind), attributes);
   }
 
   private void link(EntityId from, String to) {

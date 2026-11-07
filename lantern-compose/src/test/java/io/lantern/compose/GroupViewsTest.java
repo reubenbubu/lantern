@@ -493,7 +493,8 @@ class GroupViewsTest {
 
   @Test
   void anAreaPageStillTooLargeIsSplitByEntryPointEachWithWhatItCalls() {
-    // docs/design.md, Readable diagrams: the last step splits by groups of entry points.
+    // docs/design.md, Readable diagrams: an area of too many members the grouping role did not
+    // split by meaning (#932) is split by groups of entry points.
     TestFacts many = TestFacts.runtime();
     String pkg = "package:com.example:app:com.example.desk";
     many.relate("shop", "module:com.example:app", "CONTAINS", pkg);
@@ -622,6 +623,60 @@ class GroupViewsTest {
         .extracting(Diagram.Node::label)
         .contains("S1", "T1", "T2", "T3")
         .doesNotContain("Big", "Small");
+  }
+
+  @Test
+  void anAreaOfFewMembersThatReachesTooMuchOutsideIsSplitByConcern() {
+    // #932: three components are too few to split by meaning, but what they reach outside does
+    // not fit; the area's page draws a view per concern, never a slice per entry point.
+    TestFacts many = TestFacts.runtime();
+    String pkg = "package:com.example:app:com.example.web";
+    many.relate("shop", "module:com.example:app", "CONTAINS", pkg);
+    for (String feature : List.of("notices", "desk")) {
+      for (int i = 0; i < 3; i++) {
+        String type = "type:com.example.web." + feature + i;
+        many.relate("shop", pkg, "CONTAINS", type)
+            .attribute("shop", type, "stereotype", "controller", "{\"rest\": true}")
+            .relate("shop", type, "CONTAINS", method(type, "get"))
+            .attribute("shop", method(type, "get"), "endpoint", "GET /" + feature + "/" + i, "{}");
+      }
+    }
+    for (int i = 0; i < 3; i++) {
+      String service = "service:com.example:s" + i;
+      many.attribute("s" + i, service, "deployable-unit", "spring-boot", "{}")
+          .relate(
+              "shop",
+              APP,
+              "CALLS_HTTP",
+              service,
+              "{\"protocol\": \"HTTP\", \"source\": \"method:com.example.web.notices0#get()\"}")
+          .relate(
+              "shop",
+              APP,
+              "PUBLISHES",
+              "topic:kafka:n" + i,
+              "{\"protocol\": \"Kafka\", \"source\": \"method:com.example.web.notices1#get()\"}");
+    }
+    Section app =
+        section(system(many.list(), limits(7, 2)), "components").sections().stream()
+            .filter(x -> x.entity() != null && x.entity().toString().equals(APP))
+            .findFirst()
+            .orElseThrow();
+
+    Section notices =
+        app.sections().stream()
+            .filter(p -> p.title().startsWith("notices"))
+            .findFirst()
+            .orElseThrow();
+    assertThat(views(notices, ""))
+        .extracting(Diagram::title)
+        .allMatch(t -> !t.contains(" from "))
+        .anyMatch(t -> t.endsWith(": requests"))
+        .anyMatch(t -> t.endsWith(": messaging"));
+    assertThat(view(notices, ": requests").nodes())
+        .extracting(n -> n.id().toString())
+        .contains("service:com.example:s0")
+        .doesNotContain("topic:kafka:n0");
   }
 
   @Test
