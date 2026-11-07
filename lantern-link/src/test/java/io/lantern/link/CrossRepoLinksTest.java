@@ -3495,25 +3495,26 @@ class CrossRepoLinksTest {
 
     assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .containsExactlyInAnyOrder(
-            "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+            "service:g:bff USES_IDENTITY_PROVIDER identity-provider:keycloak {\"key\":"
                 + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
                 + "\"matchedBy\":\"published-port\",\"protocol\":\"OAuth2 over HTTP\","
                 + "\"purpose\":\"gets-tokens\",\"url\":\"http://localhost:8080/realms/shop\"}"
                 + " 0.8",
-            "service:g:bff USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+            "service:g:bff USES_IDENTITY_PROVIDER identity-provider:keycloak {\"key\":"
                 + "\"spring.security.oauth2.client.provider.keycloak.issuer-uri\","
                 + "\"matchedBy\":\"published-port\",\"protocol\":\"OIDC over HTTP\","
                 + "\"purpose\":\"signs-in-users\","
                 + "\"url\":\"http://localhost:8080/realms/shop\"} 0.8",
-            "service:g:gateway USES_IDENTITY_PROVIDER external-system:keycloak {\"key\":"
+            "service:g:gateway USES_IDENTITY_PROVIDER identity-provider:keycloak {\"key\":"
                 + "\"spring.security.oauth2.resourceserver.jwt.issuer-uri\","
                 + "\"matchedBy\":\"published-port\",\"protocol\":\"OIDC over HTTP\","
                 + "\"purpose\":\"validates-tokens\","
                 + "\"url\":\"http://localhost:8080/realms/shop\"} 0.8");
     assertThat(derive())
         .contains(
-            "external-system:keycloak display-name Keycloak 1.0",
-            "external-system:keycloak deployed-in Docker Compose (default)"
+            "identity-provider:keycloak display-name Keycloak 1.0",
+            "identity-provider:keycloak technology Keycloak 26.7.4 1.0",
+            "identity-provider:keycloak deployed-in Docker Compose (default)"
                 + " {\"container\":\"keycloak\",\"environment\":\"default\","
                 + "\"platform\":\"compose\"} 1.0");
   }
@@ -3539,7 +3540,7 @@ class CrossRepoLinksTest {
     assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .singleElement()
         .asString()
-        .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
+        .startsWith("service:g:orders USES_IDENTITY_PROVIDER identity-provider:keycloak")
         .contains("\"matchedBy\":\"container\",\"protocol\":\"JWKS over HTTP\"")
         .contains(
             "\"purpose\":\"validates-tokens\","
@@ -3568,9 +3569,90 @@ class CrossRepoLinksTest {
     assertThat(derive(Types.USES_IDENTITY_PROVIDER))
         .singleElement()
         .asString()
-        .startsWith("service:g:orders USES_IDENTITY_PROVIDER external-system:keycloak")
+        .startsWith("service:g:orders USES_IDENTITY_PROVIDER identity-provider:keycloak")
         .contains("\"matchedBy\":\"container\"")
         .contains("\"url\":\"http://keycloak:8080/realms/shop\"");
+  }
+
+  @Test
+  void anIdentityProviderAHelmChartRunsIsAContainerOfTheSystemWithItsVersion() {
+    // Dex's documented chart: a Deployment of ghcr.io/dexidp/dex behind a Service on 5556, its
+    // issuer http://<service>:5556/dex; the unit's Deployment sets the issuer in its environment.
+    unit("p", "orders", "orders");
+    config(
+        "p",
+        "orders",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "${OIDC_ISSUER}",
+        "\"written\":\"${OIDC_ISSUER}\",\"unresolved\":[\"OIDC_ISSUER\"]");
+    container(
+        "deploy",
+        "orders",
+        "{\"platform\":\"helm\",\"environment\":\"prod\",\"kind\":\"Deployment\","
+            + "\"image\":\"acme/orders:1.4\",\"hosts\":[\"orders\"],"
+            + "\"env\":{\"OIDC_ISSUER\":\"http://dex.auth.svc.cluster.local:5556/dex\"}}");
+    container(
+        "deploy",
+        "dex",
+        "{\"platform\":\"helm\",\"environment\":\"prod\",\"kind\":\"Deployment\","
+            + "\"image\":\"ghcr.io/dexidp/dex:v2.41.1\",\"product\":\"Dex\","
+            + "\"version\":\"2.41.1\",\"role\":\"identity\",\"hosts\":[\"dex\"],"
+            + "\"ports\":[\"5556\"]}");
+
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
+        .singleElement()
+        .asString()
+        .startsWith("service:g:orders USES_IDENTITY_PROVIDER identity-provider:dex")
+        .contains("\"matchedBy\":\"container\"");
+    assertThat(derive())
+        .contains(
+            "identity-provider:dex display-name Dex 1.0",
+            "identity-provider:dex technology Dex 2.41.1 1.0")
+        .anyMatch(l -> l.startsWith("identity-provider:dex deployed-in Helm (prod)"))
+        .noneMatch(l -> l.contains("external-system:"));
+  }
+
+  @Test
+  void anIdentityProviderTwoDeploymentsRunAtTwoVersionsIsOneContainerWithBoth() {
+    // Compose locally and a Kubernetes manifest in production, each running its own Keycloak.
+    unit("s", "orders", "orders");
+    config(
+        "s",
+        "orders",
+        "application.properties",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri",
+        "${ISSUER}",
+        "\"written\":\"${ISSUER}\",\"unresolved\":[\"ISSUER\"]");
+    for (String environment : List.of("default", "prod")) {
+      String platform = environment.equals("default") ? "compose" : "kubernetes";
+      container(
+          "s",
+          "orders",
+          "{\"platform\":\""
+              + platform
+              + "\",\"environment\":\""
+              + environment
+              + "\",\"kind\":\"service\",\"image\":\"acme/orders:1\",\"hosts\":[\"orders\"],"
+              + "\"env\":{\"ISSUER\":\"http://keycloak:8080/realms/shop\"}}");
+    }
+    container("s", "keycloak", KEYCLOAK);
+    container(
+        "s",
+        "keycloak",
+        KEYCLOAK
+            .replace("compose", "kubernetes")
+            .replace("default", "prod")
+            .replace("26.7.4", "25.0.6"));
+
+    assertThat(derive(Types.USES_IDENTITY_PROVIDER))
+        .isNotEmpty()
+        .allMatch(l -> l.startsWith("service:g:orders USES_IDENTITY_PROVIDER identity-provider:"))
+        .allMatch(l -> l.contains("identity-provider:keycloak"));
+    assertThat(derive())
+        .contains("identity-provider:keycloak technology Keycloak 25.0.6 / 26.7.4 1.0")
+        .anyMatch(l -> l.startsWith("identity-provider:keycloak deployed-in Docker Compose"))
+        .anyMatch(l -> l.startsWith("identity-provider:keycloak deployed-in Kubernetes (prod)"));
   }
 
   @Test

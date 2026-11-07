@@ -1,7 +1,7 @@
 # <golden folder> <extractor> <VERSION> <sha256 of the folder's files>
 # Checked by GoldenVersionGuardTest. A changed hash must come with a changed VERSION; the test cannot
 # enforce that, so review checks it.
-deployment deployment 4 054a13c7d6cbd64be9143470626d543036b5dd61e7bfe9d14d369d37dea9f239
+deployment deployment 5 054a13c7d6cbd64be9143470626d543036b5dd61e7bfe9d14d369d37dea9f239
 docs docs 4 5610ca51256cc3664e4e8e4d5235b90ba17e14fb213772a50b23ee83456b71dd
 frontend frontend 4 22e4bd0308c45ead26119311b709d8895bf160371e68ec0b556a0bbca1c36c8e
 gateway gateway 5 d8535e2c9d209b66b45936e5425fd71001d87694fa1db89f5f8d85d1b2022b2f

@@ -322,6 +322,9 @@ public final class Types {
   /** The attribute type {@code identity-client}. */
   public static final String IDENTITY_CLIENT = "identity-client";
 
+  /** The entity type {@code identity-provider}. */
+  public static final String IDENTITY_PROVIDER = "identity-provider";
+
   /** The relationship type {@code IMPLEMENTS}. */
   public static final String IMPLEMENTS = "IMPLEMENTS";
 

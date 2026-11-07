@@ -838,6 +838,24 @@ class Project0LinksIT {
   }
 
   @Test
+  void dep6AnIdentityProviderTheComposeFileRunsIsAContainerOfTheSystem() {
+    for (List<String> facts : List.of(built, unbuilt)) {
+      assertThat(of(facts, "USES_IDENTITY_PROVIDER"))
+          .singleElement()
+          .asString()
+          .startsWith("service:~:storefront-app USES_IDENTITY_PROVIDER identity-provider:keycloak")
+          .contains("\"matchedBy\":\"container\"")
+          .contains("\"purpose\":\"validates-tokens\"")
+          .contains("\"url\":\"http://auth:8080/realms/shop\"");
+      assertThat(facts)
+          .anyMatch(l -> l.startsWith("identity-provider:keycloak display-name Keycloak "))
+          .anyMatch(l -> l.startsWith("identity-provider:keycloak technology Keycloak 26.1.0 "))
+          .noneMatch(l -> l.contains("external-system:keycloak"))
+          .noneMatch(l -> l.contains("external-system:auth"));
+    }
+  }
+
+  @Test
   void everyContainerLinkOfFlow1() {
     for (List<String> facts : List.of(built, unbuilt)) {
       List<String> pairs = new ArrayList<>();

@@ -189,7 +189,7 @@ final class ProtocolLinks implements LinkRule {
   static ProtocolLinks identity() {
     return new ProtocolLinks(
         "identity-links",
-        "1",
+        "2",
         Set.of(
             Types.USES_IDENTITY_PROVIDER,
             Types.SHARED_SECRET,

@@ -1,6 +1,6 @@
 # 0085: Identity providers and shared JWT secrets
 
-Status: accepted (#261), amended for #395
+Status: accepted (#261), amended for #395 and #979
 
 ## Context
 
@@ -57,7 +57,8 @@ config key, a linker and a relationship.
   unit and tried again. A link to the unit itself is left out, and a URL that leads nowhere known
   makes no link: no provider is invented. A provider that is another unit is that unit, with the
   endpoint the URL's path reaches (`target`), so an issuer inside the system links to the unit.
-- **An identity provider a deployment runs** is an external system keyed by its product
+- **An identity provider a deployment runs** (changed by the amendment for #979: it is now a
+  container of the system) is an external system keyed by its product
   (`external-system:keycloak`), named by it (`display-name` Keycloak), with a `deployed-in` fact
   for each container it was found by, so the Deployment table shows what runs in it. Following the
   acceptance criteria of #261, it is drawn as an external system even when the system's own
@@ -143,3 +144,36 @@ gives order-service and keycloak-admin-service their issuer), so those units hav
 validates-tokens line; `@ConfigurationProperties` getters as a secret's source; issuers and JWK
 sets under keys that read like neither; a realm file holding an array of realms, or over 2 MB; public keys and key stores (only shared HMAC secrets are
 a finding); sequence steps for sign-in, which no flow traces yet.
+
+## Amendment for #979: an identity provider the deployment runs is a container of the system
+
+The owner decided on 7 Nov 2026 (#979) that an identity provider the system's own deployment runs
+is part of the system, as C4 defines it: an external system is one the team does not own or run,
+and a Keycloak that the system's compose file starts, imports a realm into and gives a database is
+run by the team. This replaces the decision above that drew it as an external system.
+
+- **The entity.** A provider reached through a deployment container of an identity provider's
+  image (ADR 0082's role `identity`), by the host it answers or the port it publishes, is an
+  `identity-provider` (a new entity type under `container`) keyed by its product
+  (`identity-provider:keycloak`). Its `display-name` is the product and its `technology` the
+  product with the versions its containers run (`Keycloak 26.1.0`; `Keycloak 25.0.6 / 26.7.4`
+  when two deployments run two), as a data store's is. It has a `deployed-in` fact for each
+  container a unit's URL reaches in each environment, so the Deployment table shows where it runs.
+- **What does not change.** A provider that is a unit stays that unit; one on a host with a domain
+  (`login.example.com`), or a well-known provider Spring Security names (`google`), stays an
+  external system. The links (`USES_IDENTITY_PROVIDER`), their purposes, protocols and the order
+  in which a URL is tried are as above. The platform does not matter: compose, Helm and Kubernetes
+  containers are read alike.
+- **Drawing.** The composer draws an `identity-provider` as it draws other containers that run none
+  of the system's code: inside the system's boundary on the container diagrams, tagged "Identity
+  provider" with its technology, described by Describe as a data store is, and not on the system
+  context diagram, which shows the system as one box.
+- **More images.** The deployment extractor (version 5) also knows the documented images of
+  Authentik (`goauthentik/server`, `authentik`), Dex (`dexidp/dex`), Ory Hydra and Ory Kratos
+  (`oryd/hydra`, `oryd/kratos`), ZITADEL and Authelia, with the role `identity`.
+- `identity-links` moves to version 2.
+
+project-1's Keycloak and project-8's are now containers of their systems, which their references
+draw (project-1 accepts either kind). project-1's answer key still names `external-system:keycloak`
+for the BFF's token-refresh call; that link has no candidates, so the resolver is never asked and
+the entry scores nothing either way.

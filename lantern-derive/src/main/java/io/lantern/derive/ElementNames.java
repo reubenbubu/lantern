@@ -37,6 +37,7 @@ public final class ElementNames {
       case Types.QUEUE -> "a queue";
       case Types.EXCHANGE -> "an exchange";
       case Types.EXTERNAL_SYSTEM -> "an external system";
+      case Types.IDENTITY_PROVIDER -> "an identity provider";
       default -> "a " + element.type();
     };
   }
@@ -80,6 +81,8 @@ public final class ElementNames {
               .or(() -> MailProviders.name(key))
               .or(() -> IdentityProviders.name(key))
               .orElse(key);
+      // An identity provider the deployment runs is named after its product (#979).
+      case Types.IDENTITY_PROVIDER -> knowledge.attribute(id, Types.DISPLAY_NAME).orElse(key);
       case Types.DECISION -> knowledge.attribute(id, Types.TITLE).orElse(key);
       // A group no role named is named by its signal, without the kind of signal before it.
       case Types.GROUP -> {
