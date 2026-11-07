@@ -452,6 +452,7 @@ class C4ReportRendererTest {
     EntityId domain = EntityId.parse("group:system/domain/llm/billing");
     EntityId unit = EntityId.parse("service:shop");
     var member = fact(domain, "member", io.lantern.core.fact.FactObject.entity(unit), llm);
+    var risk = fact(system, "investigated-risk", io.lantern.core.fact.FactObject.string("r"), llm);
     var kind =
         fact(
             unit,
@@ -474,7 +475,7 @@ class C4ReportRendererTest {
             AnalysisRun.C4_REPORT,
             new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
             List.of(
-                entity(system),
+                new DocumentEntity(system, "snapshot", null, List.of(), List.of(risk.id())),
                 new DocumentEntity(domain, "Billing", null, List.of(), List.of(member.id())),
                 new DocumentEntity(
                     unit,
@@ -484,7 +485,7 @@ class C4ReportRendererTest {
                         new TextRun("Inferred:", TextRun.Style.EMPHASIS),
                         TextRun.of(" Sells books.")),
                     List.of(kind.id()))),
-            List.of(member, kind),
+            List.of(member, kind, risk),
             List.of(section("containers", null, List.of(diagram), List.of())));
 
     JsonNode elements = C4ReportRenderer.toJson(document).data().get("elements");
@@ -493,6 +494,8 @@ class C4ReportRendererTest {
     assertThat(elements.valueStream().filter(e -> e.get("name").asString().equals("Billing")))
         .singleElement()
         .satisfies(e -> assertThat(e.has("llm")).isFalse());
+    // The system in focus is the one the user named, never something the LLM found (#960).
+    assertThat(elements.get("system-snapshot").has("llm")).isFalse();
     // An inferred text carries a flag the template draws as a small icon, not a word.
     JsonNode shop = elements.get("service-shop");
     assertThat(shop.get("inferred").asBoolean()).isTrue();
@@ -538,7 +541,8 @@ class C4ReportRendererTest {
 
     assertThat(data.get("elements").get("system-snapshot").has("llm")).isFalse();
 
-    // With a finding of Investigate's among them, the same facts mark the box.
+    // A finding of Investigate's about the system marks the finding, not the system in focus, which
+    // the user named (#960); a box only the LLM found is marked (marksWhatTheLlmFound...).
     var risk = fact(system, "investigated-risk", io.lantern.core.fact.FactObject.string("k"), llm);
     Document found =
         new Document(
@@ -557,13 +561,8 @@ class C4ReportRendererTest {
             List.of(purpose, notAsked, risk),
             List.of(section("context", null, List.of(diagram), List.of())));
     assertThat(
-            C4ReportRenderer.toJson(found)
-                .data()
-                .get("elements")
-                .get("system-snapshot")
-                .get("llm")
-                .asBoolean())
-        .isTrue();
+            C4ReportRenderer.toJson(found).data().get("elements").get("system-snapshot").has("llm"))
+        .isFalse();
   }
 
   @Test

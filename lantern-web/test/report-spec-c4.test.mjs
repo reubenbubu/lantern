@@ -531,3 +531,35 @@ test("a group's page is framed by the group, named by its tag in the frame and t
   data.pages[0].sections[0].boundaryContains = ['x'];
   assert.match(reportSpecIssues(spec, data).join('\n'), /nothing the boundary d contains is drawn/);
 });
+
+test("a box lists the pages framed by it and by the domains or feature areas beneath it (#960)", () => {
+  const drillTargets = new Function(
+    'DIAGRAMS',
+    'PAGE',
+    'EL',
+    'LEVEL',
+    `const pageOf = key => key.split('/')[0];\n${template.match(/^function drillTargets[\s\S]*?^\}/m)[0]}\nreturn drillTargets;`,
+  )(
+    {
+      'overview/v': { boundary: { id: 's' } },
+      'sales/v': { boundary: { id: 'd' } },
+      'loose/v': { boundary: { id: 's' } },
+      'orders/v': { boundary: { id: 'o' } },
+      'context/v': {},
+    },
+    {
+      overview: { title: 'Overview', level: 'containers' },
+      sales: { title: 'Sales', level: 'containers', element: 'd' },
+      loose: { title: 'In no domain', level: 'containers' },
+      orders: { title: 'Orders', level: 'components', element: 'o' },
+      context: { title: 'Context', level: 'context' },
+    },
+    {
+      s: { kind: 'system' },
+      d: { kind: 'container', tag: 'Domain', parent: 's' },
+      o: { kind: 'container', tag: 'Service', parent: 's' },
+    },
+    { containers: { label: 'Containers' }, components: { label: 'Components' } },
+  );
+  assert.deepEqual(drillTargets('s', 'context/v').map((t) => t.title), ['Overview', 'Sales', 'In no domain']);
+});
