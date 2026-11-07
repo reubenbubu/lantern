@@ -184,6 +184,9 @@ public final class DescribeItems {
       text.append(", built with ").append(FactLines.oneLine(technology));
     }
     text.append(".\n");
+    if (part == 0 && DescribeRole.builtName(name)) {
+      text.append("Its name is a build's name: also write its name.\n");
+    }
     if (part > 0) {
       text.append("Part ")
           .append(part + 1)

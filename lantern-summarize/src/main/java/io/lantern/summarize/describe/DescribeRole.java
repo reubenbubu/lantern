@@ -51,7 +51,7 @@ public final class DescribeRole {
   static final String RESPONSIBILITY_FIELD = "responsibility";
 
   /** The prompt version of the unit role. */
-  static final String UNIT_VERSION = "8";
+  static final String UNIT_VERSION = "9";
 
   /** The prompt version of the element role. */
   static final String ELEMENT_VERSION = "9";
@@ -85,6 +85,22 @@ public final class DescribeRole {
   static final int ELEMENT_PACKET = 10;
 
   static final String UNIT = "unit";
+
+  /** The field of a unit's readable name, asked when its name is a build's name (#946). */
+  static final String NAME = "name";
+
+  /** The words of a unit's readable name (its contract). */
+  static final io.lantern.harness.Contract.Range NAME_WORDS =
+      io.lantern.harness.Contract.of("describe-units").acceptedWords(NAME);
+
+  private static final java.util.regex.Pattern BUILT_NAME =
+      java.util.regex.Pattern.compile("[a-z0-9]+(?:[-_.][a-z0-9]+)+");
+
+  /** Whether a name is a build's name of words, such as "edge-gateway", not words (#946). */
+  static boolean builtName(String name) {
+    return name != null && BUILT_NAME.matcher(name).matches();
+  }
+
   static final String COMPONENTS = "components";
   static final String INTERACTIONS = "interactions";
 
@@ -207,7 +223,13 @@ public final class DescribeRole {
       Map<String, EntityId> sources,
       Map<String, String> interactionLines,
       Set<String> evidenced,
-      Item item) {}
+      Item item) {
+
+    /** Whether it asks for the unit's readable name: its first item, of a build's name (#946). */
+    boolean asksName() {
+      return kind == Kind.UNIT && asksUnit && builtName(name);
+    }
+  }
 
   /** The packet layout of the unit role. */
   static PacketRole units(Map<String, Described> bySubject) {
@@ -257,6 +279,9 @@ public final class DescribeRole {
       }
       if (described.asksUnit()) {
         result.add(UNIT);
+      }
+      if (described.asksName()) {
+        result.add(NAME);
       }
       described.components().keySet().forEach(ref -> result.add(COMPONENTS + "." + ref));
       described.interactions().keySet().forEach(ref -> result.add(INTERACTIONS + "." + ref));
@@ -386,6 +411,11 @@ public final class DescribeRole {
                                 t,
                                 SENTENCE_WORDS,
                                 described.name())));
+          }
+          if (described.asksName()) {
+            text(entry.get(NAME))
+                .ifPresent(
+                    t -> texts.add(checked(NAME, CheckedText.Kind.PROSE, t, NAME_WORDS, "")));
           }
           fields(entry.get(COMPONENTS))
               .forEach(
@@ -529,6 +559,11 @@ public final class DescribeRole {
           .flatMap(t -> worded(described, described.element(), UNIT, t, summaries))
           .ifPresent(result::add);
     }
+    if (described.asksName()) {
+      text(answer.get(NAME))
+          .flatMap(t -> worded(described, described.element(), NAME, t, summaries))
+          .ifPresent(result::add);
+    }
     fields(answer.get(COMPONENTS))
         .forEach(
             (key, value) -> {
@@ -581,7 +616,9 @@ public final class DescribeRole {
     }
     String worded = text.text().strip();
     // An intent phrase labels a line, so it ends without a full stop.
-    if ((field.startsWith(INTERACTIONS + ".") || described.kind() == Kind.LINE)
+    if ((field.startsWith(INTERACTIONS + ".")
+            || described.kind() == Kind.LINE
+            || field.equals(NAME))
         && worded.endsWith(".")) {
       worded = worded.substring(0, worded.length() - 1).strip();
     }
@@ -646,7 +683,11 @@ public final class DescribeRole {
         model,
         answer,
         worded.about(),
-        intent ? Types.INTENT : Types.RESPONSIBILITY,
+        intent
+            ? Types.INTENT
+            : worded.field().equals(NAME) && described.kind() == Kind.UNIT
+                ? Types.DISPLAY_NAME
+                : Types.RESPONSIBILITY,
         object,
         worded.text(),
         worded.cited(),
