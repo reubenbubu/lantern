@@ -473,6 +473,41 @@ class QualityBarTest {
   }
 
   @Test
+  void aBoxOrPageNameOverFortyCharactersFails() {
+    String longName = "workorder (billing.datasource.workorders.url)";
+    Diagram withLongBox =
+        new Diagram(
+            "d",
+            Diagram.Kind.C4_CONTAINER,
+            "Containers of Shop",
+            List.of(node(SYSTEM, "Shop", null), node(SHOP, longName, "Spring Boot", SHOP_UNIT)),
+            List.of(),
+            List.of());
+    Section longPage =
+        new Section(
+            "p",
+            "How a customer places, pays for and tracks an order",
+            Set.of(),
+            null,
+            List.of(),
+            List.of(),
+            List.of());
+
+    assertThat(
+            failed(
+                document(
+                    "c4-model-sequence-diagrams", "a", section("s", "S", withLongBox), longPage),
+                QualityBar.SHORT_NAMES))
+        .containsExactly(
+            "document: How a customer places, pays for and tracks an order and " + longName + ".");
+    assertThat(
+            failed(
+                document("c4-model-sequence-diagrams", "a", section("s", "S", goodContainers("d"))),
+                QualityBar.SHORT_NAMES))
+        .isEmpty();
+  }
+
+  @Test
   void acronymsNeedAGlossary() {
     Paragraph text =
         new Paragraph(

@@ -110,6 +110,7 @@ final class QualityBar {
   static final String CLAIMS = "Every specific claim links to a fact or source";
   static final String REPEATED = "No diagram repeated across sections";
   static final String BOX_PAGE = "Every domain or feature area drawn has a page of its own";
+  static final String SHORT_NAMES = "No page or box name over " + C4Views.MAX_NAME + " characters";
   static final String ORIENTATION = "An orientation section of at most 300 words";
   static final String START_HERE =
       "A \"start here\" list of the entry points and files to read first";
@@ -307,6 +308,10 @@ final class QualityBar {
     }
     acronyms();
     boxPages(diagrams);
+    // The C4 report draws names in boxes and the sidebar (#933); the other templates list them.
+    if (LEGEND_TEMPLATES.contains(document.template().name())) {
+      shortNames(diagrams);
+    }
     if (document.audience() == null) {
       fail(
           READER,
@@ -349,6 +354,28 @@ final class QualityBar {
             CrossReference.Target.block(diagram.id()),
             names(missing) + (missing.size() == 1 ? " has" : " have") + " no page of its own.");
       }
+    }
+  }
+
+  /** A name a reader scans in a box or the sidebar fits on a line or two (#933). */
+  private void shortNames(List<Diagram> diagrams) {
+    Set<String> long_ = new java.util.TreeSet<>();
+    forEachSection(
+        document.sections(),
+        section -> {
+          if (section.title() != null && section.title().length() > C4Views.MAX_NAME) {
+            long_.add(section.title());
+          }
+        });
+    for (Diagram diagram : diagrams) {
+      for (Diagram.Node node : diagram.nodes()) {
+        if (node.label() != null && node.label().length() > C4Views.MAX_NAME) {
+          long_.add(node.label());
+        }
+      }
+    }
+    if (!long_.isEmpty()) {
+      fail(SHORT_NAMES, null, names(new ArrayList<>(long_)) + ".");
     }
   }
 

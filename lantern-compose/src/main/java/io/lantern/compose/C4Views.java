@@ -63,6 +63,9 @@ final class C4Views {
   static final String NOT_RECORDED = "Not recorded.";
 
   /** The most participants a sequence diagram shows (docs/design.md, Sequence diagrams). */
+  /** The longest name a box or page may have (#933). */
+  static final int MAX_NAME = 40;
+
   static final int MAX_PARTICIPANTS = 15;
 
   /** How many details an edge label names before it counts the rest. */
