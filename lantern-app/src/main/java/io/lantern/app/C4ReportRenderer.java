@@ -281,6 +281,12 @@ public final class C4ReportRenderer {
                 + java.util.regex.Pattern.quote(io.lantern.derive.Elements.FOUND_BY_LLM)
                 + "\\*?\\s*");
 
+    /** What opens a text inferred from the code rather than written by people (ADR 0059). */
+    private static final java.util.regex.Pattern INFERRED =
+        java.util.regex.Pattern.compile(
+            "^\\*?(?:Purpose inferred from the code:|Inferred, from its module's summary:|Inferred:)"
+                + "\\*?\\s*");
+
     /** The text without its opening "Found by the LLM:", where the mark says it. */
     private static String unmarked(String text) {
       return FOUND.matcher(text).replaceFirst("");
@@ -804,10 +810,17 @@ public final class C4ReportRenderer {
       }
       Set<String> cited = new HashSet<>(entity.facts());
       cited.addAll(element.facts);
-      boolean llm = foundByLlm(cited);
+      // A group the LLM formed is how the report is arranged, not something it found (#934).
+      boolean llm = !element.id.type().equals(Types.GROUP) && foundByLlm(cited);
       String description = plain(entity.description());
       if (llm) {
         description = unmarked(description);
+      }
+      // An inferred text is flagged, which the template draws as a small icon (#934, ADR 0059).
+      java.util.regex.Matcher inferred = INFERRED.matcher(description);
+      if (inferred.find()) {
+        node.put("inferred", true);
+        description = description.substring(inferred.end());
       }
       if (!description.isBlank()) {
         node.put("description", description);

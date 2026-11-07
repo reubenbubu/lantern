@@ -123,9 +123,29 @@ test('a backslash shows link, emphasis and code syntax as written (#752)', () =>
 
 // legendHTML draws the legend under each diagram; load it, with the element kinds, from the
 // template source.
-const legendHTML = new Function(
-  `${template.match(/^const KIND = \{[\s\S]*?^\};/m)[0]}\n${template.match(/^function legendHTML[\s\S]*?^\}/m)[0]}\nreturn legendHTML;`,
+const marks = ['MARK', 'MARK_TEXT', 'tagOf', 'descOf']
+  .map((name) => template.match(new RegExp(`^const ${name} = .*$`, 'm'))[0])
+  .join('\n');
+const { legendHTML, tagOf, descOf } = new Function(
+  `${template.match(/^const KIND = \{[\s\S]*?^\};/m)[0]}\n${marks}\n${template.match(/^function legendHTML[\s\S]*?^\}/m)[0]}\nreturn {legendHTML, tagOf, descOf};`,
 )();
+
+test('an inferred description opens with a small mark the legend explains once, not a word (#934)', () => {
+  const box = { kind: 'container', desc: 'Sells books.', inferred: true };
+  assert.equal(descOf(box), '≈ Sells books.');
+  assert.equal(descOf({ ...box, inferred: false }), 'Sells books.');
+  assert.equal(descOf({ ...box, desc: '' }), '');
+  const legend = legendHTML(['container'], { inferred: true });
+  assert.equal(legend.match(/≈/g).length, 1);
+  assert.match(legend, /Description inferred from the code, not written by people/);
+  assert.doesNotMatch(legendHTML(['container'], {}), /≈|inferred/);
+});
+
+test('what the LLM found carries a small mark, not an "LLM ·" badge (#934)', () => {
+  assert.equal(tagOf({ kind: 'container', llm: true }), '✦ Container');
+  assert.equal(tagOf({ kind: 'container', tag: 'Domain' }), 'Domain');
+  assert.match(legendHTML(['container'], { llm: true }), /✦<\/span>Found by the LLM reading the code/);
+});
 
 test('the legend has the dashed boundary of a diagram drawn inside one', () => {
   const legend = legendHTML(['container'], { boundary: 'system' });

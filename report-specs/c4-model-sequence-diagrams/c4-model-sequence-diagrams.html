@@ -266,6 +266,7 @@ td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2);white-space:n
 .b-med{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent);background:color-mix(in srgb,var(--warn) 8%,transparent)}
 .b-low,.b-ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent);background:color-mix(in srgb,var(--ok) 8%,transparent)}
 .b-info{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+.mark{display:inline-block;font-size:.9em;line-height:1;color:var(--accent-2);cursor:help}
 .b-llm{color:var(--accent-2);border-color:color-mix(in srgb,var(--accent-2) 40%,transparent);background:color-mix(in srgb,var(--accent-2) 8%,transparent);padding:1px 6px;vertical-align:1px}
 .drill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;white-space:nowrap;padding:4px 10px;border-radius:7px;
   border:1px solid var(--accent-line);background:var(--accent-soft)}
@@ -4419,8 +4420,14 @@ for (const [id, e] of Object.entries(DATA.elements || {}))
   EL[id] = {...e, tech:e.technology || '', desc:e.description || '', props:e.properties || {},
     // the name the build gives it, small on the technology line (a box's name is in words)
     techLine:[e.technicalName, e.technology].filter(Boolean).join(' · ')};
-/* An element's type label in diagrams; one the LLM found says so (schema: llm). */
-const tagOf = e => (e.llm ? 'LLM · ' : '') + (e.tag || KIND[e.kind]?.label || '');
+/* Two small marks, each explained once in the legend (#934): what the LLM found (schema: llm)
+   and a description inferred from the code rather than written by people (schema: inferred). */
+const MARK = {llm:'✦', inferred:'≈'};
+const MARK_TEXT = {llm:'Found by the LLM reading the code', inferred:'Description inferred from the code, not written by people'};
+/* An element's type label in diagrams; one the LLM found carries its mark. */
+const tagOf = e => (e.llm ? MARK.llm + ' ' : '') + (e.tag || KIND[e.kind]?.label || '');
+/* A description as a diagram shows it: an inferred one opens with its mark. */
+const descOf = e => e.desc ? (e.inferred ? MARK.inferred + ' ' : '') + e.desc : '';
 
 const PAGES = (DATA.pages || []).filter(p => LEVEL[p.level]);
 const PAGE = Object.fromEntries(PAGES.map(p => [p.id, p]));
@@ -4432,7 +4439,7 @@ for (const p of PAGES) for (const s of (p.sections || [])){
   const key = `${p.id}/${s.id}`;
   if (s.type === 'diagram'){
     // relationships naming unknown elements are skipped (and reported by validate()) so the rest still draws
-    const edges = (s.relationships || []).filter(r => EL[r.from] && EL[r.to]).map(r => ({f:r.from, t:r.to, l:(r.llm ? 'LLM · ' : '') + (r.label || ''), tech:r.technology || ''}));
+    const edges = (s.relationships || []).filter(r => EL[r.from] && EL[r.to]).map(r => ({f:r.from, t:r.to, l:(r.llm ? MARK.llm + ' ' : '') + (r.label || ''), llm:!!r.llm, tech:r.technology || ''}));
     const ids = new Set([...edges.flatMap(e => [e.f, e.t]), ...(s.elements || []).filter(id => EL[id])]);
     const spec = {level:LEVEL[p.level].badge, title:s.caption || LEVEL[p.level].card, sub:p.title, edges, groupByKind: s.layout?.groupByKind !== false,
       constraints:(s.layout?.rules || []).map(r => r.strict === false ? {a:r.a, rel:r.rel, b:r.b, strict:false} : {a:r.a, rel:r.rel, b:r.b})};
@@ -4651,7 +4658,7 @@ function nodeSVG(n, view, uid, ruled=false){
   const hero = !!n.hero;
   const tag = tagOf(e);
   const descLines = h >= 300 ? 6 : h >= 140 ? 3 : h >= 100 ? 2 : 1;
-  const desc = e.desc ? wrap(e.desc, Math.floor((w-(hero?60:sidePad(k)))/(hero?6.6:NODE_TEXT.ds)), descLines) : [];
+  const desc = e.desc ? wrap(descOf(e), Math.floor((w-(hero?60:sidePad(k)))/(hero?6.6:NODE_TEXT.ds)), descLines) : [];
   const nmL = fitText(e.name, w - sidePad(k), hero ? NODE_TEXT.nmHero : NODE_TEXT.nm, 2), tcL = fitText(e.techLine, w - sidePad(k), NODE_TEXT.tc, 2);
   const nameH = nmL.length*(hero ? 24 : 18), tech = e.techLine, techH = tcL.length ? 16 + (tcL.length - 1)*13 : 0;
   const pills = view ? pillsFor(n.id, view) : [];
@@ -4660,7 +4667,7 @@ function nodeSVG(n, view, uid, ruled=false){
   const bottomPad = (k === 'database' ? 9 : 0) + pillArea;
   const calcH = () => 18 + 8 + nameH + techH + (desc.length ? 4 + desc.length*(hero?17:13.5) : 0);
   while (desc.length && calcH() > h - topPad - bottomPad - 12) desc.pop();
-  if (desc.length && e.desc && wrap(e.desc, 999, 1)[0] !== desc.join(' ') && !desc[desc.length-1].endsWith('…')) desc[desc.length-1] = desc[desc.length-1].replace(/[\s,.;:]*$/,'') + '…';
+  if (desc.length && e.desc && wrap(descOf(e), 999, 1)[0] !== desc.join(' ') && !desc[desc.length-1].endsWith('…')) desc[desc.length-1] = desc[desc.length-1].replace(/[\s,.;:]*$/,'') + '…';
   const blockH = calcH();
   let ty = y + topPad + (h - topPad - bottomPad - blockH)/2;
   const tagW = tag.length*6.5 + 16;
@@ -5660,6 +5667,7 @@ function legendHTML(kinds, opts={}){
     if (opts.async) h += `<span class="lg">${arrow('async', '<path d="M15,1 L22.5,5 L15,9"/>')}Async message (does not wait)</span>`;
     h += `<span class="lg">${arrow('ret', '<path d="M15,1 L22.5,5 L15,9"/>')}Return</span>`;
   }
+  for (const k of ['llm', 'inferred']) if (opts[k]) h += `<span class="lg"><span class="mark m-${k}">${MARK[k]}</span>${MARK_TEXT[k]}</span>`;
   h += `<span class="lg"><i class="sw clk"></i>Clickable</span>`;
   return h + `<span class="hint">Hover to trace · drag to pan · ⌘/Ctrl+scroll to zoom</span>`;
 }
@@ -5910,6 +5918,9 @@ function diagramCard(kind, key){
   const ext = !isSeq && spec.nodes.some(n => n.ext);
   const boundary = !isSeq && spec.boundary ? EL[spec.boundary.id].kind : null;
   const async = isSeq && spec.s.some(st => st.k === 'async');
+  const shown = isSeq ? spec.p : spec.nodes.map(n => n.id);
+  const inferred = shown.some(id => EL[id].inferred && EL[id].desc);
+  const llm = shown.some(id => EL[id].llm) || (!isSeq && (DIAGRAMS[key].edges || []).some(e => e.llm));
   const level = isSeq ? 'SEQ' : spec.level;
   const title = isSeq ? 'Sequence diagram' : spec.title;
   const page = PAGE[pageOf(key)];
@@ -5924,7 +5935,7 @@ function diagramCard(kind, key){
       <div class="dtools">${toolsHTML()}<span class="sep"></span><button class="icon-btn" data-act="max" title="Maximize">${ICON.max}</button></div>
     </div>
     <div class="dcanvas"${fit}>${isSeq ? seqSVG(spec, key) : c4SVG(spec, key, key)}</div>
-    <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, seq:isSeq, async})}</figcaption>
+    <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, seq:isSeq, async, llm, inferred})}</figcaption>
   </figure>${isSeq ? '' : readabilityNote(spec)}`;
 }
 
@@ -5932,8 +5943,8 @@ function diagramCard(kind, key){
    PAGES — rendered from DATA.pages, one section at a time
    ========================================================================== */
 let currentView = 'home';
-const llmBadge = '<span class="badge b-llm" title="Found by the LLM, not by static analysis">LLM</span>';
-const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + llmBadge : ''}<small>${esc(e.tag||KIND[e.kind].label)}${e.technicalName ? ' · ' + esc(e.technicalName) : ''}</small></div></div>`; };
+const markHTML = k => `<span class="mark m-${k}" title="${MARK_TEXT[k]}">${MARK[k]}</span>`;
+const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + markHTML('llm') : ''}<small>${esc(e.tag||KIND[e.kind].label)}${e.technicalName ? ' · ' + esc(e.technicalName) : ''}</small></div></div>`; };
 const critBadge = c => c ? `<span class="badge ${/^(high|critical)$/i.test(c)?'b-high':/^med/i.test(c)?'b-med':'b-low'}">${esc(c)}</span>` : '';
 const statusBadge = s => `<span class="badge ${/approved|accepted|done|active/i.test(s)?'b-ok':/rejected|deprecated/i.test(s)?'b-high':'b-info'}">${esc(s)}</span>`;
 const fmtDate = d => { const t = Date.parse(d); return isNaN(t) ? d : new Date(t).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); };
@@ -5950,7 +5961,7 @@ function columnSpec(c){
   col.cell = id => {
     const e = EL[id];
     if (k === 'name') return elCell(id);
-    if (k === 'description') return esc(e.desc);
+    if (k === 'description') return e.desc ? (e.inferred ? markHTML('inferred') + ' ' : '') + esc(e.desc) : '';
     if (k === 'technology') return esc(e.tech);
     if (k === 'kind') return esc(KIND[e.kind].label);
     if (k === 'zoom'){ const lk = linkFor(id, null); return lk && lk.drill ? `<a class="drill" href="${lk.href}">${esc(lk.sub.split(' · ')[0])} diagram ${ICON.arrow}</a>` : ''; }

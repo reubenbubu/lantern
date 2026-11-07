@@ -212,7 +212,8 @@ commits.
   that nothing in the analysed set reaches and no person is shown to use is drawn as called by an
   "Unknown caller", marked as unknown. An endpoint behind a gateway is reached through it. It is neither left out nor replaced by an invented actor.
 - **Business purpose** is not required for now. Where the report shows one, it is marked as
-  evidenced (people wrote it) or inferred.
+  evidenced (people wrote it) or inferred. The mark is small: in the C4 report an inferred description
+  opens with an icon explained once in the legend, not a word (ADR 0059, amendment for #934).
 - **Owners, rationale, quality goals and production topology** beyond deployment files are not in
   the code. They are stated once, plainly, as unknown.
 

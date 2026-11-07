@@ -446,6 +446,60 @@ class C4ReportRendererTest {
   }
 
   @Test
+  void aGroupTheLlmFormedIsNoFindingAndAnInferredTextIsFlaggedNotPrefixed() {
+    var llm = io.lantern.core.fact.Origin.Kind.LLM;
+    EntityId system = EntityId.parse("system:snapshot");
+    EntityId domain = EntityId.parse("group:system/domain/llm/billing");
+    EntityId unit = EntityId.parse("service:shop");
+    var member = fact(domain, "member", io.lantern.core.fact.FactObject.entity(unit), llm);
+    var kind =
+        fact(
+            unit,
+            "packaging",
+            io.lantern.core.fact.FactObject.string("jar"),
+            io.lantern.core.fact.Origin.Kind.STATIC);
+    Diagram diagram =
+        new Diagram(
+            "containers.diagram",
+            Diagram.Kind.C4_CONTAINER,
+            null,
+            List.of(node(system), node(domain, system), node(unit, system)),
+            List.of(),
+            List.of());
+    Document document =
+        new Document(
+            "shop.c4",
+            "shop",
+            null,
+            AnalysisRun.C4_REPORT,
+            new DocumentSource(1, 1, "test", Map.of("r", "a".repeat(40)), LocalDate.of(2026, 1, 1)),
+            List.of(
+                entity(system),
+                new DocumentEntity(domain, "Billing", null, List.of(), List.of(member.id())),
+                new DocumentEntity(
+                    unit,
+                    "shop",
+                    system,
+                    List.of(
+                        new TextRun("Inferred:", TextRun.Style.EMPHASIS),
+                        TextRun.of(" Sells books.")),
+                    List.of(kind.id()))),
+            List.of(member, kind),
+            List.of(section("containers", null, List.of(diagram), List.of())));
+
+    JsonNode elements = C4ReportRenderer.toJson(document).data().get("elements");
+
+    // The LLM grouped the units; a grouping is how the report is arranged, not a finding.
+    assertThat(elements.valueStream().filter(e -> e.get("name").asString().equals("Billing")))
+        .singleElement()
+        .satisfies(e -> assertThat(e.has("llm")).isFalse());
+    // An inferred text carries a flag the template draws as a small icon, not a word.
+    JsonNode shop = elements.get("service-shop");
+    assertThat(shop.get("inferred").asBoolean()).isTrue();
+    assertThat(shop.get("description").asString()).isEqualTo("Sells books.");
+  }
+
+  @Test
   void bookkeepingOfTheLlmRolesMarksNothing() {
     var llm = io.lantern.core.fact.Origin.Kind.LLM;
     EntityId system = EntityId.parse("system:snapshot");

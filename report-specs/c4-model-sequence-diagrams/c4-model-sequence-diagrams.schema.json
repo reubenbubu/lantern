@@ -35,7 +35,7 @@
     },
     "llm": {
       "type": "boolean",
-      "description": "true: found by the LLM (an analysis that read the code), not by static analysis. Shown with an LLM badge wherever it appears."
+      "description": "true: found by the LLM (an analysis that read the code), not by static analysis. Shown with a small ✦ mark, explained once in the diagram's legend; a group the LLM formed is not a finding and carries none."
     },
     "date": {
       "type": "string",
@@ -109,6 +109,7 @@
         "technology": { "type": "string", "examples": ["Spring Boot 4 · J21", "PostgreSQL 17"] },
         "description": { "type": "string", "description": "Plain text in diagrams (wrapped and truncated to fit); Markdown-lite in tables." },
         "llm": { "$ref": "#/$defs/llm" },
+        "inferred": { "type": "boolean", "description": "true: the description was inferred from the code, not written by people (ADR 0059). Shown as a small ≈ mark before it, explained once in the diagram's legend; the description itself carries no \"Inferred:\" label." },
         "properties": {
           "type": "object",
           "description": "Free-form facts shown in catalogue tables via columns like \"properties.owner\". A key named criticality, priority or severity renders as a coloured badge (High / Medium / Low).",

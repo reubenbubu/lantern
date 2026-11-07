@@ -14,7 +14,8 @@
       "parent" : "system-snapshot",
       "tag" : "Service",
       "technology" : "Java 21",
-      "description" : "Inferred, from its module's summary: Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them."
+      "inferred" : true,
+      "description" : "Builds on its parts, as the summaries of what it contains say. Described by its facts, as the analysis of its code found them."
     },
     "system-snapshot" : {
       "kind" : "system",
