@@ -4575,7 +4575,9 @@ function linkFor(id, key){
    areas), in page order; not the page about the element itself, which a click on the box opens (#931). */
 function drillTargets(id, key){
   const seen = new Set();
-  return Object.keys(DIAGRAMS).filter(k => k !== key && DIAGRAMS[k].boundary?.id === id && pageOf(k) !== pageOf(key || '') && PAGE[pageOf(k)].element !== id && !seen.has(pageOf(k)) && seen.add(pageOf(k)))
+  // a diagram framed by the element, or by a domain or feature area directly beneath it (#957)
+  const framedBy = b => b && (b === id || (EL[b]?.parent === id && /^(domain|feature area)$/i.test(EL[b].tag || '')));
+  return Object.keys(DIAGRAMS).filter(k => k !== key && framedBy(DIAGRAMS[k].boundary?.id) && pageOf(k) !== pageOf(key || '') && PAGE[pageOf(k)].element !== id && !seen.has(pageOf(k)) && seen.add(pageOf(k)))
     .map(k => ({key:k, href:'#/' + k, title:PAGE[pageOf(k)].title, level:LEVEL[PAGE[pageOf(k)].level]}));
 }
 /* An element with two or more deeper diagrams gets a row of pills, one per diagram. */

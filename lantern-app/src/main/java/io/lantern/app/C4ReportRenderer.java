@@ -906,8 +906,12 @@ public final class C4ReportRenderer {
       }
       Set<String> cited = new HashSet<>(entity.facts());
       cited.addAll(element.facts);
-      // A group the LLM formed is how the report is arranged, not something it found (#934).
-      boolean llm = !element.id.type().equals(Types.GROUP) && foundByLlm(cited);
+      // A group the LLM formed is how the report is arranged, not something it found (#934), and
+      // the system in focus is the one the user named (#960).
+      boolean llm =
+          !element.id.type().equals(Types.GROUP)
+              && !element.id.type().equals(Types.SYSTEM)
+              && foundByLlm(cited);
       String description = plain(entity.description());
       if (llm) {
         description = unmarked(description);
