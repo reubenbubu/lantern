@@ -4459,6 +4459,7 @@ function shortTech(list){
   return named.length ? `${head} · ${named.length} more` : head;
 }
 function mergedEdges(relationships){
+  const words = l => String(l || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean);
   const byPair = new Map();
   for (const r of relationships){
     const k = r.from + '\u0000' + r.to;
@@ -4466,14 +4467,16 @@ function mergedEdges(relationships){
     byPair.get(k).push(r);
   }
   const one = rs => {
-    const labelled = rs.filter(r => r.label), pick = labelled.length ? labelled.reduce((a, b) => b.label.length < a.label.length ? b : a) : rs[0];
+    // the shortest label that still says what the line is for (three words or more), else the longest
+    const labelled = rs.filter(r => r.label), told = labelled.filter(r => words(r.label).length >= 3);
+    const pick = told.length ? told.reduce((a, b) => b.label.length < a.label.length ? b : a)
+      : labelled.length ? labelled.reduce((a, b) => b.label.length > a.label.length ? b : a) : rs[0];
     return {pick, rs, llm:rs.every(r => r.llm)};
   };
   const lines = [...byPair.values()].map(one), gone = new Set();
   // a pair of opposite lines that say the same (a call through a gateway and on into the same box)
-  // is one line with an arrowhead at each end
-  const words = l => String(l || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean);
-  const same = (a, b) => { const [x, y] = [words(a), words(b)].sort((p, q) => p.length - q.length); return x.length > 0 && x.every((w, i) => w === y[i]); };
+  // is one line with an arrowhead at each end; a bare verb says too little to tell
+  const same = (a, b) => { const [x, y] = [words(a), words(b)].sort((p, q) => p.length - q.length); return x.length >= 3 && x.every((w, i) => w === y[i]); };
   for (const a of lines) for (const b of lines){
     if (a === b || gone.has(a) || gone.has(b) || a.pick.from !== b.pick.to || a.pick.to !== b.pick.from) continue;
     if (!same(a.pick.label, b.pick.label)) continue;
@@ -4771,8 +4774,8 @@ function nodeSVG(n, view, uid, ruled=false){
 const NODE_SIZE = {person:[160,116], system:[200,116], external:[190,108], container:[190,112],
                    component:[200,112], database:[180,104], queue:[190,100]};
 const LAYOUT_CACHE = new Map();
-/* How many grid cells past its own a box may stretch in each direction to meet its neighbours:
-   one, so a box at most doubles; past that its lines bend instead of the box becoming a tall slab (#934). */
+/* How many grid cells past its own a box may stretch to meet its neighbours: none, so a box keeps
+   its size and its lines bend to reach it, never a tall slab (#934). Capped at one, boxes still doubled. */
 const STRETCH_MAX = 0;
 
 function prng(seed){ return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
@@ -5971,6 +5974,9 @@ $('#mxTools').innerHTML = toolsHTML();
 wireTools($('#mxTools'), () => maxState && maxState.svg);
 $('#mxClose').addEventListener('click', closeMax);
 
+/* A diagram's canvas: at most its own size plus a margin, so a small diagram stays near 1:1 (#934);
+   the stylesheet caps the height at what the screen leaves below the header. */
+const canvasFit = vb => vb ? ` style="--canvas-h:${Math.ceil(vb[3] + 24)}px;--canvas-w:${Math.ceil(vb[2] + 24)}px"` : '';
 function diagramCard(kind, key){
   const isSeq = kind === 'seq';
   const spec = isSeq ? SEQS[key] : layoutDiagram(DIAGRAMS[key]);
@@ -5989,7 +5995,7 @@ function diagramCard(kind, key){
   const sub = sub0 && page && sub0 === page.title ? '' : sub0;   // never the page's title again (#934)
   const vb = isSeq ? null : spec.vb;
   // a small diagram is drawn at most about 1:1 (#934)
-  const fit = vb ? ` style="--canvas-h:${Math.ceil(vb[3] + 24)}px;--canvas-w:${Math.ceil(vb[2] + 24)}px"` : '';
+  const fit = canvasFit(vb);
   return `<figure class="dcard" data-kind="${kind}" data-key="${key}">
     <div class="dbar">
       <div class="dtitle"><span class="lvl">${level}</span><div><b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div></div>
@@ -6115,7 +6121,8 @@ const severityColumn = cols => cols.findIndex(c => /^(severity|impact|criticalit
 function sortedRows(rows, col, dir){
   const sign = dir === 'desc' ? -1 : 1, keyed = rows.map((r, i) => [sortKey(r[col]), i]);
   const empty = k => k[0] === 1 && k[1] === '';
-  return keyed.sort((a, b) => (empty(a[0]) - empty(b[0])) || sign*compareKeys(a[0], b[0]) || a[1] - b[1]).map(x => x[1]);
+  // empty cells last, then words that are no severity or number, whatever the direction
+  return keyed.sort((a, b) => (empty(a[0]) - empty(b[0])) || (a[0][0] - b[0][0]) || sign*compareKeys(a[0], b[0]) || a[1] - b[1]).map(x => x[1]);
 }
 
 function renderSection(s, p){
@@ -6203,7 +6210,7 @@ function renderHome(){
       </svg>
       <div class="eyebrow">Architecture Description${d.id ? ` · ${esc(d.id)}` : ''}</div>
       <h1>${esc(words.join(' '))} <em>${esc(last)}</em></h1>
-      ${d.subtitle ? `<div class="hero-sub">${d.subtitleInferred ? md(d.subtitle).replace(/^<p>/, `<p>${markHTML('inferred')} `) : md(d.subtitle)}</div>` : ''}
+      ${d.subtitle ? `<div class="hero-sub">${d.subtitleInferred ? (md(d.subtitle).startsWith('<p>') ? md(d.subtitle).replace(/^<p>/, `<p>${markHTML('inferred')} `) : `<p>${markHTML('inferred')}</p>${md(d.subtitle)}`) : md(d.subtitle)}</div>` : ''}
       ${pills ? `<div class="page-meta">${pills}</div>` : ''}
     </section>
     ${cards ? `<section class="sec" id="contents" data-sec data-label="Contents"><div class="sec-head"><div class="eyebrow">Index</div><h2>Contents</h2></div><div class="grid g3">${cards}</div></section>` : ''}

@@ -377,6 +377,8 @@ test('a table sorts by any column: severity by how serious, numbers by value, te
   // a mark or toggle before the word does not hide it; an empty cell goes last either way
   assert.deepEqual(sortedRows([['✦ Low'], ['▸✦ High'], ['']], 0, 'desc'), [1, 0, 2]);
   assert.deepEqual(sortedRows([[''], ['50%'], ['7%']], 0, 'desc'), [1, 2, 0]);
+  // words that are no severity stay after the severities in either direction
+  assert.deepEqual(sortedRows([['Unknown'], ['Critical'], ['Low']], 0, 'desc'), [1, 2, 0]);
   // ties keep the order they had
   assert.deepEqual(sortedRows([['High', 'b'], ['High', 'a']], 0, 'desc'), [0, 1]);
 });
@@ -437,4 +439,20 @@ test('opposite lines that say the same are one line with an arrowhead at each en
   assert.deepEqual(edges[0], { f: 'web', t: 'gw', l: 'Sends customer web requests', llm: false, tech: 'JSON/HTTP, HTTP', both: true });
   assert.equal(edges.length, 3);
   assert.ok(edges.slice(1).every((e) => !e.both));
+});
+
+test('a bare verb neither wins a merge nor makes two opposite lines one (#934)', () => {
+  const [one] = mergedEdges([
+    { from: 'a', to: 'b', label: 'Uses' },
+    { from: 'a', to: 'b', label: 'Fetches technician shifts for scheduling' },
+  ]);
+  assert.equal(one.l, 'Fetches technician shifts for scheduling');
+  assert.equal(mergedEdges([{ from: 'a', to: 'b', label: 'Sends' }, { from: 'b', to: 'a', label: 'Sends payment results' }]).length, 2);
+});
+
+test("a diagram's canvas is at most its own size plus a margin, and the screen caps its height (#934)", () => {
+  const canvasFit = new Function(`${template.match(/^const canvasFit = .*$/m)[0]}\nreturn canvasFit;`)();
+  assert.equal(canvasFit([0, 0, 400.2, 300]), ' style="--canvas-h:324px;--canvas-w:425px"');
+  assert.equal(canvasFit(null), '');
+  assert.match(template, /\.dcanvas\{[^}]*height:min\(max\(320px,calc\(100vh - var\(--canvas-top,250px\)\)\),var\(--canvas-h,9999px\)\)/);
 });
