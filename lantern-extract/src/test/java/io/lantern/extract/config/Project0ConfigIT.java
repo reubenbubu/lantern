@@ -73,7 +73,7 @@ class Project0ConfigIT {
         .contains(
             STOREFRONT
                 + "http://payments:8080 {\"key\":\"clients.payments.url\"}"
-                + " @storefront:storefront-app/src/main/resources/application.yml#18-18 1.0",
+                + " @storefront:storefront-app/src/main/resources/application.yml#21-21 1.0",
             STOREFRONT
                 + "http://localhost:8082 {\"key\":\"clients.payments.url\",\"profile\":\"local\"}"
                 + " @storefront:storefront-app/src/main/resources/application-local.yml#11-11 1.0",
@@ -105,7 +105,7 @@ class Project0ConfigIT {
             STOREFRONT
                 + "${TAX_SERVICE_URL} {\"key\":\"clients.tax.url\","
                 + "\"unresolved\":[\"TAX_SERVICE_URL\"]}"
-                + " @storefront:storefront-app/src/main/resources/application.yml#20-20 1.0",
+                + " @storefront:storefront-app/src/main/resources/application.yml#23-23 1.0",
             STOREFRONT
                 + "${SHOP_DB_PASSWORD} {\"key\":\"spring.datasource.password\","
                 + "\"unresolved\":[\"SHOP_DB_PASSWORD\"]}"
@@ -127,7 +127,7 @@ class Project0ConfigIT {
         .contains(
             STOREFRONT
                 + "shipments.dispatched {\"key\":\"shop.jms.shipments-queue\"}"
-                + " @storefront:storefront-app/src/main/resources/application.yml#24-24 1.0",
+                + " @storefront:storefront-app/src/main/resources/application.yml#27-27 1.0",
             PAYMENTS
                 + "payments.completed {\"key\":\"payments.kafka.completed-topic\"}"
                 + " @payments:src/main/resources/application.properties#13-13 1.0",

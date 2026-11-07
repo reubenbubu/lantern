@@ -787,10 +787,25 @@ class Project0LinksIT {
   void dep4AMailHostOnlyTheDeploymentSetsIsTheExternalSystemItNames() {
     for (List<String> facts : List.of(built, unbuilt)) {
       assertThat(of(facts, "SENDS_MAIL"))
+          .filteredOn(l -> l.startsWith("service:~:payments "))
           .singleElement()
           .asString()
           .startsWith("service:~:payments SENDS_MAIL external-system:smtp.mail.example.com")
           .contains("\"protocol\":\"SMTP\"");
+    }
+  }
+
+  @Test
+  void dep5AMailHostTheDeploymentPointsAtAMailCatcherItRunsKeepsTheConfigsRelay() {
+    for (List<String> facts : List.of(built, unbuilt)) {
+      assertThat(of(facts, "SENDS_MAIL"))
+          .filteredOn(l -> l.startsWith("service:~:storefront-app "))
+          .singleElement()
+          .asString()
+          .startsWith(
+              "service:~:storefront-app SENDS_MAIL external-system:smtp.relay.shop.example.com")
+          .contains("\"protocol\":\"SMTP\"");
+      assertThat(facts).noneMatch(l -> l.contains("external-system:mailpit"));
     }
   }
 

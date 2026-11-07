@@ -1239,21 +1239,81 @@ class CrossRepoLinksTest {
                 + "\"protocol\":\"SMTP\"} 1.0");
   }
 
-  @Test
-  void aMailHostTheDeploymentOverridesWithALocalNameIsNoLink() {
+  /** The unit notification with {@code spring.mail.host} written as given. */
+  private void notificationWithMailHost(String value, String written) {
     unit("n", "notification", "notification");
     config(
         "n",
         "notification",
         "application.properties",
         "spring.mail.host",
-        "smtp.gmail.com",
-        "\"written\":\"${MAIL_HOST:smtp.gmail.com}\"");
+        value,
+        written == null ? null : "\"written\":\"" + written + "\"");
+  }
+
+  /** A compose container of the default environment that runs notification with the env. */
+  private void notificationContainer(String env) {
     container(
         "d",
         "notification",
         composeService(
-            "acme/notification:1.0", "\"notification\"", "\"env\":{\"MAIL_HOST\":\"mailhog\"}"));
+            "acme/notification:1.0",
+            "\"notification\"",
+            env == null ? null : "\"env\":{" + env + "}"));
+  }
+
+  private static String mailTo(String host) {
+    return "service:g:notification SENDS_MAIL external-system:"
+        + host
+        + " {\"host\":\""
+        + host
+        + "\",\"key\":\"spring.mail.host\",\"protocol\":\"SMTP\"} 1.0";
+  }
+
+  @Test
+  void aMailHostTheDeploymentPointsAtAServerItRunsKeepsTheConfigsHost() {
+    // Why notification-service drew no mail line (#964): local compose points the host at a mail
+    // catcher it runs, which led nowhere, and that vetoed the public host the config names.
+    notificationWithMailHost("smtp.gmail.com", "${MAIL_HOST:smtp.gmail.com}");
+    notificationContainer("\"MAIL_HOST\":\"mailhog\"");
+    container("d", "mailhog", composeService("mailhog/mailhog:v1.0.1", "\"mailhog\"", null));
+
+    assertThat(derive(Types.SENDS_MAIL)).containsExactly(mailTo("smtp.gmail.com"));
+  }
+
+  @Test
+  void aMailHostTheDeploymentPointsAtThisMachineKeepsTheConfigsHost() {
+    notificationWithMailHost("smtp.example.org", "${SMTP_HOST:smtp.example.org}");
+    notificationContainer("\"SMTP_HOST\":\"localhost\"");
+
+    assertThat(derive(Types.SENDS_MAIL)).containsExactly(mailTo("smtp.example.org"));
+  }
+
+  @Test
+  void aMailHostOneDeploymentLeavesAndAnotherPointsAtItsOwnServerIsTheConfigsHost() {
+    notificationWithMailHost("smtp.example.org", "${SMTP_HOST:smtp.example.org}");
+    notificationContainer("\"SMTP_HOST\":\"mailpit\"");
+    container(
+        "d",
+        "notification",
+        "{\"platform\":\"kubernetes\",\"environment\":\"prod\",\"kind\":\"Deployment\","
+            + "\"image\":\"acme/notification:1.0\",\"hosts\":[\"notification\"]}");
+
+    assertThat(derive(Types.SENDS_MAIL)).containsExactly(mailTo("smtp.example.org"));
+  }
+
+  @Test
+  void aMailHostTheDeploymentSetsToASystemOutsideOverridesTheConfigsDefault() {
+    notificationWithMailHost("smtp.gmail.com", "${MAIL_HOST:smtp.gmail.com}");
+    notificationContainer("\"MAIL_HOST\":\"smtp.sendgrid.net\"");
+
+    assertThat(derive(Types.SENDS_MAIL)).containsExactly(mailTo("smtp.sendgrid.net"));
+  }
+
+  @Test
+  void aMailHostOnlyALocalServerNamesIsNoLink() {
+    notificationWithMailHost("localhost", "${MAIL_HOST:localhost}");
+    notificationContainer("\"MAIL_HOST\":\"mailhog\"");
 
     assertThat(derive(Types.SENDS_MAIL)).isEmpty();
   }

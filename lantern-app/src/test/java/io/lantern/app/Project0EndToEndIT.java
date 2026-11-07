@@ -1290,7 +1290,8 @@ class Project0EndToEndIT {
     // the shop.orders, shop.returns, shop.parcels, shop.cancellations and shop.disputes exchanges
     // (their queues folded into their lines; the last three from #734's open links), two JMS
     // queues and a Kafka topic; PayGate, by its default sandbox host (HTTP-4), and the mail host
-    // compose gives payments (DEP-4); and the components
+    // compose gives payments (DEP-4) and the relay storefront's config names, whose host compose
+    // points at a mail catcher it runs (DEP-5); and the components
     // by role. catalog's ProductRepository is reached only from ProductController (through Spring
     // Data's findById), so catalog has one component and no component page.
     assertThat(kinds)
@@ -1300,7 +1301,7 @@ class Project0EndToEndIT {
                     "component", 29L,
                     "container", 4L,
                     "database", 2L,
-                    "external", 2L,
+                    "external", 3L,
                     // The Unknown caller (#766).
                     "person", 1L,
                     "queue", 8L,
@@ -1329,7 +1330,7 @@ class Project0EndToEndIT {
             "sequences-payments-settlementjob-settle",
             "findings",
             // The decision records and unknowns are a documentation page (ADR 0086), then the
-            // deployment table of storefront's compose file (ADR 0082, DEP-1 to DEP-4) and the
+            // deployment table of storefront's compose file (ADR 0082, DEP-1 to DEP-5) and the
             // glossary (ADR 0087).
             "decisions",
             "deployment",

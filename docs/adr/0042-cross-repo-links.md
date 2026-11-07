@@ -217,8 +217,9 @@ containers.
    shows the filled URL and lists the container among its `facts`. A whole route URI left to a
    placeholder is filled the same way, and one filled with `lb://name` goes by the name. Identity
    providers try the deployments' answers first, then the config's, since only that linker knows
-   identity provider containers. A mail host is the deployments' where one sets it, and every one
-   must name the same public domain.
+   identity provider containers. A mail host is the deployments' where one sets it to a system
+   outside, and every one must name the same public domain; a deployment that sets it to a host
+   leading nowhere leaves the config's host (ADR 0076, amendment for #964).
 2. **Classify** the host: this machine (`localhost`, `127.*`, `[::1]`); a private address
    (RFC 1918, `0.0.0.0`, `host.docker.internal`, `.local`, `.internal`, `.lan`, `.home.arpa`); a
    Kubernetes name (`.svc`); a name without a domain; a public domain; a public IP address.

@@ -1,6 +1,6 @@
 # 0076: Mail as an external system
 
-Status: accepted (#260), amended for #393
+Status: accepted (#260), amended for #393 and #964
 
 ## Context
 
@@ -91,3 +91,23 @@ sent through other common libraries and providers' SDKs, and mail servers set in
   - SMS, push and chat (Twilio, Amazon SNS, Firebase Cloud Messaging, Pushy, Slack) are a new
     extractor, #500.
   - Brevo's SDK package was not confirmed and is left out.
+
+## Amendment (#964): a deployment's own mail server leaves the config's relay
+
+A common Spring Boot shape writes the production relay as a placeholder's default
+(`spring.mail.host=${SMTP_HOST:smtp.relay.example.com}`) and lets a local deployment point the
+variable at a mail catcher it runs (MailHog, Mailpit, a `localhost` server). The linker took a
+deployment's host before the config's, needed every deployment's to name a system outside, and so
+drew no mail line at all when the only deployment setting it named its own catcher, even though
+the relay the code is configured for is outside.
+
+- A host a deployment sets that leads nowhere (an answer of `Addresses` that is no unit and no
+  system outside: a name without a domain such as a compose service that runs no unit, this
+  machine, a private address) says nothing about the server outside and no longer counts against
+  the config's host, as ADR 0042 already has it for every other address ("an answer that leads
+  nowhere does not count against one that does").
+- A deployment that sets the host to a system outside still decides over the config's default,
+  and deployments that name different systems outside still give no link.
+- The deployment's own mail server is not drawn: it stays left out, as a host without a domain is.
+- project-0 holds the shape as DEP-5: storefront's `spring.mail.host` defaults to a public relay
+  and compose points it at a Mailpit container it runs; storefront-app sends mail to the relay.
