@@ -1,6 +1,6 @@
 # 0059: Evidenced and inferred purpose in summaries
 
-Status: accepted (#193), amends ADRs 0010 and 0025, amended by ADR 0061 (#77) and ADR 0066 (#192), amended by ADR 0104 (#665: the purpose is computed, never marked by the model)
+Status: accepted (#193), amends ADRs 0010 and 0025, amended by ADR 0061 (#77) and ADR 0066 (#192), amended by ADR 0104 (#665: the purpose is computed, never marked by the model), amended for #934 (the C4 report marks inferred text with an icon)
 
 ## Context
 
@@ -63,3 +63,15 @@ their documents show every summary as inferred.
 
 Documents read whether a text is evidenced or inferred from the `basis` its role stored, no longer
 from its citations (ADR 0122).
+
+## Amendment (#934): the C4 report marks inferred text with an icon
+
+The document model keeps the emphasized label (`Inferred:` and its variants) so every document can
+show it. The C4 report's renderer reads it off an element's description and passes the element
+flagged `inferred` instead, and the template draws a small ≈ mark before the description, in the
+box and in the catalogue table, explained once in each diagram's legend ("Description inferred from
+the code, not written by people"). On a box the label used most of the room before the text was
+cut, and it opened almost every description; the mark keeps the distinction at the cost of one
+character. The same review dropped the "LLM ·" badge: what the LLM found carries a small ✦ mark,
+explained in the legend the same way, and a group the LLM formed (a domain or feature area) carries
+none, since grouping is how the report is arranged, not a finding.

@@ -47,12 +47,17 @@ test('folded rows must hang under a row the table has, once, and mark only their
 });
 
 // The template's table renderer, loaded from its source with stand-ins for what it calls.
+const source = readFileSync(`${specDir}${spec}.html`, 'utf8');
 const tableRenderer = new Function(
   'esc',
   'mdInline',
-  'llmBadge',
-  `return {${readFileSync(`${specDir}${spec}.html`, 'utf8').match(/^ {2}table: s => \{[\s\S]*?^ {2}\},$/m)[0]}}.table;`,
-)((t) => String(t), (t) => String(t), '[LLM]');
+  'markHTML',
+  'MARK_TEXT',
+  ['SEVERITY_RANK', 'severityColumn'].map((n) => source.match(new RegExp(`^const ${n} = .*$`, 'm'))[0]).join('\n') +
+    '\n' +
+    ['sortKey', 'compareKeys', 'sortedRows'].map((n) => source.match(new RegExp(`^function ${n}[\\s\\S]*?^\\}`, 'm'))[0]).join('\n') +
+    `\nreturn {${source.match(/^ {2}table: s => \{[\s\S]*?^ {2}\},$/m)[0]}}.table;`,
+)((t) => String(t), (t) => String(t), () => '[LLM]', { llm: 'Found by the LLM' });
 
 test('a parent row shows a toggle and its folded rows hidden beneath it; a plain row has none (#747)', () => {
   const html = tableRenderer({
@@ -70,6 +75,20 @@ test('a parent row shows a toggle and its folded rows hidden beneath it; a plain
   assert.match(html, /<tr class="row-child" id="risks-r1-0" data-parent="1" hidden><td>\[LLM\] Medium<\/td><td>First<\/td><\/tr>/);
   assert.match(html, /<tr class="row-child" id="risks-r1-1" data-parent="1" hidden><td>\[LLM\] Low<\/td><td>Second<\/td><\/tr>/);
   assert.equal(html.match(/row-toggle/g).length, 1);
+  assert.match(html, /<div class="tbl-note">\[LLM\] Found by the LLM<\/div>/);
+});
+
+test('a table with a severity column starts most severe first and sorts by any column (#934)', () => {
+  const html = tableRenderer({
+    id: 'risks',
+    columns: ['Impact', 'Finding'],
+    rows: [['Low', 'Logs kept'], ['High', 'Open admin'], ['Medium', 'No dead letters']],
+  });
+  assert.deepEqual([...html.matchAll(/<tr><td>(\w+)<\/td>/g)].map((m) => m[1]), ['High', 'Medium', 'Low']);
+  assert.match(html, /<th aria-sort="descending"><button type="button" class="th-sort" data-col="0">Impact/);
+  assert.match(html, /<th><button type="button" class="th-sort" data-col="1">Finding/);
+  assert.doesNotMatch(tableRenderer({ id: 'one', columns: ['A'], rows: [['x']] }), /th-sort/);
+  assert.doesNotMatch(html, /tbl-note/);
 });
 
 // mdInline is the template's Markdown-lite formatter; load it from the template source.
@@ -123,9 +142,29 @@ test('a backslash shows link, emphasis and code syntax as written (#752)', () =>
 
 // legendHTML draws the legend under each diagram; load it, with the element kinds, from the
 // template source.
-const legendHTML = new Function(
-  `${template.match(/^const KIND = \{[\s\S]*?^\};/m)[0]}\n${template.match(/^function legendHTML[\s\S]*?^\}/m)[0]}\nreturn legendHTML;`,
+const marks = ['MARK', 'MARK_TEXT', 'tagOf', 'descOf']
+  .map((name) => template.match(new RegExp(`^const ${name} = .*$`, 'm'))[0])
+  .join('\n');
+const { legendHTML, tagOf, descOf } = new Function(
+  `${template.match(/^const KIND = \{[\s\S]*?^\};/m)[0]}\n${marks}\n${template.match(/^function legendHTML[\s\S]*?^\}/m)[0]}\nreturn {legendHTML, tagOf, descOf};`,
 )();
+
+test('an inferred description opens with a small mark the legend explains once, not a word (#934)', () => {
+  const box = { kind: 'container', desc: 'Sells books.', inferred: true };
+  assert.equal(descOf(box), '≈ Sells books.');
+  assert.equal(descOf({ ...box, inferred: false }), 'Sells books.');
+  assert.equal(descOf({ ...box, desc: '' }), '');
+  const legend = legendHTML(['container'], { inferred: true });
+  assert.equal(legend.match(/≈/g).length, 1);
+  assert.match(legend, /Description inferred from the code, not written by people/);
+  assert.doesNotMatch(legendHTML(['container'], {}), /≈|inferred/);
+});
+
+test('what the LLM found carries a small mark, not an "LLM ·" badge (#934)', () => {
+  assert.equal(tagOf({ kind: 'container', llm: true }), '✦ Container');
+  assert.equal(tagOf({ kind: 'container', tag: 'Domain' }), 'Domain');
+  assert.match(legendHTML(['container'], { llm: true }), /✦<\/span>Found by the LLM reading the code/);
+});
 
 test('the legend has the dashed boundary of a diagram drawn inside one', () => {
   const legend = legendHTML(['container'], { boundary: 'system' });
@@ -309,4 +348,111 @@ test('a page must name an existing page as its parent, and no page may be its ow
   cycle.pages[0].parent = second.id;
   cycle.pages[1].parent = first.id;
   assert.ok(reportSpecIssues(spec, cycle).some((i) => i.includes('its own ancestor')));
+});
+
+// Sorting a table (#934), loaded from the template source.
+const { sortedRows, severityColumn } = new Function(
+  `${template.match(/^const SEVERITY_RANK = .*$/m)[0]}\n` +
+    `${template.match(/^function sortKey[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function compareKeys[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^const severityColumn = .*$/m)[0]}\n` +
+    `${template.match(/^function sortedRows[\s\S]*?^\}/m)[0]}\n` +
+    'return {sortedRows, severityColumn};',
+)();
+
+test('a table sorts by any column: severity by how serious, numbers by value, text as text (#934)', () => {
+  const rows = [
+    ['Low', 'Logs are kept forever', '40%'],
+    ['Critical', 'Payments are not idempotent', '90%'],
+    ['Medium', 'A queue has no dead letters', '7%'],
+    ['High', 'Admin endpoints are open', '75%'],
+  ];
+  const columns = ['Impact', 'Finding', 'Confidence'];
+  assert.equal(severityColumn(columns), 0);
+  assert.equal(severityColumn(['Finding', 'Evidence']), -1);
+  assert.deepEqual(sortedRows(rows, 0, 'desc'), [1, 3, 2, 0]);
+  assert.deepEqual(sortedRows(rows, 0, 'asc'), [0, 2, 3, 1]);
+  assert.deepEqual(sortedRows(rows, 2, 'asc'), [2, 0, 3, 1]);
+  assert.deepEqual(sortedRows(rows, 1, 'asc'), [2, 3, 0, 1]);
+  // a mark or toggle before the word does not hide it; an empty cell goes last either way
+  assert.deepEqual(sortedRows([['✦ Low'], ['▸✦ High'], ['']], 0, 'desc'), [1, 0, 2]);
+  assert.deepEqual(sortedRows([[''], ['50%'], ['7%']], 0, 'desc'), [1, 2, 0]);
+  // words that are no severity stay after the severities in either direction
+  assert.deepEqual(sortedRows([['Unknown'], ['Critical'], ['Low']], 0, 'desc'), [1, 2, 0]);
+  // ties keep the order they had
+  assert.deepEqual(sortedRows([['High', 'b'], ['High', 'a']], 0, 'desc'), [0, 1]);
+});
+
+// The index page's opening (#934), loaded from the template source.
+const analyzedHTML = new Function(
+  `${template.match(/^const esc = .*$/m)[0]}\n${template.match(/^const fmtDate = .*$/m)[0]}\n` +
+    `${template.match(/^function analyzedHTML[\s\S]*?^\}/m)[0]}\nreturn analyzedHTML;`,
+)();
+
+test('the commits sit behind one short "Analyzed" line that opens into the list (#934)', () => {
+  const html = analyzedHTML({ updated: '2026-11-07', commits: { billing: 'a394af573b6c', web: '50a3be190c6f' } });
+  assert.match(html, /^<details class="pill analyzed"><summary>Analyzed 7 Nov 2026 · 2 repositories<\/summary>/);
+  assert.match(html, /<li>billing <code>a394af573b6c<\/code><\/li><li>web <code>50a3be190c6f<\/code><\/li>/);
+  assert.match(analyzedHTML({ commits: { one: 'abc' } }), /<summary>1 repository<\/summary>/);
+  assert.equal(analyzedHTML({ updated: '2026-11-07' }), '');
+});
+
+// A diagram's lines (#934), loaded from the template source.
+const { mergedEdges } = new Function(
+  `const MARK = {llm:'✦'};\n${template.match(/^function shortTech[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function mergedEdges[\s\S]*?^\}/m)[0]}\nreturn {mergedEdges};`,
+)();
+
+test('two lines with the same ends and direction become one, with the shortest label and every technology (#934)', () => {
+  const edges = mergedEdges([
+    { from: 'web', to: 'gw', label: 'Sends customer web requests through the gateway.', technology: 'HTTP' },
+    { from: 'web', to: 'gw', label: 'Sends customer web requests', technology: 'JSON/HTTP' },
+    { from: 'gw', to: 'web', label: 'Answers', technology: 'HTTP' },
+  ]);
+  assert.deepEqual(edges, [
+    { f: 'web', t: 'gw', l: 'Sends customer web requests', llm: false, tech: 'HTTP, JSON/HTTP' },
+    { f: 'gw', t: 'web', l: 'Answers', llm: false, tech: 'HTTP' },
+  ]);
+});
+
+test('a long list of routing keys on a line gives the protocol and a count (#934)', () => {
+  const [edge] = mergedEdges([
+    {
+      from: 'a',
+      to: 'b',
+      label: 'Receives payment state changes',
+      technology: 'AMQP, notification.maintenance.reminders, notification.payment.events, notification.workorder.cancelled',
+    },
+  ]);
+  assert.equal(edge.tech, 'AMQP · 3 more');
+  assert.equal(mergedEdges([{ from: 'a', to: 'b', technology: 'AMQP, orders.created' }])[0].tech, 'AMQP, orders.created');
+  assert.equal(mergedEdges([{ from: 'a', to: 'b', label: 'x', technology: 'HTTP', llm: true }])[0].l, '✦ x');
+});
+
+test('opposite lines that say the same are one line with an arrowhead at each end; different ones stay two (#934)', () => {
+  const edges = mergedEdges([
+    { from: 'web', to: 'gw', label: 'Sends customer web requests', technology: 'JSON/HTTP' },
+    { from: 'gw', to: 'web', label: 'Sends customer web requests through the gateway.', technology: 'HTTP' },
+    { from: 'gw', to: 'db', label: 'Keeps request counts', technology: 'RESP' },
+    { from: 'db', to: 'gw', label: 'Notifies of expiry', technology: 'RESP' },
+  ]);
+  assert.deepEqual(edges[0], { f: 'web', t: 'gw', l: 'Sends customer web requests', llm: false, tech: 'JSON/HTTP, HTTP', both: true });
+  assert.equal(edges.length, 3);
+  assert.ok(edges.slice(1).every((e) => !e.both));
+});
+
+test('a bare verb neither wins a merge nor makes two opposite lines one (#934)', () => {
+  const [one] = mergedEdges([
+    { from: 'a', to: 'b', label: 'Uses' },
+    { from: 'a', to: 'b', label: 'Fetches technician shifts for scheduling' },
+  ]);
+  assert.equal(one.l, 'Fetches technician shifts for scheduling');
+  assert.equal(mergedEdges([{ from: 'a', to: 'b', label: 'Sends' }, { from: 'b', to: 'a', label: 'Sends payment results' }]).length, 2);
+});
+
+test("a diagram's canvas is at most its own size plus a margin, and the screen caps its height (#934)", () => {
+  const canvasFit = new Function(`${template.match(/^const canvasFit = .*$/m)[0]}\nreturn canvasFit;`)();
+  assert.equal(canvasFit([0, 0, 400.2, 300]), ' style="--canvas-h:324px;--canvas-w:425px"');
+  assert.equal(canvasFit(null), '');
+  assert.match(template, /\.dcanvas\{[^}]*height:min\(max\(320px,calc\(100vh - var\(--canvas-top,250px\)\)\),var\(--canvas-h,9999px\)\)/);
 });

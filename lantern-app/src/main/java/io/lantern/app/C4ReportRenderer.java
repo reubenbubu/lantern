@@ -281,6 +281,12 @@ public final class C4ReportRenderer {
                 + java.util.regex.Pattern.quote(io.lantern.derive.Elements.FOUND_BY_LLM)
                 + "\\*?\\s*");
 
+    /** What opens a text inferred from the code rather than written by people (ADR 0059). */
+    private static final java.util.regex.Pattern INFERRED =
+        java.util.regex.Pattern.compile(
+            "^\\*?(?:Purpose inferred from the code:|Inferred, from its module's summary:|Inferred:)"
+                + "\\*?\\s*");
+
     /** The text without its opening "Found by the LLM:", where the mark says it. */
     private static String unmarked(String text) {
       return FOUND.matcher(text).replaceFirst("");
@@ -748,26 +754,24 @@ public final class C4ReportRenderer {
               .map(part -> looseMarkdown(part.block))
               .filter(s -> !s.isEmpty())
               .collect(Collectors.joining("\n\n"));
-      String pinned = pinnedMarkdown();
-      node.put("subtitle", intro.isEmpty() ? pinned : intro + "\n\n" + pinned);
+      // The opening is about the system; who it is for is not shown, and the commits are listed
+      // apart, behind a short "Analyzed" line the template draws (#934).
+      java.util.regex.Matcher inferred = INFERRED.matcher(intro);
+      if (inferred.find()) {
+        node.put("subtitleInferred", true);
+        intro = intro.substring(inferred.end());
+      }
+      if (!intro.isEmpty()) {
+        node.put("subtitle", intro);
+      }
+      ObjectNode commits = node.putObject("commits");
+      document
+          .source()
+          .commits()
+          .forEach((repository, commit) -> commits.put(repository, commit.substring(0, 12)));
       node.put("version", Long.toString(document.source().snapshot()));
       node.put("updated", document.source().date().toString());
       return node;
-    }
-
-    /** Who the document is for and the commits it is pinned to, as Lantern's templates say it. */
-    private String pinnedMarkdown() {
-      StringBuilder text = new StringBuilder();
-      if (document.audience() != null) {
-        text.append("For ").append(literal(oneLine(document.audience()))).append(". ");
-      }
-      Map<String, String> commits = document.source().commits();
-      text.append("Pinned to ").append(commits.size() == 1 ? "commit " : "commits ");
-      text.append(
-          commits.entrySet().stream()
-              .map(c -> literal(c.getKey()) + " `" + c.getValue().substring(0, 12) + "`")
-              .collect(Collectors.joining(", ")));
-      return text.append(", as of ").append(document.source().date()).append('.').toString();
     }
 
     private String looseMarkdown(Block block) {
@@ -804,10 +808,17 @@ public final class C4ReportRenderer {
       }
       Set<String> cited = new HashSet<>(entity.facts());
       cited.addAll(element.facts);
-      boolean llm = foundByLlm(cited);
+      // A group the LLM formed is how the report is arranged, not something it found (#934).
+      boolean llm = !element.id.type().equals(Types.GROUP) && foundByLlm(cited);
       String description = plain(entity.description());
       if (llm) {
         description = unmarked(description);
+      }
+      // An inferred text is flagged, which the template draws as a small icon (#934, ADR 0059).
+      java.util.regex.Matcher inferred = INFERRED.matcher(description);
+      if (inferred.find()) {
+        node.put("inferred", true);
+        description = description.substring(inferred.end());
       }
       if (!description.isBlank()) {
         node.put("description", description);

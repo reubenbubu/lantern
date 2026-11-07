@@ -1,6 +1,6 @@
 # 0063: Reader, pinned commits and date, legends and glossary
 
-Status: accepted (#178), amends ADR 0011, ADR 0046 and ADR 0048, amended by ADR 0087 (#229)
+Status: accepted (#178), amends ADR 0011, ADR 0046 and ADR 0048, amended by ADR 0087 (#229), amended for #934 (the C4 report's opening)
 
 Amended by ADR 0087 (#229): the C4 reports get a glossary and the spec's legend draws the dashed
 boundary and the async arrowhead; a glossary prefers what the repositories' documentation says an
@@ -68,3 +68,11 @@ known) already meets "Observed decisions, with rationale or marked unknown".
 
 Start-here lists, flows and catalogs of repositories without units, which have nothing to list and
 fail honestly.
+
+## Amendment (#934): the C4 report's opening
+
+The C4 report's start page no longer says who it is for, and its commits no longer follow the
+system's description: the renderer writes them as the document's `commits`, and the template shows
+a short "Analyzed <date> · <n> repositories" line that opens into the list. The owner's review of
+6 Nov 2026 found the audience line and fifteen commits made the opening hard to read. The document
+model keeps its audience; other templates are unchanged.

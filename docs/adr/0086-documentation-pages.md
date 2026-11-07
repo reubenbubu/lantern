@@ -1,6 +1,6 @@
 # 0086: Documentation pages in the C4 report
 
-Status: accepted (#249), amends ADR 0031, ADR 0044, ADR 0048 and ADR 0082, amended by ADR 0087 (#229)
+Status: accepted (#249), amends ADR 0031, ADR 0044, ADR 0048 and ADR 0082, amended by ADR 0087 (#229), amended for #934 (a mark, not a badge)
 
 ## Context
 
@@ -74,3 +74,11 @@ asks every template to mark what the LLM found (design, Grounding), and the spec
 The fake-model runs of the test sets produce no element, line or row whose facts all come from the
 LLM; the marker is checked on the document model fixture (a resolver fact) and the spec's sample
 data.
+
+## Amendment (#934): a mark, not a badge
+
+The "LLM" badge in tables and the "LLM ·" prefix on type labels and line labels are replaced by a
+small ✦ mark, explained once in each diagram's legend and in a note under a table that has marked
+rows. A group the LLM formed (a domain or feature area) carries none: grouping is how the report is
+arranged, not a finding. The owner's review of 6 Nov 2026 found "LLM · DOMAIN" meant nothing to a
+reader (ADR 0059, amendment for #934).

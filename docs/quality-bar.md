@@ -212,7 +212,8 @@ commits.
   that nothing in the analysed set reaches and no person is shown to use is drawn as called by an
   "Unknown caller", marked as unknown. An endpoint behind a gateway is reached through it. It is neither left out nor replaced by an invented actor.
 - **Business purpose** is not required for now. Where the report shows one, it is marked as
-  evidenced (people wrote it) or inferred.
+  evidenced (people wrote it) or inferred. The mark is small: in the C4 report an inferred description
+  opens with an icon explained once in the legend, not a word (ADR 0059, amendment for #934).
 - **Owners, rationale, quality goals and production topology** beyond deployment files are not in
   the code. They are stated once, plainly, as unknown.
 
@@ -274,7 +275,7 @@ LLM found is marked as such.
 
 | Document | Passes only if |
 | --- | --- |
-| C4 report | States its reader and pins its commits and date. Its first paragraph says what the system is (what runs and its main parts) and the single most important fact about it. Every specific claim links to a fact or source. README claims agree with the code. Unknowns are stated once, plainly. No sentence that would be true of any Spring application. One name per concept across text, diagrams and glossary. No diagram repeated across sections. Every domain or feature area drawn as one box has a page of its own, which the box opens, and the navigation nests each unit under its domain and each area under its unit (ADR 0130). C4 pages hold only C4 content; findings (risks, decisions, unknowns), the glossary, the catalog, the deployment table and the sources are documentation pages of their own. |
+| C4 report | Pins its commits and date, behind a short line on its start page; its opening is about the system, not its reader (ADR 0063, amendment for #934). Its first paragraph says what the system is (what runs and its main parts) and the single most important fact about it. Every specific claim links to a fact or source. README claims agree with the code. Unknowns are stated once, plainly. No sentence that would be true of any Spring application. One name per concept across text, diagrams and glossary. No diagram repeated across sections. Every domain or feature area drawn as one box has a page of its own, which the box opens, and the navigation nests each unit under its domain and each area under its unit (ADR 0130). C4 pages hold only C4 content; findings (risks, decisions, unknowns), the glossary, the catalog, the deployment table and the sources are documentation pages of their own. |
 
 ## Test material
 

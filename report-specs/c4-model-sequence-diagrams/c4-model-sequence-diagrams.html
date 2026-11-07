@@ -191,19 +191,23 @@ body.sb-collapsed .open-sb{display:grid}
 .pill{display:inline-flex;align-items:center;gap:7px;font:500 11.5px var(--mono);color:var(--text-2);background:var(--surface);
   border:1px solid var(--border);border-radius:999px;padding:4px 10px;white-space:nowrap}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 20%,transparent)}
-.content{width:100%;padding:36px clamp(20px,3vw,56px) 80px}
+.content{width:100%;padding:20px clamp(20px,3vw,56px) 80px}
 .view{animation:fadeUp .35s ease both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* page header */
-.page-head{padding:6px 0 26px;border-bottom:1px solid var(--border);margin-bottom:8px}
+/* one compact strip: level, title and links on a line, a sentence beneath (#934) */
+.page-head{padding:0 0 12px;border-bottom:1px solid var(--border);margin-bottom:4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px}
+.page-head .lead,.page-head p{flex-basis:100%}
 .eyebrow{font:600 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px}
-.page-head h1{font:700 34px/1.15 var(--font-display);letter-spacing:-.025em;margin:12px 0 10px}
+.page-head h1{font:700 26px/1.2 var(--font-display);letter-spacing:-.02em;margin:0}
 .page-head p{margin:0;color:var(--text-2);max-width:780px;font-size:15.5px}
 .page-meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.page-head .page-meta{margin-top:0}
 
 /* sections */
-.sec{padding:34px 0 8px}
+.sec{padding:22px 0 6px}
+.sec.sec-diagram{padding-top:14px}
 .sec-head{margin-bottom:16px}
 .sec-head h2{font:650 22px/1.25 var(--font-display);font-weight:650;letter-spacing:-.018em;margin:8px 0 0;display:flex;align-items:center;gap:10px}
 .sec-head h2 .anchor{opacity:0;color:var(--faint);font:500 16px var(--mono);transition:.15s}
@@ -212,10 +216,18 @@ body.sb-collapsed .open-sb{display:grid}
 .prose p:first-child{margin-top:0}
 .prose ul{max-width:820px}
 .sec-cont{margin-top:16px}
-.page-head .lead{color:var(--text-2);max-width:780px;font-size:15.5px}
+.page-head .lead{color:var(--text-2);max-width:780px;font-size:14.5px}
 .page-head .lead p{margin:0 0 6px}
-.hero-sub{font-size:16.5px;color:var(--text-2);max-width:680px}
+.hero-sub{font-size:16.5px;color:var(--text-2);max-width:min(680px,100% - 340px)}
+@media (max-width:1100px){.hero-sub{max-width:680px}}
 .hero-sub p{margin:0}
+.analyzed summary{cursor:pointer;list-style:none}
+.analyzed summary::-webkit-details-marker{display:none}
+.analyzed summary::after{content:' ▸';color:var(--muted)}
+.analyzed[open] summary::after{content:' ▾'}
+.analyzed[open]{border-radius:var(--radius)}
+.analyzed ul{margin:8px 0 2px;padding:0;list-style:none;columns:2 220px;column-gap:24px;font-size:12.5px}
+.analyzed li{break-inside:avoid;padding:1px 0}
 .stats-compact .stat b{font-size:19px}
 .stats-text .stat b{font:500 14px/1.5 var(--font);color:var(--text);margin-top:8px;letter-spacing:0}
 .callout.tone-warning{background:color-mix(in srgb,var(--warn) 9%,transparent);border-color:color-mix(in srgb,var(--warn) 40%,transparent)}
@@ -238,16 +250,23 @@ ul.ticks li{position:relative;padding-left:22px;margin:6px 0;color:var(--text-2)
 ul.ticks li::before{content:'';position:absolute;left:3px;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--accent);opacity:.75;transform:rotate(45deg)}
 
 /* tables */
+.th-sort{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.th-sort:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.th-sort i::after{content:'↕';opacity:.35;font-style:normal}
+th[aria-sort="ascending"] .th-sort i::after{content:'↑';opacity:1}
+th[aria-sort="descending"] .th-sort i::after{content:'↓';opacity:1}
+.tbl-note{font-size:12px;color:var(--muted);margin:6px 2px 0}
 .row-toggle{border:none;background:none;cursor:pointer;color:var(--muted);padding:0 .35rem 0 0;font:inherit;display:inline-block;transition:transform .15s}
 .row-toggle[aria-expanded="true"]{transform:rotate(90deg)}
 .row-child td{background:var(--s2)}
 .row-child td:first-child{padding-left:1.6rem}
 @media print{.row-child[hidden]{display:table-row}.row-toggle{display:none}}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.45}
 th{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);text-align:left;
-  padding:11px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:13px 16px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text-2)}
+  padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text-2)}
+td code{overflow-wrap:anywhere;white-space:normal;font-size:11.5px}
 tr:last-child td{border-bottom:0}
 tbody tr{transition:background .15s}
 tbody tr:hover{background:color-mix(in srgb,var(--surface-2) 60%,transparent)}
@@ -262,6 +281,7 @@ td.mono{font-family:var(--mono);font-size:12px;color:var(--text-2);white-space:n
 .b-med{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent);background:color-mix(in srgb,var(--warn) 8%,transparent)}
 .b-low,.b-ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent);background:color-mix(in srgb,var(--ok) 8%,transparent)}
 .b-info{color:var(--accent);border-color:var(--accent-line);background:var(--accent-soft)}
+.mark{display:inline-block;font-size:.9em;line-height:1;color:var(--accent-2);cursor:help}
 .b-llm{color:var(--accent-2);border-color:color-mix(in srgb,var(--accent-2) 40%,transparent);background:color-mix(in srgb,var(--accent-2) 8%,transparent);padding:1px 6px;vertical-align:1px}
 .drill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;white-space:nowrap;padding:4px 10px;border-radius:7px;
   border:1px solid var(--accent-line);background:var(--accent-soft)}
@@ -281,7 +301,7 @@ tr.flash td{animation:flash 2.2s ease}
    DIAGRAM CARD
    ========================================================================== */
 .dcard{margin:0;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
-.dbar{display:flex;align-items:center;gap:14px;padding:12px 14px 12px 18px;border-bottom:1px solid var(--border)}
+.dbar{display:flex;align-items:center;gap:14px;padding:7px 10px 7px 14px;border-bottom:1px solid var(--border)}
 .dtitle{display:flex;align-items:center;gap:12px;min-width:0}
 .dtitle .lvl{font-size:11px;padding:5px 7px}
 .dtitle b{display:block;font:600 14px/1.3 var(--font-display);letter-spacing:-.01em}
@@ -290,8 +310,10 @@ tr.flash td{animation:flash 2.2s ease}
 .dtools .icon-btn{width:30px;height:28px}
 .dtools .icon-btn:hover{background:var(--surface)}
 .dtools .sep{width:1px;height:16px;background:var(--border-strong);margin:0 3px}
-.dcanvas{position:relative;height:clamp(400px,calc(100vh - 292px),860px);background-color:var(--canvas);
+/* the canvas fits the screen left below the header and is never taller than its diagram (#934) */
+.dcanvas{position:relative;height:min(max(320px,calc(100vh - var(--canvas-top,250px))),var(--canvas-h,9999px));background-color:var(--canvas);
   background-image:radial-gradient(var(--grid) 1px,transparent 1.2px);background-size:22px 22px;overflow:hidden}
+.dcanvas>svg{max-width:var(--canvas-w,none);margin:0 auto}
 .dcanvas>svg,.mx-canvas>svg{width:100%;height:100%;display:block;cursor:grab;user-select:none;-webkit-user-select:none;touch-action:none}
 svg.panning{cursor:grabbing}
 .dlegend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:11px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
@@ -349,11 +371,11 @@ svg.dim .boundary{opacity:.6}
 
 /* container-page pills inside a node */
 .npill{cursor:pointer}
-.npill rect{fill:color-mix(in srgb,var(--k) 12%,var(--node-base));stroke:color-mix(in srgb,var(--k) 55%,transparent);stroke-width:1.2;transition:fill .15s,stroke .15s}
-.npill text{font:600 11px var(--font);fill:var(--k);pointer-events:none}
+/* links inside a box: a compact list, not bordered pills (#934) */
+.npill rect{fill:transparent;stroke:none}
+.npill text{font:500 11px var(--font);fill:var(--k);pointer-events:none}
 .npill path{fill:none;stroke:var(--k);stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;opacity:.8}
-.npill:hover rect{fill:var(--k);stroke:var(--k)}
-.npill:hover text{fill:var(--on-accent)} .npill:hover path{stroke:var(--on-accent);opacity:1}
+.npill:hover text{text-decoration:underline} .npill:hover path{opacity:1}
 body.editing svg[data-key]:not([data-key=""]) .npill{pointer-events:none}
 .rule-ov{display:none;pointer-events:none}
 body.editing svg[data-key]:not([data-key=""]) .rule-ov{display:block}
@@ -4413,12 +4435,57 @@ for (const [id, e] of Object.entries(DATA.elements || {}))
   EL[id] = {...e, tech:e.technology || '', desc:e.description || '', props:e.properties || {},
     // the name the build gives it, small on the technology line (a box's name is in words)
     techLine:[e.technicalName, e.technology].filter(Boolean).join(' · ')};
-/* An element's type label in diagrams; one the LLM found says so (schema: llm). */
-const tagOf = e => (e.llm ? 'LLM · ' : '') + (e.tag || KIND[e.kind]?.label || '');
+/* Two small marks, each explained once in the legend (#934): what the LLM found (schema: llm)
+   and a description inferred from the code rather than written by people (schema: inferred). */
+const MARK = {llm:'✦', inferred:'≈'};
+const MARK_TEXT = {llm:'Found by the LLM reading the code', inferred:'Description inferred from the code, not written by people'};
+/* An element's type label in diagrams; one the LLM found carries its mark. */
+const tagOf = e => (e.llm ? MARK.llm + ' ' : '') + (e.tag || KIND[e.kind]?.label || '');
+/* A description as a diagram shows it: an inferred one opens with its mark. */
+const descOf = e => e.desc ? (e.inferred ? MARK.inferred + ' ' : '') + e.desc : '';
 
 const PAGES = (DATA.pages || []).filter(p => LEVEL[p.level]);
 const PAGE = Object.fromEntries(PAGES.map(p => [p.id, p]));
 const pageOf = key => key.split('/')[0];
+
+/* A diagram's lines (#934): one per pair and direction, with the shortest of their labels and all
+   their technologies; a long list of technologies (routing keys, topics) gives its first and a count. */
+function shortTech(list){
+  const parts = [...new Set(list.flatMap(t => String(t || '').split(/\s*,\s*/)).filter(Boolean))];
+  if (parts.join(', ').length <= 40) return parts.join(', ');
+  // a name with a dot and no space is a routing key, topic or queue, not a protocol
+  const named = parts.filter(t => /^\S*\w\.\w\S*$/.test(t)), plain = parts.filter(t => !named.includes(t));
+  const head = plain.length ? plain.join(', ') : named.shift();
+  return named.length ? `${head} · ${named.length} more` : head;
+}
+function mergedEdges(relationships){
+  const words = l => String(l || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').split(/\s+/).filter(Boolean);
+  const byPair = new Map();
+  for (const r of relationships){
+    const k = r.from + '\u0000' + r.to;
+    if (!byPair.has(k)) byPair.set(k, []);
+    byPair.get(k).push(r);
+  }
+  const one = rs => {
+    // the shortest label that still says what the line is for (three words or more), else the longest
+    const labelled = rs.filter(r => r.label), told = labelled.filter(r => words(r.label).length >= 3);
+    const pick = told.length ? told.reduce((a, b) => b.label.length < a.label.length ? b : a)
+      : labelled.length ? labelled.reduce((a, b) => b.label.length > a.label.length ? b : a) : rs[0];
+    return {pick, rs, llm:rs.every(r => r.llm)};
+  };
+  const lines = [...byPair.values()].map(one), gone = new Set();
+  // a pair of opposite lines that say the same (a call through a gateway and on into the same box)
+  // is one line with an arrowhead at each end; a bare verb says too little to tell
+  const same = (a, b) => { const [x, y] = [words(a), words(b)].sort((p, q) => p.length - q.length); return x.length >= 3 && x.every((w, i) => w === y[i]); };
+  for (const a of lines) for (const b of lines){
+    if (a === b || gone.has(a) || gone.has(b) || a.pick.from !== b.pick.to || a.pick.to !== b.pick.from) continue;
+    if (!same(a.pick.label, b.pick.label)) continue;
+    const keep = (b.pick.label || '').length < (a.pick.label || '').length ? b : a, drop = keep === a ? b : a;
+    keep.both = true; keep.rs = [...keep.rs, ...drop.rs]; keep.llm = keep.llm && drop.llm; gone.add(drop);
+  }
+  return lines.filter(x => !gone.has(x)).map(({pick, rs, llm, both}) => ({f:pick.from, t:pick.to, l:(llm ? MARK.llm + ' ' : '') + (pick.label || ''), llm,
+    tech:shortTech(rs.map(r => r.technology)), ...(both ? {both:true} : {})}));
+}
 
 /* Diagram and sequence sections → engine specs, keyed "pageId/sectionId". */
 const DIAGRAMS = {}, SEQS = {};
@@ -4426,7 +4493,7 @@ for (const p of PAGES) for (const s of (p.sections || [])){
   const key = `${p.id}/${s.id}`;
   if (s.type === 'diagram'){
     // relationships naming unknown elements are skipped (and reported by validate()) so the rest still draws
-    const edges = (s.relationships || []).filter(r => EL[r.from] && EL[r.to]).map(r => ({f:r.from, t:r.to, l:(r.llm ? 'LLM · ' : '') + (r.label || ''), tech:r.technology || ''}));
+    const edges = mergedEdges((s.relationships || []).filter(r => EL[r.from] && EL[r.to]));
     const ids = new Set([...edges.flatMap(e => [e.f, e.t]), ...(s.elements || []).filter(id => EL[id])]);
     const spec = {level:LEVEL[p.level].badge, title:s.caption || LEVEL[p.level].card, sub:p.title, edges, groupByKind: s.layout?.groupByKind !== false,
       constraints:(s.layout?.rules || []).map(r => r.strict === false ? {a:r.a, rel:r.rel, b:r.b, strict:false} : {a:r.a, rel:r.rel, b:r.b})};
@@ -4506,9 +4573,9 @@ function drillTargets(id, key){
 /* An element with two or more deeper diagrams gets a row of pills, one per diagram. */
 /* Drill-down links inside a node wrap into a small grid (rows of up to 2–3), so many links make the
    box a bit taller rather than very wide; a very wide box pushes the whole layout out of shape. */
-const PILL = {h:24, gap:8, rowGap:8, pad:18, head:22, maxChars:34, w: t => Math.min(t.length, 34)*6.5 + 40};
+const PILL = {h:17, gap:16, rowGap:1, pad:16, head:20, maxChars:30, w: t => Math.min(t.length, 30)*6.1 + 16};
 function pillGrid(pills, maxW = Infinity){
-  const n = pills.length, cols = n <= 3 ? n : n <= 8 ? 2 : 3, rows = Math.ceil(n/cols);
+  const n = pills.length, cols = n <= 2 ? n : n <= 6 ? 2 : 3, rows = Math.ceil(n/cols);
   const pw = Math.max(60, Math.min(Math.max(...pills.map(p => PILL.w(p.title))), (maxW - (cols-1)*PILL.gap)/cols));
   return {cols, rows, pw, w: cols*pw + (cols-1)*PILL.gap, h: PILL.head + rows*PILL.h + (rows-1)*PILL.rowGap};
 }
@@ -4602,6 +4669,7 @@ function md(s){
 /* Box text that must stay inside its box. A box widens to fit its name and technology line (up to a cap);
    past the cap the text wraps onto even lines, breaking long dotted names after . - / _ :, and ends with "…". */
 const NODE_TEXT = {nm:7.9, nmHero:10.6, tc:6.4, ds:6.05, cap:320, capHero:460};
+const DESC_LINES = 4;   // a box's description shows up to four lines, the box growing to hold them (#934)
 const sidePad = k => k === 'queue' ? 56 : k === 'person' ? 36 : 30;
 function fitText(text, maxPx, perChar, maxLines){
   text = String(text ?? '').trim(); if (!text) return [];
@@ -4644,8 +4712,8 @@ function nodeSVG(n, view, uid, ruled=false){
   }
   const hero = !!n.hero;
   const tag = tagOf(e);
-  const descLines = h >= 300 ? 6 : h >= 140 ? 3 : h >= 100 ? 2 : 1;
-  const desc = e.desc ? wrap(e.desc, Math.floor((w-(hero?60:sidePad(k)))/(hero?6.6:NODE_TEXT.ds)), descLines) : [];
+  const descLines = h >= 300 ? 6 : h >= 100 ? DESC_LINES : 1;
+  const desc = e.desc ? wrap(descOf(e), Math.floor((w-(hero?60:sidePad(k)))/(hero?6.6:NODE_TEXT.ds)), descLines) : [];
   const nmL = fitText(e.name, w - sidePad(k), hero ? NODE_TEXT.nmHero : NODE_TEXT.nm, 2), tcL = fitText(e.techLine, w - sidePad(k), NODE_TEXT.tc, 2);
   const nameH = nmL.length*(hero ? 24 : 18), tech = e.techLine, techH = tcL.length ? 16 + (tcL.length - 1)*13 : 0;
   const pills = view ? pillsFor(n.id, view) : [];
@@ -4654,7 +4722,7 @@ function nodeSVG(n, view, uid, ruled=false){
   const bottomPad = (k === 'database' ? 9 : 0) + pillArea;
   const calcH = () => 18 + 8 + nameH + techH + (desc.length ? 4 + desc.length*(hero?17:13.5) : 0);
   while (desc.length && calcH() > h - topPad - bottomPad - 12) desc.pop();
-  if (desc.length && e.desc && wrap(e.desc, 999, 1)[0] !== desc.join(' ') && !desc[desc.length-1].endsWith('…')) desc[desc.length-1] = desc[desc.length-1].replace(/[\s,.;:]*$/,'') + '…';
+  if (desc.length && e.desc && wrap(descOf(e), 999, 1)[0] !== desc.join(' ') && !desc[desc.length-1].endsWith('…')) desc[desc.length-1] = desc[desc.length-1].replace(/[\s,.;:]*$/,'') + '…';
   const blockH = calcH();
   let ty = y + topPad + (h - topPad - bottomPad - blockH)/2;
   const tagW = tag.length*6.5 + 16;
@@ -4667,17 +4735,17 @@ function nodeSVG(n, view, uid, ruled=false){
   ty += techH;
   desc.forEach((d,i)=> t += `<text class="ds" x="${cx}" y="${ty+4+11.5+i*(hero?17:13.5)}" text-anchor="middle" ${hero?'style="font-size:13px"':''}>${esc(d)}</text>`);
   if (grid){
-    const {cols, pw} = grid, chars = Math.floor((pw - 40)/6.5);
+    const {cols, pw} = grid, chars = Math.floor((pw - 16)/6.1);
     const top = y + h - grid.h - 14 - (k === 'database' ? 9 : 0);
     t += `<g class="npills"><line class="npsep" x1="${x+PILL.pad}" x2="${x+w-PILL.pad}" y1="${top-6}" y2="${top-6}"/>
       <text class="nphead" x="${cx}" y="${top+12}" text-anchor="middle">${esc(pills[0].level.label)} · ${pills.length} views</text>` + pills.map((pl, i) => {
       const r = Math.floor(i/cols), c = i % cols, inRow = Math.min(cols, pills.length - r*cols);
-      const px = cx - (inRow*pw + (inRow-1)*PILL.gap)/2 + c*(pw + PILL.gap), py = top + PILL.head + r*(PILL.h + PILL.rowGap);
+      const px = cx - (cols*pw + (cols-1)*PILL.gap)/2 + c*(pw + PILL.gap), py = top + PILL.head + r*(PILL.h + PILL.rowGap);
       const label = pl.title.length > chars ? pl.title.slice(0, chars-1) + '…' : pl.title;
       return `<g class="npill" data-href="${pl.href}" data-tip="Open ${esc(pl.level.label.toLowerCase().replace(/s$/,''))} view" data-sub="${pl.level.badge} · ${esc(pl.title)}">
-        <rect x="${px}" y="${py}" width="${pw}" height="${PILL.h}" rx="${PILL.h/2}"/>
-        <text x="${px + pw/2 - 6}" y="${py + 16}" text-anchor="middle">${esc(label)}</text>
-        <path d="M${px+pw-17},${py+15} l5,-5 M${px+pw-15.5},${py+10} h3.5 v3.5"/></g>`;
+        <rect x="${px}" y="${py}" width="${pw}" height="${PILL.h}"/>
+        <path d="M${px+1},${py+12} l5,-5 M${px+2.5},${py+7} h3.5 v3.5"/>
+        <text x="${px + 12}" y="${py + 12.5}">${esc(label)}</text></g>`;
     }).join('') + `</g>`;
   }
   let icon = '';
@@ -4706,6 +4774,9 @@ function nodeSVG(n, view, uid, ruled=false){
 const NODE_SIZE = {person:[160,116], system:[200,116], external:[190,108], container:[190,112],
                    component:[200,112], database:[180,104], queue:[190,100]};
 const LAYOUT_CACHE = new Map();
+/* How many grid cells past its own a box may stretch to meet its neighbours: none, so a box keeps
+   its size and its lines bend to reach it, never a tall slab (#934). Capped at one, boxes still doubled. */
+const STRETCH_MAX = 0;
 
 function prng(seed){ return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
   t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -4956,16 +5027,18 @@ function makeEvaluator(G, C, R){
       const up = new Set(), down = new Set();
       for (const j of nbr[i]) if (c1[j] < c || c0[j] > c){ if (r1[j] < row) up.add(r1[j]); else if (r0[j] > row) down.add(r0[j]); }
       let lo = row, hi = row;
-      for (let r=row-1; r>=0 && up.size; r--){ if (!free(c, r)) break; if (up.has(r)) lo = r; }
-      for (let r=row+1; r<R && down.size; r++){ if (!free(c, r)) break; if (down.has(r)) hi = r; }
+      for (let r=row-1; r>=Math.max(0, row-STRETCH_MAX) && up.size; r--){ if (!free(c, r)) break; if (up.has(r)) lo = r; }
+      for (let r=row+1; r<=Math.min(R-1, row+STRETCH_MAX) && down.size; r++){ if (!free(c, r)) break; if (down.has(r)) hi = r; }
+      if (hi - lo > STRETCH_MAX){ if (row - lo >= hi - row) hi = row; else lo = row; }
       if (lo < row || hi > row){ for (let r=lo; r<=hi; r++) sp[c*R+r] = 1; r0[i] = lo; r1[i] = hi; }
       // 2. wider: same idea for neighbours above / below that are still out of reach
       const left = new Set(), right = new Set();
       for (const j of nbr[i]) if (r1[j] < r0[i] || r0[j] > r1[i]){ if (c1[j] < c) left.add(c1[j]); else if (c0[j] > c) right.add(c0[j]); }
       const colFree = cc => { for (let r=r0[i]; r<=r1[i]; r++) if (!free(cc, r)) return false; return true; };
       let cl = c, ch = c;
-      for (let cc=c-1; cc>=0 && left.size; cc--){ if (!colFree(cc)) break; if (left.has(cc)) cl = cc; }
-      for (let cc=c+1; cc<C && right.size; cc++){ if (!colFree(cc)) break; if (right.has(cc)) ch = cc; }
+      for (let cc=c-1; cc>=Math.max(0, c-STRETCH_MAX) && left.size; cc--){ if (!colFree(cc)) break; if (left.has(cc)) cl = cc; }
+      for (let cc=c+1; cc<=Math.min(C-1, c+STRETCH_MAX) && right.size; cc++){ if (!colFree(cc)) break; if (right.has(cc)) ch = cc; }
+      if (ch - cl > STRETCH_MAX){ if (c - cl >= ch - c) ch = c; else cl = c; }
       if (cl < c || ch > c){ for (let cc=cl; cc<=ch; cc++) for (let r=r0[i]; r<=r1[i]; r++) sp[cc*R+r] = 1; c0[i] = cl; c1[i] = ch; }
     }
     for (let i=0;i<N;i++){ const b = boxes[i]; b.x = c0[i]-HW; b.w = c1[i]-c0[i]+2*HW; b.y = r0[i]-HH; b.h = r1[i]-r0[i]+2*HH; }
@@ -5124,6 +5197,8 @@ function layoutDiagram(spec){
       w = Math.max(w, Math.min(hero ? NODE_TEXT.capHero : NODE_TEXT.cap, need));
       const nl = fitText(e.name, w - sidePad(k), per, 2).length, tl = fitText(e.techLine, w - sidePad(k), NODE_TEXT.tc, 2).length;
       h += Math.max(0, nl - 1)*(hero ? 24 : 18) + Math.max(0, tl - 1)*13;
+      // and taller for a description of up to four lines, so it is not cut mid-sentence (#934)
+      if (!hero && e.desc) h += Math.max(0, Math.min(DESC_LINES, wrap(descOf(e), Math.floor((w - sidePad(k))/NODE_TEXT.ds), 99).length) - 2)*13.5;
     }
     const pills = spec._key ? pillsFor(id, spec._key) : [];
     if (pills.length){ const g = pillGrid(pills); w = Math.max(w, g.w + 2*PILL.pad); h += g.h + 18; }
@@ -5369,7 +5444,7 @@ function ensureApproach(pts, a){
 
 function edgeSVG(g, uid){
   const {e, pts} = g;
-  return `<g class="edge" data-f="${e.f}" data-t="${e.t}"><path class="ln" d="${polyPath(pts)}" marker-end="url(#ar-${uid})"/></g>`;
+  return `<g class="edge" data-f="${e.f}" data-t="${e.t}"><path class="ln" d="${polyPath(pts)}"${e.both ? ` marker-start="url(#ar-${uid})"` : ''} marker-end="url(#ar-${uid})"/></g>`;
 }
 /* Labels are drawn after every line so no line ever runs through a label. */
 function edgeLabelSVG(g){
@@ -5654,6 +5729,7 @@ function legendHTML(kinds, opts={}){
     if (opts.async) h += `<span class="lg">${arrow('async', '<path d="M15,1 L22.5,5 L15,9"/>')}Async message (does not wait)</span>`;
     h += `<span class="lg">${arrow('ret', '<path d="M15,1 L22.5,5 L15,9"/>')}Return</span>`;
   }
+  for (const k of ['llm', 'inferred']) if (opts[k]) h += `<span class="lg"><span class="mark m-${k}">${MARK[k]}</span>${MARK_TEXT[k]}</span>`;
   h += `<span class="lg"><i class="sw clk"></i>Clickable</span>`;
   return h + `<span class="hint">Hover to trace · drag to pan · ⌘/Ctrl+scroll to zoom</span>`;
 }
@@ -5833,7 +5909,9 @@ function attachViewer(svg, signal){
     $$('.edge', svg).forEach(ed => {
       const on = ed.dataset.f === id || ed.dataset.t === id;
       ed.classList.toggle('hl', on);
-      ed.querySelector('.ln')?.setAttribute('marker-end', `url(#${on?'arh':'ar'}-${uid})`);
+      const ln = ed.querySelector('.ln');
+      ln?.setAttribute('marker-end', `url(#${on?'arh':'ar'}-${uid})`);
+      if (ln?.hasAttribute('marker-start')) ln.setAttribute('marker-start', `url(#${on?'arh':'ar'}-${uid})`);
       if (on) $$(`.node[data-id="${ed.dataset.f===id?ed.dataset.t:ed.dataset.f}"]`, svg).forEach(x => x.classList.add('hl'));
     });
     if (svg.classList.contains('seq')) svg.classList.remove('dim');
@@ -5846,7 +5924,7 @@ function attachViewer(svg, signal){
     const n = e.target.closest('.node, .boundary');
     if (n && !n.contains(e.relatedTarget)){
       svg.classList.remove('dim'); $$('.hl', svg).forEach(x => x.classList.remove('hl'));
-      $$('.edge .ln', svg).forEach(l => l.setAttribute('marker-end', `url(#ar-${uid})`));
+      $$('.edge .ln', svg).forEach(l => { l.setAttribute('marker-end', `url(#ar-${uid})`); if (l.hasAttribute('marker-start')) l.setAttribute('marker-start', `url(#ar-${uid})`); });
       hideTip();
     }
   });
@@ -5896,6 +5974,9 @@ $('#mxTools').innerHTML = toolsHTML();
 wireTools($('#mxTools'), () => maxState && maxState.svg);
 $('#mxClose').addEventListener('click', closeMax);
 
+/* A diagram's canvas: at most its own size plus a margin, so a small diagram stays near 1:1 (#934);
+   the stylesheet caps the height at what the screen leaves below the header. */
+const canvasFit = vb => vb ? ` style="--canvas-h:${Math.ceil(vb[3] + 24)}px;--canvas-w:${Math.ceil(vb[2] + 24)}px"` : '';
 function diagramCard(kind, key){
   const isSeq = kind === 'seq';
   const spec = isSeq ? SEQS[key] : layoutDiagram(DIAGRAMS[key]);
@@ -5904,16 +5985,24 @@ function diagramCard(kind, key){
   const ext = !isSeq && spec.nodes.some(n => n.ext);
   const boundary = !isSeq && spec.boundary ? EL[spec.boundary.id].kind : null;
   const async = isSeq && spec.s.some(st => st.k === 'async');
+  const shown = isSeq ? spec.p : spec.nodes.map(n => n.id);
+  const inferred = shown.some(id => EL[id].inferred && EL[id].desc);
+  const llm = shown.some(id => EL[id].llm) || (!isSeq && (DIAGRAMS[key].edges || []).some(e => e.llm));
   const level = isSeq ? 'SEQ' : spec.level;
   const title = isSeq ? 'Sequence diagram' : spec.title;
-  const sub = isSeq ? spec.title : spec.sub;
+  const page = PAGE[pageOf(key)];
+  const sub0 = isSeq ? spec.title : spec.sub;
+  const sub = sub0 && page && sub0 === page.title ? '' : sub0;   // never the page's title again (#934)
+  const vb = isSeq ? null : spec.vb;
+  // a small diagram is drawn at most about 1:1 (#934)
+  const fit = canvasFit(vb);
   return `<figure class="dcard" data-kind="${kind}" data-key="${key}">
     <div class="dbar">
-      <div class="dtitle"><span class="lvl">${level}</span><div><b>${esc(title)}</b><span>${esc(sub)}</span></div></div>
+      <div class="dtitle"><span class="lvl">${level}</span><div><b>${esc(title)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div></div>
       <div class="dtools">${toolsHTML()}<span class="sep"></span><button class="icon-btn" data-act="max" title="Maximize">${ICON.max}</button></div>
     </div>
-    <div class="dcanvas">${isSeq ? seqSVG(spec, key) : c4SVG(spec, key, key)}</div>
-    <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, seq:isSeq, async})}</figcaption>
+    <div class="dcanvas"${fit}>${isSeq ? seqSVG(spec, key) : c4SVG(spec, key, key)}</div>
+    <figcaption class="dlegend">${legendHTML(kinds, {ext, boundary, seq:isSeq, async, llm, inferred})}</figcaption>
   </figure>${isSeq ? '' : readabilityNote(spec)}`;
 }
 
@@ -5921,10 +6010,18 @@ function diagramCard(kind, key){
    PAGES — rendered from DATA.pages, one section at a time
    ========================================================================== */
 let currentView = 'home';
-const llmBadge = '<span class="badge b-llm" title="Found by the LLM, not by static analysis">LLM</span>';
-const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + llmBadge : ''}<small>${esc(e.tag||KIND[e.kind].label)}${e.technicalName ? ' · ' + esc(e.technicalName) : ''}</small></div></div>`; };
+const markHTML = k => `<span class="mark m-${k}" title="${MARK_TEXT[k]}">${MARK[k]}</span>`;
+const elCell = id => { const e = EL[id]; return `<div class="elname k-${e.kind}"><span class="kdot"></span><div><b>${esc(e.name)}</b>${e.llm ? ' ' + markHTML('llm') : ''}<small>${esc(e.tag||KIND[e.kind].label)}${e.technicalName ? ' · ' + esc(e.technicalName) : ''}</small></div></div>`; };
 const critBadge = c => c ? `<span class="badge ${/^(high|critical)$/i.test(c)?'b-high':/^med/i.test(c)?'b-med':'b-low'}">${esc(c)}</span>` : '';
 const statusBadge = s => `<span class="badge ${/approved|accepted|done|active/i.test(s)?'b-ok':/rejected|deprecated/i.test(s)?'b-high':'b-info'}">${esc(s)}</span>`;
+/* The commits behind the document: one short line that opens into the list (#934). */
+function analyzedHTML(d){
+  const repos = Object.entries(d.commits || {});
+  if (!repos.length) return '';
+  const when = d.updated ? `Analyzed ${esc(fmtDate(d.updated))} · ` : '';
+  return `<details class="pill analyzed"><summary>${when}${repos.length} ${repos.length === 1 ? 'repository' : 'repositories'}</summary>`
+    + `<ul>${repos.map(([r, c]) => `<li>${esc(r)} <code>${esc(c)}</code></li>`).join('')}</ul></details>`;
+}
 const fmtDate = d => { const t = Date.parse(d); return isNaN(t) ? d : new Date(t).toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'}); };
 const chip = (id, key) => { const e = EL[id], lk = linkFor(id, key); return `<a class="chip k-${e.kind}" href="${lk?lk.href:'#'}"><i></i>${esc(e.name)}</a>`; };
 
@@ -5939,7 +6036,7 @@ function columnSpec(c){
   col.cell = id => {
     const e = EL[id];
     if (k === 'name') return elCell(id);
-    if (k === 'description') return esc(e.desc);
+    if (k === 'description') return e.desc ? (e.inferred ? markHTML('inferred') + ' ' : '') + esc(e.desc) : '';
     if (k === 'technology') return esc(e.tech);
     if (k === 'kind') return esc(KIND[e.kind].label);
     if (k === 'zoom'){ const lk = linkFor(id, null); return lk && lk.drill ? `<a class="drill" href="${lk.href}">${esc(lk.sub.split(' · ')[0])} diagram ${ICON.arrow}</a>` : ''; }
@@ -5985,16 +6082,48 @@ const SECTION = {
   decisions: s => `<div class="card">${(s.items||[]).map(d => `<div class="adr"><span class="id">${esc(d.id || '')}</span><div><b>${mdInline(d.title)}</b>${d.body ? `<p>${mdInline(d.body)}</p>` : ''}</div>${d.status ? statusBadge(d.status) : '<span></span>'}</div>`).join('')}</div>`,
   table: s => {
     const sub = new Map((s.subRows || []).map(g => [g.row, g]));
-    const cells = (r, llm, toggle) => r.map((c, j) => `<td>${j === 0 ? toggle : ''}${j === 0 && llm ? llmBadge + ' ' : ''}${mdInline(c)}</td>`).join('');
-    return `<div class="tbl-wrap"><table>${(s.columns||[]).length ? `<thead><tr>${s.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}<tbody>${(s.rows||[]).map((r, i) => {
-      const g = sub.get(i);
+    const cells = (r, llm, toggle) => r.map((c, j) => `<td>${j === 0 ? toggle : ''}${j === 0 && llm ? markHTML('llm') + ' ' : ''}${mdInline(c)}</td>`).join('');
+    const rows = s.rows || [], cols = s.columns || [];
+    // a table of several rows sorts by any column; one with a severity column starts most severe first (#934)
+    const sortable = cols.length && rows.length > 1, sev = severityColumn(cols);
+    const order = sev >= 0 ? sortedRows(rows, sev, 'desc') : rows.map((_, i) => i);
+    const head = cols.length ? `<thead><tr>${cols.map((c, j) => sortable
+      ? `<th${j === sev ? ' aria-sort="descending"' : ''}><button type="button" class="th-sort" data-col="${j}">${esc(c)}<i aria-hidden="true"></i></button></th>`
+      : `<th>${esc(c)}</th>`).join('')}</tr></thead>` : '';
+    const marked = (s.llmRows || []).length || (s.subRows || []).some(g => (g.llmRows || []).length);
+    const note = marked ? `<div class="tbl-note">${markHTML('llm')} ${MARK_TEXT.llm}</div>` : '';
+    return `<div class="tbl-wrap"><table>${head}<tbody>${order.map(i => {
+      const r = rows[i], g = sub.get(i);
       if (!g) return `<tr>${cells(r, (s.llmRows || []).includes(i), '')}</tr>`;
       const ids = g.rows.map((_, k) => `${esc(s.id)}-r${i}-${k}`);
       const toggle = `<button type="button" class="row-toggle" aria-expanded="false" aria-controls="${ids.join(' ')}" data-parent-row="${i}" aria-label="The ${g.rows.length} rows under this one">▸</button>`;
       return `<tr class="row-parent">${cells(r, (s.llmRows || []).includes(i), toggle)}</tr>${g.rows.map((sr, k) => `<tr class="row-child" id="${ids[k]}" data-parent="${i}" hidden>${cells(sr, (g.llmRows || []).includes(k), '')}</tr>`).join('')}`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}</tbody></table></div>${note}`;
   },
 };
+
+/* Sorting a table (#934). A severity word ranks by how serious it is, a number or percentage by
+   its value, anything else as text; a column named for severity starts most severe first. */
+const SEVERITY_RANK = {critical:4, high:3, medium:2, med:2, moderate:2, low:1, info:0, none:0};
+function sortKey(text){
+  // marks and toggles before the text (✦, ≈, ▸) are not part of it
+  const t = String(text ?? '').replace(/[*`_]/g, '').replace(/^[^\p{L}\p{N}-]+/u, '').trim().toLowerCase();
+  if (t in SEVERITY_RANK) return [0, SEVERITY_RANK[t]];
+  const n = t.match(/^-?\d+(?:\.\d+)?(?=%?$)/);
+  return n ? [0, parseFloat(n[0])] : [1, t];
+}
+function compareKeys(a, b){
+  if (a[0] !== b[0]) return a[0] - b[0];
+  return a[0] === 0 ? a[1] - b[1] : a[1].localeCompare(b[1]);
+}
+const severityColumn = cols => cols.findIndex(c => /^(severity|impact|criticality|priority)$/i.test(String(c).trim()));
+/* The row indices in the column's order; ties keep their order and empty cells go last. */
+function sortedRows(rows, col, dir){
+  const sign = dir === 'desc' ? -1 : 1, keyed = rows.map((r, i) => [sortKey(r[col]), i]);
+  const empty = k => k[0] === 1 && k[1] === '';
+  // empty cells last, then words that are no severity or number, whatever the direction
+  return keyed.sort((a, b) => (empty(a[0]) - empty(b[0])) || (a[0][0] - b[0][0]) || sign*compareKeys(a[0], b[0]) || a[1] - b[1]).map(x => x[1]);
+}
 
 function renderSection(s, p){
   let body;
@@ -6006,6 +6135,8 @@ function renderSection(s, p){
     body = `<div class="callout tone-warning">${ICON.info}<div><b>This section couldn’t be rendered.</b><br>${esc(err.message)}</div></div>`;
   }
   if (!s.title) return `<div class="sec-cont" id="${esc(s.id)}">${body}</div>`;
+  // A diagram's card carries its title: no heading repeats it above the card (#934).
+  if (s.type === 'diagram' || s.type === 'sequence') return `<section class="sec sec-diagram" id="${esc(s.id)}" data-sec data-label="${esc(s.title)}">${body}</section>`;
   return `<section class="sec" id="${esc(s.id)}" data-sec data-label="${esc(s.title)}"><div class="sec-head">${s.eyebrow ? `<div class="eyebrow">${esc(s.eyebrow)}</div>` : ''}<h2>${esc(s.title)}<a class="anchor" href="#/${p.id}/${esc(s.id)}" aria-label="Link to section">#</a></h2></div>${body}</section>`;
 }
 
@@ -6046,7 +6177,7 @@ function renderHome(){
   const d = DATA.document || {};
   const words = String(d.title || 'Architecture').split(' '), last = words.pop();
   const pills = [d.status && `<span class="pill"><i class="dot"></i>${esc(d.status)}</span>`, d.version && `<span class="pill">Version ${esc(d.version)}</span>`,
-    d.owner && `<span class="pill">Owner · ${esc(d.owner)}</span>`, d.updated && `<span class="pill">Updated · ${esc(fmtDate(d.updated))}</span>`,
+    d.owner && `<span class="pill">Owner · ${esc(d.owner)}</span>`, analyzedHTML(d) || (d.updated && `<span class="pill">Updated · ${esc(fmtDate(d.updated))}</span>`),
     d.classification && `<span class="pill">${esc(d.classification)}</span>`].filter(Boolean).join('');
   const cards = C4_LEVELS.filter(l => pagesOf(l.id).length).map(l => {
     const ps = pagesOf(l.id);
@@ -6079,14 +6210,14 @@ function renderHome(){
       </svg>
       <div class="eyebrow">Architecture Description${d.id ? ` · ${esc(d.id)}` : ''}</div>
       <h1>${esc(words.join(' '))} <em>${esc(last)}</em></h1>
-      ${d.subtitle ? `<div class="hero-sub">${md(d.subtitle)}</div>` : ''}
+      ${d.subtitle ? `<div class="hero-sub">${d.subtitleInferred ? (md(d.subtitle).startsWith('<p>') ? md(d.subtitle).replace(/^<p>/, `<p>${markHTML('inferred')} `) : `<p>${markHTML('inferred')}</p>${md(d.subtitle)}`) : md(d.subtitle)}</div>` : ''}
       ${pills ? `<div class="page-meta">${pills}</div>` : ''}
     </section>
     ${cards ? `<section class="sec" id="contents" data-sec data-label="Contents"><div class="sec-head"><div class="eyebrow">Index</div><h2>Contents</h2></div><div class="grid g3">${cards}</div></section>` : ''}
     ${seqs ? `<section class="sec" id="sequences" data-sec data-label="Sequence Diagrams"><div class="sec-head"><div class="eyebrow">Dynamic views</div><h2>Sequence Diagrams</h2></div><div class="grid g2">${seqs}</div></section>` : ''}
     ${docs ? `<section class="sec" id="documentation" data-sec data-label="Documentation"><div class="sec-head"><div class="eyebrow">Beyond the diagrams</div><h2>Documentation</h2></div><div class="grid g2">${docs}</div></section>` : ''}
     <section class="sec" id="notation" data-sec data-label="Notation"><div class="sec-head"><div class="eyebrow">Legend</div><h2>Notation</h2></div>
-      <p>Each element type has a dedicated colour used consistently across every diagram and table. Elements with a <b style="color:var(--accent)">●</b> badge are clickable and jump to their deeper diagram or catalogue entry.</p>
+      <p>Each element type has a dedicated colour used consistently across every diagram and table. Elements with a <b style="color:var(--accent)">●</b> badge are clickable and jump to their deeper diagram or catalogue entry. ${markHTML('inferred')} marks a description inferred from the code, not written by people; ${markHTML('llm')} marks what the LLM found reading the code.</p>
       <div class="notation">${usedKinds.map(k => `<div class="card ncard">${notationArt(k)}<div><b>${KIND[k].label}</b><span>${KIND[k].desc}</span></div></div>`).join('')}
         <div class="card ncard"><svg viewBox="0 0 58 42"><rect x="5" y="6" width="48" height="30" rx="7" fill="none" stroke="var(--muted)" stroke-width="1.6" stroke-dasharray="5 4"/></svg><div><b>Outside scope</b><span>Dashed outline — shown for context, detailed elsewhere.</span></div></div></div></section>
     ${(d.revisions||[]).length ? `<section class="sec" id="revisions" data-sec data-label="Revision History"><div class="sec-head"><div class="eyebrow">Document control</div><h2>Revision History</h2></div>
@@ -6213,11 +6344,21 @@ function render(v){
   $('#content').innerHTML = `<div class="view">${html}
     <nav class="pager">${prev?`<a class="prev" href="#/${prev}"><small>← Previous</small><b>${esc(pl(prev))}</b></a>`:''}${next?`<a class="next" href="#/${next}"><small>Next →</small><b>${esc(pl(next))}</b></a>`:''}</nav>
     <footer class="footer"><span>${esc([d.title, d.id, d.version && 'v' + d.version].filter(Boolean).join(' · '))}</span><span>C4 model · c4model.com</span></footer></div>`;
+  fitCanvases();
   if (renderAC) renderAC.abort(); renderAC = new AbortController();
   $$('.dcard').forEach(card => { attachViewer($('.dcanvas svg', card), renderAC.signal); wireTools($('.dtools', card), () => $('.dcanvas svg', card) || (maxState && maxState.svg)); });
   buildTopbar(v);
   document.title = `${p ? p.title + ' — ' : ''}${d.title || 'Architecture'}`;
 }
+/* The first diagram on a page fits the screen left below the header: its canvas gets the height
+   the window has once the strip above it and the legend below it are taken off (#934). */
+function fitCanvases(){
+  const canvas = $('#content .dcanvas'); if (!canvas) return;
+  const card = canvas.closest('.dcard'), legend = $('.dlegend', card);
+  const above = canvas.getBoundingClientRect().top + scrollY, below = legend ? legend.offsetHeight : 0;
+  document.documentElement.style.setProperty('--canvas-top', Math.ceil(above + below + 14) + 'px');
+}
+addEventListener('resize', () => fitCanvases());
 function route(){
   const [rawV, s] = location.hash.replace(/^#\/?/, '').split('/');
   const v = PAGE[rawV] ? rawV : 'home';
@@ -6262,6 +6403,19 @@ addEventListener('hashchange', route);
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href^="#/"]');
   if (a && a.getAttribute('href') === location.hash){ e.preventDefault(); route(); }
+  const sorter = e.target.closest('.th-sort');
+  if (sorter){
+    const th = sorter.closest('th'), table = th.closest('table'), body = table.tBodies[0], col = +sorter.dataset.col;
+    const dir = th.getAttribute('aria-sort') === 'descending' ? 'asc' : th.getAttribute('aria-sort') === 'ascending' ? 'desc'
+      : (severityColumn([sorter.textContent]) === 0 ? 'desc' : 'asc');
+    table.querySelectorAll('th[aria-sort]').forEach(h => h.removeAttribute('aria-sort'));
+    th.setAttribute('aria-sort', dir === 'desc' ? 'descending' : 'ascending');
+    // a row moves with the rows folded under it
+    const groups = [];
+    for (const tr of [...body.rows]) tr.classList.contains('row-child') && groups.length ? groups[groups.length - 1].push(tr) : groups.push([tr]);
+    const texts = groups.map(g => [...g[0].cells].map(td => td.textContent));
+    sortedRows(texts, col, dir).forEach(i => groups[i].forEach(tr => body.appendChild(tr)));
+  }
   const t = e.target.closest('.row-toggle');
   if (t){
     const open = t.getAttribute('aria-expanded') !== 'true';

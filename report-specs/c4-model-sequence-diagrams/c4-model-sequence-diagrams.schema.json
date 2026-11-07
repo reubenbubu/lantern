@@ -35,7 +35,7 @@
     },
     "llm": {
       "type": "boolean",
-      "description": "true: found by the LLM (an analysis that read the code), not by static analysis. Shown with an LLM badge wherever it appears."
+      "description": "true: found by the LLM (an analysis that read the code), not by static analysis. Shown with a small ✦ mark, explained once in the diagram's legend; a group the LLM formed is not a finding and carries none."
     },
     "date": {
       "type": "string",
@@ -52,6 +52,8 @@
         "id": { "type": "string", "description": "Document reference, e.g. ARC-0042." },
         "title": { "type": "string", "description": "Document title. The last word is highlighted on the index page." },
         "subtitle": { "$ref": "#/$defs/markdown", "description": "Intro shown under the title on the index page." },
+        "subtitleInferred": { "type": "boolean", "description": "true: the intro's purpose was inferred from the code, not written by people (ADR 0059); shown as the small ≈ mark before it." },
+        "commits": { "type": "object", "description": "The commit each repository was analyzed at, by repository name. The index page shows a short \"Analyzed <updated> · <n> repositories\" line that opens into the list.", "additionalProperties": { "type": "string" } },
         "version": { "type": "string", "examples": ["2.5.0"] },
         "status": { "type": "string", "examples": ["Draft", "In review", "Approved"] },
         "owner": { "type": "string" },
@@ -109,6 +111,7 @@
         "technology": { "type": "string", "examples": ["Spring Boot 4 · J21", "PostgreSQL 17"] },
         "description": { "type": "string", "description": "Plain text in diagrams (wrapped and truncated to fit); Markdown-lite in tables." },
         "llm": { "$ref": "#/$defs/llm" },
+        "inferred": { "type": "boolean", "description": "true: the description was inferred from the code, not written by people (ADR 0059). Shown as a small ≈ mark before it, explained once in the diagram's legend; the description itself carries no \"Inferred:\" label." },
         "properties": {
           "type": "object",
           "description": "Free-form facts shown in catalogue tables via columns like \"properties.owner\". A key named criticality, priority or severity renders as a coloured badge (High / Medium / Low).",
