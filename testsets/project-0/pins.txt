@@ -1,3 +1,3 @@
 # The git repositories the project-0 test set is made from (docs/adr/0029-synthetic-test-set-project-0.md),
 # one "<name> <clone URL> <full commit hash>" line each. A pin is moved by editing its hash.
-lantern-project-0 https://github.com/reubenbubu/lantern-project-0.git 8497028c391174f937e73d7fe2ea66e3e673385c
+lantern-project-0 https://github.com/reubenbubu/lantern-project-0.git aa12f7a0552e3659acfaf6d90f34e8564faeee63

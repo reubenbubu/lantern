@@ -72,27 +72,30 @@ class IdentityProvidersIT {
   }
 
   @Test
-  void project1UsesKeycloakAsAnExternalSystem() throws IOException {
+  void project1UsesTheKeycloakItsComposeFileRunsAsAContainer() throws IOException {
     List<String> lines = identity("project-1");
 
     assertThat(lines)
         .contains(
             // The compose file sets each service's issuer to the keycloak container's name, which
             // is stronger than the default's localhost port the container publishes.
-            "service:com.example:bff USES_IDENTITY_PROVIDER external-system:keycloak"
+            "service:com.example:bff USES_IDENTITY_PROVIDER identity-provider:keycloak"
                 + " signs-in-users OIDC over HTTP container",
-            "service:com.example:gateway USES_IDENTITY_PROVIDER external-system:keycloak"
+            "service:com.example:gateway USES_IDENTITY_PROVIDER identity-provider:keycloak"
                 + " validates-tokens OIDC over HTTP container",
             // The issuer comes from common-security's EnvironmentPostProcessor (#333).
-            "service:com.example:order-service USES_IDENTITY_PROVIDER external-system:keycloak"
+            "service:com.example:order-service USES_IDENTITY_PROVIDER identity-provider:keycloak"
                 + " validates-tokens OIDC over HTTP container",
-            "service:com.example:profile-service USES_IDENTITY_PROVIDER external-system:keycloak"
+            "service:com.example:profile-service USES_IDENTITY_PROVIDER identity-provider:keycloak"
                 + " gets-tokens OAuth2 over HTTP container",
             "service:com.example:keycloak-admin-service USES_IDENTITY_PROVIDER"
-                + " external-system:keycloak manages-users Keycloak Admin REST over HTTP"
+                + " identity-provider:keycloak manages-users Keycloak Admin REST over HTTP"
                 + " container",
-            "external-system:keycloak display-name Keycloak",
-            "external-system:keycloak deployed-in Docker Compose (default)");
+            "identity-provider:keycloak display-name Keycloak",
+            "identity-provider:keycloak technology Keycloak 26.7.4",
+            "identity-provider:keycloak deployed-in Docker Compose (default)")
+        // The compose file runs it, so it is part of the system, not an external system (#979).
+        .noneMatch(l -> l.contains("external-system:keycloak"));
   }
 
   @Test
@@ -185,7 +188,8 @@ class IdentityProvidersIT {
                 + TestAttributes.texts(f, "with")
                 + " uses="
                 + TestAttributes.texts(f, "uses"));
-      } else if (f.subject().type().equals(Types.EXTERNAL_SYSTEM)) {
+      } else if (f.subject().type().equals(Types.EXTERNAL_SYSTEM)
+          || f.subject().type().equals(Types.IDENTITY_PROVIDER)) {
         lines.add(line);
       }
     }

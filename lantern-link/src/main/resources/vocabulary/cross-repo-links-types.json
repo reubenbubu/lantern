@@ -52,7 +52,7 @@
     "name": "external-system",
     "kind": "entity",
     "parent": "system",
-    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host has a domain and names no unit, from the mail server a unit's config names (spring.mail.host), or from the identity provider a unit's config or code names (ADR 0085). Its key is the host, such as sandbox.paygate.example.com or smtp.gmail.com, or for an identity provider a deployment runs, its product (keycloak); the hosts the same call reaches under other profiles are separate systems, named by the call's alternates.",
+    "description": "A software system outside the snapshot that a unit calls, found from a URL whose host has a domain and names no unit, from the mail server a unit's config names (spring.mail.host), or from the identity provider a unit's config or code names on such a host (ADR 0085). Its key is the host, such as sandbox.paygate.example.com or smtp.gmail.com; the hosts the same call reaches under other profiles are separate systems, named by the call's alternates.",
     "attributeSchema": {
       "additionalProperties": false
     }
@@ -119,6 +119,15 @@
     "kind": "entity",
     "parent": "container",
     "description": "A service discovery, config or tracing server outside the snapshot that a unit's config connects to. Its key is its host and port, such as config:8888. It is a container, a server that runs, though diagrams keep infrastructure apart from the business dependencies.",
+    "attributeSchema": {
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "identity-provider",
+    "kind": "entity",
+    "parent": "container",
+    "description": "An identity provider the system's own deployment runs, such as Keycloak in its compose file or Helm chart, which units' config or code names (ADR 0085, amendment for #979): a container of the system, not an external system. Its key is the product, such as keycloak; its display-name is the product and its technology the product with the versions its containers run.",
     "attributeSchema": {
       "additionalProperties": false
     }

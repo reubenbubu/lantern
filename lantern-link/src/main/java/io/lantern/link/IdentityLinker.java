@@ -36,10 +36,12 @@ import tools.jackson.databind.node.ObjectNode;
  * Links units to the identity providers their config and code name (ADR 0085): the issuers, JWK
  * sets and OAuth2 providers of {@code spring.security.oauth2.*} and keys like them, Keycloak's
  * adapter and admin client. A provider that is a unit of the snapshot (an auth service serving its
- * JWKS) is linked to that unit; one a deployment runs from an identity provider's image (Keycloak
- * in compose) is an external system named after the product; one on a host with a domain is the
- * external system of that host. Each link is a {@code USES_IDENTITY_PROVIDER} with what the unit
- * does with the provider ({@code purpose}).
+ * JWKS) is linked to that unit; one the system's own deployment runs from an identity provider's
+ * image (Keycloak in compose, Dex in a Helm chart) is a container of the system, an {@code
+ * identity-provider} named after the product, with the versions its containers run as its
+ * technology (amendment for #979); one on a host with a domain is the external system of that host.
+ * Each link is a {@code USES_IDENTITY_PROVIDER} with what the unit does with the provider ({@code
+ * purpose}).
  *
  * <p>It also records the JWT secrets units share ({@code shared-secret}, for the findings page):
  * units whose HMAC keys for JWTs come from the same unresolved placeholder, the same config value
@@ -85,7 +87,7 @@ final class IdentityLinker {
   private final AddressAnswers addresses;
   private final Deployments deployments;
 
-  /** The identity provider containers each external system found from them is deployed in. */
+  /** The deployment containers each identity provider found from them is deployed in. */
   private final Map<EntityId, Map<String, Container>> deployed = new TreeMap<>(LinkIndex.BY_TEXT);
 
   IdentityLinker(
@@ -105,11 +107,11 @@ final class IdentityLinker {
       secrets(view);
     }
     deployed.forEach(
-        (system, containers) -> {
+        (provider, containers) -> {
           Container first = containers.values().iterator().next();
           out.add(
               Fact.create(
-                  system,
+                  provider,
                   Types.DISPLAY_NAME,
                   FactObject.string(first.product()),
                   FactJson.newObject(),
@@ -117,9 +119,19 @@ final class IdentityLinker {
                   first.fact().evidence(),
                   first.fact().confidence(),
                   validity));
+          out.add(
+              Fact.create(
+                  provider,
+                  Types.TECHNOLOGY,
+                  FactObject.string(Deployments.technology(first.product(), containers.values())),
+                  FactJson.newObject(),
+                  origin,
+                  first.fact().evidence(),
+                  first.fact().confidence(),
+                  validity));
           containers
               .values()
-              .forEach(c -> out.add(Deployments.deployedIn(system, c, origin, validity)));
+              .forEach(c -> out.add(Deployments.deployedIn(provider, c, origin, validity)));
         });
   }
 
@@ -289,7 +301,10 @@ final class IdentityLinker {
   // ---------------------------------------------------------------------------------------------
   // Where a provider's URL leads
 
-  /** What a URL reaches: a unit's or external system's entity, how, and the fact it is by. */
+  /**
+   * What a URL reaches: a unit's, identity provider container's or external system's entity, how,
+   * and the fact it is by.
+   */
   private record Reached(
       EntityId target, String matchedBy, double factor, Fact by, String path, String url) {
 
@@ -314,13 +329,29 @@ final class IdentityLinker {
     // identity provider containers.
     List<Answer> answers = new ArrayList<>(addresses.answers(asking, unit, view, value, written));
     answers.sort(Comparator.comparing((Answer a) -> a.filledBy() == null));
+    Reached first = null;
     for (Answer answer : answers) {
       Reached reached = reach(unit, view, answer);
-      if (reached != null) {
-        return reached;
+      if (reached == null) {
+        continue;
+      }
+      if (first == null) {
+        first = reached;
+      }
+      // Each deployment's own container of the provider the link reaches: a Keycloak that compose
+      // and a Kubernetes manifest each run is one provider, deployed in both, at both versions.
+      if (reached.target().equals(first.target())
+          && reached.target().type().equals(Types.IDENTITY_PROVIDER)) {
+        for (Container c : deployments.all()) {
+          if (c.fact().equals(reached.by())) {
+            deployed
+                .computeIfAbsent(first.target(), s -> new TreeMap<>())
+                .putIfAbsent(c.fact().id(), c);
+          }
+        }
       }
     }
-    return null;
+    return first;
   }
 
   private Reached reach(Unit unit, String view, Answer answer) {
@@ -390,11 +421,13 @@ final class IdentityLinker {
     return products.size() == 1 ? provider(found.getFirst(), "published-port") : null;
   }
 
-  /** The external system of an identity provider a deployment runs, named after its product. */
+  /**
+   * The identity provider a deployment of the system runs, a container of the system keyed and
+   * named by its product (amendment for #979).
+   */
   private Reached provider(Container c, String matchedBy) {
-    EntityId system = new EntityId(Types.EXTERNAL_SYSTEM, Deployments.normalized(c.product()));
-    deployed.computeIfAbsent(system, s -> new TreeMap<>()).putIfAbsent(c.fact().id(), c);
-    return new Reached(system, matchedBy, BY_CONTAINER, c.fact(), null, null);
+    EntityId provider = new EntityId(Types.IDENTITY_PROVIDER, Deployments.normalized(c.product()));
+    return new Reached(provider, matchedBy, BY_CONTAINER, c.fact(), null, null);
   }
 
   /**

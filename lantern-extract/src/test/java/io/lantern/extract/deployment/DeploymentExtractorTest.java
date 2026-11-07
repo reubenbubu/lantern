@@ -58,6 +58,27 @@ class DeploymentExtractorTest {
     assertThat(Image.of("postgres:17.5-alpine3.22").technology()).isEqualTo("PostgreSQL 17.5");
     assertThat(Image.of("rabbitmq:3-management").technology()).isEqualTo("RabbitMQ 3");
     assertThat(Image.of("quay.io/keycloak/keycloak:26.0").role()).isEqualTo("identity");
+    // The identity providers' documented images (#979).
+    assertThat(Image.of("ghcr.io/goauthentik/server:2025.2.1").technology())
+        .isEqualTo("Authentik 2025.2.1");
+    assertThat(Image.of("ghcr.io/dexidp/dex:v2.41.1").technology()).isEqualTo("Dex 2.41.1");
+    assertThat(Image.of("oryd/hydra:v2.2.0").technology()).isEqualTo("Ory Hydra 2.2.0");
+    assertThat(Image.of("oryd/kratos:v1.3.1").technology()).isEqualTo("Ory Kratos 1.3.1");
+    assertThat(Image.of("ghcr.io/zitadel/zitadel:v2.66.0").technology())
+        .isEqualTo("ZITADEL 2.66.0");
+    assertThat(Image.of("authelia/authelia:4.38").technology()).isEqualTo("Authelia 4.38");
+    for (String image :
+        List.of(
+            "ghcr.io/goauthentik/server:2025.2.1",
+            "ghcr.io/dexidp/dex:v2.41.1",
+            "oryd/hydra:v2.2.0",
+            "oryd/kratos:v1.3.1",
+            "ghcr.io/zitadel/zitadel:v2.66.0",
+            "authelia/authelia:4.38")) {
+      assertThat(Image.of(image).role()).as(image).isEqualTo("identity");
+    }
+    // Another vendor's server image is not Authentik.
+    assertThat(Image.of("acme/server:1")).isNull();
     assertThat(Image.of("redis@sha256:abc")).isNotNull();
     assertThat(Image.of("aappaa/auth-service:develop")).isNull();
     assertThat(Image.of("${IMAGE}")).isNull();
