@@ -75,6 +75,18 @@ class GroupsAndFindingsShownTest {
   }
 
   @Test
+  void aComponentInAGroupIsNamedByItsMainTypeNeverByItsKey() {
+    // #933's real run: a feature area of components read "Holds service:…/type:…Controller".
+    assertThat(
+            Assembler.named(
+                io.lantern.core.fact.EntityId.parse(
+                    "component:service:io.fleetcare:billing-service/type:io.fleetcare.billing.Credit")))
+        .isEqualTo(io.lantern.core.fact.EntityId.parse("type:io.fleetcare.billing.Credit"));
+    assertThat(Assembler.named(io.lantern.core.fact.EntityId.parse("service:g:shop")))
+        .isEqualTo(io.lantern.core.fact.EntityId.parse("service:g:shop"));
+  }
+
+  @Test
   void aGroupNameTheSupportJudgeRejectedGivesWayToTheNameTheCodeGivesIt() {
     List<Fact> facts = domains(TestFacts.runtime());
     Fact member = membership(facts, SECOND);

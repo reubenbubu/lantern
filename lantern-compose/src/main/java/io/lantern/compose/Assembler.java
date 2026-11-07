@@ -177,6 +177,20 @@ final class Assembler {
     return modules.isEmpty() ? id : modules.first();
   }
 
+  /**
+   * The entity a member is named by: a component by its main type ("CreditNoteController"), never
+   * by its key (#933's real run); anything else as it is.
+   */
+  static EntityId named(EntityId member) {
+    if (member.type().equals(Types.COMPONENT)) {
+      int slash = member.key().indexOf('/');
+      if (slash > 0) {
+        return EntityId.parse(member.key().substring(slash + 1));
+      }
+    }
+    return member;
+  }
+
   /** What follows the name of a group no role named. */
   static final String NOT_NAMED = " (not named)";
 
@@ -1080,7 +1094,7 @@ final class Assembler {
     if (id.type().equals(Types.GROUP)) {
       List<Fact> members = model.groupMembers(id);
       SortedSet<String> names = new TreeSet<>();
-      members.forEach(f -> names.add(ReadableNames.of(name(ArchitectureModel.object(f)))));
+      members.forEach(f -> names.add(ReadableNames.of(name(named(ArchitectureModel.object(f))))));
       if (names.isEmpty()) {
         return new Text(List.of(), List.of());
       }
