@@ -322,8 +322,6 @@ public final class UnknownCallers implements LinkRule.OverFacts {
    * read when the check first needs it, as before, and kept for the other entry points.
    */
   private static final class Link {
-    private static final String UNREAD = new String("unread");
-
     private final Fact fact;
     private final String object;
     private final Set<String> followed;
@@ -352,12 +350,10 @@ public final class UnknownCallers implements LinkRule.OverFacts {
     }
 
     String attribute(String name) {
-      String value = attributes.getOrDefault(name, UNREAD);
-      if (value == UNREAD) {
-        value = UnknownCallers.attribute(fact, name);
-        attributes.put(name, value);
+      if (!attributes.containsKey(name)) {
+        attributes.put(name, UnknownCallers.attribute(fact, name));
       }
-      return value;
+      return attributes.get(name);
     }
   }
 
