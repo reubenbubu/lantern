@@ -61,14 +61,23 @@ judge, and ADR 0101 (amendment for #751) then left the box without a sentence.
 
 ## Amendment for #944: lines into one box with one label
 
-Lines from several boxes into one target with the same label say what each does there: a
-component's data access names the tables it reads or writes, or the types its repositories are for
-("Reads orders", "Reads unpaid invoices", not "Keeps shop data" twice), and a line of method calls
-its method that no other of those lines calls, in words ("requestDiagnosticSnapshot" is "Requests
-diagnostic snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle vin": at most five
-words, no ordering or locking clause). A line of one method reads so whether or not another
-shares its label. Lines nothing tells apart (one method called from two places) keep their label,
-and the C4 report's quality report fails on them: "No two lines into one box share a label".
+Lines from several boxes into one target with the same label say what each does there:
+
+- A component's data access into a relational store (its technology names SQL, PostgreSQL, Oracle,
+  MariaDB, H2, DB2, Derby, HSQL, CockroachDB or JDBC; never a cache or a NoSQL store, whose lines
+  keep the unit's phrase) names the tables it reads or writes, or the types its repositories are
+  for, as many: "Reads orders" and "Reads unpaid invoices", not "Keeps shop data" twice. This
+  replaces the unit's intent Describe stored for the store on those lines only; at most two
+  names, then "and others", within 45 characters.
+- A line of method calls names what only it calls: one method in words ("requestDiagnosticSnapshot"
+  is "Requests diagnostic snapshot", "findByVehicleVinOrderByCreatedAtDesc" "Finds by vehicle
+  vin", acronyms kept, at most five words, no ordering, locking or trailing condition words),
+  several by their verbs; a line calling nothing the others do not keeps its label.
+
+A line of one method reads as that method in words whether or not another shares its label. Lines
+nothing tells apart (one method called from two places) keep their label, and on a component
+diagram the C4 report's quality report fails on them: "No two lines into one box share a label".
+Container views are not checked: several units may well publish to one broker with one purpose.
 
 ## Consequences
 

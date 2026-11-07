@@ -810,7 +810,10 @@ class C4ViewsTest {
     assertThat(C4Views.described("findByVehicleVinOrderByCreatedAtDesc"))
         .contains("Finds by vehicle vin");
     assertThat(C4Views.described("findTop100ByPublishedAtIsNull"))
-        .contains("Finds by published at is");
+        .contains("Finds by published at");
+    assertThat(C4Views.described("sendSMSAlert")).contains("Sends SMS alert");
+    assertThat(C4Views.described("findOrderByNumber")).contains("Finds order by number");
+    assertThat(C4Views.described("markAllAsRead")).contains("Marks all as read");
     assertThat(C4Views.described("findByIdForUpdate")).contains("Finds by id");
     assertThat(C4Views.described("summary")).isEmpty();
   }

@@ -491,12 +491,14 @@ final class QualityBar {
     if (!routes.isEmpty()) {
       fail(PURPOSE, target, "Labelled with routes: " + names(routes) + ".");
     }
-    // #944: lines from several boxes into one with one label do not say what each does there.
+    // #944: lines from several components into one box with one label do not say what each does
+    // there; on a container view several units may well do the same with one broker.
     Map<String, List<String>> same = new java.util.TreeMap<>();
     for (Diagram.Edge edge : diagram.edges()) {
-      if (edge.label() != null) {
+      if (edge.label() != null && diagram.diagramKind() == Diagram.Kind.C4_COMPONENT) {
         same.computeIfAbsent(
-                labels.get(edge.to()) + " (\"" + edge.label() + "\")", k -> new ArrayList<>())
+                edge.to() + " " + labels.get(edge.to()) + " (\"" + edge.label() + "\")",
+                k -> new ArrayList<>())
             .add(labels.get(edge.from()));
       }
     }
@@ -504,7 +506,7 @@ final class QualityBar {
     same.forEach(
         (into, from) -> {
           if (from.size() > 1) {
-            shared.add(names(from) + " to " + into);
+            shared.add(names(from) + " to " + into.substring(into.indexOf(' ') + 1));
           }
         });
     if (!shared.isEmpty()) {
