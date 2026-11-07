@@ -786,41 +786,45 @@ final class C4Views {
 
   private static final Set<String> ACCESS = Set.of("Reads", "Writes", "Reads and writes");
 
+  /** The longest label a line told apart by what it touches may have. */
+  private static final int MAX_LABEL = 45;
+
   /** Technologies of a store with tables. */
   private static final Pattern RELATIONAL =
       Pattern.compile(
-          "(?i)sql|postgres|oracle|maria|\\bh2\\b|db2|derby|hsql|cockroach|sql server|jdbc");
+          "(?i)(?<!no)sql|postgres|oracle|maria|\\bh2\\b|db2|derby|hsql|cockroach|jdbc");
 
   /** What one line of a same-label group does there, or its label if nothing tells. */
   private static String apart(EdgeBuilder edge, String label, Set<String> others) {
-    String[] words = label.split("\\s+", 2);
     if (edge.plain != null && ACCESS.contains(edge.plain) && !edge.touches.isEmpty()) {
       List<String> touched = new ArrayList<>(edge.touches);
       String text =
           touched.size() == 1
               ? touched.getFirst()
-              : touched.size() <= 3
-                  ? String.join(", ", touched.subList(0, touched.size() - 1))
-                      + " and "
-                      + touched.getLast()
-                  : String.join(", ", touched.subList(0, 2)) + " and others";
-      return edge.plain + " " + text;
-    }
-    if (edge.plain != null && ACCESS.contains(edge.plain) && words.length == 2) {
-      return words[0].equalsIgnoreCase(edge.plain) ? label : edge.plain + " " + words[1];
+              : touched.size() == 2
+                  ? touched.getFirst() + " and " + touched.getLast()
+                  : touched.getFirst() + ", " + touched.get(1) + " and others";
+      String told = edge.plain + " " + text;
+      return told.length() <= MAX_LABEL
+          ? told
+          : edge.plain + " " + touched.getFirst() + " and others";
     }
     if (!edge.details.isEmpty()
         && edge.details.stream().allMatch(d -> METHOD.matcher(d).matches())) {
-      // The first method only this line calls, else its first.
-      String method =
-          edge.details.stream()
-              .filter(d -> !others.contains(d))
-              .findFirst()
-              .orElse(edge.details.iterator().next());
-      return described(method).orElse(label);
+      // What only this line calls: one method in words, several by their verbs; nothing only it
+      // calls, its label.
+      List<String> own = edge.details.stream().filter(d -> !others.contains(d)).toList();
+      if (own.isEmpty()) {
+        return label;
+      }
+      return (own.size() == 1 ? described(own.getFirst()) : actions(own)).orElse(label);
     }
     return label;
   }
+
+  private static final Set<String> QUERY_WORDS =
+      Set.of(
+          "is", "not", "null", "in", "like", "between", "and", "or", "true", "false", "containing");
 
   /**
    * A method's name as what it does (#944): "requestDiagnosticSnapshot" is "Requests diagnostic
@@ -828,24 +832,46 @@ final class C4Views {
    * no ordering or locking clause; empty unless it starts with a known verb.
    */
   static Optional<String> described(String method) {
-    String[] parts = method.split("(?=[A-Z])|(?<=[a-z])(?=[0-9])");
+    String[] parts =
+        method.split("(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])|(?<=[a-z])(?=[0-9])");
     if (parts.length == 0 || !VERBS.contains(parts[0])) {
       return Optional.empty();
     }
     List<String> words = new ArrayList<>(List.of(thirdPerson(parts[0])));
-    for (int i = 1; i < parts.length && words.size() < 5; i++) {
-      String word = parts[i].toLowerCase(Locale.ROOT);
+    boolean by = false;
+    for (int i = 1; i < parts.length; i++) {
+      String part = parts[i];
+      String word = part.matches("[A-Z0-9]{2,}") ? part : part.toLowerCase(Locale.ROOT);
       String next = i + 1 < parts.length ? parts[i + 1].toLowerCase(Locale.ROOT) : "";
-      if ((word.equals("order") && next.equals("by"))
+      // Spring Data's ordering and locking clauses, never an entity called Order.
+      if ((by && word.equals("order") && next.equals("by"))
           || (word.equals("for") && next.equals("update"))
           || word.equals("desc")
           || word.equals("asc")) {
         break;
       }
-      if (word.matches("top|first|distinct|all|\\d+")) {
+      // A query's limit right after its verb ("findTop10", "findFirst").
+      if (i == 1
+          && word.matches("top|first|distinct|all")
+          && Set.of("find", "get", "read", "query", "count", "search", "load").contains(parts[0])) {
         continue;
       }
+      if (word.matches("\\d+")) {
+        continue;
+      }
+      by |= word.equals("by");
       words.add(word);
+    }
+    // A query's condition words say nothing alone at its end ("… published at is null").
+    while (words.size() > 1 && QUERY_WORDS.contains(words.getLast())) {
+      words.removeLast();
+    }
+    if (words.size() > 5) {
+      words = new ArrayList<>(words.subList(0, 5));
+      while (words.size() > 1
+          && (QUERY_WORDS.contains(words.getLast()) || words.getLast().equals("by"))) {
+        words.removeLast();
+      }
     }
     String text = String.join(" ", words);
     return Optional.of(Character.toUpperCase(text.charAt(0)) + text.substring(1));

@@ -528,7 +528,7 @@ class QualityBarTest {
     Diagram diagram =
         new Diagram(
             "d",
-            Diagram.Kind.C4_CONTAINER,
+            Diagram.Kind.C4_COMPONENT,
             "Containers of Shop",
             List.of(
                 node(SYSTEM, "Shop", null),
@@ -542,7 +542,17 @@ class QualityBarTest {
 
     assertThat(failedOn(diagram, QualityBar.DISTINCT))
         .containsExactly("d: Lines with one label: shop and audit to pay (\"Takes payment\").");
-    assertThat(failedOn(containers("shop", "Takes payment", "pay", "Java"), QualityBar.DISTINCT))
+    // On a container view several units may do the same with one box.
+    assertThat(
+            failedOn(
+                new Diagram(
+                    "d",
+                    Diagram.Kind.C4_CONTAINER,
+                    diagram.title(),
+                    diagram.nodes(),
+                    diagram.edges(),
+                    List.of()),
+                QualityBar.DISTINCT))
         .isEmpty();
   }
 

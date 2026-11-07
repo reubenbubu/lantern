@@ -350,12 +350,19 @@ public final class ArchitectureModel {
           continue;
         }
         String key = object(basis).key();
-        String last = key.substring(key.replaceAll("[.:/#]", " ").lastIndexOf(' ') + 1);
+        String last = key.substring(key.replaceAll("[.:/#$]", " ").lastIndexOf(' ') + 1);
         String words =
-            last.replaceAll("([a-z0-9])([A-Z])", "$1 $2").replace('_', ' ').replace('-', ' ');
-        if (!words.isBlank()) {
-          names.add(words.strip().toLowerCase(java.util.Locale.ROOT));
+            last.replaceAll("([a-z0-9])([A-Z])", "$1 $2")
+                .replace('_', ' ')
+                .replace('-', ' ')
+                .strip()
+                .toLowerCase(java.util.Locale.ROOT);
+        if (words.isBlank()) {
+          continue;
         }
+        // A repository's type names one ("work order"), a table many ("work orders"): many.
+        boolean type = !object(basis).type().equals("table");
+        names.add(type && !words.endsWith("s") ? words + "s" : words);
       }
     }
     return List.copyOf(names);
