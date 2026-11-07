@@ -1286,7 +1286,8 @@ class Project0EndToEndIT {
 
     Map<String, Long> kinds = new TreeMap<>();
     data.get("elements").forEach(e -> kinds.merge(e.get("kind").asString(), 1L, Long::sum));
-    // Four units; the catalog and shop databases (the local profile's localhost one is a note);
+    // Four units and the Keycloak compose runs, a container of the system (DEP-5, #979); the
+    // catalog and shop databases (the local profile's localhost one is a note);
     // the shop.orders, shop.returns, shop.parcels, shop.cancellations and shop.disputes exchanges
     // (their queues folded into their lines; the last three from #734's open links), the
     // storefront.order-status fanout exchange storefront-app hears itself on (MSG-10), two JMS
@@ -1300,7 +1301,7 @@ class Project0EndToEndIT {
             new TreeMap<>(
                 Map.of(
                     "component", 31L,
-                    "container", 4L,
+                    "container", 5L,
                     "database", 2L,
                     "external", 3L,
                     // The Unknown caller (#766).
