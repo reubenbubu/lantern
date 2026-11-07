@@ -181,39 +181,9 @@ public final class C4ReportRenderer {
   /** The entity types drawn as containers whose build names may be technical (#933). */
   private static final Set<String> CONTAINER_TYPES = Set.of("service", "frontend");
 
-  /** Acronyms a technical name may hold, written in capitals when made readable. */
-  private static final Set<String> ACRONYMS =
-      Set.of("api", "bff", "ui", "sms", "sla", "crm", "iot", "sso", "id", "db", "mq", "ai", "ml");
-
-  private static final java.util.regex.Pattern TECHNICAL =
-      java.util.regex.Pattern.compile("[a-z0-9]+(?:[-_][a-z0-9]+)+");
-
-  /**
-   * A container's name as words (#933): "edge-gateway" is "Edge gateway", "customer-portal-bff" is
-   * "Customer portal BFF"; a name already in words, or not a container, as it is.
-   */
+  /** A container's name in words ({@link io.lantern.compose.ReadableNames}); any other as it is. */
   static String readable(String kind, String name) {
-    if (!"container".equals(kind) || name == null || !TECHNICAL.matcher(name).matches()) {
-      return name;
-    }
-    String[] words = name.split("[-_]");
-    StringBuilder out = new StringBuilder();
-    for (String word : words) {
-      if (word.isEmpty()) {
-        continue;
-      }
-      String shown =
-          ACRONYMS.contains(word) || (word.length() <= 4 && !word.matches(".*[aeiouy].*"))
-              ? word.toUpperCase(java.util.Locale.ROOT)
-              : word;
-      if (out.isEmpty()) {
-        shown = Character.toUpperCase(shown.charAt(0)) + shown.substring(1);
-      } else {
-        out.append(' ');
-      }
-      out.append(shown);
-    }
-    return out.toString();
+    return "container".equals(kind) ? io.lantern.compose.ReadableNames.of(name) : name;
   }
 
   private static final List<String> DEFAULT_COLUMNS = List.of("name", "description", "technology");

@@ -472,9 +472,69 @@ class QualityBarTest {
         .isEmpty();
   }
 
+  private static Diagram containers(String shopName, String label, String payName, String payTech) {
+    return new Diagram(
+        "d",
+        Diagram.Kind.C4_CONTAINER,
+        "Containers of Shop",
+        List.of(
+            node(SYSTEM, "Shop", null),
+            node(SHOP, shopName, "Spring Boot", SHOP_UNIT),
+            node(PAY, payName, payTech, PAY_UNIT)),
+        List.of(edge("e1", SHOP, PAY, label, "JSON/HTTP", CALL)),
+        List.of());
+  }
+
+  private List<String> failedOn(Diagram diagram, String check) {
+    return failed(document("c4-model-sequence-diagrams", "a", section("s", "S", diagram)), check);
+  }
+
   @Test
-  void aBoxOrPageNameOverFortyCharactersFails() {
-    String longName = "workorder (billing.datasource.workorders.url)";
+  void aLabelListingRoutesFails() {
+    assertThat(
+            failedOn(
+                containers("shop", "Calls GET /orders, POST /charges and 3 more", "pay", "Java"),
+                QualityBar.PURPOSE))
+        .containsExactly(
+            "d: Labelled with routes: shop to pay (\"Calls GET /orders, POST /charges and 3"
+                + " more\").");
+    assertThat(failedOn(containers("shop", "Takes payment", "pay", "Java"), QualityBar.PURPOSE))
+        .isEmpty();
+  }
+
+  @Test
+  void aLabelNamingTheBoxItPointsToFails() {
+    assertThat(
+            failedOn(
+                containers("shop", "Keeps payments in PostgreSQL", "pay", "PostgreSQL 17"),
+                QualityBar.END_NAMED))
+        .containsExactly(
+            "d: Labels naming the box they point to: shop to pay (\"Keeps payments in"
+                + " PostgreSQL\").");
+    assertThat(
+            failedOn(
+                containers("shop", "Takes payment through the pay service", "pay", "Java"),
+                QualityBar.END_NAMED))
+        .hasSize(1);
+    assertThat(
+            failedOn(
+                containers("shop", "Keeps payments", "pay", "PostgreSQL"), QualityBar.END_NAMED))
+        .isEmpty();
+  }
+
+  @Test
+  void aServiceNamedOnlyAsBuiltFails() {
+    // A build's name of words reads as words in the report; one the report cannot read fails.
+    assertThat(
+            failedOn(
+                containers("com.example.shop", "Takes payment", "pay-service", "Java"),
+                QualityBar.READABLE))
+        .containsExactly("d: Named only as built: com.example.shop.");
+  }
+
+  @Test
+  void aBoxOrPageNameOverAboutFortyCharactersFails() {
+    String longName = "workorder (billing.datasource.workorders.jdbc-url)";
     Diagram withLongBox =
         new Diagram(
             "d",

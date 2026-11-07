@@ -113,6 +113,20 @@ class C4ViewsTest {
   }
 
   @Test
+  void aLineOfMethodsWithNoPurposeSaysWhatTheyDoNotTheirNames() {
+    // #933: never "Calls approve, complete and 2 more".
+    assertThat(C4Views.actions(List.of("approve", "complete", "findOpen", "reviewQueue")))
+        .contains("Approves, completes and finds");
+    assertThat(C4Views.actions(List.of("findByCustomerIdAndActiveTrue", "findByIdAndActiveTrue")))
+        .contains("Finds");
+    assertThat(C4Views.actions(List.of("amountReserved", "create", "query")))
+        .contains("Creates and queries");
+    // None starts with a verb, or a detail is not a method: left to the line's other wording.
+    assertThat(C4Views.actions(List.of("summary", "dueAt"))).isEmpty();
+    assertThat(C4Views.actions(List.of("GET /orders"))).isEmpty();
+  }
+
+  @Test
   void aLabelDoesNotNameTheEndItPointsTo() {
     // #933: the line already points to the box that says PostgreSQL, Keycloak or edge-gateway.
     assertThat(

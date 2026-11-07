@@ -63,8 +63,11 @@ final class C4Views {
   static final String NOT_RECORDED = "Not recorded.";
 
   /** The most participants a sequence diagram shows (docs/design.md, Sequence diagrams). */
-  /** The longest name a box or page may have (#933). */
-  static final int MAX_NAME = 40;
+  /**
+   * The longest name a box or page may have (#933): "about 40 characters", room for a flow title's
+   * five words (prompts/flow-narrative.task.txt) and no more.
+   */
+  static final int MAX_NAME = 45;
 
   static final int MAX_PARTICIPANTS = 15;
 
@@ -337,6 +340,11 @@ final class C4Views {
       List<String> about =
           details.stream().allMatch(d -> d.contains("/")) ? resources(details) : List.of();
       if (about.isEmpty()) {
+        // Methods with no stated purpose: what they do, never the list of their names (#933).
+        Optional<String> done = actions(details);
+        if (done.isPresent()) {
+          return done.get();
+        }
         List<String> named = new ArrayList<>(details);
         String text = String.join(", ", named.subList(0, Math.min(NAMED, named.size())));
         if (named.size() > NAMED) {
@@ -360,6 +368,113 @@ final class C4Views {
       }
       return "Works with " + text;
     }
+  }
+
+  /** Verbs a method's name may start with, in the form a label reads them. */
+  private static final Set<String> VERBS =
+      Set.of(
+          "find",
+          "get",
+          "load",
+          "fetch",
+          "list",
+          "search",
+          "query",
+          "read",
+          "count",
+          "create",
+          "add",
+          "save",
+          "store",
+          "insert",
+          "update",
+          "change",
+          "delete",
+          "remove",
+          "approve",
+          "reject",
+          "complete",
+          "cancel",
+          "close",
+          "open",
+          "start",
+          "stop",
+          "record",
+          "request",
+          "review",
+          "decide",
+          "send",
+          "publish",
+          "notify",
+          "check",
+          "validate",
+          "verify",
+          "apply",
+          "assign",
+          "mark",
+          "reserve",
+          "release",
+          "refund",
+          "issue",
+          "process",
+          "handle",
+          "submit",
+          "compute",
+          "calculate",
+          "register",
+          "schedule",
+          "book",
+          "charge",
+          "pay",
+          "post",
+          "track",
+          "import",
+          "export",
+          "sync",
+          "resolve",
+          "dispatch",
+          "lock",
+          "unlock",
+          "confirm",
+          "renew");
+
+  private static final Pattern METHOD = Pattern.compile("[a-z][A-Za-z0-9]*");
+
+  /**
+   * What a line's methods do (#933): "approve, complete and findOpen" is "Approves, completes and
+   * finds", the verbs their names start with, in order, once each, at most three; empty if a detail
+   * is not a method's name or none starts with a verb.
+   */
+  static Optional<String> actions(java.util.Collection<String> details) {
+    java.util.LinkedHashSet<String> verbs = new java.util.LinkedHashSet<>();
+    for (String detail : details) {
+      if (!METHOD.matcher(detail).matches()) {
+        return Optional.empty();
+      }
+      String first = detail.split("(?=[A-Z0-9])")[0];
+      if (VERBS.contains(first)) {
+        verbs.add(thirdPerson(first));
+      }
+    }
+    if (verbs.isEmpty()) {
+      return Optional.empty();
+    }
+    List<String> shown = new ArrayList<>(verbs).subList(0, Math.min(3, verbs.size()));
+    String text =
+        shown.size() == 1
+            ? shown.getFirst()
+            : String.join(", ", shown.subList(0, shown.size() - 1)) + " and " + shown.getLast();
+    return Optional.of(Character.toUpperCase(text.charAt(0)) + text.substring(1));
+  }
+
+  private static String thirdPerson(String verb) {
+    if (verb.matches(".*(s|sh|ch|x|z|o)")) {
+      return verb + "es";
+    }
+    if (verb.matches(".*[^aeiou]y")) {
+      return verb.substring(0, verb.length() - 1) + "ies";
+    }
+    return verb + "s";
   }
 
   /**
@@ -397,8 +512,12 @@ final class C4Views {
    * Redis, Keycloak, Kafka), not a version or a generic word.
    */
   private List<String> endNames(EntityId end) {
+    return endNames(assembler.name(end), elements.technology(end));
+  }
+
+  /** The ways a label may name a box of this name and technology; see {@link #endNames}. */
+  static List<String> endNames(String name, String technology) {
     java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
-    String name = assembler.name(end);
     if (name != null && !name.isBlank()) {
       names.add(name);
       names.add(name.replace('-', ' '));
@@ -410,7 +529,6 @@ final class C4Views {
         names.add(last);
       }
     }
-    String technology = elements.technology(end);
     if (technology != null) {
       for (String part : technology.split("[/,·()]")) {
         String word = part.strip().split("\\s+")[0];
