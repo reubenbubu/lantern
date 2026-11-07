@@ -1,6 +1,6 @@
 # 0059: Evidenced and inferred purpose in summaries
 
-Status: accepted (#193), amends ADRs 0010 and 0025, amended by ADR 0061 (#77) and ADR 0066 (#192), amended by ADR 0104 (#665: the purpose is computed, never marked by the model), amended for #934 (the C4 report marks inferred text with an icon)
+Status: accepted (#193), amends ADRs 0010 and 0025, amended by ADR 0061 (#77) and ADR 0066 (#192), amended by ADR 0104 (#665: the purpose is computed, never marked by the model), amended for #934 (the C4 report marks inferred text with an icon), amended for #960 (the system in focus carries no LLM mark)
 
 ## Context
 
@@ -75,3 +75,7 @@ cut, and it opened almost every description; the mark keeps the distinction at t
 character. The same review dropped the "LLM ·" badge: what the LLM found carries a small ✦ mark,
 explained in the legend the same way, and a group the LLM formed (a domain or feature area) carries
 none, since grouping is how the report is arranged, not a finding.
+
+## Amendment (#960): the system in focus carries no LLM mark
+
+The system box on project-8's context view read "✦ Software system", because every fact it cited (risks Investigate found about the whole system) came from the LLM. The system in focus is the one the user named for analysis, never something the LLM found, so it carries no mark, as a group does not. A finding about it is marked where the finding itself is shown (the risks table).
