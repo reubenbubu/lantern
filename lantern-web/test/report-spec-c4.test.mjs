@@ -47,12 +47,17 @@ test('folded rows must hang under a row the table has, once, and mark only their
 });
 
 // The template's table renderer, loaded from its source with stand-ins for what it calls.
+const source = readFileSync(`${specDir}${spec}.html`, 'utf8');
 const tableRenderer = new Function(
   'esc',
   'mdInline',
-  'llmBadge',
-  `return {${readFileSync(`${specDir}${spec}.html`, 'utf8').match(/^ {2}table: s => \{[\s\S]*?^ {2}\},$/m)[0]}}.table;`,
-)((t) => String(t), (t) => String(t), '[LLM]');
+  'markHTML',
+  'MARK_TEXT',
+  ['SEVERITY_RANK', 'severityColumn'].map((n) => source.match(new RegExp(`^const ${n} = .*$`, 'm'))[0]).join('\n') +
+    '\n' +
+    ['sortKey', 'compareKeys', 'sortedRows'].map((n) => source.match(new RegExp(`^function ${n}[\\s\\S]*?^\\}`, 'm'))[0]).join('\n') +
+    `\nreturn {${source.match(/^ {2}table: s => \{[\s\S]*?^ {2}\},$/m)[0]}}.table;`,
+)((t) => String(t), (t) => String(t), () => '[LLM]', { llm: 'Found by the LLM' });
 
 test('a parent row shows a toggle and its folded rows hidden beneath it; a plain row has none (#747)', () => {
   const html = tableRenderer({
@@ -70,6 +75,20 @@ test('a parent row shows a toggle and its folded rows hidden beneath it; a plain
   assert.match(html, /<tr class="row-child" id="risks-r1-0" data-parent="1" hidden><td>\[LLM\] Medium<\/td><td>First<\/td><\/tr>/);
   assert.match(html, /<tr class="row-child" id="risks-r1-1" data-parent="1" hidden><td>\[LLM\] Low<\/td><td>Second<\/td><\/tr>/);
   assert.equal(html.match(/row-toggle/g).length, 1);
+  assert.match(html, /<div class="tbl-note">\[LLM\] Found by the LLM<\/div>/);
+});
+
+test('a table with a severity column starts most severe first and sorts by any column (#934)', () => {
+  const html = tableRenderer({
+    id: 'risks',
+    columns: ['Impact', 'Finding'],
+    rows: [['Low', 'Logs kept'], ['High', 'Open admin'], ['Medium', 'No dead letters']],
+  });
+  assert.deepEqual([...html.matchAll(/<tr><td>(\w+)<\/td>/g)].map((m) => m[1]), ['High', 'Medium', 'Low']);
+  assert.match(html, /<th aria-sort="descending"><button type="button" class="th-sort" data-col="0">Impact/);
+  assert.match(html, /<th><button type="button" class="th-sort" data-col="1">Finding/);
+  assert.doesNotMatch(tableRenderer({ id: 'one', columns: ['A'], rows: [['x']] }), /th-sort/);
+  assert.doesNotMatch(html, /tbl-note/);
 });
 
 // mdInline is the template's Markdown-lite formatter; load it from the template source.
@@ -329,4 +348,35 @@ test('a page must name an existing page as its parent, and no page may be its ow
   cycle.pages[0].parent = second.id;
   cycle.pages[1].parent = first.id;
   assert.ok(reportSpecIssues(spec, cycle).some((i) => i.includes('its own ancestor')));
+});
+
+// Sorting a table (#934), loaded from the template source.
+const { sortedRows, severityColumn } = new Function(
+  `${template.match(/^const SEVERITY_RANK = .*$/m)[0]}\n` +
+    `${template.match(/^function sortKey[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^function compareKeys[\s\S]*?^\}/m)[0]}\n` +
+    `${template.match(/^const severityColumn = .*$/m)[0]}\n` +
+    `${template.match(/^function sortedRows[\s\S]*?^\}/m)[0]}\n` +
+    'return {sortedRows, severityColumn};',
+)();
+
+test('a table sorts by any column: severity by how serious, numbers by value, text as text (#934)', () => {
+  const rows = [
+    ['Low', 'Logs are kept forever', '40%'],
+    ['Critical', 'Payments are not idempotent', '90%'],
+    ['Medium', 'A queue has no dead letters', '7%'],
+    ['High', 'Admin endpoints are open', '75%'],
+  ];
+  const columns = ['Impact', 'Finding', 'Confidence'];
+  assert.equal(severityColumn(columns), 0);
+  assert.equal(severityColumn(['Finding', 'Evidence']), -1);
+  assert.deepEqual(sortedRows(rows, 0, 'desc'), [1, 3, 2, 0]);
+  assert.deepEqual(sortedRows(rows, 0, 'asc'), [0, 2, 3, 1]);
+  assert.deepEqual(sortedRows(rows, 2, 'asc'), [2, 0, 3, 1]);
+  assert.deepEqual(sortedRows(rows, 1, 'asc'), [2, 3, 0, 1]);
+  // a mark or toggle before the word does not hide it; an empty cell goes last either way
+  assert.deepEqual(sortedRows([['✦ Low'], ['▸✦ High'], ['']], 0, 'desc'), [1, 0, 2]);
+  assert.deepEqual(sortedRows([[''], ['50%'], ['7%']], 0, 'desc'), [1, 2, 0]);
+  // ties keep the order they had
+  assert.deepEqual(sortedRows([['High', 'b'], ['High', 'a']], 0, 'desc'), [0, 1]);
 });

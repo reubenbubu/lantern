@@ -242,16 +242,23 @@ ul.ticks li{position:relative;padding-left:22px;margin:6px 0;color:var(--text-2)
 ul.ticks li::before{content:'';position:absolute;left:3px;top:.62em;width:7px;height:7px;border-radius:2px;background:var(--accent);opacity:.75;transform:rotate(45deg)}
 
 /* tables */
+.th-sort{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.th-sort:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.th-sort i::after{content:'↕';opacity:.35;font-style:normal}
+th[aria-sort="ascending"] .th-sort i::after{content:'↑';opacity:1}
+th[aria-sort="descending"] .th-sort i::after{content:'↓';opacity:1}
+.tbl-note{font-size:12px;color:var(--muted);margin:6px 2px 0}
 .row-toggle{border:none;background:none;cursor:pointer;color:var(--muted);padding:0 .35rem 0 0;font:inherit;display:inline-block;transition:transform .15s}
 .row-toggle[aria-expanded="true"]{transform:rotate(90deg)}
 .row-child td{background:var(--s2)}
 .row-child td:first-child{padding-left:1.6rem}
 @media print{.row-child[hidden]{display:table-row}.row-toggle{display:none}}
 .tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
+table{width:100%;border-collapse:collapse;font-size:13px;line-height:1.45}
 th{font:600 10.5px var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--muted);text-align:left;
-  padding:11px 16px;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:13px 16px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text-2)}
+  padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text-2)}
+td code{overflow-wrap:anywhere;white-space:normal;font-size:11.5px}
 tr:last-child td{border-bottom:0}
 tbody tr{transition:background .15s}
 tbody tr:hover{background:color-mix(in srgb,var(--surface-2) 60%,transparent)}
@@ -6007,16 +6014,47 @@ const SECTION = {
   decisions: s => `<div class="card">${(s.items||[]).map(d => `<div class="adr"><span class="id">${esc(d.id || '')}</span><div><b>${mdInline(d.title)}</b>${d.body ? `<p>${mdInline(d.body)}</p>` : ''}</div>${d.status ? statusBadge(d.status) : '<span></span>'}</div>`).join('')}</div>`,
   table: s => {
     const sub = new Map((s.subRows || []).map(g => [g.row, g]));
-    const cells = (r, llm, toggle) => r.map((c, j) => `<td>${j === 0 ? toggle : ''}${j === 0 && llm ? llmBadge + ' ' : ''}${mdInline(c)}</td>`).join('');
-    return `<div class="tbl-wrap"><table>${(s.columns||[]).length ? `<thead><tr>${s.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}<tbody>${(s.rows||[]).map((r, i) => {
-      const g = sub.get(i);
+    const cells = (r, llm, toggle) => r.map((c, j) => `<td>${j === 0 ? toggle : ''}${j === 0 && llm ? markHTML('llm') + ' ' : ''}${mdInline(c)}</td>`).join('');
+    const rows = s.rows || [], cols = s.columns || [];
+    // a table of several rows sorts by any column; one with a severity column starts most severe first (#934)
+    const sortable = cols.length && rows.length > 1, sev = severityColumn(cols);
+    const order = sev >= 0 ? sortedRows(rows, sev, 'desc') : rows.map((_, i) => i);
+    const head = cols.length ? `<thead><tr>${cols.map((c, j) => sortable
+      ? `<th${j === sev ? ' aria-sort="descending"' : ''}><button type="button" class="th-sort" data-col="${j}">${esc(c)}<i aria-hidden="true"></i></button></th>`
+      : `<th>${esc(c)}</th>`).join('')}</tr></thead>` : '';
+    const marked = (s.llmRows || []).length || (s.subRows || []).some(g => (g.llmRows || []).length);
+    const note = marked ? `<div class="tbl-note">${markHTML('llm')} ${MARK_TEXT.llm}</div>` : '';
+    return `<div class="tbl-wrap"><table>${head}<tbody>${order.map(i => {
+      const r = rows[i], g = sub.get(i);
       if (!g) return `<tr>${cells(r, (s.llmRows || []).includes(i), '')}</tr>`;
       const ids = g.rows.map((_, k) => `${esc(s.id)}-r${i}-${k}`);
       const toggle = `<button type="button" class="row-toggle" aria-expanded="false" aria-controls="${ids.join(' ')}" data-parent-row="${i}" aria-label="The ${g.rows.length} rows under this one">▸</button>`;
       return `<tr class="row-parent">${cells(r, (s.llmRows || []).includes(i), toggle)}</tr>${g.rows.map((sr, k) => `<tr class="row-child" id="${ids[k]}" data-parent="${i}" hidden>${cells(sr, (g.llmRows || []).includes(k), '')}</tr>`).join('')}`;
-    }).join('')}</tbody></table></div>`;
+    }).join('')}</tbody></table></div>${note}`;
   },
 };
+
+/* Sorting a table (#934). A severity word ranks by how serious it is, a number or percentage by
+   its value, anything else as text; a column named for severity starts most severe first. */
+const SEVERITY_RANK = {critical:4, high:3, medium:2, med:2, moderate:2, low:1, info:0, none:0};
+function sortKey(text){
+  // marks and toggles before the text (✦, ≈, ▸) are not part of it
+  const t = String(text ?? '').replace(/[*`_]/g, '').replace(/^[^\p{L}\p{N}-]+/u, '').trim().toLowerCase();
+  if (t in SEVERITY_RANK) return [0, SEVERITY_RANK[t]];
+  const n = t.match(/^-?\d+(?:\.\d+)?(?=%?$)/);
+  return n ? [0, parseFloat(n[0])] : [1, t];
+}
+function compareKeys(a, b){
+  if (a[0] !== b[0]) return a[0] - b[0];
+  return a[0] === 0 ? a[1] - b[1] : a[1].localeCompare(b[1]);
+}
+const severityColumn = cols => cols.findIndex(c => /^(severity|impact|criticality|priority)$/i.test(String(c).trim()));
+/* The row indices in the column's order; ties keep their order and empty cells go last. */
+function sortedRows(rows, col, dir){
+  const sign = dir === 'desc' ? -1 : 1, keyed = rows.map((r, i) => [sortKey(r[col]), i]);
+  const empty = k => k[0] === 1 && k[1] === '';
+  return keyed.sort((a, b) => (empty(a[0]) - empty(b[0])) || sign*compareKeys(a[0], b[0]) || a[1] - b[1]).map(x => x[1]);
+}
 
 function renderSection(s, p){
   let body;
@@ -6296,6 +6334,19 @@ addEventListener('hashchange', route);
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href^="#/"]');
   if (a && a.getAttribute('href') === location.hash){ e.preventDefault(); route(); }
+  const sorter = e.target.closest('.th-sort');
+  if (sorter){
+    const th = sorter.closest('th'), table = th.closest('table'), body = table.tBodies[0], col = +sorter.dataset.col;
+    const dir = th.getAttribute('aria-sort') === 'descending' ? 'asc' : th.getAttribute('aria-sort') === 'ascending' ? 'desc'
+      : (severityColumn([sorter.textContent]) === 0 ? 'desc' : 'asc');
+    table.querySelectorAll('th[aria-sort]').forEach(h => h.removeAttribute('aria-sort'));
+    th.setAttribute('aria-sort', dir === 'desc' ? 'descending' : 'ascending');
+    // a row moves with the rows folded under it
+    const groups = [];
+    for (const tr of [...body.rows]) tr.classList.contains('row-child') && groups.length ? groups[groups.length - 1].push(tr) : groups.push([tr]);
+    const texts = groups.map(g => [...g[0].cells].map(td => td.textContent));
+    sortedRows(texts, col, dir).forEach(i => groups[i].forEach(tr => body.appendChild(tr)));
+  }
   const t = e.target.closest('.row-toggle');
   if (t){
     const open = t.getAttribute('aria-expanded') !== 'true';
