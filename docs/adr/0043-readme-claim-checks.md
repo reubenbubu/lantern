@@ -52,7 +52,10 @@ tables" (DB-5). The design leaves open which claims are checked, how, and what a
   - `database-technology`: the claim's sentences name exactly one database (PostgreSQL, MySQL,
     MariaDB, Oracle, SQL Server, H2, HSQLDB, Derby, Db2, SQLite), not negated. Contradicted when
     the units use databases and none of them, in any view, is of that kind; a datasource whose
-    technology is unknown means no contradiction.
+    technology is unknown means no contradiction. The kind is the product alone: a version the
+    deployment's image adds (`PostgreSQL 15.8`, `Redis 7.4.4 / 8.4.0`) is left out, so
+    "PostgreSQL" agrees with `PostgreSQL 15.8` and only another product contradicts it; versions
+    are compared only by the Java and Spring Boot checks (#971, step version 3).
   - `broker-technology`: likewise for Kafka, RabbitMQ and ActiveMQ/Artemis, against the units'
     `PUBLISHES` and `CONSUMES` protocols (`Kafka`, `AMQP`, `JMS`) and `USES_BROKER` technologies.
   - `java-version` and `spring-boot-version`: the claim states exactly one version, compared on the parts it gives with the units'

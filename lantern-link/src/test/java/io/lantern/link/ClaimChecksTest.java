@@ -449,6 +449,51 @@ class ClaimChecksTest {
   }
 
   @Test
+  void aNamedDatabaseAgreesWithTheSameProductAtAnyVersion() {
+    unit("orders", "orders", "src/main/java/g/App.java");
+    claim("orders", "README.md", "Orders are stored in PostgreSQL.");
+    link(
+        "orders",
+        "orders",
+        Types.USES_DATABASE,
+        "database:db:5432/orders",
+        "{\"technology\":\"PostgreSQL 15.8\"}",
+        1.0);
+
+    assertThat(derive()).isEmpty();
+  }
+
+  @Test
+  void aNamedDatabaseOfAnotherProductIsContradictedByAVersionedOne() {
+    unit("orders", "orders", "src/main/java/g/App.java");
+    claim("orders", "README.md", "Orders are stored in MySQL.");
+    link(
+        "orders",
+        "orders",
+        Types.USES_DATABASE,
+        "database:db:5432/orders",
+        "{\"technology\":\"PostgreSQL 15.8\"}",
+        1.0);
+
+    List<Fact> derived = derive();
+
+    assertThat(derived).hasSize(1);
+    assertThat(derived.getFirst().object().value()).isEqualTo(ClaimChecks.DATABASE_TECHNOLOGY);
+    assertThat(derived.getFirst().attributes().get("stated").asString()).isEqualTo("MySQL");
+    assertThat(derived.getFirst().attributes().get("found").toString())
+        .isEqualTo("[\"PostgreSQL 15.8\"]");
+  }
+
+  @Test
+  void aFoundTechnologysProductDropsTheVersionsItsDeploymentAdds() {
+    assertThat(ClaimChecks.product("PostgreSQL 15.8")).isEqualTo("PostgreSQL");
+    assertThat(ClaimChecks.product("Redis 7.4.4 / 8.4.0")).isEqualTo("Redis");
+    assertThat(ClaimChecks.product("SQL Server")).isEqualTo("SQL Server");
+    assertThat(ClaimChecks.product("Db2")).isEqualTo("Db2");
+    assertThat(ClaimChecks.product("Kafka 3.7.0")).isEqualTo("Kafka");
+  }
+
+  @Test
   void aNamedBrokerTheUnitsDoNotUseIsContradicted() {
     unit("orders", "orders", "src/main/java/g/App.java");
     claim("orders", "README.md", "Order events are published to Kafka.");

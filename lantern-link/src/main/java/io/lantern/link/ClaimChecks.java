@@ -57,7 +57,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
   public static final String NAME = "claim-checks";
 
   /** The step's version; change it whenever the facts it produces change. */
-  public static final String VERSION = "2";
+  public static final String VERSION = "3";
 
   /** The source recorded on the vocabulary revision that adds this step's types. */
   public static final String VOCABULARY_SOURCE = "claim-checks";
@@ -443,7 +443,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
     Set<String> found = new TreeSet<>();
     for (Fact f : uses) {
       String technology = Claims.of(f, UsesDatabaseAttributes.class).technology();
-      if (technology == null || technology.equalsIgnoreCase(stated)) {
+      if (technology == null || product(technology).equalsIgnoreCase(stated)) {
         return;
       }
       found.add(technology);
@@ -473,7 +473,7 @@ public final class ClaimChecks implements LinkRule.OverFacts {
               case Types.PUBLISHES -> Claims.of(f, PublishesAttributes.class).protocol();
               default -> Claims.of(f, ConsumesAttributes.class).protocol();
             };
-        if (kind == null || accepted.contains(kind.toLowerCase(Locale.ROOT))) {
+        if (kind == null || accepted.contains(product(kind).toLowerCase(Locale.ROOT))) {
           return;
         }
         messaging.add(f);
@@ -484,6 +484,18 @@ public final class ClaimChecks implements LinkRule.OverFacts {
       out.add(new Contradiction(BROKER_TECHNOLOGY, stated, found, sorted(messaging)));
     }
   }
+
+  /**
+   * A found technology without the versions its deployment adds ({@code PostgreSQL 15.8}, {@code
+   * Redis 7.4.4 / 8.4.0}): a claim names the product, and only the Java and Spring Boot checks
+   * compare versions (#971).
+   */
+  static String product(String technology) {
+    return TECHNOLOGY_VERSIONS.matcher(technology).replaceFirst("");
+  }
+
+  private static final Pattern TECHNOLOGY_VERSIONS =
+      Pattern.compile("(?:\\s+v?\\d[\\w.+-]*(?:\\s*/\\s*v?\\d[\\w.+-]*)*)$");
 
   /** "Runs on Java 17": the units are built for another Java release. */
   private static void javaVersion(
