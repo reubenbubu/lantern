@@ -791,7 +791,7 @@ class C4ViewsTest {
   }
 
   @Test
-  void aUnitWhoseSentenceTheJudgeRejectedShowsNoDescriptionNotItsModulesSummary() {
+  void aUnitWhoseSentenceTheJudgeRejectedShowsPlainWordingNotItsModulesSummary() {
     EntityId module = EntityId.parse("module:com.example:app");
     String packaging = facts.find("module:com.example:app", "packaging").id();
     Map<EntityId, io.lantern.summarize.Summary> summaries =
@@ -820,14 +820,17 @@ class C4ViewsTest {
         new Composer("1")
             .compose(ViewDefinition.c4Report("shop.c4", "shop", TEMPLATE), SNAPSHOT, held);
 
-    // Rejected though asked again: its name, kind and technology only (#751).
+    // Rejected though asked again: Lantern's plain wording, never its module's summary, which may
+    // share the rejected claims (#751), and never nothing (#933).
     DocumentEntity app =
         document.entities().stream()
             .filter(e -> e.id().toString().equals("service:com.example:app"))
             .findFirst()
             .orElseThrow();
     assertThat(app.name()).isEqualTo("shop-app");
-    assertThat(app.description()).isEmpty();
+    assertThat(String.valueOf(app.description()))
+        .doesNotContain("Serves orders")
+        .startsWith("[TextRun[text=A deployable unit that ");
   }
 
   @Test

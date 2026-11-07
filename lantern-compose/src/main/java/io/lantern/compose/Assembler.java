@@ -144,8 +144,11 @@ final class Assembler {
         || id.type().equals(Types.FRONTEND)
         // An element only Investigate found, by the connections it found (ADR 0110).
         || (responsibility(id) == null && foundOnlyByTheInvestigator(id))
-        // A domain or feature area a diagram draws, by what Name groups wrote of it (ADR 0107).
-        || (id.type().equals(Types.GROUP) && responsibility(id) != null)
+        // A domain or feature area a diagram draws, by what Name groups wrote of it (ADR 0107),
+        // else by its members (#933).
+        || id.type().equals(Types.GROUP)
+        // A unit whose sentence the support judge rejected, by Lantern's plain wording (#933).
+        || (described.contains(id) && model.rejected(id, Types.RESPONSIBILITY))
         // The Unknown caller, marked unknown (#766).
         || id.equals(UnknownCallers.CALLER)) {
       undescribed.add(id);
@@ -667,10 +670,9 @@ final class Assembler {
                               : responsibility != null
                                   ? responsibility(entity.id(), responsibility).content()
                                   // A box whose sentence the support judge rejected, though
-                                  // asked again, shows its name, kind and technology only (#751).
-                                  : model.rejected(entity.id(), Types.RESPONSIBILITY)
-                                      ? List.<Inline>of()
-                                      : summarizedDescription(entity.id()).content();
+                                  // asked again, or that has none, shows Lantern's plain
+                                  // wording, never nothing (#933).
+                                  : plain(entity.id()).content();
       entities.put(
           entity.id(),
           new DocumentEntity(
@@ -1005,6 +1007,65 @@ final class Assembler {
       content.add(TextRun.of(text.substring(at)));
     }
     return content;
+  }
+
+  /**
+   * Lantern's plain wording for a box with no sentence that holds (#933; ADR 0101, amendment for
+   * #751): a group by its members; a unit by its module's summary, else by what it calls, uses and
+   * sends; never nothing a diagram could show as a blank box.
+   */
+  private Text plain(EntityId id) {
+    if (id.type().equals(Types.GROUP)) {
+      List<Fact> members = model.groupMembers(id);
+      SortedSet<String> names = new TreeSet<>();
+      members.forEach(f -> names.add(name(ArchitectureModel.object(f))));
+      if (names.isEmpty()) {
+        return new Text(List.of(), List.of());
+      }
+      List<String> ids = facts(members.subList(0, Math.min(6, members.size())));
+      return new Text(List.of(TextRun.of("Holds " + listed(names) + "."), new Citation(ids)), ids);
+    }
+    // A module's summary stands in for a unit with no sentence, never for one the judge rejected,
+    // whose claims it may share (#751).
+    if (!model.rejected(id, Types.RESPONSIBILITY) && model.summary(summarized(id)).isPresent()) {
+      return summarizedDescription(id);
+    }
+    List<String> parts = new ArrayList<>();
+    List<Fact> cited = new ArrayList<>();
+    for (String[] kind :
+        new String[][] {
+          {Types.CALLS_HTTP, "calls"}, {Types.USES_DATABASE, "uses"}, {Types.PUBLISHES, "sends to"}
+        }) {
+      SortedSet<String> to = new TreeSet<>();
+      for (Fact link : model.linksOf(id, kind[0])) {
+        to.add(name(ArchitectureModel.object(link)));
+        if (cited.size() < 6) {
+          cited.add(link);
+        }
+      }
+      if (!to.isEmpty()) {
+        parts.add(kind[1] + " " + listed(to));
+      }
+    }
+    if (parts.isEmpty()) {
+      return new Text(List.of(), List.of());
+    }
+    List<String> ids = facts(cited);
+    return new Text(
+        List.of(
+            TextRun.of("A deployable unit that " + listed(new ArrayList<>(parts)) + "."),
+            new Citation(ids)),
+        ids);
+  }
+
+  /** The names as a sentence list: "a", "a and b", "a, b and c". */
+  private static String listed(java.util.Collection<String> names) {
+    List<String> list = new ArrayList<>(names);
+    if (list.size() == 1) {
+      return list.getFirst();
+    }
+    String last = list.removeLast();
+    return String.join(", ", list) + " and " + last;
   }
 
   /**

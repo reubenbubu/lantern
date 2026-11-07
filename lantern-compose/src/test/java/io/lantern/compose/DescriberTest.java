@@ -617,18 +617,20 @@ class DescriberTest {
   }
 
   @Test
-  void aSentenceTheSupportJudgeRejectedLeavesTheBoxWithoutOneAndNothingIsMarked() {
+  void aSentenceTheSupportJudgeRejectedLeavesTheBoxPlainWordingAndNothingIsMarked() {
     TestTexts.Written wordings =
         TestTexts.written(describe(new FakeLlmProvider().answering(DescriberTest::answer)))
             .withUnsupported(Set.of(APP));
 
     Document document = system(wordings);
 
-    // The box keeps its name, kind and technology, with no sentence; no document shows a support
-    // mark (the owner's decision of 4 Nov 2026 on #751).
+    // The box shows Lantern's plain wording of what it connects to, never nothing (#933); no
+    // document shows a support mark (the owner's decision of 4 Nov 2026 on #751).
     DocumentEntity app =
         document.entities().stream().filter(e -> e.id().equals(APP)).findFirst().orElseThrow();
-    assertThat(app.description()).isEmpty();
+    assertThat(text(app.description()))
+        .isEqualTo(
+            "A deployable unit that calls pay.example.com, uses shop on db and sends to orders.");
     assertThat(app.name()).isEqualTo("shop-app");
     assertThat(String.valueOf(document)).doesNotContain("Not supported by its sources");
     DocumentEntity database =
